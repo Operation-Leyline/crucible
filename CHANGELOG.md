@@ -43,7 +43,7 @@ version's section when it is prepared.
   type definition from a member's name; links in comments and strings;
   signature help for annotations and `paginated(..)`; and range formatting.
 - `crucible-lsp` searches the workspace folders for packages in the
-  background (12 levels and 20,000 directories at most, skipping hidden,
+  background (12 levels and 20,000 directories per folder at most, skipping hidden,
   `target`, `node_modules`, `build`, `out` and `dist` directories), compiles
   them between requests and keeps them compiled, so workspace symbols,
   references and rename work with no file open. It registers file watchers

@@ -864,3 +864,112 @@ fn nested_and_deleted_packages_stay_current() {
     );
     client.stop();
 }
+
+/// The namespace each workspace symbol named `name` comes from.
+fn containers(client: &mut Client, name: &str) -> Vec<String> {
+    let symbols = client.request("workspace/symbol", json!({ "query": name }));
+    let mut out: Vec<String> = symbols
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|symbol| symbol["name"] == name)
+        .map(|symbol| symbol["containerName"].as_str().unwrap().to_owned())
+        .collect();
+    out.sort();
+    out
+}
+
+fn eventually(client: &mut Client, name: &str, want: &[&str]) -> Vec<String> {
+    let mut got = Vec::new();
+    for _ in 0..100 {
+        got = containers(client, name);
+        if got == want {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    got
+}
+
+#[test]
+fn a_nested_manifest_changes_what_the_outer_package_compiles() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-nested-manifest");
+    let _ = std::fs::remove_dir_all(&root);
+    let inner = root.join("inner");
+    std::fs::create_dir_all(&inner).unwrap();
+    std::fs::write(
+        root.join("crucible.toml"),
+        "[model]\nnamespace = \"example.outer\"\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("a.cru"), "structure Outer {}\n").unwrap();
+    std::fs::write(inner.join("b.cru"), "structure Inner {}\n").unwrap();
+    let mut client = Client::start_with(json!({
+        "rootUri": uri(&root),
+        "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
+    }));
+    // Without its own manifest, `inner/` is part of the outer package.
+    assert_eq!(
+        eventually(&mut client, "Inner", &["example.outer"]),
+        ["example.outer"]
+    );
+
+    // Its manifest appears: the outer package lets go of it.
+    let manifest = inner.join("crucible.toml");
+    std::fs::write(&manifest, "[model]\nnamespace = \"example.inner\"\n").unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&manifest), "type": 1 }] }),
+    );
+    assert_eq!(
+        eventually(&mut client, "Inner", &["example.inner"]),
+        ["example.inner"]
+    );
+
+    // And goes again: the outer package takes it back.
+    std::fs::remove_file(&manifest).unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&manifest), "type": 3 }] }),
+    );
+    assert_eq!(
+        eventually(&mut client, "Inner", &["example.outer"]),
+        ["example.outer"]
+    );
+    client.stop();
+}
+
+#[test]
+fn a_package_discovery_finds_is_one_whose_changes_are_seen() {
+    // `Build` is not `build` on every file system: discovery searches it, so
+    // the watcher must not ignore it either.
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-cased");
+    let _ = std::fs::remove_dir_all(&root);
+    let dir = root.join("Build").join("api");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("crucible.toml"),
+        "[model]\nnamespace = \"example.cased\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("a.cru"), "structure First {}\n").unwrap();
+    let mut client = Client::start_with(json!({
+        "rootUri": uri(&root),
+        "capabilities": { "workspace": { "didChangeWatchedFiles": { "dynamicRegistration": true } } },
+    }));
+    let first = client.symbols_eventually("first", |names| !names.is_empty());
+    if first.is_empty() {
+        // A case-insensitive file system: `Build` is `build`, which
+        // discovery skips, and the watcher agrees.
+        client.stop();
+        return;
+    }
+    std::fs::write(dir.join("a.cru"), "structure Second {}\n").unwrap();
+    client.notify(
+        "workspace/didChangeWatchedFiles",
+        json!({ "changes": [{ "uri": uri(&dir.join("a.cru")), "type": 2 }] }),
+    );
+    let second = client.symbols_eventually("second", |names| !names.is_empty());
+    assert_eq!(second, ["Second"]);
+    client.stop();
+}

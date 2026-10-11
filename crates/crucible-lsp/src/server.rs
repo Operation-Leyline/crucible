@@ -37,7 +37,7 @@ use lsp_types::{
     SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelp, SignatureHelpOptions,
     SignatureInformation, SymbolInformation, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions, TextDocumentSyncSaveOptions, TextEdit,
-    TypeDefinitionProviderCapability, Url, WorkspaceEdit, WorkspaceSymbolResponse,
+    TypeDefinitionProviderCapability, Url, WatchKind, WorkspaceEdit, WorkspaceSymbolResponse,
 };
 use serde_json::Value;
 
@@ -140,9 +140,16 @@ pub const SHOW_REFERENCES: &str = "crucible.showReferences";
 /// version control hold copies, not the user's models.
 const SKIPPED_DIRS: &[&str] = &["target", "node_modules", "build", "out", "dist"];
 
+/// Whether discovery skips a directory with this name. Discovery and the
+/// file watcher ask the same question about the same spelling, so a package
+/// discovery finds is one whose changes are seen.
+fn skipped(name: &str) -> bool {
+    name.starts_with('.') || SKIPPED_DIRS.contains(&name)
+}
+
 /// How deep below a workspace folder packages are looked for, and how many
-/// directories at most: a folder as large as a home directory is searched
-/// in bounded time, in the background.
+/// directories at most in each folder: a folder as large as a home
+/// directory is searched in bounded time, in the background.
 const DISCOVERY_DEPTH: usize = 12;
 const DISCOVERY_BUDGET: usize = 20_000;
 
@@ -174,7 +181,7 @@ fn discover(
         .filter(|path| {
             path.file_name()
                 .and_then(|name| name.to_str())
-                .is_some_and(|name| !name.starts_with('.') && !SKIPPED_DIRS.contains(&name))
+                .is_some_and(|name| !skipped(name))
         })
         .collect();
     children.sort();
@@ -304,7 +311,13 @@ impl Server {
                 glob_pattern: GlobPattern::String(pattern.to_owned()),
                 kind: None,
             })
-            .collect();
+            // A deleted folder is reported as the folder, which the globs
+            // above do not match: deletions of anything are wanted.
+            .chain(std::iter::once(FileSystemWatcher {
+                glob_pattern: GlobPattern::String("**/*".to_owned()),
+                kind: Some(WatchKind::Delete),
+            }))
+            .collect::<Vec<_>>();
             let params = RegistrationParams {
                 registrations: vec![Registration {
                     id: "crucible-watched-files".into(),
@@ -325,11 +338,16 @@ impl Server {
         let (sender, receiver) = crossbeam_channel::unbounded();
         let roots = self.roots.clone();
         std::thread::spawn(move || {
-            let mut budget = DISCOVERY_BUDGET;
+            // Each folder gets its own budget: a large first folder must not
+            // leave the others unsearched.
             for root in roots {
-                discover(&root, DISCOVERY_DEPTH, &mut budget, &mut |dir| {
+                let mut budget = DISCOVERY_BUDGET;
+                let listening = discover(&root, DISCOVERY_DEPTH, &mut budget, &mut |dir| {
                     sender.send(dir.to_path_buf()).is_ok()
                 });
+                if !listening && budget > 0 {
+                    break;
+                }
             }
         });
         self.discovery = Some(receiver);
@@ -338,6 +356,10 @@ impl Server {
 
     /// A package the background search found: remember it and queue it.
     fn found(&mut self, dir: &Path) {
+        // The search may report a package a watched change has removed since.
+        if !is_package(dir) {
+            return;
+        }
         let key = normalize(dir);
         self.spelling.insert(key.clone(), dir.to_path_buf());
         if !self.packages.contains(&key) {
@@ -354,6 +376,14 @@ impl Server {
             }
         }
         Ok(())
+    }
+
+    /// The nearest compiled unit around `path`.
+    fn enclosing_unit(&self, path: &Path) -> Option<PathBuf> {
+        path.ancestors()
+            .skip(1)
+            .map(normalize)
+            .find(|dir| self.units.contains_key(dir))
     }
 
     /// Records where an open document's unit is on disk, as it is spelled.
@@ -387,18 +417,18 @@ impl Server {
             let key = normalize(&path);
             // Build output and dependencies below a workspace folder hold
             // copies, as discovery knows; above it, names are the user's.
-            let below_root = self.roots.iter().find_map(|root| {
-                key.strip_prefix(normalize(root))
-                    .ok()
-                    .map(Path::to_path_buf)
-            });
-            if below_root.is_some_and(|relative| {
-                relative.components().any(|part| {
-                    part.as_os_str()
-                        .to_str()
-                        .is_some_and(|name| name.starts_with('.') || SKIPPED_DIRS.contains(&name))
-                })
-            }) {
+            // Compared as spelled, as discovery compares them.
+            let depth = self
+                .roots
+                .iter()
+                .find(|root| key.starts_with(normalize(root)))
+                .map(|root| root.components().count());
+            if let Some(depth) = depth
+                && path
+                    .components()
+                    .skip(depth)
+                    .any(|part| part.as_os_str().to_str().is_some_and(skipped))
+            {
                 continue;
             }
             let is_file = path
@@ -424,6 +454,11 @@ impl Server {
                 for unit in gone {
                     push(&mut dirty, unit);
                 }
+                // The package around it too: a release or an empty source
+                // directory may have gone with it.
+                if let Some(unit) = self.enclosing_unit(&path) {
+                    push(&mut dirty, unit);
+                }
                 manifests = true;
                 continue;
             }
@@ -440,11 +475,20 @@ impl Server {
                         self.packages.retain(|package| *package != unit);
                     }
                     push(&mut dirty, unit);
+                    // A package leaves out a nested package's directory, so a
+                    // manifest appearing or going changes what the packages
+                    // around it compile.
+                    for outer in dir.ancestors().skip(1).map(normalize) {
+                        if self.units.contains_key(&outer) || self.packages.contains(&outer) {
+                            push(&mut dirty, outer);
+                        }
+                    }
                 }
                 continue;
             }
-            // Every package that compiled this file (an outer package holds
-            // a nested one's files too), or the nearest one for a new file.
+            // Every package that compiled this file (one whose `sources`
+            // name another's directory holds it too), or the nearest one for
+            // a new file.
             let mut found = false;
             for (unit, compiled) in &self.units {
                 let holds = compiled.compiled.files[..compiled.own]
@@ -455,13 +499,7 @@ impl Server {
                     found = true;
                 }
             }
-            if !found
-                && let Some(unit) = path
-                    .ancestors()
-                    .skip(1)
-                    .map(normalize)
-                    .find(|dir| self.units.contains_key(dir))
-            {
+            if !found && let Some(unit) = self.enclosing_unit(&path) {
                 push(&mut dirty, unit);
             }
         }
@@ -635,6 +673,8 @@ impl Server {
                         &params.text_document.uri,
                         &document.text,
                     );
+                    // Adding `[model]` makes a package discovery never saw.
+                    self.remember_spelling(&params.text_document.uri);
                 }
                 params.text_document.uri
             }

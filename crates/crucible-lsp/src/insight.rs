@@ -124,10 +124,13 @@ pub fn inlay_hints(parsed: &Parsed, package: &[Parsed], start: u32, end: u32) ->
             {
                 // After a `?`, so `$size?: integer` reads as a member does.
                 let end = alias.as_ref().unwrap_or(name).span.end;
-                let at = parsed
+                // Tokens are in source order: start at the name's end.
+                let from = parsed
                     .tokens
+                    .partition_point(|token| token.span.start < end);
+                let at = parsed.tokens[from..]
                     .iter()
-                    .find(|token| token.span.start >= end && !token.kind.is_trivia())
+                    .find(|token| !token.kind.is_trivia())
                     .filter(|token| token.kind == TokenKind::Question)
                     .map_or(end, |question| question.span.end);
                 out.push(Hint {
@@ -250,8 +253,8 @@ pub struct Signature {
 /// The built-in annotations and clauses that take arguments: name, the
 /// parameters, what it does. A parameter shown as `key: type` is written
 /// with its key; one shown as a quoted placeholder is a single positional
-/// string. The compiler's checks in `lower.rs` are the source of these, and
-/// a test compiles the form each one advertises.
+/// string. The compiler's checks in `lower.rs` are the source of these; a
+/// test compiles the positional forms exactly as shown.
 const SIGNATURES: &[(&str, bool, &[&str], &str)] = &[
     (
         "since",
