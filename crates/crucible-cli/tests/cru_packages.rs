@@ -68,7 +68,7 @@ fn a_package_that_does_not_compile_lists_its_problems() {
         "--protocol",
         "aws.protocols#restJson1",
     ]);
-    assert!(String::from_utf8_lossy(&protocol.stderr).contains("--protocol cannot select"));
+    assert!(String::from_utf8_lossy(&protocol.stderr).contains("cannot be selected"));
 }
 
 #[test]

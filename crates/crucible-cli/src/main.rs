@@ -745,9 +745,13 @@ fn is_cru_package(path: &Path) -> bool {
 /// no Smithy compiler and no JVM.
 fn lower_cru(source: &Source) -> Result<Service, String> {
     let path = &source.model;
-    if source.protocol.is_some() {
+    // The service declares its protocol; naming that one (Crucible JSON) is
+    // harmless, any other cannot be selected, as in `crucible_build`.
+    if let Some(id) = &source.protocol
+        && *id != crucible_smithy::Protocol::CrucibleJson.trait_id()
+    {
         return Err(format!(
-            "{}: a .cru package declares its protocol with `protocol ..` in the service; --protocol cannot select one",
+            "{}: a .cru package declares its protocol with `protocol ..` in the service; --protocol {id} cannot be selected",
             path.display()
         ));
     }

@@ -37,7 +37,8 @@ pub fn format(source: &str, options: &FormatOptions) -> String {
 ///
 /// When the source does not lex, an unterminated string or a stray
 /// character makes bracket depth unreliable, so the lines are kept as
-/// written and only the blank lines at the start and end are dropped.
+/// written: only blank lines are tidied, dropped at the start and end and
+/// runs of them kept to one.
 pub fn format_lines(source: &str, options: &FormatOptions) -> Vec<String> {
     let newline = if source.contains("\r\n") {
         "\r\n"

@@ -2,9 +2,10 @@
 //! belongs to on every change, and answers editor requests from the latest
 //! compilation. `crucible.toml` manifests are checked too.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
+use crossbeam_channel::{Receiver, TryRecvError};
 use crucible_lang::{
     Compiled, FormatOptions, Package, Parsed, SourceFile, check_manifest, compile, format,
     format_lines, is_package, load_package, load_package_with_manifest,
@@ -26,12 +27,12 @@ use lsp_types::{
     CodeLensOptions, Command, CompletionOptions, CompletionResponse, Diagnostic,
     DiagnosticSeverity, DidChangeWatchedFilesRegistrationOptions, DocumentHighlight,
     DocumentHighlightKind, DocumentLink, DocumentLinkOptions, DocumentSymbol,
-    DocumentSymbolResponse, FileEvent, FileSystemWatcher, FoldingRangeProviderCapability,
-    GlobPattern, GotoDefinitionResponse, Hover, HoverContents, HoverProviderCapability,
-    InitializeParams, InlayHint, InlayHintKind, InlayHintLabel, Location, MarkupContent,
-    MarkupKind, OneOf, ParameterInformation, ParameterLabel, Position, PrepareRenameResponse,
-    PublishDiagnosticsParams, Range, Registration, RegistrationParams, RenameOptions,
-    SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens,
+    DocumentSymbolResponse, FileChangeType, FileEvent, FileSystemWatcher,
+    FoldingRangeProviderCapability, GlobPattern, GotoDefinitionResponse, Hover, HoverContents,
+    HoverProviderCapability, InitializeParams, InlayHint, InlayHintKind, InlayHintLabel, Location,
+    MarkupContent, MarkupKind, OneOf, ParameterInformation, ParameterLabel, Position,
+    PrepareRenameResponse, PublishDiagnosticsParams, Range, Registration, RegistrationParams,
+    RenameOptions, SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens,
     SemanticTokensFullOptions, SemanticTokensLegend, SemanticTokensOptions, SemanticTokensResult,
     SemanticTokensServerCapabilities, ServerCapabilities, SignatureHelp, SignatureHelpOptions,
     SignatureInformation, SymbolInformation, TextDocumentSyncCapability, TextDocumentSyncKind,
@@ -49,7 +50,19 @@ type Error = Box<dyn std::error::Error + Send + Sync>;
 /// A request's result, or an LSP error code and message.
 type Reply = Result<Value, (i32, String)>;
 
-pub fn capabilities() -> ServerCapabilities {
+/// Whether the client said it runs [`SHOW_REFERENCES`]: initialization
+/// options `{ "showReferences": true }`. A usage lens it cannot run would
+/// fail when clicked, so other clients get none.
+pub fn shows_references(params: &InitializeParams) -> bool {
+    params
+        .initialization_options
+        .as_ref()
+        .and_then(|options| options.get("showReferences"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+pub fn capabilities(params: &InitializeParams) -> ServerCapabilities {
     ServerCapabilities {
         text_document_sync: Some(TextDocumentSyncCapability::Options(
             TextDocumentSyncOptions {
@@ -106,7 +119,7 @@ pub fn capabilities() -> ServerCapabilities {
             resolve_provider: Some(false),
             work_done_progress_options: Default::default(),
         }),
-        code_lens_provider: Some(CodeLensOptions {
+        code_lens_provider: shows_references(params).then_some(CodeLensOptions {
             resolve_provider: Some(false),
         }),
         signature_help_provider: Some(SignatureHelpOptions {
@@ -126,6 +139,49 @@ pub const SHOW_REFERENCES: &str = "crucible.showReferences";
 /// Directories never searched for packages: build output, dependencies and
 /// version control hold copies, not the user's models.
 const SKIPPED_DIRS: &[&str] = &["target", "node_modules", "build", "out", "dist"];
+
+/// How deep below a workspace folder packages are looked for, and how many
+/// directories at most: a folder as large as a home directory is searched
+/// in bounded time, in the background.
+const DISCOVERY_DEPTH: usize = 12;
+const DISCOVERY_BUDGET: usize = 20_000;
+
+/// Walks `dir` for packages, calling `found` for each; stops when `found`
+/// returns false (nobody is listening) or the budget of directories is spent.
+fn discover(
+    dir: &Path,
+    depth: usize,
+    budget: &mut usize,
+    found: &mut dyn FnMut(&Path) -> bool,
+) -> bool {
+    if *budget == 0 {
+        return false;
+    }
+    *budget -= 1;
+    if is_package(dir) && !found(dir) {
+        return false;
+    }
+    if depth == 0 {
+        return true;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return true;
+    };
+    let mut children: Vec<PathBuf> = entries
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| !name.starts_with('.') && !SKIPPED_DIRS.contains(&name))
+        })
+        .collect();
+    children.sort();
+    children
+        .iter()
+        .all(|child| discover(child, depth - 1, budget, found))
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Kind {
@@ -175,6 +231,15 @@ pub struct Server {
     /// The packages found under `roots`. They stay compiled with no file
     /// open, so references, rename and workspace symbols see all of them.
     packages: Vec<PathBuf>,
+    /// Packages found by the background search, still to compile: the
+    /// editor's requests are answered first, so a large workspace never
+    /// holds them up.
+    queue: VecDeque<PathBuf>,
+    /// The background search's results; `None` once it has finished.
+    discovery: Option<Receiver<PathBuf>>,
+    /// A unit key's spelling on disk. Keys are normalized (lowercase on
+    /// Windows) for comparison; locations sent to the editor use this.
+    spelling: HashMap<PathBuf, PathBuf>,
     documents: HashMap<Url, Document>,
     units: HashMap<PathBuf, Unit>,
 }
@@ -214,6 +279,9 @@ impl Server {
             watch,
             roots,
             packages: Vec::new(),
+            queue: VecDeque::new(),
+            discovery: None,
+            spelling: HashMap::new(),
             documents: HashMap::new(),
             units: HashMap::new(),
         }
@@ -252,62 +320,153 @@ impl Server {
                 params,
             )))?;
         }
-        self.discover();
-        for package in self.packages.clone() {
-            self.recompile(&package)?;
+        // Searching a large folder takes a while: do it on another thread
+        // and compile what it finds between the editor's requests.
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        let roots = self.roots.clone();
+        std::thread::spawn(move || {
+            let mut budget = DISCOVERY_BUDGET;
+            for root in roots {
+                discover(&root, DISCOVERY_DEPTH, &mut budget, &mut |dir| {
+                    sender.send(dir.to_path_buf()).is_ok()
+                });
+            }
+        });
+        self.discovery = Some(receiver);
+        Ok(())
+    }
+
+    /// A package the background search found: remember it and queue it.
+    fn found(&mut self, dir: &Path) {
+        let key = normalize(dir);
+        self.spelling.insert(key.clone(), dir.to_path_buf());
+        if !self.packages.contains(&key) {
+            self.packages.push(key.clone());
+            self.queue.push_back(key);
+        }
+    }
+
+    /// Compiles the next queued package nothing has compiled yet.
+    fn compile_queued(&mut self) -> Result<(), Error> {
+        while let Some(key) = self.queue.pop_front() {
+            if !self.units.contains_key(&key) {
+                return self.recompile(&key);
+            }
         }
         Ok(())
     }
 
-    /// Finds the packages under the workspace folders.
-    fn discover(&mut self) {
-        fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
-            if is_package(dir) {
-                out.push(normalize(dir));
-            }
-            if depth == 0 {
-                return;
-            }
-            let Ok(entries) = std::fs::read_dir(dir) else {
-                return;
-            };
-            let mut children: Vec<PathBuf> = entries
-                .filter_map(Result::ok)
-                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
-                .map(|entry| entry.path())
-                .filter(|path| {
-                    path.file_name()
-                        .and_then(|name| name.to_str())
-                        .is_some_and(|name| !name.starts_with('.') && !SKIPPED_DIRS.contains(&name))
-                })
-                .collect();
-            children.sort();
-            for child in children {
-                walk(&child, depth - 1, out);
-            }
+    /// Records where an open document's unit is on disk, as it is spelled.
+    fn remember_spelling(&mut self, uri: &Url) {
+        let Some(document) = self.documents.get(uri) else {
+            return;
+        };
+        let (Some(path), Some(unit)) = (document.path.as_deref(), document.unit.as_ref()) else {
+            return;
+        };
+        if let Some(dir) = path.ancestors().find(|dir| normalize(dir) == *unit) {
+            self.spelling.insert(unit.clone(), dir.to_path_buf());
         }
-        let mut packages = Vec::new();
-        for root in &self.roots {
-            walk(root, 12, &mut packages);
-        }
-        packages.sort();
-        packages.dedup();
-        self.packages = packages;
     }
 
-    /// The packages to recompile after files changed on disk.
+    /// The packages to recompile after files changed on disk. Only the
+    /// packages a change touches are looked at again; the workspace is never
+    /// searched twice.
     fn files_changed(&mut self, changes: &[FileEvent]) -> Vec<PathBuf> {
-        let paths: Vec<PathBuf> = changes
-            .iter()
-            .filter_map(|change| change.uri.to_file_path().ok())
-            .collect();
-        let manifests = paths
-            .iter()
-            .any(|path| path.file_name().is_some_and(|name| name == "crucible.toml"));
+        let mut dirty: Vec<PathBuf> = Vec::new();
+        let push = |dirty: &mut Vec<PathBuf>, unit: PathBuf| {
+            if !dirty.contains(&unit) {
+                dirty.push(unit);
+            }
+        };
+        let mut manifests = false;
+        for change in changes {
+            let Ok(path) = change.uri.to_file_path() else {
+                continue;
+            };
+            let key = normalize(&path);
+            // Build output and dependencies below a workspace folder hold
+            // copies, as discovery knows; above it, names are the user's.
+            let below_root = self.roots.iter().find_map(|root| {
+                key.strip_prefix(normalize(root))
+                    .ok()
+                    .map(Path::to_path_buf)
+            });
+            if below_root.is_some_and(|relative| {
+                relative.components().any(|part| {
+                    part.as_os_str()
+                        .to_str()
+                        .is_some_and(|name| name.starts_with('.') || SKIPPED_DIRS.contains(&name))
+                })
+            }) {
+                continue;
+            }
+            let is_file = path
+                .extension()
+                .is_some_and(|ext| ext == "cru" || ext == "toml" || ext == "json" || ext == "lock");
+            if change.typ == FileChangeType::DELETED && !is_file {
+                // A directory went: every package in it goes with it, and an
+                // outer package that held its files is compiled again.
+                let gone: Vec<PathBuf> = self
+                    .units
+                    .iter()
+                    .filter(|(unit, compiled)| {
+                        unit.starts_with(&key)
+                            || compiled.compiled.files[..compiled.own]
+                                .iter()
+                                .any(|file| normalize(Path::new(&file.path)).starts_with(&key))
+                    })
+                    .map(|(unit, _)| unit)
+                    .chain(self.packages.iter().filter(|unit| unit.starts_with(&key)))
+                    .cloned()
+                    .collect();
+                self.packages.retain(|package| !package.starts_with(&key));
+                for unit in gone {
+                    push(&mut dirty, unit);
+                }
+                manifests = true;
+                continue;
+            }
+            if path.file_name().is_some_and(|name| name == "crucible.toml") {
+                manifests = true;
+                if let Some(dir) = path.parent() {
+                    let unit = normalize(dir);
+                    if is_package(dir) {
+                        self.spelling.insert(unit.clone(), dir.to_path_buf());
+                        if !self.packages.contains(&unit) {
+                            self.packages.push(unit.clone());
+                        }
+                    } else {
+                        self.packages.retain(|package| *package != unit);
+                    }
+                    push(&mut dirty, unit);
+                }
+                continue;
+            }
+            // Every package that compiled this file (an outer package holds
+            // a nested one's files too), or the nearest one for a new file.
+            let mut found = false;
+            for (unit, compiled) in &self.units {
+                let holds = compiled.compiled.files[..compiled.own]
+                    .iter()
+                    .any(|file| normalize(Path::new(&file.path)) == key);
+                if holds {
+                    push(&mut dirty, unit.clone());
+                    found = true;
+                }
+            }
+            if !found
+                && let Some(unit) = path
+                    .ancestors()
+                    .skip(1)
+                    .map(normalize)
+                    .find(|dir| self.units.contains_key(dir))
+            {
+                push(&mut dirty, unit);
+            }
+        }
         if manifests {
-            // A package appeared, disappeared or moved its sources: find
-            // them again and recompile everything that could be affected.
-            self.discover();
+            // Which package an open document belongs to may have changed.
             let updates: Vec<(Url, Option<PathBuf>)> = self
                 .documents
                 .iter()
@@ -319,32 +478,19 @@ impl Server {
                 })
                 .collect();
             for (uri, unit) in updates {
-                if let Some(document) = self.documents.get_mut(&uri) {
+                let Some(document) = self.documents.get_mut(&uri) else {
+                    continue;
+                };
+                if document.unit != unit {
+                    if let Some(old) = document.unit.take() {
+                        push(&mut dirty, old);
+                    }
+                    if let Some(new) = &unit {
+                        push(&mut dirty, new.clone());
+                    }
                     document.unit = unit;
+                    self.remember_spelling(&uri);
                 }
-            }
-            let mut dirty = self.packages.clone();
-            for document in self.documents.values() {
-                if let Some(unit) = &document.unit
-                    && !dirty.contains(unit)
-                {
-                    dirty.push(unit.clone());
-                }
-            }
-            self.units.retain(|unit, _| dirty.contains(unit));
-            return dirty;
-        }
-        let mut dirty: Vec<PathBuf> = Vec::new();
-        for path in paths {
-            let unit = path
-                .ancestors()
-                .skip(1)
-                .map(normalize)
-                .find(|dir| self.units.contains_key(dir));
-            if let Some(unit) = unit
-                && !dirty.contains(&unit)
-            {
-                dirty.push(unit);
             }
         }
         dirty
@@ -356,9 +502,9 @@ impl Server {
         loop {
             let message = match next.take() {
                 Some(message) => message,
-                None => match self.connection.receiver.recv() {
-                    Ok(message) => message,
-                    Err(_) => break,
+                None => match self.next_message()? {
+                    Some(message) => message,
+                    None => break,
                 },
             };
             match message {
@@ -393,6 +539,40 @@ impl Server {
             }
         }
         Ok(())
+    }
+
+    /// The next message from the editor, doing background work while there
+    /// is none: taking in the packages discovery found and compiling them
+    /// one at a time. `None` when the editor has gone.
+    fn next_message(&mut self) -> Result<Option<Message>, Error> {
+        loop {
+            let receiver = self.connection.receiver.clone();
+            if !self.queue.is_empty() {
+                match receiver.try_recv() {
+                    Ok(message) => return Ok(Some(message)),
+                    Err(TryRecvError::Disconnected) => return Ok(None),
+                    Err(TryRecvError::Empty) => {}
+                }
+                if let Some(discovery) = &self.discovery {
+                    let found: Vec<PathBuf> = discovery.try_iter().collect();
+                    for dir in found {
+                        self.found(&dir);
+                    }
+                }
+                self.compile_queued()?;
+                continue;
+            }
+            let Some(discovery) = self.discovery.clone() else {
+                return Ok(receiver.recv().ok());
+            };
+            crossbeam_channel::select! {
+                recv(receiver) -> message => return Ok(message.ok()),
+                recv(discovery) -> dir => match dir {
+                    Ok(dir) => self.found(&dir),
+                    Err(_) => self.discovery = None,
+                },
+            }
+        }
     }
 
     fn send(&self, message: Message) -> Result<(), Error> {
@@ -435,6 +615,7 @@ impl Server {
                         kind,
                     },
                 );
+                self.remember_spelling(&document.uri);
                 document.uri
             }
             DidChangeTextDocument::METHOD => {
@@ -519,7 +700,10 @@ impl Server {
         Ok(())
     }
 
-    fn compile_unit(&self, unit: &Path, open: &[Url]) -> Unit {
+    fn compile_unit(&self, key: &Path, open: &[Url]) -> Unit {
+        // Read from the directory as spelled on disk, so the locations sent
+        // back to the editor keep their case.
+        let unit = self.spelling.get(key).map_or(key, PathBuf::as_path);
         let standalone = !unit.is_dir();
         let models: Vec<&Url> = open
             .iter()
@@ -1328,7 +1512,10 @@ impl Server {
                 .iter()
                 .find(|(_, document)| document.unit.as_ref() == Some(key))
                 .map(|(uri, _)| uri.clone())
-                .or_else(|| Url::from_directory_path(clean(key)).ok());
+                .or_else(|| {
+                    let dir = self.spelling.get(key).unwrap_or(key);
+                    Url::from_directory_path(clean(dir)).ok()
+                });
             let Some(fallback) = fallback else { continue };
             for file in 0..unit.own {
                 let source = &unit.compiled.files[file];
