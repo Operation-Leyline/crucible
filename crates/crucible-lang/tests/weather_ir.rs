@@ -36,15 +36,23 @@ fn cru_weather() -> (Package, crucible_lang::Compiled) {
     (package, compiled)
 }
 
-/// The deliberate differences between the two front ends:
+/// The deliberate differences between the two front ends (decision 63). This
+/// applies the first three to the Smithy side:
 /// - decision 20: members are never client-optional, where Smithy makes every
 ///   member of an `@input` structure optional for clients;
 /// - decision 43: raw `traits` carry project metadata only, because every
-///   standard trait is a typed IR field.
+///   standard trait is a typed IR field;
+/// - `api_version`: a `.cru` service's version is the release its clients
+///   send; a Smithy model has none.
+///
+/// The weather model avoids the other two rather than applying them:
+/// - decision 26: a `@token` member makes an operation idempotent without the
+///   keyword, where Smithy needs `@idempotent`; `weather.cru` writes
+///   `idempotent` on `CreateCity` anyway, as the fixture does;
+/// - decision 40: `include` does not copy the included structure's
+///   documentation, where Smithy's mixins do; the fixture has no mixins.
 fn as_cru_lowers_it(mut service: Service) -> Service {
     service.project_metadata_only();
-    // A `.cru` service's version is a release its clients send; a Smithy
-    // model's is not.
     service.api_version = Some(service.version.clone());
     for shape in service.shapes.values_mut() {
         if let Shape::Structure(s) | Shape::Union(s) = shape {

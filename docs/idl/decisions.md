@@ -320,6 +320,16 @@ trait when a project defines it.
     every new operation edits two distant files, and Leyline's `Graph`
     would list 13 operations and 4 children in its block.
 
+    *Known limit:* identifiers a collection operation binds come only from
+    a parent (decision 32). Smithy allows a root resource whose own
+    identifiers include its scope's: Pigeon's `Grant` is a root resource
+    identified by `workspaceId`, `principalType` and `principalId`, and
+    `ListGrants` binds `workspaceId` alone. The language cannot say that;
+    the port writes `resource Grant in Workspace`, which makes `Grant` a
+    child in the resource tree where Smithy has it as a root. The contract
+    IR is the same (decision 63: resources are not lowered yet); resource
+    views and infrastructure lowering will see the difference.
+
 32. **An operation attaches itself to a resource with a role verb:
     `creates`, `puts`, `reads`, `updates`, `deletes`, `lists` for the
     lifecycle, `on` for any other instance operation, and `on ... collection`
@@ -393,7 +403,9 @@ trait when a project defines it.
 
 34b. **`references Resource` on a member or structure is kept.**
     *Replaces:* `@references`. *Why:* Pigeon's `WorkspaceScoped` uses it;
-    infrastructure lowering reads it.
+    infrastructure lowering reads it. *Known limit:* decided but not built:
+    the grammar has no `references` yet, so a port drops it (it changes no
+    wire contract) until infrastructure lowering arrives with it.
 
 ## Protocols, auth and transport
 
@@ -966,10 +978,17 @@ these are working choices, changed freely as implementation teaches.
     OpenAPI and docs generators produce byte-identical output from both
     paths; any raw Smithy trait a generator still reads is synthesized by
     the new lowering until that generator reads a typed field instead.
-    Two differences are deliberate and applied before comparing:
-    `client_optional` is always false from `.cru` (decision 20), and raw
-    traits carry project metadata only (decision 62a,
-    `Service::project_metadata_only`).
+    These front-end differences are deliberate, and the comparison applies
+    or avoids them before comparing:
+    - `client_optional` is always false from `.cru` (decision 20);
+    - raw traits carry project metadata only (decision 43; decision 62a,
+      `Service::project_metadata_only`);
+    - `api_version` is the service's `version` from `.cru`, the release its
+      clients send, and absent from Smithy;
+    - a `@token` member makes an operation idempotent without the keyword
+      (decision 26), where Smithy needs `@idempotent` written;
+    - `include` does not copy the included structure's documentation onto
+      the includer (decision 40), where Smithy's mixin flattening does.
     Like Smithy's `lower`, the `.cru` compile produces the contract IR and
     leaves `Service::resources` empty; resource views come with the
     documentation and infrastructure lowerings, which the language does not
