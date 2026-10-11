@@ -79,6 +79,25 @@ fn a_package_loads_its_manifest_and_every_cru_file_in_order() {
 }
 
 #[test]
+fn source_paths_have_no_dot_components() {
+    // `sources = ["."]` is the package directory itself: its files print as
+    // `dir/ops/x.cru`, not `dir/./ops/x.cru`. (`PathBuf` equality ignores
+    // `.` components, so the spellings are compared as text.)
+    let dir = package_dir(
+        "dot-sources",
+        "[model]\nnamespace = \"example.shop\"\nsources = [\".\", \"./ops\", \"ops/.\"]\n",
+        &[("service.cru", SERVICE), ("ops/types.cru", "string Note\n")],
+    );
+    let package = load_package(&dir).unwrap();
+    let paths: Vec<&str> = package.files.iter().map(|f| f.path.as_str()).collect();
+    let expected = [
+        dir.join("ops").join("types.cru").display().to_string(),
+        dir.join("service.cru").display().to_string(),
+    ];
+    assert_eq!(paths, expected);
+}
+
+#[test]
 fn a_policy_only_manifest_is_not_a_package() {
     let dir = package_dir(
         "policy-only",

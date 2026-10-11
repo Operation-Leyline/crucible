@@ -12,7 +12,7 @@
 //! output = "{Operation}Output"
 //! ```
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::compile::{Naming, Package, SourceFile};
 use crate::diagnostic::Diagnostic;
@@ -138,7 +138,18 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
         if let Some(problem) = escapes(source) {
             return Err(format!("{}: `{source}` {problem}", field("sources")));
         }
-        let root = dir.join(source);
+        // Joined as written, `sources = ["."]` makes `dir/.`, which would
+        // print in every diagnostic (`dir\.\ops\x.cru`). Only the source's
+        // `.` components go; the directory keeps its spelling and separators.
+        let source_path: PathBuf = Path::new(source)
+            .components()
+            .filter(|component| !matches!(component, Component::CurDir))
+            .collect();
+        let root = if source_path.as_os_str().is_empty() {
+            dir.to_path_buf()
+        } else {
+            dir.join(source_path)
+        };
         if !root.is_dir() {
             return Err(format!(
                 "{}: {} is not a directory",
