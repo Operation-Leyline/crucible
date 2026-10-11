@@ -12,15 +12,15 @@ tag.
 
 | From | To | CHANGELOG | Section |
 |---|---|---|---|
-| 0.4.x | next (unreleased) | [Unreleased](../CHANGELOG.md#unreleased) | [0.4.0 to the next release](#040-to-the-next-release-unreleased) |
+| 0.4.x | 0.5.0 | [0.5.0](../CHANGELOG.md#050---2026-10-11) | [0.4.0 to 0.5.0](#040-to-050) |
 | 0.3.x | 0.4.0 | [0.4.0](../CHANGELOG.md#040---2026-10-08) | [0.3.0 to 0.4.0](#030-to-040) |
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
 
-## 0.4.0 to the next release (unreleased)
+## 0.4.0 to 0.5.0
 
-The [CHANGELOG](../CHANGELOG.md#unreleased) *Unreleased* section is the
-authority until the version is tagged. Do these in order; each step names what
+The [CHANGELOG](../CHANGELOG.md#050---2026-10-11) *Migration* section is the
+authority. Do these in order; each step names what
 the compiler will tell you if you skip it.
 
 ### Pin one Crucible version
@@ -49,7 +49,7 @@ crucible_build::rust_service("weather_model").generate();
 crucible_build::client("weather_model").generate();
 crucible_build::model_dependency("weather_model").rust_client("sdk").generate();
 
-// next
+// 0.5
 crucible_build::model("model.json").publish();
 crucible_build::model("smithy");                       // compiles on first use
 crucible_build::model("weather_model").server().generate();
@@ -83,7 +83,7 @@ These types are `#[non_exhaustive]`: `Location`, `Scalar`, `Segment`, `Fault`,
 ```rust
 match error {
     BuildError::MissingOperations(..) => { .. }
-    _ => { .. } // new in the next release; required
+    _ => { .. } // new in 0.5; required
 }
 ```
 
@@ -96,7 +96,7 @@ change.
 ```rust
 // 0.4
 .add::<GetCity, _>(imp, |s, input| Box::pin(async move { s.get_city(input).await }))
-// next
+// 0.5
 .add::<GetCity, _, _>(imp, |s, input| async move { s.get_city(input).await })
 ```
 
@@ -135,7 +135,7 @@ service's client and conformance tests after upgrading.
 |---|---|
 | crate `crucible`, `use crucible::..` | `crucible-server-runtime-rust`, `use crucible_server_runtime_rust::..` |
 | crate `crucible-client`, `crucible_client::` | `crucible-client-runtime-rust`, `crucible_client_runtime_rust::` |
-| `crucible_build::service(..)`, `Codegen` | `crucible_build::rust_service(..)`, `RustCodegen` (both deprecated since 0.5.0; use `model(..).server()`, see [0.4.0 to the next release](#040-to-the-next-release-unreleased)) |
+| `crucible_build::service(..)`, `Codegen` | `crucible_build::rust_service(..)`, `RustCodegen` (both deprecated since 0.5.0; use `model(..).server()`, see [0.4.0 to 0.5.0](#040-to-050)) |
 | `crucible::include_service!()` declares `mod contract` | `crucible_server_runtime_rust::include_service!()` declares a module named for the service (`weather`, `hello_service`); use `crate::weather::..` |
 
 Rename the Cargo dependencies and imports, update `build.rs`, and regenerate.

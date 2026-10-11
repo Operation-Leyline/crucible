@@ -15,6 +15,16 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-11
+
+Crucible's own modelling language (`.cru` packages, compiled without Smithy
+or a JVM) with the `crucible-lsp` language server; frozen releases, the
+compatibility guard and serving older API versions; a stable build and
+runtime contract (`crucible_build::model()`, the hidden `__generated`
+boundary and a compile-time version check); MCP, JWT/OIDC auth, service API
+docs and the Crucible Explorer. Breaking: follow *Migration* and
+[docs/migrating.md](docs/migrating.md).
+
 ### Added
 
 - `crucible-lang`: an internal front end for Crucible's own modelling language
@@ -163,8 +173,6 @@ version's section when it is prepared.
   `crucible.describe/1` description contract with shared JSON Schemas. External
   projection also removes internal nested example members and diagnoses examples
   selecting internal union arms or enum values.
-- Generated service CLIs include a local `mcp` stdio server using shared MCP
-  schemas and registry, client audience, profiles, authentication and SDK calls.
 - MCP protected-resource discovery derived from configured access-token issuers,
   the public MCP URL and model scopes, with path-suffixed RFC 9728 metadata and
   scope-aware bearer challenges on endpoint and tool refusals. Additive
@@ -222,9 +230,30 @@ version's section when it is prepared.
 - Generated service CLIs include a local `mcp` stdio server using shared MCP
   schemas and registry, client audience, profiles, authentication and SDK calls
   (#185).
+- `crucible-auth`: opt-in bearer authentication for Rust services, with
+  `JwtAuthenticator` (JWT issuers verified against their JWKS),
+  `AuthenticatorChain`, `ScopeEnforcer` and typed refusals across the server
+  protocols; see `docs/auth.md` (#168).
+- Smithy `@internal` is lowered: operations, members, error variants and enum
+  values carry an internal flag, `OperationInfo::internal` exposes it, and
+  outputs select an audience (#166).
+- Generated clients in every language carry API documentation from the model
+  and readable string representations that redact `@sensitive` values
+  (#169, #170, #171, #172).
+- Smithy `httpMalformedRequestTests` are lowered into the protocol-test IR,
+  and `.conformance()` on the server output generates conformance tests from
+  `smithy.test` vectors (#167).
+- Legacy `@enum` string shapes are lowered as enums, with diagnostics for
+  duplicate, unnamed or malformed definitions (#163).
 
 ### Changed
 
+- Generated clients default to the external audience and omit `@internal`
+  API; select `Audience::Internal` (or `--audience internal`) for the full
+  contract (#166).
+- A behavior trait Crucible does not implement is a diagnostic instead of
+  being kept silently as a raw trait (`@smithy.rules#endpointBdd`), so a model
+  that used one no longer builds (#163).
 - Smithy lowering refuses more models that HTTP cannot carry, through rules
   now shared with the `.cru` front end (`crucible_smithy::validate`): a body
   on a HEAD, 204 or 304 response; framing and hop-by-hop headers (`Host`,
@@ -314,8 +343,8 @@ version's section when it is prepared.
 
 ### Migration
 
-From 0.4 to the next release. The same steps, with before and after code, are
-in [docs/migrating.md](docs/migrating.md#040-to-the-next-release-unreleased).
+From 0.4 to 0.5. The same steps, with before and after code, are in
+[docs/migrating.md](docs/migrating.md#040-to-050).
 
 - **Version everything together.** Pin `crucible-build`, `crucible-server-runtime-rust`,
   `crucible-client-runtime-rust` and `crucible-auth` to one tag or revision.
@@ -326,7 +355,7 @@ in [docs/migrating.md](docs/migrating.md#040-to-the-next-release-unreleased).
   `crucible_build::model(..)` (the shims still build for one minor):
 
   ```rust
-  // 0.4                                          // next
+  // 0.4                                          // 0.5
   crucible_build::publish_model("m.json");        crucible_build::model("m.json").publish();
   crucible_build::rust_service("m").generate();   crucible_build::model("m").server().generate();
   crucible_build::client("m").generate();         crucible_build::model("m").client().generate();
@@ -344,7 +373,16 @@ in [docs/migrating.md](docs/migrating.md#040-to-the-next-release-unreleased).
   or `BuildError`, and read `OperationInfo`, `ServiceInfo`, `MemberInfo`,
   `ErrorInfo`, `LogRecord` and `RequestRecord` by field rather than building them.
 - **Operation registration.** Pass the async fn directly to `add` and drop
-  `Box::pin` (#177).
+  `Box::pin`; the `Call` alias is removed without a shim (#177).
+- **Removed without a shim.** `crucible_build::clients` is gone: import
+  `crucible_build::Audience` (#181). The runtime root re-exports
+  `crucible_server_runtime_rust::{cbor, codec, open}` and
+  `crucible_client_runtime_rust::{cbor, codec, field, open}` are gone:
+  regenerate, and use `OpenEnum`, `UnknownUnion`, `Field` and `ModelledError`
+  from the crate root in hand-written code (#182).
+- **Client audiences.** A client that used `@internal` operations or members
+  needs `.audience(crucible_build::Audience::Internal)` (or
+  `--audience internal`) (#166).
 - **Traits JAR.** Resolve `crucible-traits` at the Crucible version you build
   with (`crucible-traits-X.Y.Z.jar`), not `0.3.1`; a repository that read
   `smithy/version.txt` should read `[workspace.package].version` (#182).

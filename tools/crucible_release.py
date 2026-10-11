@@ -9,6 +9,14 @@ from build_traits_jar import version as traits_version
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# Every checked-in lockfile that pins the workspace crates by path. The root one
+# must list all of them; the others hold the subset their workspace uses.
+LOCKFILES = (
+    "Cargo.lock",
+    "e2e/Cargo.lock",
+    "tests/consumers/leyline/Cargo.lock",
+    "tests/consumers/leyline/leyline-sdk-consumer/Cargo.lock",
+)
 VERSION = re.compile(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\Z")
 
 
@@ -97,8 +105,8 @@ def check(root, version):
     if version != current:
         raise ValueError(f"Requested {version}, but the merged workspace version is {current}")
     changelog_entry(root, version)
-    for lock in (root / "Cargo.lock", root / "e2e/Cargo.lock"):
-        lock_content(lock, packages, current, require_all=lock == root / "Cargo.lock")
+    for lock in LOCKFILES:
+        lock_content(root / lock, packages, current, require_all=lock == "Cargo.lock")
 
 
 def prepare(root, version):
@@ -109,8 +117,8 @@ def prepare(root, version):
     # Validate every file before writing, so a stale lockfile leaves the
     # checkout intact. Dependency versions and example-service versions stay put.
     edits = {}
-    for lock in (root / "Cargo.lock", root / "e2e/Cargo.lock"):
-        edits[lock] = lock_content(lock, packages, current, version, require_all=lock == root / "Cargo.lock")
+    for lock in LOCKFILES:
+        edits[root / lock] = lock_content(root / lock, packages, current, version, require_all=lock == "Cargo.lock")
     start = content.index("[workspace.package]")
     end = content.find("\n[", start + 1)
     if end < 0:
