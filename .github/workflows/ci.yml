@@ -88,7 +88,7 @@ jobs:
           ldd dist/qualification-tools/*
         env:
           CARGO_BUILD_JOBS: '2'
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: qualification-tools-linux-${{ github.sha }}
           overwrite: true
@@ -132,7 +132,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: ". -> target/cdk-consumer-rust", save-if: "${{ github.ref == 'refs/heads/main' }}" }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: actions/setup-python@v7
         with: { python-version: '3.12' }
@@ -686,7 +686,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         if: runner.os != 'Linux' || needs.plan.outputs.tools != 'true'
         with: { shared-key: native, save-if: "${{ github.ref == 'refs/heads/main' }}" }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: bash tools/test-ts.sh
 
@@ -700,7 +700,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { persist-credentials: false }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: bash tools/test-docs-site.sh
 
@@ -717,7 +717,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with: { workspaces: ". -> target\ne2e -> target", save-if: "${{ github.ref == 'refs/heads/main' }}" }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: cargo fmt --all --check --manifest-path e2e/Cargo.toml
       - run: cargo clippy --manifest-path e2e/Cargo.toml --all-targets --locked -- -D warnings
@@ -782,7 +782,7 @@ jobs:
           path: .sdk/rustrover
           key: rustrover-linux-262.10968.75-fac0d503
       - run: python ide/smithy-cargo/build.py --ide-home .sdk/rustrover --out dist
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: smithy-cargo-plugin
           path: dist/smithy-cargo-0.1.0.zip
@@ -804,17 +804,17 @@ jobs:
     runs-on: ${{ matrix.os == 'linux' && (vars.LINUX_RUNNER || 'ubuntu-latest') || matrix.os }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { persist-credentials: false }
       - uses: dtolnay/rust-toolchain@stable
         with: { targets: '${{ matrix.target }}' }
       - run: cargo build --locked --release -p crucible-lsp --target ${{ matrix.target }}
         env:
           CARGO_BUILD_JOBS: '2'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with: { python-version: '3.11' }
       - run: python tools/package_lsp.py --target ${{ matrix.target }} --out dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: crucible-lsp-${{ matrix.target }}
           path: dist/crucible-lsp-${{ matrix.target }}.zip
