@@ -120,7 +120,10 @@ def qualify(output, native=False):
     # Generated packages use fresh directories; Gradle's task cache can still
     # reuse unchanged compiler inputs from the previous qualification run.
     # Six publications and the consumer share a warm JVM on the isolated CI host.
-    gradle = [executable, "--daemon", "--console=plain", "--max-workers=2", "--build-cache"]
+    # Kotlin/Native compiles and links inside that daemon: Gradle's default
+    # 512 MiB heap runs out linking the Windows test executable.
+    gradle = [executable, "--daemon", "--console=plain", "--max-workers=2", "--build-cache",
+              "-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"]
     if not native:
         gradle.append("-Pcrucible.native=false")
     targets = ["Jvm", "Js", "KotlinMultiplatform"]
