@@ -463,7 +463,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-lang"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "crucible-policy",
  "crucible-smithy",

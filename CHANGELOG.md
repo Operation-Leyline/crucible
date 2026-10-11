@@ -15,6 +15,16 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-11
+
+Crucible's own modelling language (`.cru` packages, compiled without Smithy
+or a JVM) with the `crucible-lsp` language server; frozen releases, the
+compatibility guard and serving older API versions; a stable build and
+runtime contract (`crucible_build::model()`, the hidden `__generated`
+boundary and a compile-time version check); MCP, JWT/OIDC auth, service API
+docs and the Crucible Explorer. Breaking: follow *Migration* and
+[docs/migrating.md](docs/migrating.md).
+
 ### Added
 
 - `crucible-lang`: an internal front end for Crucible's own modelling language
