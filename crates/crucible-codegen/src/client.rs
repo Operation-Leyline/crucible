@@ -115,11 +115,69 @@ impl Client {
         service: &Service,
         audience: crate::Audience,
     ) -> Result<Vec<File>, Diagnostics> {
-        let service = crucible_smithy::project(service, audience)?;
-        self.emit_projected(&service)
+        self.emit_with_provenance(service, audience, &crate::provenance::Stamp::default())
     }
 
-    pub(crate) fn emit_projected(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
+    /// Generate for `audience`, recording `stamp` in the package's
+    /// `crucible.json` (Rust and TypeScript packages).
+    pub fn emit_with_provenance(
+        &self,
+        service: &Service,
+        audience: crate::Audience,
+        stamp: &crate::provenance::Stamp,
+    ) -> Result<Vec<File>, Diagnostics> {
+        let service = crucible_smithy::project(service, audience)?;
+        self.emit_projected(&service, audience, stamp)
+    }
+
+    /// The package name and version a Rust or TypeScript package's
+    /// `crucible.json` records. The other languages keep their own schema-1
+    /// record until their metadata lands.
+    fn package(&self, service: &Service) -> Option<(String, String)> {
+        match *self {
+            #[cfg(feature = "rust")]
+            Self::Rust(ref options) => Some((
+                crucible_codegen_rust::client_package_name(service, options),
+                options.package_version.clone(),
+            )),
+            #[cfg(feature = "ts")]
+            Self::Ts(ref options) => Some((
+                options.package_name.clone(),
+                options.package_version.clone(),
+            )),
+            #[allow(unreachable_patterns, reason = "other languages are feature-gated")]
+            _ => {
+                let _ = service;
+                None
+            }
+        }
+    }
+
+    pub(crate) fn emit_projected(
+        &self,
+        service: &Service,
+        audience: crate::Audience,
+        stamp: &crate::provenance::Stamp,
+    ) -> Result<Vec<File>, Diagnostics> {
+        let mut files = self.emit_files(service)?;
+        if let Some((name, version)) = self.package(service) {
+            let package = crate::provenance::Package {
+                language: self.language(),
+                name: &name,
+                version: &version,
+            };
+            crate::provenance::stamp(&mut files, service, audience, &package, stamp).map_err(
+                |message| {
+                    let mut diagnostics = Diagnostics::default();
+                    diagnostics.push(&service.id, message);
+                    diagnostics
+                },
+            )?;
+        }
+        Ok(files)
+    }
+
+    fn emit_files(&self, service: &Service) -> Result<Vec<File>, Diagnostics> {
         service.require_capabilities(&self.capabilities())?;
         match *self {
             #[cfg(feature = "rust")]

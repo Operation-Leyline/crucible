@@ -88,6 +88,7 @@ fn sdk_compiles_for_recursive_shapes() {
             package_name: Some("recursive-sdk".into()),
             package_version: "0.0.0".into(),
             runtime: RuntimeDependency::Path(crate_path("crucible-client-runtime-rust")),
+            metadata: Default::default(),
         },
     )
     .unwrap();

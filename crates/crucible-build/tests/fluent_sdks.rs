@@ -55,14 +55,15 @@ fn fluent_probe() {
                 .client_name("CustomWeatherClient")
                 .endpoint("https://sdk.example")
                 .middleware(vec![crucible_build::TsMiddleware::ContentSha256])
-                .package_json(serde_json::json!({"private": true})),
+                .package_json(serde_json::json!({"bugs": "https://sdk.example/issues"})),
             Client::Ts(crucible_build::TsOptions {
                 package_name: "weather-sdk".into(),
                 package_version: "1.2.3".into(),
                 client_name: Some("CustomWeatherClient".into()),
                 endpoint: Some("https://sdk.example".into()),
                 middleware: vec![crucible_build::TsMiddleware::ContentSha256],
-                package_json: Some(serde_json::json!({"private": true}))
+                package_json: Some(serde_json::json!({"bugs": "https://sdk.example/issues"})),
+                metadata: Default::default(),
             })
         );
     }

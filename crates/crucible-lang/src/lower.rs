@@ -4774,6 +4774,7 @@ impl<'a> Lowerer<'a> {
             renames: BTreeMap::new(),
             versions: Vec::new(),
             api_version: None,
+            internal_traits: BTreeSet::new(),
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.

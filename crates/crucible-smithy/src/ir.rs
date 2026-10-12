@@ -6,7 +6,7 @@
 //! return, and its pagination. Traits the IR does not model are kept raw in
 //! each `traits` map, so a project's own traits reach the emitters intact.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 pub use crate::cors::Cors;
@@ -83,6 +83,10 @@ pub struct Service {
     /// a `.cru` service, whose versions are releases. `None` for a Smithy
     /// model, whose `version` names no release a server serves by.
     pub api_version: Option<String>,
+    /// Custom traits whose definition is `@internal`. An external view drops
+    /// their applications, as Smithy's projection does; nothing else reads it.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub internal_traits: BTreeSet<ShapeId>,
 }
 
 /// An older API version: its release's model, and how a request or a

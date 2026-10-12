@@ -67,7 +67,9 @@ impl Generator {
             &projected
         };
         match self {
-            Self::Client(client) => client.emit_projected(service),
+            Self::Client(client) => {
+                client.emit_projected(service, audience, &crate::provenance::Stamp::default())
+            }
             Self::Server(server) => server.emit(service),
             #[cfg(feature = "docs")]
             Self::Docs => crucible_codegen_docs::generate(service).map(|files| {

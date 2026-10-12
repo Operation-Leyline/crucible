@@ -108,6 +108,7 @@ mod cru;
 mod csharp_sdk;
 #[cfg(feature = "dart")]
 mod dart_sdk;
+mod declared_sdk;
 #[cfg(feature = "docs")]
 mod docs_output;
 #[cfg(feature = "go")]
@@ -123,7 +124,6 @@ mod model_package;
 mod openapi_output;
 mod output;
 #[cfg(any(
-    feature = "ts",
     feature = "python",
     feature = "go",
     feature = "csharp",
@@ -142,6 +142,8 @@ mod output;
     feature = "cli"
 ))]
 mod output_builder;
+#[cfg(any(feature = "rust", feature = "ts"))]
+mod package_metadata;
 #[cfg(feature = "php")]
 mod php_sdk;
 #[cfg(any(feature = "cdk", feature = "terraform"))]
@@ -212,7 +214,7 @@ pub use crucible_codegen::TsOptions;
 pub use crucible_codegen::cdk;
 #[cfg(any(feature = "cdk", feature = "terraform"))]
 pub use crucible_codegen::infra;
-pub use crucible_codegen::{Audience, Client, Generator, Server};
+pub use crucible_codegen::{Audience, Client, Generator, PackageMetadata, Registry, Server};
 #[cfg(feature = "cdk")]
 pub use crucible_codegen::{CdkOptions, CdkTargets};
 #[cfg(feature = "rust")]

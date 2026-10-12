@@ -39,7 +39,7 @@ mod versions;
 
 pub use client::pages_method;
 pub use client_options::ClientOptions;
-pub use client_package::emit_client_package;
+pub use client_package::{client_package_name, emit_client_package};
 pub use conformance::{ConformanceOptions, Seed, Skip, generate_conformance};
 pub use file::File;
 pub use mcp::exclusions as mcp_exclusions;
@@ -53,7 +53,7 @@ use crucible_smithy::{Diagnostics, ShapeId};
 /// Verified Crucible Git revision embedded when this emitter was built.
 /// Packaged or vendored emitters without source provenance return `None`.
 pub fn source_revision() -> Option<&'static str> {
-    option_env!("CRUCIBLE_GENERATOR_REVISION")
+    crucible_revision::source_revision()
 }
 
 pub(crate) const DERIVE: &str = "#[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__generated::serde\")]\n";

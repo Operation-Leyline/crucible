@@ -39,9 +39,24 @@ Install the built package directory or archive in your application; generation
 and `npm pack` do not publish it.
 
 Use `--service` when the sources define multiple services. Package metadata
-records the generator and service versions. The packaged `crucible.json` manifest
-also records `generatorVersion`, `service`, `serviceVersion`, and `schemaSha256`:
-the SHA-256 digest of the shared lowered wire schema.
+records the generator and service versions. The package carries
+`crucible.json` (schema 2: generator version and revision, service,
+`schemaSha256` of the shared lowered wire schema, and a `contentDigest` of
+the generated files) and `crucible-model.json`, the model its audience
+sees; `files` lists both. See [package provenance](../sdk-releases.md#package-provenance).
+
+The common package metadata keys are flags: `--description`,
+`--repository`, `--homepage`, `--license` or `--license-file <path>`,
+`--author` (repeat it; the first is `author`, the rest `contributors`),
+`--readme <path>`, `--keyword` (repeat it) and `--private`
+(`"private": true`, unless `--npm-registry` names where it publishes).
+`--npm-registry <url>` and `--npm-access public|restricted` set
+`publishConfig`. `--documentation` is accepted, as for every language, but
+package.json has no documentation field (`homepage` is the project's home
+page), so a TypeScript package does not record it. A README and license are copied into the package.
+`--package-json` is merged last and cannot set `name`, `version`,
+`crucible`, `files`, `private` or `publishConfig`. To declare the SDK
+once, with its npm registry, use [`crucible-sdk.toml`](../sdk-releases.md#declare-sdks-crucible-sdktoml).
 
 ## Calling operations
 

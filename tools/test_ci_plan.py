@@ -69,6 +69,7 @@ class PlanTests(unittest.TestCase):
     def test_language_front_end_and_server_have_their_own_gates(self):
         self.assertEqual(affected_groups(["crates/crucible-lang/src/lower.rs"]), SDK_GROUPS)
         self.assertEqual(affected_groups(["crates/crucible-lsp/src/server.rs"]), {"rust"})
+        self.assertEqual(affected_groups(["crates/crucible-sdk-release/src/git.rs"]), {"rust"})
         self.assertEqual(affected_groups(["tools/package_lsp.py"]), {"rust", "e2e"})
 
     def test_onboarding_and_editor_integration_paths_keep_their_gates(self):

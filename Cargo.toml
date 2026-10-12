@@ -5,7 +5,7 @@ members = ["crates/*", "smithy"]
 exclude = ["e2e", "tests/consumers/leyline", "vendor/smithy-tooling"]
 
 [workspace.package]
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.85"
 publish = false
@@ -20,6 +20,7 @@ crucible-cli-runtime = { path = "crates/crucible-cli-runtime" }
 crucible-codegen-cli = { path = "crates/crucible-codegen-cli" }
 crucible-build = { path = "crates/crucible-build" }
 crucible-policy = { path = "crates/crucible-policy" }
+crucible-sdk-release = { path = "crates/crucible-sdk-release" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-smithy = { path = "crates/crucible-smithy" }
 crucible-lang = { path = "crates/crucible-lang" }
@@ -33,6 +34,7 @@ crucible-codegen-cdk = { path = "crates/crucible-codegen-cdk" }
 crucible-codegen-terraform = { path = "crates/crucible-codegen-terraform" }
 crucible-codegen-python = { path = "crates/crucible-codegen-python" }
 crucible-codegen-common = { path = "crates/crucible-codegen-common" }
+crucible-revision = { path = "crates/crucible-revision" }
 crucible-codegen-go = { path = "crates/crucible-codegen-go" }
 crucible-codegen-java = { path = "crates/crucible-codegen-java" }
 crucible-codegen-csharp = { path = "crates/crucible-codegen-csharp" }

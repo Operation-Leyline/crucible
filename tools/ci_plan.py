@@ -137,6 +137,10 @@ def affected_groups(paths):
             elif crate == "crucible-lang":
                 # The .cru front end lowers through crucible-build into every output.
                 selected.update(SDK_GROUPS)
+            elif crate == "crucible-sdk-release":
+                # Release channels: unit tests and local-repository tests
+                # run in the Rust job; no generated output depends on it.
+                selected.add("rust")
             elif crate == "crucible-lsp":
                 # Editors only: its unit and protocol tests run in the Rust job.
                 selected.add("rust")

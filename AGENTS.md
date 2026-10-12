@@ -57,12 +57,14 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-policy` | configurable build-time API policy and directional compatibility checks; consumes only the lowered IR |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
 | `crucible-codegen-openapi` | IR → OpenAPI 3.1 JSON for supported REST JSON wire contracts |
+| `crucible-revision` | the Crucible Git revision the generators were built from (and whether that checkout was dirty), in a leaf crate so a commit rebuilds only what records it |
 | `crucible-codegen-common` | compact descriptions of already-lowered wire semantics for bundled client runtimes, and the doc-comment escaping and `@sensitive` redaction rules native clients share |
 | `crucible-codegen-infra` | explicit provisioning bindings resolved against the shared resource IR |
 | `crucible-codegen-cdk` | jsii-compatible CDK constructs and literal-input validation; existing provider lifecycle stays external |
 | `crucible-codegen-terraform` | protocol-v6 Terraform/OpenTofu provider for the diagnosed supported lifecycle subset; reuses the Go client wire runtime |
 | `crucible-codegen-{python,go,java,csharp,kotlin,swift,dart,php,ruby,cpp,c,r}` | native client models, operation wrappers, bundled runtimes, and package metadata; each reads only the IR |
 | `crucible-cli` | `check`, `generate <language>`, and service scaffolding |
+| `crucible-sdk-release` | SDK release channels (`docs/sdk-packaging.md`): reading the last release from inside its artifact (npm tarball, git tag tree, Pigeon's legacy records), the version rule, HTTPS-only downloads with origin-bound credentials, and resumable publishing with `publication.json` |
 | `crucible-codegen-cli` | IR → standalone service CLI package and typed Rust SDK dispatch |
 | `crucible-cli-runtime` | service CLI parsing, configuration, completion, and output; calls use `crucible-client-runtime-rust` |
 

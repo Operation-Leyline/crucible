@@ -6,6 +6,7 @@ mod export_artifact;
 mod output;
 mod policy;
 mod scaffold;
+mod sdk;
 mod smithy_input;
 mod starter;
 
@@ -128,6 +129,8 @@ enum Command {
         #[arg(long, value_name = "GIT_REF")]
         from: Option<String>,
     },
+    /// Work with the SDKs a service declares in crucible-sdk.toml.
+    Sdk(sdk::SdkArgs),
     /// Write a stub for every operation that has no file yet: one file per
     /// operation, in a folder per resource (`service/` for the operations the
     /// service binds), under `--out`. Existing files are never overwritten.
@@ -504,9 +507,18 @@ enum Target {
         /// Middleware every client runs by default.
         #[arg(long, value_enum)]
         middleware: Vec<MiddlewareArg>,
-        /// A JSON file merged over the generated package.json.
+        /// A JSON file merged over the generated package.json. It cannot set
+        /// the name, version, crucible, files, private or publishConfig.
         #[arg(long)]
         package_json: Option<PathBuf>,
+        #[command(flatten)]
+        metadata: MetadataArgs,
+        /// The npm registry to publish to: package.json `publishConfig.registry`.
+        #[arg(long)]
+        npm_registry: Option<String>,
+        /// `publishConfig.access`: public or restricted.
+        #[arg(long, requires = "npm_registry", value_parser = ["public", "restricted"])]
+        npm_access: Option<String>,
     },
     /// Rust server bindings as one file, or a complete Cargo SDK with --client.
     Rust {
@@ -542,7 +554,84 @@ enum Target {
         /// Every structure an input reaches refuses unknown members.
         #[arg(long)]
         strict_inputs: bool,
+        #[command(flatten)]
+        metadata: MetadataArgs,
     },
+}
+
+/// The common package metadata keys, for an ad hoc package
+/// (docs/sdk-packaging.md, "The common keys").
+#[derive(Args)]
+struct MetadataArgs {
+    /// One paragraph describing the package; defaults to a generated one.
+    #[arg(long)]
+    description: Option<String>,
+    /// The source repository's URL.
+    #[arg(long)]
+    repository: Option<String>,
+    /// The project's home page URL.
+    #[arg(long)]
+    homepage: Option<String>,
+    /// The documentation URL, where the ecosystem has a field for it.
+    #[arg(long)]
+    documentation: Option<String>,
+    /// An SPDX license expression.
+    #[arg(long, conflicts_with = "license_file")]
+    license: Option<String>,
+    /// A license file, copied into the package as LICENSE.
+    #[arg(long)]
+    license_file: Option<PathBuf>,
+    /// `Name <email>`; repeat for more. The first is the maintainer.
+    #[arg(long = "author", value_name = "AUTHOR")]
+    authors: Vec<String>,
+    /// A Markdown file, copied into the package as README.md.
+    #[arg(long)]
+    readme: Option<PathBuf>,
+    /// A registry keyword; repeat for more.
+    #[arg(long = "keyword", value_name = "KEYWORD")]
+    keywords: Vec<String>,
+    /// Never publish to a public registry: the manifest carries the guard.
+    #[arg(long)]
+    private: bool,
+}
+
+impl MetadataArgs {
+    fn is_empty(&self) -> bool {
+        self.description.is_none()
+            && self.repository.is_none()
+            && self.homepage.is_none()
+            && self.documentation.is_none()
+            && self.license.is_none()
+            && self.license_file.is_none()
+            && self.authors.is_empty()
+            && self.readme.is_none()
+            && self.keywords.is_empty()
+            && !self.private
+    }
+
+    /// The metadata, with the README and license read as LF text.
+    fn read(self) -> Result<crucible_codegen::PackageMetadata, String> {
+        let read = |path: Option<PathBuf>| {
+            path.map(|path| {
+                std::fs::read_to_string(&path)
+                    .map(|text| crucible_codegen::metadata::normalize_text(&text))
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))
+            })
+            .transpose()
+        };
+        let mut metadata = crucible_codegen::PackageMetadata::new();
+        metadata.description = self.description;
+        metadata.repository = self.repository;
+        metadata.homepage = self.homepage;
+        metadata.documentation = self.documentation;
+        metadata.license = self.license;
+        metadata.license_file = read(self.license_file)?;
+        metadata.authors = self.authors;
+        metadata.readme = read(self.readme)?;
+        metadata.keywords = self.keywords;
+        metadata.private = self.private;
+        Ok(metadata)
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -552,7 +641,24 @@ enum MiddlewareArg {
 }
 
 fn main() -> ExitCode {
-    run(Cli::parse().command)
+    use clap::{CommandFactory, FromArgMatches};
+    // The version names the revision too: it is what `crucible sdk`'s
+    // revision check compares with a service's Cargo.lock.
+    let version: &'static str = Box::leak(version().into_boxed_str());
+    let matches = Cli::command().version(version).get_matches();
+    match Cli::from_arg_matches(&matches) {
+        Ok(cli) => run(cli.command),
+        Err(error) => error.exit(),
+    }
+}
+
+/// `X.Y.Z (<revision>)`, `X.Y.Z (<revision>+dirty)` from a checkout with
+/// uncommitted changes, or `X.Y.Z` without a verified Git revision.
+fn version() -> String {
+    match crucible_revision::recorded_revision() {
+        Some(revision) => format!("{} ({revision})", env!("CARGO_PKG_VERSION")),
+        None => env!("CARGO_PKG_VERSION").into(),
+    }
 }
 
 // Keep parsing separate from dispatch: their debug-build stack frames together
@@ -664,6 +770,7 @@ fn run(command: Command) -> ExitCode {
         ),
         Command::Generate { target, audience } => generate(*target, audience.into()),
         Command::Freeze { package, out, from } => freeze(&package, out.as_deref(), from.as_deref()),
+        Command::Sdk(args) => sdk::run(args),
         Command::Scaffold {
             source,
             out,
@@ -1414,7 +1521,11 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             internal_error,
             unknown_operation_error,
             strict_inputs,
+            metadata,
         } => {
+            if !client && !metadata.is_empty() {
+                return Err("package metadata describes a client package: add --client".into());
+            }
             let capabilities = if client {
                 crucible_codegen_rust::client_capabilities()
             } else {
@@ -1428,6 +1539,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             if client {
                 let mut options = crucible_codegen::RustOptions {
                     package_name,
+                    metadata: metadata.read()?,
                     ..Default::default()
                 };
                 if let Some(version) = package_version {
@@ -1470,6 +1582,9 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
             middleware,
             package_json,
+            metadata,
+            npm_registry,
+            npm_access,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_ts::capabilities())?;
@@ -1495,6 +1610,12 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                     })
                     .collect(),
                 package_json,
+                metadata: {
+                    let mut metadata = metadata.read()?;
+                    metadata.registry = npm_registry
+                        .map(|url| crucible_codegen::Registry::npm(url, npm_access.as_deref()));
+                    metadata
+                },
             };
             let files = crucible_codegen::Client::Ts(options)
                 .emit_for_audience(&service, audience)
