@@ -388,10 +388,33 @@ mod lambda_event {
                     .expect("the failure envelope is JSON")
             }));
         }
-        let request: LambdaRequest = serde_json::from_str(payload)?;
+        let mut request: LambdaRequest = serde_json::from_str(payload)?;
+        // A Function URL or HTTP API passes the query as the client sent it;
+        // lambda_http appends it to the URI and panics if the URI then fails
+        // to parse (`"`, `<`, `>`, a space, from curl and the like).
+        if let LambdaRequest::ApiGatewayV2(event) = &mut request
+            && let Some(query) = &mut event.raw_query_string
+        {
+            *query = uri_query(query);
+        }
         let origin = request.request_origin();
-        let (mut parts, body) =
-            axum::http::Request::<lambda_http::Body>::from(request).into_parts();
+        // The event's own request id, as `event_request_id` reads it after
+        // the conversion, for an answer when the conversion fails.
+        let event_id = match &request {
+            LambdaRequest::ApiGatewayV2(event) => event.request_context.request_id.as_deref(),
+            LambdaRequest::ApiGatewayV1(event) => event.request_context.request_id.as_deref(),
+            _ => None,
+        }
+        .and_then(|id| HeaderValue::from_str(id).ok());
+        // The conversion panics on what it cannot read (a body that claims
+        // base64 but is not); that is the client's malformed request.
+        let converted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            axum::http::Request::<lambda_http::Body>::from(request)
+        }));
+        let Ok(converted) = converted else {
+            return malformed(origin, event_id.or(meta.request_id));
+        };
+        let (mut parts, body) = converted.into_parts();
         if matches!(
             origin,
             RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
@@ -461,6 +484,50 @@ mod lambda_event {
             Some(lambda_http::Body::Text(body.to_string())),
             false,
             Some("Internal Server Error"),
+        )
+    }
+
+    /// `query` with every byte a URI query does not carry raw
+    /// percent-encoded, so it parses. Existing `%` escapes are kept, and a
+    /// malformed one still reaches the protocol, which rejects it as the
+    /// client's. Decoding gives back exactly what the client sent.
+    fn uri_query(query: &str) -> String {
+        let mut out = String::with_capacity(query.len());
+        for byte in query.bytes() {
+            if byte.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=:@/?%".contains(&byte) {
+                out.push(char::from(byte));
+            } else {
+                out.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        out
+    }
+
+    /// A 400 in the event's shape for an event lambda_http cannot convert.
+    fn malformed(
+        origin: RequestOrigin,
+        request_id: Option<HeaderValue>,
+    ) -> Result<Box<RawValue>, BoxError> {
+        tracing::warn!(
+            request_id = request_id.as_ref().and_then(|id| id.to_str().ok()),
+            "the Lambda event is not a request that can be read; answered 400"
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        if let Some(id) = request_id {
+            headers.insert("x-request-id", id);
+        }
+        let body = serde_json::json!({ "message": "the request could not be read" });
+        respond(
+            origin,
+            400,
+            headers,
+            Some(lambda_http::Body::Text(body.to_string())),
+            false,
+            Some("Bad Request"),
         )
     }
 

@@ -48,6 +48,16 @@ version's section when it is prepared.
 
 ### Fixed
 
+- A Lambda HTTP event whose query string held characters a URI does not
+  carry raw (`"`, `<`, `>`, a space: curl and other non-browser clients
+  send them unencoded, and a Function URL passes them on as received)
+  panicked inside `lambda_http` while the event was converted, and the
+  caller got a bare 502. The host percent-encodes those bytes first, which
+  query decoding undoes, so the service reads what the client sent. Any
+  other event `lambda_http` cannot convert (a body that claims base64 but
+  is not) is answered 400 with the request id instead of failing the
+  invocation.
+
 - An answer larger than a Lambda invocation returns (6 MB, the event's
   shape and base64 included) was handed to the platform, which refused it
   after the service log had recorded the request as served: the caller
