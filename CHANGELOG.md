@@ -46,6 +46,24 @@ version's section when it is prepared.
   earlier. Before, it reported the host's deadline unchanged, and nothing
   enforced it.
 
+### Fixed
+
+- Model text with unusual characters no longer breaks generated clients.
+  Each of these was a compile error before: a CR in documentation (rustc
+  refuses a bare CR in a doc comment), a byte order mark anywhere (Go
+  refuses one but at a file's start), U+2028, U+2029 or NEL in an enum
+  value or default (C# ends a line at each, inside a string literal too),
+  and `*/` in a PHP member's documentation, which ended the constructor's
+  docblock. Documentation reaches every generated comment with its line
+  breaks as LF and no control characters or BOM
+  (`docs::comment_text`), `*/` is defused in block-comment tags as well
+  as prose, and double-quoted literals in C#, Go, Java, TypeScript,
+  Python, Dart and R escape what JSON leaves raw (`quoted`); Kotlin,
+  Swift and C++ escape the same characters their own way. PHP and Ruby
+  keep single-quoted literals, which take every byte as written.
+  `fixtures/hostile-text.json` covers documentation, a deprecation
+  message, enum values, a default, a pattern and a JSON name.
+
 ### Security
 
 - A rejection lists at most 100 violations

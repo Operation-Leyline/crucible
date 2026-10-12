@@ -2,7 +2,7 @@ use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 
 pub fn literal(s: &str) -> String {
-    serde_json::to_string(s).expect("a string serializes")
+    crucible_codegen_common::quoted(s)
 }
 
 pub fn identifier(s: &str) -> bool {

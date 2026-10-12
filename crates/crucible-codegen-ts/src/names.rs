@@ -143,7 +143,7 @@ fn mentions(code: &str, ident: &str) -> bool {
 }
 
 pub(crate) fn literal(text: &str) -> String {
-    serde_json::to_string(text).expect("a string always serializes")
+    crucible_codegen_common::quoted(text)
 }
 
 /// A JSDoc block, or nothing when there are no docs.
@@ -167,6 +167,7 @@ pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, not
         }
         text.push_str(&format!("@deprecated {}", deprecated.note()));
     }
+    let text = crucible_codegen_common::docs::comment_text(&text);
     let docs = text.as_str();
     if docs.is_empty() {
         return;

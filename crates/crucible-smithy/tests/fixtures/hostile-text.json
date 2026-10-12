@@ -1,0 +1,129 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.hostile#Hostile": {
+      "type": "service",
+      "version": "1",
+      "operations": [
+        {
+          "target": "example.hostile#Do"
+        }
+      ],
+      "traits": {
+        "aws.protocols#restJson1": {},
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+      }
+    },
+    "example.hostile#Do": {
+      "type": "operation",
+      "input": {
+        "target": "example.hostile#DoInput"
+      },
+      "output": {
+        "target": "example.hostile#DoOutput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/do"
+        },
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param",
+        "smithy.api#deprecated": {
+          "message": "dep cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+        }
+      }
+    },
+    "example.hostile#DoInput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {},
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+      },
+      "members": {
+        "text": {
+          "target": "example.hostile#Text",
+          "traits": {
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param",
+            "smithy.api#default": "q\" bs\\ d$x ${x} #{x} ls\u2028ps\u2029 bom\ufeff cr\r fin*/"
+          }
+        },
+        "kind": {
+          "target": "example.hostile#Kind",
+          "traits": {
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+          }
+        },
+        "weird": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#jsonName": "a\"b\\c$d#{e}\u2028f",
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+          }
+        }
+      }
+    },
+    "example.hostile#DoOutput": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#output": {}
+      },
+      "members": {
+        "kind": {
+          "target": "example.hostile#Kind"
+        }
+      }
+    },
+    "example.hostile#Text": {
+      "type": "string",
+      "traits": {
+        "smithy.api#pattern": "^[\"\\\\$#{}]*\u2028?$",
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+      }
+    },
+    "example.hostile#Kind": {
+      "type": "enum",
+      "traits": {
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+      },
+      "members": {
+        "QUOTE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "q\"uote"
+          }
+        },
+        "BACKSLASH": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "b\\s"
+          }
+        },
+        "INTERP": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "${x}#{y}$z"
+          }
+        },
+        "LINESEP": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "l\u2028s\u2029p",
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param"
+          }
+        },
+        "CONTROL": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "c\rr\tt\u0001n\u007fd\u0085e\ufeffb"
+          }
+        },
+        "COMMENT": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "*/ fin"
+          }
+        }
+      }
+    }
+  }
+}

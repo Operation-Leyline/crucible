@@ -132,7 +132,9 @@ pub(crate) fn literal(text: &str) -> String {
 
 /// `///` docs, or nothing when there are none.
 pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
-    let Some(docs) = docs.map(str::trim).filter(|d| !d.is_empty()) else {
+    // rustc refuses a bare CR in a doc comment; model text is normalised.
+    let docs = docs.map(crucible_codegen_common::docs::comment_text);
+    let Some(docs) = docs.as_deref().map(str::trim).filter(|d| !d.is_empty()) else {
         return;
     };
     for line in docs.lines() {

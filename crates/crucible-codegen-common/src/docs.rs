@@ -106,7 +106,7 @@ pub fn operation_notes(op: &Operation, token_member: Option<&str>) -> Vec<String
 pub fn escape(text: &str) -> String {
     let mut lines = Vec::new();
     let mut fenced = false;
-    for line in text.replace("\r\n", "\n").replace('\r', "\n").lines() {
+    for line in comment_text(text).lines() {
         if line.trim_start().starts_with("```") || line.trim_start().starts_with("~~~") {
             fenced = !fenced;
             lines.push(line.to_string());
@@ -123,9 +123,7 @@ pub fn escape(text: &str) -> String {
 /// target comment has a terminator (`/** */`). Line comments (`///`, `#`)
 /// have none, so their text stays as written.
 fn normalise(text: &str, terminator: bool) -> String {
-    let mut lines: Vec<String> = text
-        .replace("\r\n", "\n")
-        .replace('\r', "\n")
+    let mut lines: Vec<String> = comment_text(text)
         .lines()
         .map(|line| {
             let line = line.trim_end();
@@ -143,6 +141,34 @@ fn normalise(text: &str, terminator: bool) -> String {
         lines.remove(0);
     }
     lines.join("\n")
+}
+
+/// Model text as a source comment can carry it: every line break (CRLF,
+/// CR, NEL, U+2028, U+2029) becomes LF, and a byte order mark or any other
+/// control character but tab is dropped. Languages disagree on what ends a
+/// line comment (Java at CR, C# and JavaScript at U+2028) and Go refuses a
+/// BOM anywhere but a file's start, so model documentation is reduced to
+/// what every one of them reads the same way. Every comment helper here and
+/// in [`crate::documentation`] starts with it.
+pub fn comment_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                out.push('\n');
+            }
+            '\n' | '\u{85}' | '\u{2028}' | '\u{2029}' => out.push('\n'),
+            '\t' => out.push(c),
+            '\u{feff}' => {}
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+    out
 }
 
 fn escape_line(line: &str) -> String {
@@ -209,7 +235,18 @@ pub fn block_comment(indent: &str, text: &str, tags: &[String]) -> String {
         if !lines.is_empty() {
             lines.push(String::new());
         }
-        lines.extend(tags.iter().flat_map(|tag| tag.lines().map(str::to_string)));
+        // Tags interpolate model text too (a deprecation note, a member's
+        // docs), and `*/` in one would end the block as surely as in prose.
+        lines.extend(
+            tags.iter()
+                .flat_map(|tag| {
+                    comment_text(tag)
+                        .lines()
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .map(|line| line.replace("*/", "*\u{5c}/")),
+        );
     }
     if lines.is_empty() {
         return String::new();

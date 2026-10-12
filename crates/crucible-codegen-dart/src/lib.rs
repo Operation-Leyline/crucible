@@ -28,9 +28,7 @@ pub struct File {
 }
 
 fn literal(value: &str) -> String {
-    serde_json::to_string(value)
-        .expect("string")
-        .replace('$', "\\$")
+    crucible_codegen_common::quoted(value).replace('$', "\\$")
 }
 fn method(value: &str) -> String {
     let mut chars = value.chars();

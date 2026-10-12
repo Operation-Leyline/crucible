@@ -17,7 +17,7 @@ pub struct File {
     pub contents: String,
 }
 fn literal(text: &str) -> String {
-    serde_json::to_string(text).expect("string serializes")
+    crucible_codegen_common::quoted(text)
 }
 fn identifier(text: &str) -> bool {
     text.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
