@@ -136,6 +136,9 @@ pub(crate) fn emit(
                 if strict.contains(id) {
                     out.push_str("#[serde(deny_unknown_fields)]\n");
                 }
+                if client {
+                    out.push_str(crate::NON_EXHAUSTIVE);
+                }
                 out.push_str(&format!("pub struct {name} {{\n"));
                 for member in &structure.members {
                     let is_boxed = boxed.contains(&id.with_member(&member.name));

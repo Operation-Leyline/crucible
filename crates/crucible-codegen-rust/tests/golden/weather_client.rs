@@ -13,6 +13,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct CitySummary {
         #[serde(rename = "id")]
         pub id: CityId,
@@ -98,6 +99,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct Coordinates {
         #[serde(rename = "latitude")]
         pub latitude: f64,
@@ -148,6 +150,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct CreateCityInput {
         #[serde(rename = "name", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub name: ::crucible_client_runtime_rust::__generated::Field<CityName>,
@@ -220,6 +223,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct CreateCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
@@ -265,6 +269,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct GetCityInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
@@ -317,6 +322,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct GetCityOutput {
         #[serde(rename = "city")]
         pub city: CitySummary,
@@ -378,6 +384,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct GetCityPhotoInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
@@ -420,6 +427,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct GetCityPhotoOutput {
         #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub caption: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -472,6 +480,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct ListCitiesInput {
         #[serde(rename = "nextToken", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub next_token: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -534,6 +543,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct ListCitiesOutput {
         #[serde(rename = "cities")]
         pub cities: CitySummaries,
@@ -584,6 +594,7 @@ mod model {
     }
 
     #[derive(Clone, PartialEq)]
+    #[non_exhaustive]
     pub enum Location {
         Coordinates(Coordinates),
         Unknown(::crucible_client_runtime_rust::__generated::operation::Unit),
@@ -634,6 +645,7 @@ mod model {
     /// Since 2026-10.
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PhotoSummary {
         #[serde(rename = "size")]
         pub size: i32,
@@ -694,6 +706,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PutCityPhotoInput {
         #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
@@ -756,6 +769,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PutCityPhotoOutput {
         #[serde(rename = "photo")]
         pub photo: PhotoSummary,
@@ -796,6 +810,7 @@ mod model {
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
     pub enum Sky {
         Clear,
         #[deprecated(note = "Reported as CLEAR with a cloud cover reading.")]
@@ -835,6 +850,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct StatusInput {
     }
     impl ::std::fmt::Debug for StatusInput {
@@ -867,6 +883,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct StatusOutput {
     }
     impl ::std::fmt::Debug for StatusOutput {
@@ -904,6 +921,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct ValidationField {
         #[serde(rename = "path")]
         pub path: ::std::string::String,
@@ -955,6 +973,7 @@ mod model {
     pub type ValidationFieldList = ::std::vec::Vec<ValidationField>;
 
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
     pub enum ValidationReason {
         UnknownOperation,
         CannotParse,
@@ -1105,6 +1124,7 @@ mod errors {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct ConflictError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
@@ -1189,6 +1209,7 @@ mod errors {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct NotFoundError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
@@ -1284,6 +1305,7 @@ mod errors {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct ThrottlingError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
@@ -1379,6 +1401,7 @@ mod errors {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct ValidationError {
         #[serde(rename = "message")]
         pub message: ::std::string::String,
@@ -1676,6 +1699,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for CreateCity {
 
 /// The errors CreateCity declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum CreateCityError {
     /// A modeled error returned by this operation.
     ConflictError(errors::ConflictError),
@@ -1763,6 +1787,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for GetCity {
 
 /// The errors GetCity declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum GetCityError {
     /// A modeled error returned by this operation.
     NotFoundError(errors::NotFoundError),
@@ -1848,6 +1873,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for GetCityPhoto {
 
 /// The errors GetCityPhoto declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum GetCityPhotoError {
     /// A modeled error returned by this operation.
     NotFoundError(errors::NotFoundError),
@@ -1935,6 +1961,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for ListCities {
 
 /// The errors ListCities declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum ListCitiesError {
     /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
@@ -2015,6 +2042,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for Ping {
 
 /// The errors Ping declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum PingError {
     /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),
@@ -2097,6 +2125,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for PutCityPhoto {
 
 /// The errors PutCityPhoto declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum PutCityPhotoError {
     /// A modeled error returned by this operation.
     NotFoundError(errors::NotFoundError),
@@ -2177,6 +2206,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for Status {
 
 /// The errors Status declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum StatusError {
     /// A modeled error returned by this operation.
     ThrottlingError(errors::ThrottlingError),

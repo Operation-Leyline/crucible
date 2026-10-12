@@ -7,6 +7,7 @@ mod model {
 
     /// A legacy color enum.
     #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
     pub enum Color {
         /// Warm red.
         #[deprecated(note = "Deprecated.")]
@@ -48,6 +49,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct Input {
         #[serde(rename = "color", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub color: ::crucible_client_runtime_rust::__generated::Field<Color>,
@@ -90,6 +92,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct Output {
         #[serde(rename = "color")]
         pub color: Color,
@@ -207,6 +210,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for SetColor {
 
 /// The errors SetColor declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum SetColorError {
 }
 

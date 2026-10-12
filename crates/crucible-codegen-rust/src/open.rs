@@ -29,7 +29,8 @@ pub(crate) fn enumeration(out: &mut String, name: &str, values: &Enum, debug: bo
     documented(out, "", values.docs.as_deref(), &values.notes);
     let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
-        "#[derive({debug}Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
+        "#[derive({debug}Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
+        crate::NON_EXHAUSTIVE
     ));
     for value in &values.values {
         documented(out, "    ", value.docs.as_deref(), &value.notes);
@@ -69,12 +70,13 @@ pub(crate) fn union(
     let unknown = unknown_variant(union.members.iter().map(|member| member.name.as_str()));
     documented(out, "", union.docs.as_deref(), &union.notes);
     out.push_str(&format!(
-        "{}\npub enum {name} {{\n",
+        "{}\n{}pub enum {name} {{\n",
         if client {
             "#[derive(Clone, PartialEq)]"
         } else {
             "#[derive(Debug, Clone, PartialEq)]"
-        }
+        },
+        if client { crate::NON_EXHAUSTIVE } else { "" }
     ));
     for member in &union.members {
         documented(out, "    ", member.docs.as_deref(), &member.notes);
@@ -174,7 +176,8 @@ pub(crate) fn int_enumeration(
     documented(out, "", values.docs.as_deref(), &values.notes);
     let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
-        "#[derive({debug}Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum {name} {{\n"
+        "#[derive({debug}Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
+        if client { crate::NON_EXHAUSTIVE } else { "" }
     ));
     for value in &values.values {
         documented(out, "    ", value.docs.as_deref(), &value.notes);

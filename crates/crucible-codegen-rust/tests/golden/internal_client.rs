@@ -6,6 +6,7 @@
 mod model {
 
     #[derive(Clone, PartialEq)]
+    #[non_exhaustive]
     pub enum Choice {
         Public(::std::string::String),
         Private(SecretValue),
@@ -50,6 +51,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PrivateDetails {
         #[serde(rename = "value", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub value: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -92,6 +94,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PublicInput {
         #[serde(rename = "value", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub value: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -154,6 +157,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PublicOutput {
         #[serde(rename = "value", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub value: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -216,6 +220,7 @@ mod model {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct SecretInput {
         #[serde(rename = "secret", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub secret: ::crucible_client_runtime_rust::__generated::Field<SecretValue>,
@@ -297,6 +302,7 @@ mod errors {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct InternalFault {
         #[serde(rename = "message", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub message: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -382,6 +388,7 @@ mod errors {
 
     #[derive(Clone, PartialEq, ::crucible_client_runtime_rust::__generated::serde::Serialize, ::crucible_client_runtime_rust::__generated::serde::Deserialize)]
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
+    #[non_exhaustive]
     pub struct PublicFault {
         #[serde(rename = "message", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub message: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
@@ -564,6 +571,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for Public {
 
 /// The errors Public declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum PublicError {
     /// A modeled error returned by this operation.
     PublicFault(errors::PublicFault),
@@ -643,6 +651,7 @@ impl ::crucible_client_runtime_rust::__generated::Operation for Secret {
 
 /// The errors Secret declares.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum SecretError {
     /// A modeled error returned by this operation.
     PublicFault(errors::PublicFault),

@@ -116,7 +116,8 @@ fn sensitive_enum_debug_does_not_rewrite_documentation() {
         let declaration = format!("pub enum {name} {{");
         let lines: Vec<_> = code.lines().map(str::trim).collect();
         let index = lines.iter().position(|line| *line == declaration).unwrap();
-        assert!(lines[index - 1].starts_with("#[derive(Clone,"));
+        assert_eq!(lines[index - 1], "#[non_exhaustive]");
+        assert!(lines[index - 2].starts_with("#[derive(Clone,"));
         assert!(code.contains(&format!("impl ::std::fmt::Debug for {name}")));
     }
 }

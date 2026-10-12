@@ -57,6 +57,10 @@ pub fn source_revision() -> Option<&'static str> {
 }
 
 pub(crate) const DERIVE: &str = "#[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__generated::serde\")]\n";
+/// On every client type: a consumer in another crate builds structures
+/// through their builders and matches with a `_` arm, so a member, union
+/// arm or enum value a newer model adds breaks no consumer's source.
+pub(crate) const NON_EXHAUSTIVE: &str = "#[non_exhaustive]\n";
 pub(crate) const DERIVE_ENUM: &str = "#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__generated::serde\")]\n";
 
 const ALLOW: &str = "#[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]\n";

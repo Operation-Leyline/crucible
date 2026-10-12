@@ -133,7 +133,8 @@ values added since reach the older release. `version` is the older
 release's name.
 
 **Open before 5b** (from the design review):
-- **The check's rules.** `sdk_source` reports every addition, which a
+- **The check's rules.** `sdk_source` reports nearly every addition (all
+  but an optional member appended to a non-error structure), which a
   projection makes by design. The check needs the wire rules plus the SDK
   rules for removals, renames and type changes, and a decision on which
   release's exceptions apply.

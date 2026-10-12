@@ -275,8 +275,9 @@ fn error_enum(service: &Service, op: &Operation) -> String {
     let name = error_type(op);
     let errors: Vec<&str> = op.errors.iter().map(|id| service.name_of(id)).collect();
     let mut out = format!(
-        "\n/// The errors {} declares.\n#[derive(Debug, Clone, PartialEq)]\npub enum {name} {{\n",
-        op.name()
+        "\n/// The errors {} declares.\n#[derive(Debug, Clone, PartialEq)]\n{}pub enum {name} {{\n",
+        op.name(),
+        crate::NON_EXHAUSTIVE
     );
     for error in &errors {
         let docs = op

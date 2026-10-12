@@ -281,8 +281,19 @@ They require an explicit assessment or exception; they do not silently pass.
 
 `sdk_source` checks model-level public types, operations, members, enums,
 service-local renames, collection representations, and service/client identity.
-Additions can affect construction or exhaustive matching and are conservative
-findings. This is not proof that every generated language's source/ABI remains
+A new optional member (not required, no default) added after a structure's
+existing members passes, unless the structure is an error: generated clients
+accept it without a source change (Rust models are `#[non_exhaustive]` and
+built with builders; other languages use builders, named or keyword
+arguments, or trailing optional parameters). Code that constructs models
+positionally where the language discourages it (Go unkeyed composite
+literals) and Rust code that includes the bindings with `include_client!()`
+and uses struct literals in its own crate can still break. An error
+structure's members are always reported: C++ and PHP error constructors take
+their metadata after the members. Other additions are conservative findings: a required or
+defaulted member is a new constructor argument in most languages, one
+inserted between existing members shifts positional arguments (C, C++, PHP,
+R), and a union arm breaks exhaustive matches. This is not proof that every generated language's source/ABI remains
 compatible. Generator version changes, service behavior, dependencies, and
 target-specific consumer code need their own tests.
 

@@ -15,6 +15,27 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** generated Rust client models, enums, unions and per-operation
+  error enums are `#[non_exhaustive]`. Code in another crate builds models
+  with their builders, destructures with `..` and matches with a `_` arm.
+- The `compatibility.sdk` check no longer reports a new optional member (not
+  required, no default) added after the existing members of a structure that
+  is not an error: no generated client turns it into a source change, so a `.cru` package adds
+  one without a migration. One inserted between existing members is still
+  reported (it shifts positional constructors in C, C++, PHP and R), as are
+  required and defaulted members and union arms.
+
+### Migration
+
+- **Rust client models.** Replace struct literals of generated client types
+  with builders (`GetCityInput::builder().city_id(id).build()`), add `..` to
+  exhaustive destructuring, and add a `_ =>` arm to matches on generated
+  enums, unions and operation error enums. No shim is possible: the attribute
+  is on the generated type. Bindings included with `include_client!()` live
+  in the including crate and are unaffected.
+
 ## [0.5.0] - 2026-10-11
 
 Crucible's own modelling language (`.cru` packages, compiled without Smithy

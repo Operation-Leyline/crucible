@@ -118,6 +118,29 @@ fn an_unchanged_model_is_compatible() {
 }
 
 #[test]
+fn an_optional_member_after_the_others_needs_no_migration() {
+    let added = V1.replace(
+        "        kind: Kind\n    }",
+        "        kind: Kind\n        color?: string\n    }",
+    );
+    assert_ne!(added, V1);
+    let guard = run("optional-appended", &added, "");
+    assert_eq!(rules(&guard), Vec::<String>::new());
+    assert!(!guard.has_errors());
+
+    // Before an existing member, it shifts positional constructors.
+    let inserted = V1.replace(
+        "        name: string\n",
+        "        name: string\n        color?: string\n",
+    );
+    let guard = run("optional-inserted", &inserted, "");
+    assert_eq!(
+        rules(&guard),
+        vec!["compatibility.sdk example.shop#GetItemOutput$color"]
+    );
+}
+
+#[test]
 fn an_undeclared_break_fails_and_a_declared_one_compiles() {
     let renamed = V1.replace("        name: string\n", "        title: string\n");
     let undeclared = run("rename-undeclared", &renamed, "");
