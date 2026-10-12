@@ -3,6 +3,8 @@ mod client;
 mod file;
 mod generator;
 mod output;
+pub mod provenance;
+pub mod sdk;
 mod server;
 
 pub use client::Client;
@@ -57,4 +59,6 @@ pub use generator::Generator;
 pub use output::write;
 pub use server::Server;
 
+pub use crucible_codegen_common::metadata;
+pub use crucible_codegen_common::{PackageMetadata, Registry};
 pub use crucible_smithy::Audience;

@@ -19,6 +19,7 @@ crucible-codegen-cli.workspace = true
 crucible-smithy.workspace = true
 crucible-policy.workspace = true
 crucible-codegen-rust.workspace = true
+crucible-revision.workspace = true
 crucible-codegen-ts.workspace = true
 crucible-codegen-openapi.workspace = true
 crucible-codegen-docs.workspace = true

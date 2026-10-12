@@ -33,6 +33,7 @@ crucible-codegen-cdk = { path = "crates/crucible-codegen-cdk" }
 crucible-codegen-terraform = { path = "crates/crucible-codegen-terraform" }
 crucible-codegen-python = { path = "crates/crucible-codegen-python" }
 crucible-codegen-common = { path = "crates/crucible-codegen-common" }
+crucible-revision = { path = "crates/crucible-revision" }
 crucible-codegen-go = { path = "crates/crucible-codegen-go" }
 crucible-codegen-java = { path = "crates/crucible-codegen-java" }
 crucible-codegen-csharp = { path = "crates/crucible-codegen-csharp" }

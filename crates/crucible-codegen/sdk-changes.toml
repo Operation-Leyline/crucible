@@ -1,0 +1,17 @@
+# Generator and runtime changes that move generated SDKs
+# (docs/sdk-packaging.md, "Generator change entries").
+#
+# A pull request that changes a generator's public output or a runtime's
+# public API adds an entry: the next `id`, the languages whose SDKs it moves,
+# its kind (`breaking`, `additive` or `patch`) and a one-line summary. The Rust
+# SDK re-exports its whole runtime, so a change to that runtime's public API is
+# a Rust entry; bundled runtimes and minimum toolchain versions count the same
+# way. Entries are per language, never per feature, and ordered by `id`, not by
+# Crucible version. Never renumber or remove an entry: every package's
+# `crucible.json` records the highest `id` it was generated with.
+
+[[change]]
+id = 0
+languages = ["rust", "ts", "python", "go", "java", "kotlin", "csharp", "swift", "dart", "php", "ruby", "cpp", "c", "r"]
+kind = "patch"
+summary = "The log begins. Changes before it are not recorded; packages generated before it carry no generatorChanges."

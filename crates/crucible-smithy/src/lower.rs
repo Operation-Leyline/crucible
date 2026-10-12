@@ -285,6 +285,15 @@ impl<'m> Lowerer<'m> {
             renames: shape.rename.clone(),
             versions: Vec::new(),
             api_version: None,
+            internal_traits: self
+                .model
+                .iter()
+                .filter(|(_, definition)| {
+                    definition.traits.contains_key(&smithy("trait"))
+                        && definition.traits.contains_key(&smithy("internal"))
+                })
+                .map(|(id, _)| id.clone())
+                .collect(),
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);

@@ -1,3 +1,5 @@
+use crucible_codegen_common::PackageMetadata;
+
 use crate::RuntimeDependency;
 
 /// Native Cargo package configuration for a generated Rust SDK.
@@ -7,6 +9,8 @@ pub struct ClientOptions {
     pub package_name: Option<String>,
     pub package_version: String,
     pub runtime: RuntimeDependency,
+    /// Description, URLs, license, authors, README, keywords and `private`.
+    pub metadata: PackageMetadata,
 }
 
 impl Default for ClientOptions {
@@ -15,6 +19,7 @@ impl Default for ClientOptions {
             package_name: None,
             package_version: env!("CARGO_PKG_VERSION").into(),
             runtime: RuntimeDependency::Auto,
+            metadata: PackageMetadata::default(),
         }
     }
 }

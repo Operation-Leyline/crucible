@@ -4,6 +4,9 @@ pub mod docs;
 pub mod documentation;
 pub mod json_schema;
 pub mod mcp;
+pub mod metadata;
+
+pub use metadata::{PackageMetadata, Registry};
 
 use crucible_smithy::ir::{
     Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,

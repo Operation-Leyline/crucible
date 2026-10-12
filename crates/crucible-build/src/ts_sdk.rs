@@ -8,6 +8,7 @@ pub struct TsSdk<'a> {
     name: String,
     audience: crucible_codegen::Audience,
     options: TsOptions,
+    files: crate::package_metadata::MetadataFiles,
 }
 
 impl<'a> TsSdk<'a> {
@@ -30,7 +31,9 @@ impl<'a> TsSdk<'a> {
                 endpoint: None,
                 middleware: Vec::new(),
                 package_json: None,
+                metadata: crucible_codegen::PackageMetadata::default(),
             },
+            files: crate::package_metadata::MetadataFiles::default(),
         }
     }
 
@@ -70,11 +73,54 @@ impl<'a> TsSdk<'a> {
         self
     }
 
-    /// Additional metadata merged into the generated package.json.
+    /// Additional metadata merged into the generated package.json, last. It
+    /// cannot set the name, version, `crucible`, `files`, `private` or
+    /// `publishConfig`.
     pub fn package_json(mut self, metadata: serde_json::Value) -> Self {
         self.options.package_json = Some(metadata);
         self
     }
 
-    crate::output_builder::generation_methods!(Ts);
+    crate::package_metadata::metadata_setters!();
+
+    /// The npm registry the package publishes to: `publishConfig.registry`
+    /// and, when given, `.access` (`public` or `restricted`).
+    pub fn npm_registry(mut self, url: &str, access: Option<&str>) -> Self {
+        self.options.metadata.registry = Some(crucible_codegen::Registry::npm(url, access));
+        self
+    }
+
+    /// The output this builder configures, with its metadata files read.
+    fn output(mut self) -> Result<crate::Output<'a>, String> {
+        self.files.apply(&mut self.options.metadata)?;
+        Ok(self
+            .model
+            .sdk(&self.name, crucible_codegen::Client::Ts(self.options))
+            .audience(self.audience))
+    }
+
+    /// Generate and publish the named native SDK under OUT_DIR.
+    pub fn generate(self) -> crate::Artifact {
+        self.try_generate()
+            .unwrap_or_else(|message| panic!("crucible: {message}"))
+    }
+
+    /// Generate without panicking when the target reports diagnostics.
+    pub fn try_generate(self) -> Result<crate::Artifact, String> {
+        self.output()?.try_generate()
+    }
+
+    /// Generate under OUT_DIR and export relative to the producer's manifest.
+    pub fn generate_into(self, output: impl AsRef<std::path::Path>) -> crate::Artifact {
+        self.try_generate_into(output)
+            .unwrap_or_else(|message| panic!("crucible: {message}"))
+    }
+
+    /// Fallible equivalent of native SDK generation and export.
+    pub fn try_generate_into(
+        self,
+        output: impl AsRef<std::path::Path>,
+    ) -> Result<crate::Artifact, String> {
+        self.output()?.try_generate_into(output)
+    }
 }

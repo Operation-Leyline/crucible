@@ -10,6 +10,9 @@ use crate::{Artifact, Output};
 /// A compiled model and its named generated outputs for one Cargo package build.
 pub struct ModelPackage {
     pub(crate) model: PathBuf,
+    /// What the build script named: Smithy sources, a `.cru` package or a
+    /// JSON AST. A `crucible-sdk.toml` naming it declares this model's SDKs.
+    pub(crate) source: PathBuf,
     pub(crate) server_requires_rejection: bool,
     pub(crate) service: Service,
     pub(crate) output: PathBuf,
@@ -62,6 +65,7 @@ impl ModelPackage {
         policy: Option<PathBuf>,
     ) -> Result<Self, String> {
         let package = Self {
+            source: model.clone(),
             model,
             server_requires_rejection,
             service,

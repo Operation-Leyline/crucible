@@ -94,6 +94,7 @@ impl ModelConfig {
             .map(PathBuf::from)
             .ok_or_else(|| "OUT_DIR: run model generation from a Cargo build script".to_string())?;
         println!("cargo::rerun-if-changed={}", self.source.display());
+        let source = self.source.clone();
         let path = if self.json {
             self.source
         } else {
@@ -149,5 +150,9 @@ impl ModelConfig {
             ))]
             self.policy,
         )
+        .map(|mut package| {
+            package.source = source;
+            package
+        })
     }
 }

@@ -42,6 +42,17 @@ prerequisites as listed in its guide. Install the CLI once from your pinned
 Crucible checkout with `cargo install --path crates/crucible-cli --locked`.
 Examples using `crucible` assume that executable is on `PATH`.
 
+## Package metadata, provenance and declared SDKs
+
+A service declares the SDKs it releases once, in `crucible-sdk.toml`, and
+generates them with `crucible sdk generate`; `crucible sdk config` prints
+what each one resolves to. Rust and TypeScript packages take the common
+metadata keys (description, URLs, license, authors, README, keywords,
+`private`) from that file, from `crucible generate` flags, or from the
+`crucible_build` helpers, and carry `crucible.json` (schema 2) and
+`crucible-model.json`. See [releasing generated SDKs](sdk-releases.md) and
+the design in [SDK packaging](sdk-packaging.md).
+
 ## API documentation and debug formatting
 
 The TypeScript, Python and Go clients preserve Smithy documentation on models,

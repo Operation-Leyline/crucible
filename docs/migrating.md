@@ -18,6 +18,26 @@ tag.
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
 
+## 0.6.1 to the next minor release
+
+Unreleased: the [CHANGELOG](../CHANGELOG.md#unreleased) *Migration*
+section is the authority.
+
+### TypeScript `package_json` owns less
+
+A `package.json` fragment (`crucible generate ts --package-json`,
+`TsSdk::package_json`, `TsOptions::package_json`) can no longer set the
+keys the generated package owns: `name`, `version`, `crucible`, `files`,
+`private` and `publishConfig`. Generation fails and names each one. Move
+them to the settings that own them:
+
+| Fragment key | Instead |
+|---|---|
+| `name`, `version` | `--package-name`, `--package-version`; `.package(..)`, `.version(..)` |
+| `private` | `--private`; `.private(true)`; `private = true` in `crucible-sdk.toml` |
+| `publishConfig` | `--npm-registry`, `--npm-access`; `.npm_registry(url, access)`; an npm `channel` in [`crucible-sdk.toml`](sdk-releases.md#declare-sdks-crucible-sdktoml) |
+| `description`, `repository`, `homepage`, `license`, `author`, `keywords` | still allowed; or the matching flag, setter or SDK file key |
+
 ## 0.5.0 to 0.6.0
 
 The [CHANGELOG](../CHANGELOG.md#060---2026-10-12) *Migration* section is the

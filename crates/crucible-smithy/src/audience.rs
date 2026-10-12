@@ -283,10 +283,164 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     result
         .renames
         .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
+    strip_raw_traits(&mut result);
     if diagnostics.is_empty() {
         Ok(result)
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Standard traits (the `smithy.*`, `aws.*` and `crucible.*` namespaces)
+/// an external view keeps in its raw trait maps: their values are scalars,
+/// wire bindings, constraints or protocol settings, never a member, shape or
+/// enum value the projection may have removed. The rest (`smithy.api#enum`,
+/// `smithy.api#references`, protocol tests, examples, waiters, endpoint
+/// tests, and any standard trait not listed) are dropped; their projected
+/// typed forms remain.
+const EXTERNAL_RAW_TRAITS: &[&str] = &[
+    "smithy.api#addedDefault",
+    "smithy.api#auth",
+    "smithy.api#authDefinition",
+    "smithy.api#box",
+    "smithy.api#clientOptional",
+    "smithy.api#cors",
+    "smithy.api#default",
+    "smithy.api#deprecated",
+    "smithy.api#documentation",
+    "smithy.api#endpoint",
+    "smithy.api#enumValue",
+    "smithy.api#error",
+    "smithy.api#eventHeader",
+    "smithy.api#eventPayload",
+    "smithy.api#externalDocumentation",
+    "smithy.api#hostLabel",
+    "smithy.api#http",
+    "smithy.api#httpApiKeyAuth",
+    "smithy.api#httpBasicAuth",
+    "smithy.api#httpBearerAuth",
+    "smithy.api#httpChecksumRequired",
+    "smithy.api#httpDigestAuth",
+    "smithy.api#httpError",
+    "smithy.api#httpHeader",
+    "smithy.api#httpLabel",
+    "smithy.api#httpPayload",
+    "smithy.api#httpPrefixHeaders",
+    "smithy.api#httpQuery",
+    "smithy.api#httpQueryParams",
+    "smithy.api#httpResponseCode",
+    "smithy.api#idempotencyToken",
+    "smithy.api#idempotent",
+    "smithy.api#input",
+    "smithy.api#jsonName",
+    "smithy.api#length",
+    "smithy.api#mediaType",
+    "smithy.api#noReplace",
+    "smithy.api#optionalAuth",
+    "smithy.api#output",
+    "smithy.api#paginated",
+    "smithy.api#pattern",
+    "smithy.api#private",
+    "smithy.api#protocolDefinition",
+    "smithy.api#range",
+    "smithy.api#readonly",
+    "smithy.api#recommended",
+    "smithy.api#requestCompression",
+    "smithy.api#required",
+    "smithy.api#requiresLength",
+    "smithy.api#retryable",
+    "smithy.api#sensitive",
+    "smithy.api#since",
+    "smithy.api#sparse",
+    "smithy.api#streaming",
+    "smithy.api#tags",
+    "smithy.api#timestampFormat",
+    "smithy.api#title",
+    "smithy.api#uniqueItems",
+    "smithy.api#unitType",
+    "smithy.api#unstable",
+    "smithy.api#xmlAttribute",
+    "smithy.api#xmlFlattened",
+    "smithy.api#xmlName",
+    "smithy.api#xmlNamespace",
+    "smithy.protocols#rpcv2Cbor",
+    "smithy.protocols#rpcv2Json",
+    "smithy.rules#clientContextParams",
+    "smithy.rules#contextParam",
+    "smithy.rules#endpointRuleSet",
+    "smithy.rules#staticContextParams",
+    "aws.api#service",
+    "aws.auth#sigv4",
+    "aws.auth#unsignedPayload",
+    "aws.protocols#awsJson1_0",
+    "aws.protocols#awsJson1_1",
+    "aws.protocols#awsQueryError",
+    "aws.protocols#httpChecksum",
+    "aws.protocols#restJson1",
+    "aws.protocols#restXml",
+    "crucible.auth#scopes",
+    "crucible.protocols#json",
+    "crucible.protocols#strict",
+];
+
+/// Whether an external view keeps a raw trait application. A custom trait
+/// (outside the standard namespaces) is the author's: it stays unless its
+/// definition is `@internal`, which is Smithy's own projection rule.
+fn external_raw_trait(id: &ShapeId, internal_traits: &BTreeSet<ShapeId>) -> bool {
+    let namespace = id.namespace();
+    let standard = namespace.starts_with("smithy.")
+        || namespace.starts_with("aws.")
+        || namespace.starts_with("crucible.");
+    if standard {
+        EXTERNAL_RAW_TRAITS.contains(&id.to_string().as_str())
+    } else {
+        !internal_traits.contains(id)
+    }
+}
+
+/// Every IR node keeps a raw copy of its Smithy traits. The projection
+/// rewrites the typed fields, not those copies, so a removed vector, enum
+/// value or resource could survive in them: an external view keeps only
+/// the raw traits [`external_raw_trait`] allows, and is read through the
+/// typed fields for the rest.
+fn strip_raw_traits(service: &mut Service) {
+    let internal_traits = std::mem::take(&mut service.internal_traits);
+    let strip = |traits: &mut crate::ir::Traits| {
+        traits.retain(|id, _| external_raw_trait(id, &internal_traits));
+    };
+    strip(&mut service.traits);
+    for op in &mut service.operations {
+        strip(&mut op.traits);
+    }
+    for resource in service.resources.values_mut() {
+        strip(&mut resource.traits);
+    }
+    for shape in service.shapes.values_mut() {
+        match shape {
+            Shape::Unit { .. } => {}
+            Shape::Simple(s) => strip(&mut s.traits),
+            Shape::Enum(s) => {
+                strip(&mut s.traits);
+                s.values.iter_mut().for_each(|v| strip(&mut v.traits));
+            }
+            Shape::IntEnum(s) => {
+                strip(&mut s.traits);
+                s.values.iter_mut().for_each(|v| strip(&mut v.traits));
+            }
+            Shape::List(s) => {
+                strip(&mut s.traits);
+                strip(&mut s.member.traits);
+            }
+            Shape::Map(s) => {
+                strip(&mut s.traits);
+                strip(&mut s.key.traits);
+                strip(&mut s.value.traits);
+            }
+            Shape::Structure(s) | Shape::Union(s) => {
+                strip(&mut s.traits);
+                s.members.iter_mut().for_each(|m| strip(&mut m.traits));
+            }
+        }
     }
 }
 
