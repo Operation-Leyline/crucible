@@ -32,11 +32,17 @@ exhaustively from another crate. The compiler names each place:
 ```rust
 // 0.5
 let input = GetCityInput { city_id: Field::Value(id), at: Field::Absent };
-match error { GetCityError::NotFoundError(e) => .., GetCityError::ValidationError(e) => .. }
+match error {
+    GetCityError::NotFoundError(e) => ..,
+    GetCityError::ThrottlingError(e) => ..,
+    GetCityError::ValidationError(e) => ..,
+}
+let GetCityOutput { city, forecast, request_id } = output;
 
 // 0.6
 let input = GetCityInput::builder().city_id(id).build();
 match error { GetCityError::NotFoundError(e) => .., _ => .. }
+let GetCityOutput { city, .. } = output;
 ```
 
 Set `Field::Null` on a built value's public field when you need it. In
@@ -48,7 +54,28 @@ value, union arm or operation error no longer breaks your source.
 A child resource no longer sees its ancestors' properties: `$name` in a
 child's operation or view that meant the parent's `name` is an error naming
 the ancestor. Bind the ancestor's identifier, or declare the property on the
-child. Properties renamed to dodge a parent's name can take it back.
+child. Properties renamed to dodge a parent's name can take it back; bind
+them as `$name as workspaceName` where they were `$workspaceName` to keep the
+JSON keys and SDK member names.
+
+### `.cru` `@mutability` agrees with the property
+
+`@mutability(..)` on a member that binds a property must now match the
+property's keyword, and a property with no keyword is read-write. Move the
+value onto the property and drop the annotation:
+
+```
+// 0.5
+resource City { property createdAt: Timestamp }
+structure CityData for City { @mutability(read) $createdAt }
+
+// 0.6
+resource City { readonly property createdAt: Timestamp }
+structure CityData for City { $createdAt }
+```
+
+`@mutability` stays for members that bind no property, such as a create-time
+parameter.
 
 ## 0.4.0 to 0.5.0
 

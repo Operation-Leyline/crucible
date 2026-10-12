@@ -21,7 +21,8 @@ Resources in the Crucible language say more about themselves: property
 mutability keywords, `$*` views, property presence and identifier spelling,
 with children inheriting only their ancestors' identifiers. `crucible-lsp`
 hover explains the language and shows whole shapes with their constraints.
-An optional member appended to a structure is no longer an SDK break, and
+An optional member appended to a structure that is not an error is no
+longer an SDK break, and
 generated Rust client types are `#[non_exhaustive]`. Breaking: follow
 *Migration*.
 
@@ -38,7 +39,10 @@ generated Rust client types are `#[non_exhaustive]`. Breaking: follow
   constraints; values). A member's hover shows its type, whether it is
   required, its default, and spells out the constraints that apply to it,
   its own laid over its type's. Code is fenced as `crucible`, so editors,
-  the IntelliJ plugin among them, highlight it; prose stays outside.
+  the IntelliJ plugin among them, highlight it; prose stays outside. The
+  new resource syntax is completed, highlighted and explained on hover too:
+  `readonly`, `immutable`, `writeonly`, `as` on identifiers, and `$*`, which
+  lists what it includes.
 - `.cru` resources declare property mutability with keywords (decision
   34a): `readonly`, `immutable`, `writeonly` and `immutable writeonly`.
   Lowering writes it to `ir::Member::mutability` on every member that
@@ -80,8 +84,8 @@ generated Rust client types are `#[non_exhaustive]`. Breaking: follow
 - `ir::Member::mutability` is no longer only an explicit override: from a
   `.cru` package it is the declared mutability of the property the member
   carries.
-- **Breaking:** generated Rust client models, enums, unions and per-operation
-  error enums are `#[non_exhaustive]`. Code in another crate builds models
+- **Breaking:** generated Rust client models, error structures, enums,
+  unions and per-operation error enums are `#[non_exhaustive]`. Code in another crate builds models
   with their builders, destructures with `..` and matches with a `_` arm.
 - The `compatibility.sdk` check no longer reports a new optional member (not
   required, no default) added after the existing members of a structure that
@@ -102,7 +106,12 @@ generated Rust client types are `#[non_exhaustive]`. Breaking: follow
   view that bound an ancestor's property is now an error: bind the
   ancestor's identifier, or declare the property on the child. A property
   renamed only to avoid an ancestor's name (`workspaceName` for `name`) can
-  take its natural name back; the wire is unchanged.
+  take its natural name back; bind it as `$name as workspaceName` where it
+  was `$workspaceName` to keep the wire and SDK names.
+- **`.cru` `@mutability` on a property binding.** It must now agree with the
+  property's keyword, and a property with no keyword is read-write, so
+  `@mutability(read) $createdAt` is an error. Declare the property
+  `readonly`, `immutable` or `writeonly` and drop the annotation.
 
 ## [0.5.0] - 2026-10-11
 
