@@ -1080,5 +1080,25 @@ fn a_dollar_completes_what_the_member_list_may_bind() {
         Some(at["character"].as_u64().unwrap() - 2)
     );
     assert_eq!(inbox["textEdit"]["range"]["end"], at);
+
+    // A `$` typed where it binds nothing opens no list: in a comment, or at
+    // the top level, where keywords would otherwise pop up.
+    let typing = "// costs $\noperation UpdateMessage updates Message {\n    input { $in }\n}\n$";
+    client.change(&file, 2, typing);
+    client.diagnostics(&file);
+    for (line, character) in [(0, 10), (4, 1)] {
+        let items = client.request(
+            "textDocument/completion",
+            json!({
+                "textDocument": { "uri": file },
+                "position": { "line": line, "character": character },
+                "context": { "triggerKind": 2, "triggerCharacter": "$" },
+            }),
+        );
+        assert!(
+            items.is_null() || items.as_array().is_some_and(Vec::is_empty),
+            "{line}:{character}: {items}"
+        );
+    }
     client.stop();
 }

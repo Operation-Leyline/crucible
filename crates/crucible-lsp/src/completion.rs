@@ -92,6 +92,22 @@ fn word_start(text: &str, offset: usize) -> usize {
 
 /// Where completion at `offset` happens.
 pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
+    // Comments and strings are prose: nothing completes there.
+    let in_prose = parsed.tokens.iter().any(|token| {
+        let (start, end) = (token.span.start as usize, token.span.end as usize);
+        match token.kind {
+            TokenKind::LineComment | TokenKind::DocComment => start < offset && offset <= end,
+            TokenKind::String => {
+                let body = token.span.text(text);
+                let closed = body.len() >= 2 && body.ends_with('"');
+                start < offset && (offset < end || (offset == end && !closed))
+            }
+            _ => false,
+        }
+    });
+    if in_prose {
+        return Context::Nothing;
+    }
     // The word being typed is replaced by the client; look before it.
     let word_start = word_start(text, offset);
     let before: Vec<&Token> = parsed
@@ -718,10 +734,12 @@ fn property_fits(entry: &ResourceEntry, site: Site<'_>) -> bool {
 /// What the `$` before `offset` may bind: the resource's own identifiers,
 /// its ancestors' identifiers and its own properties, never an ancestor's
 /// property (decision 31), less what the operation's role forbids and what
-/// the list binds already. Each item replaces the name after the `$`.
-/// `package` is every file of the package, so a resource declared in
-/// another file is found; before the package compiles it is empty and the
-/// open file alone answers.
+/// the list binds already. A `@query` binding only reads, so it may name
+/// any property. In a view with `$*` (decision 34d), what `$*` includes is
+/// not named before it, and after it only as `$name?`, which loosens it.
+/// Each item replaces the name after the `$`. `package` is every file of
+/// the package, so a resource declared in another file is found; before the
+/// package compiles it is empty and the open file alone answers.
 pub fn bindings(
     parsed: &Parsed,
     package: &[Parsed],
@@ -735,6 +753,12 @@ pub fn bindings(
             .char_indices()
             .find(|(_, c)| !is_word(*c))
             .map_or(text.len() - offset, |(index, _)| index);
+    // Between the `$` and `*` of a `$*`, a name would make `$name*`.
+    if start == end && text[end..].starts_with('*') {
+        return Vec::new();
+    }
+    // `context` found the `$` right before the word.
+    let dollar = start.saturating_sub(1);
     let mut before: Vec<&Token> = parsed
         .tokens
         .iter()
@@ -765,21 +789,39 @@ pub fn bindings(
         return Vec::new();
     };
 
-    // The names the list has already, other than the one being typed.
+    // The member being typed, which recovery may have run into the next.
+    let typed = members
+        .iter()
+        .find(|member| member.span.start as usize <= dollar && dollar < member.span.end as usize);
+    let query = matches!(site, Site::Input { .. })
+        && typed.is_some_and(|member| member.annotations.iter().any(|a| a.name.name == "query"));
+    // The names the list has already, and where its `$*` is.
     let mut taken: Vec<&str> = Vec::new();
-    let mut all = false;
+    let mut elided: Vec<&str> = Vec::new();
+    let mut star: Option<usize> = None;
     for member in members {
+        if typed.is_some_and(|typed| std::ptr::eq(typed, member)) {
+            continue;
+        }
         match &member.kind {
-            MemberKind::Elided { name, alias, .. } if name.span.start as usize != start => {
+            MemberKind::Elided { name, alias, .. } => {
                 taken.push(&name.name);
+                elided.push(&name.name);
                 taken.extend(alias.as_ref().map(|alias| alias.name.as_str()));
             }
             MemberKind::Field { name, .. } => taken.push(&name.name),
-            MemberKind::All(_) => all = true,
+            MemberKind::All(span) => star = Some(span.start as usize),
             _ => {}
         }
     }
     let representation = matches!(site, Site::View | Site::Output);
+    // What a view's `$*` includes: the resource's own identifiers and the
+    // properties it does not hide, under the names the view shows.
+    let starred = |entry: &ResourceEntry| {
+        site == Site::View
+            && (entry.kind == ResourceEntryKind::Id
+                || !entry.modifiers.iter().any(|m| m.name == "writeonly"))
+    };
     let edit = |new_text: String| {
         Some(CompletionTextEdit::Edit(TextEdit {
             range: lines.range(start as u32, end as u32),
@@ -817,6 +859,16 @@ pub fn bindings(
         {
             continue;
         }
+        // Under a `$*` this entry may only be loosened, after it.
+        let loosen = match star {
+            Some(star) if is_own && starred(entry) => {
+                if dollar < star {
+                    continue;
+                }
+                true
+            }
+            _ => false,
+        };
         let ty = &entry.ty.name.name;
         let (kind, detail) = match entry.kind {
             ResourceEntryKind::Id => {
@@ -837,7 +889,7 @@ pub fn bindings(
                 )
             }
             ResourceEntryKind::Property => {
-                if !property_fits(entry, site) {
+                if !query && !property_fits(entry, site) {
                     continue;
                 }
                 let mut keywords: Vec<&str> =
@@ -855,8 +907,16 @@ pub fn bindings(
             }
         };
         let rank = u8::from(entry.kind == ResourceEntryKind::Property);
+        let (label, detail) = if loosen {
+            (
+                format!("{name}?"),
+                format!("{detail}, optional in this view"),
+            )
+        } else {
+            (name.to_owned(), detail)
+        };
         out.push(CompletionItem {
-            label: name.to_owned(),
+            label: label.clone(),
             label_details: spelled.map(|spelled| CompletionItemLabelDetails {
                 detail: Some(format!(" as {spelled}")),
                 description: None,
@@ -871,12 +931,25 @@ pub fn bindings(
             }),
             sort_text: Some(format!("{rank}{:04}", out.len())),
             filter_text: Some(name.to_owned()),
-            text_edit: edit(name.to_owned()),
+            text_edit: edit(label),
             ..Default::default()
         });
     }
-    // `$*` completes a view's bare `$`, once.
-    if site == Site::View && !all && start == end {
+    // `$*` completes a view's bare `$`, once, and only where nothing it
+    // would include is named already: an elision of it, or a member that
+    // takes the name it shows.
+    let clashes = own
+        .entries
+        .iter()
+        .filter(|entry| starred(entry))
+        .any(|entry| {
+            let shown = match entry.kind {
+                ResourceEntryKind::Id => entry.alias.as_ref().unwrap_or(&entry.name),
+                ResourceEntryKind::Property => &entry.name,
+            };
+            elided.contains(&entry.name.name.as_str()) || taken.contains(&shown.name.as_str())
+        });
+    if site == Site::View && star.is_none() && !clashes && start == end {
         out.push(CompletionItem {
             label: "$*".into(),
             kind: Some(CompletionItemKind::KEYWORD),
@@ -1167,10 +1240,101 @@ resource Message in Inbox {
             ),
             ["messageId", "body", "sentAt", "author", "draft"]
         );
-        // A view's `id` is its own identifier's spelling; `$*` comes once.
+        // A view's `id` is its own identifier's spelling.
         assert_eq!(
-            binding_labels("structure V for Message {\n    $*\n    id: string\n    $|\n}"),
+            binding_labels("structure V for Message {\n    id: string\n    $|\n}"),
             ["workspaceId", "inboxId", "body", "sentAt", "author"]
+        );
+    }
+
+    #[test]
+    fn after_a_star_what_it_includes_is_only_loosened() {
+        // Decision 34d: after `$*`, its entries come back only as `$name?`;
+        // the inherited identifiers it leaves out are bound as usual.
+        let items = binding_items("structure V for Message {\n    $*\n    $body?\n    $|\n}");
+        let labels: Vec<&str> = items.iter().map(|item| item.label.as_str()).collect();
+        assert_eq!(
+            labels,
+            ["workspaceId", "inboxId", "messageId?", "sentAt?", "author?"]
+        );
+        let Some(CompletionTextEdit::Edit(edit)) = &items[3].text_edit else {
+            panic!("a text edit");
+        };
+        assert_eq!(edit.new_text, "sentAt?");
+        assert_eq!(items[3].filter_text.as_deref(), Some("sentAt"));
+        assert_eq!(
+            items[3].detail.as_deref(),
+            Some("readonly property of Message: DateTime?, optional in this view")
+        );
+        // Before `$*`, naming what it includes is an error.
+        assert_eq!(
+            binding_labels("structure V for Message {\n    $|\n    $*\n}"),
+            ["workspaceId", "inboxId"]
+        );
+    }
+
+    #[test]
+    fn a_star_is_offered_once_and_only_where_it_clashes_with_nothing() {
+        let has_star = |source: &str| binding_labels(source).contains(&"$*".to_owned());
+        assert!(has_star(
+            "structure V for Message {\n    $workspaceId\n    $|\n}"
+        ));
+        assert!(!has_star("structure V for Message {\n    $*\n    $|\n}"));
+        // An elision `$*` would repeat, or a member taking a name it shows.
+        assert!(!has_star("structure V for Message {\n    $body\n    $|\n}"));
+        assert!(!has_star(
+            "structure V for Message {\n    id: string\n    $|\n}"
+        ));
+        assert!(!has_star(
+            "structure V for Message {\n    sentAt: string\n    $|\n}"
+        ));
+        // `draft` is writeonly: `$*` leaves it out, so a member may take it.
+        assert!(has_star(
+            "structure V for Message {\n    draft: string\n    $|\n}"
+        ));
+        // Between the `$` and `*` of a written `$*`, nothing fits.
+        assert!(binding_labels("structure V for Message {\n    $|*\n}").is_empty());
+    }
+
+    #[test]
+    fn a_query_binding_only_reads() {
+        // `@query` is not a write (decision 34a): an `updates` input may name
+        // a readonly or immutable property there.
+        assert_eq!(
+            binding_labels("operation UpdateMessage updates Message { input { @query $| } }"),
+            [
+                "workspaceId",
+                "inboxId",
+                "messageId",
+                "body",
+                "sentAt",
+                "author",
+                "draft"
+            ]
+        );
+        assert_eq!(
+            binding_labels(
+                "operation SendMessage creates Message { input {\n    @query $|\n    $body\n} }"
+            ),
+            ["workspaceId", "inboxId", "sentAt", "author", "draft"]
+        );
+    }
+
+    #[test]
+    fn a_dollar_in_a_comment_or_string_completes_nothing() {
+        for source in [
+            "// top $|",
+            "operation Op reads R {\n    input {\n        // costs $|\n    }\n}",
+            "structure V for R {\n    /// see $|\n    a: string\n}",
+            "operation Op reads R {\n    http GET \"/a/$|\"\n}",
+            "operation Op reads R {\n    http GET \"/a/$|",
+        ] {
+            assert_eq!(at(source), Context::Nothing, "{source}");
+        }
+        // Right after a comment's line, completion is back.
+        assert_eq!(
+            at("operation Op reads R {\n    input {\n        // note\n        $|\n    }\n}"),
+            Context::Binding
         );
     }
 
@@ -1308,6 +1472,37 @@ resource Message in Inbox {
                 .map(|label| format!("    ${label}\n"))
                 .collect::<String>()
         ));
+        // `$*` views: what may come before it, and what after it loosens.
+        let lines = |labels: &[String]| {
+            labels
+                .iter()
+                .map(|label| format!("    ${label}\n"))
+                .collect::<String>()
+        };
+        let early = binding_labels("structure EarlyView for Message {\n    $|\n    $*\n}");
+        let late = binding_labels("structure LateView for Message {\n    $*\n    $|\n}");
+        source.push_str(&format!(
+            "structure EarlyView for Message {{\n{}    $*\n}}\nstructure LateView for Message {{\n    $*\n{}}}\n",
+            lines(&early),
+            lines(&late),
+        ));
+        // A `@query` binding only reads: what it adds to an `updates` input.
+        let writes = binding_labels("operation UpdateMessage updates Message { input { $| } }");
+        let reads: Vec<String> =
+            binding_labels("operation UpdateMessage updates Message { input { @query $| } }")
+                .into_iter()
+                .filter(|label| !writes.contains(label))
+                .collect();
+        assert_eq!(reads, ["sentAt", "author"]);
+        let at = source.find("operation UpdateMessage ").unwrap();
+        let input = at + source[at..].find("input {\n").unwrap() + "input {\n".len();
+        source.insert_str(
+            input,
+            &reads
+                .iter()
+                .map(|label| format!("        @query ${label}\n"))
+                .collect::<String>(),
+        );
         let errors = |source: &str| -> Vec<String> {
             let package = crucible_lang::Package::new(
                 "example.mail",
@@ -1345,5 +1540,20 @@ resource Message in Inbox {
             "    $draft\n",
         );
         assert!(!errors(&wrong).is_empty(), "a view shows `draft`");
+        // `$*`'s entries, named before it or after it without `?`.
+        for (view, line) in [
+            ("structure EarlyView", "    $body\n"),
+            ("structure LateView", "    $*\n    $body\n"),
+        ] {
+            let at = source.find(view).unwrap();
+            let mut wrong = source.clone();
+            let inside = at + source[at..].find('\n').unwrap() + 1;
+            if line.starts_with("    $*") {
+                wrong.replace_range(inside..inside + "    $*\n".len(), line);
+            } else {
+                wrong.insert_str(inside, line);
+            }
+            assert!(!errors(&wrong).is_empty(), "{view} names `$body`");
+        }
     }
 }

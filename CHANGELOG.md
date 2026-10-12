@@ -27,11 +27,16 @@ version's section when it is prepared.
   bind the resource's own identifier, an `updates` input does not write a
   `readonly` or `immutable` property, a `creates` or `puts` input does not
   write a `readonly` one, and a view or output does not show a `writeonly`
-  one. A view or output shows an own identifier's `as` spelling beside its
-  name. Each item gives the entry's type, its keywords and the resource that
-  declares it, with its doc comment, and replaces only the name after the
-  `$`. Names the list already has are left out. A view also offers `$*` until
-  it has one. It works before the package compiles, from the open file.
+  one; a `@query` binding only reads, so it may name any property. In a
+  view with `$*`, what `$*` includes is not offered before it and is offered
+  after it only as `name?`, which loosens it. A view or output shows an own
+  identifier's `as` spelling beside its name. Each item gives the entry's
+  type, its keywords and the resource that declares it, with its doc
+  comment, and replaces only the name after the `$`. Names the list already
+  has are left out. A view also offers `$*` while it has none and nothing
+  `$*` would include is named already. A `$` in a comment or string opens no
+  list, and completion offers nothing inside comments and strings. It works
+  before the package compiles, from the open file.
 
 ## [0.6.0] - 2026-10-12
 

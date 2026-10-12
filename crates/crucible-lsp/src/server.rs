@@ -1066,7 +1066,8 @@ impl Server {
             Completion::METHOD => {
                 let p: lsp_types::CompletionParams = params(request.params)?;
                 let at = p.text_document_position;
-                json(self.completion(&at.text_document.uri, at.position))
+                let trigger = p.context.and_then(|context| context.trigger_character);
+                json(self.completion(&at.text_document.uri, at.position, trigger.as_deref()))
             }
             GotoDefinition::METHOD => {
                 let p: lsp_types::GotoDefinitionParams = params(request.params)?;
@@ -1206,7 +1207,12 @@ impl Server {
         }))
     }
 
-    fn completion(&self, uri: &Url, position: Position) -> Option<CompletionResponse> {
+    fn completion(
+        &self,
+        uri: &Url,
+        position: Position,
+        trigger: Option<&str>,
+    ) -> Option<CompletionResponse> {
         if let Some(document) = self.documents.get(uri)
             && document.kind == Kind::Manifest
         {
@@ -1230,6 +1236,11 @@ impl Server {
                 offset,
                 &lines,
             )));
+        }
+        // `$` opens the list only where it binds: a `$` in prose or a
+        // value would otherwise pop keywords up.
+        if trigger == Some("$") {
+            return None;
         }
         let empty = Index::default();
         let index = unit.map_or(&empty, |unit| &unit.index);
