@@ -436,7 +436,8 @@ fn assert_recursive_diagnostics(shapes: Value, expected: &[&str], message: &str)
 
 #[test]
 fn required_structure_cycles_are_diagnosed_once_per_involved_shape() {
-    let message = "Swift cannot represent a cycle of required structure members";
+    // Refused at lowering, for every generator, as Smithy refuses it.
+    let message = "this structure reaches itself through required members alone, so no finite value of it exists; make one of them optional";
     assert_recursive_diagnostics(
         json!({
             "example.recursive#A": {"type": "structure", "members": {
@@ -490,9 +491,11 @@ fn recursive_collection_aliases_are_diagnosed_once_per_involved_shape() {
 
 #[test]
 fn recursion_through_indirect_or_nominal_representations_is_accepted() {
+    // Valid Smithy only: a required self-reference (`@clientOptional` or not)
+    // and a union whose one member leads back through a required member are
+    // refused by Smithy's ShapeRecursionValidator, and so at lowering.
     for shapes in [
         json!({"example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#A"}}}}),
-        json!({"example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#A", "traits": {"smithy.api#required": {}, "smithy.api#clientOptional": {}}}}}}),
         json!({
             "example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}}},
             "example.recursive#B": {"type": "structure", "members": {"next": {"target": "example.recursive#A"}}}
@@ -504,10 +507,6 @@ fn recursion_through_indirect_or_nominal_representations_is_accepted() {
         json!({
             "example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}}},
             "example.recursive#B": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.recursive#A"}}
-        }),
-        json!({
-            "example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}}},
-            "example.recursive#B": {"type": "union", "members": {"next": {"target": "example.recursive#A"}}}
         }),
         json!({
             "example.recursive#A": {"type": "list", "member": {"target": "example.recursive#B"}},

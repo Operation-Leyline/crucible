@@ -54,7 +54,7 @@ impl<'a> BoundValue<'a> {
             Scalar::Integer => text
                 .parse::<i64>()
                 .map(Self::Integer)
-                .map_err(|_| format!("must be an integer (`{text}` is not)")),
+                .map_err(|_| "must be an integer".to_owned()),
             Scalar::EpochSeconds => {
                 time::epoch_seconds::parse(&text)
                     .ok_or_else(|| "must be epoch seconds with nanosecond precision".to_owned())?;
@@ -72,7 +72,7 @@ impl<'a> BoundValue<'a> {
                 .ok()
                 .filter(|n| n.is_finite())
                 .map(Self::Float)
-                .ok_or_else(|| format!("must be a number (`{text}` is not)")),
+                .ok_or_else(|| "must be a number".to_owned()),
             Scalar::Boolean => match &*text {
                 "true" => Ok(Self::Boolean(true)),
                 "false" => Ok(Self::Boolean(false)),

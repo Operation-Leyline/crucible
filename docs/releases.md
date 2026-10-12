@@ -82,8 +82,12 @@ change breaks the fixture, fix the fixture only if the break is allowed by the
 policy above and has a Migration entry; otherwise fix the change.
 
 The manual release runs every language, supported runtime version, Windows,
-Apple/native targets, and the Android emulator. There is no scheduled full run.
-Failures found only by those checks can block a release after PRs have merged.
+Apple/native targets, and the Android emulator. A weekly scheduled run
+(Mondays, 05:17 UTC) builds and tests every language on Linux, so a break in a
+language no PR selected is normally caught by the next weekly run rather
+than at release (GitHub may delay or skip a scheduled run under load).
+Windows, Apple and Android failures are still found only by the manual run and
+can block a release after PRs have merged.
 A failed qualification never publishes a version tag or release.
 
 ## Preparing a version

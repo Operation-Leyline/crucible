@@ -36,6 +36,7 @@ mod auth_refusal;
 #[doc(hidden)]
 pub mod conformance;
 pub mod context;
+mod deadline_exceeded;
 mod decoded_job;
 pub mod endpoint;
 pub mod error;
@@ -79,6 +80,7 @@ pub use async_interceptor::AsyncInterceptor;
 pub use async_middleware::AsyncMiddleware;
 pub use async_operation_middleware::AsyncOperationAwareMiddleware;
 pub use context::{Context, RequestMeta, WithContext};
+pub use deadline_exceeded::{DEADLINE_RESERVE, DeadlineExceeded};
 pub use decoded_job::DecodedJob;
 pub use error::{Error, FrameworkError, MAX_SOURCE_DEPTH, ModelledError, Result};
 pub use exception_translator::ExceptionTranslator;

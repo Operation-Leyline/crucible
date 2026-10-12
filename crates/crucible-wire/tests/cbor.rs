@@ -156,3 +156,22 @@ fn rpc_json_big_numbers_obey_the_protocol_grammar() {
         "-1250".parse().unwrap()
     );
 }
+
+#[test]
+fn read_errors_name_the_problem_without_quoting_the_request() {
+    let mut bytes = Vec::new();
+    cbor::write(&"123-45-6789", &mut bytes).unwrap();
+    let error = cbor::read::<i64>(&bytes).unwrap_err();
+    assert_eq!(error, "invalid type: string, expected integer");
+    let mut number = Vec::new();
+    cbor::write(&1_000_000_i64, &mut number).unwrap();
+    assert_eq!(
+        cbor::read::<i64>(&number[..number.len() - 1]).unwrap_err(),
+        "the CBOR document ends early"
+    );
+    // Additional information 28 is reserved: not CBOR.
+    assert_eq!(
+        cbor::read::<Value>(&[0x1C]).unwrap_err(),
+        "invalid CBOR at byte 0"
+    );
+}

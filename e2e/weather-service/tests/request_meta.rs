@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use axum::body::Body;
 use axum::http::{HeaderValue, Request};
 use crucible_server_runtime_rust::raw_before_fn;
-use crucible_server_runtime_rust::{Crucible, RequestMeta};
+use crucible_server_runtime_rust::{Crucible, DEADLINE_RESERVE, RequestMeta};
 use serde_json::json;
 use weather_service::MemoryCities;
 
@@ -72,6 +72,8 @@ fn meta(id: &str, deadline: Instant) -> RequestMeta {
 
 #[tokio::test]
 async fn an_http_event_keeps_its_own_request_id_and_takes_the_invocation_deadline() {
+    // The context holds the deadline the framework enforces: the
+    // invocation's, less the reserve its answer needs.
     let (service, seen) = recording(None);
     let deadline = Instant::now() + Duration::from_secs(5);
     let answer = crucible_server_runtime_rust::host::lambda_event_json_with(
@@ -85,7 +87,7 @@ async fn an_http_event_keeps_its_own_request_id_and_takes_the_invocation_deadlin
     assert_eq!(answer["headers"]["x-request-id"], "event-id-1", "{answer}");
     assert_eq!(
         *seen.lock().unwrap(),
-        [("event-id-1".to_owned(), Some(deadline))]
+        [("event-id-1".to_owned(), Some(deadline - DEADLINE_RESERVE))]
     );
 }
 
@@ -103,7 +105,7 @@ async fn a_direct_invoke_takes_the_invocation_id_and_deadline() {
     .unwrap();
     assert_eq!(
         *seen.lock().unwrap(),
-        [("invocation-2".to_owned(), Some(deadline))]
+        [("invocation-2".to_owned(), Some(deadline - DEADLINE_RESERVE))]
     );
 }
 

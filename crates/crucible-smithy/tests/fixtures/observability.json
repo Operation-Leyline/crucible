@@ -80,6 +80,24 @@
         },
         "secretTarget": {
           "target": "example.observability#Secret"
+        },
+        "secretScores": {
+          "target": "example.observability#SecretScores"
+        },
+        "privateScores": {
+          "target": "example.observability#Scores",
+          "traits": {
+            "smithy.api#sensitive": {}
+          }
+        },
+        "scores": {
+          "target": "example.observability#Scores"
+        },
+        "scoreMaps": {
+          "target": "example.observability#ScoreMaps"
+        },
+        "scoreMapList": {
+          "target": "example.observability#ScoreMapList"
         }
       }
     },
@@ -122,6 +140,60 @@
       },
       "value": {
         "target": "smithy.api#String"
+      }
+    },
+    "example.observability#SecretScores": {
+      "type": "map",
+      "key": {
+        "target": "example.observability#Secret"
+      },
+      "value": {
+        "target": "example.observability#Score"
+      }
+    },
+    "example.observability#Scores": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.observability#Score"
+      }
+    },
+    "example.observability#Score": {
+      "type": "integer",
+      "traits": {
+        "smithy.api#range": {
+          "min": 0,
+          "max": 10
+        }
+      }
+    },
+    "example.observability#PrivateScores": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.observability#Score"
+      },
+      "traits": {
+        "smithy.api#sensitive": {}
+      }
+    },
+    "example.observability#ScoreMaps": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.observability#PrivateScores"
+      }
+    },
+    "example.observability#ScoreMapList": {
+      "type": "list",
+      "member": {
+        "target": "example.observability#PrivateScores"
       }
     },
     "example.observability#Choice": {

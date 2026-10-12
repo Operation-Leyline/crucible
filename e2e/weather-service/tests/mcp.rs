@@ -261,6 +261,16 @@ async fn discovery_and_every_operation_output_match_schemas() {
         let response = call(&service, &tools, "CreateCity", args.clone()).await;
         assert_eq!(response["error"]["code"], -32602, "{args}: {response}");
     }
+    // A schema failure names where and which keyword, never the value.
+    let wrong = call(&service, &tools, "CreateCity", json!({"name":["hunter2"]})).await;
+    assert_eq!(wrong["error"]["code"], -32602, "{wrong}");
+    assert!(!wrong.to_string().contains("hunter2"), "{wrong}");
+    assert!(
+        wrong
+            .to_string()
+            .contains("/name does not satisfy the schema's `type`"),
+        "{wrong}"
+    );
     // The handler can return a value valid for its input override but invalid
     // for the output's narrower target constraints. Never publish that value.
     let invalid_output = call(&service, &tools, "CreateCity", json!({"name":""})).await;

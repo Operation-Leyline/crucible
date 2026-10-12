@@ -164,12 +164,6 @@ fn declarations_the_compiler_cannot_lower_yet_are_not_skipped() {
 }
 
 #[test]
-fn recursion_is_reported_rather_than_mislowered() {
-    let m = messages("structure Node { next?: Node }");
-    assert_mentions(&m, "recursive shapes are not supported");
-}
-
-#[test]
 fn includes_copy_members() {
     assert_eq!(
         messages("structure Base { id: string }\nstructure Full { include Base\n name: string }"),

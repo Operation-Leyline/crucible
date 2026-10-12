@@ -209,7 +209,7 @@ impl<'m> Lowerer<'m> {
         self.resolve_endpoint_parameters(id, shape, &mut operations, endpoint_rules.as_ref());
         let endpoint_discovery = self.discovery(id, shape, &mut operations);
         let reached: Vec<_> = self.reached_ids().collect();
-        let recursive_groups = crate::recursion::lower(self.model, &reached, &mut self.diagnostics);
+        let recursive_groups = crate::recursion::lower(self.model, &reached);
         let xml_shapes =
             crate::xml::lower(self.model, &reached, self.protocol, &mut self.diagnostics);
         let xml_namespace = if matches!(

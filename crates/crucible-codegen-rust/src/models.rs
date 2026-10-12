@@ -600,8 +600,9 @@ fn validate_impl(
                     variant(&member.name)
                 ));
                 if !checks.is_empty() {
+                    let (open, close) = sensitive_scope(service, shape, member);
                     body.push_str(&format!(
-                        "                validator.at({}, |validator| {{\n{checks}                }});\n",
+                        "                {open}validator.at({}, |validator| {{\n{checks}                }}){close};\n",
                         literal(&member.name)
                     ));
                 }
@@ -633,8 +634,9 @@ fn validate_impl(
                         field(&member.name)
                     )
                 };
+                let (open, close) = sensitive_scope(service, shape, member);
                 body.push_str(&format!(
-                    "        {access}            validator.at({}, |validator| {{\n{checks}            }});\n        }}\n",
+                    "        {access}            {open}validator.at({}, |validator| {{\n{checks}            }}){close};\n        }}\n",
                     literal(&member.name)
                 ));
             }
@@ -646,6 +648,31 @@ fn validate_impl(
     format!(
         "\nimpl ::crucible_server_runtime_rust::__generated::validate::Validate for {name} {{\n    fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {{\n{body}    }}\n}}\n"
     )
+}
+
+/// What wraps a member's checks when its value is sensitive: the member is,
+/// or its structure is. Map keys below it are client data, so violation paths
+/// must not name them.
+fn sensitive_scope(
+    service: &Service,
+    shape: &Shape,
+    member: &Member,
+) -> (&'static str, &'static str) {
+    if shape.sensitive() || service.sensitive(member) {
+        ("validator.sensitive(|validator| ", ")")
+    } else {
+        ("", "")
+    }
+}
+
+/// A collection's item checks, in a sensitive scope when its items are
+/// sensitive (`list L: SecretMap`): a map key inside them is client data. The
+/// entry's own step (an index, or a public map key) stays outside the scope.
+fn sensitive_items(service: &Service, member: &Member, item: String, pad: &str) -> String {
+    if item.is_empty() || !service.sensitive(member) {
+        return item;
+    }
+    format!("{pad}        validator.sensitive(|validator| {{\n{item}{pad}        }});\n")
 }
 
 /// Checks on `value` (a reference to the member's type, unboxed by auto-deref)
@@ -708,6 +735,7 @@ fn value_checks(
                 out.push_str(&format!("{pad}validator.unique({value});\n"));
             }
             let item = value_checks(service, &list.member, "item", patterns, depth + 2);
+            let item = sensitive_items(service, &list.member, item, &pad);
             let item = if list.sparse && !item.is_empty() {
                 format!("{pad}        if let Some(item) = item {{\n{item}{pad}        }}\n")
             } else {
@@ -729,6 +757,7 @@ fn value_checks(
             }
             let key = value_checks(service, &map.key, "key", patterns, depth + 2);
             let item = value_checks(service, &map.value, "item", patterns, depth + 2);
+            let item = sensitive_items(service, &map.value, item, &pad);
             let item = if map.sparse && !item.is_empty() {
                 format!("{pad}        if let Some(item) = item {{\n{item}{pad}        }}\n")
             } else {
@@ -741,8 +770,14 @@ fn value_checks(
                     Some(Shape::Enum(_)) => "key.as_str()",
                     _ => "key",
                 };
+                // A sensitive key is client data: the path says `[key]`.
+                let (open, close) = if service.sensitive(&map.key) {
+                    ("validator.sensitive(|validator| ", ")")
+                } else {
+                    ("", "")
+                };
                 out.push_str(&format!(
-                    "{pad}for (key, {item_binding}) in {value} {{\n{pad}    validator.at({path}, |validator| {{\n{key}{item}{pad}    }});\n{pad}}}\n"
+                    "{pad}for (key, {item_binding}) in {value} {{\n{pad}    {open}validator.at({path}, |validator| {{\n{key}{item}{pad}    }}){close};\n{pad}}}\n"
                 ));
             }
         }

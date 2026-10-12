@@ -14,7 +14,18 @@ pub fn write<T: Serialize + ?Sized>(value: &T, out: &mut Vec<u8>) -> Result<(), 
 /// Exactly one document: trailing data must not become a second, hidden request.
 pub fn read<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, String> {
     let mut cursor = std::io::Cursor::new(bytes);
-    let value = ciborium::de::from_reader(&mut cursor).map_err(|error| error.to_string())?;
+    // ciborium displays its error's Debug form, which quotes the request's
+    // value: say what went wrong in words, without it.
+    let value = ciborium::de::from_reader(&mut cursor).map_err(|error| match error {
+        ciborium::de::Error::Semantic(_, message) => {
+            crate::text::without_values(&message).into_owned()
+        }
+        ciborium::de::Error::Syntax(offset) => format!("invalid CBOR at byte {offset}"),
+        ciborium::de::Error::RecursionLimitExceeded => {
+            "the CBOR document nests too deeply".to_owned()
+        }
+        ciborium::de::Error::Io(_) => "the CBOR document ends early".to_owned(),
+    })?;
     if cursor.position() != bytes.len() as u64 {
         return Err("bytes follow the CBOR document".to_owned());
     }

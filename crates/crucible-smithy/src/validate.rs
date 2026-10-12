@@ -36,6 +36,7 @@ const RESERVED_HEADERS: &[&str] = &[
 
 /// Every rule below, against `service`.
 pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
+    recursion(service, diagnostics);
     operations(service, diagnostics);
     names(service, diagnostics);
     error_codes(service, diagnostics);
@@ -86,6 +87,107 @@ pub fn pattern_problem(pattern: &str) -> Option<String> {
     match crate::pattern::rust(pattern) {
         Ok(translated) => regex::Regex::new(&translated).err().map(|e| e.to_string()),
         Err(problem) => Some(problem),
+    }
+}
+
+/// Smithy's limits on recursive shapes (Smithy 2.0, "Recursive shape
+/// definitions"), decided as Smithy's own `ShapeRecursionValidator` decides
+/// them, so the two front ends and Smithy agree on which models are valid:
+/// - a cycle of lists and maps alone is a type most languages cannot spell;
+/// - a structure must not reach itself through required members alone,
+///   where each step is a required member targeting a structure;
+/// - a union must terminate: some member reaches a value without coming
+///   back, where a scalar, list or map terminates, a structure terminates
+///   when it has an optional member or a required one that terminates, and
+///   a member already followed does not.
+///
+/// Only shapes in a recursive group can break these, so only they are
+/// checked.
+fn recursion(service: &Service, diagnostics: &mut Diagnostics) {
+    for group in &service.recursive_groups {
+        if group
+            .shapes
+            .iter()
+            .all(|id| matches!(service.shape(id), Some(Shape::List(_) | Shape::Map(_))))
+        {
+            for id in &group.shapes {
+                diagnostics.push(
+                    id,
+                    "recursive collections must pass through a structure or union; a collection-only cycle is invalid Smithy",
+                );
+            }
+        }
+    }
+    for id in service
+        .recursive_groups
+        .iter()
+        .flat_map(|group| &group.shapes)
+    {
+        match service.shape(id) {
+            Some(Shape::Structure(_)) if required_cycle(service, id) => diagnostics.push(
+                id,
+                "this structure reaches itself through required members alone, so no finite value of it exists; make one of them optional",
+            ),
+            Some(Shape::Union(_)) if !terminates(service, id, &mut BTreeSet::new()) => {
+                diagnostics.push(
+                    id,
+                    "no finite value of this union exists: every member leads back to it; add a member that does not, or one that goes through a list, map or optional member",
+                )
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Whether `start` reaches itself along required members that target
+/// structures.
+fn required_cycle(service: &Service, start: &ShapeId) -> bool {
+    let next = |id: &ShapeId| -> Vec<ShapeId> {
+        match service.shape(id) {
+            Some(Shape::Structure(s)) => s
+                .members
+                .iter()
+                .filter(|member| member.required)
+                .filter(|member| matches!(service.shape(&member.target), Some(Shape::Structure(_))))
+                .map(|member| member.target.clone())
+                .collect(),
+            _ => Vec::new(),
+        }
+    };
+    let mut seen = BTreeSet::new();
+    let mut stack = next(start);
+    while let Some(id) = stack.pop() {
+        if &id == start {
+            return true;
+        }
+        if seen.insert(id.clone()) {
+            stack.extend(next(&id));
+        }
+    }
+    false
+}
+
+/// Smithy's `UnionTerminatesVisitor`: whether a value of `id` can be built
+/// without following a member twice (`visited` holds member ids).
+fn terminates(service: &Service, id: &ShapeId, visited: &mut BTreeSet<ShapeId>) -> bool {
+    let member =
+        |owner: &ShapeId, name: &str, target: &ShapeId, visited: &mut BTreeSet<ShapeId>| {
+            visited.insert(owner.with_member(name)) && terminates(service, target, visited)
+        };
+    match service.shape(id) {
+        Some(Shape::Structure(s)) => {
+            s.members.is_empty()
+                || s.members.iter().any(|m| !m.required)
+                || s.members
+                    .iter()
+                    .filter(|m| m.required)
+                    .any(|m| member(id, &m.name, &m.target, visited))
+        }
+        Some(Shape::Union(s)) => s
+            .members
+            .iter()
+            .any(|m| member(id, &m.name, &m.target, visited)),
+        _ => true,
     }
 }
 

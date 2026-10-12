@@ -173,6 +173,79 @@ pub fn header_text(value: &Value, scalar: Scalar) -> Result<String, String> {
     }
 }
 
+/// A deserializer's message without the request value it quotes. serde
+/// writes `invalid type: string "123-45-6789", expected i64`, and that text
+/// becomes the client's rejection and the service log's record, where a
+/// `@sensitive` member's value must not appear. The deserializer does not
+/// know which member is sensitive, so no value is kept: its kind stays.
+pub fn without_values(message: &str) -> Cow<'_, str> {
+    for prefix in ["invalid type: ", "invalid value: "] {
+        // The last separator: a quoted string may contain one of its own,
+        // and what follows it is the model's, never the request's.
+        if let Some(rest) = message.strip_prefix(prefix)
+            && let Some(split) = rest.rfind(", expected ")
+        {
+            let (unexpected, expected) = rest.split_at(split);
+            return Cow::Owned(format!("{prefix}{}{expected}", value_kind(unexpected)));
+        }
+    }
+    if let Some(rest) = message.strip_prefix("unknown variant `") {
+        for separator in ["`, expected ", "`, there are no variants"] {
+            if let Some(split) = rest.rfind(separator) {
+                return Cow::Owned(format!("unknown variant{}", &rest[split + 1..]));
+            }
+        }
+    }
+    Cow::Borrowed(message)
+}
+
+/// What serde's `Unexpected` names, without its value: `string "x"` is a
+/// `string`. A kind serde does not quote stays as written; anything else
+/// (`Unexpected::Other`, free text) is only `a value`.
+fn value_kind(unexpected: &str) -> &str {
+    const QUOTED: [&str; 5] = [
+        "boolean",
+        "integer",
+        "floating point",
+        "character",
+        "string",
+    ];
+    // `number` is serde_json's own, under `arbitrary_precision`; `string`
+    // through `break` are ciborium's names for CBOR's kinds.
+    const BARE: [&str; 19] = [
+        "number",
+        "string",
+        "bytes",
+        "tag",
+        "null",
+        "undefined",
+        "simple",
+        "break",
+        "byte array",
+        "unit value",
+        "Option value",
+        "newtype struct",
+        "sequence",
+        "map",
+        "enum",
+        "unit variant",
+        "newtype variant",
+        "tuple variant",
+        "struct variant",
+    ];
+    if let Some(kind) = QUOTED.into_iter().find(|kind| {
+        unexpected
+            .strip_prefix(kind)
+            .is_some_and(|rest| rest.starts_with(' '))
+    }) {
+        kind
+    } else if BARE.contains(&unexpected) {
+        unexpected
+    } else {
+        "a value"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -267,5 +340,80 @@ mod tests {
             assert_eq!(encoded, case.encoded);
             assert_eq!(split_header(&encoded), case.values);
         }
+    }
+
+    #[test]
+    fn deserializer_messages_keep_the_kind_of_value_and_drop_the_value() {
+        #[derive(Debug, serde::Deserialize)]
+        enum Sky {
+            #[serde(rename = "clear")]
+            Clear,
+        }
+        let secret = "123-45-6789";
+        // A string that spells the separator must not move the cut.
+        let spoof = format!("{secret}, expected nothing");
+        let cases = [
+            (
+                serde_json::from_value::<i64>(Value::from(secret)).unwrap_err(),
+                "invalid type: string, expected i64",
+            ),
+            (
+                serde_json::from_value::<i64>(Value::from(spoof.as_str())).unwrap_err(),
+                "invalid type: string, expected i64",
+            ),
+            (
+                serde_json::from_value::<String>(Value::from(4_242_424_242_u64)).unwrap_err(),
+                "invalid type: number, expected a string",
+            ),
+            (
+                serde_json::from_value::<char>(Value::from(secret)).unwrap_err(),
+                "invalid value: string, expected a character",
+            ),
+            (
+                serde_json::from_value::<String>(serde_json::json!([secret])).unwrap_err(),
+                "invalid type: sequence, expected a string",
+            ),
+            (
+                serde_json::from_value::<Sky>(Value::from(secret)).unwrap_err(),
+                "unknown variant, expected `clear`",
+            ),
+        ];
+        for (error, expected) in cases {
+            let message = error.to_string();
+            assert_eq!(without_values(&message), expected, "{message}");
+        }
+        // The kinds serde quotes, as any deserializer reports them.
+        use serde::de::{Error, Unexpected};
+        for (unexpected, kind) in [
+            (Unexpected::Bool(true), "boolean"),
+            (Unexpected::Signed(-123_456_789), "integer"),
+            (Unexpected::Unsigned(123_456_789), "integer"),
+            (Unexpected::Float(1234.5), "floating point"),
+            (Unexpected::Char('7'), "character"),
+            (Unexpected::Str(secret), "string"),
+            (Unexpected::Other(secret), "a value"),
+            (Unexpected::Map, "map"),
+        ] {
+            let error = serde_json::Error::invalid_type(unexpected, &"a PIN");
+            assert_eq!(
+                without_values(&error.to_string()),
+                format!("invalid type: {kind}, expected a PIN")
+            );
+            let error = serde_json::Error::invalid_value(unexpected, &"a PIN");
+            assert_eq!(
+                without_values(&error.to_string()),
+                format!("invalid value: {kind}, expected a PIN")
+            );
+        }
+        // Positions after the message survive, and messages quoting nothing are untouched.
+        let error = serde_json::from_str::<i64>(&format!("\"{secret}\"")).unwrap_err();
+        assert_eq!(
+            without_values(&error.to_string()),
+            "invalid type: string, expected i64 at line 1 column 13"
+        );
+        assert!(matches!(
+            without_values("missing field `city`"),
+            Cow::Borrowed("missing field `city`")
+        ));
     }
 }
