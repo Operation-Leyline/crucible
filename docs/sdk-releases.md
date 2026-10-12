@@ -243,8 +243,10 @@ crucible sdk publish  target/sdk-release [--sdk <name>]... [--execute]
   `GIT_INDEX_FILE`, ...) are removed, no user hook runs (an empty
   `core.hooksPath`, empty init templates, `push --no-verify`), the tag is
   created with `update-ref` so `tag.gpgSign` cannot ask for a message, and
-  nothing waits for input. Commit signing follows the user's
-  `commit.gpgSign`.
+  nothing waits for input. Release commits and tags are unsigned: commits
+  are written with `git commit-tree`, which signs only when asked, and
+  tags are lightweight. A channel that requires signed commits is out of
+  scope for now.
 
 **`plan`** reads each channel and prints the last release, whether the
 SDK changed, the next version and why. *Unchanged* means the current
