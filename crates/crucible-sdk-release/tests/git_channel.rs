@@ -756,3 +756,135 @@ fn modes_are_compared() {
     let listing = fixture.git(Some(&fixture.remote()), &["ls-tree", "v0.1.1", "a.txt"]);
     assert!(listing.starts_with("100644 "), "{listing}");
 }
+
+/// Runs Git as a hook's child would: `inherited` is in its environment
+/// before the command's own changes apply.
+struct Inheriting {
+    global: PathBuf,
+    inherited: Vec<(String, String)>,
+}
+
+impl CommandRunner for Inheriting {
+    fn run(&self, command: &CommandLine) -> io::Result<CommandOutput> {
+        let mut process = Command::new(&command.program);
+        process
+            .args(&command.args)
+            .env("GIT_CONFIG_GLOBAL", &self.global)
+            .env("GIT_CONFIG_NOSYSTEM", "1");
+        for (name, value) in &self.inherited {
+            process.env(name, value);
+        }
+        for name in &command.env_remove {
+            process.env_remove(name);
+        }
+        process.envs(command.env.iter().map(|(name, value)| (name, value)));
+        if let Some(directory) = &command.cwd {
+            process.current_dir(directory);
+        }
+        let output = process.stdin(std::process::Stdio::null()).output()?;
+        Ok(CommandOutput {
+            success: output.status.success(),
+            code: output.status.code(),
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })
+    }
+}
+
+/// From a Git hook, GIT_DIR and GIT_INDEX_FILE name the user's repository;
+/// a channel's commands must still act only on their own scratch ones.
+#[test]
+fn a_hooks_git_environment_never_reaches_the_users_repository() {
+    let fixture = Fixture::new();
+    let user = fixture.root.path().join("user");
+    fixture.git(None, &["init", "-q", "-b", "main", user.to_str().unwrap()]);
+    fs::write(user.join("mine.txt"), "mine\n").unwrap();
+    fixture.git(Some(&user), &["add", "-A"]);
+    fixture.git(Some(&user), &["commit", "-q", "-m", "mine"]);
+    let git_dir = user.join(".git");
+    let index = fs::read(git_dir.join("index")).unwrap();
+    let refs_before = fixture.git(Some(&user), &["for-each-ref"]);
+    let channel = GitTagChannel::with_runner(
+        &GitChannelConfig::new(fixture.url()),
+        Box::new(Inheriting {
+            global: fixture.runner.global.clone(),
+            inherited: vec![
+                ("GIT_DIR".into(), git_dir.to_string_lossy().into_owned()),
+                (
+                    "GIT_INDEX_FILE".into(),
+                    git_dir.join("index").to_string_lossy().into_owned(),
+                ),
+                ("GIT_WORK_TREE".into(), user.to_string_lossy().into_owned()),
+            ],
+        }),
+    )
+    .unwrap();
+    let package = fixture.package("p", &[("a.txt", "1\n")]);
+    let version = Version::new(0, 1, 0);
+    channel.publish(&request(&version, &package)).unwrap();
+    assert_eq!(
+        channel.check_published(&version, &package).unwrap(),
+        Published::SameBytes
+    );
+    channel.read_last().unwrap();
+    assert_eq!(fs::read(git_dir.join("index")).unwrap(), index);
+    assert_eq!(fixture.git(Some(&user), &["for-each-ref"]), refs_before);
+    assert_eq!(fixture.paths("v0.1.0"), [".crucible", "a.txt"]);
+}
+
+/// The user's Git configuration cannot make publishing wait or run
+/// their hooks: tag.gpgSign would want a message, core.hooksPath and
+/// init.templateDir would run hooks on the push.
+#[test]
+fn publishing_ignores_tag_signing_and_user_hooks() {
+    let fixture = Fixture::new();
+    let hooks = fixture.root.path().join("hooks");
+    let template = fixture.root.path().join("template");
+    let marker = fixture.root.path().join("hook-ran");
+    fs::create_dir_all(&hooks).unwrap();
+    fs::create_dir_all(template.join("hooks")).unwrap();
+    let hook = format!(
+        "#!/bin/sh\necho ran > '{}'\nexit 1\n",
+        marker.to_string_lossy().replace('\\', "/")
+    );
+    for path in [
+        hooks.join("pre-push"),
+        hooks.join("reference-transaction"),
+        hooks.join("post-index-change"),
+        template.join("hooks/pre-push"),
+    ] {
+        fs::write(&path, &hook).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+    }
+    let quoted = |path: &Path| path.to_string_lossy().replace('\\', "/");
+    // The remote stands in for a server, whose own hooks are its business:
+    // it must not pick up this user's global hooks.
+    let server_hooks = fixture.root.path().join("server-hooks");
+    fs::create_dir_all(&server_hooks).unwrap();
+    fixture.git(
+        Some(&fixture.remote()),
+        &["config", "core.hooksPath", &quoted(&server_hooks)],
+    );
+    fs::write(
+        &fixture.runner.global,
+        format!(
+            "[tag]\n\tgpgSign = true\n[core]\n\thooksPath = {}\n[init]\n\ttemplateDir = {}\n",
+            quoted(&hooks),
+            quoted(&template)
+        ),
+    )
+    .unwrap();
+    let channel = fixture.channel(GitChannelConfig::new(fixture.url()));
+    let package = fixture.package("p", &[("a.txt", "1\n")]);
+    channel
+        .publish(&request(&Version::new(0, 1, 0), &package))
+        .unwrap();
+    assert!(!marker.exists(), "a user hook ran");
+    // A lightweight tag, as ever: nothing signed or annotated.
+    let kind = fixture.git(Some(&fixture.remote()), &["cat-file", "-t", "v0.1.0"]);
+    assert_eq!(kind, "commit");
+}

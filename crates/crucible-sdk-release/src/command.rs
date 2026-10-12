@@ -3,15 +3,20 @@
 
 use std::fmt;
 use std::io;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-/// One command: a program, its arguments and extra environment. Never
-/// holds a credential, so it can always be printed.
+/// One command: a program, its arguments, environment changes and working
+/// directory. Never holds a credential, so it can always be printed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandLine {
     pub program: String,
     pub args: Vec<String>,
     pub env: Vec<(String, String)>,
+    /// Inherited variables to remove; `env` is applied after.
+    pub env_remove: Vec<String>,
+    /// The working directory; `None` inherits it.
+    pub cwd: Option<PathBuf>,
 }
 
 impl CommandLine {
@@ -20,6 +25,8 @@ impl CommandLine {
             program: program.into(),
             args: Vec::new(),
             env: Vec::new(),
+            env_remove: Vec::new(),
+            cwd: None,
         }
     }
 
@@ -39,6 +46,16 @@ impl CommandLine {
 
     pub fn env(mut self, name: impl Into<String>, value: impl Into<String>) -> Self {
         self.env.push((name.into(), value.into()));
+        self
+    }
+
+    pub fn env_remove(mut self, name: impl Into<String>) -> Self {
+        self.env_remove.push(name.into());
+        self
+    }
+
+    pub fn cwd(mut self, directory: impl Into<PathBuf>) -> Self {
+        self.cwd = Some(directory.into());
         self
     }
 }
@@ -97,17 +114,23 @@ pub struct SystemRunner;
 
 impl CommandRunner for SystemRunner {
     fn run(&self, command: &CommandLine) -> io::Result<CommandOutput> {
-        let output = Command::new(&command.program)
-            .args(&command.args)
+        let mut process = Command::new(&command.program);
+        process.args(&command.args);
+        for name in &command.env_remove {
+            process.env_remove(name);
+        }
+        process
             .envs(command.env.iter().map(|(name, value)| (name, value)))
-            .stdin(Stdio::null())
-            .output()
-            .map_err(|error| {
-                io::Error::new(
-                    error.kind(),
-                    format!("cannot run {}: {error}", command.program),
-                )
-            })?;
+            .stdin(Stdio::null());
+        if let Some(directory) = &command.cwd {
+            process.current_dir(directory);
+        }
+        let output = process.output().map_err(|error| {
+            io::Error::new(
+                error.kind(),
+                format!("cannot run {}: {error}", command.program),
+            )
+        })?;
         Ok(CommandOutput {
             success: output.status.success(),
             code: output.status.code(),
