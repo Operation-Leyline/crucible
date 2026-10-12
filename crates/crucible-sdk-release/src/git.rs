@@ -349,6 +349,14 @@ impl GitTagChannel {
         if files.is_empty() {
             return Err(self.artifact_error(artifact, "the package is empty"));
         }
+        // The next release removes what this one's `.crucible` lists; a
+        // package without one would strand its files in the repository.
+        if !files.iter().any(|file| file.path == OWNERSHIP_FILE) {
+            return Err(self.artifact_error(
+                artifact,
+                format!("the package has no {OWNERSHIP_FILE}, so its files' ownership is unknown"),
+            ));
+        }
         Ok(files)
     }
 

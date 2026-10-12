@@ -644,3 +644,20 @@ fn a_damaged_ownership_manifest_stops_the_release() {
         .unwrap_err();
     assert!(error.to_string().contains("not a relative path"), "{error}");
 }
+
+#[test]
+fn a_package_without_an_ownership_manifest_is_refused() {
+    let fixture = Fixture::new();
+    let channel = fixture.channel(GitChannelConfig::new(fixture.url()));
+    let package = fixture.package("p", &[("a.txt", "1\n")]);
+    fs::remove_file(package.join(".crucible")).unwrap();
+    let error = channel
+        .publish(&request(&Version::new(0, 1, 0), &package))
+        .unwrap_err();
+    assert!(matches!(error, ChannelError::Artifact { .. }), "{error}");
+    assert!(
+        fixture
+            .git(None, &["ls-remote", "--tags", &fixture.url()])
+            .is_empty()
+    );
+}
