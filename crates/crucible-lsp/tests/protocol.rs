@@ -248,6 +248,60 @@ fn an_editor_session_gets_diagnostics_highlighting_and_navigation() {
         text.contains("string ItemId") && text.contains("An item's identifier."),
         "{text}"
     );
+    // The whole declaration, constraints included, in a fence an editor
+    // highlights as Crucible, and the constraints again in words.
+    assert!(
+        text.starts_with("```crucible\nstring ItemId { length 1..10 }\n```"),
+        "{text}"
+    );
+    assert!(text.contains("Constraints: 1 to 10 characters."), "{text}");
+    assert_eq!(
+        hover["range"]["start"],
+        position(SERVICE, "ItemId", 0),
+        "{hover}"
+    );
+
+    // A member: its type, whether it is required, and its type's constraints.
+    let hover_text = |client: &mut Client, at: Value| {
+        let hover = client.request(
+            "textDocument/hover",
+            json!({ "textDocument": { "uri": service }, "position": at }),
+        );
+        let text = hover["contents"]["value"]
+            .as_str()
+            .unwrap_or_else(|| panic!("no hover: {hover}"))
+            .to_owned();
+        assert_eq!(hover["contents"]["kind"], "markdown");
+        // Every fence is tagged with the language and closed.
+        let fences: Vec<&str> = text.lines().filter(|l| l.starts_with("```")).collect();
+        assert!(fences.len() >= 2 && fences.len() % 2 == 0, "{text}");
+        for pair in fences.chunks(2) {
+            assert_eq!(pair, ["```crucible", "```"], "{text}");
+        }
+        text
+    };
+    let member = hover_text(&mut client, position(SERVICE, "id: ItemId", 0));
+    assert!(
+        member.starts_with("```crucible\nid: ItemId\n```"),
+        "{member}"
+    );
+    assert!(
+        member.contains("A required member of the input of `GetItem`."),
+        "{member}"
+    );
+    assert!(
+        member.contains("Constraints from `ItemId`: 1 to 10 characters."),
+        "{member}"
+    );
+
+    // Keywords explain themselves, with an example, by where they are.
+    let keyword = hover_text(&mut client, position(SERVICE, "readonly", 0));
+    assert!(keyword.starts_with("**`readonly`**"), "{keyword}");
+    assert!(keyword.contains("only reads"), "{keyword}");
+    let clause = hover_text(&mut client, position(SERVICE, "protocol", 0));
+    assert!(clause.contains("wire protocol"), "{clause}");
+    let http = hover_text(&mut client, position(SERVICE, "http", 0));
+    assert!(http.contains("HTTP binding"), "{http}");
 
     // Imported declarations hover too, though they have no file to open.
     let hover = client.request(

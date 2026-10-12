@@ -1,12 +1,13 @@
 //! `crucible-lsp`: a language server for `.cru` files over standard I/O.
 //! Editors start it; it reports the compiler's diagnostics as you type and
-//! provides completion, semantic highlighting, navigation, rename, folding,
-//! formatting and quick fixes. It also checks `crucible.toml` manifests.
+//! provides completion, semantic highlighting, hover, navigation, rename,
+//! folding, formatting and quick fixes. It also checks `crucible.toml` manifests.
 
 mod actions;
 mod analysis;
 mod completion;
 mod folding;
+mod hover;
 mod insight;
 mod lines;
 mod manifest;

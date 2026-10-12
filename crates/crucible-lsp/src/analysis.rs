@@ -660,16 +660,6 @@ pub fn ident_at(parsed: &Parsed, text: &str, offset: usize) -> Option<(u32, u32,
         })
 }
 
-/// Hover text for a declaration: its signature line and documentation.
-pub fn hover_markdown(name: &str, declaration: &Declaration) -> String {
-    let mut out = format!("```\n{} {name}\n```", declaration.keyword);
-    if let Some(doc) = &declaration.doc {
-        out.push_str("\n\n");
-        out.push_str(doc.trim());
-    }
-    out
-}
-
 /// One entry of the outline, with byte ranges.
 #[derive(Debug, Clone)]
 pub struct Symbol {
