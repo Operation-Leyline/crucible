@@ -665,6 +665,16 @@ fn sensitive_scope(
     }
 }
 
+/// A collection's item checks, in a sensitive scope when its items are
+/// sensitive (`list L: SecretMap`): a map key inside them is client data. The
+/// entry's own step (an index, or a public map key) stays outside the scope.
+fn sensitive_items(service: &Service, member: &Member, item: String, pad: &str) -> String {
+    if item.is_empty() || !service.sensitive(member) {
+        return item;
+    }
+    format!("{pad}        validator.sensitive(|validator| {{\n{item}{pad}        }});\n")
+}
+
 /// Checks on `value` (a reference to the member's type, unboxed by auto-deref)
 /// for the member's constraints and its target's members, indented `depth` levels.
 fn value_checks(
@@ -725,6 +735,7 @@ fn value_checks(
                 out.push_str(&format!("{pad}validator.unique({value});\n"));
             }
             let item = value_checks(service, &list.member, "item", patterns, depth + 2);
+            let item = sensitive_items(service, &list.member, item, &pad);
             let item = if list.sparse && !item.is_empty() {
                 format!("{pad}        if let Some(item) = item {{\n{item}{pad}        }}\n")
             } else {
@@ -746,6 +757,7 @@ fn value_checks(
             }
             let key = value_checks(service, &map.key, "key", patterns, depth + 2);
             let item = value_checks(service, &map.value, "item", patterns, depth + 2);
+            let item = sensitive_items(service, &map.value, item, &pad);
             let item = if map.sparse && !item.is_empty() {
                 format!("{pad}        if let Some(item) = item {{\n{item}{pad}        }}\n")
             } else {

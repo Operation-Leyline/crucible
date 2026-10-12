@@ -140,6 +140,10 @@ async fn validation_paths_name_no_sensitive_map_key() {
         "secretScores": {"hunter2": 99},
         "privateScores": {"hunter3": 99},
         "scores": {"visible": 99},
+        // Sensitive maps as collection items: the outer key and the index are
+        // the entry's own and stay; the keys inside are hidden.
+        "scoreMaps": {"outer": {"hunter4": 99}},
+        "scoreMapList": [{"hunter5": 99}],
     });
     let answer = service.invoke("Echo", payload).await;
     assert_eq!(answer["error"]["__type"], "ValidationError", "{answer}");
@@ -156,7 +160,9 @@ async fn validation_paths_name_no_sensitive_map_key() {
         [
             "secretScores/[key]",
             "privateScores/[key]",
-            "scores/visible"
+            "scores/visible",
+            "scoreMaps/outer/[key]",
+            "scoreMapList/0/[key]",
         ],
         "{violations}"
     );

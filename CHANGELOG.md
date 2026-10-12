@@ -67,13 +67,15 @@ version's section when it is prepared.
   - An MCP tool call whose arguments, or whose output, break the tool's
     schema names the location and the keyword (`/name does not satisfy
     the schema's `type``) instead of jsonschema's message, which quotes
-    the value.
+    the value. The location keeps declared property names and list indexes
+    and says `[key]` for a map key (`/settings/[key]/limit`).
   - A value an API version hook cannot read becomes an internal error
     without quoting the value, so its logged cause carries no request data.
   - A violation's path names a map key `[key]` when the key is client data
     under a sensitivity rule: the map's keys are `@sensitive`, or the map is
     reached through a `@sensitive` member or structure (an ordinary
-    structure behind a sensitive member included). Generated validation
+    structure behind a sensitive member included), or is the item of a list
+    or map whose items are sensitive (`scoreMaps/outer/[key]`). Generated validation
     opens the new `Validator::sensitive` scope for them. Member names, list
     indexes and public map keys still appear.
 

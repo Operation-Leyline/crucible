@@ -80,7 +80,7 @@ impl ToolRegistry {
         let tool = self.tools.get(name).ok_or("unknown tool")?;
         tool.input_validator
             .validate(&arguments)
-            .map_err(|e| schema_failure(&e))?;
+            .map_err(|e| schema_failure(&tool.input, &e))?;
         Ok(project(&tool.input, &tool.input, arguments))
     }
     /// Publish only the External document members and enforce the advertised schema.
@@ -90,10 +90,11 @@ impl ToolRegistry {
             Some(schema) => project(schema, schema, output),
             None => output,
         };
-        if let Some(validator) = &tool.output_validator {
+        // A validator is compiled exactly when there is an output schema.
+        if let (Some(validator), Some(schema)) = (&tool.output_validator, &tool.output) {
             validator
                 .validate(&output)
-                .map_err(|e| schema_failure(&e))?;
+                .map_err(|e| schema_failure(schema, &e))?;
         }
         if !output.is_object() {
             return Err("structuredContent must be an object".into());
@@ -105,13 +106,87 @@ impl ToolRegistry {
 /// Where a value broke its schema and which keyword it broke. jsonschema's
 /// own message quotes the value (`"hunter2" is not of type "integer"`), and
 /// this text becomes a client's rejection or an internal error's logged
-/// cause, where a `@sensitive` member's value must not appear.
-fn schema_failure(error: &jsonschema::ValidationError<'_>) -> String {
+/// cause, where a `@sensitive` member's value must not appear. The location
+/// is the instance path with every map key replaced (`[key]`): a key is
+/// client data, and the schema cannot say whether it is sensitive. Declared
+/// property names and list indexes come from the model and stay.
+fn schema_failure(root: &Value, error: &jsonschema::ValidationError<'_>) -> String {
     let schema_path = error.schema_path.to_string();
     let keyword = schema_path.rsplit('/').next().unwrap_or_default();
-    let at = error.instance_path.to_string();
+    let at = public_path(root, error.instance_path.as_str());
     let at = if at.is_empty() { "/" } else { at.as_str() };
     format!("{at} does not satisfy the schema's `{keyword}`")
+}
+
+/// `pointer` (an instance path, as a JSON Pointer) walked through `root`:
+/// a segment the schema declares as a property, or an index into an array
+/// schema's items, is kept; anything else (an `additionalProperties` key, or
+/// a segment past where the schema can be followed) becomes `[key]`.
+fn public_path(root: &Value, pointer: &str) -> String {
+    let mut schema = Some(root);
+    let mut out = String::new();
+    for segment in pointer.split('/').skip(1) {
+        let segment = segment.replace("~1", "/").replace("~0", "~");
+        let step = schema.and_then(|schema| child(root, schema, &segment, 0));
+        out.push('/');
+        match step {
+            Some((true, next)) => {
+                out.push_str(&segment.replace('~', "~0").replace('/', "~1"));
+                schema = Some(next);
+            }
+            Some((false, next)) => {
+                out.push_str("[key]");
+                schema = Some(next);
+            }
+            None => {
+                out.push_str("[key]");
+                schema = None;
+            }
+        }
+    }
+    out
+}
+
+/// The schema `segment` leads to from `schema`, and whether the segment is
+/// the model's (a declared property or an array index) rather than the
+/// client's (a map key). `$ref` and the alternatives of `anyOf`, `oneOf` and
+/// `allOf` are followed; `depth` bounds a cycle of references.
+fn child<'a>(
+    root: &'a Value,
+    schema: &'a Value,
+    segment: &str,
+    depth: usize,
+) -> Option<(bool, &'a Value)> {
+    if depth > 64 {
+        return None;
+    }
+    if let Some(target) = schema["$ref"]
+        .as_str()
+        .and_then(|reference| reference.strip_prefix('#'))
+        .and_then(|pointer| root.pointer(pointer))
+    {
+        return child(root, target, segment, depth + 1);
+    }
+    for keyword in ["anyOf", "oneOf", "allOf"] {
+        if let Some(found) = schema[keyword]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find_map(|alternative| child(root, alternative, segment, depth + 1))
+        {
+            return Some(found);
+        }
+    }
+    if let Some(property) = schema["properties"].get(segment) {
+        return Some((true, property));
+    }
+    if schema["additionalProperties"].is_object() {
+        return Some((false, &schema["additionalProperties"]));
+    }
+    if schema["items"].is_object() && segment.parse::<usize>().is_ok() {
+        return Some((true, &schema["items"]));
+    }
+    None
 }
 
 fn validator(schema: &Value) -> Result<jsonschema::Validator, String> {

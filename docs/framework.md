@@ -258,7 +258,8 @@ arrival, whichever comes first. Past it, the phase running is dropped (the
 operation's future included, as if it panicked), the phases already entered
 unwind, and the request fails with `DeadlineExceeded`. That error meets the
 exception rules like any other. Unmatched, the caller gets the service's
-internal error, and the service log records the cause. An exception rule can
+internal error, and a `ServiceLog` with failure logging enabled records the
+cause, as for any internal failure. An exception rule can
 answer a modelled error instead, such as a 503. `context.deadline()` reports
 the enforced deadline, so extensions and implementations can budget work
 against it. Changing it with `set_deadline` changes what they read, not when
