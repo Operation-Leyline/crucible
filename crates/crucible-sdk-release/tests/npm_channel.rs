@@ -51,6 +51,8 @@ struct State {
     inherited_dry_run: bool,
     /// npm reports success and does nothing, whatever it is told.
     swallow: bool,
+    /// What `npm --version` prints.
+    npm_version: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -165,6 +167,17 @@ impl HttpTransport for Registry {
 impl CommandRunner for Registry {
     fn run(&self, command: &CommandLine) -> io::Result<CommandOutput> {
         let mut state = self.0.borrow_mut();
+        if command.args.first().map(String::as_str) == Some("--version") {
+            return Ok(CommandOutput {
+                success: true,
+                stdout: state
+                    .npm_version
+                    .clone()
+                    .unwrap_or_else(|| "10.9.2".into())
+                    .into_bytes(),
+                ..CommandOutput::default()
+            });
+        }
         state.commands.push(command.clone());
         let flag = |name: &str| {
             command
@@ -885,4 +898,92 @@ fn a_journal_entry_for_other_bytes_or_another_channel_is_refused() {
     journal.uploads.push(upload(npm.describe(), &actual));
     let step = publish(&npm, &item, dir.path(), &mut journal, Mode::Execute).unwrap();
     assert!(matches!(step, Step::Journaled(_)));
+}
+
+fn request<'a>(version: &'a Version, artifact: &'a Path) -> PublishRequest<'a> {
+    PublishRequest {
+        sdk: "ts",
+        version,
+        artifact,
+        source_commit: None,
+        package: None,
+    }
+}
+
+/// npm publishes only with the credential at the registry's exact key:
+/// a gap is reported before anything runs, in the dry run too.
+#[test]
+fn a_publish_npm_would_refuse_for_its_credential_stops_first() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    let npm = channel(&registry, Some(credential()), None).with_publish_problem(
+        "npm publish reads only `//npm.pkg.github.com/:_authToken`, but the credential is at `//npm.pkg.github.com`",
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let artifact = write(dir.path(), "a.tgz", &release("0.2.1", "d3"));
+    let version = Version::new(0, 2, 1);
+    for error in [
+        npm.publish(&request(&version, &artifact)).unwrap_err(),
+        npm.describe_publish(&request(&version, &artifact))
+            .unwrap_err(),
+        npm.settle(&version).unwrap_err(),
+    ] {
+        assert!(error.to_string().contains("reads only"), "{error}");
+    }
+    assert!(registry.commands().is_empty());
+}
+
+#[test]
+fn publishing_needs_npm_9() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    registry.0.borrow_mut().npm_version = Some("8.19.4".into());
+    let npm = channel(&registry, Some(credential()), None);
+    let dir = tempfile::tempdir().unwrap();
+    let artifact = write(dir.path(), "a.tgz", &release("0.2.1", "d3"));
+    let error = npm
+        .publish(&request(&Version::new(0, 2, 1), &artifact))
+        .unwrap_err();
+    assert!(error.to_string().contains("npm 9 or later"), "{error}");
+    assert!(!registry.0.borrow().versions.contains_key("0.2.1"));
+}
+
+/// npm runs in its project directory, the one whose .npmrc was read.
+#[test]
+fn npm_runs_in_its_project_directory() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    let project = tempfile::tempdir().unwrap();
+    let npm = channel(&registry, Some(credential()), None).with_project(project.path());
+    let artifact = write(project.path(), "a.tgz", &release("0.2.1", "d3"));
+    npm.publish(&request(&Version::new(0, 2, 1), &artifact))
+        .unwrap();
+    let state = registry.0.borrow();
+    assert!(!state.commands.is_empty());
+    for command in &state.commands {
+        assert_eq!(command.cwd.as_deref(), Some(project.path()), "{command}");
+    }
+}
+
+/// Only the publishConfig keys the generator writes are accepted: any
+/// other could redirect or change the upload.
+#[test]
+fn other_publish_config_keys_are_refused() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    let npm = channel(&registry, Some(credential()), None);
+    let dir = tempfile::tempdir().unwrap();
+    for key in ["@operation-pigeon:registry", "tag", "dry-run", "provenance"] {
+        let mut config = serde_json::Map::new();
+        config.insert(key.into(), json!("x"));
+        let artifact = write(
+            dir.path(),
+            "a.tgz",
+            &tarball(
+                json!({"name": PACKAGE, "version": "0.2.1", "publishConfig": config}),
+                &[],
+            ),
+        );
+        let error = npm
+            .publish(&request(&Version::new(0, 2, 1), &artifact))
+            .unwrap_err();
+        assert!(error.to_string().contains("publishConfig sets"), "{error}");
+    }
+    assert!(registry.commands().is_empty());
 }

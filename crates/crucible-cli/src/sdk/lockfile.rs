@@ -161,15 +161,31 @@ impl Drop for Reconciled {
 }
 
 /// Replaces `path` with `bytes` atomically: a temporary file beside it,
-/// then a rename.
+/// then a rename. A symlinked lockfile is followed, so the link survives
+/// and its target changes; the file keeps its permissions (a temporary
+/// file is created private).
 fn replace(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    let directory = path.parent().unwrap_or(Path::new("."));
+    let target = match fs::symlink_metadata(path) {
+        Ok(metadata) if metadata.file_type().is_symlink() => fs::canonicalize(path)
+            .map_err(|error| format!("cannot follow {}: {error}", shown(path)))?,
+        _ => path.to_owned(),
+    };
+    let permissions = fs::metadata(&target)
+        .map(|metadata| metadata.permissions())
+        .ok();
+    let directory = target.parent().unwrap_or(Path::new("."));
     let mut temporary = tempfile::NamedTempFile::new_in(directory)
         .map_err(|error| format!("cannot write beside {}: {error}", shown(path)))?;
     std::io::Write::write_all(&mut temporary, bytes)
         .map_err(|error| format!("cannot write {}: {error}", shown(path)))?;
+    if let Some(permissions) = permissions {
+        temporary
+            .as_file()
+            .set_permissions(permissions)
+            .map_err(|error| format!("cannot keep {}'s permissions: {error}", shown(path)))?;
+    }
     temporary
-        .persist(path)
+        .persist(&target)
         .map_err(|error| format!("cannot replace {}: {}", shown(path), error.error))?;
     Ok(())
 }
@@ -240,6 +256,44 @@ mod tests {
                 Reconciled::apply(std::slice::from_ref(&lock), "pigeon-sdk", "0.2.1").unwrap();
         }
         assert_eq!(fs::read_to_string(&lock).unwrap(), LOCK);
+    }
+
+    /// The lockfile keeps its mode, and a symlinked one stays a link.
+    #[cfg(unix)]
+    #[test]
+    fn permissions_and_links_survive() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let dir = tempfile::tempdir().unwrap();
+        let real = dir.path().join("real.lock");
+        let link = dir.path().join("Cargo.lock");
+        fs::write(&real, LOCK).unwrap();
+        fs::set_permissions(&real, fs::Permissions::from_mode(0o644)).unwrap();
+        symlink(&real, &link).unwrap();
+        let reconciled =
+            Reconciled::apply(std::slice::from_ref(&link), "pigeon-sdk", "0.2.1").unwrap();
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert!(fs::read_to_string(&real).unwrap().contains("\"0.2.1\""));
+        assert_eq!(
+            fs::metadata(&real).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
+        reconciled.restore().unwrap();
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(fs::read_to_string(&real).unwrap(), LOCK);
+        assert_eq!(
+            fs::metadata(&real).unwrap().permissions().mode() & 0o777,
+            0o644
+        );
     }
 
     #[test]

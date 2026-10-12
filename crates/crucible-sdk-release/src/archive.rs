@@ -259,6 +259,11 @@ pub fn sha256_file(path: &Path) -> io::Result<String> {
     Ok(hex(&hasher.finalize()))
 }
 
+/// The lower-case hex SHA-256 of bytes.
+pub fn sha256_bytes(bytes: &[u8]) -> String {
+    hex(&Sha256::digest(bytes))
+}
+
 /// The npm `dist.integrity` of these bytes: `sha512-<base64>`.
 pub fn sri_sha512(bytes: &[u8]) -> String {
     format!(

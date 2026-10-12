@@ -9,7 +9,7 @@
 //! this channel reads.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use semver::Version;
@@ -96,6 +96,12 @@ pub struct NpmChannel {
     /// Why a configured credential was skipped, for an unreadable channel's
     /// message.
     credential_note: Option<String>,
+    /// Why `npm publish` would find no credential (see
+    /// [`npmrc::Lookup::publish_problem`]); checked before any upload.
+    publish_problem: Option<String>,
+    /// npm's project directory: where it runs and reads the project
+    /// `.npmrc` this channel read.
+    project: Option<PathBuf>,
 }
 
 /// What the registry's package document says.
@@ -146,14 +152,8 @@ impl NpmChannel {
                 config.package
             )));
         }
-        if config.dist_tag.is_empty()
-            || Version::parse(config.dist_tag.trim_start_matches('v')).is_ok()
-            || config.dist_tag.contains(char::is_whitespace)
-        {
-            return Err(invalid(format!(
-                "{:?} cannot be a dist-tag: npm refuses empty tags and tags that read as versions",
-                config.dist_tag
-            )));
+        if let Some(problem) = dist_tag_problem(&config.dist_tag) {
+            return Err(invalid(problem));
         }
         Ok(Self {
             config: config.clone(),
@@ -165,6 +165,8 @@ impl NpmChannel {
             confirm_attempts: 12,
             confirm_delay: Duration::from_secs(5),
             credential_note: None,
+            publish_problem: None,
+            project: None,
         })
     }
 
@@ -177,16 +179,18 @@ impl NpmChannel {
 
     /// The real channel: HTTPS, the credential npm would use from
     /// `project`'s `.npmrc` or the user config, and the `npm` on `PATH`.
-    pub fn from_environment(
-        config: &NpmChannelConfig,
-        project: &Path,
-    ) -> Result<Self, ChannelError> {
+    /// `start` is where the command runs; npm's project is the nearest of
+    /// it and its parents holding `package.json` or `node_modules`
+    /// ([`npmrc::npm_project_dir`]), and both the credential lookup and
+    /// npm itself use that directory.
+    pub fn from_environment(config: &NpmChannelConfig, start: &Path) -> Result<Self, ChannelError> {
+        let project = npmrc::npm_project_dir(start);
         let registry = registry_url(&config.registry).map_err(|reason| ChannelError::Invalid {
             channel: format!("npm {}", config.package),
             reason,
         })?;
         let env = |name: &str| std::env::var(name).ok();
-        let lookup = npmrc::credential(&registry, Some(project), &env).map_err(|reason| {
+        let lookup = npmrc::credential(&registry, Some(&project), &env).map_err(|reason| {
             ChannelError::Unreadable {
                 channel: format!("npm {} on {}", config.package, http::display(&registry)),
                 reason,
@@ -199,7 +203,53 @@ impl NpmChannel {
             Box::new(SystemRunner),
         )?;
         channel.credential_note = lookup.note;
+        channel.publish_problem = lookup.publish_problem;
+        channel.project = Some(project);
         Ok(channel)
+    }
+
+    /// Refuses to upload, for this reason: npm would find no credential.
+    pub fn with_publish_problem(mut self, problem: impl Into<String>) -> Self {
+        self.publish_problem = Some(problem.into());
+        self
+    }
+
+    /// Runs npm in this directory.
+    pub fn with_project(mut self, project: impl Into<PathBuf>) -> Self {
+        self.project = Some(project.into());
+        self
+    }
+
+    /// Fails before an upload that npm would refuse late: no credential at
+    /// the exact registry key, or an npm before 9, which let
+    /// `publishConfig` override the registry pinned on the command line.
+    fn ready_to_publish(&self) -> Result<(), ChannelError> {
+        let failed = |reason: String| ChannelError::Publish {
+            channel: self.describe(),
+            reason,
+        };
+        if let Some(problem) = &self.publish_problem {
+            return Err(failed(problem.clone()));
+        }
+        let mut command = CommandLine::new(&self.npm).arg("--version");
+        if let Some(project) = &self.project {
+            command = command.cwd(project);
+        }
+        let output = self
+            .runner
+            .run(&command)
+            .map_err(|error| failed(error.to_string()))?;
+        let text = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        match Version::parse(&text) {
+            Ok(version) if output.success && version.major >= 9 => Ok(()),
+            Ok(version) => Err(failed(format!(
+                "npm {version} is too old: publishing needs npm 9 or later"
+            ))),
+            Err(_) => Err(failed(format!(
+                "`{} --version` printed {text:?}, not a version",
+                self.npm
+            ))),
+        }
     }
 
     /// Says why a configured credential was skipped, in the messages of a
@@ -264,8 +314,8 @@ impl NpmChannel {
             404 if self.credential.is_some() => Ok(None),
             404 if self.config.access == Some(NpmAccess::Public) => Ok(None),
             404 => Err(self.without_credential(format!(
-                "the registry answered 404 to a read without credentials, which a private package and a missing one both answer. Give npm a token for it in .npmrc (`//{}/:_authToken=${{NODE_AUTH_TOKEN}}`, as actions/setup-node writes), or declare access = \"public\"",
-                self.registry.host_str().unwrap_or_default()
+                "the registry answered 404 to a read without credentials, which a private package and a missing one both answer. Give npm a token for it in .npmrc (`{}:_authToken=${{NODE_AUTH_TOKEN}}`, as actions/setup-node writes), or declare access = \"public\"",
+                npmrc::registry_key(&self.registry)
             ))),
             401 | 403 => Err(self.without_credential(format!(
                 "the registry refused {} ({})",
@@ -371,6 +421,21 @@ impl NpmChannel {
             return Err(refuse("its package.json says \"private\": true".into()));
         }
         let publish_config = package.get("publishConfig");
+        // Only the keys the generator writes: any other could send the
+        // upload elsewhere or change how npm publishes it (a scope's
+        // registry, a tag, a dry run).
+        if let Some(key) = publish_config
+            .and_then(Value::as_object)
+            .and_then(|config| {
+                config
+                    .keys()
+                    .find(|key| !matches!(key.as_str(), "registry" | "access"))
+            })
+        {
+            return Err(refuse(format!(
+                "its publishConfig sets {key:?}; only registry and access are allowed"
+            )));
+        }
         if let Some(registry) = publish_config
             .and_then(|config| config.get("registry"))
             .and_then(Value::as_str)
@@ -421,6 +486,9 @@ impl NpmChannel {
             .args(args)
             .arg("--registry")
             .arg(self.registry.as_str());
+        if let Some(project) = &self.project {
+            command = command.cwd(project);
+        }
         if let Some((scope, _)) = self.config.package.split_once('/') {
             command = command.arg(format!("--{scope}:registry={}", self.registry));
         }
@@ -539,7 +607,7 @@ impl Channel for NpmChannel {
         let files = read_tarball_files(
             &response.body,
             &["package.json", PROVENANCE_FILE, MODEL_FILE],
-            TARBALL_LIMIT,
+            PACKUMENT_LIMIT,
         )
         .map_err(|reason| {
             self.unreadable(format!("the tarball of {}: {reason}", release.version))
@@ -620,6 +688,7 @@ impl Channel for NpmChannel {
 
     fn describe_publish(&self, request: &PublishRequest<'_>) -> Result<Vec<String>, ChannelError> {
         self.check_artifact(request)?;
+        self.ready_to_publish()?;
         let packument = self.packument()?;
         let tag = self.publish_tag(packument.as_ref(), request.version);
         let mut lines = vec![self.publish_command(request.artifact, &tag).to_string()];
@@ -634,6 +703,7 @@ impl Channel for NpmChannel {
 
     fn publish(&self, request: &PublishRequest<'_>) -> Result<PublishOutcome, ChannelError> {
         self.check_artifact(request)?;
+        self.ready_to_publish()?;
         let packument = self.packument()?;
         let tag = self.publish_tag(packument.as_ref(), request.version);
         self.run(&self.publish_command(request.artifact, &tag))?;
@@ -661,6 +731,7 @@ impl Channel for NpmChannel {
     }
 
     fn settle(&self, version: &Version) -> Result<Vec<String>, ChannelError> {
+        self.ready_to_publish()?;
         let packument = self
             .packument()?
             .ok_or_else(|| self.unreadable("the package disappeared"))?;
@@ -689,13 +760,18 @@ impl Channel for NpmChannel {
 /// A registry URL as npm compares them: HTTPS, no credentials, query or
 /// fragment, with a trailing slash.
 fn registry_url(text: &str) -> Result<Url, String> {
-    let mut url = Url::parse(text).map_err(|error| format!("{text:?}: {error}"))?;
-    if url.scheme() != "https" {
-        return Err(format!("{text:?}: an npm channel is read over HTTPS only"));
-    }
+    let shown = crucible_codegen_common::metadata::redact(text);
+    let mut url = Url::parse(text).map_err(|error| format!("{shown:?}: {error}"))?;
+    // Before anything else names the URL: user information is a secret.
     if !url.username().is_empty() || url.password().is_some() {
         return Err(format!(
             "{}: credentials come from .npmrc, never the channel URL",
+            http::display(&url)
+        ));
+    }
+    if url.scheme() != "https" {
+        return Err(format!(
+            "{}: an npm channel is read over HTTPS only",
             http::display(&url)
         ));
     }
@@ -712,6 +788,25 @@ fn registry_url(text: &str) -> Result<Url, String> {
         url.set_path(&path);
     }
     Ok(url)
+}
+
+/// Why npm would refuse `tag` as a dist-tag, or route it as a version:
+/// empty, not URL-safe, or anything npm reads as a SemVer range (`1.x`,
+/// `^1`, `v1.2.3`).
+fn dist_tag_problem(tag: &str) -> Option<String> {
+    let range = semver::VersionReq::parse(tag).is_ok()
+        || tag
+            .strip_prefix(['v', 'V', '='])
+            .is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()));
+    let safe = !tag.is_empty()
+        && tag
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+    (range || !safe).then(|| {
+        format!(
+            "{tag:?} cannot be a dist-tag: npm refuses empty tags and tags that read as versions or ranges; use letters, digits, `-`, `_` and `.`"
+        )
+    })
 }
 
 fn valid_package(name: &str) -> bool {
@@ -735,7 +830,32 @@ fn valid_package(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{registry_url, valid_package};
+    use super::{dist_tag_problem, registry_url, valid_package};
+
+    #[test]
+    fn dist_tags_follow_npms_rules() {
+        for good in ["latest", "next", "latest-0.2", "beta_1", "rc.1"] {
+            assert_eq!(dist_tag_problem(good), None, "{good}");
+        }
+        for bad in [
+            "", "1.x", "^1", "1", "*", "v1.2.3", "1.2.3", ">=1", "a b", "a/b", "1 - 2",
+        ] {
+            assert!(dist_tag_problem(bad).is_some(), "{bad}");
+        }
+    }
+
+    /// A registry URL with user information is refused without showing it.
+    #[test]
+    fn registry_errors_never_show_user_information() {
+        for text in [
+            "http://_:npm_SECRET@r.example/",
+            "https://npm_SECRET@r.example/",
+            "https://_:npm_SECRET@r.example:99999/",
+        ] {
+            let error = registry_url(text).unwrap_err();
+            assert!(!error.contains("npm_SECRET"), "{error}");
+        }
+    }
 
     #[test]
     fn registry_urls_are_https_without_credentials() {

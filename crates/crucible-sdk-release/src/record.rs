@@ -248,7 +248,13 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
 pub fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T, String> {
     let bytes =
         fs::read(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    let value: Value = serde_json::from_slice(&bytes)
+    parse_json(&bytes, path)
+}
+
+/// A record from bytes already read (`path` names it in errors), so a
+/// caller can hash and parse the same bytes.
+pub fn parse_json<T: for<'de> Deserialize<'de>>(bytes: &[u8], path: &Path) -> Result<T, String> {
+    let value: Value = serde_json::from_slice(bytes)
         .map_err(|error| format!("{} is not JSON: {error}", path.display()))?;
     let schema = value
         .get("schemaVersion")

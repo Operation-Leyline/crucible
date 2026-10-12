@@ -43,6 +43,11 @@ pub struct Lookup {
     /// Why a configured credential was not used, for an error message.
     /// Never holds the credential.
     pub note: Option<String>,
+    /// Why `npm publish` would find no credential although reads might
+    /// have one: npm publishes with the key at the registry's exact URL
+    /// only (`//npm.pkg.github.com/:_authToken`: lowercase host, the
+    /// registry's whole path, a trailing slash), never a parent path's.
+    pub publish_problem: Option<String>,
 }
 
 /// The credential for `registry` from the merged `.npmrc` layers.
@@ -88,8 +93,28 @@ fn files(project: Option<&Path>, env: Env<'_>) -> Vec<PathBuf> {
     files
 }
 
-/// A file's per-registry keys, normalized, the last line winning.
-fn entries(text: &str) -> BTreeMap<String, String> {
+/// The `.npmrc` key prefix npm publishes to `registry` with: its exact
+/// URL, without the scheme.
+pub fn registry_key(registry: &Url) -> String {
+    nerf_darts(registry).into_iter().next().unwrap_or_default()
+}
+
+/// The directory npm treats as the project: the nearest of `start` and
+/// its parents holding `package.json` or `node_modules`, else `start`.
+/// Its `.npmrc` is the project layer, and npm runs there.
+pub fn npm_project_dir(start: &Path) -> PathBuf {
+    start
+        .ancestors()
+        .find(|directory| {
+            directory.join("package.json").is_file() || directory.join("node_modules").is_dir()
+        })
+        .unwrap_or(start)
+        .to_owned()
+}
+
+/// A file's per-registry keys, normalized, the last line winning. Each
+/// value keeps the key's registry part as written.
+fn entries(text: &str) -> BTreeMap<String, (String, String)> {
     let mut entries = BTreeMap::new();
     for line in text.lines().map(str::trim) {
         if line.is_empty() || line.starts_with(['#', ';', '[']) {
@@ -106,38 +131,57 @@ fn entries(text: &str) -> BTreeMap<String, String> {
         }
         entries.insert(
             format!("{}:{field}", normalize(scope)),
-            unquote(value.trim()).to_owned(),
+            (unquote(value.trim()).to_owned(), scope.to_owned()),
         );
     }
     entries
 }
 
-fn resolve(registry: &Url, entries: &BTreeMap<String, String>, env: Env<'_>) -> Lookup {
+fn resolve(registry: &Url, entries: &BTreeMap<String, (String, String)>, env: Env<'_>) -> Lookup {
+    let exact = registry_key(registry);
     for nerf in nerf_darts(registry) {
-        let find = |field: &str| entries.get(&format!("{nerf}:{field}")).map(String::as_str);
-        let unusable = |what: &str, problem: String| Lookup {
-            credential: None,
-            note: Some(format!("the .npmrc {what} for {nerf} {problem}")),
+        let find = |field: &str| {
+            entries
+                .get(&format!("{nerf}:{field}"))
+                .map(|(value, written)| (value.as_str(), written.as_str()))
         };
-        if let Some(token) = find("_authToken") {
+        // npm publishes only with the key at the registry's exact URL.
+        let publishable = |written: &str| -> Option<String> {
+            (written != exact).then(|| {
+                format!(
+                    "npm publish reads only `{exact}:_authToken` (lowercase host, the registry's whole path, a trailing slash), but the credential is at `{written}`"
+                )
+            })
+        };
+        let unusable = |what: &str, problem: String| {
+            let note = format!("the .npmrc {what} for {nerf} {problem}");
+            Lookup {
+                credential: None,
+                note: Some(note.clone()),
+                publish_problem: Some(note),
+            }
+        };
+        // Sent only under the path the key names, as npm sends it.
+        let path = nerf.splitn(4, '/').nth(3).unwrap_or_default();
+        let found = |credential: Option<Credential>, written: &str| Lookup {
+            credential: credential.map(|credential| credential.under(path)),
+            note: None,
+            publish_problem: publishable(written),
+        };
+        if let Some((token, written)) = find("_authToken") {
             return match expand(token, env) {
-                Ok(token) => Lookup {
-                    credential: Credential::bearer(registry, &token),
-                    note: None,
-                },
+                Ok(token) => found(Credential::bearer(registry, &token), written),
                 Err(problem) => unusable("_authToken", problem),
             };
         }
-        if let Some(auth) = find("_auth") {
+        if let Some((auth, written)) = find("_auth") {
             return match expand(auth, env) {
-                Ok(auth) => Lookup {
-                    credential: Credential::basic(registry, &auth),
-                    note: None,
-                },
+                Ok(auth) => found(Credential::basic(registry, &auth), written),
                 Err(problem) => unusable("_auth", problem),
             };
         }
-        if let (Some(user), Some(password)) = (find("username"), find("_password")) {
+        if let (Some((user, written)), Some((password, _))) = (find("username"), find("_password"))
+        {
             let (user, password) = match (expand(user, env), expand(password, env)) {
                 (Ok(user), Ok(password)) => (user, password),
                 (Err(problem), _) | (_, Err(problem)) => {
@@ -151,13 +195,16 @@ fn resolve(registry: &Url, entries: &BTreeMap<String, String>, env: Env<'_>) -> 
             pair.push(b':');
             pair.extend(password);
             let encoded = base64::engine::general_purpose::STANDARD.encode(pair);
-            return Lookup {
-                credential: Credential::basic(registry, &encoded),
-                note: None,
-            };
+            return found(Credential::basic(registry, &encoded), written);
         }
     }
-    Lookup::default()
+    Lookup {
+        credential: None,
+        note: None,
+        publish_problem: Some(format!(
+            "npm publish needs `{exact}:_authToken` in .npmrc (actions/setup-node writes it from registry-url)"
+        )),
+    }
 }
 
 /// `//host[:port]/path/`, then each parent path, as npm tries them.
@@ -312,12 +359,12 @@ mod tests {
         assert!(deep.credential.is_some() && root.credential.is_some());
         // Another host or port matches nothing.
         assert_eq!(
-            parse(&registry("https://r.example:8443/"), text, &env),
-            Lookup::default()
+            parse(&registry("https://r.example:8443/"), text, &env).credential,
+            None
         );
         assert_eq!(
-            parse(&registry("https://npm.pkg.github.com/"), text, &env),
-            Lookup::default()
+            parse(&registry("https://npm.pkg.github.com/"), text, &env).credential,
+            None
         );
     }
 
@@ -327,8 +374,8 @@ mod tests {
     fn paths_compare_exactly() {
         let text = "//r.example/Internal/:_authToken=secret\n";
         assert_eq!(
-            parse(&registry("https://r.example/internal/"), text, &env),
-            Lookup::default()
+            parse(&registry("https://r.example/internal/"), text, &env).credential,
+            None
         );
         assert!(
             parse(&registry("https://r.example/Internal/"), text, &env)
@@ -388,8 +435,9 @@ mod tests {
                 Some(dir.path()),
                 &none
             )
-            .unwrap(),
-            Lookup::default()
+            .unwrap()
+            .credential,
+            None
         );
     }
 
@@ -417,10 +465,12 @@ mod tests {
                 .unwrap()
                 .credential
         };
-        let token = |url: &str, token: &str| {
+        // The credential a lone key makes, scoped to the key's path.
+        let token = |key: &str, token: &str| {
+            let url = format!("https:{key}");
             parse(
-                &registry(url),
-                &format!("//r.example/:_authToken={token}\n"),
+                &registry(&url),
+                &format!("{key}:_authToken={token}\n"),
                 &no_env,
             )
             .credential
@@ -428,16 +478,76 @@ mod tests {
         // The user's team scope is longer than anything in the project.
         assert_eq!(
             lookup("https://r.example/npm/team/"),
-            token("https://r.example/", "user-team")
+            token("//r.example/npm/team/", "user-team")
         );
         // The same key in both layers: the project's wins.
         assert_eq!(
             lookup("https://r.example/npm/other/"),
-            token("https://r.example/", "project-npm")
+            token("//r.example/npm/", "project-npm")
         );
         assert_eq!(
             lookup("https://r.example/"),
-            token("https://r.example/", "project-host")
+            token("//r.example/", "project-host")
         );
+    }
+}
+
+#[cfg(test)]
+mod publish_tests {
+    use super::{npm_project_dir, parse, registry_key};
+    use std::fs;
+    use url::Url;
+
+    fn env(name: &str) -> Option<String> {
+        (name == "TOKEN").then(|| "t".to_owned())
+    }
+
+    /// npm publishes only with the key at the registry's exact URL; reads
+    /// accept a parent path's, so the gap is reported before npm fails.
+    #[test]
+    fn publishing_needs_the_exact_registry_key() {
+        let registry = Url::parse("https://r.example/npm/repo").unwrap();
+        assert_eq!(registry_key(&registry), "//r.example/npm/repo/");
+        let exact = parse(
+            &registry,
+            "//r.example/npm/repo/:_authToken=${TOKEN}\n",
+            &env,
+        );
+        assert!(exact.credential.is_some());
+        assert_eq!(exact.publish_problem, None);
+        for key in [
+            "//r.example/",
+            "//r.example/npm/",
+            "//r.example/npm/repo",
+            "//R.example/npm/repo/",
+        ] {
+            let found = parse(&registry, &format!("{key}:_authToken=${{TOKEN}}\n"), &env);
+            assert!(found.credential.is_some(), "{key}");
+            let problem = found.publish_problem.unwrap();
+            assert!(
+                problem.contains("`//r.example/npm/repo/:_authToken`"),
+                "{problem}"
+            );
+            assert!(problem.contains(key), "{problem}");
+        }
+        let none = parse(&registry, "", &env);
+        assert!(
+            none.publish_problem
+                .unwrap()
+                .contains("//r.example/npm/repo/:_authToken")
+        );
+    }
+
+    #[test]
+    fn the_project_is_where_npm_finds_it() {
+        let root = tempfile::tempdir().unwrap();
+        let service = root.path().join("mono").join("service");
+        fs::create_dir_all(&service).unwrap();
+        // No package.json anywhere: the start directory.
+        assert_eq!(npm_project_dir(&service), service);
+        fs::write(root.path().join("mono").join("package.json"), "{}").unwrap();
+        assert_eq!(npm_project_dir(&service), root.path().join("mono"));
+        fs::create_dir_all(service.join("node_modules")).unwrap();
+        assert_eq!(npm_project_dir(&service), service);
     }
 }

@@ -193,10 +193,21 @@ crucible sdk publish  target/sdk-release [--sdk <name>]... [--execute]
   GitHub Packages included, for TypeScript. The registry's package
   document lists the versions; the provenance is read from inside the
   latest tarball, after checking it against `dist.integrity`. Credentials
-  come from `.npmrc` as npm finds them (the project's, then
-  `NPM_CONFIG_USERCONFIG` or `~/.npmrc`), so `actions/setup-node` with
+  come from `.npmrc` as npm finds them: npm's project directory is the
+  nearest of the starting directory (the SDK file's for `plan` and
+  `build`, the current one for `publish`) and its parents holding
+  `package.json` or `node_modules`; its `.npmrc` comes first, then
+  `NPM_CONFIG_USERCONFIG` or `~/.npmrc`, and npm itself runs there, so
+  Crucible and npm read the same files. `actions/setup-node` with
   `NODE_AUTH_TOKEN` works; a bare `NODE_AUTH_TOKEN` is never sent on its
-  own. npm answers 404 both for a missing package and for a private one
+  own. A credential goes only to requests under the path its key names.
+  npm publishes only with the key at the registry's exact URL
+  (`//npm.pkg.github.com/:_authToken`: lowercase host, the registry's whole
+  path, a trailing slash), so `publish`, its dry run included, refuses
+  before uploading when reads found a credential only under another key,
+  and names the key it needs. It also needs npm 9 or later, and a
+  tarball whose `publishConfig` sets nothing but `registry` and
+  `access`. npm answers 404 both for a missing package and for a private one
   read without credentials, so an anonymous 404 counts as empty only for
   `access = "public"`; otherwise the plan fails. Downloads are HTTPS only,
   and the token follows a redirect only to the registry's own scheme, host
@@ -226,7 +237,14 @@ crucible sdk publish  target/sdk-release [--sdk <name>]... [--execute]
   paths are removed. The commit reads `Release <package> <tag> from
   <source commit>`, by `GIT_AUTHOR_*`/`GIT_COMMITTER_*` or the configured
   identity, else `Crucible <crucible@noreply.invalid>`. Credentials are
-  Git's own (an SSH agent or credential helper).
+  Git's own (an SSH agent or credential helper). Every Git command runs
+  hermetically, so publishing from a hook or a configured workstation
+  behaves as in CI: the repository variables a hook inherits (`GIT_DIR`,
+  `GIT_INDEX_FILE`, ...) are removed, no user hook runs (an empty
+  `core.hooksPath`, empty init templates, `push --no-verify`), the tag is
+  created with `update-ref` so `tag.gpgSign` cannot ask for a message, and
+  nothing waits for input. Commit signing follows the user's
+  `commit.gpgSign`.
 
 **`plan`** reads each channel and prints the last release, whether the
 SDK changed, the next version and why. *Unchanged* means the current

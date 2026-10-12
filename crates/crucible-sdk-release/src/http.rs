@@ -21,6 +21,9 @@ pub const MAX_REDIRECTS: usize = 10;
 #[derive(Clone, PartialEq, Eq)]
 pub struct Credential {
     origin: Origin,
+    /// The path the credential was issued for (`/` for the whole host),
+    /// always ending in `/`.
+    path: String,
     authorization: String,
 }
 
@@ -58,14 +61,28 @@ impl Credential {
         (registry.scheme() == "https").then_some(())?;
         Some(Self {
             origin: Origin::of(registry)?,
+            path: "/".into(),
             authorization,
         })
+    }
+
+    /// The credential, limited to requests under `path` on its origin, as
+    /// npm limits a key such as `//r.example/team/:_authToken`.
+    pub fn under(mut self, path: &str) -> Self {
+        let mut path = format!("/{}", path.trim_start_matches('/'));
+        if !path.ends_with('/') {
+            path.push('/');
+        }
+        self.path = path;
+        self
     }
 
     /// Whether this credential may be sent to `url`: the same scheme, host
     /// and port it was issued for, and HTTPS.
     pub fn applies_to(&self, url: &Url) -> bool {
-        url.scheme() == "https" && Origin::of(url).as_ref() == Some(&self.origin)
+        url.scheme() == "https"
+            && Origin::of(url).as_ref() == Some(&self.origin)
+            && url.path().starts_with(&self.path)
     }
 
     /// `text` with this credential's secret replaced, for a tool's output
@@ -87,6 +104,7 @@ impl fmt::Debug for Credential {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Credential")
             .field("origin", &self.origin)
+            .field("path", &self.path)
             .field("authorization", &"<redacted>")
             .finish()
     }
@@ -360,6 +378,43 @@ mod tests {
         assert!(!credential.applies_to(&url("http://npm.pkg.github.com/x")));
         assert!(!credential.applies_to(&url("https://evil.example/x")));
         assert!(Credential::bearer(&url("http://registry.example/"), "t").is_none());
+    }
+
+    /// A credential for one path on a host goes only to requests under it:
+    /// a tarball or redirect elsewhere on the host gets none.
+    #[test]
+    fn a_path_scoped_credential_stays_under_its_path() {
+        let credential = Credential::bearer(&url("https://r.example/Internal/"), "t")
+            .unwrap()
+            .under("/Internal/");
+        assert!(credential.applies_to(&url("https://r.example/Internal/pkg")));
+        assert!(credential.applies_to(&url("https://r.example/Internal/-/pkg-1.0.0.tgz")));
+        assert!(!credential.applies_to(&url("https://r.example/internal/pkg")));
+        assert!(!credential.applies_to(&url("https://r.example/other/pkg.tgz")));
+        assert!(!credential.applies_to(&url("https://r.example/InternalX/pkg")));
+        let script = Script::new(&[
+            (
+                "https://r.example/Internal/pkg",
+                302,
+                Some("/other/pkg.tgz"),
+            ),
+            ("https://r.example/other/pkg.tgz", 200, None),
+        ]);
+        get(
+            &script,
+            &url("https://r.example/Internal/pkg"),
+            "*/*",
+            Some(&credential),
+            10,
+        )
+        .unwrap();
+        let sent: Vec<bool> = script
+            .seen
+            .borrow()
+            .iter()
+            .map(|(_, auth)| auth.is_some())
+            .collect();
+        assert_eq!(sent, [true, false]);
     }
 
     #[test]

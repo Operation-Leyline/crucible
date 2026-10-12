@@ -4,12 +4,12 @@
 
 use std::path::Path;
 
-use crucible_sdk_release::archive::sha256_file;
+use crucible_sdk_release::archive::sha256_bytes;
 use crucible_sdk_release::publish::{
     Mode, PublishError, PublishItem, Step, publish as publish_one,
 };
 use crucible_sdk_release::record::{
-    PLAN_FILE, PlanRecord, RELEASE_FILE, ReleaseRecord, SdkPlan, SdkRelease, read_json,
+    PLAN_FILE, PlanRecord, RELEASE_FILE, ReleaseRecord, SdkPlan, SdkRelease, parse_json, read_json,
 };
 use crucible_sdk_release::{Journal, Version};
 
@@ -27,8 +27,11 @@ fn records(release: &Path) -> Result<(PlanRecord, ReleaseRecord), String> {
     }
     let record: ReleaseRecord = read_json(&release.join(RELEASE_FILE))?;
     let plan_path = release.join(PLAN_FILE);
-    let digest = sha256_file(&plan_path)
+    // Hashed and parsed from the same bytes, so what is checked is what
+    // is used.
+    let plan_bytes = std::fs::read(&plan_path)
         .map_err(|error| format!("cannot read {}: {error}", shown(&plan_path)))?;
+    let digest = sha256_bytes(&plan_bytes);
     match &record.plan_sha256 {
         Some(expected) if *expected == digest => {}
         Some(_) => {
@@ -42,7 +45,7 @@ fn records(release: &Path) -> Result<(PlanRecord, ReleaseRecord), String> {
             ));
         }
     }
-    let plan: PlanRecord = read_json(&plan_path)?;
+    let plan: PlanRecord = parse_json(&plan_bytes, &plan_path)?;
     for (name, built) in &record.sdks {
         let planned = plan.sdks.get(name).ok_or_else(|| {
             format!("{RELEASE_FILE} lists sdk.{name}, which {PLAN_FILE} does not")
