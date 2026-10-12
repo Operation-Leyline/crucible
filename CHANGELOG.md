@@ -15,12 +15,20 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
-SDK packaging, phase 1a ([design](docs/sdk-packaging.md)): a service
-declares its SDKs once in `crucible-sdk.toml`, `crucible sdk config|generate`
-reads it, Rust and TypeScript packages take common metadata, and they carry
-schema-2 provenance and their audience's model. Phase 1b releases them:
-`crucible sdk plan|build|verify|publish` on npm and git channels.
-Breaking for TypeScript `package_json` overrides: follow *Migration*.
+## [0.7.0] - 2026-10-12
+
+SDK packaging and releases ([design](docs/sdk-packaging.md)): a service
+declares its SDKs once in `crucible-sdk.toml`; `crucible sdk config|generate`
+writes them, and `crucible sdk plan|build|verify|publish` releases them on
+npm and git channels. Rust and TypeScript packages take common package
+metadata (description, URLs, license, authors, README, keywords, `private`,
+an npm registry) from that file, CLI flags or `crucible_build` setters, and
+carry schema-2 `crucible.json` provenance with a content digest plus
+`crucible-model.json`, their audience's model. `crucible --version` names the
+Git revision it was built from, generator changes that move SDKs are logged
+in `sdk-changes.toml`, and an external audience projection drops raw trait
+values that could name what it removed. Breaking for TypeScript
+`package_json` overrides: follow *Migration*.
 
 ### Added
 
@@ -68,7 +76,7 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   `publish = false`; a README used as crate documentation is left out of
   doctests.
 - `crucible --version` prints the Git revision the CLI was built from,
-  `0.6.1 (<revision>)`, with `+dirty` for a checkout with uncommitted
+  `0.7.0 (<revision>)`, with `+dirty` for a checkout with uncommitted
   changes: the revision `crucible sdk` compares with a service's lock.
 - Rust and TypeScript packages carry `crucible.json` schema 2
   (`schemaVersion`, generator version, verified revision and change-log
@@ -149,7 +157,7 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   `--package-version`/`.version(..)`, `private` with `--private`/
   `.private(true)`, and `publishConfig` with `--npm-registry`/
   `--npm-access`, `TsSdk::npm_registry(..)`, or an npm `channel` in
-  `crucible-sdk.toml`. See [migrating](docs/migrating.md#061-to-the-next-minor-release).
+  `crucible-sdk.toml`. See [migrating](docs/migrating.md#060-to-070).
 
 ## [0.6.1] - 2026-10-12
 
