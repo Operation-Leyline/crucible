@@ -252,6 +252,47 @@ impl SdkFile {
         }
     }
 
+    /// Refuses, before anything is written, two SDKs whose `out`s are one
+    /// directory, or one inside the other, as the filesystem resolves them
+    /// now: through links, 8.3 short names and case folding, which the
+    /// file's spelling cannot show. Run it again before each SDK is written,
+    /// since writing one creates the directories another may alias.
+    pub fn check_outs(&self) -> Result<(), String> {
+        let resolved: Vec<(&str, PathBuf)> = self
+            .sdks
+            .values()
+            .map(|sdk| (sdk.name.as_str(), resolve_existing(&self.join(&sdk.out))))
+            .collect();
+        let key = |path: &Path| {
+            path.components()
+                .map(|component| component.as_os_str().to_string_lossy().to_uppercase())
+                .collect::<Vec<_>>()
+        };
+        for (index, (name, path)) in resolved.iter().enumerate() {
+            for (other, other_path) in &resolved[..index] {
+                let (a, b) = (key(path), key(other_path));
+                if a.starts_with(&b) || b.starts_with(&a) {
+                    return Err(format!(
+                        "sdk.{name}.out and sdk.{other}.out resolve to overlapping directories ({} and {}); each SDK needs its own",
+                        path.display(),
+                        other_path.display()
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// [`SdkFile::root`], or `.` when the file was named without a directory.
+    pub(crate) fn root_or_current(&self) -> &Path {
+        let root = self.root();
+        if root.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            root
+        }
+    }
+
     /// The directory every path in the file is relative to.
     pub fn root(&self) -> &Path {
         self.path.parent().unwrap_or(Path::new("."))
@@ -503,4 +544,26 @@ pub fn find_in_repository(start: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|directory| directory.join(".git").exists())?;
     find(start).filter(|path| path.starts_with(root))
+}
+
+/// `path` as the filesystem resolves it: its deepest existing ancestor
+/// canonicalized, with the components that do not exist yet appended.
+fn resolve_existing(path: &Path) -> PathBuf {
+    let mut missing = Vec::new();
+    let mut existing = path;
+    loop {
+        if let Ok(canonical) = existing.canonicalize() {
+            return missing
+                .iter()
+                .rev()
+                .fold(canonical, |path: PathBuf, part| path.join(part));
+        }
+        match (existing.parent(), existing.file_name()) {
+            (Some(parent), Some(name)) => {
+                missing.push(name.to_owned());
+                existing = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
 }

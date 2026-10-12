@@ -414,7 +414,7 @@ fn package_json(service: &Service, options: &Options) -> String {
     // Unpublishable to npm: private with no npm registry, or released
     // through Git tags. `npm publish` refuses it.
     let registry = match &metadata.registry {
-        Some(crucible_codegen_common::Registry::Npm { url, access }) => Some((url, access)),
+        Some(crucible_codegen_common::Registry::Npm { url, access, .. }) => Some((url, access)),
         _ => None,
     };
     let git = metadata.registry == Some(crucible_codegen_common::Registry::Git);

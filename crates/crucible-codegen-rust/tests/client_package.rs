@@ -527,10 +527,10 @@ fn metadata_crates_io_would_refuse_is_a_diagnostic() {
     );
     assert!(error.contains("`homepage`"), "{error}");
     options.metadata = Default::default();
-    options.metadata.registry = Some(crucible_codegen_common::Registry::Npm {
-        url: "https://registry.npmjs.org".into(),
-        access: None,
-    });
+    options.metadata.registry = Some(crucible_codegen_common::Registry::npm(
+        "https://registry.npmjs.org",
+        None,
+    ));
     assert!(emit_client_package(&service(), &options).is_err());
     // A published URL never carries credentials, and the error never repeats them.
     options.metadata = Default::default();

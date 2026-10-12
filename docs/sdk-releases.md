@@ -18,9 +18,13 @@ comes next.
 A service declares its SDKs once, in `crucible-sdk.toml` at the root of
 its repository. The file names the model: a `.cru` package, Smithy
 sources or a JSON AST. Every path in it is relative to the file, written
-with `/`, and stays inside the file's directory: no empty, `.` or `..`
-segment, and a README or license must not resolve (through a symlink)
-outside it.
+with `/`, and stays inside the file's directory: every segment is a plain
+file name on every platform (no empty, `.` or `..` segment, no `:` or
+`<>"|?*`, no trailing `.` or space, no device name such as `NUL` or
+`COM1`), and a README, license or `runtime_path` must not resolve (through
+a link) outside it. `out`s that one filesystem resolves to the same
+directory (an 8.3 short name, a link, case folding) are refused before
+anything is written.
 
 ```toml
 # crucible-sdk.toml, at the root of the Pigeon repository
@@ -155,10 +159,9 @@ Rust and TypeScript packages carry two files at their root, which npm's
   declared SDK) and `contentDigest`. A release build will add `source`.
 - `crucible-model.json`: the compiled model as the package's audience sees
   it, in the release snapshot format of `crucible freeze`, as compact JSON
-  without documentation strings, which no compatibility comparison reads. An external
-  package reveals nothing `@internal`: the projection also drops the raw
-  copies of protocol tests, examples, waiters and endpoint tests, whose
-  projected forms it keeps.
+  of the typed contract: no documentation strings and no raw trait maps,
+  which no compatibility comparison reads. An external package reveals
+  nothing `@internal`.
 
 A Rust package with a Git channel, or a private one, has `publish = false`;
 a TypeScript package that is private with no npm registry, or released

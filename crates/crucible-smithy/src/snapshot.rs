@@ -45,14 +45,15 @@ pub fn write(service: &Service, compiler: &str) -> String {
 }
 
 /// `service` as a package carries it (`crucible-model.json`): the release
-/// snapshot without documentation, as compact JSON. A package ships in
+/// snapshot of the typed contract, as compact JSON. A package ships in
 /// every release, so it holds what a compatibility comparison reads and no
-/// more: the comparison never reads documentation strings (`docs`, waiter
-/// `documentation`, the raw `smithy.api#documentation` trait). [`read`]
-/// reads it like any snapshot.
+/// more: no documentation strings (`docs`, example `docs`, waiter
+/// `documentation`) and no raw trait maps, which repeat the typed IR (and
+/// carry documentation, raw vectors and legacy enum definitions with it).
+/// [`read`] reads it like any snapshot.
 pub fn write_contract(service: &Service, compiler: &str) -> String {
     let mut service = service.clone();
-    without_documentation(&mut service);
+    typed_contract(&mut service);
     let text = write(&service, compiler);
     let value: serde_json::Value = serde_json::from_str(&text).expect("a snapshot is JSON");
     let mut text = serde_json::to_string(&value).expect("JSON serializes");
@@ -60,17 +61,18 @@ pub fn write_contract(service: &Service, compiler: &str) -> String {
     text
 }
 
-/// Clears every documentation string, typed or raw, from `service`.
-fn without_documentation(service: &mut Service) {
+/// Clears every documentation string and raw trait map from `service`.
+fn typed_contract(service: &mut Service) {
     use crate::ir::{Member, Shape, Traits};
     fn strip(traits: &mut Traits) {
-        traits.retain(|id, _| id.to_string() != "smithy.api#documentation");
+        traits.clear();
     }
     fn member(member: &mut Member) {
         member.docs = None;
         strip(&mut member.traits);
     }
     service.docs = None;
+    service.internal_traits.clear();
     strip(&mut service.traits);
     for resource in service.resources.values_mut() {
         resource.docs = None;

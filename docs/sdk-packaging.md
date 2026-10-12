@@ -372,11 +372,11 @@ which `cargo package` includes, and npm's `files` lists both:
 - **`crucible-model.json`** is the model as the SDK's audience sees it,
   written by `snapshot::write_contract` *(built)*: the release snapshot
   format (`format`, `compiler`, `service`: the audience-projected IR,
-  without older API versions), as compact JSON, without documentation
-  (every `docs` string, waiter `documentation`, and the raw
-  `smithy.api#documentation` trait), which no compatibility comparison
-  reads. The projection also drops the raw copies of protocol tests,
-  examples, waiters and endpoint tests, whose projected typed forms remain.
+  without older API versions), as compact JSON of the typed contract:
+  without documentation (every `docs` string, example `docs`, waiter
+  `documentation`) and without the raw trait maps, which repeat the typed
+  IR; no compatibility comparison reads either. The external projection
+  itself keeps only standard raw traits that cannot name what it removed.
   It is the API the package already exposes, so an external SDK reveals
   nothing `@internal`; `snapshot::read` reads it like any snapshot.
 - **`source`** is written by `crucible sdk build` only, from the Git

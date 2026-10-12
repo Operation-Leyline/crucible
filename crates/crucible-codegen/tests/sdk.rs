@@ -460,10 +460,10 @@ fn a_declared_sdk_generates_at_its_development_version_with_its_metadata() {
     assert_eq!(options.metadata.readme.as_deref(), Some("# Weather\n"));
     assert_eq!(
         options.metadata.registry,
-        Some(crucible_codegen::Registry::Npm {
-            url: "https://npm.pkg.github.com".into(),
-            access: Some("restricted".into())
-        })
+        Some(crucible_codegen::Registry::npm(
+            "https://npm.pkg.github.com",
+            Some("restricted")
+        ))
     );
     let crucible_codegen::Client::Rust(rust) =
         file.sdks["rust"].client(&file, Some("0.2.1")).unwrap()
@@ -854,4 +854,109 @@ fn joined_paths_use_one_separator() {
     };
     assert!(!joined.contains(other), "{joined}");
     assert!(joined.ends_with(&format!("model{}api", std::path::MAIN_SEPARATOR)));
+}
+
+/// A drive-prefixed, device-named or dot-trailing segment would escape or
+/// alias on Windows: refused on every platform, for every path key.
+#[test]
+fn every_path_segment_is_a_plain_file_name() {
+    for bad in [
+        "gen/C:escaped2",
+        "gen/D:pwned",
+        "C:escaped",
+        "gen.",
+        "gen ",
+        "gen/NUL",
+        "gen/con.txt",
+        "gen/COM1",
+        "gen/lpt9.log",
+        "gen/a|b",
+    ] {
+        let errors = sdk_errors(&format!(
+            "[sdk.rust]\nout = \"{bad}\"\nreadme = \"{bad}\"\nlicense_file = \"{bad}\"\nruntime_path = \"{bad}\"\nlockfiles = [\"{bad}\"]\nchannel = {{ git = \"git@x:y\", path = \"{bad}\", adopt = [\"{bad}\"] }}\n"
+        ));
+        for key in [
+            "sdk.rust.out",
+            "sdk.rust.readme",
+            "sdk.rust.license_file",
+            "sdk.rust.runtime_path",
+            "sdk.rust.lockfiles",
+            "sdk.rust.channel.path",
+            "sdk.rust.channel.adopt",
+        ] {
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.contains(&format!(": {key}: "))),
+                "{bad:?} passes at {key}: {errors:#?}"
+            );
+        }
+        let model = errors_of(&format!("schema_version = 1\nmodel = \"{bad}\"\n"));
+        assert!(!model.is_empty(), "{bad:?} passes as the model");
+    }
+    // Ordinary names, dots inside included, stay fine.
+    assert!(sdk_errors("[sdk.rust]\nout = \"gen/v1.2/rust-sdk\"\n").is_empty());
+}
+
+/// Names a case-insensitive filesystem folds together are one `out`.
+#[test]
+fn outs_that_fold_together_overlap() {
+    assert_error(
+        &sdk_errors(
+            "[sdk.a]\nlanguage = \"rust\"\nout = \"ς\"\n[sdk.b]\nlanguage = \"rust\"\nout = \"σ\"\n",
+        ),
+        "sdk.b.out",
+        "overlaps",
+    );
+}
+
+/// Aliases the spelling cannot show (an 8.3 short name) are caught against
+/// the filesystem before anything is written.
+#[test]
+fn outs_are_compared_as_the_filesystem_resolves_them() {
+    let (directory, path) = repository(
+        "schema_version = 1\nmodel = \"model.json\"\n[sdk.a]\nlanguage = \"rust\"\nout = \"generated-sdk\"\n[sdk.b]\nlanguage = \"rust\"\nout = \"GENERA~1\"\n",
+    );
+    let file = sdk::load(&path).unwrap();
+    assert!(file.check_outs().is_ok());
+    fs::create_dir(directory.path().join("generated-sdk")).unwrap();
+    if directory.path().join("GENERA~1").exists() {
+        let error = file.check_outs().unwrap_err();
+        assert!(error.contains("overlapping"), "{error}");
+    }
+}
+
+/// Single-slash and `git+` schemes carry credentials too, as Git and Cargo
+/// read them; and a TOML syntax error never quotes the line it is on.
+#[test]
+fn credentials_in_every_url_spelling_are_refused_and_never_echoed() {
+    let errors = sdk_errors(
+        "[defaults]\nhomepage = \"https:/user:SECRETTOK@example.com/x\"\n[sdk.rust]\nout = \"r\"\nruntime = { git = \"https:/SECRETTOK2@github.com/o/r.git\", rev = \"r\", version = \"0.6\" }\nchannel = { git = \"git+https://SECRETTOK4@github.com/o/r.git\" }\n",
+    );
+    assert_error(&errors, "defaults.homepage", "credentials");
+    assert_error(&errors, "sdk.rust.runtime.git", "user name");
+    assert_error(&errors, "sdk.rust.channel.git", "user name");
+    for error in &errors {
+        assert!(!error.contains("SECRETTOK"), "{error}");
+    }
+    let syntax = errors_of("repository = \"https://u:SECRETTOK3@example.com\" x\n");
+    assert_eq!(syntax.len(), 1);
+    assert!(!syntax[0].contains("SECRETTOK3"), "{}", syntax[0]);
+    assert!(syntax[0].contains(":1:"), "{}", syntax[0]);
+}
+
+fn errors_of(text: &str) -> Vec<String> {
+    errors(text)
+}
+
+/// A private SDK is never published with public npm access.
+#[test]
+fn a_private_sdk_is_never_public_on_npm() {
+    assert_error(
+        &sdk_errors(
+            "[sdk.ts]\npackage = \"x\"\nout = \"o\"\nprivate = true\nchannel = { npm = \"https://npm.pkg.github.com\", access = \"public\" }\n",
+        ),
+        "sdk.ts.channel.access",
+        "access \"public\"",
+    );
 }

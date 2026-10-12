@@ -568,3 +568,126 @@ fn external_views_drop_raw_vectors_and_examples_that_name_internal_members() {
     assert!(!text.contains("sentinel-internal-value"), "{operation}");
     assert!(!text.contains("smithy.api#examples"));
 }
+
+/// The external view of everything the adversarial check reproduced, as
+/// JSON: what it must not contain.
+fn external_json(model: &serde_json::Value) -> String {
+    let full = lower(&model.to_string(), false);
+    serde_json::to_string(&project(&full, Audience::External).unwrap()).unwrap()
+}
+
+/// A legacy `@enum` value tagged `internal` leaves the typed enum, and the
+/// raw `smithy.api#enum` that still lists it (with its documentation) goes.
+#[test]
+fn an_internal_legacy_enum_value_leaves_no_raw_trait_behind() {
+    let model: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/internal-legacy-enum.json")).unwrap();
+    let external = external_json(&model);
+    for private in ["red-wire", "RED", "Warm red.", "smithy.api#enum"] {
+        assert!(!external.contains(private), "{private} leaks: {external}");
+    }
+    assert!(external.contains("blue-wire"));
+}
+
+/// `smithy.api#references` on a public structure naming an internal
+/// resource leaks the resource and its identifier member: dropped.
+#[test]
+fn references_to_an_internal_resource_are_dropped() {
+    let model = serde_json::json!({
+        "smithy": "2.0",
+        "shapes": {
+            "example.refs#Api": {
+                "type": "service", "version": "1",
+                "traits": { "crucible.protocols#json": {} },
+                "operations": [{ "target": "example.refs#Get" }],
+                "resources": [{ "target": "example.refs#Vault" }]
+            },
+            "example.refs#Vault": {
+                "type": "resource",
+                "identifiers": { "vaultSecretId": { "target": "smithy.api#String" } },
+                "traits": { "smithy.api#internal": {} }
+            },
+            "example.refs#Get": {
+                "type": "operation",
+                "input": { "target": "example.refs#GetInput" },
+                "output": { "target": "example.refs#GetOutput" },
+                "traits": { "smithy.api#http": { "method": "POST", "uri": "/get" } }
+            },
+            "example.refs#GetInput": {
+                "type": "structure",
+                "traits": { "smithy.api#input": {} },
+                "members": { "id": { "target": "smithy.api#String" } }
+            },
+            "example.refs#GetOutput": {
+                "type": "structure",
+                "traits": {
+                    "smithy.api#references": [
+                        { "resource": "example.refs#Vault", "ids": { "vaultSecretId": "id" } }
+                    ]
+                },
+                "members": { "id": { "target": "smithy.api#String" } }
+            }
+        }
+    });
+    let external = external_json(&model);
+    for private in [
+        "example.refs#Vault",
+        "vaultSecretId",
+        "smithy.api#references",
+    ] {
+        assert!(!external.contains(private), "{private} leaks: {external}");
+    }
+}
+
+/// An application of a custom trait whose definition is `@internal` goes,
+/// as in Smithy's projection; a public custom trait stays.
+#[test]
+fn applications_of_an_internal_trait_definition_are_dropped() {
+    let model = serde_json::json!({
+        "smithy": "2.0",
+        "shapes": {
+            "example.custom#Api": {
+                "type": "service", "version": "1",
+                "traits": { "crucible.protocols#json": {} },
+                "operations": [{ "target": "example.custom#Get" }]
+            },
+            "example.custom#auditOwner": {
+                "type": "string",
+                "traits": { "smithy.api#trait": {}, "smithy.api#internal": {} }
+            },
+            "example.custom#publicHint": {
+                "type": "string",
+                "traits": { "smithy.api#trait": {} }
+            },
+            "example.custom#Get": {
+                "type": "operation",
+                "input": { "target": "example.custom#GetInput" },
+                "traits": { "smithy.api#http": { "method": "POST", "uri": "/get" } }
+            },
+            "example.custom#GetInput": {
+                "type": "structure",
+                "traits": { "smithy.api#input": {} },
+                "members": {
+                    "id": {
+                        "target": "smithy.api#String",
+                        "traits": {
+                            "example.custom#auditOwner": "secret-team-alias",
+                            "example.custom#publicHint": "shown"
+                        }
+                    }
+                }
+            }
+        }
+    });
+    let external = external_json(&model);
+    assert!(!external.contains("secret-team-alias"), "{external}");
+    assert!(
+        !external.contains("example.custom#auditOwner"),
+        "{external}"
+    );
+    assert!(external.contains("example.custom#publicHint"), "{external}");
+    // The internal view keeps the application.
+    let full = lower(&model.to_string(), false);
+    let internal = serde_json::to_string(&project(&full, Audience::Internal).unwrap()).unwrap();
+    assert!(internal.contains("secret-team-alias"));
+}

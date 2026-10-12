@@ -457,3 +457,21 @@ fn the_version_names_the_revision_and_config_shows_the_whole_channel() {
         assert!(text.contains(row), "{row} missing from:\n{text}");
     }
 }
+
+/// The adversarial inputs that once wrote outside the service: refused,
+/// and nothing is written anywhere.
+#[test]
+fn a_drive_prefixed_out_writes_nothing() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    for out in ["gen/C:escaped2", "gen/D:pwned", "gen."] {
+        fs::write(
+            root.join("crucible-sdk.toml"),
+            SDK_FILE.replace("generated/rust", out),
+        )
+        .unwrap();
+        let error = failure(crucible(root, &["sdk", "generate", "--sdk", "rust"]));
+        assert!(error.contains("sdk.rust.out"), "{error}");
+        assert!(!root.join("escaped2").exists() && !root.join("gen").exists());
+    }
+}

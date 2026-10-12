@@ -13,12 +13,7 @@ impl Sdk {
     /// is copied into a published package.
     pub fn package_metadata(&self, file: &SdkFile) -> Result<PackageMetadata, String> {
         let metadata = &self.metadata;
-        let root = file.root();
-        let root = if root.as_os_str().is_empty() {
-            std::path::Path::new(".")
-        } else {
-            root
-        };
+        let root = file.root_or_current();
         let read = |key: &str, relative: &Option<String>| -> Result<Option<String>, String> {
             let Some(relative) = relative else {
                 return Ok(None);
@@ -105,17 +100,28 @@ impl Sdk {
                         version_requirement: runtime.version.clone(),
                     };
                 }
-                if let Some(path) = &options.runtime_path {
-                    let path = file.join(path);
-                    rust.runtime = crucible_codegen_rust::RuntimeDependency::Path(
-                        path.canonicalize().map_err(|error| {
-                            format!(
-                                "sdk.{}.runtime_path: cannot locate {}: {error}",
-                                self.name,
-                                path.display()
-                            )
-                        })?,
-                    );
+                if let Some(relative) = &options.runtime_path {
+                    let path = file.join(relative);
+                    let resolved = path.canonicalize().map_err(|error| {
+                        format!(
+                            "sdk.{}.runtime_path: cannot locate {}: {error}",
+                            self.name,
+                            path.display()
+                        )
+                    })?;
+                    // Like every path in the file, it stays inside the
+                    // file's directory once links are followed.
+                    let inside = file
+                        .root_or_current()
+                        .canonicalize()
+                        .is_ok_and(|root| resolved.starts_with(root));
+                    if !inside {
+                        return Err(format!(
+                            "sdk.{}.runtime_path: {relative:?} resolves outside the SDK file's directory",
+                            self.name
+                        ));
+                    }
+                    rust.runtime = crucible_codegen_rust::RuntimeDependency::Path(resolved);
                 }
                 Ok(Client::Rust(rust))
             }

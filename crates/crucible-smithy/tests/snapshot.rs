@@ -175,3 +175,20 @@ fn a_package_contract_is_compact_and_has_no_documentation() {
     // Deterministic: the same model writes the same bytes.
     assert_eq!(snapshot::write_contract(&read, "test"), contract);
 }
+
+/// The package contract holds the typed IR only: raw trait maps, with the
+/// documentation and legacy definitions they repeat, are left out for every
+/// audience.
+#[test]
+fn a_package_contract_has_no_raw_traits() {
+    let service = Model::from_json(include_str!("fixtures/internal-legacy-enum.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let contract = snapshot::write_contract(&service, "test");
+    for raw in ["smithy.api#enum", "Warm red.", "A legacy color enum."] {
+        assert!(!contract.contains(raw), "{raw}");
+    }
+    let read = snapshot::read(&contract).unwrap();
+    assert!(read.traits.is_empty());
+}

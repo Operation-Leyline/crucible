@@ -75,8 +75,8 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   `configSha256` for a declared SDK, and `contentDigest`, a
   `crucible-content-1` digest of the generated files) and
   `crucible-model.json`, the compiled model as the package's audience sees
-  it, as compact JSON without documentation strings
-  (`snapshot::write_contract`). Rust packages gain both; npm's `files`
+  it, as compact JSON of the typed contract, without documentation strings
+  or raw trait maps (`snapshot::write_contract`). Rust packages gain both; npm's `files`
   lists both. A release's `source.repository` is the https URL of the
   service's `origin`, without credentials or `.git`.
 - `crates/crucible-codegen/sdk-changes.toml`, the reviewed log of generator
@@ -101,12 +101,15 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   `Registry` (also re-exported by `crucible_build`) are `#[non_exhaustive]`:
   start from `PackageMetadata::new()` and set fields, build a registry with
   `Registry::npm(..)` or `Registry::Git`, and match with a fallback arm.
-- An external audience projection drops the raw trait copies of protocol
-  tests, examples, waiters and endpoint tests (`smithy.test#*`,
-  `smithy.api#examples`, `smithy.waiters#waitable`,
-  `smithy.rules#endpointTests`), which could carry removed internal member
-  names and values; their projected typed forms remain. Server bindings and
-  internal views keep them.
+- An external audience projection keeps, in its raw trait maps, only the
+  standard traits (`smithy.*`, `aws.*`, `crucible.*`) whose values cannot
+  name a member, shape or enum value it removed, such as HTTP bindings,
+  constraints and documentation, and drops the rest (`smithy.api#enum`,
+  `smithy.api#references`, protocol tests, examples, waiters, endpoint
+  tests); their projected typed forms remain. A custom trait stays unless
+  its definition is `@internal`, as in Smithy's projection. The IR records
+  those definitions in `Service::internal_traits`. Server bindings and
+  internal views keep every trait. OpenAPI's `x-smithy-traits` follow.
 - The generator revision is embedded by a new leaf crate,
   `crucible-revision`, so a commit no longer rebuilds every generator, and
   it marks a build from a checkout with uncommitted changes:

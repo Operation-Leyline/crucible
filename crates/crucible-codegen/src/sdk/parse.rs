@@ -83,9 +83,17 @@ struct Common {
 }
 
 pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
-    let table: Table = text
-        .parse()
-        .map_err(|error| Errors(vec![format!("{}: {error}", path.display())]))?;
+    // The parser's own message quotes the offending source line, which may
+    // hold a credential: report its position and message only.
+    let table: Table = text.parse().map_err(|error: toml::de::Error| {
+        let at = error.span().map_or_else(String::new, |span| {
+            let before = &text[..span.start.min(text.len())];
+            let line = before.matches('\n').count() + 1;
+            let column = before.len() - before.rfind('\n').map_or(0, |index| index + 1) + 1;
+            format!(":{line}:{column}")
+        });
+        Errors(vec![format!("{}{at}: {}", path.display(), error.message())])
+    })?;
     let mut context = Context {
         file: path,
         errors: Vec::new(),
@@ -382,6 +390,13 @@ fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) 
             Some(channel) if channel.is_public() => context.error(
                 &at("channel"),
                 "a private SDK never goes to a public registry",
+            ),
+            Some(Channel::Npm {
+                access: Some(access),
+                ..
+            }) if access == "public" => context.error(
+                &at("channel.access"),
+                "a private SDK is never published with npm access \"public\"",
             ),
             _ => {}
         }
@@ -810,26 +825,68 @@ fn path_value(context: &mut Context<'_>, at: &str, value: &Value) -> Option<Stri
 fn path_ok(context: &mut Context<'_>, at: &str, path: &str) -> bool {
     let trimmed = path.strip_suffix('/').unwrap_or(path);
     let problem = if path.contains('\\') {
-        Some("uses `\\`; write paths with `/`")
+        Some("uses `\\`; write paths with `/`".to_owned())
     } else if path.starts_with('/') || path.as_bytes().get(1) == Some(&b':') {
-        Some("is absolute; paths are relative to the SDK file")
+        Some("is absolute; paths are relative to the SDK file".to_owned())
     } else if trimmed
         .split('/')
         .any(|segment| matches!(segment, "" | "." | ".."))
     {
-        Some("leaves the SDK file's directory or has an empty, `.` or `..` segment")
+        Some("leaves the SDK file's directory or has an empty, `.` or `..` segment".to_owned())
     } else {
-        None
+        trimmed
+            .split('/')
+            .find_map(segment_problem)
+            .map(|problem| format!("has a segment that {problem}"))
     };
-    if let Some(problem) = problem {
+    if let Some(problem) = &problem {
         context.error(at, format!("{path:?} {problem}"));
     }
     problem.is_none()
 }
 
-/// `out` as a comparable key: no trailing `/`, and lowercase, since a
-/// case-insensitive filesystem (Windows, macOS) writes `Gen` and `gen` to one
-/// directory.
+/// Why one path segment is not a plain file name on every platform, if it
+/// is not. A drive prefix (`C:x`) would replace the path it is joined to on
+/// Windows, a trailing `.` or space names the same file as without it, and
+/// a device name is no file at all.
+fn segment_problem(segment: &str) -> Option<&'static str> {
+    if segment
+        .chars()
+        .any(|c| c.is_control() || matches!(c, ':' | '<' | '>' | '"' | '|' | '?' | '*'))
+    {
+        return Some("holds `:`, a control character or one of `<>\"|?*`");
+    }
+    if segment.ends_with(['.', ' ']) {
+        return Some("ends in `.` or a space");
+    }
+    let stem = segment
+        .split('.')
+        .next()
+        .unwrap_or(segment)
+        .trim_end()
+        .to_ascii_uppercase();
+    let device = matches!(
+        stem.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || ((stem.starts_with("COM") || stem.starts_with("LPT"))
+        && stem.len() == 4
+        && stem.as_bytes()[3].is_ascii_digit()
+        && stem.as_bytes()[3] != b'0');
+    if device {
+        return Some("is a reserved device name");
+    }
+    let mut components = std::path::Path::new(segment).components();
+    match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(_)), None) => None,
+        _ => Some("is not a plain file name"),
+    }
+}
+
+/// `out` as a comparable key: no trailing `/`, and upper-cased, since a
+/// case-insensitive filesystem (Windows, macOS) writes `Gen` and `gen` to
+/// one directory, and NTFS folds by uppercase (`ς` and `σ` are both `Σ`).
+/// Aliases a name cannot show (8.3 short names, links) are caught when
+/// generating, by [`SdkFile::check_outs`](super::SdkFile::check_outs).
 pub(super) fn out_key(out: &str) -> String {
-    out.strip_suffix('/').unwrap_or(out).to_lowercase()
+    out.strip_suffix('/').unwrap_or(out).to_uppercase()
 }
