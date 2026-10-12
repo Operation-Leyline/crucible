@@ -51,7 +51,9 @@ The common package metadata keys are flags: `--description`,
 `--readme <path>`, `--keyword` (repeat it) and `--private`
 (`"private": true`, unless `--npm-registry` names where it publishes).
 `--npm-registry <url>` and `--npm-access public|restricted` set
-`publishConfig`. A README and license are copied into the package.
+`publishConfig`. `--documentation` is accepted, as for every language, but
+package.json has no documentation field (`homepage` is the project's home
+page), so a TypeScript package does not record it. A README and license are copied into the package.
 `--package-json` is merged last and cannot set `name`, `version`,
 `crucible`, `files`, `private` or `publishConfig`. To declare the SDK
 once, with its npm registry, use [`crucible-sdk.toml`](../sdk-releases.md#declare-sdks-crucible-sdktoml).

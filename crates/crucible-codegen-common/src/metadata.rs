@@ -222,7 +222,8 @@ pub fn redact(url: &str) -> String {
 /// A Git remote as provenance names it: the https URL a reader opens, like a
 /// configured `repository`. SSH and scp-like forms (`git@host:org/repo.git`,
 /// `ssh://git@host/org/repo`) become `https://host/org/repo`; credentials,
-/// ports, a trailing `/` and `.git` are dropped. A local path, a `file:`
+/// SSH ports, a trailing `/` and `.git` are dropped, and an http(s)
+/// remote keeps its port. A local path, a `file:`
 /// URL, or anything that does not come out as an https URL with a host
 /// gives `None`: nothing is better than a wrong link.
 pub fn repository_url(remote: &str) -> Option<String> {
@@ -233,7 +234,15 @@ pub fn repository_url(remote: &str) -> Option<String> {
             if !matches!(last.as_str(), "http" | "https" | "ssh" | "git") {
                 return None;
             }
-            (parsed.host_str()?.to_owned(), parsed.path().to_owned())
+            // An http(s) remote's port is part of where it lives; an SSH
+            // port says nothing about the https address.
+            let host = match parsed.port() {
+                Some(port) if matches!(last.as_str(), "http" | "https") => {
+                    format!("{}:{port}", parsed.host_str()?)
+                }
+                _ => parsed.host_str()?.to_owned(),
+            };
+            (host, parsed.path().to_owned())
         }
         Ok(_) | Err(_) => {
             // scp-like `[user@]host:path`: a host of more than one
@@ -462,7 +471,19 @@ mod tests {
                 Some("https://github.com/a/b"),
             ),
             ("https://github.com/a/b/", Some("https://github.com/a/b")),
-            ("https://[::1]:8080/a", Some("https://[::1]/a")),
+            ("https://[::1]:8080/a", Some("https://[::1]:8080/a")),
+            (
+                "https://git.example:8443/org/repo.git",
+                Some("https://git.example:8443/org/repo"),
+            ),
+            (
+                "http://git.example:8080/org/repo",
+                Some("https://git.example:8080/org/repo"),
+            ),
+            (
+                "ssh://git@git.example:2222/org/repo.git",
+                Some("https://git.example/org/repo"),
+            ),
             ("C:\\repos\\x", None),
             ("file:///home/u/r", None),
             ("/srv/repo.git", None),

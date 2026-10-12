@@ -151,7 +151,7 @@ Rust and TypeScript packages carry two files at their root, which npm's
 - `crucible.json`, schema 2: `schemaVersion`, `generator`,
   `generatorVersion`, `generatorRevision` (the Git revision the
   generator was built from, when it has one; `<rev>+dirty` when its
-  checkout had uncommitted changes; `crucible --version` prints it too), `generatorChanges` (the
+  compiled source trees had uncommitted changes; `crucible --version` prints it too), `generatorChanges` (the
   highest entry of the generator change log,
   `crates/crucible-codegen/sdk-changes.toml`), `language`, `package`,
   `packageVersion`, `audience`, `service`, `serviceVersion`,

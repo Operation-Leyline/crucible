@@ -282,6 +282,23 @@ fn uncommitted_changes_mark_the_revision_dirty() {
         line.starts_with("cargo::rerun-if-changed=")
             && Path::new(line.trim_start_matches("cargo::rerun-if-changed=")).ends_with("crates")
     }));
+    // Only the compiled source trees count, and only they are watched: an
+    // edit to the docs neither marks the build dirty nor reruns the script.
+    fs::create_dir_all(root.join("docs")).unwrap();
+    fs::write(root.join("docs/guide.md"), "guide").unwrap();
+    git(&root, &["add", "docs/guide.md"]);
+    git(&root, &["commit", "-qm", "docs"]);
+    fs::write(root.join("docs/guide.md"), "edited").unwrap();
+    let docs = probe(&executable, &root);
+    assert!(!docs.contains("CRUCIBLE_GENERATOR_DIRTY"), "{docs}");
+    assert!(
+        !docs
+            .lines()
+            .any(|line| line.starts_with("cargo::rerun-if-changed=")
+                && Path::new(line.trim_start_matches("cargo::rerun-if-changed="))
+                    .ends_with("docs")),
+        "{docs}"
+    );
     fs::write(
         root.join("crates/crucible-codegen-rust/Cargo.toml"),
         "[package]\nname = 'changed'\n",

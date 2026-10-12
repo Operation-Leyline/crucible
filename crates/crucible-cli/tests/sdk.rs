@@ -475,3 +475,26 @@ fn a_drive_prefixed_out_writes_nothing() {
         assert!(!root.join("escaped2").exists() && !root.join("gen").exists());
     }
 }
+
+/// npm has no documentation field: the flag is accepted and not recorded.
+#[test]
+fn generate_ts_accepts_documentation_without_a_field_for_it() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    success(crucible(
+        root,
+        &[
+            "generate",
+            "ts",
+            "model.json",
+            "--out",
+            "adhoc/docs",
+            "--package-name",
+            "@example/adhoc",
+            "--documentation",
+            "https://docs.weather.example",
+        ],
+    ));
+    let text = fs::read_to_string(root.join("adhoc/docs/package.json")).unwrap();
+    assert!(!text.contains("docs.weather.example"), "{text}");
+}

@@ -2,6 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+/// The source trees compiled into Crucible's binaries: the crates, the
+/// traits package, the vendored compiler integration and the manifests.
+const SOURCE_TREES: &[&str] = &["crates", "smithy", "vendor", "Cargo.toml", "Cargo.lock"];
+
 fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest"));
@@ -49,20 +53,22 @@ fn main() {
     }
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_REVISION={revision}");
     // A tracked file that differs from HEAD means HEAD does not reproduce
-    // this generator. Edits anywhere in the sources rerun this script, so
-    // the mark never goes stale; the index catches staged changes.
+    // this generator. Only the trees compiled into the binaries count (docs
+    // or CI files do not), and exactly those are watched, so an edit that
+    // flips the mark always reruns this script; the index catches staged
+    // changes.
     watch(&workspace, "index");
-    for tree in ["crates", "smithy", "Cargo.toml", "Cargo.lock"] {
-        let path = workspace.join(tree);
-        if path.exists() {
-            println!("cargo::rerun-if-changed={}", path.display());
-        }
+    let trees: Vec<&str> = SOURCE_TREES
+        .iter()
+        .copied()
+        .filter(|tree| workspace.join(tree).exists())
+        .collect();
+    for tree in &trees {
+        println!("cargo::rerun-if-changed={}", workspace.join(tree).display());
     }
-    let dirty = git(
-        &workspace,
-        &["status", "--porcelain", "--untracked-files=no", "--", "."],
-    )
-    .is_none_or(|status| !status.is_empty());
+    let mut arguments = vec!["status", "--porcelain", "--untracked-files=no", "--"];
+    arguments.extend(trees.iter().copied());
+    let dirty = git(&workspace, &arguments).is_none_or(|status| !status.is_empty());
     if dirty {
         println!("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1");
     }

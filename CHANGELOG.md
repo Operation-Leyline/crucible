@@ -112,7 +112,8 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   internal views keep every trait. OpenAPI's `x-smithy-traits` follow.
 - The generator revision is embedded by a new leaf crate,
   `crucible-revision`, so a commit no longer rebuilds every generator, and
-  it marks a build from a checkout with uncommitted changes:
+  it marks a build whose compiled source trees (`crates`, `smithy`,
+  `vendor`, the workspace manifest and lock) have uncommitted changes:
   `generatorRevision` reads `<rev>+dirty`, and `crucible sdk` treats it as
   unverified. `crucible_codegen_rust::source_revision` is unchanged.
 
