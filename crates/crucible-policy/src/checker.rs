@@ -610,14 +610,37 @@ impl Checker<'_> {
                             ),
                         }
                     }
-                    for member in &b.members {
-                        if a.member(&member.name).is_none() {
-                            self.push(
-                                "compatibility.sdk",
-                                &id.with_member(&member.name),
-                                "new public member can change construction or exhaustive matching APIs",
-                            );
+                    // A structure member that is optional (no `required`, no
+                    // default) and comes after every member the structure
+                    // had is an addition no generated client turns into a
+                    // source break: builders, keyword and named arguments
+                    // and trailing optional parameters all accept it. Any
+                    // other new member can: a required or defaulted one is
+                    // a new constructor argument in most languages, one in
+                    // the middle shifts positional ones (C, C++, PHP, R),
+                    // and a union arm breaks exhaustive matches.
+                    let last_old = b
+                        .members
+                        .iter()
+                        .rposition(|member| a.member(&member.name).is_some());
+                    let structure = matches!(new, Shape::Structure(_));
+                    for (index, member) in b.members.iter().enumerate() {
+                        if a.member(&member.name).is_some() {
+                            continue;
                         }
+                        let appended = last_old.is_none_or(|last| index > last);
+                        if structure && appended && member.optional_on_server() {
+                            continue;
+                        }
+                        self.push(
+                            "compatibility.sdk",
+                            &id.with_member(&member.name),
+                            if structure && member.optional_on_server() {
+                                "new optional member before an existing one can shift positional construction APIs; add it after them"
+                            } else {
+                                "new public member can change construction or exhaustive matching APIs"
+                            },
+                        );
                     }
                 }
                 (Shape::Enum(a), Shape::Enum(b)) => {

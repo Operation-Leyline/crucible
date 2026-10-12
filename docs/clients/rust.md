@@ -212,6 +212,15 @@ nonoptional members have modeled defaults; otherwise it returns
 `Result<Model, BuildError>` and reports a missing required member. It never
 invents values for required members. Nested models have the same builders.
 
+Every generated model, enum, union and error enum is `#[non_exhaustive]`.
+From another crate, build a model with its builder rather than a struct
+literal, destructure it with `..`, and give a `match` on an enum, union or
+error enum a `_` arm. In exchange, a member the model adds after the existing
+ones, a new enum value, union arm or operation error is not a source change
+for code that depends on the SDK package. Code that includes the bindings with
+`include_client!()` defines these types in its own crate, where the attribute
+has no effect.
+
 Generated member getters borrow native values: `result.request_id()` returns
 `Option<&String>`, and `result.city()` returns `&CitySummary`. Optional getters
 return `None` for absent and null. Public fields remain available to inspect or
@@ -354,8 +363,9 @@ generates `WeatherClient`, and `Leyline` generates `LeylineClient`. Replace old
 `Client` imports and constructors with that service-specific type. No generic
 `Client` alias is generated. Runtime types such as `reqwest::Client` are unchanged.
 
-Builders and getters are additive. Existing struct literals, public fields, and
-presence-aware code continue to work. New ordinary calls can replace
+Builders and getters are additive. Public fields and presence-aware code
+continue to work. Struct literals from another crate do not since the models
+became `#[non_exhaustive]`: replace
 `GetCityInput { city_id: Field::Value(id), at: Field::Absent }` with
 `GetCityInput::builder().city_id(id).build()`. Regenerate the package with its
 matching runtime to expose these helpers; reverting that package and runtime
@@ -387,11 +397,9 @@ use weather_client::Field;
 use weather_client::{ListCitiesInput, Sky};
 
 let previous_limit: Option<i32> = Some(50);
-let input = ListCitiesInput {
-    max_results: Field::from(previous_limit),
-    next_token: Field::Absent,
-    tags: Field::Null,
-};
+let mut input = ListCitiesInput::builder().build();
+input.max_results = Field::from(previous_limit);
+input.tags = Field::Null;
 assert_eq!(input.max_results.value(), Some(&50));
 assert!(input.next_token.is_absent());
 assert!(input.tags.is_null());
@@ -458,11 +466,11 @@ that sends events is never retried, because its events cannot be replayed.
 
 ```rust
 let events = EventStream::new(futures_util::stream::iter(vec![
-    ClientEvents::Ping(Ping {}),
+    ClientEvents::Ping(Ping::builder().build()),
 ]));
-client.publish(PublishInput { channel: "general".into(), events }).await?;
+client.publish(PublishInput::builder().channel("general").events(events).build()?).await?;
 
-let output = client.subscribe(SubscribeInput { channel: "news".into(), limit: Field::Absent }).await?;
+let output = client.subscribe(SubscribeInput::builder().channel("news").build()?).await?;
 let mut events = output.events.open()?;
 while let Some(event) = events.recv().await? {
     // ServerEvents::Message(..), ServerEvents::UnknownValue(..) for a newer event

@@ -111,10 +111,10 @@ async fn a_created_city_reads_back_with_every_member_intact() {
 #[tokio::test]
 async fn the_same_idempotency_token_replays_instead_of_creating_twice() {
     let client = client().await;
-    let input = CreateCityInput {
-        client_token: Field::Value("token-1".to_owned()),
-        ..create("bergen")
-    };
+    let input = CreateCityInput::builder()
+        .name("bergen")
+        .client_token("token-1")
+        .build();
     let first = client.create_city(input.clone()).await.unwrap();
     let second = client.create_city(input).await.unwrap();
     assert_eq!(second.city.id, first.city.id);
@@ -135,10 +135,7 @@ async fn a_modelled_error_arrives_as_its_variant() {
         other => panic!("expected a conflict, got {other:?}"),
     }
     match client
-        .get_city(GetCityInput {
-            city_id: Field::Value("c-99999999".to_owned()),
-            at: Field::Absent,
-        })
+        .get_city(GetCityInput::builder().city_id("c-99999999").build())
         .await
         .map_err(|error| error.map_service(WeatherException::from))
     {
@@ -169,11 +166,7 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
         other => panic!("expected a validation error, got {other:?}"),
     }
     match client
-        .list_cities(ListCitiesInput {
-            max_results: Field::Value(0),
-            next_token: Field::Absent,
-            tags: Field::Absent,
-        })
+        .list_cities(ListCitiesInput::builder().max_results(0).build())
         .await
     {
         Err(Error::Service(crucible_client_runtime_rust::ServiceError {
@@ -190,10 +183,7 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
 async fn labels_are_percent_encoded() {
     let client = client().await;
     match client
-        .get_city(GetCityInput {
-            city_id: Field::Value("a/b c".to_owned()),
-            at: Field::Absent,
-        })
+        .get_city(GetCityInput::builder().city_id("a/b c").build())
         .await
     {
         Err(Error::Service(crucible_client_runtime_rust::ServiceError {
@@ -268,7 +258,7 @@ async fn throttling_is_retried_then_surfaces_with_its_header_member() {
 async fn an_operation_with_empty_input_and_output_round_trips() {
     let client = client().await;
     client.ping().await.unwrap();
-    client.status(StatusInput {}).await.unwrap();
+    client.status(StatusInput::builder().build()).await.unwrap();
 }
 
 #[tokio::test]
@@ -327,11 +317,13 @@ async fn a_payload_travels_raw_both_ways() {
     let city = client.create_city(create("tromso")).await.unwrap().city;
     let photo: &'static [u8] = b"\xff\xd8{\"looks\": \"like json\"}\x00\x80";
     let stored = client
-        .put_city_photo(PutCityPhotoInput {
-            city_id: Field::Value(city.id.clone()),
-            caption: Field::Value("aurora".to_owned()),
-            photo: Field::Value(photo.into()),
-        })
+        .put_city_photo(
+            PutCityPhotoInput::builder()
+                .city_id(city.id.clone())
+                .caption("aurora")
+                .photo(photo)
+                .build(),
+        )
         .await
         .unwrap();
     assert_eq!(stored.photo.size, photo.len() as i32);
@@ -341,20 +333,23 @@ async fn a_payload_travels_raw_both_ways() {
     assert_eq!(body, photo, "sent as the bytes themselves");
 
     let read = client
-        .get_city_photo(GetCityPhotoInput {
-            city_id: Field::Value(city.id.clone()),
-        })
+        .get_city_photo(
+            GetCityPhotoInput::builder()
+                .city_id(city.id.clone())
+                .build(),
+        )
         .await
         .unwrap();
     assert_eq!(read.photo.as_deref(), Some(photo));
     assert_eq!(read.caption.as_deref(), Some("aurora"));
 
     let refused = client
-        .put_city_photo(PutCityPhotoInput {
-            city_id: Field::Value(city.id),
-            caption: Field::Absent,
-            photo: Field::Value(vec![0; 4097].into()),
-        })
+        .put_city_photo(
+            PutCityPhotoInput::builder()
+                .city_id(city.id)
+                .photo(vec![0; 4097])
+                .build(),
+        )
         .await;
     assert!(
         matches!(

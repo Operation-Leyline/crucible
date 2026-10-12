@@ -216,6 +216,53 @@ fn source_symbol_changes_are_separate_from_wire_changes() {
     );
 }
 
+/// The `compatibility.sdk` findings, as `shape: message`.
+fn sdk_findings(old: &Value, new: &Value) -> Vec<String> {
+    diff(&lower(old), &lower(new), &Config::default())
+        .findings
+        .into_iter()
+        .filter(|f| f.rule == "compatibility.sdk")
+        .map(|f| format!("{}: {}", f.shape, f.message))
+        .collect()
+}
+
+#[test]
+fn an_optional_member_after_the_others_is_not_a_source_change() {
+    let old = model();
+    let output = "example.api#GetItemOutput";
+    let mut new = old.clone();
+    new["shapes"][output]["members"]["zzz"] = json!({"target":"smithy.api#String"});
+    assert_eq!(sdk_findings(&old, &new), Vec::<String>::new());
+
+    // Required, it is a new constructor argument in most clients.
+    let mut new = old.clone();
+    new["shapes"]["example.api#GetItemInput"]["members"]["zzz"] =
+        json!({"target":"smithy.api#String","traits":{"smithy.api#required":{}}});
+    assert!(
+        sdk_findings(&old, &new)
+            .iter()
+            .any(|f| f.starts_with("example.api#GetItemInput$zzz: new public member"))
+    );
+
+    // Between existing members, it shifts positional arguments. Written so
+    // that insertion order and name order agree, whichever serde_json keeps.
+    let members = &old["shapes"][output]["members"];
+    let mut new = old.clone();
+    new["shapes"][output]["members"] = json!({
+        "name": members["name"],
+        "nox": {"target":"smithy.api#String"},
+        "state": members["state"],
+        "node": members["node"],
+    });
+    let findings = sdk_findings(&old, &new);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(
+        findings[0].starts_with(
+            "example.api#GetItemOutput$nox: new optional member before an existing one"
+        )
+    );
+}
+
 #[test]
 fn unsupported_wire_families_fail_closed() {
     let mut value = model();
