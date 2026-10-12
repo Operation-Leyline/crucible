@@ -1022,3 +1022,63 @@ fn a_package_discovery_finds_is_one_whose_changes_are_seen() {
     assert_eq!(second, ["Second"]);
     client.stop();
 }
+
+const MAIL_RESOURCES: &str = "resource Workspace {
+    id workspaceId: string
+    property name: string
+}
+
+resource Inbox in Workspace {
+    id inboxId: string as id
+    property title: string
+}
+
+resource Message in Inbox {
+    id messageId: string as id
+    property body: string
+    readonly property sentAt: timestamp
+}
+";
+
+#[test]
+fn a_dollar_completes_what_the_member_list_may_bind() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-bindings");
+    package(&dir);
+    std::fs::write(dir.join("resources.cru"), MAIL_RESOURCES).unwrap();
+    let text = "operation UpdateMessage updates Message {\n    input { $in }\n}\n";
+    let file = dir.join("message.cru");
+    std::fs::write(&file, text).unwrap();
+    let file = uri(&file);
+    let mut client = Client::start();
+    let triggers = &client.capabilities["completionProvider"]["triggerCharacters"];
+    assert!(
+        triggers.as_array().unwrap().contains(&json!("$")),
+        "{triggers}"
+    );
+    client.open(&file, text);
+    client.diagnostics(&file);
+
+    // After `$in`: the resource's identifiers, its ancestors' identifiers
+    // and its own properties an `updates` input may write, from another file.
+    let at = position(text, "$in", 0);
+    let at = json!({ "line": at["line"], "character": at["character"].as_u64().unwrap() + 3 });
+    let items = client.request(
+        "textDocument/completion",
+        json!({ "textDocument": { "uri": file }, "position": at }),
+    );
+    assert_eq!(
+        labels(&items),
+        ["workspaceId", "inboxId", "messageId", "body"],
+        "{items}"
+    );
+    let inbox = &items[1];
+    assert_eq!(inbox["detail"], "string — identifier of Inbox");
+    // The `$` stays; `in` is replaced.
+    assert_eq!(inbox["textEdit"]["newText"], "inboxId");
+    assert_eq!(
+        inbox["textEdit"]["range"]["start"]["character"].as_u64(),
+        Some(at["character"].as_u64().unwrap() - 2)
+    );
+    assert_eq!(inbox["textEdit"]["range"]["end"], at);
+    client.stop();
+}

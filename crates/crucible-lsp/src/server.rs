@@ -96,6 +96,7 @@ pub fn capabilities(params: &InitializeParams) -> ServerCapabilities {
                 "[".into(),
                 "\"".into(),
                 "{".into(),
+                "$".into(),
             ]),
             ..Default::default()
         }),
@@ -1216,8 +1217,20 @@ impl Server {
             )));
         }
         let (document, parsed, unit) = self.model(uri)?;
-        let offset = Lines::new(&document.text).offset(position);
+        let lines = Lines::new(&document.text);
+        let offset = lines.offset(position);
         let context = completion::context(&parsed, &document.text, offset);
+        if context == completion::Context::Binding {
+            // Before the package compiles, the open file's own resources.
+            let package = unit.map_or(&[][..], |unit| &unit.compiled.parsed);
+            return Some(CompletionResponse::Array(completion::bindings(
+                &parsed,
+                package,
+                &document.text,
+                offset,
+                &lines,
+            )));
+        }
         let empty = Index::default();
         let index = unit.map_or(&empty, |unit| &unit.index);
         Some(CompletionResponse::Array(completion::complete(
