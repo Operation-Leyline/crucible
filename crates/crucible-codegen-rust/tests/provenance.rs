@@ -42,7 +42,7 @@ fn probe_binary(root: &Path) -> PathBuf {
                 "--crate-name",
                 "crucible_provenance_probe",
             ])
-            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-codegen-common/build.rs"))
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-revision/build.rs"))
             .arg("-o")
             .arg(&executable)
             .output()
@@ -128,7 +128,7 @@ fn provenance_watches_real_branch_worktree_and_packed_ref_files() {
         .filter_map(|line| line.strip_prefix("cargo::rerun-if-changed="))
     {
         if path != "build.rs" {
-            assert!(Path::new(path).is_file(), "{path}");
+            assert!(Path::new(path).exists(), "{path}");
         }
     }
 }
@@ -209,7 +209,11 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
             }
         }
     }
-    for crate_name in ["crucible-codegen-rust", "crucible-codegen-common"] {
+    for crate_name in [
+        "crucible-codegen-rust",
+        "crucible-codegen-common",
+        "crucible-revision",
+    ] {
         // The tracked copy may be removed (a moved build script).
         let _ = fs::remove_dir_all(repository.join("crates").join(crate_name));
         copy_tree(
@@ -260,4 +264,28 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
         Some("https://github.com/Operation-Leyline/crucible")
     );
     assert!(dependency.get("path").is_none());
+}
+
+/// A checkout whose tracked files differ from HEAD has no verified
+/// revision: the build script marks it dirty, and watches the sources so
+/// the mark never goes stale.
+#[test]
+fn uncommitted_changes_mark_the_revision_dirty() {
+    let directory = tempfile::tempdir().unwrap();
+    let executable = probe_binary(directory.path());
+    let root = directory.path().join("repository");
+    init(&root, "https://github.com/Operation-Leyline/crucible");
+    let clean = probe(&executable, &root);
+    assert!(clean.contains("CRUCIBLE_GENERATOR_REVISION="));
+    assert!(!clean.contains("CRUCIBLE_GENERATOR_DIRTY"));
+    assert!(clean.lines().any(|line| {
+        line.starts_with("cargo::rerun-if-changed=")
+            && Path::new(line.trim_start_matches("cargo::rerun-if-changed=")).ends_with("crates")
+    }));
+    fs::write(
+        root.join("crates/crucible-codegen-rust/Cargo.toml"),
+        "[package]\nname = 'changed'\n",
+    )
+    .unwrap();
+    assert!(probe(&executable, &root).contains("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1"));
 }

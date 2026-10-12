@@ -237,7 +237,7 @@ fn sdk_runs_only_at_the_revision_the_service_locks() {
     let error = failure(crucible(root, &["sdk", "generate"]));
     assert!(error.contains(other), "{error}");
     assert!(!root.join("generated").exists());
-    if let Some(own) = crucible_codegen_rust::source_revision() {
+    if let Some(own) = crucible_revision::verified_revision() {
         lock(own);
         success(crucible(root, &["sdk", "config"]));
     }
@@ -364,4 +364,73 @@ fn generate_takes_the_common_keys_as_flags() {
         ],
     ));
     assert!(error.contains("9lives"), "{error}");
+}
+
+/// Selecting an SDK reads only its environment; without a Cargo.lock the
+/// revision is not checked, and the command says so.
+#[test]
+fn selecting_one_sdk_needs_only_its_environment() {
+    let directory = service(SDK_FILE);
+    let output = Command::new(env!("CARGO_BIN_EXE_crucible"))
+        .current_dir(directory.path())
+        .env_remove("WEATHER_SDK_TEST_ENDPOINT")
+        .args(["sdk", "config", "--sdk", "rust"])
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    success(output);
+    assert!(stderr.contains("no Cargo.lock"), "{stderr}");
+    // Every SDK is still checked, selected or not.
+    let broken = SDK_FILE.replace("[sdk.ts]", "[sdk.ts]\nruntime_path = \"x\"");
+    fs::write(directory.path().join("crucible-sdk.toml"), broken).unwrap();
+    let error = failure(crucible(
+        directory.path(),
+        &["sdk", "config", "--sdk", "rust"],
+    ));
+    assert!(error.contains("sdk.ts.runtime_path"), "{error}");
+}
+
+#[test]
+fn generate_ts_takes_an_npm_registry() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    success(crucible(
+        root,
+        &[
+            "generate",
+            "ts",
+            "model.json",
+            "--out",
+            "adhoc/ts",
+            "--package-name",
+            "@example/adhoc",
+            "--npm-registry",
+            "https://npm.pkg.github.com",
+            "--npm-access",
+            "restricted",
+            "--private",
+        ],
+    ));
+    let package = json(&root.join("adhoc/ts/package.json"));
+    assert_eq!(
+        package["publishConfig"],
+        serde_json::json!({ "registry": "https://npm.pkg.github.com", "access": "restricted" })
+    );
+    assert!(package.get("private").is_none());
+    let error = failure(crucible(
+        root,
+        &[
+            "generate",
+            "ts",
+            "model.json",
+            "--out",
+            "adhoc/public",
+            "--package-name",
+            "@example/adhoc",
+            "--npm-registry",
+            "https://%72egistry.npmjs.org",
+            "--private",
+        ],
+    ));
+    assert!(error.contains("public registry"), "{error}");
 }

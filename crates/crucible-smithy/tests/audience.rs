@@ -523,3 +523,48 @@ fn nested_waiter_expressions_check_the_actual_member_scope() {
     }
     assert!(project(&full, Audience::External).is_ok());
 }
+
+/// Raw trait copies would keep what the projection removed from the typed
+/// fields: an external view drops the lowered value-carrying traits.
+#[test]
+fn external_views_drop_raw_vectors_and_examples_that_name_internal_members() {
+    let full = lower(include_str!("fixtures/internal-protocol-tests.json"), false);
+    let raw = serde_json::to_string(&full).unwrap();
+    assert!(raw.contains("secret") && raw.contains("hidden"));
+    let external = serde_json::to_string(&project(&full, Audience::External).unwrap()).unwrap();
+    for private in [
+        "secret",
+        "\"hidden\"",
+        "X-Private",
+        "PrivateNestedRequest",
+        "#Secret",
+    ] {
+        assert!(
+            !external.contains(private),
+            "{private} leaks into the external view"
+        );
+    }
+    assert!(!external.contains("smithy.test#httpRequestTests"));
+    // The internal view is the whole model.
+    let internal = serde_json::to_string(&project(&full, Audience::Internal).unwrap()).unwrap();
+    assert!(internal.contains("smithy.test#httpRequestTests"));
+
+    let mut model: serde_json::Value = serde_json::from_str(INTERNAL).unwrap();
+    let operation = model["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|(_, shape)| {
+            shape["type"] == "operation" && shape["traits"].get("smithy.api#internal").is_none()
+        })
+        .map(|(id, _)| id.clone())
+        .unwrap();
+    model["shapes"][&operation]["traits"]["smithy.api#examples"] = serde_json::json!([
+        { "title": "leaky", "input": { "value": "v", "privateHeader": "sentinel-internal-value" } }
+    ]);
+    let full = lower(&model.to_string(), false);
+    let external = project(&full, Audience::External).unwrap();
+    let text = serde_json::to_string(&external).unwrap();
+    assert!(!text.contains("sentinel-internal-value"), "{operation}");
+    assert!(!text.contains("smithy.api#examples"));
+}

@@ -587,6 +587,7 @@ dependencies = [
  "crucible-codegen-ts",
  "crucible-lang",
  "crucible-policy",
+ "crucible-revision",
  "crucible-smithy",
  "serde",
  "serde_json",
@@ -657,6 +658,7 @@ dependencies = [
  "crucible-codegen-swift",
  "crucible-codegen-terraform",
  "crucible-codegen-ts",
+ "crucible-revision",
  "crucible-smithy",
  "serde",
  "serde_json",
@@ -706,6 +708,7 @@ dependencies = [
  "pulldown-cmark",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -842,6 +845,7 @@ version = "0.6.1"
 dependencies = [
  "crucible-codegen-common",
  "crucible-lang",
+ "crucible-revision",
  "crucible-smithy",
  "regex",
  "semver",
@@ -918,6 +922,10 @@ dependencies = [
  "serde_json",
  "toml",
 ]
+
+[[package]]
+name = "crucible-revision"
+version = "0.6.1"
 
 [[package]]
 name = "crucible-server-runtime-rust"

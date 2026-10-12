@@ -161,18 +161,22 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
         Some(Value::Table(declared)) => {
             for (name, value) in declared {
                 let at = format!("sdk.{name}");
-                if !valid_name(name) {
+                let valid = valid_name(name);
+                if !valid {
                     context.error(
                         &at,
                         "an SDK name is a lowercase letter followed by lowercase letters, digits or hyphens",
                     );
-                    continue;
                 }
                 let Value::Table(table) = value else {
                     context.error(&at, "must be a table");
                     continue;
                 };
-                if let Some(sdk) = sdk(&mut context, name, table, &defaults) {
+                // An invalid name's table is still checked, so one run
+                // reports everything.
+                if let Some(sdk) = sdk(&mut context, name, table, &defaults)
+                    && valid
+                {
                     sdks.insert(name.clone(), sdk);
                 }
             }
@@ -180,17 +184,26 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
         Some(_) => context.error("sdk", "must hold [sdk.<name>] tables"),
         None => {}
     }
-    let mut outs: BTreeMap<&str, &str> = BTreeMap::new();
-    for (name, sdk) in &sdks {
-        let normalized = sdk.out.trim_end_matches('/');
-        if let Some(other) = outs.insert(normalized, name) {
-            context.error(
-                &format!("sdk.{name}.out"),
-                format!(
-                    "{:?} is also sdk.{other}'s out; each SDK needs its own",
-                    sdk.out
-                ),
-            );
+    // Two SDKs writing one directory, or one inside the other, would fight
+    // over its files: refused before anything is written.
+    let outs: Vec<(String, &str)> = sdks
+        .iter()
+        .map(|(name, sdk)| (out_key(&sdk.out), name.as_str()))
+        .collect();
+    for (index, (key, name)) in outs.iter().enumerate() {
+        for (other_key, other) in &outs[..index] {
+            let nested = |outer: &str, inner: &str| {
+                inner == outer || inner.starts_with(&format!("{outer}/"))
+            };
+            if nested(key, other_key) || nested(other_key, key) {
+                context.error(
+                    &format!("sdk.{name}.out"),
+                    format!(
+                        "{:?} overlaps sdk.{other}'s out {:?}; each SDK needs its own directory",
+                        sdks[*name].out, sdks[*other].out
+                    ),
+                );
+            }
         }
     }
     if !context.errors.is_empty() {
@@ -340,10 +353,9 @@ fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) 
             .filter(|path| path_ok(context, &at("lockfiles"), path))
             .collect(),
     };
-    let channel = match (table.get("channel"), language) {
-        (Some(value), Some(language)) => channel(context, &at("channel"), value, language),
-        _ => None,
-    };
+    let channel = table
+        .get("channel")
+        .and_then(|value| channel(context, &at("channel"), value, language));
     let options = options(context, name, table);
     let own = common(context, &format!("sdk.{name}"), table);
     let metadata = merge(own.clone(), defaults.clone());
@@ -504,7 +516,7 @@ fn options(context: &mut Context<'_>, name: &str, table: &Table) -> LanguageOpti
             };
             let (git, rev, version) = (field("git"), field("rev"), field("version"));
             if let Some(git) = &git
-                && let Some(problem) = credential_problem(git)
+                && let Some(problem) = crucible_codegen_common::metadata::credential_problem(git)
             {
                 context.error(&at("runtime.git"), problem);
             }
@@ -630,7 +642,7 @@ fn channel(
     context: &mut Context<'_>,
     at: &str,
     value: &Value,
-    language: Language,
+    language: Option<Language>,
 ) -> Option<Channel> {
     let Value::Table(table) = value else {
         context.error(
@@ -664,18 +676,18 @@ fn channel(
             format!("a {kind} channel takes no `{key}`"),
         );
     }
-    let url = string(context, &format!("{at}.{kind}"), &table[*kind])?;
-    if let Some(problem) = credential_problem(&url) {
-        context.error(&format!("{at}.{kind}"), problem);
-        return None;
-    }
     let optional = |context: &mut Context<'_>, key: &str| {
         table
             .get(key)
             .and_then(|value| string(context, &format!("{at}.{key}"), value))
     };
+    // Every problem is reported before giving up on the channel.
+    let mut valid = true;
+    let url = string(context, &format!("{at}.{kind}"), &table[*kind]);
     if *kind == "npm" {
-        if language != Language::Ts {
+        if let Some(language) = language
+            && language != Language::Ts
+        {
             context.error(
                 &format!("{at}.npm"),
                 format!(
@@ -684,8 +696,13 @@ fn channel(
                 ),
             );
         }
-        if let Some(problem) = crucible_codegen_common::metadata::url_problem(&url) {
+        // A registry is an http(s) URL without credentials.
+        if let Some(problem) = url
+            .as_deref()
+            .and_then(crucible_codegen_common::metadata::url_problem)
+        {
             context.error(&format!("{at}.npm"), problem);
+            valid = false;
         }
         let access = optional(context, "access");
         if let Some(access) = &access
@@ -696,15 +713,26 @@ fn channel(
                 format!("{access:?} is not \"public\" or \"restricted\""),
             );
         }
-        return Some(Channel::Npm {
+        let dist_tag = optional(context, "dist_tag").unwrap_or_else(|| "latest".into());
+        let url = url?;
+        return valid.then_some(Channel::Npm {
             url,
             access,
-            dist_tag: optional(context, "dist_tag").unwrap_or_else(|| "latest".into()),
+            dist_tag,
         });
     }
+    if let Some(problem) = url
+        .as_deref()
+        .and_then(crucible_codegen_common::metadata::credential_problem)
+    {
+        context.error(&format!("{at}.git"), problem);
+        valid = false;
+    }
+    // The distribution repository's root is `.`; anything else stays inside it.
     let path = match table.get("path") {
-        Some(value) => path_value(context, &format!("{at}.path"), value)?,
-        None => ".".into(),
+        Some(Value::String(path)) if path == "." => Some(".".into()),
+        Some(value) => path_value(context, &format!("{at}.path"), value),
+        None => Some(".".into()),
     };
     let tag = optional(context, "tag").unwrap_or_else(|| "v{version}".into());
     if !tag.contains("{version}") {
@@ -720,50 +748,15 @@ fn channel(
         .into_iter()
         .filter(|path| path_ok(context, &format!("{at}.adopt"), path))
         .collect();
-    Some(Channel::Git {
+    let branch = optional(context, "branch").unwrap_or_else(|| "main".into());
+    let (url, path) = (url?, path?);
+    valid.then_some(Channel::Git {
         url,
-        branch: optional(context, "branch").unwrap_or_else(|| "main".into()),
+        branch,
         path,
         tag,
         adopt,
     })
-}
-
-/// Why a channel or runtime URL must not be written down: it carries a
-/// password or token. A user name such as `git@` is fine over SSH; over
-/// HTTP(S) a user name can only be a token, since credentials come from
-/// the environment.
-pub(crate) fn credential_problem(url: &str) -> Option<String> {
-    // scp-like `user:password@host:path`.
-    if !url.contains("://")
-        && url
-            .split_once('@')
-            .is_some_and(|(user, _)| user.contains(':'))
-    {
-        return Some(format!(
-            "{url:?} carries a password or token; credentials come from the environment, never the SDK file"
-        ));
-    }
-    let (scheme, authority) = match url.split_once("://") {
-        Some((scheme, rest)) => (
-            scheme.to_ascii_lowercase(),
-            rest.split(['/', '?', '#']).next().unwrap_or(""),
-        ),
-        // scp-like `user@host:path`: the authority ends at the first `:`.
-        None => ("ssh".into(), url.split(':').next().unwrap_or("")),
-    };
-    let userinfo = authority.rsplit_once('@').map(|(userinfo, _)| userinfo)?;
-    if userinfo.contains(':') {
-        return Some(format!(
-            "{url:?} carries a password or token; credentials come from the environment, never the SDK file"
-        ));
-    }
-    if matches!(scheme.as_str(), "http" | "https") {
-        return Some(format!(
-            "{url:?} carries a user name, which over HTTP(S) can only be a token; credentials come from the environment, never the SDK file"
-        ));
-    }
-    None
 }
 
 fn valid_name(name: &str) -> bool {
@@ -795,16 +788,14 @@ fn boolean(context: &mut Context<'_>, at: &str, value: &Value) -> Option<bool> {
     flag
 }
 
+/// An array of strings. Every bad element is reported, not only the first.
 fn list(context: &mut Context<'_>, at: &str, value: &Value) -> Option<Vec<String>> {
     let Value::Array(items) = value else {
         context.error(at, "must be an array of strings");
         return None;
     };
-    let mut strings = Vec::new();
-    for item in items {
-        strings.push(string(context, at, item)?);
-    }
-    Some(strings)
+    let strings: Vec<Option<String>> = items.iter().map(|item| string(context, at, item)).collect();
+    strings.into_iter().collect()
 }
 
 fn path_value(context: &mut Context<'_>, at: &str, value: &Value) -> Option<String> {
@@ -812,13 +803,21 @@ fn path_value(context: &mut Context<'_>, at: &str, value: &Value) -> Option<Stri
     path_ok(context, at, &path).then_some(path)
 }
 
-/// Paths are relative to the SDK file and written with `/`, so the file
-/// and its configuration digest mean the same on every machine.
+/// Paths are relative to the SDK file, written with `/`, and stay inside its
+/// directory: no empty, `.` or `..` segment (a trailing `/` is fine). So the
+/// file and its configuration digest mean the same on every machine, and
+/// nothing outside the service is written, copied or adopted.
 fn path_ok(context: &mut Context<'_>, at: &str, path: &str) -> bool {
+    let trimmed = path.strip_suffix('/').unwrap_or(path);
     let problem = if path.contains('\\') {
         Some("uses `\\`; write paths with `/`")
     } else if path.starts_with('/') || path.as_bytes().get(1) == Some(&b':') {
         Some("is absolute; paths are relative to the SDK file")
+    } else if trimmed
+        .split('/')
+        .any(|segment| matches!(segment, "" | "." | ".."))
+    {
+        Some("leaves the SDK file's directory or has an empty, `.` or `..` segment")
     } else {
         None
     };
@@ -826,4 +825,11 @@ fn path_ok(context: &mut Context<'_>, at: &str, path: &str) -> bool {
         context.error(at, format!("{path:?} {problem}"));
     }
     problem.is_none()
+}
+
+/// `out` as a comparable key: no trailing `/`, and lowercase, since a
+/// case-insensitive filesystem (Windows, macOS) writes `Gen` and `gen` to one
+/// directory.
+pub(super) fn out_key(out: &str) -> String {
+    out.strip_suffix('/').unwrap_or(out).to_lowercase()
 }

@@ -434,6 +434,7 @@ version = "0.6.1"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-rust",
+ "crucible-revision",
  "crucible-smithy",
  "serde",
  "serde_json",
@@ -451,6 +452,7 @@ dependencies = [
  "pulldown-cmark",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]
@@ -458,6 +460,7 @@ name = "crucible-codegen-rust"
 version = "0.6.1"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-revision",
  "crucible-smithy",
  "regex",
  "semver",
@@ -487,6 +490,10 @@ dependencies = [
  "serde_json",
  "toml",
 ]
+
+[[package]]
+name = "crucible-revision"
+version = "0.6.1"
 
 [[package]]
 name = "crucible-server-runtime-rust"

@@ -132,6 +132,11 @@ fn package_probe() {
         }
         return;
     }
+    if mode == "undeclared" {
+        let package = crucible_build::model("model.json").compile();
+        package.rust_client("rust").try_generate().unwrap();
+        return;
+    }
     if mode == "empty" {
         let package = crucible_build::model("model.json");
         package.publish();
@@ -332,9 +337,17 @@ fn a_declared_sdk_is_not_a_builder_output() {
     fs::write(root.join("LICENSE"), "Proprietary.\n").unwrap();
     fs::write(
         root.join("crucible-sdk.toml"),
-        "schema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"generated/rust\"\n[sdk.ts]\npackage = \"@example/weather\"\nout = \"generated/ts\"\n",
+        "future_key = 1\nschema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"generated/rust\"\nprivate = true\n[sdk.ts]\npackage = \"@example/weather\"\nout = \"generated/ts\"\n",
     )
     .unwrap();
     let stdout = probe(root, "declared");
     assert!(stdout.contains("crucible-sdk.toml"), "{stdout}");
+    // A file that declares another model's SDKs leaves this model's names free.
+    let text = fs::read_to_string(root.join("crucible-sdk.toml")).unwrap();
+    fs::write(
+        root.join("crucible-sdk.toml"),
+        text.replace("model.json", "other-model.json"),
+    )
+    .unwrap();
+    probe(root, "undeclared");
 }

@@ -514,6 +514,12 @@ enum Target {
         package_json: Option<PathBuf>,
         #[command(flatten)]
         metadata: MetadataArgs,
+        /// The npm registry to publish to: package.json `publishConfig.registry`.
+        #[arg(long)]
+        npm_registry: Option<String>,
+        /// `publishConfig.access`: public or restricted.
+        #[arg(long, requires = "npm_registry", value_parser = ["public", "restricted"])]
+        npm_access: Option<String>,
     },
     /// Rust server bindings as one file, or a complete Cargo SDK with --client.
     Rust {
@@ -609,24 +615,23 @@ impl MetadataArgs {
         let read = |path: Option<PathBuf>| {
             path.map(|path| {
                 std::fs::read_to_string(&path)
-                    .map(|text| text.replace("\r\n", "\n"))
+                    .map(|text| crucible_codegen::metadata::normalize_text(&text))
                     .map_err(|error| format!("cannot read {}: {error}", path.display()))
             })
             .transpose()
         };
-        Ok(crucible_codegen::PackageMetadata {
-            description: self.description,
-            repository: self.repository,
-            homepage: self.homepage,
-            documentation: self.documentation,
-            license: self.license,
-            license_file: read(self.license_file)?,
-            authors: self.authors,
-            readme: read(self.readme)?,
-            keywords: self.keywords,
-            private: self.private,
-            registry: None,
-        })
+        let mut metadata = crucible_codegen::PackageMetadata::new();
+        metadata.description = self.description;
+        metadata.repository = self.repository;
+        metadata.homepage = self.homepage;
+        metadata.documentation = self.documentation;
+        metadata.license = self.license;
+        metadata.license_file = read(self.license_file)?;
+        metadata.authors = self.authors;
+        metadata.readme = read(self.readme)?;
+        metadata.keywords = self.keywords;
+        metadata.private = self.private;
+        Ok(metadata)
     }
 }
 
@@ -1562,6 +1567,8 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             middleware,
             package_json,
             metadata,
+            npm_registry,
+            npm_access,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_ts::capabilities())?;
@@ -1587,7 +1594,12 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                     })
                     .collect(),
                 package_json,
-                metadata: metadata.read()?,
+                metadata: {
+                    let mut metadata = metadata.read()?;
+                    metadata.registry = npm_registry
+                        .map(|url| crucible_codegen::Registry::npm(url, npm_access.as_deref()));
+                    metadata
+                },
             };
             let files = crucible_codegen::Client::Ts(options)
                 .emit_for_audience(&service, audience)

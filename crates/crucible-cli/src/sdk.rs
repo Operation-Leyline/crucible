@@ -57,8 +57,21 @@ pub(crate) fn run(args: SdkArgs) -> Result<(), String> {
         return Err(format!("{} does not exist", path.display()));
     }
     let root = path.parent().unwrap_or(Path::new("."));
-    sdk::check_revision(root, crucible_codegen_rust::source_revision())?;
-    let file = sdk::resolve(&path).map_err(|errors| errors.to_string())?;
+    // A checkout with uncommitted changes has no verified revision.
+    if sdk::check_revision(root, crucible_revision::verified_revision())?.is_none() {
+        eprintln!(
+            "warning: no Cargo.lock in {} or its parents up to the repository root, so the Crucible revision is not checked",
+            root.display()
+        );
+    }
+    // The whole file is checked; only the selected SDKs' environment is read.
+    let mut file = sdk::load(&path).map_err(|errors| errors.to_string())?;
+    let names = match &args.command {
+        SdkCommand::Config { sdks, .. } | SdkCommand::Generate { sdks } => sdks.clone(),
+    };
+    file.select(&names)?;
+    file.resolve_endpoints(&names, |name| std::env::var(name).ok())
+        .map_err(|errors| errors.to_string())?;
     match args.command {
         SdkCommand::Config { sdks, json } => config(&file, &sdks, json),
         SdkCommand::Generate { sdks } => generate(&file, &sdks),
@@ -147,14 +160,12 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
             );
         }
         let client = sdk.client(file, None)?;
-        let service = crucible_smithy::project(&full, sdk.audience)
-            .map_err(|diagnostics| format!("sdk.{}:\n{diagnostics}", sdk.name))?;
         let stamp = crucible_codegen::provenance::Stamp {
             config_sha256: Some(sdk.config_sha256(file)),
             source: None,
         };
         let files = client
-            .emit_with_provenance(&service, sdk.audience, &stamp)
+            .emit_with_provenance(&full, sdk.audience, &stamp)
             .map_err(|diagnostics| format!("cannot generate sdk.{}:\n{diagnostics}", sdk.name))?;
         let out = file.join(&sdk.out);
         crucible_codegen::write(&out, &files)

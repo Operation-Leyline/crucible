@@ -29,7 +29,7 @@ impl MetadataFiles {
         let read = |path: &PathBuf| -> Result<String, String> {
             println!("cargo::rerun-if-changed={}", path.display());
             std::fs::read_to_string(path)
-                .map(|text| text.replace("\r\n", "\n"))
+                .map(|text| crucible_codegen::metadata::normalize_text(&text))
                 .map_err(|error| format!("cannot read {}: {error}", path.display()))
         };
         if let Some(path) = &self.readme {

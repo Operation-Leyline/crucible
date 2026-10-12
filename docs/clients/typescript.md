@@ -49,7 +49,9 @@ The common package metadata keys are flags: `--description`,
 `--repository`, `--homepage`, `--license` or `--license-file <path>`,
 `--author` (repeat it; the first is `author`, the rest `contributors`),
 `--readme <path>`, `--keyword` (repeat it) and `--private`
-(`"private": true`). A README and license are copied into the package.
+(`"private": true`, unless `--npm-registry` names where it publishes).
+`--npm-registry <url>` and `--npm-access public|restricted` set
+`publishConfig`. A README and license are copied into the package.
 `--package-json` is merged last and cannot set `name`, `version`,
 `crucible`, `files`, `private` or `publishConfig`. To declare the SDK
 once, with its npm registry, use [`crucible-sdk.toml`](../sdk-releases.md#declare-sdks-crucible-sdktoml).

@@ -324,25 +324,23 @@ fn package_metadata_matches_golden() {
     .lower(None)
     .unwrap();
     let mut options = options("@example/weather");
-    options.metadata = crucible_codegen_common::PackageMetadata {
-        description: Some("Client for the Weather API.".into()),
-        repository: Some("https://github.com/example/weather".into()),
-        homepage: Some("https://weather.example".into()),
-        documentation: Some("https://docs.weather.example".into()),
-        license: None,
-        license_file: Some("Proprietary.\n".into()),
-        authors: vec![
-            "Weather Team <sdk@weather.example>".into(),
-            "Ops <ops@weather.example>".into(),
-        ],
-        readme: Some("# Weather\n".into()),
-        keywords: vec!["weather".into(), "forecast".into()],
-        private: true,
-        registry: Some(crucible_codegen_common::Registry::Npm {
-            url: "https://npm.pkg.github.com".into(),
-            access: Some("restricted".into()),
-        }),
-    };
+    let metadata = &mut options.metadata;
+    metadata.description = Some("Client for the Weather API.".into());
+    metadata.repository = Some("https://github.com/example/weather".into());
+    metadata.homepage = Some("https://weather.example".into());
+    metadata.documentation = Some("https://docs.weather.example".into());
+    metadata.license_file = Some("Proprietary.\n".into());
+    metadata.authors = vec![
+        "Weather Team <sdk@weather.example>".into(),
+        "Ops <ops@weather.example>".into(),
+    ];
+    metadata.readme = Some("# Weather\n".into());
+    metadata.keywords = vec!["weather".into(), "forecast".into()];
+    metadata.private = true;
+    metadata.registry = Some(crucible_codegen_common::Registry::npm(
+        "https://npm.pkg.github.com",
+        Some("restricted"),
+    ));
     let files = emit(&service, &options).unwrap();
     let package = file(&files, "package.json");
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/metadata.package.json");
@@ -364,6 +362,19 @@ fn package_metadata_matches_golden() {
     let json: serde_json::Value = serde_json::from_str(file(&files, "package.json")).unwrap();
     assert_eq!(json["private"], true);
     assert!(json.get("publishConfig").is_none());
+    // Released through Git tags: never an npm publish, private or not.
+    options.metadata.private = false;
+    options.metadata.registry = Some(crucible_codegen_common::Registry::Git);
+    let files = emit(&service, &options).unwrap();
+    let json: serde_json::Value = serde_json::from_str(file(&files, "package.json")).unwrap();
+    assert_eq!(json["private"], true);
+    // A private package on the public registry, however it is spelled, is refused.
+    options.metadata.private = true;
+    options.metadata.registry = Some(crucible_codegen_common::Registry::npm(
+        "https://%72egistry.npmjs.org.",
+        None,
+    ));
+    assert!(emit(&service, &options).is_err());
 }
 
 /// Provenance is stamped by the shared layer: the package lists both files

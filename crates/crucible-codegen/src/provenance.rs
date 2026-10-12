@@ -162,7 +162,7 @@ struct Record<'a> {
     generator: &'static str,
     generator_version: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
-    generator_revision: Option<&'static str>,
+    generator_revision: Option<String>,
     generator_changes: u64,
     language: &'a str,
     package: &'a str,
@@ -209,7 +209,7 @@ pub(crate) fn stamp(
         schema_version: SCHEMA_VERSION,
         generator: "crucible",
         generator_version: env!("CARGO_PKG_VERSION"),
-        generator_revision: crucible_codegen_common::source_revision(),
+        generator_revision: crucible_revision::recorded_revision(),
         generator_changes: generator_changes(),
         language: package.language,
         package: package.name,

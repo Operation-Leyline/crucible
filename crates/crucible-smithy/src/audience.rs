@@ -283,10 +283,67 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     result
         .renames
         .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
+    strip_lowered_traits(&mut result);
     if diagnostics.is_empty() {
         Ok(result)
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Traits lowering already turned into typed IR, whose values name members
+/// or carry model values: protocol test vectors, examples, waiters and
+/// endpoint tests. The projection rewrites their typed forms.
+const LOWERED_VALUE_TRAITS: &[&str] = &[
+    "smithy.test#httpRequestTests",
+    "smithy.test#httpResponseTests",
+    "smithy.test#httpMalformedRequestTests",
+    "smithy.api#examples",
+    "smithy.waiters#waitable",
+    "smithy.rules#endpointTests",
+];
+
+/// Every IR node keeps a raw copy of its Smithy traits. The projection
+/// rewrites the typed fields, not those copies, so a removed vector's
+/// internal member names and values would survive in them: an external view
+/// drops them and is read through the typed fields instead.
+fn strip_lowered_traits(service: &mut Service) {
+    fn strip(traits: &mut crate::ir::Traits) {
+        traits.retain(|id, _| !LOWERED_VALUE_TRAITS.contains(&id.to_string().as_str()));
+    }
+    strip(&mut service.traits);
+    for op in &mut service.operations {
+        strip(&mut op.traits);
+    }
+    for resource in service.resources.values_mut() {
+        strip(&mut resource.traits);
+    }
+    for shape in service.shapes.values_mut() {
+        match shape {
+            Shape::Unit { .. } => {}
+            Shape::Simple(s) => strip(&mut s.traits),
+            Shape::Enum(s) => {
+                strip(&mut s.traits);
+                s.values.iter_mut().for_each(|v| strip(&mut v.traits));
+            }
+            Shape::IntEnum(s) => {
+                strip(&mut s.traits);
+                s.values.iter_mut().for_each(|v| strip(&mut v.traits));
+            }
+            Shape::List(s) => {
+                strip(&mut s.traits);
+                strip(&mut s.member.traits);
+            }
+            Shape::Map(s) => {
+                strip(&mut s.traits);
+                strip(&mut s.key.traits);
+                strip(&mut s.value.traits);
+            }
+            Shape::Structure(s) | Shape::Union(s) => {
+                strip(&mut s.traits);
+                s.members.iter_mut().for_each(|m| strip(&mut m.traits));
+            }
+        }
     }
 }
 

@@ -35,7 +35,10 @@ pub fn emit_client_package(
             format!("Cargo SDK package metadata: {problem}"),
         );
     }
-    if metadata.registry.is_some() {
+    if matches!(
+        metadata.registry,
+        Some(crucible_codegen_common::Registry::Npm { .. })
+    ) {
         diagnostics.push(
             &service.id,
             "a Cargo SDK package cannot name an npm registry",
@@ -101,9 +104,10 @@ pub fn emit_client_package(
         "\n/// Shared runtime configuration and transport types for this SDK.\npub use ::crucible_client_runtime_rust as runtime;\npub use ::crucible_client_runtime_rust::{{{}}};\n",
         exports.join(", ")
     );
-    // The README is the crate's documentation, as docs.rs and crates.io show it.
+    // The README is the crate's documentation, as docs.rs and crates.io show
+    // it. Its code blocks are prose, not tests a consumer's `cargo test` runs.
     let docs = if metadata.readme.is_some() {
-        "#![doc = include_str!(\"../README.md\")]\n\n"
+        "#![cfg_attr(not(doctest), doc = include_str!(\"../README.md\"))]\n\n"
     } else {
         ""
     };
@@ -147,9 +151,7 @@ pub fn client_package_name(service: &Service, options: &ClientOptions) -> String
         .unwrap_or_else(|| format!("{}-sdk", names::snake(service.id.name()).replace('_', "-")))
 }
 
-/// `[package]` keys for the common metadata. A private package is never
-/// published from its manifest: it is released through a Git channel,
-/// which reads no `publish` key.
+/// `[package]` keys for the common metadata.
 fn package_metadata(metadata: &crucible_codegen_common::PackageMetadata) -> String {
     let mut keys = String::new();
     let mut key = |name: &str, value: String| {
@@ -186,7 +188,9 @@ fn package_metadata(metadata: &crucible_codegen_common::PackageMetadata) -> Stri
     if !metadata.keywords.is_empty() {
         key("keywords", list(&metadata.keywords));
     }
-    if metadata.private {
+    // A Git channel is never a registry (docs/sdk-packaging.md's table), and
+    // a private package is never published from its manifest either.
+    if metadata.private || metadata.registry == Some(crucible_codegen_common::Registry::Git) {
         key("publish", "false".into());
     }
     keys

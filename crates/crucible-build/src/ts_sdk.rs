@@ -83,6 +83,13 @@ impl<'a> TsSdk<'a> {
 
     crate::package_metadata::metadata_setters!();
 
+    /// The npm registry the package publishes to: `publishConfig.registry`
+    /// and, when given, `.access` (`public` or `restricted`).
+    pub fn npm_registry(mut self, url: &str, access: Option<&str>) -> Self {
+        self.options.metadata.registry = Some(crucible_codegen::Registry::npm(url, access));
+        self
+    }
+
     /// The output this builder configures, with its metadata files read.
     fn output(mut self) -> Result<crate::Output<'a>, String> {
         self.files.apply(&mut self.options.metadata)?;

@@ -84,7 +84,7 @@ impl Output<'_> {
     pub fn try_generate(self) -> Result<Artifact, String> {
         crate::artifact::validate_name(&self.name)?;
         if matches!(self.generator, Generator::Client(_)) {
-            crate::declared_sdk::refuse(&self.name)?;
+            crate::declared_sdk::refuse(&self.name, &self.model.source)?;
         }
         if self.model.artifacts.borrow().contains_key(&self.name) {
             return Err(format!(

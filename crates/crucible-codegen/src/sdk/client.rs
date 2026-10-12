@@ -7,42 +7,57 @@ use crate::Client;
 
 impl Sdk {
     /// The common keys as generators take them: the README and license
-    /// read from their files, normalized to LF, and the npm registry from
-    /// the channel.
+    /// read from their files, normalized to LF, and the registry from the
+    /// channel. A README or license must resolve, symlinks followed, to a
+    /// file inside the SDK file's directory, so nothing outside the service
+    /// is copied into a published package.
     pub fn package_metadata(&self, file: &SdkFile) -> Result<PackageMetadata, String> {
         let metadata = &self.metadata;
-        let read = |relative: &Option<String>| -> Result<Option<String>, String> {
-            relative
-                .as_ref()
-                .map(|relative| {
-                    let path = file.join(relative);
-                    std::fs::read_to_string(&path)
-                        .map(|text| crucible_codegen_common::metadata::normalize_text(&text))
-                        .map_err(|error| {
-                            format!("sdk.{}: cannot read {}: {error}", self.name, path.display())
-                        })
-                })
-                .transpose()
+        let root = file.root();
+        let root = if root.as_os_str().is_empty() {
+            std::path::Path::new(".")
+        } else {
+            root
         };
-        Ok(PackageMetadata {
-            description: metadata.description.clone(),
-            repository: metadata.repository.clone(),
-            homepage: metadata.homepage.clone(),
-            documentation: metadata.documentation.clone(),
-            license: metadata.license.clone(),
-            license_file: read(&metadata.license_file)?,
-            authors: metadata.authors.clone(),
-            readme: read(&metadata.readme)?,
-            keywords: metadata.keywords.clone(),
-            private: metadata.private,
-            registry: match &self.channel {
-                Some(Channel::Npm { url, access, .. }) => Some(Registry::Npm {
-                    url: url.clone(),
-                    access: access.clone(),
-                }),
-                _ => None,
-            },
-        })
+        let read = |key: &str, relative: &Option<String>| -> Result<Option<String>, String> {
+            let Some(relative) = relative else {
+                return Ok(None);
+            };
+            let path = file.join(relative);
+            let at = format!("sdk.{}.{key}", self.name);
+            let resolved = path
+                .canonicalize()
+                .map_err(|error| format!("{at}: cannot read {}: {error}", path.display()))?;
+            let inside = root
+                .canonicalize()
+                .is_ok_and(|root| resolved.starts_with(root));
+            if !inside {
+                return Err(format!(
+                    "{at}: {relative:?} resolves outside the SDK file's directory"
+                ));
+            }
+            std::fs::read_to_string(&resolved)
+                .map(|text| crucible_codegen_common::metadata::normalize_text(&text))
+                .map(Some)
+                .map_err(|error| format!("{at}: cannot read {}: {error}", path.display()))
+        };
+        let mut package = PackageMetadata::new();
+        package.description.clone_from(&metadata.description);
+        package.repository.clone_from(&metadata.repository);
+        package.homepage.clone_from(&metadata.homepage);
+        package.documentation.clone_from(&metadata.documentation);
+        package.license.clone_from(&metadata.license);
+        package.license_file = read("license_file", &metadata.license_file)?;
+        package.authors.clone_from(&metadata.authors);
+        package.readme = read("readme", &metadata.readme)?;
+        package.keywords.clone_from(&metadata.keywords);
+        package.private = metadata.private;
+        package.registry = match &self.channel {
+            Some(Channel::Npm { url, access, .. }) => Some(Registry::npm(url, access.as_deref())),
+            Some(Channel::Git { .. }) => Some(Registry::Git),
+            None => None,
+        };
+        Ok(package)
     }
 
     /// This SDK's generator configuration at `version` (ignored for Go,
@@ -71,6 +86,8 @@ impl Sdk {
                 self.language.display()
             )
         };
+        // Which of these each arm uses depends on the enabled generator
+        // features; a build with few of them would otherwise warn.
         let _ = (&endpoint, &required, &missing, &version, file);
         match self.language {
             #[cfg(feature = "rust")]

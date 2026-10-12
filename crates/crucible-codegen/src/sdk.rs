@@ -155,22 +155,9 @@ impl Channel {
     /// internal SDK must never go.
     pub fn is_public(&self) -> bool {
         match self {
-            Self::Npm { url, .. } => {
-                let host = url
-                    .split_once("://")
-                    .map_or("", |(_, rest)| rest)
-                    .split(['/', '?', '#'])
-                    .next()
-                    .unwrap_or("")
-                    .rsplit('@')
-                    .next()
-                    .unwrap_or("")
-                    .split(':')
-                    .next()
-                    .unwrap_or("")
-                    .to_ascii_lowercase();
-                matches!(host.as_str(), "registry.npmjs.org" | "registry.yarnpkg.com")
-            }
+            // Parsed and canonicalized, so no spelling of the public
+            // registry's host passes as private.
+            Self::Npm { url, .. } => crucible_codegen_common::metadata::is_public_npm_registry(url),
             Self::Git { .. } => false,
         }
     }
@@ -220,30 +207,51 @@ pub fn resolve(path: &Path) -> Result<SdkFile, Errors> {
 /// [`resolve`], reading variables through `env`.
 pub fn resolve_with(path: &Path, env: impl Fn(&str) -> Option<String>) -> Result<SdkFile, Errors> {
     let mut file = load(path)?;
-    let mut errors = Vec::new();
-    for (name, sdk) in &mut file.sdks {
-        if let Some(Endpoint::Env {
-            name: variable,
-            value,
-        }) = &mut sdk.options.endpoint
-        {
-            match env(variable).filter(|value| !value.is_empty()) {
-                Some(found) => *value = Some(found),
-                None => errors.push(format!(
-                    "{}: sdk.{name}.endpoint: the environment variable {variable} is not set",
-                    path.display()
-                )),
-            }
-        }
-    }
-    if errors.is_empty() {
-        Ok(file)
-    } else {
-        Err(Errors(errors))
-    }
+    file.resolve_endpoints(&[], env)?;
+    Ok(file)
 }
 
 impl SdkFile {
+    /// Reads every `endpoint = { env = "NAME" }` of the SDKs named in
+    /// `names` (every SDK when it is empty) through `env`. A variable must
+    /// be set to an http(s) URL without credentials. The other SDKs keep
+    /// their unresolved endpoints, so selecting one SDK never needs the
+    /// others' environment.
+    pub fn resolve_endpoints(
+        &mut self,
+        names: &[String],
+        env: impl Fn(&str) -> Option<String>,
+    ) -> Result<(), Errors> {
+        let mut errors = Vec::new();
+        for (name, sdk) in &mut self.sdks {
+            if !names.is_empty() && !names.contains(name) {
+                continue;
+            }
+            let Some(Endpoint::Env {
+                name: variable,
+                value,
+            }) = &mut sdk.options.endpoint
+            else {
+                continue;
+            };
+            let at = format!("{}: sdk.{name}.endpoint", self.path.display());
+            match env(variable).filter(|value| !value.is_empty()) {
+                Some(found) => match crucible_codegen_common::metadata::url_problem(&found) {
+                    None => *value = Some(found),
+                    Some(problem) => errors.push(format!("{at}: {variable}: {problem}")),
+                },
+                None => errors.push(format!(
+                    "{at}: the environment variable {variable} is not set"
+                )),
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(Errors(errors))
+        }
+    }
+
     /// The directory every path in the file is relative to.
     pub fn root(&self) -> &Path {
         self.path.parent().unwrap_or(Path::new("."))
@@ -454,4 +462,39 @@ fn canonical(value: &Value) -> Value {
         Value::Array(items) => Value::Array(items.iter().map(canonical).collect()),
         other => other.clone(),
     }
+}
+
+/// What a build script reads from an SDK file: its `model` and its SDK
+/// names, and nothing else. See [`declared`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Declared {
+    pub model: Option<String>,
+    pub names: Vec<String>,
+}
+
+/// The SDK file's `model` and SDK names, read leniently: `None` when it is
+/// not TOML at all. A file `crucible sdk` would refuse for any other reason
+/// still names its SDKs.
+pub fn declared(path: &Path) -> Option<Declared> {
+    let table: toml::Table = std::fs::read_to_string(path).ok()?.parse().ok()?;
+    let model = table
+        .get("model")
+        .and_then(toml::Value::as_str)
+        .map(str::to_owned);
+    let names = table
+        .get("sdk")
+        .and_then(toml::Value::as_table)
+        .map(|sdks| sdks.keys().cloned().collect())
+        .unwrap_or_default();
+    Some(Declared { model, names })
+}
+
+/// The SDK file in `start` or its nearest parent, inside the Git repository
+/// holding `start`: `None` outside one, so a packaged or vendored crate never
+/// reaches a file that belongs to whoever builds it.
+pub fn find_in_repository(start: &Path) -> Option<PathBuf> {
+    let root = start
+        .ancestors()
+        .find(|directory| directory.join(".git").exists())?;
+    find(start).filter(|path| path.starts_with(root))
 }

@@ -411,11 +411,14 @@ fn package_json(service: &Service, options: &Options) -> String {
             set("contributors", json!(contributors));
         }
     }
-    // Private and no npm registry to publish to: `npm publish` refuses it.
-    let registry = metadata.registry.as_ref().map(|registry| match registry {
-        crucible_codegen_common::Registry::Npm { url, access } => (url, access),
-    });
-    if metadata.private && registry.is_none() {
+    // Unpublishable to npm: private with no npm registry, or released
+    // through Git tags. `npm publish` refuses it.
+    let registry = match &metadata.registry {
+        Some(crucible_codegen_common::Registry::Npm { url, access }) => Some((url, access)),
+        _ => None,
+    };
+    let git = metadata.registry == Some(crucible_codegen_common::Registry::Git);
+    if (metadata.private && registry.is_none()) || git {
         set("private", json!(true));
     }
     set("type", json!("module"));

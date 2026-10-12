@@ -48,6 +48,24 @@ fn main() {
         watch(&workspace, &reference);
     }
     println!("cargo::rustc-env=CRUCIBLE_GENERATOR_REVISION={revision}");
+    // A tracked file that differs from HEAD means HEAD does not reproduce
+    // this generator. Edits anywhere in the sources rerun this script, so
+    // the mark never goes stale; the index catches staged changes.
+    watch(&workspace, "index");
+    for tree in ["crates", "smithy", "Cargo.toml", "Cargo.lock"] {
+        let path = workspace.join(tree);
+        if path.exists() {
+            println!("cargo::rerun-if-changed={}", path.display());
+        }
+    }
+    let dirty = git(
+        &workspace,
+        &["status", "--porcelain", "--untracked-files=no", "--", "."],
+    )
+    .is_none_or(|status| !status.is_empty());
+    if dirty {
+        println!("cargo::rustc-env=CRUCIBLE_GENERATOR_DIRTY=1");
+    }
 }
 
 fn watch(workspace: &Path, name: &str) {

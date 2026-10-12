@@ -35,7 +35,7 @@ them to the settings that own them:
 |---|---|
 | `name`, `version` | `--package-name`, `--package-version`; `.package(..)`, `.version(..)` |
 | `private` | `--private`; `.private(true)`; `private = true` in `crucible-sdk.toml` |
-| `publishConfig` | an npm `channel` in [`crucible-sdk.toml`](sdk-releases.md#declare-sdks-crucible-sdktoml) |
+| `publishConfig` | `--npm-registry`, `--npm-access`; `.npm_registry(url, access)`; an npm `channel` in [`crucible-sdk.toml`](sdk-releases.md#declare-sdks-crucible-sdktoml) |
 | `description`, `repository`, `homepage`, `license`, `author`, `keywords` | still allowed; or the matching flag, setter or SDK file key |
 
 ## 0.5.0 to 0.6.0

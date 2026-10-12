@@ -245,14 +245,14 @@ fn channels_never_carry_credentials_or_reach_public_registries_by_mistake() {
             "channel = { npm = \"https://user:token@npm.pkg.github.com\" }",
         )),
         "sdk.ts.channel.npm",
-        "password or token",
+        "never carries credentials",
     );
     assert_error(
         &errors(&ts(
             "channel = { npm = \"https://ghp_abc@npm.pkg.github.com\" }",
         )),
         "sdk.ts.channel.npm",
-        "can only be a token",
+        "never carries credentials",
     );
     assert_error(
         &errors(&ts(
@@ -589,4 +589,255 @@ fn the_source_commit_must_reproduce_every_input() {
         error.contains("not tracked") || error.contains("untracked"),
         "{error}"
     );
+}
+
+const SENTINEL: &str = "sentinel-secret-5d81";
+
+fn sdk_errors(sdks: &str) -> Vec<String> {
+    errors(&format!("schema_version = 1\nmodel = \"m\"\n{sdks}"))
+}
+
+/// No path leaves the SDK file's directory: nothing outside the service is
+/// written, copied into a package, or adopted by a channel.
+#[test]
+fn paths_stay_inside_the_sdk_files_directory() {
+    let errors = errors(
+        r#"
+schema_version = 1
+model = "../model.json"
+[sdk.rust]
+out = "../escaped"
+readme = "../secret.md"
+license_file = "./LICENSE"
+lockfiles = ["a/../b"]
+channel = { git = "git@x:y", path = "../..", adopt = ["../../..", "docs"] }
+"#,
+    );
+    for key in [
+        "model",
+        "sdk.rust.out",
+        "sdk.rust.readme",
+        "sdk.rust.license_file",
+        "sdk.rust.lockfiles",
+        "sdk.rust.channel.path",
+        "sdk.rust.channel.adopt",
+    ] {
+        assert_error(&errors, key, "leaves the SDK file's directory");
+    }
+    // `.` is the distribution repository's root, and a trailing `/` is fine.
+    let fine = sdk_errors(
+        "[sdk.rust]\nout = \"generated/rust/\"\nchannel = { git = \"git@x:y\", path = \".\" }\n",
+    );
+    assert!(fine.is_empty(), "{fine:#?}");
+}
+
+/// A README or license that resolves outside the SDK file's directory,
+/// through a symlink, is never copied into a package.
+#[test]
+fn a_readme_symlinked_outside_the_service_is_refused() {
+    let outside = tempfile::tempdir().unwrap();
+    fs::write(outside.path().join("secret.md"), SENTINEL).unwrap();
+    let (directory, path) = repository(
+        "schema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"o\"\nreadme = \"sdk/linked.md\"\n",
+    );
+    let link = directory.path().join("sdk/linked.md");
+    #[cfg(unix)]
+    let linked = std::os::unix::fs::symlink(outside.path().join("secret.md"), &link);
+    #[cfg(windows)]
+    let linked = std::os::windows::fs::symlink_file(outside.path().join("secret.md"), &link);
+    if linked.is_err() {
+        // Creating symlinks needs a privilege this machine does not grant.
+        return;
+    }
+    let file = sdk::load(&path).unwrap();
+    let error = file.sdks["rust"].package_metadata(&file).unwrap_err();
+    assert!(error.contains("resolves outside"), "{error}");
+    assert!(!error.contains(SENTINEL));
+}
+
+/// Two SDKs that would write one directory, or one inside the other, are
+/// refused before anything is written, whatever the spelling's case.
+#[test]
+fn equivalent_or_nested_outs_are_refused() {
+    let rust = |out: &str, other: &str| {
+        sdk_errors(&format!(
+            "[sdk.a]\nlanguage = \"rust\"\nout = \"{out}\"\n[sdk.b]\nlanguage = \"rust\"\nout = \"{other}\"\n"
+        ))
+    };
+    for (out, other) in [
+        ("gen", "gen/"),
+        ("gen", "GEN"),
+        ("gen", "gen/rust"),
+        ("Gen/Rust", "gen"),
+    ] {
+        assert_error(&rust(out, other), "sdk.b.out", "overlaps sdk.a's out");
+    }
+    assert!(rust("gen/rust", "gen/ts").is_empty());
+    assert!(rust("gen", "generated").is_empty());
+}
+
+/// Published URLs (repository, homepage, endpoint) and channel and runtime
+/// URLs never carry credentials, and no message repeats one.
+#[test]
+fn credentials_are_refused_everywhere_and_never_repeated() {
+    let text = [
+        "[defaults]",
+        "repository = \"https://u:SENTINEL@github.com/x\"",
+        "homepage = \"https://SENTINEL@weather.example\"",
+        "[sdk.ts]",
+        "package = \"x\"",
+        "out = \"ts\"",
+        "endpoint = \"https://u:SENTINEL@api.example\"",
+        "channel = { npm = \"https://u:SENTINEL@npm.pkg.github.com\", access = \"everyone\" }",
+        "[sdk.rust]",
+        "out = \"rust\"",
+        "runtime = { git = \"https://t:SENTINEL@github.com/x\", rev = \"r\", version = \"0.6\" }",
+        "channel = { git = \"u:SENTINEL@github.com:x.git\", tag = \"release\" }",
+    ]
+    .join("\n")
+    .replace("SENTINEL", SENTINEL);
+    let errors = sdk_errors(&text);
+    for key in [
+        "defaults.repository",
+        "defaults.homepage",
+        "sdk.ts.endpoint",
+        "sdk.ts.channel.npm",
+        "sdk.rust.runtime.git",
+        "sdk.rust.channel.git",
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains(&format!(": {key}: "))),
+            "no error at {key} in {errors:#?}"
+        );
+    }
+    // A credential does not stop the rest of the channel being checked.
+    assert_error(
+        &errors,
+        "sdk.ts.channel.access",
+        "not \"public\" or \"restricted\"",
+    );
+    assert_error(&errors, "sdk.rust.channel.tag", "{version}");
+    for error in &errors {
+        assert!(!error.contains(SENTINEL), "{error}");
+    }
+}
+
+/// The private-registry guard reads the host as the network does.
+#[test]
+fn every_spelling_of_the_public_registry_is_public() {
+    for url in [
+        "https://%72egistry.npmjs.org",
+        "https://registry.npmjs.org.",
+        "https://REGISTRY.NPMJS.ORG/",
+    ] {
+        assert_error(
+            &sdk_errors(&format!(
+                "[sdk.ts]\npackage = \"x\"\nout = \"o\"\nprivate = true\nchannel = {{ npm = \"{url}\" }}\n"
+            )),
+            "sdk.ts.channel",
+            "never goes to a public registry",
+        );
+    }
+}
+
+/// Everything wrong is reported in one run: an invalid SDK name's table,
+/// a channel of an unknown language, every bad list element.
+#[test]
+fn one_run_reports_errors_that_hide_behind_others() {
+    let text = [
+        "[sdk.Bad]",
+        "language = \"rust\"",
+        "out = \"bad\"",
+        "endpoint = \"https://x.example\"",
+        "[sdk.weird]",
+        "language = \"cobol\"",
+        "out = \"weird\"",
+        "channel = { git = \"https://u:pw@github.com/x\" }",
+        "[sdk.ts]",
+        "package = \"x\"",
+        "out = \"ts\"",
+        "keywords = [1, \"fine\", 2]",
+    ]
+    .join("\n");
+    let errors = sdk_errors(&text);
+    assert_error(&errors, "sdk.Bad", "lowercase letter");
+    assert_error(&errors, "sdk.Bad.endpoint", "takes no `endpoint`");
+    assert_error(&errors, "sdk.weird.language", "not a client language");
+    assert_error(&errors, "sdk.weird.channel.git", "password or token");
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|error| error.contains(": sdk.ts.keywords: must be a string"))
+            .count(),
+        2,
+        "{errors:#?}"
+    );
+}
+
+/// Selecting SDKs reads only their environment, and a variable's value is
+/// checked like a written endpoint.
+#[test]
+fn endpoints_are_read_only_for_the_selected_sdks_and_checked() {
+    let text = "schema_version = 1\nmodel = \"model.json\"\n[sdk.ts]\npackage = \"x\"\nout = \"ts\"\nendpoint = { env = \"WEATHER_TS_ENDPOINT\" }\n[sdk.python]\npackage = \"x\"\nmodule_name = \"x\"\nout = \"py\"\nendpoint = { env = \"WEATHER_PY_ENDPOINT\" }\n";
+    let (_directory, path) = repository(text);
+    let mut file = sdk::load(&path).unwrap();
+    file.resolve_endpoints(&["ts".into()], |name| {
+        (name == "WEATHER_TS_ENDPOINT").then(|| "https://ts.example".into())
+    })
+    .unwrap();
+    assert_eq!(
+        file.sdks["ts"].options.endpoint.as_ref().unwrap().value(),
+        Some("https://ts.example")
+    );
+    assert_eq!(
+        file.sdks["python"]
+            .options
+            .endpoint
+            .as_ref()
+            .unwrap()
+            .value(),
+        None
+    );
+    for value in [
+        "not a url".to_owned(),
+        format!("https://u:{SENTINEL}@api.example"),
+    ] {
+        let mut file = sdk::load(&path).unwrap();
+        let error = file
+            .resolve_endpoints(&["ts".into()], |_| Some(value.clone()))
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("WEATHER_TS_ENDPOINT"), "{error}");
+        assert!(!error.contains(SENTINEL), "{error}");
+    }
+}
+
+/// A build script reads only the SDK file's model and names, so a file
+/// `crucible sdk` would refuse never breaks an unrelated build.
+#[test]
+fn declared_reads_names_leniently() {
+    let (directory, path) = repository(
+        "schema_version = 99\nmodel = \"model.json\"\nfuture_key = 1\n[sdk.rust]\nprivate = true\n[sdk.ts]\n",
+    );
+    let declared = sdk::declared(&path).unwrap();
+    assert_eq!(declared.model.as_deref(), Some("model.json"));
+    assert_eq!(declared.names, ["rust", "ts"]);
+    assert_eq!(
+        sdk::find_in_repository(directory.path()),
+        Some(path.clone())
+    );
+    fs::write(&path, "not = toml = at all").unwrap();
+    assert_eq!(sdk::declared(&path), None);
+    // Outside a Git repository nothing is found.
+    let loose = tempfile::tempdir().unwrap();
+    fs::write(loose.path().join(sdk::FILE_NAME), "model = \"m\"\n").unwrap();
+    if !loose
+        .path()
+        .ancestors()
+        .any(|ancestor| ancestor.join(".git").exists())
+    {
+        assert_eq!(sdk::find_in_repository(loose.path()), None);
+    }
 }

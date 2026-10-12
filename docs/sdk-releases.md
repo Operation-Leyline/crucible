@@ -17,8 +17,10 @@ comes next.
 
 A service declares its SDKs once, in `crucible-sdk.toml` at the root of
 its repository. The file names the model: a `.cru` package, Smithy
-sources or a JSON AST. Every path in it is relative to the file and written
-with `/`.
+sources or a JSON AST. Every path in it is relative to the file, written
+with `/`, and stays inside the file's directory: no empty, `.` or `..`
+segment, and a README or license must not resolve (through a symlink)
+outside it.
 
 ```toml
 schema_version = 1
@@ -75,9 +77,15 @@ channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{
   commands. A channel is `{ npm = "<registry>", access, dist_tag }` (for
   TypeScript) or `{ git = "<url>", branch, path, tag, adopt }`. A channel
   URL that carries a password or token is an error, and so is any user
-  name over HTTP(S); credentials come from the environment. A `private`
-  SDK must name a channel that is not a public registry's default, and an
-  `internal` SDK never names one.
+  name over HTTP(S); credentials come from the environment. The published
+  URLs (`repository`, `homepage`, `documentation`, `endpoint`) carry no
+  credentials either, and no message repeats one. A `private` SDK must
+  name a channel that is not a public registry's default, and an
+  `internal` SDK never names a public registry; the registry's host is
+  read as the network reads it (percent-decoded, lowercase, without a
+  trailing dot).
+- **`out`** directories are distinct: two SDKs whose `out`s are the same
+  directory, in any letter case, or one inside the other, are refused.
 
 Every error in the file is reported in one run, at its key.
 
@@ -97,7 +105,9 @@ crucible sdk generate [--sdk <name>]...
 Both find `crucible-sdk.toml` in the current directory or its nearest
 parent, up to the repository root; `--file` names another. `config`
 prints each SDK's effective configuration: the file with `[defaults]`
-applied and `{ env = ".." }` endpoints read. `--json` adds each SDK's
+applied and `{ env = ".." }` endpoints read (only the selected SDKs'
+variables are needed, and each must hold an http(s) URL without
+credentials). `--json` adds each SDK's
 `config_sha256`, the SHA-256 of its configuration as canonical JSON,
 which its packages record as `configSha256`.
 
@@ -112,15 +122,20 @@ Go), and never reads a registry.
 **One compiler for SDKs and server.** When the service's `Cargo.lock`
 (the nearest to the SDK file) resolves `crucible-build` or
 `crucible-server-runtime-rust` from Git, `crucible sdk` runs only at that
-revision, and names the command that installs it:
+revision, and names the command that installs it. A crucible built from a
+checkout with uncommitted changes has no verified revision, so it never
+passes. With no `Cargo.lock` up to the repository root, it warns that
+nothing was checked:
 
 ```sh
 cargo install --locked --git https://github.com/Operation-Leyline/crucible --rev <revision> crucible-cli
 ```
 
 A build script cannot configure a declared SDK: a `crucible_build` client
-builder whose output name the SDK file (found from the producer's
-directory) declares fails, so the build and the release cannot drift.
+builder fails when an SDK file in the producer's own Git repository (found
+from its directory) declares its output name and names its model source.
+The build script reads only the file's `model` and SDK names, so a file
+`crucible sdk` would refuse never fails an unrelated build.
 
 ## Package provenance
 
@@ -128,8 +143,9 @@ Rust and TypeScript packages carry two files at their root, which npm's
 `files` lists and `cargo package` includes:
 
 - `crucible.json`, schema 2: `schemaVersion`, `generator`,
-  `generatorVersion`, `generatorRevision` (the verified Git revision the
-  generator was built from, when it has one), `generatorChanges` (the
+  `generatorVersion`, `generatorRevision` (the Git revision the
+  generator was built from, when it has one; `<rev>+dirty` when its
+  checkout had uncommitted changes), `generatorChanges` (the
   highest entry of the generator change log,
   `crates/crucible-codegen/sdk-changes.toml`), `language`, `package`,
   `packageVersion`, `audience`, `service`, `serviceVersion`,
@@ -137,7 +153,14 @@ Rust and TypeScript packages carry two files at their root, which npm's
   declared SDK) and `contentDigest`. A release build will add `source`.
 - `crucible-model.json`: the compiled model as the package's audience sees
   it, in the release snapshot format of `crucible freeze`. An external
-  package reveals nothing `@internal`.
+  package reveals nothing `@internal`: the projection also drops the raw
+  copies of protocol tests, examples, waiters and endpoint tests, whose
+  projected forms it keeps.
+
+A Rust package with a Git channel, or a private one, has `publish = false`;
+a TypeScript package that is private with no npm registry, or released
+through Git, has `"private": true`. A README used as crate documentation
+is left out of doctests.
 
 `contentDigest` is `crucible-content-1:sha256:<hex>`, the SHA-256 of the
 label `crucible-content-1` followed by one record per generated file

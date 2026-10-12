@@ -34,6 +34,7 @@ r = ["dep:crucible-codegen-r"]
 [dependencies]
 crucible-smithy.workspace = true
 crucible-codegen-common.workspace = true
+crucible-revision.workspace = true
 serde.workspace = true
 sha2 = "0.10"
 toml = "0.8"

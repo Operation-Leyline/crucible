@@ -13,12 +13,6 @@ use crucible_smithy::ir::{
 };
 use serde_json::{Value, json};
 
-/// Verified Crucible Git revision embedded when the generators were built.
-/// Packaged or vendored generators without source provenance return `None`.
-pub fn source_revision() -> Option<&'static str> {
-    option_env!("CRUCIBLE_GENERATOR_REVISION")
-}
-
 /// Public service identity shared by exception classes, protocols and interfaces.
 pub fn service_exception_name(service: &Service) -> String {
     format!("{}Exception", service.id.name())

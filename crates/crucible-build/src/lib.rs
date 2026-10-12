@@ -214,7 +214,7 @@ pub use crucible_codegen::TsOptions;
 pub use crucible_codegen::cdk;
 #[cfg(any(feature = "cdk", feature = "terraform"))]
 pub use crucible_codegen::infra;
-pub use crucible_codegen::{Audience, Client, Generator, PackageMetadata, Server};
+pub use crucible_codegen::{Audience, Client, Generator, PackageMetadata, Registry, Server};
 #[cfg(feature = "cdk")]
 pub use crucible_codegen::{CdkOptions, CdkTargets};
 #[cfg(feature = "rust")]
