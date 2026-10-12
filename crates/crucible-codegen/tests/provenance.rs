@@ -59,7 +59,7 @@ fn record(files: &[File]) -> serde_json::Value {
 
 /// The record, checked in with its machine-dependent revision left out.
 fn golden(name: &str, files: &[File]) {
-    let mut record = record(files);
+    let record = record(files);
     assert_eq!(
         record["generatorRevision"].as_str(),
         crucible_codegen_common::source_revision()
