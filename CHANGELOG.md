@@ -15,6 +15,16 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-12
+
+Resources in the Crucible language say more about themselves: property
+mutability keywords, `$*` views, property presence and identifier spelling,
+with children inheriting only their ancestors' identifiers. `crucible-lsp`
+hover explains the language and shows whole shapes with their constraints.
+An optional member appended to a structure is no longer an SDK break, and
+generated Rust client types are `#[non_exhaustive]`. Breaking: follow
+*Migration*.
+
 ### Added
 
 - `crucible-lsp` hover explains the language and shows whole shapes. Every
@@ -70,7 +80,6 @@ version's section when it is prepared.
 - `ir::Member::mutability` is no longer only an explicit override: from a
   `.cru` package it is the declared mutability of the property the member
   carries.
-
 - **Breaking:** generated Rust client models, enums, unions and per-operation
   error enums are `#[non_exhaustive]`. Code in another crate builds models
   with their builders, destructures with `..` and matches with a `_` arm.
@@ -89,6 +98,11 @@ version's section when it is prepared.
   enums, unions and operation error enums. No shim is possible: the attribute
   is on the generated type. Bindings included with `include_client!()` live
   in the including crate and are unaffected.
+- **`.cru` child resources.** A `$name` in a child resource's operation or
+  view that bound an ancestor's property is now an error: bind the
+  ancestor's identifier, or declare the property on the child. A property
+  renamed only to avoid an ancestor's name (`workspaceName` for `name`) can
+  take its natural name back; the wire is unchanged.
 
 ## [0.5.0] - 2026-10-11
 

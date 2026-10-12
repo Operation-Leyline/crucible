@@ -514,7 +514,7 @@ checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
 name = "crucible-auth"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -534,7 +534,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-build"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crucible-codegen",
  "crucible-codegen-rust",
@@ -549,7 +549,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-client-runtime-rust"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crucible-codegen-rust",
  "crucible-smithy",
@@ -582,7 +582,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-common"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.22.1",
  "crucible-smithy",
@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-codegen-rust"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
@@ -606,7 +606,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-lang"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crucible-policy",
  "crucible-smithy",
@@ -618,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-policy"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "crucible-smithy",
  "regex",
@@ -629,7 +629,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-server-runtime-rust"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -653,7 +653,7 @@ dependencies = [
 
 [[package]]
 name = "crucible-smithy"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -667,11 +667,11 @@ dependencies = [
 
 [[package]]
 name = "crucible-traits"
-version = "0.5.0"
+version = "0.6.0"
 
 [[package]]
 name = "crucible-wire"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "base64 0.22.1",
  "bigdecimal",

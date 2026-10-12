@@ -477,7 +477,7 @@ print.crucible_error <- print.crucible_model
 === inst/crucible.json ===
 {
   "generator": "crucible-codegen-r",
-  "generatorVersion": "0.5.0",
+  "generatorVersion": "0.6.0",
   "packageVersion": "0.0.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",

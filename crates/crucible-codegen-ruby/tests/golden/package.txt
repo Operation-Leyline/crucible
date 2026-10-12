@@ -5,7 +5,7 @@ lib/**/*.rb
 
 === crucible.json ===
 {
-  "generatorVersion": "0.5.0",
+  "generatorVersion": "0.6.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
   "packageVersion": "0.0.0",
