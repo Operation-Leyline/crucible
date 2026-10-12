@@ -593,3 +593,24 @@ fn builds_a_typescript_package_with_the_pinned_compiler() {
     assert!(!release.join("ts/package/node_modules").exists());
     assert!(release.join("ts/package/dist/index.js").is_file());
 }
+
+/// An SDK with no channel and no version at all (Go has no development
+/// version) is built and recorded the same way in plan.json and
+/// release.json, so verify and publish accept the release.
+#[test]
+fn an_unversioned_sdk_without_a_channel_round_trips() {
+    let service = Service::new(
+        "[sdk.go]\nmodule_path = \"example.com/weather\"\npackage = \"weather\"\nout = \"generated/go\"\n",
+    );
+    let release = service.release();
+    let release_arg = release.to_str().unwrap();
+    success(service.crucible(&["sdk", "build", "--out", release_arg]));
+    let plan = json(&fs::read_to_string(release.join("plan.json")).unwrap());
+    let record = json(&fs::read_to_string(release.join("release.json")).unwrap());
+    assert!(plan["sdks"]["go"].get("version").is_none(), "{plan}");
+    assert!(record["sdks"]["go"].get("version").is_none(), "{record}");
+    let verified = success(service.crucible(&["sdk", "verify", release_arg]));
+    assert!(verified.contains("sdk.go unversioned"), "{verified}");
+    let published = success(service.crucible(&["sdk", "publish", release_arg]));
+    assert!(published.contains("sdk.go: no channel"), "{published}");
+}

@@ -450,7 +450,7 @@ pub(crate) fn build(
         release.sdks.insert(
             sdk.name.clone(),
             SdkRelease {
-                version: plan.version.clone().unwrap_or_default(),
+                version: plan.version.clone(),
                 channel: plan.channel.is_some(),
                 reasons: plan
                     .decision

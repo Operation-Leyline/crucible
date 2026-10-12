@@ -50,9 +50,7 @@ fn records(release: &Path) -> Result<(PlanRecord, ReleaseRecord), String> {
         let planned = plan.sdks.get(name).ok_or_else(|| {
             format!("{RELEASE_FILE} lists sdk.{name}, which {PLAN_FILE} does not")
         })?;
-        if planned.artifact.as_ref() != Some(&built.artifact)
-            || planned.version.as_deref() != Some(built.version.as_str())
-        {
+        if planned.artifact.as_ref() != Some(&built.artifact) || planned.version != built.version {
             return Err(format!(
                 "{PLAN_FILE} and {RELEASE_FILE} disagree about sdk.{name}"
             ));
@@ -82,7 +80,10 @@ pub(crate) fn verify(release: &Path) -> Result<(), String> {
     for (name, built) in &record.sdks {
         println!(
             "sdk.{name} {}: {} ({} bytes, sha256 {})",
-            built.version, built.artifact.path, built.artifact.size, built.artifact.sha256
+            built.version.as_deref().unwrap_or("unversioned"),
+            built.artifact.path,
+            built.artifact.size,
+            built.artifact.sha256
         );
     }
     println!("verified {PLAN_FILE} and {} artifact(s)", record.sdks.len());
@@ -150,8 +151,11 @@ fn publish_sdk(
         println!("sdk.{name}: no channel; built and tested only");
         return Ok(false);
     };
-    let version = Version::parse(&built.version)
-        .map_err(|error| format!("sdk.{name}: {:?}: {error}", built.version))?;
+    let text = built
+        .version
+        .as_deref()
+        .ok_or_else(|| format!("sdk.{name}: a released SDK has no version"))?;
+    let version = Version::parse(text).map_err(|error| format!("sdk.{name}: {text:?}: {error}"))?;
     let channel = crucible_sdk_release::open(config, project)
         .map_err(|error| format!("sdk.{name}: {error}"))?;
     let item = PublishItem {

@@ -90,16 +90,12 @@ impl Journal {
             .find(|upload| upload.sdk == sdk && upload.version == *version)
     }
 
-    /// Adds `upload` and rewrites the journal (a temporary file, then a
-    /// rename, so a crash never leaves half a journal).
+    /// Adds `upload` and rewrites the journal durably: a synced temporary
+    /// file renamed over it, so a crash or power loss never leaves an
+    /// empty or partial journal.
     pub fn record(&mut self, release_dir: &Path, upload: Upload) -> io::Result<()> {
         self.uploads.push(upload);
-        let path = Self::path(release_dir);
-        let temporary = release_dir.join(format!("{JOURNAL_FILE}.tmp"));
-        let mut text = serde_json::to_string_pretty(self).map_err(io::Error::other)?;
-        text.push('\n');
-        fs::write(&temporary, text)?;
-        fs::rename(&temporary, &path)
+        crate::record::write_json(&Self::path(release_dir), self)
     }
 }
 

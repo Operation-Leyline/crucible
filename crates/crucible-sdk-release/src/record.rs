@@ -180,7 +180,10 @@ pub struct ReleaseRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SdkRelease {
-    pub version: String,
+    /// The version built, as in the plan; `None` for an SDK with no
+    /// channel, floor or development version (Go).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
     /// Whether a channel releases it (`false`: built and tested only).
     pub channel: bool,
     pub reasons: Vec<String>,
@@ -237,11 +240,27 @@ impl LastSummary {
     }
 }
 
-/// Writes `value` as pretty JSON with a final newline.
+/// Writes `value` as pretty JSON with a final newline, durably (see
+/// [`write_durably`]).
 pub fn write_json<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
     let mut text = serde_json::to_string_pretty(value).map_err(io::Error::other)?;
     text.push('\n');
-    fs::write(path, text)
+    write_durably(path, text.as_bytes())
+}
+
+/// Replaces `path` with `bytes` so that a crash or power loss leaves the
+/// old file or the new one, never an empty or partial one: a temporary
+/// file in the same directory, synced, renamed over `path`, and on Unix
+/// the directory synced so the rename itself survives.
+pub fn write_durably(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let directory = path.parent().unwrap_or(Path::new("."));
+    let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
+    io::Write::write_all(&mut temporary, bytes)?;
+    temporary.as_file().sync_all()?;
+    temporary.persist(path).map_err(|error| error.error)?;
+    #[cfg(unix)]
+    fs::File::open(directory)?.sync_all()?;
+    Ok(())
 }
 
 /// Reads a record, refusing a schema newer than this crate's.
@@ -347,6 +366,20 @@ mod tests {
             ..record
         };
         assert!(escaping.verify(dir.path()).is_err());
+    }
+
+    #[test]
+    fn durable_writes_replace_the_file_and_leave_nothing_behind() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("release.json");
+        super::write_durably(&path, b"old").unwrap();
+        super::write_durably(&path, b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        let names: Vec<_> = fs::read_dir(dir.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect();
+        assert_eq!(names, ["release.json"]);
     }
 
     #[test]
