@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use crucible_lang::ast::{
-    Body, Decl, ErrorEntry, Ident, Member, MemberKind, MetaType, OpEntry, Resource,
+    Body, Decl, ErrorEntry, Ident, Member, MemberKind, MetaType, OpEntry, Resource, ResourceEntry,
 };
 use crucible_lang::{Parsed, Token, TokenKind};
 
@@ -26,7 +26,7 @@ pub enum HintKind {
 }
 
 /// Every resource declared in `files`, by name.
-fn resources<'a>(files: &[&'a Parsed]) -> HashMap<&'a str, &'a Resource> {
+pub(crate) fn resources<'a>(files: &[&'a Parsed]) -> HashMap<&'a str, &'a Resource> {
     let mut out = HashMap::new();
     for parsed in files {
         for item in &parsed.file.items {
@@ -38,13 +38,13 @@ fn resources<'a>(files: &[&'a Parsed]) -> HashMap<&'a str, &'a Resource> {
     out
 }
 
-/// The type of a resource's identifier or property, looking through its
-/// parents as lowering does.
-fn entry_type<'a>(
+/// A resource's identifier or property and the resource that declares it,
+/// looking through its parents as lowering does.
+pub(crate) fn resource_entry<'a>(
     resources: &HashMap<&str, &'a Resource>,
     resource: &str,
     name: &str,
-) -> Option<&'a Ident> {
+) -> Option<(&'a Resource, &'a ResourceEntry)> {
     let mut current = Some(resource);
     let mut seen = Vec::new();
     while let Some(resource) = current {
@@ -58,7 +58,7 @@ fn entry_type<'a>(
             .iter()
             .find(|entry| entry.name.name == name)
         {
-            return Some(&entry.ty.name);
+            return Some((declaration, entry));
         }
         current = declaration
             .parent
@@ -66,6 +66,15 @@ fn entry_type<'a>(
             .map(|parent| parent.name.as_str());
     }
     None
+}
+
+/// The type of a resource's identifier or property.
+fn entry_type<'a>(
+    resources: &HashMap<&str, &'a Resource>,
+    resource: &str,
+    name: &str,
+) -> Option<&'a Ident> {
+    resource_entry(resources, resource, name).map(|(_, entry)| &entry.ty.name)
 }
 
 /// Visits every member list in `parsed` with the resource its elided

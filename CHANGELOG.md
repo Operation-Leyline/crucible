@@ -15,6 +15,21 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- `crucible-lsp` hover explains the language and shows whole shapes. Every
+  keyword, built-in type, constraint and built-in annotation explains itself
+  with a short example, by where it is written (`on` attaches an operation,
+  but lists a metadata key's targets). A declaration, or a name that refers
+  to one, shows its source form with its constraints: a list or map also
+  shows its item, key and value types, and the constraints of a scalar, list
+  or map are spelled out in words. Structures and enums show their source
+  form (members with their types, optionality, defaults and member
+  constraints; values). A member's hover shows its type, whether it is
+  required, its default, and spells out the constraints that apply to it,
+  its own laid over its type's. Code is fenced as `crucible`, so editors,
+  the IntelliJ plugin among them, highlight it; prose stays outside.
+
 ### Changed
 
 - **Breaking:** generated Rust client models, enums, unions and per-operation

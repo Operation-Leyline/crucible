@@ -192,3 +192,11 @@ are required unless marked `?` (20), inputs and outputs are anonymous (25),
 resources, roles and representations (31-34i), protocols and families
 (35-35d), metadata (43), rules, templates and exceptions (45-47f),
 migrations (51-59).
+
+## In the editor
+
+`crucible-lsp` explains each keyword, built-in type, constraint and
+built-in annotation on hover from one table, `KEYWORDS` in
+`crates/crucible-lsp/src/hover.rs`, written from this reference and
+[decisions.md](decisions.md). Change it with them: its test parses every
+example in it and hovers the word it explains.

@@ -44,7 +44,7 @@ use serde_json::Value;
 use crate::analysis::{self, Index, Symbol, TOKEN_MODIFIERS, TOKEN_TYPES};
 use crate::insight::{self, HintKind};
 use crate::lines::Lines;
-use crate::{actions, completion, folding, manifest, policy};
+use crate::{actions, completion, folding, hover, manifest, policy};
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 /// A request's result, or an LSP error code and message.
@@ -1510,13 +1510,31 @@ impl Server {
                 range: None,
             });
         }
-        let (_, name, declaration, range) = self.declaration_at(uri, position)?;
+        let (document, parsed, unit) = self.model(uri)?;
+        let lines = Lines::new(&document.text);
+        // Before the package first compiles, the open file still explains
+        // its own keywords and declarations.
+        let own;
+        let (index, package) = match unit {
+            Some(unit) => (&unit.index, &unit.compiled.parsed[..]),
+            None => {
+                own = Index::new(std::slice::from_ref(&parsed));
+                (&own, &[][..])
+            }
+        };
+        let (start, end, value) = hover::hover(
+            &parsed,
+            &document.text,
+            index,
+            package,
+            lines.offset(position),
+        )?;
         Some(Hover {
             contents: HoverContents::Markup(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: analysis::hover_markdown(&name, declaration),
+                value,
             }),
-            range: Some(range),
+            range: Some(lines.range(start, end)),
         })
     }
 
