@@ -57,17 +57,19 @@ this runner predates it: it passes `<package>/src/lib.rs` as `--out`. A Rust
 target that does not list `--client` in its `arguments` generates server
 bindings there. One that does writes the client package into a directory named
 `src/lib.rs`. The checked-in Weather recipe has no Rust target, and a fix is
-tracked separately. Until then, generate the Rust client directly and package
-it with Cargo:
+tracked separately. Until then, generate and build the Rust client directly:
 
 ```sh
 crucible generate rust path/to/model --client --package-name weather-sdk \
   --package-version 1.0.0 --out target/rust-sdk
-cargo package --manifest-path target/rust-sdk/Cargo.toml
+cargo build --manifest-path target/rust-sdk/Cargo.toml
 ```
 
- Languages distributed by Git tags, source archives, or package
-manager manifests should use their native release mechanism in the recipe.
+Distribute it by Git tag or path. `cargo package` needs the Rust runtime crates
+in a registry, and they are not published yet.
+
+Languages distributed by Git tags, source archives, or package manager
+manifests should use their native release mechanism in the recipe.
 The runner does not pretend every language has an upload registry.
 
 | Ecosystem | Native artifact and publication mechanism |
