@@ -513,6 +513,12 @@ records a credential.
 **CI builds once, tests, then publishes those bytes**, after the deploy.
 A client ahead of its API breaks everyone who installs it, and an older
 server refuses an unknown release ([api-versions-clients.md](api-versions-clients.md)).
+`setup-crucible` comes from the private `crucible-actions`, whose Actions
+access is `none`: another organisation cannot `uses:` it, so each job checks
+it out at a pinned commit with an Operation-Leyline app token for `crucible`
+and `crucible-actions` and uses `./crucible-actions/setup-crucible`
+([releasing generated SDKs](sdk-releases.md#release-declared-sdks-crucible-sdk-planbuildverifypublish)
+has the same-organisation form).
 
 ```yaml
 concurrency: { group: sdk-release, cancel-in-progress: false }
@@ -525,24 +531,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
-      # Crucible is private, and github.token cannot read another repository.
+      # Crucible and crucible-actions are private, and github.token cannot
+      # read another repository: a token from the Operation-Leyline
+      # installation of the crucible-ci-read app can.
       - id: token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: '${{ vars.CRUCIBLE_APP_ID }}'
-          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_PRIVATE_KEY }}'
           owner: Operation-Leyline
-          repositories: crucible
+          repositories: |
+            crucible
+            crucible-actions
+      # No other repository can `uses:` the private crucible-actions, so it
+      # is checked out with the token and its action used from the path.
+      - uses: actions/checkout@v4
+        with:
+          repository: Operation-Leyline/crucible-actions
+          ref: <pinned sha>
+          token: '${{ steps.token.outputs.token }}'
+          path: crucible-actions
+          persist-credentials: false
       # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
       - id: pin
         shell: bash
         run: |
           rev=$(awk -F'"' '/^name = /{n=$2} /^source = "git\+/ && (n=="crucible-build" || n=="crucible-server-runtime-rust") {sub(/.*#/, "", $2); print $2; exit}' Cargo.lock)
+          [[ "$rev" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::no Crucible revision in Cargo.lock"; exit 1; }
           echo "rev=$rev" >> "$GITHUB_OUTPUT"
       # Builds the CLI (a debug build) and names it in its `cli` output; it
       # is not put on PATH.
       - id: crucible
-        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        uses: ./crucible-actions/setup-crucible
         with: { crucible-ref: '${{ steps.pin.outputs.rev }}', token: '${{ steps.token.outputs.token }}' }
       - uses: ./.github/actions/crucible-access            # private Crucible, for the consumer's cargo test
       - uses: actions/setup-node@v4
@@ -564,14 +584,25 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
       - id: token
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v2
         with:
           app-id: '${{ vars.CRUCIBLE_APP_ID }}'
-          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_PRIVATE_KEY }}'
           owner: Operation-Leyline
-          repositories: crucible
+          repositories: |
+            crucible
+            crucible-actions
+      # No other repository can `uses:` the private crucible-actions, so it
+      # is checked out with the token and its action used from the path.
+      - uses: actions/checkout@v4
+        with:
+          repository: Operation-Leyline/crucible-actions
+          ref: <pinned sha>
+          token: '${{ steps.token.outputs.token }}'
+          path: crucible-actions
+          persist-credentials: false
       - id: crucible
-        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        uses: ./crucible-actions/setup-crucible
         with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}', token: '${{ steps.token.outputs.token }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }

@@ -161,7 +161,11 @@ for crate in crucible-server-runtime-rust crucible-wire crucible-client-runtime-
 done
 ```
 
-Replace `v0.4.0` with the previous tag. Every *removed* or *changed* line must
+Replace `v0.4.0` with the previous tag. If you compare two checkouts instead
+(a worktree at the previous tag, `cargo public-api --package <crate>` in
+each, then `diff`), give each worktree its own `CARGO_TARGET_DIR`: two
+worktrees sharing one reuse each other's stale build output and report
+false compile errors. Every *removed* or *changed* line must
 be exempt (`__generated`, `__private`), carry a `#[deprecated]` shim from the
 previous release, or appear under *Migration* in the CHANGELOG. Record the
 result in the release PR.
