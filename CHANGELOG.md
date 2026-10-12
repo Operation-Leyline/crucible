@@ -39,8 +39,11 @@ version's section when it is prepared.
   `immutable` property needs a `creates` or `puts` that sets it, a
   `writeonly` one never appears in a view or output, and a `@mutability`
   annotation on a member that binds a property must agree with its
-  keyword. A property left read-write that no `updates`, `puts` or `on`
-  input binds is a warning.
+  keyword. An `on .. collection` binding counts as a create (it carries
+  mutability and sets an `immutable` property) and an instance `on`
+  binding as a change. A property left read-write that no `updates`,
+  `puts` or instance `on` input binds is a warning, as is a `for` view
+  used as a member type in a writing input, which binds nothing.
 - `$*` in a `for` view (decision 34d) expands to the resource's own
   identifiers and every property that is not `writeonly`, in declaration
   order; `$name?` after it loosens one entry for that view.

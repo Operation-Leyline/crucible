@@ -17,8 +17,15 @@ pub enum Context {
     Service,
     Operation,
     Members,
+    /// The members of a `structure .. for` view, where `$*` applies.
+    ViewMembers,
     ErrorEntries,
     ResourceEntries,
+    /// After `readonly`, `immutable` or `writeonly` in a resource: only a
+    /// property takes them, and `immutable` combines with `writeonly`.
+    EntryAfterKeyword {
+        immutable: bool,
+    },
     Constraints,
     RuleClauses,
     MigrationSteps,
@@ -143,6 +150,18 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
         {
             return Context::Roles;
         }
+        if prev.kind == TokenKind::Ident
+            && matches!(word(prev), "readonly" | "immutable" | "writeonly")
+            && let Some(&index) = open
+                .iter()
+                .rev()
+                .find(|&&index| before[index].kind == TokenKind::LBrace)
+            && block_context(&before, index, text) == Context::ResourceEntries
+        {
+            return Context::EntryAfterKeyword {
+                immutable: word(prev) == "immutable",
+            };
+        }
     }
     let line_start = match prev {
         None => true,
@@ -177,6 +196,14 @@ fn block_context(before: &[&Token], index: usize, text: &str) -> Context {
     match statement_head(before, index, text) {
         Some("service") => Context::Service,
         Some("operation" | "template") => Context::Operation,
+        // `structure Name for Resource {`: a view.
+        Some("structure")
+            if before[line_start..index]
+                .iter()
+                .any(|token| token.kind == TokenKind::Ident && token.span.text(text) == "for") =>
+        {
+            Context::ViewMembers
+        }
         Some("input" | "output" | "structure" | "union") => Context::Members,
         Some("error") => Context::ErrorEntries,
         Some("resource") => Context::ResourceEntries,
@@ -410,17 +437,29 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "example \"${1:title}\" {\n    input { $2 }\n    output { $0 }\n}",
             );
         }
-        Context::Members => {
+        Context::Members | Context::ViewMembers => {
             items.snippet(
                 "include",
                 "include another structure's members",
                 "include ${1:Structure}",
             );
+            if context == Context::ViewMembers {
+                items.snippet(
+                    "$*",
+                    "the view's identifiers and readable properties",
+                    "\\$*",
+                );
+            }
+        }
+        Context::EntryAfterKeyword { immutable } => {
             items.snippet(
-                "$*",
-                "a `for` view's identifiers and readable properties",
-                "\\$*",
+                "property",
+                "resource property",
+                "property ${1:name}: ${2:Type}",
             );
+            if immutable {
+                items.keyword("writeonly", "set once at creation, never returned");
+            }
         }
         Context::ErrorEntries => {
             items.snippet("status", "HTTP status", "status ${1:400}");
@@ -601,6 +640,17 @@ mod tests {
         );
         assert_eq!(at("error E {\n    |\n}"), Context::ErrorEntries);
         assert_eq!(at("resource R {\n    |\n}"), Context::ResourceEntries);
+        assert_eq!(
+            at("resource R {\n    readonly |\n}"),
+            Context::EntryAfterKeyword { immutable: false }
+        );
+        assert_eq!(
+            at("resource R {\n    immutable pr|\n}"),
+            Context::EntryAfterKeyword { immutable: true }
+        );
+        assert_eq!(at("readonly |"), Context::Nothing);
+        assert_eq!(at("structure V for R {\n    |\n}"), Context::ViewMembers);
+        assert_eq!(at("structure V {\n    |\n}"), Context::Members);
         assert_eq!(
             at("operation Op {\n    paginated(items: |)\n}"),
             Context::Nothing

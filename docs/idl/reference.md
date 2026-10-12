@@ -184,8 +184,8 @@ language's own checks include:
   named again only as `$name?` after it, which loosens it for that view;
 - property mutability (decision 34a): an `updates` input does not bind a
   `readonly` or `immutable` property, a `creates` or `puts` input does not
-  bind a `readonly` one, some `creates` or `puts` input binds every
-  `immutable` property, a view or output never shows a `writeonly` one,
+  bind a `readonly` one, some `creates`, `puts` or `on .. collection` input
+  binds every `immutable` property, a view or output never shows a `writeonly` one,
   and `@mutability` on a member that binds a property agrees with its
   keyword. Bindings under `@query` and the inputs of `reads`, `lists`,
   `deletes` and `on` operations are not writes;
@@ -198,8 +198,10 @@ language's own checks include:
 Warnings never withhold the IR. The compiler warns about a plain member
 whose name is a resource identifier or property ("did you mean
 `$name`?", decision 33), a property that is neither `readonly` nor
-`immutable` and that no `updates`, `puts` or `on` input binds (declare it
-`immutable`, or `readonly` when nothing writes it; decision 34a), a
+`immutable` and that no `updates`, `puts` or instance `on` input binds
+(declare it `immutable`, or `readonly` when nothing writes it, or an
+identifier's `as id` for a `property id` that repeats it; decision 34a), a
+`for` view used as a member type in a writing input, which binds nothing, a
 resource with `reads`, `lists` or `creates` operations whose outputs show
 none of its properties, a structure without `for` that restates a
 resource's identifier and a property (decision 34h), an operation attached

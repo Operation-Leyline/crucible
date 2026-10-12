@@ -685,8 +685,8 @@ impl<'a> Lowerer<'a> {
     }
 
     /// The operations of this package attached to `resource`, with their
-    /// roles.
-    fn attached(&self, resource: &str) -> Vec<(&'a Operation, &'a str)> {
+    /// attachments.
+    fn attached(&self, resource: &str) -> Vec<(&'a Operation, &'a Attachment)> {
         self.decls
             .values()
             .filter(|decl| decl.ns == self.ns)
@@ -695,7 +695,7 @@ impl<'a> Lowerer<'a> {
                     .attachment
                     .as_ref()
                     .filter(|a| a.resource.name == resource)
-                    .map(|a| (operation, a.role.name.as_str())),
+                    .map(|a| (operation, a)),
                 _ => None,
             })
             .collect()
@@ -828,20 +828,25 @@ impl<'a> Lowerer<'a> {
             let operations = self.attached(name);
             let mut created = BTreeSet::new();
             let mut updated = BTreeSet::new();
-            for (operation, role) in &operations {
+            for (operation, attachment) in &operations {
                 let Some(input) = Self::body(operation, BodyKind::Input) else {
                     continue;
                 };
-                match *role {
-                    "creates" => self.written(&input.members, name, &mut Vec::new(), &mut created),
-                    // A custom action's input is not checked against the
-                    // keywords, but what it binds does change after
-                    // creation (Leyline's `PutGraphGroupMembership` moves a
-                    // graph's `groupId`), so it counts against the warning.
-                    "updates" | "on" => {
+                match (attachment.role.name.as_str(), attachment.collection) {
+                    // A custom collection action makes new instances, as
+                    // Pigeon's `CreateApiKey` does (34g), so what it binds
+                    // is set at creation.
+                    ("creates", _) | ("on", true) => {
+                        self.written(&input.members, name, &mut Vec::new(), &mut created)
+                    }
+                    // A custom instance action's input is not checked
+                    // against the keywords, but what it binds does change
+                    // after creation (Leyline's `PutGraphGroupMembership`
+                    // moves a graph's `groupId`), so it counts as a change.
+                    ("updates", _) | ("on", false) => {
                         self.written(&input.members, name, &mut Vec::new(), &mut updated)
                     }
-                    "puts" => {
+                    ("puts", _) => {
                         let mut put = BTreeSet::new();
                         self.written(&input.members, name, &mut Vec::new(), &mut put);
                         created.extend(put.iter().copied());
@@ -866,13 +871,32 @@ impl<'a> Lowerer<'a> {
                             file,
                             entry.name.span,
                             format!(
-                                "`{property}` is {}, but no `creates` or `puts` input binds `${property}`: nothing could ever set it",
+                                "`{property}` is {}, but no `creates`, `puts` or `on .. collection` input binds `${property}`: nothing could ever set it",
                                 mutability_keyword(mutability)
                             ),
                         );
                     }
                     Mutability::Full | Mutability::Write if !updated.contains(property) => {
-                        let message = if created.contains(property) {
+                        // A `property id` repeating an identifier's value is
+                        // the identifier's spelling in views (34f). Only the
+                        // name `id`: two entries may share a plain string
+                        // type without being one value.
+                        let repeated = resource.entries.iter().find(|id| {
+                            property == "id"
+                                && id.kind == ResourceEntryKind::Id
+                                && id.alias.is_none()
+                                && self.type_id(&id.ty.name.name).is_some()
+                                && self.type_id(&id.ty.name.name)
+                                    == self.type_id(&entry.ty.name.name)
+                        });
+                        let message = if let Some(id) = repeated
+                            && !created.contains(property)
+                        {
+                            format!(
+                                "`{property}` repeats the identifier `{0}`, which nothing writes: declare `id {0}: {1} as {property}` and remove the property, so views show the identifier as `{property}`",
+                                id.name.name, id.ty.name.name
+                            )
+                        } else if created.contains(property) {
                             let keyword = if mutability == Mutability::Write {
                                 "immutable writeonly"
                             } else {
@@ -897,8 +921,8 @@ impl<'a> Lowerer<'a> {
             }
             let shown_by: Vec<&str> = operations
                 .iter()
-                .filter(|(_, role)| matches!(*role, "reads" | "lists" | "creates"))
-                .map(|(_, role)| *role)
+                .map(|(_, attachment)| attachment.role.name.as_str())
+                .filter(|role| matches!(*role, "reads" | "lists" | "creates"))
                 .collect();
             if shown_by.is_empty() {
                 continue;
@@ -3124,6 +3148,28 @@ impl<'a> Lowerer<'a> {
         *star = Some(included);
     }
 
+    /// The `for resource` view a member type is, or the items or values of,
+    /// if any.
+    fn nested_view(&self, name: &str, resource: &str, depth: usize) -> Option<String> {
+        // Lists of lists end; a cycle of collections is reported elsewhere.
+        if depth > 8 {
+            return None;
+        }
+        match self.decl(name).map(|d| &d.item.decl) {
+            Some(Decl::Structure(structure))
+                if structure
+                    .resource
+                    .as_ref()
+                    .is_some_and(|r| r.name == resource) =>
+            {
+                Some(name.to_owned())
+            }
+            Some(Decl::List(list)) => self.nested_view(&list.member.name, resource, depth + 1),
+            Some(Decl::Map(map)) => self.nested_view(&map.value.name, resource, depth + 1),
+            _ => None,
+        }
+    }
+
     /// `resource` and its ancestors, nearest first, with their files; a
     /// cycle (reported by `check_resources`) ends the chain.
     fn chain(&self, resource: &str) -> Vec<(usize, &'a Resource)> {
@@ -3206,6 +3252,12 @@ impl<'a> Lowerer<'a> {
             .role
             .filter(|role| context.site == Site::Input && WRITES.contains(role));
         let write = role.filter(|_| annotations.query.is_none());
+        // A custom collection action creates (34g): what it binds carries
+        // the property's value, though its input is not checked.
+        let creates_unchecked = context.site == Site::Input
+            && context.role == Some("on")
+            && context.collection
+            && annotations.query.is_none();
         if representation && declared.write_only() {
             self.error(
                 file,
@@ -3265,7 +3317,7 @@ impl<'a> Lowerer<'a> {
                 ),
             );
         }
-        if representation || write.is_some() {
+        if representation || write.is_some() || creates_unchecked {
             Some(declared)
         } else {
             annotations.mutability
@@ -3425,6 +3477,24 @@ impl<'a> Lowerer<'a> {
                 name_span,
                 format!(
                     "`{name}` is a plain member and does not bind `{resource}`'s `{name}`; did you mean `${name}`?"
+                ),
+            );
+        }
+        // Decision 34a checks a write property by property: a view nested in
+        // a writing input binds nothing, and its keywords go unchecked.
+        if context.site == Site::Input
+            && context
+                .role
+                .is_some_and(|role| WRITES.contains(&role) || role == "on")
+            && let Some(resource) = context.resource
+            && let MemberKind::Field { ty: Some(ty), .. } = &member.kind
+            && let Some(view) = self.nested_view(&ty.name.name, resource, 0)
+        {
+            self.warning(
+                file,
+                name_span,
+                format!(
+                    "`{name}` is typed by `{view}`, a view of `{resource}`: an input binds the properties it writes with `$name`, so their keywords are checked; a nested view's are not, and it counts as no binding"
                 ),
             );
         }

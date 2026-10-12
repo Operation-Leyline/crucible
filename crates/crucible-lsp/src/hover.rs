@@ -876,6 +876,12 @@ struct Found<'a> {
     /// The resource its `$members` draw from.
     resource: Option<&'a str>,
     union: bool,
+    /// A `for` view's or an output's member: a representation of the
+    /// resource, where a property's own `?` applies and an identifier takes
+    /// its `as` spelling (decisions 34e, 34f).
+    representation: bool,
+    /// A member of a `structure .. for` view, the only place `$*` expands.
+    view: bool,
 }
 
 impl<'a> Model<'a> {
@@ -1116,16 +1122,25 @@ impl<'a> Model<'a> {
                     out.extend(self.type_sections(&ty.name.name));
                 }
             }
-            MemberKind::Elided { name, optional, .. } => {
-                let presence = if *optional {
-                    "An optional"
-                } else {
-                    "A required"
-                };
+            MemberKind::Elided {
+                name,
+                alias,
+                optional,
+            } => {
                 let resources = insight::resources(&self.files);
                 let entry = found
                     .resource
                     .and_then(|resource| insight::resource_entry(&resources, resource, &name.name));
+                // In a representation a property's own `?` applies too.
+                let loosened = found.representation
+                    && entry.is_some_and(|(_, entry)| {
+                        entry.kind == ResourceEntryKind::Property && entry.optional
+                    });
+                let presence = if *optional || loosened {
+                    "An optional"
+                } else {
+                    "A required"
+                };
                 match entry {
                     Some((owner, entry)) => {
                         let keyword = match mutability(entry) {
@@ -1140,6 +1155,19 @@ impl<'a> Model<'a> {
                             code(&owner.name.name),
                             code(&render_type(&entry.ty))
                         ));
+                        let own = found.resource == Some(owner.name.name.as_str());
+                        if let Some(spelled) = entry.alias.as_ref().filter(|_| {
+                            found.representation
+                                && own
+                                && alias.is_none()
+                                && entry.kind == ResourceEntryKind::Id
+                        }) {
+                            out.push(format!(
+                                "Named {} here: {}'s spelling of the identifier in its views and outputs.",
+                                code(&spelled.name),
+                                code(&owner.name.name)
+                            ));
+                        }
                         out.extend(self.constraints(&entry.ty.constraints, &entry.ty.name.name));
                         if let Some(doc) = member.doc.as_ref().or(entry.doc.as_ref()) {
                             out.push(documentation(&doc.text));
@@ -1169,7 +1197,11 @@ impl<'a> Model<'a> {
         let row = keyword("$*", "structure")?;
         let mut out = vec![explain(row.0, row.2, row.3)];
         let resources = insight::resources(&self.files);
-        match found.resource.and_then(|name| resources.get(name)) {
+        match found
+            .resource
+            .filter(|_| found.view)
+            .and_then(|name| resources.get(name))
+        {
             Some(resource) => {
                 let ids = resource
                     .entries
@@ -1317,14 +1349,14 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
         entries: &'p [OpEntry],
         owner: String,
         at: &dyn Fn(&Member) -> bool,
-    ) -> Option<(&'p Member, String)> {
+    ) -> Option<(&'p Member, String, BodyKind)> {
         entries.iter().find_map(|entry| match entry {
             OpEntry::Body(Body { kind, members, .. }) => members.iter().find(|m| at(m)).map(|m| {
                 let part = match kind {
                     BodyKind::Input => "input",
                     BodyKind::Output => "output",
                 };
-                (m, format!("the {part} of {owner}"))
+                (m, format!("the {part} of {owner}"), *kind)
             }),
             _ => None,
         })
@@ -1336,12 +1368,16 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
                 container: format!("structure {}", code(&structure.name.name)),
                 resource: structure.resource.as_ref().map(|r| r.name.as_str()),
                 union: false,
+                representation: structure.resource.is_some(),
+                view: structure.resource.is_some(),
             }),
             Decl::Union(union) => union.members.iter().find(|m| at(m)).map(|m| Found {
                 member: m,
                 container: format!("union {}", code(&union.name.name)),
                 resource: None,
                 union: true,
+                representation: false,
+                view: false,
             }),
             Decl::Error(error) => error.entries.iter().find_map(|entry| match entry {
                 ErrorEntry::Member(m) if at(m) => Some(Found {
@@ -1349,12 +1385,14 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
                     container: format!("error {}", code(&error.name.name)),
                     resource: None,
                     union: false,
+                    representation: false,
+                    view: false,
                 }),
                 _ => None,
             }),
             Decl::Operation(operation) => {
-                bodies(&operation.entries, code(&operation.name.name), &at).map(|(m, container)| {
-                    Found {
+                bodies(&operation.entries, code(&operation.name.name), &at).map(
+                    |(m, container, kind)| Found {
                         member: m,
                         container,
                         resource: operation
@@ -1362,19 +1400,23 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
                             .as_ref()
                             .map(|attachment| attachment.resource.name.as_str()),
                         union: false,
-                    }
-                })
+                        representation: kind == BodyKind::Output,
+                        view: false,
+                    },
+                )
             }
             Decl::Template(template) => bodies(
                 &template.entries,
                 format!("template {}", code(&template.role.name)),
                 &at,
             )
-            .map(|(m, container)| Found {
+            .map(|(m, container, _)| Found {
                 member: m,
                 container,
                 resource: None,
                 union: false,
+                representation: false,
+                view: false,
             }),
             _ => None,
         };
@@ -2465,6 +2507,49 @@ note?: Note
         let loose = source.rfind("$*").unwrap();
         let (_, _, star) = hover(&parsed, source, &index, &[], loose).unwrap();
         assert!(star.contains("not a `for` view"), "{star}");
+    }
+
+    #[test]
+    fn bindings_show_presence_and_spelling_where_they_apply() {
+        let source = "resource Inbox {
+    id inboxId: InboxId as id
+    property note?: Note
+}
+structure InboxView for Inbox {
+    $inboxId
+    $note
+}
+operation EditInbox updates Inbox {
+    input {
+        $inboxId
+        $note
+        $*
+    }
+}
+";
+        // A view: the property's `?` applies, and the identifier its spelling.
+        let view_note = hover_at(source, "note", 1).unwrap();
+        assert!(
+            view_note.contains("An optional member of structure `InboxView`"),
+            "{view_note}"
+        );
+        let view_id = hover_at(source, "inboxId", 1).unwrap();
+        assert!(view_id.contains("Named `id` here"), "{view_id}");
+        // An input asks for what it needs, by identifier name.
+        let input_note = hover_at(source, "note", 2).unwrap();
+        assert!(
+            input_note.contains("A required member of the input of `EditInbox`"),
+            "{input_note}"
+        );
+        let input_id = hover_at(source, "inboxId", 2).unwrap();
+        assert!(!input_id.contains("Named `id`"), "{input_id}");
+        // `$*` in an input expands to nothing: lowering refuses it there.
+        let parsed = crucible_lang::parse(source);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let at = source.find("$*").unwrap();
+        let (_, _, star) = hover(&parsed, source, &index, &[], at).unwrap();
+        assert!(star.contains("not a `for` view"), "{star}");
+        assert!(!star.contains("Here it includes,"), "{star}");
     }
 
     #[test]

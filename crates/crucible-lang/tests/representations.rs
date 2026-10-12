@@ -596,7 +596,7 @@ fn an_immutable_property_something_must_set() {
     let (errors, _) = split(&with("        $region\n        $name\n", "        $name\n"));
     assert_mentions(
         &errors,
-        "`region` is `immutable`, but no `creates` or `puts` input binds `$region`: nothing could ever set it",
+        "`region` is `immutable`, but no `creates`, `puts` or `on .. collection` input binds `$region`: nothing could ever set it",
     );
 }
 
@@ -646,6 +646,104 @@ idempotent operation PutWorkspace puts Workspace {
     let (errors, warnings) = split(model);
     assert_eq!(errors, Vec::<String>::new());
     assert_eq!(warnings, Vec::<String>::new());
+}
+
+#[test]
+fn a_custom_collection_action_creates() {
+    // Decision 34g: a create that also returns a secret is often
+    // `on .. collection`, and it sets what it binds.
+    let model = r#"
+resource Workspace {
+    id workspaceId: WorkspaceId
+}
+resource ApiKey in Workspace {
+    id keyId: Text
+    immutable property label: Text
+    property note: Text
+}
+operation CreateApiKey on ApiKey collection {
+    http POST "/workspaces/{workspaceId}/keys"
+    input {
+        $workspaceId
+        $label
+        $note
+    }
+    output { secret: Text }
+}
+"#;
+    let (errors, warnings) = split(model);
+    assert_eq!(errors, Vec::<String>::new());
+    // `note` is set at creation and never changed.
+    assert_mentions(
+        &warnings,
+        "no `updates`, `puts` or `on` input binds `$note`, so nothing changes it after creation: declare it `immutable`",
+    );
+    let service = service(model);
+    assert_eq!(
+        member(&service, "CreateApiKeyInput", "label").mutability,
+        Some(Mutability::CreateAndRead)
+    );
+    assert_eq!(
+        member(&service, "CreateApiKeyInput", "note").mutability,
+        Some(Mutability::Full)
+    );
+}
+
+#[test]
+fn a_view_nested_in_a_writing_input_is_not_a_binding() {
+    let model = r#"
+resource Workspace {
+    id workspaceId: WorkspaceId
+}
+resource Box {
+    id boxId: Text
+    readonly property status: Text
+    property label: Text
+}
+structure BoxPatch for Box {
+    $status
+    $label
+}
+list BoxPatches: BoxPatch
+operation UpdateBox updates Box {
+    http PATCH "/boxes/{boxId}"
+    input {
+        $boxId
+        patch: BoxPatch
+        more?: BoxPatches
+    }
+}
+"#;
+    let (errors, warnings) = split(model);
+    // The view's `readonly` status is not an error here: the view is not a
+    // binding, which the warning says, and `label` counts as unwritten.
+    assert_eq!(errors, Vec::<String>::new());
+    assert_mentions(
+        &warnings,
+        "`patch` is typed by `BoxPatch`, a view of `Box`: an input binds the properties it writes with `$name`",
+    );
+    assert_mentions(&warnings, "`more` is typed by `BoxPatch`");
+    assert_mentions(&warnings, "binds `$label`, so the service alone sets it");
+    // A view in an output or a reading input is no write.
+    let (_, warnings) = split(&model.replace("updates Box", "on Box").replace(
+        "    input {\n        $boxId\n        patch: BoxPatch\n        more?: BoxPatches\n    }\n",
+        "    input { $boxId }\n    output { box: BoxPatch }\n",
+    ));
+    assert!(
+        !warnings.iter().any(|w| w.contains("is typed by")),
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn a_property_repeating_an_identifier_becomes_its_spelling() {
+    let (_, warnings) = split(
+        "resource Domain {\n    id domainId: Text\n    property id: Text\n    readonly property name: Name\n}\nstring Name",
+    );
+    assert_mentions(
+        &warnings,
+        "`id` repeats the identifier `domainId`, which nothing writes: declare `id domainId: Text as id` and remove the property",
+    );
 }
 
 #[test]

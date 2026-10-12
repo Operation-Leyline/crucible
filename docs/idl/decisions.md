@@ -385,7 +385,8 @@ trait when a project defines it.
     `Message` property is `to: AddressList`), and not an identifier of the
     resource itself in a collection operation's input, which decision 32
     forbids binding (a `ListGrants` that filters on `principalType`).
-    *Replaces:*
+    A member typed by a `for` view binds nothing in an input: the view's
+    members are a representation, not writes (34a). *Replaces:*
     `@notProperty` (323 uses), `@resourceIdentifier` (32 uses),
     `@property`, and Smithy's rule that every top-level member must bind or
     be excluded. *Why:* binding is positive and visible at the member;
@@ -425,10 +426,10 @@ trait when a project defines it.
     immutable and take no keyword. What was a derivation is now validation:
     - an `updates` input binding a `readonly` or `immutable` property is an
       error, and so is a `creates` or `puts` input binding a `readonly` one;
-    - an `immutable` property that no `creates` or `puts` input binds is an
-      error: nothing could ever set it;
+    - an `immutable` property that no `creates`, `puts` or `on ..
+      collection` input binds is an error: nothing could ever set it;
     - a property that is neither `readonly` nor `immutable` and that no
-      `updates`, `puts` or `on` input binds (outside `@query`) is a
+      `updates`, `puts` or instance `on` input binds (outside `@query`) is a
       warning ("declare it `immutable`"): left read-write, the
       infrastructure generators would offer an in-place update nothing
       implements, where CloudFormation treats a missing update handler as
@@ -446,13 +447,21 @@ trait when a project defines it.
       input, selects or filters; it is not a write and is not checked;
     - an `on` operation's input is not checked: a custom action may change
       state the lifecycle cannot (a suspend sets a `readonly` status). Its
-      bindings still count as changes for the warning above, since a
-      property a custom action changes is not create-only (Leyline's
-      `groupId` changes only through `PutGraphGroupMembership`).
+      bindings still count. An instance `on` binding is a change after
+      creation, so a property a custom action changes is not create-only
+      (Leyline's `groupId` changes only through `PutGraphGroupMembership`).
+      An `on .. collection` binding is a create, since a custom collection
+      action makes instances (Pigeon's `CreateApiKey`, 34g): it sets an
+      `immutable` property and carries mutability like a `creates` input;
+    - a `for` view used as a member type in a `creates`, `puts`, `updates`
+      or `on` input binds nothing and its keywords are not checked; the
+      compiler warns, since a write is bound with `$name` where the check
+      can see it.
 
     Lowering writes the property's mutability to `ir::Member::mutability`
     on every member that carries the property's value: view and output
-    members and the bindings in `creates`, `puts` and `updates` inputs.
+    members and the bindings in `creates`, `puts`, `updates` and `on ..
+    collection` inputs.
     Filter bindings carry none, since the infrastructure generators hide
     a `Write` or `Create` member and every shape containing one
     (`write_only_shape`), and a filter is not the property. Smithy fills
