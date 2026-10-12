@@ -23,6 +23,7 @@ impl Service {
         let service = Self { root };
         fs::write(service.root.path().join("gitconfig"), "").unwrap();
         service.git(&["init", "-q", "--bare", "-b", "main", "remote.git"]);
+        service.git(&["init", "-q", "--bare", "-b", "main", "remote2.git"]);
         let repo = service.repo();
         fs::create_dir_all(repo.join("sdk")).unwrap();
         fs::create_dir_all(repo.join("consumer")).unwrap();
@@ -32,6 +33,10 @@ impl Service {
         let file = format!(
             "schema_version = 1\nmodel = \"model.json\"\n\n[defaults]\ndescription = \"Client for the Weather API.\"\nreadme = \"sdk/README.md\"\n\n{}",
             sdks.replace("{remote}", &service.remote_url())
+                .replace(
+                    "{remote2}",
+                    &service.url_of(&service.root.path().join("remote2.git"))
+                )
                 .replace("{runtime}", RUNTIME)
         );
         fs::write(repo.join("crucible-sdk.toml"), file).unwrap();
@@ -46,6 +51,11 @@ impl Service {
 
     fn remote(&self) -> PathBuf {
         self.root.path().join("remote.git")
+    }
+
+    fn url_of(&self, path: &Path) -> String {
+        let path = path.to_string_lossy().replace('\\', "/");
+        format!("file:///{}", path.trim_start_matches('/'))
     }
 
     fn remote_url(&self) -> String {
@@ -238,7 +248,10 @@ fn plans_builds_verifies_and_publishes_a_git_channel_release() {
     ]));
     assert!(error.contains("not empty"), "{error}");
 
-    assert!(success(service.crucible(&["sdk", "verify", release_arg])).contains("verified 2"));
+    assert!(
+        success(service.crucible(&["sdk", "verify", release_arg]))
+            .contains("verified plan.json and 2 artifact(s)")
+    );
 
     // Without --execute, nothing is pushed.
     let dry = success(service.crucible(&["sdk", "publish", release_arg]));
@@ -252,6 +265,11 @@ fn plans_builds_verifies_and_publishes_a_git_channel_release() {
     assert!(published.contains("pushed v0.2.0"), "{published}");
     assert!(published.contains("rust-dev: no channel"), "{published}");
     assert_eq!(service.remote_tags(), "v0.2.0");
+    let message = service.git_in(&service.remote(), &["log", "-1", "--format=%s", "v0.2.0"]);
+    assert_eq!(
+        message,
+        format!("Release weather-sdk v0.2.0 from {}", &head[..12])
+    );
     let tree = service.git_in(
         &service.remote(),
         &["ls-tree", "-r", "--name-only", "v0.2.0"],
@@ -273,6 +291,17 @@ fn plans_builds_verifies_and_publishes_a_git_channel_release() {
     let again = success(service.crucible(&["sdk", "publish", release_arg, "--execute"]));
     assert!(again.contains("already on"), "{again}");
 
+    // Nothing changed: no release, and build says so.
+    let again = service.root.path().join("again");
+    let built = success(service.crucible(&[
+        "sdk",
+        "build",
+        "--sdk",
+        "rust",
+        "--out",
+        again.to_str().unwrap(),
+    ]));
+    assert!(built.contains("nothing to release"), "{built}");
     // Nothing changed: no release.
     let plan = json(&success(service.crucible(&["sdk", "plan", "--json"])));
     assert!(plan["sdks"]["rust"].get("version").is_none(), "{plan}");
@@ -309,6 +338,17 @@ fn plans_builds_verifies_and_publishes_a_git_channel_release() {
     assert!(error.contains("already has 0.2.0"), "{error}");
     let error = failure(service.crucible(&["sdk", "plan", "--bump", "rust-dev=minor"]));
     assert!(error.contains("no channel"), "{error}");
+
+    // plan.json names each channel and baseline: changing it after the
+    // release was recorded fails verify and publish.
+    let plan_path = release.join("plan.json");
+    let original = fs::read_to_string(&plan_path).unwrap();
+    fs::write(&plan_path, original.replace("remote.git", "elsewhere.git")).unwrap();
+    let error = failure(service.crucible(&["sdk", "verify", release_arg]));
+    assert!(error.contains("plan.json changed"), "{error}");
+    let error = failure(service.crucible(&["sdk", "publish", release_arg, "--execute"]));
+    assert!(error.contains("plan.json changed"), "{error}");
+    fs::write(&plan_path, original).unwrap();
 
     // A tampered artifact fails verify and publish.
     fs::write(release.join("rust/package.tar"), b"tampered").unwrap();
@@ -388,4 +428,168 @@ fn a_release_needs_committed_inputs_and_a_published_runtime() {
         "rust",
     ]));
     assert!(error.contains("runtime_path"), "{error}");
+}
+
+#[test]
+fn build_refuses_early_what_would_fail_late() {
+    // A lockfile that is not there fails before anything is built.
+    let service = Service::new(&RUST.replace("consumer/Cargo.lock\"]", "consumer/missing.lock\"]"));
+    let release = service.release();
+    let error = failure(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        release.to_str().unwrap(),
+        "--first-release",
+        "rust",
+    ]));
+    assert!(
+        error.contains("sdk.rust.lockfiles: consumer/missing.lock does not exist"),
+        "{error}"
+    );
+    assert!(!release.join("plan.json").exists());
+
+    // A file in `out` the release does not own would be tested, not shipped.
+    let service = Service::new(RUST);
+    let repo = service.repo();
+    fs::write(repo.join("consumer/expected.lock"), lock("0.2.0")).unwrap();
+    success(service.crucible(&["sdk", "generate", "--sdk", "rust"]));
+    fs::write(repo.join("generated/rust/src/extra.rs"), "// stray\n").unwrap();
+    // A consumer's own build output there is fine.
+    fs::create_dir_all(repo.join("generated/rust/target/debug")).unwrap();
+    fs::write(repo.join("generated/rust/target/debug/x"), "").unwrap();
+    let error = failure(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        service.release().to_str().unwrap(),
+        "--first-release",
+        "rust",
+    ]));
+    assert!(
+        error.contains("does not ship") && error.contains("src/extra.rs"),
+        "{error}"
+    );
+    assert!(!error.contains("target"), "{error}");
+}
+
+#[test]
+fn a_pre_crucible_out_gets_a_remedy() {
+    let service = Service::new(RUST);
+    let repo = service.repo();
+    fs::create_dir_all(repo.join("generated/rust")).unwrap();
+    fs::write(repo.join("generated/rust/Cargo.toml"), "[package]\n").unwrap();
+    let error = failure(service.crucible(&["sdk", "generate", "--sdk", "rust"]));
+    assert!(
+        error.contains("hint: if generated/rust holds an export"),
+        "{error}"
+    );
+}
+
+#[test]
+fn publish_attempts_every_sdk_and_reports_every_failure() {
+    let sdks = r#"[sdk.rust]
+package = "weather-sdk"
+out = "generated/rust"
+{runtime}
+channel = { git = "{remote}" }
+
+[sdk.rust-two]
+language = "rust"
+package = "weather-two"
+out = "generated/rust-two"
+{runtime}
+channel = { git = "{remote2}" }
+"#;
+    let service = Service::new(sdks);
+    let release = service.release();
+    let release_arg = release.to_str().unwrap();
+    success(service.crucible(&[
+        "sdk",
+        "build",
+        "--out",
+        release_arg,
+        "--first-release",
+        "rust",
+        "--first-release",
+        "rust-two",
+    ]));
+    // The first SDK's channel disappears; the second still publishes.
+    fs::remove_dir_all(service.remote()).unwrap();
+    let output = service.crucible(&["sdk", "publish", release_arg, "--execute"]);
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    let error = failure(output);
+    assert!(
+        error.contains("1 SDK(s) failed") && error.contains("sdk.rust"),
+        "{error}"
+    );
+    assert!(stdout.contains("pushed v0.1.0"), "{stdout}");
+    let two = service.root.path().join("remote2.git");
+    assert_eq!(service.git_in(&two, &["tag", "--list"]), "v0.1.0");
+}
+
+/// A test command names a program as a shell would: on Windows, `npm`
+/// is `npm.cmd`, found through PATHEXT.
+#[cfg(windows)]
+#[test]
+fn test_commands_find_windows_command_shims() {
+    let service = Service::new(&RUST.replace(
+        "  [\"git\", \"hash-object\", \"{artifact}\"],",
+        "  [\"crucible-shim\", \"{artifact}\"],",
+    ));
+    let repo = service.repo();
+    fs::write(repo.join("consumer/expected.lock"), lock("0.2.0")).unwrap();
+    let bin = service.root.path().join("bin");
+    fs::create_dir_all(&bin).unwrap();
+    fs::write(
+        bin.join("crucible-shim.cmd"),
+        "@echo shim ran %1\r\n@exit /b 0\r\n",
+    )
+    .unwrap();
+    let path = std::env::join_paths(
+        std::iter::once(bin.clone())
+            .chain(std::env::split_paths(&std::env::var_os("PATH").unwrap())),
+    )
+    .unwrap();
+    let output = service
+        .isolate(
+            Command::new(env!("CARGO_BIN_EXE_crucible"))
+                .current_dir(&repo)
+                .env("PATH", path)
+                .args([
+                    "sdk",
+                    "build",
+                    "--out",
+                    service.release().to_str().unwrap(),
+                    "--first-release",
+                    "rust",
+                ]),
+        )
+        .output()
+        .unwrap();
+    let stdout = success(output);
+    assert!(stdout.contains("shim ran"), "{stdout}");
+}
+
+/// The TypeScript packaging path end to end: the pinned compiler, `npm run
+/// build`, `npm pack`. It installs TypeScript from the registry, so it runs
+/// only with CRUCIBLE_SDK_NPM_TESTS=1.
+#[test]
+fn builds_a_typescript_package_with_the_pinned_compiler() {
+    if std::env::var_os("CRUCIBLE_SDK_NPM_TESTS").is_none() {
+        eprintln!("skipped: set CRUCIBLE_SDK_NPM_TESTS=1 to run npm");
+        return;
+    }
+    let service = Service::new(
+        "[sdk.ts]\npackage = \"@example/weather\"\nout = \"generated/ts\"\ntest = [[\"git\", \"hash-object\", \"{artifact}\"]]\n",
+    );
+    let release = service.release();
+    let built = success(service.crucible(&["sdk", "build", "--out", release.to_str().unwrap()]));
+    assert!(built.contains("built ts/example-weather-"), "{built}");
+    let plan = json(&fs::read_to_string(release.join("plan.json")).unwrap());
+    assert_eq!(plan["sdks"]["ts"]["tools"]["typescript"], "5.9.3");
+    assert!(plan["sdks"]["ts"]["tools"]["node"].is_string());
+    // The release directory carries no installed dependencies.
+    assert!(!release.join("ts/package/node_modules").exists());
+    assert!(release.join("ts/package/dist/index.js").is_file());
 }

@@ -235,8 +235,13 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
         // `out` aliases (an 8.3 name, a link): checked again right before.
         file.check_outs()?;
         let out = file.join(&sdk.out);
-        crucible_codegen::write(&out, &files)
-            .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
+        crucible_codegen::write(&out, &files).map_err(|error| {
+            format!(
+                "cannot write {}: {error}{}",
+                out.display(),
+                release::pre_crucible_hint(&error.to_string(), &sdk.out)
+            )
+        })?;
         println!(
             "sdk.{}: wrote {} files to {}",
             sdk.name,

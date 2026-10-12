@@ -169,6 +169,10 @@ impl ArtifactRecord {
 #[serde(rename_all = "camelCase")]
 pub struct ReleaseRecord {
     pub schema_version: u32,
+    /// The SHA-256 of `plan.json`, which names each channel and baseline
+    /// `publish` uses: `verify` and `publish` check it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_sha256: Option<String>,
     pub sdks: BTreeMap<String, SdkRelease>,
 }
 

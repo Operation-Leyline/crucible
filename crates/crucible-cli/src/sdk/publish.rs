@@ -4,19 +4,45 @@
 
 use std::path::Path;
 
-use crucible_sdk_release::publish::{Mode, PublishItem, Step, publish as publish_one};
-use crucible_sdk_release::record::{PLAN_FILE, PlanRecord, RELEASE_FILE, ReleaseRecord, read_json};
+use crucible_sdk_release::archive::sha256_file;
+use crucible_sdk_release::publish::{
+    Mode, PublishError, PublishItem, Step, publish as publish_one,
+};
+use crucible_sdk_release::record::{
+    PLAN_FILE, PlanRecord, RELEASE_FILE, ReleaseRecord, SdkPlan, SdkRelease, read_json,
+};
 use crucible_sdk_release::{Journal, Version};
 
+use super::release::shown;
+
+/// The release directory's records, checked against each other:
+/// `release.json` holds `plan.json`'s digest, since `publish` takes each
+/// channel and baseline from the plan.
 fn records(release: &Path) -> Result<(PlanRecord, ReleaseRecord), String> {
-    let plan: PlanRecord = read_json(&release.join(PLAN_FILE))?;
     if !release.join(RELEASE_FILE).is_file() {
         return Err(format!(
             "{} has no {RELEASE_FILE}: its build did not finish or a test failed",
-            release.display()
+            shown(release)
         ));
     }
     let record: ReleaseRecord = read_json(&release.join(RELEASE_FILE))?;
+    let plan_path = release.join(PLAN_FILE);
+    let digest = sha256_file(&plan_path)
+        .map_err(|error| format!("cannot read {}: {error}", shown(&plan_path)))?;
+    match &record.plan_sha256 {
+        Some(expected) if *expected == digest => {}
+        Some(_) => {
+            return Err(format!(
+                "{PLAN_FILE} changed after {RELEASE_FILE} recorded it; it names each channel and baseline, so the release cannot be trusted"
+            ));
+        }
+        None => {
+            return Err(format!(
+                "{RELEASE_FILE} records no digest of {PLAN_FILE}; rebuild the release with this Crucible"
+            ));
+        }
+    }
+    let plan: PlanRecord = read_json(&plan_path)?;
     for (name, built) in &record.sdks {
         let planned = plan.sdks.get(name).ok_or_else(|| {
             format!("{RELEASE_FILE} lists sdk.{name}, which {PLAN_FILE} does not")
@@ -32,7 +58,8 @@ fn records(release: &Path) -> Result<(PlanRecord, ReleaseRecord), String> {
     Ok((plan, record))
 }
 
-/// `crucible sdk verify`: re-hashes every artifact against `release.json`.
+/// `crucible sdk verify`: checks `plan.json` and re-hashes every artifact
+/// against `release.json`.
 pub(crate) fn verify(release: &Path) -> Result<(), String> {
     let (_, record) = records(release)?;
     let problems: Vec<String> = record
@@ -55,12 +82,13 @@ pub(crate) fn verify(release: &Path) -> Result<(), String> {
             built.version, built.artifact.path, built.artifact.size, built.artifact.sha256
         );
     }
-    println!("verified {} artifact(s)", record.sdks.len());
+    println!("verified {PLAN_FILE} and {} artifact(s)", record.sdks.len());
     Ok(())
 }
 
 /// `crucible sdk publish`: for each released SDK, checks the channel,
-/// uploads (with `execute`) and journals the upload.
+/// uploads (with `execute`) and journals the upload. Every SDK is
+/// attempted; the errors are reported together.
 pub(crate) fn publish(release: &Path, names: &[String], execute: bool) -> Result<(), String> {
     let release = std::path::absolute(release).map_err(|error| error.to_string())?;
     let (plan, record) = records(&release)?;
@@ -74,60 +102,18 @@ pub(crate) fn publish(release: &Path, names: &[String], execute: bool) -> Result
     let mode = if execute { Mode::Execute } else { Mode::DryRun };
     let mut journal = Journal::load(&release).map_err(|error| error.to_string())?;
     let mut released = 0;
+    let mut errors = Vec::new();
     for (name, built) in &record.sdks {
-        let planned = &plan.sdks[name];
         if !names.is_empty() && !names.contains(name) {
             continue;
         }
-        let (Some(config), true) = (&planned.channel, planned.releases()) else {
-            println!("sdk.{name}: no channel; built and tested only");
-            continue;
-        };
-        let version = Version::parse(&built.version)
-            .map_err(|error| format!("sdk.{name}: {:?}: {error}", built.version))?;
-        let channel = crucible_sdk_release::open(config, &project)
-            .map_err(|error| format!("sdk.{name}: {error}"))?;
-        let item = PublishItem {
-            sdk: name.clone(),
-            version,
-            baseline: planned
-                .decision
-                .as_ref()
-                .and_then(|decision| decision.baseline.clone()),
-            artifact: built
-                .artifact
-                .locate(&release)
-                .map_err(|error| error.to_string())?,
-            artifact_sha256: Some(built.artifact.sha256.clone()),
-            source_commit: planned.source_commit.clone(),
-            package: planned.package.clone(),
-        };
-        let step = publish_one(&*channel, &item, &release, &mut journal, mode)
-            .map_err(|error| error.to_string())?;
-        match step {
-            Step::Journaled(upload) => println!(
-                "sdk.{name} {}: already done ({})",
-                upload.version, upload.detail
-            ),
-            Step::AlreadyPublished { notes } => {
-                println!(
-                    "sdk.{name} {}: already on {} with the same bytes",
-                    item.version,
-                    channel.describe()
-                );
-                for note in notes {
-                    println!("  {note}");
-                }
-            }
-            Step::Published(outcome) => {
-                released += 1;
-                println!("sdk.{name} {}: {}", item.version, outcome.detail);
-            }
-            Step::WouldPublish(lines) => {
-                println!("sdk.{name} {} to {}:", item.version, channel.describe());
-                for line in lines {
-                    println!("  {line}");
-                }
+        let planned = &plan.sdks[name];
+        match publish_sdk(name, planned, built, &release, &project, &mut journal, mode) {
+            Ok(true) => released += 1,
+            Ok(false) => {}
+            Err(error) => {
+                eprintln!("error: {error}");
+                errors.push(error);
             }
         }
     }
@@ -136,5 +122,85 @@ pub(crate) fn publish(release: &Path, names: &[String], execute: bool) -> Result
     } else {
         println!("dry run: nothing was published; --execute publishes");
     }
-    Ok(())
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} SDK(s) failed to publish:\n{}",
+            errors.len(),
+            errors.join("\n")
+        ))
+    }
+}
+
+/// Publishes one SDK; `Ok(true)` when this run uploaded it.
+fn publish_sdk(
+    name: &str,
+    planned: &SdkPlan,
+    built: &SdkRelease,
+    release: &Path,
+    project: &Path,
+    journal: &mut Journal,
+    mode: Mode,
+) -> Result<bool, String> {
+    let (Some(config), true) = (&planned.channel, planned.releases()) else {
+        println!("sdk.{name}: no channel; built and tested only");
+        return Ok(false);
+    };
+    let version = Version::parse(&built.version)
+        .map_err(|error| format!("sdk.{name}: {:?}: {error}", built.version))?;
+    let channel = crucible_sdk_release::open(config, project)
+        .map_err(|error| format!("sdk.{name}: {error}"))?;
+    let item = PublishItem {
+        sdk: name.to_owned(),
+        version,
+        baseline: planned
+            .decision
+            .as_ref()
+            .and_then(|decision| decision.baseline.clone()),
+        artifact: built
+            .artifact
+            .locate(release)
+            .map_err(|error| format!("sdk.{name}: {error}"))?,
+        artifact_sha256: Some(built.artifact.sha256.clone()),
+        source_commit: planned.source_commit.clone(),
+        package: planned.package.clone(),
+    };
+    let step =
+        publish_one(&*channel, &item, release, journal, mode).map_err(|error| match error {
+            // The other errors name their SDK already.
+            PublishError::Channel(error) => format!("sdk.{name}: {error}"),
+            other => other.to_string(),
+        })?;
+    Ok(match step {
+        Step::Journaled(upload) => {
+            println!(
+                "sdk.{name} {}: already done ({})",
+                upload.version, upload.detail
+            );
+            false
+        }
+        Step::AlreadyPublished { notes } => {
+            println!(
+                "sdk.{name} {}: already on {} with the same bytes",
+                item.version,
+                channel.describe()
+            );
+            for note in notes {
+                println!("  {note}");
+            }
+            false
+        }
+        Step::Published(outcome) => {
+            println!("sdk.{name} {}: {}", item.version, outcome.detail);
+            true
+        }
+        Step::WouldPublish(lines) => {
+            println!("sdk.{name} {} to {}:", item.version, channel.describe());
+            for line in lines {
+                println!("  {line}");
+            }
+            false
+        }
+    })
 }

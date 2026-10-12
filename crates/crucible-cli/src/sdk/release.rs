@@ -11,7 +11,7 @@ use clap::Args;
 use crucible_codegen::File;
 use crucible_codegen::provenance::{Source, Stamp, files_digest, generator_changes};
 use crucible_codegen::sdk::{self, Channel, Language, Sdk, SdkFile};
-use crucible_sdk_release::archive::write_tree_archive;
+use crucible_sdk_release::archive::{sha256_file, write_tree_archive};
 use crucible_sdk_release::record::{
     ArtifactRecord, GeneratorRecord, LastSummary, PLAN_FILE, PlanRecord, RECORD_SCHEMA,
     RELEASE_FILE, ReleaseRecord, SdkPlan, SdkRelease, write_json,
@@ -374,27 +374,38 @@ pub(crate) fn build(
     if fs::read_dir(&out).is_ok_and(|mut entries| entries.next().is_some()) {
         return Err(format!(
             "{} is not empty; a release builds in a fresh directory",
-            out.display()
+            shown(&out)
         ));
     }
     let options = args.options(file)?;
     let full = lower(file)?;
     let mut planned = plan_all(file, &options, &full)?;
-    let refused: Vec<String> = planned
-        .iter()
-        .filter(|(sdk, plan)| builds(plan) && sdk.options.runtime_path.is_some())
-        .map(|(sdk, _)| {
-            format!(
+    // What would fail late fails before anything is built.
+    let mut refused = Vec::new();
+    for (sdk, plan) in &planned {
+        if !builds(plan) {
+            continue;
+        }
+        if sdk.options.runtime_path.is_some() {
+            refused.push(format!(
                 "sdk.{}: a release refuses a local runtime_path, which no consumer can resolve; use runtime = {{ git, rev, version }}",
                 sdk.name
-            )
-        })
-        .collect();
+            ));
+        }
+        for lockfile in &sdk.lockfiles {
+            if !file.join(lockfile).is_file() {
+                refused.push(format!(
+                    "sdk.{}.lockfiles: {lockfile} does not exist (paths are relative to {})",
+                    sdk.name,
+                    shown(file.root())
+                ));
+            }
+        }
+    }
     if !refused.is_empty() {
         return Err(refused.join("\n"));
     }
-    fs::create_dir_all(&out)
-        .map_err(|error| format!("cannot create {}: {error}", out.display()))?;
+    fs::create_dir_all(&out).map_err(|error| format!("cannot create {}: {error}", shown(&out)))?;
     let mut built: Vec<(&Sdk, Vec<File>)> = Vec::new();
     for (sdk, plan) in &mut planned {
         if !builds(plan) {
@@ -404,10 +415,14 @@ pub(crate) fn build(
         built.push((sdk, files));
     }
     let record = record(file, &planned);
-    write_json(&out.join(PLAN_FILE), &record)
+    let plan_path = out.join(PLAN_FILE);
+    write_json(&plan_path, &record)
         .map_err(|error| format!("cannot write {PLAN_FILE}: {error}"))?;
     let mut release = ReleaseRecord {
         schema_version: RECORD_SCHEMA,
+        plan_sha256: Some(
+            sha256_file(&plan_path).map_err(|error| format!("cannot hash {PLAN_FILE}: {error}"))?,
+        ),
         sdks: BTreeMap::new(),
     };
     for (sdk, files) in &built {
@@ -415,8 +430,15 @@ pub(crate) fn build(
         // Point `out` at the release, so a path dependency resolves to the
         // sources being released.
         let target = file.join(&sdk.out);
-        crucible_codegen::write(&target, files)
-            .map_err(|error| format!("cannot write {}: {error}", target.display()))?;
+        crucible_codegen::write(&target, files).map_err(|error| {
+            format!(
+                "sdk.{}: cannot write {}: {error}{}",
+                sdk.name,
+                sdk.out,
+                pre_crucible_hint(&error.to_string(), &sdk.out)
+            )
+        })?;
+        only_release_files(sdk, &target)?;
         test(file, sdk, plan, files, &out)?;
         let artifact = plan.artifact.clone().expect("built above");
         release.sdks.insert(
@@ -440,12 +462,88 @@ pub(crate) fn build(
         .map_err(|error| format!("cannot write {RELEASE_FILE}: {error}"))?;
     print_plan(&record);
     warn(&record);
-    println!(
-        "built and tested {} SDK(s) in {}",
-        release.sdks.len(),
-        out.display()
-    );
+    if release.sdks.is_empty() {
+        println!(
+            "nothing to release: every SDK is unchanged, so nothing was built or tested; {} lists none",
+            shown(&out.join(RELEASE_FILE))
+        );
+    } else {
+        println!(
+            "built and tested {} SDK(s) in {}",
+            release.sdks.len(),
+            shown(&out)
+        );
+    }
     Ok(())
+}
+
+/// The remedy for an `out` that a pre-Crucible export left behind.
+pub(crate) fn pre_crucible_hint(error: &str, out: &str) -> String {
+    if error.contains("did not write") {
+        format!(
+            "\nhint: if {out} holds an export from before Crucible tracked its files, delete {out} once and run `crucible sdk generate`; it is generated output"
+        )
+    } else {
+        String::new()
+    }
+}
+
+/// Native build and dependency directories, and lockfiles, which a
+/// consumer's build leaves in `out` and no release ships.
+const NATIVE: &[&str] = &[
+    "target",
+    "node_modules",
+    "dist",
+    ".build",
+    ".git",
+    "Cargo.lock",
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+];
+
+/// Refuses a file in `out` the release does not own: the consumer tests
+/// would build it, but the release would not ship it.
+fn only_release_files(sdk: &Sdk, out: &Path) -> Result<(), String> {
+    let manifest = fs::read_to_string(out.join(".crucible")).map_err(|error| {
+        format!(
+            "sdk.{}: cannot read {}/.crucible: {error}",
+            sdk.name, sdk.out
+        )
+    })?;
+    let owned: BTreeSet<String> = serde_json::from_str(&manifest)
+        .map_err(|error| format!("sdk.{}: {}/.crucible: {error}", sdk.name, sdk.out))?;
+    let mut stray = Vec::new();
+    let mut pending = vec![(out.to_owned(), String::new())];
+    while let Some((dir, prefix)) = pending.pop() {
+        let entries =
+            fs::read_dir(&dir).map_err(|error| format!("cannot read {}: {error}", shown(&dir)))?;
+        for entry in entries {
+            let entry = entry.map_err(|error| error.to_string())?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let relative = format!("{prefix}{name}");
+            if prefix.is_empty() && (name == ".crucible" || NATIVE.contains(&name.as_str())) {
+                continue;
+            }
+            let kind = entry.file_type().map_err(|error| error.to_string())?;
+            if kind.is_dir() {
+                pending.push((entry.path(), format!("{relative}/")));
+            } else if !owned.contains(&relative) {
+                stray.push(relative);
+            }
+        }
+    }
+    if stray.is_empty() {
+        return Ok(());
+    }
+    stray.sort();
+    Err(format!(
+        "sdk.{}: {} holds files the release does not ship, which its tests would build: {}; remove them",
+        sdk.name,
+        sdk.out,
+        stray.join(", ")
+    ))
 }
 
 /// Generates the SDK at its version into `<out>/<name>/package` with its
@@ -464,10 +562,14 @@ fn package(
     let files = emit(file, sdk, full, plan.version.as_deref(), Some(source))?;
     plan.content_digest =
         Some(files_digest(&files).map_err(|error| format!("sdk.{}: {error}", sdk.name))?);
+    if plan.package.is_none() {
+        // The name the generator chose, for commits and messages.
+        plan.package = cargo_package_name(&files);
+    }
     let dir = out.join(&sdk.name);
     let package = dir.join("package");
     crucible_codegen::write(&package, &files)
-        .map_err(|error| format!("cannot write {}: {error}", package.display()))?;
+        .map_err(|error| format!("cannot write {}: {error}", shown(&package)))?;
     let artifact = match (&plan.channel, sdk.language) {
         (Some(ChannelConfig::Npm(_)), _) | (None, Language::Ts) => {
             npm_pack(&package, &dir, &mut plan.tools)?
@@ -476,55 +578,55 @@ fn package(
         _ => {
             let archive = dir.join("package.tar");
             write_tree_archive(&package, &archive)
-                .map_err(|error| format!("cannot archive {}: {error}", package.display()))?;
+                .map_err(|error| format!("cannot archive {}: {error}", shown(&package)))?;
             archive
         }
     };
-    plan.artifact = Some(
-        ArtifactRecord::of(out, &artifact)
-            .map_err(|error| format!("cannot hash {}: {error}", artifact.display()))?,
-    );
+    let record = ArtifactRecord::of(out, &artifact)
+        .map_err(|error| format!("cannot hash {}: {error}", shown(&artifact)))?;
     println!(
         "sdk.{}: built {} at {}",
         sdk.name,
-        artifact.display(),
+        record.path,
         plan.version.as_deref().unwrap_or("no version")
     );
+    plan.artifact = Some(record);
     Ok(files)
 }
 
 /// `npm install --ignore-scripts` with the pinned compiler, `npm run
-/// build`, `npm pack --ignore-scripts`. Any lockfile the install creates
-/// is kept beside the artifact.
+/// build`, `npm pack --ignore-scripts`. The compiler is the package's only
+/// dependency and is installed exactly, so no lockfile is written. The
+/// installed `node_modules` is removed afterwards: the release directory
+/// is uploaded between jobs.
 fn npm_pack(
     package: &Path,
     dir: &Path,
     tools: &mut BTreeMap<String, String>,
 ) -> Result<PathBuf, String> {
-    let npm = if cfg!(windows) { "npm.cmd" } else { "npm" };
-    let run = |program: &str, args: &[&str]| -> Result<String, String> {
+    let npm = program("npm");
+    let run = |program: &Path, args: &[&str]| -> Result<String, String> {
         let output = Command::new(program)
             .args(args)
             .current_dir(package)
             .output()
-            .map_err(|error| format!("cannot run {program}: {error}"))?;
+            .map_err(|error| format!("cannot run {}: {error}", shown(program)))?;
         if !output.status.success() {
             return Err(format!(
-                "`{program} {}` failed in {}:\n{}{}",
+                "`{} {}` failed in {}:\n{}{}",
+                shown(program),
                 args.join(" "),
-                package.display(),
+                shown(package),
                 String::from_utf8_lossy(&output.stdout),
                 String::from_utf8_lossy(&output.stderr)
             ));
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
     };
-    let node = if cfg!(windows) { "node.exe" } else { "node" };
-    tools.insert("node".into(), run(node, &["--version"])?);
-    tools.insert("npm".into(), run(npm, &["--version"])?);
-    tools.insert("typescript".into(), TYPESCRIPT.into());
+    tools.insert("node".into(), run(&program("node"), &["--version"])?);
+    tools.insert("npm".into(), run(&npm, &["--version"])?);
     run(
-        npm,
+        &npm,
         &[
             "install",
             "--ignore-scripts",
@@ -534,9 +636,21 @@ fn npm_pack(
             &format!("typescript@{TYPESCRIPT}"),
         ],
     )?;
-    run(npm, &["run", "build"])?;
+    // The compiler that ran, not the one asked for.
+    let installed = fs::read_to_string(package.join("node_modules/typescript/package.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+        .and_then(|manifest| manifest["version"].as_str().map(str::to_owned))
+        .ok_or("npm installed no TypeScript compiler")?;
+    if installed != TYPESCRIPT {
+        return Err(format!(
+            "npm installed TypeScript {installed}, not the pinned {TYPESCRIPT}"
+        ));
+    }
+    tools.insert("typescript".into(), installed);
+    run(&npm, &["run", "build"])?;
     let packed = run(
-        npm,
+        &npm,
         &[
             "pack",
             "--ignore-scripts",
@@ -553,16 +667,16 @@ fn npm_pack(
         // npm 7-8 printed the scoped name with its `@` and `/`.
         .trim_start_matches('@')
         .replace('/', "-");
-    let lock = package.join("package-lock.json");
-    if lock.is_file() {
-        fs::copy(&lock, dir.join("package-lock.json"))
-            .map_err(|error| format!("cannot keep {}: {error}", lock.display()))?;
+    let modules = package.join("node_modules");
+    if modules.exists() {
+        fs::remove_dir_all(&modules)
+            .map_err(|error| format!("cannot remove {}: {error}", shown(&modules)))?;
     }
     Ok(dir.join(name))
 }
 
 /// Runs the SDK's consumer tests against the release, with its lockfiles
-/// reconciled for the run.
+/// reconciled for the run and restored after it.
 fn test(
     file: &SdkFile,
     sdk: &Sdk,
@@ -575,22 +689,28 @@ fn test(
     }
     let version = plan.version.clone().unwrap_or_default();
     let lockfiles: Vec<PathBuf> = sdk.lockfiles.iter().map(|path| file.join(path)).collect();
-    // Restored when dropped, whether the tests pass or not.
     let reconciled = if lockfiles.is_empty() {
         None
     } else {
         let package = cargo_package_name(files)
             .or_else(|| sdk.options.package.clone())
             .ok_or_else(|| format!("sdk.{}: no package name to reconcile", sdk.name))?;
-        Some(Reconciled::apply(&lockfiles, &package, &version)?)
+        let reconciled = Reconciled::apply(&lockfiles, &package, &version)
+            .map_err(|error| format!("sdk.{}: {error}", sdk.name))?;
+        for lockfile in &sdk.lockfiles {
+            println!("sdk.{}: {lockfile} locks {version} for the tests", sdk.name);
+        }
+        Some(reconciled)
     };
-    for path in reconciled.iter().flat_map(Reconciled::paths) {
-        println!(
-            "sdk.{}: {} locks {version} for the tests",
-            sdk.name,
-            path.display()
-        );
-    }
+    let result = run_tests(file, sdk, plan, out);
+    // Restored whether the tests passed or not; a restore that fails is an
+    // error, never a release.
+    let restored = reconciled.map_or(Ok(()), Reconciled::restore);
+    result?;
+    restored.map_err(|error| format!("sdk.{}: {error}", sdk.name))
+}
+
+fn run_tests(file: &SdkFile, sdk: &Sdk, plan: &SdkPlan, out: &Path) -> Result<(), String> {
     let artifact = plan
         .artifact
         .as_ref()
@@ -606,25 +726,53 @@ fn test(
                     .replace("{package}", &package.to_string_lossy())
             })
             .collect();
-        let Some((program, args)) = argv.split_first() else {
+        let Some((name, args)) = argv.split_first() else {
             continue;
         };
         println!("sdk.{}: test: {}", sdk.name, argv.join(" "));
-        let status = Command::new(program)
+        let status = Command::new(program(name))
             .args(args)
             .current_dir(file.root())
             .status()
-            .map_err(|error| format!("sdk.{}: cannot run {program}: {error}", sdk.name))?;
+            .map_err(|error| format!("sdk.{}: cannot run {name}: {error}", sdk.name))?;
         if !status.success() {
             return Err(format!(
                 "sdk.{}: test `{}` failed ({status}); {} is left for inspection, with no {RELEASE_FILE}",
                 sdk.name,
                 argv.join(" "),
-                out.display()
+                shown(out)
             ));
         }
     }
     Ok(())
+}
+
+/// The program a test or packaging command names. On Windows a bare name
+/// is looked up on `PATH` with each `PATHEXT` extension, as a shell does,
+/// so `npm` finds `npm.cmd` and one SDK file serves Linux CI and Windows.
+pub(crate) fn program(name: &str) -> PathBuf {
+    if !cfg!(windows) || name.contains(['/', '\\']) || Path::new(name).extension().is_some() {
+        return PathBuf::from(name);
+    }
+    let extensions = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+    let directories = std::env::var_os("PATH").unwrap_or_default();
+    for directory in std::env::split_paths(&directories) {
+        for extension in extensions
+            .split(';')
+            .filter(|extension| !extension.is_empty())
+        {
+            let candidate = directory.join(format!("{name}{}", extension.to_ascii_lowercase()));
+            if candidate.is_file() {
+                return candidate;
+            }
+        }
+    }
+    PathBuf::from(name)
+}
+
+/// A path for a message, with one separator.
+pub(crate) fn shown(path: &Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
 
 /// The `[package] name` of a generated `Cargo.toml`.
