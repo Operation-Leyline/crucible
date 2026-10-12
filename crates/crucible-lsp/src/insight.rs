@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use crucible_lang::ast::{
     Body, Decl, ErrorEntry, Ident, Member, MemberKind, MetaType, OpEntry, Resource, ResourceEntry,
+    ResourceEntryKind,
 };
 use crucible_lang::{Parsed, Token, TokenKind};
 
@@ -39,7 +40,8 @@ pub(crate) fn resources<'a>(files: &[&'a Parsed]) -> HashMap<&'a str, &'a Resour
 }
 
 /// A resource's identifier or property and the resource that declares it,
-/// looking through its parents as lowering does.
+/// as lowering finds it: the resource's own entries, then the identifiers
+/// its parents declare. A child does not inherit its parents' properties.
 pub(crate) fn resource_entry<'a>(
     resources: &HashMap<&str, &'a Resource>,
     resource: &str,
@@ -53,10 +55,11 @@ pub(crate) fn resource_entry<'a>(
         }
         seen.push(resource);
         let declaration = resources.get(resource)?;
+        let own = seen.len() == 1;
         if let Some(entry) = declaration
             .entries
             .iter()
-            .find(|entry| entry.name.name == name)
+            .find(|entry| entry.name.name == name && (own || entry.kind == ResourceEntryKind::Id))
         {
             return Some((declaration, entry));
         }
@@ -493,6 +496,38 @@ enum Level: integer { LOW = 1 }
             inlay_hints(&parsed, &[], start, SOURCE.len() as u32).len(),
             1
         );
+    }
+
+    #[test]
+    fn a_child_binds_its_own_properties_and_inherited_identifiers_only() {
+        // As lowering resolves `$name`: the child's own `name`, the parent's
+        // identifier, and never the parent's `createdAt`.
+        let source = "resource Workspace {
+    id workspaceId: WorkspaceId
+    property name: WorkspaceName
+    property createdAt: DateTime
+}
+resource Inbox in Workspace {
+    id inboxId: InboxId
+    property name: InboxName
+}
+operation GetInbox reads Inbox {
+    input { $workspaceId, $name, $createdAt }
+}
+";
+        let parsed = crucible_lang::parse(source);
+        let hints = inlay_hints(&parsed, &[], 0, source.len() as u32);
+        assert_eq!(
+            label_at(&hints, source, "{ $workspaceId").as_deref(),
+            Some(": WorkspaceId")
+        );
+        assert_eq!(
+            label_at(&hints, source, ", $name").as_deref(),
+            Some(": InboxName")
+        );
+        assert_eq!(label_at(&hints, source, "$createdAt"), None);
+        let offset = source.find("$createdAt").unwrap() as u32 + 1;
+        assert_eq!(type_name_at(&parsed, &[], offset), None);
     }
 
     #[test]

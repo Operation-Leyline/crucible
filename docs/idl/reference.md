@@ -198,7 +198,7 @@ language's own checks include:
 Warnings never withhold the IR. The compiler warns about a plain member
 whose name is a resource identifier or property ("did you mean
 `$name`?", decision 33), a property that is neither `readonly` nor
-`immutable` and that no `updates` or `puts` input binds (declare it
+`immutable` and that no `updates`, `puts` or `on` input binds (declare it
 `immutable`, or `readonly` when nothing writes it; decision 34a), a
 resource with `reads`, `lists` or `creates` operations whose outputs show
 none of its properties, a structure without `for` that restates a

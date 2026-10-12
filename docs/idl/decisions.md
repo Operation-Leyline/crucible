@@ -428,10 +428,11 @@ trait when a project defines it.
     - an `immutable` property that no `creates` or `puts` input binds is an
       error: nothing could ever set it;
     - a property that is neither `readonly` nor `immutable` and that no
-      `updates` or `puts` input binds is a warning ("declare it
-      `immutable`"): left read-write, the infrastructure generators would
-      offer an in-place update nothing implements, where CloudFormation
-      treats a missing update handler as replacement (Pigeon's `ApiKey`,
+      `updates`, `puts` or `on` input binds (outside `@query`) is a
+      warning ("declare it `immutable`"): left read-write, the
+      infrastructure generators would offer an in-place update nothing
+      implements, where CloudFormation treats a missing update handler as
+      replacement (Pigeon's `ApiKey`,
       `Thread` and `Domain`, Leyline's `ImportJob` and `QueryJob` have no
       `updates`);
     - a `puts` that changes an `immutable` value on an existing resource
@@ -444,7 +445,10 @@ trait when a project defines it.
     - a binding under `@query`, or in a `reads`, `lists` or `deletes`
       input, selects or filters; it is not a write and is not checked;
     - an `on` operation's input is not checked: a custom action may change
-      state the lifecycle cannot (a suspend sets a `readonly` status).
+      state the lifecycle cannot (a suspend sets a `readonly` status). Its
+      bindings still count as changes for the warning above, since a
+      property a custom action changes is not create-only (Leyline's
+      `groupId` changes only through `PutGraphGroupMembership`).
 
     Lowering writes the property's mutability to `ir::Member::mutability`
     on every member that carries the property's value: view and output

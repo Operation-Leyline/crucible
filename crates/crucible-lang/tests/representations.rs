@@ -606,15 +606,24 @@ fn a_property_nothing_updates_is_declared_immutable_or_readonly() {
     assert_eq!(errors, Vec::<String>::new());
     assert_mentions(
         &warnings,
-        "no `updates` or `puts` input binds `$name`, so nothing changes it after creation: declare it `immutable`",
+        "no `updates`, `puts` or `on` input binds `$name`, so nothing changes it after creation: declare it `immutable`",
     );
     let (_, warnings) = split(&with("        $password?\n", ""));
     assert_mentions(&warnings, "declare it `immutable writeonly`");
     let (_, warnings) = split(&with("        $name\n", "").replacen("        $name?\n", "", 1));
     assert_mentions(
         &warnings,
-        "no `creates`, `puts` or `updates` input binds `$name`, so the service alone sets it: declare it `readonly`",
+        "no `creates`, `puts`, `updates` or `on` input binds `$name`, so the service alone sets it: declare it `readonly`",
     );
+    // A custom action that binds it changes it after creation; one that
+    // filters on it under `@query` does not.
+    let rename = "operation Rename on Workspace {\n    http POST \"/workspaces/{workspaceId}/rename\"\n    input {\n        $workspaceId\n        $name\n    }\n}";
+    let (errors, warnings) = split(&format!("{}\n{rename}", with("        $name?\n", "")));
+    assert_eq!(errors, Vec::<String>::new());
+    assert_eq!(warnings, Vec::<String>::new());
+    let filter = rename.replace("        $name\n", "        @query\n        $name?\n");
+    let (_, warnings) = split(&format!("{}\n{filter}", with("        $name?\n", "")));
+    assert_mentions(&warnings, "declare it `immutable`");
 }
 
 #[test]

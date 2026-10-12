@@ -53,10 +53,6 @@ resource Graph in Organization {
     // `immutable` is chosen at creation and fixed, and a property with
     // neither is updatable. The compiler checks every `creates` and `updates`
     // input against them. `?` means absent in every view.
-    //
-    // `groupId` changes through PutGraphGroupMembership, an `on` operation,
-    // which those checks do not count (a custom action may change anything),
-    // so the compiler warns that no `updates` binds it.
     property groupId?: GraphGroupId
     readonly property groupRevision: GraphGroupRevision
     property name: GraphName
@@ -230,6 +226,33 @@ idempotent operation UpdateGraph updates Graph {
 
     output {
         graph: GraphData
+    }
+
+    errors [ResourceNotFoundException, ConflictException]
+}
+
+/// Move a graph into a group, or out of every group without `groupId`.
+// A custom action (`on`) may change what `updates` does not: binding
+// `$groupId` here keeps it updatable rather than create-only. The output
+// names the identifier `graphId`, overriding Graph's `id` spelling.
+@auditCategory(management)
+@operationClass(controlWrite)
+idempotent operation PutGraphGroupMembership on Graph {
+    http PUT "/v1/organizations/{organizationId}/graphs/{graphId}/group"
+
+    input {
+        $organizationId
+        $graphId
+        $groupId?
+        expectedRevision: GraphGroupRevision
+        @token
+        clientToken?: ClientToken
+    }
+
+    output {
+        $graphId as graphId
+        $groupId
+        $groupRevision
     }
 
     errors [ResourceNotFoundException, ConflictException]

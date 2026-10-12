@@ -834,7 +834,13 @@ impl<'a> Lowerer<'a> {
                 };
                 match *role {
                     "creates" => self.written(&input.members, name, &mut Vec::new(), &mut created),
-                    "updates" => self.written(&input.members, name, &mut Vec::new(), &mut updated),
+                    // A custom action's input is not checked against the
+                    // keywords, but what it binds does change after
+                    // creation (Leyline's `PutGraphGroupMembership` moves a
+                    // graph's `groupId`), so it counts against the warning.
+                    "updates" | "on" => {
+                        self.written(&input.members, name, &mut Vec::new(), &mut updated)
+                    }
                     "puts" => {
                         let mut put = BTreeSet::new();
                         self.written(&input.members, name, &mut Vec::new(), &mut put);
@@ -873,15 +879,15 @@ impl<'a> Lowerer<'a> {
                                 "immutable"
                             };
                             format!(
-                                "no `updates` or `puts` input binds `${property}`, so nothing changes it after creation: declare it `{keyword}`, or infrastructure tools will offer an update nothing implements"
+                                "no `updates`, `puts` or `on` input binds `${property}`, so nothing changes it after creation: declare it `{keyword}`, or infrastructure tools will offer an update nothing implements"
                             )
                         } else if mutability == Mutability::Write {
                             format!(
-                                "no `creates`, `puts` or `updates` input binds `${property}`: a `writeonly` property nothing writes is never set nor read"
+                                "no `creates`, `puts`, `updates` or `on` input binds `${property}`: a `writeonly` property nothing writes is never set nor read"
                             )
                         } else {
                             format!(
-                                "no `creates`, `puts` or `updates` input binds `${property}`, so the service alone sets it: declare it `readonly`"
+                                "no `creates`, `puts`, `updates` or `on` input binds `${property}`, so the service alone sets it: declare it `readonly`"
                             )
                         };
                         self.warning(file, entry.name.span, message);

@@ -39,8 +39,8 @@ version's section when it is prepared.
   `immutable` property needs a `creates` or `puts` that sets it, a
   `writeonly` one never appears in a view or output, and a `@mutability`
   annotation on a member that binds a property must agree with its
-  keyword. A property nothing updates that is left read-write is a
-  warning.
+  keyword. A property left read-write that no `updates`, `puts` or `on`
+  input binds is a warning.
 - `$*` in a `for` view (decision 34d) expands to the resource's own
   identifiers and every property that is not `writeonly`, in declaration
   order; `$name?` after it loosens one entry for that view.
