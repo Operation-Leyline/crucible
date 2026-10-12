@@ -15,6 +15,11 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-12
+
+Editor support: `crucible-lsp` completes `$` bindings with what the member
+list may bind. No changes to the generated code or the runtimes.
+
 ### Added
 
 - `crucible-lsp` completes `$` bindings. `$` is a completion trigger, and
