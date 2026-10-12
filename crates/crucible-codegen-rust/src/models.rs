@@ -600,8 +600,9 @@ fn validate_impl(
                     variant(&member.name)
                 ));
                 if !checks.is_empty() {
+                    let (open, close) = sensitive_scope(service, shape, member);
                     body.push_str(&format!(
-                        "                validator.at({}, |validator| {{\n{checks}                }});\n",
+                        "                {open}validator.at({}, |validator| {{\n{checks}                }}){close};\n",
                         literal(&member.name)
                     ));
                 }
@@ -633,8 +634,9 @@ fn validate_impl(
                         field(&member.name)
                     )
                 };
+                let (open, close) = sensitive_scope(service, shape, member);
                 body.push_str(&format!(
-                    "        {access}            validator.at({}, |validator| {{\n{checks}            }});\n        }}\n",
+                    "        {access}            {open}validator.at({}, |validator| {{\n{checks}            }}){close};\n        }}\n",
                     literal(&member.name)
                 ));
             }
@@ -646,6 +648,21 @@ fn validate_impl(
     format!(
         "\nimpl ::crucible_server_runtime_rust::__generated::validate::Validate for {name} {{\n    fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {{\n{body}    }}\n}}\n"
     )
+}
+
+/// What wraps a member's checks when its value is sensitive: the member is,
+/// or its structure is. Map keys below it are client data, so violation paths
+/// must not name them.
+fn sensitive_scope(
+    service: &Service,
+    shape: &Shape,
+    member: &Member,
+) -> (&'static str, &'static str) {
+    if shape.sensitive() || service.sensitive(member) {
+        ("validator.sensitive(|validator| ", ")")
+    } else {
+        ("", "")
+    }
 }
 
 /// Checks on `value` (a reference to the member's type, unboxed by auto-deref)
@@ -741,8 +758,14 @@ fn value_checks(
                     Some(Shape::Enum(_)) => "key.as_str()",
                     _ => "key",
                 };
+                // A sensitive key is client data: the path says `[key]`.
+                let (open, close) = if service.sensitive(&map.key) {
+                    ("validator.sensitive(|validator| ", ")")
+                } else {
+                    ("", "")
+                };
                 out.push_str(&format!(
-                    "{pad}for (key, {item_binding}) in {value} {{\n{pad}    validator.at({path}, |validator| {{\n{key}{item}{pad}    }});\n{pad}}}\n"
+                    "{pad}for (key, {item_binding}) in {value} {{\n{pad}    {open}validator.at({path}, |validator| {{\n{key}{item}{pad}    }}){close};\n{pad}}}\n"
                 ));
             }
         }

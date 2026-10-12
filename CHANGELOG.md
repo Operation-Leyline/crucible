@@ -58,6 +58,12 @@ version's section when it is prepared.
     the value.
   - A value an API version hook cannot read becomes an internal error
     without quoting the value, so its logged cause carries no request data.
+  - A violation's path names a map key `[key]` when the key is client data
+    under a sensitivity rule: the map's keys are `@sensitive`, or the map is
+    reached through a `@sensitive` member or structure (an ordinary
+    structure behind a sensitive member included). Generated validation
+    opens the new `Validator::sensitive` scope for them. Member names, list
+    indexes and public map keys still appear.
 
   Paths and the model's expectations are unchanged.
 

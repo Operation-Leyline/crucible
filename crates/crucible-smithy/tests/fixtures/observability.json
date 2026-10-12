@@ -80,6 +80,18 @@
         },
         "secretTarget": {
           "target": "example.observability#Secret"
+        },
+        "secretScores": {
+          "target": "example.observability#SecretScores"
+        },
+        "privateScores": {
+          "target": "example.observability#Scores",
+          "traits": {
+            "smithy.api#sensitive": {}
+          }
+        },
+        "scores": {
+          "target": "example.observability#Scores"
         }
       }
     },
@@ -122,6 +134,33 @@
       },
       "value": {
         "target": "smithy.api#String"
+      }
+    },
+    "example.observability#SecretScores": {
+      "type": "map",
+      "key": {
+        "target": "example.observability#Secret"
+      },
+      "value": {
+        "target": "example.observability#Score"
+      }
+    },
+    "example.observability#Scores": {
+      "type": "map",
+      "key": {
+        "target": "smithy.api#String"
+      },
+      "value": {
+        "target": "example.observability#Score"
+      }
+    },
+    "example.observability#Score": {
+      "type": "integer",
+      "traits": {
+        "smithy.api#range": {
+          "min": 0,
+          "max": 10
+        }
       }
     },
     "example.observability#Choice": {

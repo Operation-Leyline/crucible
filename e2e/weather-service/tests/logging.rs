@@ -130,6 +130,41 @@ async fn a_malformed_sensitive_value_reaches_neither_the_response_nor_the_log() 
 }
 
 #[tokio::test]
+async fn validation_paths_name_no_sensitive_map_key() {
+    let records = Records::default();
+    let service = service(ServiceLog::new(LogPolicy::everything()).sink(records.clone()));
+    // Every score is out of range. `secretScores` has @sensitive keys;
+    // `privateScores` is an ordinary map behind a @sensitive member; `scores`
+    // is public, so its key is a useful part of the path.
+    let payload = json!({
+        "secretScores": {"hunter2": 99},
+        "privateScores": {"hunter3": 99},
+        "scores": {"visible": 99},
+    });
+    let answer = service.invoke("Echo", payload).await;
+    assert_eq!(answer["error"]["__type"], "ValidationError", "{answer}");
+    let records = records.0.lock().unwrap();
+    let violations = &records[0]["violations"];
+    let paths: Vec<&str> = violations
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|violation| violation["path"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            "secretScores/[key]",
+            "privateScores/[key]",
+            "scores/visible"
+        ],
+        "{violations}"
+    );
+    let everything = format!("{answer}{}", serde_json::to_string(&*records).unwrap());
+    assert!(!everything.contains("hunter"), "{everything}");
+}
+
+#[tokio::test]
 async fn literal_queries_select_the_operation_and_the_generated_client_sends_them() {
     let records = Records::default();
     let service = service(ServiceLog::new(LogPolicy::everything()).sink(records.clone()));

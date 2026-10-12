@@ -148,7 +148,12 @@ pub struct Validator {
     violations: Vec<Violation>,
     /// Violations past [`MAX_VIOLATIONS`]: counted, not recorded.
     unlisted: usize,
+    /// How many [`Validator::sensitive`] scopes enclose the value checked.
+    sensitive: usize,
 }
+
+/// The step a map key takes inside a sensitive scope.
+const HIDDEN_KEY: &str = "[key]";
 
 /// The violations a rejection lists. Each is a path and a message that the
 /// response, the service log and the error's field list all copy, and one
@@ -214,9 +219,26 @@ impl Validator {
     }
 
     pub fn at(&mut self, step: impl Into<Step>, check: impl FnOnce(&mut Self)) {
-        self.path.push(step.into());
+        let step = match step.into() {
+            Step::Key(_) if self.sensitive > 0 => Step::Member(HIDDEN_KEY),
+            step => step,
+        };
+        self.path.push(step);
         check(self);
         self.path.pop();
+    }
+
+    /// Checks a sensitive value: a map key below it is client data, so a
+    /// violation's path names it `[key]`. Member names and list indexes come
+    /// from the model and the value's shape, and stay. Generated code opens
+    /// this for a `@sensitive` member, a sensitive structure's members and
+    /// the entries of a map whose keys are sensitive; a structure reached
+    /// through such a member is covered too, since the scope is the
+    /// validator's, not the structure's.
+    pub fn sensitive(&mut self, check: impl FnOnce(&mut Self)) {
+        self.sensitive += 1;
+        check(self);
+        self.sensitive -= 1;
     }
 
     pub fn fail(&mut self, message: impl Into<String>) {
@@ -381,6 +403,27 @@ mod tests {
         let last = rejection.violations.last().unwrap();
         assert_eq!(last.path, "");
         assert_eq!(last.message, "999900 more violations are not listed");
+    }
+
+    #[test]
+    fn map_keys_inside_a_sensitive_scope_are_not_named() {
+        let mut validator = Validator::default();
+        let key = "hunter2".to_owned();
+        validator.at("public", |v| v.at(&key, |v| v.fail("broken")));
+        validator.at("private", |v| {
+            v.sensitive(|v| v.at(&key, |v| v.at(3, |v| v.at("name", |v| v.fail("broken")))));
+        });
+        // The scope closes with its closure.
+        validator.at("after", |v| v.at(&key, |v| v.fail("broken")));
+        let paths: Vec<_> = validator
+            .violations
+            .iter()
+            .map(|v| v.path.as_str())
+            .collect();
+        assert_eq!(
+            paths,
+            ["public/hunter2", "private/[key]/3/name", "after/hunter2"]
+        );
     }
 
     #[test]
