@@ -280,7 +280,8 @@ fn record(file: &SdkFile, planned: &[(&Sdk, SdkPlan)]) -> PlanRecord {
         ),
         generator: GeneratorRecord {
             version: env!("CARGO_PKG_VERSION").into(),
-            revision: crucible_codegen_rust::source_revision().map(str::to_owned),
+            // A `+dirty` build has no verified revision.
+            revision: crucible_revision::verified_revision().map(str::to_owned),
             changes: generator_changes(),
         },
         sdks: planned

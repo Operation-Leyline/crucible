@@ -8,6 +8,9 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
+# URL rules shared with the SDK file's resolver: credential detection,
+# redaction and host canonicalization.
+crucible-codegen-common.workspace = true
 base64 = "0.22"
 flate2 = "1"
 semver = { version = "1", features = ["serde"] }

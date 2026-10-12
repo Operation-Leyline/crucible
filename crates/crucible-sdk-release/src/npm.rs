@@ -702,6 +702,11 @@ fn registry_url(text: &str) -> Result<Url, String> {
     if url.query().is_some() || url.fragment().is_some() {
         return Err(format!("{}: has a query or fragment", http::display(&url)));
     }
+    // One spelling per registry, as the SDK file's resolver compares hosts.
+    if let Some(host) = crucible_codegen_common::metadata::canonical_host(text) {
+        url.set_host(Some(&host))
+            .map_err(|error| format!("{}: {error}", http::display(&url)))?;
+    }
     if !url.path().ends_with('/') {
         let path = format!("{}/", url.path());
         url.set_path(&path);
@@ -741,6 +746,10 @@ mod tests {
         assert_eq!(
             registry_url("https://r.example/npm/repo").unwrap().as_str(),
             "https://r.example/npm/repo/"
+        );
+        assert_eq!(
+            registry_url("https://NPM.pkg.github.com./").unwrap(),
+            registry_url("https://npm.pkg.github.com").unwrap()
         );
         for bad in [
             "http://npm.pkg.github.com",

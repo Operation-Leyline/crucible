@@ -933,6 +933,7 @@ name = "crucible-sdk-release"
 version = "0.6.1"
 dependencies = [
  "base64 0.22.1",
+ "crucible-codegen-common",
  "flate2",
  "semver",
  "serde",

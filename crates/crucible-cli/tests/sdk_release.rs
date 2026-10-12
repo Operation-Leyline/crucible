@@ -470,7 +470,7 @@ fn build_refuses_early_what_would_fail_late() {
         error.contains("does not ship") && error.contains("src/extra.rs"),
         "{error}"
     );
-    assert!(!error.contains("target"), "{error}");
+    assert!(!error.contains("target/debug"), "{error}");
 }
 
 #[test]

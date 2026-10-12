@@ -18,6 +18,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use crucible_codegen_common::metadata::{credential_problem, redact};
 use semver::Version;
 use tempfile::TempDir;
 
@@ -120,7 +121,7 @@ impl GitTagChannel {
         runner: Box<dyn CommandRunner>,
     ) -> Result<Self, ChannelError> {
         let invalid = |reason: String| ChannelError::Invalid {
-            channel: format!("git {}", without_userinfo(&config.url)),
+            channel: format!("git {}", redact(&config.url)),
             reason,
         };
         if config.url.is_empty() || config.url.starts_with('-') {
@@ -792,40 +793,11 @@ fn mode_of(file: &PackageFile) -> &'static str {
     if file.executable { "100755" } else { "100644" }
 }
 
-/// `url` for a message, with any user information (which could be a
-/// token) replaced.
-fn without_userinfo(url: &str) -> String {
-    match url.split_once("://") {
-        Some((scheme, rest)) => {
-            let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-            match rest[..end].rsplit_once('@') {
-                Some((_, host)) => format!("{scheme}://<redacted>@{host}{}", &rest[end..]),
-                None => url.to_owned(),
-            }
-        }
-        None => match url.split_once('@') {
-            Some((user, rest)) if user.contains(':') => format!("<redacted>@{rest}"),
-            _ => url.to_owned(),
-        },
-    }
-}
-
-/// Whether a repository URL carries a password or token. A user name such
-/// as `git@` is fine over SSH; over HTTP(S) a user name can only be a
-/// token, since credentials come from Git's helpers.
+/// Whether a repository URL carries a password or token, by the rule the
+/// SDK file's resolver applies: a user name such as `git@` is fine over
+/// SSH; over HTTP(S) a user name can only be a token.
 fn carries_credential(url: &str) -> bool {
-    match url.split_once("://") {
-        None => url
-            .split_once('@')
-            .is_some_and(|(user, _)| user.contains(':')),
-        Some((scheme, rest)) => {
-            let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-            authority.rsplit_once('@').is_some_and(|(userinfo, _)| {
-                userinfo.contains(':')
-                    || matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https")
-            })
-        }
-    }
+    credential_problem(url).is_some()
 }
 
 #[cfg(test)]
