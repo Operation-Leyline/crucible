@@ -7,8 +7,9 @@ hashes in `release.json`. Publication verifies the manifest before each command.
 This page documents `tools/sdk_release.py`, a runner in this repository.
 Its replacement, `crucible sdk`, is designed in
 [SDK packaging and releases](sdk-packaging.md): package metadata for every
-language, versions computed from the model, provenance, and release
-channels including Git tags, so a service needs no packaging scripts.
+language, versions chosen against what is published, provenance, and
+release channels including Git tags, so a service needs no packaging
+scripts.
 
 ## Build a release
 
@@ -53,8 +54,8 @@ Commands run without a shell; environment variables stay in the environment.
 Every generator emits its native package metadata. Rust's client is a complete
 Cargo package (`Cargo.toml` with its runtime dependency, and `src/lib.rs`), but
 this runner predates it: it passes `<package>/src/lib.rs` as `--out` and no
-`--client`, so its Rust target does not produce a client package. Until
-`crucible sdk` replaces the runner, generate the Rust client with
+`--client`, so its Rust target does not produce a client package (a fix is
+tracked separately). Until then, generate the Rust client with
 `crucible generate rust --client --package-version <version> --out <dir>` and
 package it with Cargo. Languages distributed by Git tags, source archives, or package
 manager manifests should use their native release mechanism in the recipe.
