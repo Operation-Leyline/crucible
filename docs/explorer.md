@@ -11,10 +11,10 @@ default; keep the runtime and build dependency pinned to the same revision.
 
 ```toml
 [dependencies]
-crucible-server-runtime-rust = { version = "=0.6.0", features = ["explorer"] }
+crucible-server-runtime-rust = { version = "=0.6.1", features = ["explorer"] }
 
 [build-dependencies]
-crucible-build = "=0.6.0"
+crucible-build = "=0.6.1"
 ```
 
 Generate the embedded description in `build.rs`:

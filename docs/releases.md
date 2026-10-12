@@ -123,6 +123,15 @@ CRUCIBLE_BLESS=1 cargo test --locked
 git diff -- crates
 ```
 
+Docs that pin an exact Crucible version move with it: the dependency example
+in [explorer.md](explorer.md) and the traits coordinates in
+[clients.md](clients.md):
+
+```sh
+PREVIOUS=0.2.0   # the version being replaced
+git grep -n -F -e "=$PREVIOUS" -e "crucible-traits:$PREVIOUS" -- docs
+```
+
 Commit the version bump and reviewed golden changes together, then open a PR:
 
 ```sh
