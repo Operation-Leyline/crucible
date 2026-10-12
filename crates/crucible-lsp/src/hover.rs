@@ -25,7 +25,8 @@ pub const FENCE: &str = "crucible";
 /// Contexts a [`KEYWORDS`] row applies in.
 const DECLARATION: &[&str] = &["declaration"];
 const ANYWHERE: &[&str] = &[];
-const OPERATION: &[&str] = &["operation", "template"];
+// Templates are not compiled yet, so words inside one explain nothing.
+const OPERATION: &[&str] = &["operation"];
 const SERVICE: &[&str] = &["service"];
 const RESOURCE: &[&str] = &["resource"];
 const ERROR: &[&str] = &["error"];
@@ -143,7 +144,8 @@ const KEYWORDS: &[Row] = &[
     // ---- modifiers ---------------------------------------------------------
     (
         "readonly",
-        ANYWHERE,
+        // An operation's modifier, and a flag rules test; not a property's.
+        &["operation", "rule"],
         "Marks an operation that only reads, so it is safe to call again. Under `http`, GET and HEAD must be `readonly`; the `reads` and `lists` roles imply it.",
         "readonly operation GetStatus {\n    http GET \"/status\"\n}",
     ),
@@ -205,13 +207,13 @@ const KEYWORDS: &[Row] = &[
     ),
     (
         "input",
-        &["operation", "template", "migration"],
+        &["operation", "migration"],
         "The operation's input: an anonymous body of members, never a named type. `$name` binds an identifier or property of the operation's resource; `strict input` refuses unknown members.",
         "operation GetCity reads City {\n    input {\n        $cityId\n        @query verbose?: boolean\n    }\n}",
     ),
     (
         "output",
-        &["operation", "template", "migration"],
+        &["operation", "migration"],
         "The operation's output: an anonymous body of members. A member whose type is a `for` view of a resource, or a list or map of one, carries the resource's properties.",
         "operation GetCity reads City {\n    output {\n        city: CityData\n    }\n}",
     ),
@@ -229,7 +231,7 @@ const KEYWORDS: &[Row] = &[
     ),
     (
         "example",
-        &["operation", "template", "example"],
+        &["operation", "example"],
         "A worked example: an input with the output or the error it produces, checked against the shapes and shown in docs and OpenAPI.",
         "operation GetCity {\n    example \"Lisbon\" {\n        input { cityId: \"lis\" }\n        output { city: { name: \"Lisbon\" } }\n    }\n}",
     ),
@@ -597,8 +599,8 @@ const KEYWORDS: &[Row] = &[
     (
         "@mutability",
         ANYWHERE,
-        "Overrides when a resource property can be written and read: `full`, `create`, `createAndRead`, `read` or `write`. Infrastructure generators read it.",
-        "structure CityData for City {\n    @mutability(createAndRead) $name\n}",
+        "Declares when a member that binds no resource property, such as a create-time parameter, can be written and read: `full`, `create`, `createAndRead`, `read` or `write`. Infrastructure generators read it.",
+        "operation CreateInbox creates Inbox {\n    input {\n        @mutability(create) localPart: string\n    }\n}",
     ),
     // ---- built-in types ----------------------------------------------------
     (
@@ -723,9 +725,13 @@ pub fn hover(
         }
         Role::Decorator => match model.item(&word) {
             Some(item) if matches!(item.decl, Decl::Metadata(_)) => Some(model.declaration(item)),
-            _ => keyword(&format!("@{word}"), "")
-                .or_else(|| keyword(&word, context(parsed, start)?))
-                .map(|row| explain(row.0, row.2, row.3)),
+            // `@name` is an annotation: one that is not built in explains
+            // nothing, rather than what the bare word means elsewhere. A
+            // bare decorator is a key a metadata declaration names.
+            _ if annotated(parsed, start) => {
+                keyword(&format!("@{word}"), "").map(|row| explain(row.0, row.2, row.3))
+            }
+            _ => keyword(&word, context(parsed, start)?).map(|row| explain(row.0, row.2, row.3)),
         },
         Role::Property => model.member(parsed, start),
         Role::Type | Role::Struct | Role::Enum | Role::Class | Role::Interface | Role::Function => {
@@ -734,6 +740,14 @@ pub fn hover(
         _ => None,
     }?;
     Some((start, end, markdown))
+}
+
+/// Whether the identifier starting at `start` follows an `@`.
+fn annotated(parsed: &Parsed, start: u32) -> bool {
+    let at = parsed
+        .tokens
+        .partition_point(|token| token.span.start < start);
+    at > 0 && parsed.tokens[at - 1].kind == TokenKind::At
 }
 
 /// A keyword's hover: the word, what it means, and an example.
@@ -779,7 +793,6 @@ fn context(parsed: &Parsed, start: u32) -> Option<&'static str> {
         Decl::Resource(_) => "resource",
         Decl::Operation(operation) if in_example(&operation.entries) => "example",
         Decl::Operation(_) => "operation",
-        Decl::Template(template) if in_example(&template.entries) => "example",
         Decl::Template(_) => "template",
         Decl::Structure(_) => "structure",
         Decl::Union(_) => "union",
@@ -828,7 +841,7 @@ impl<'a> Model<'a> {
         let mut out = vec![fence(&render_item(item))];
         out.extend(self.summary(item));
         if let Some(doc) = &item.doc {
-            out.push(doc.text.trim().to_owned());
+            out.push(documentation(&doc.text));
         }
         match &item.decl {
             Decl::List(list) => out.extend(self.related("Items", &list.member.name)),
@@ -1043,7 +1056,7 @@ impl<'a> Model<'a> {
                     out.extend(self.constraints(&ty.constraints, &ty.name.name));
                 }
                 if let Some(doc) = &member.doc {
-                    out.push(doc.text.trim().to_owned());
+                    out.push(documentation(&doc.text));
                 }
                 if let Some(ty) = ty {
                     out.extend(self.type_sections(&ty.name.name));
@@ -1071,7 +1084,7 @@ impl<'a> Model<'a> {
                         ));
                         out.extend(self.constraints(&entry.ty.constraints, &entry.ty.name.name));
                         if let Some(doc) = member.doc.as_ref().or(entry.doc.as_ref()) {
-                            out.push(doc.text.trim().to_owned());
+                            out.push(documentation(&doc.text));
                         }
                         out.extend(self.type_sections(&entry.ty.name.name));
                     }
@@ -1082,7 +1095,7 @@ impl<'a> Model<'a> {
                             code(&name.name)
                         ));
                         if let Some(doc) = &member.doc {
-                            out.push(doc.text.trim().to_owned());
+                            out.push(documentation(&doc.text));
                         }
                     }
                 }
@@ -1106,7 +1119,7 @@ impl<'a> Model<'a> {
         ));
         out.extend(self.constraints(&entry.ty.constraints, &entry.ty.name.name));
         if let Some(doc) = &entry.doc {
-            out.push(doc.text.trim().to_owned());
+            out.push(documentation(&doc.text));
         }
         out.extend(self.type_sections(&entry.ty.name.name));
         join(out)
@@ -1326,16 +1339,19 @@ fn describe(constraint: &Constraint, unit: Option<Unit>) -> String {
 }
 
 fn bounds(min: Option<&NumLit>, max: Option<&NumLit>, unit: Option<Unit>) -> String {
-    let counted = |number: &str| match unit {
-        Some((one, _)) if number == "1" => format!("{number} {one}"),
+    // Singular only for one exact count: `at most 1 item`, `0 to 1 items`.
+    let counted = |number: &str, single: bool| match unit {
+        Some((one, _)) if single && number == "1" => format!("{number} {one}"),
         Some((_, many)) => format!("{number} {many}"),
         None => number.to_owned(),
     };
     match (min, max) {
-        (Some(min), Some(max)) if min.text == max.text => format!("exactly {}", counted(&min.text)),
-        (Some(min), Some(max)) => format!("{} to {}", min.text, counted(&max.text)),
-        (Some(min), None) => format!("at least {}", counted(&min.text)),
-        (None, Some(max)) => format!("at most {}", counted(&max.text)),
+        (Some(min), Some(max)) if min.text == max.text => {
+            format!("exactly {}", counted(&min.text, true))
+        }
+        (Some(min), Some(max)) => format!("{} to {}", min.text, counted(&max.text, false)),
+        (Some(min), None) => format!("at least {}", counted(&min.text, true)),
+        (None, Some(max)) => format!("at most {}", counted(&max.text, true)),
         (None, None) => "any".to_owned(),
     }
 }
@@ -1750,6 +1766,37 @@ fn quote(text: &str) -> String {
 }
 
 // ---- Markdown --------------------------------------------------------------
+
+/// Documentation as Markdown, with a code fence it leaves open closed, so
+/// it cannot swallow what the hover shows after it.
+fn documentation(text: &str) -> String {
+    let mut out = text.trim().to_owned();
+    let mut open: Option<(char, usize)> = None;
+    for line in out.lines() {
+        let line = line.trim_start();
+        let Some(mark) = line.chars().next().filter(|c| *c == '`' || *c == '~') else {
+            continue;
+        };
+        let run = line.chars().take_while(|c| *c == mark).count();
+        if run < 3 {
+            continue;
+        }
+        match open {
+            None => open = Some((mark, run)),
+            Some((open_mark, open_run))
+                if mark == open_mark && run >= open_run && line[run..].trim().is_empty() =>
+            {
+                open = None;
+            }
+            Some(_) => {}
+        }
+    }
+    if let Some((mark, run)) = open {
+        out.push('\n');
+        out.push_str(&mark.to_string().repeat(run));
+    }
+    out
+}
 
 /// The longest run of backticks in `text`.
 fn backticks(text: &str) -> usize {
@@ -2199,5 +2246,65 @@ readonly operation GetCity reads City {
         assert_eq!(fence("x"), "```crucible\nx\n```");
         assert_eq!(fence("```"), "````crucible\n```\n````");
         assert_eq!(quote("a\"b\\c"), "\"a\\\"b\\\\c\"");
+    }
+
+    #[test]
+    fn an_unclosed_fence_in_documentation_is_closed() {
+        let source = "/// Like this:\n/// ```crucible\n/// list A: B\nlist Items: Item { length ..5 }\nstring Item { length 1..3 }\n";
+        let items = hover_at(source, "Items", 0).unwrap();
+        assert_fenced(&items);
+        // What follows the documentation is still outside any fence.
+        assert!(
+            items.ends_with(
+                "```crucible\nstring Item { length 1..3 }\n```\n\nConstraints: 1 to 3 characters."
+            ),
+            "{items}"
+        );
+        assert_eq!(documentation("a\n~~~\nb\n~~~"), "a\n~~~\nb\n~~~");
+        assert_eq!(documentation("a\n````\nb"), "a\n````\nb\n````");
+    }
+
+    #[test]
+    fn only_built_in_annotations_explain_themselves() {
+        let source = "structure A {\n    @length(1) @internal @sensitive a: string\n}\nmetadata k on member conflicts sensitive\n";
+        assert_eq!(hover_at(source, "length", 0), None);
+        assert_eq!(hover_at(source, "internal", 0), None);
+        assert_eq!(hover_at(source, "sensitive", 0), None);
+        // A key a metadata declaration names is the modifier it means.
+        let conflict = hover_at(source, "sensitive", 1).unwrap();
+        assert!(conflict.contains("redacted from logs"), "{conflict}");
+    }
+
+    #[test]
+    fn counts_are_singular_only_when_exact() {
+        let source =
+            "string A { length 0..1 }\nstring B { length ..1 }\nlist C: A { length 1..1 }\n";
+        assert!(
+            hover_at(source, "A", 0)
+                .unwrap()
+                .contains("0 to 1 characters.")
+        );
+        assert!(
+            hover_at(source, "B", 0)
+                .unwrap()
+                .contains("at most 1 character.")
+        );
+        assert!(
+            hover_at(source, "C", 0)
+                .unwrap()
+                .contains("exactly 1 item.")
+        );
+    }
+
+    #[test]
+    fn words_in_templates_explain_nothing_yet() {
+        let source = "template lists {\n    paginated(items: items)\n}\n";
+        assert_eq!(hover_at(source, "lists", 0), None);
+        assert_eq!(hover_at(source, "paginated", 0), None);
+        assert!(
+            hover_at(source, "template", 0)
+                .unwrap()
+                .contains("Not supported by the compiler yet")
+        );
     }
 }
