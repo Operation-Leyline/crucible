@@ -1,11 +1,13 @@
 # SDK packaging and releases
 
-**Status: phase 1a built** (decisions below): the SDK file and its
+**Status: phase 1 built** (decisions below): the SDK file and its
 resolver, `crucible sdk config|generate` with the `Cargo.lock` revision
 check, Rust and TypeScript metadata, `crucible.json` schema 2 with
-`crucible-model.json`, and the change log. Sections and bullets marked
-*(built)* exist; the rest is designed, not built. Releasing (`crucible sdk
-plan|build|verify|publish`) is phase 1b. Before this design, a service got
+`crucible-model.json`, and the change log (phase 1a); and releasing,
+`crucible sdk plan|build|verify|publish` on npm and git channels with
+Pigeon's version rule, imported releases and resumable publishing
+(phase 1b, in `crates/crucible-sdk-release`). Sections and bullets marked
+*(built)* exist; the rest is designed, not built. Before this design, a service got
 complete native packages from `crucible_build` or `crucible generate`, and
 then wrote its own scripts to make them publishable: package metadata,
 versions, provenance, the "has anything changed" check, and the upload.
@@ -215,7 +217,7 @@ crate with a path dependency on the SDK's `out`.
 
 ## 3. Versions
 
-### The rule
+### The rule *(built)*
 
 Each SDK has its own line, since a generator change can touch one
 language and channels differ. Its version is chosen against its last
@@ -310,7 +312,7 @@ phase 5c) come later. Each has its own identity on its channel (a
 package, tag prefix or dist-tag), and only the current line moves npm's
 `latest`.
 
-### Planned state and published state
+### Planned state and published state *(built)*
 
 - **The channel says what is published.** Each plan reads it again:
   versions, and the `crucible.json` and `crucible-model.json` inside the
@@ -421,7 +423,7 @@ patch. A last release without a schema-2 `contentDigest` (every release
 before this design) counts as changed once. Built archives are never
 compared for "unchanged", and no service script is hashed.
 
-## 5. Releasing: `crucible sdk`
+## 5. Releasing: `crucible sdk` *(built for npm and git channels)*
 
 `config` and `generate` are built; the rest is phase 1b.
 
@@ -624,7 +626,7 @@ pointing here.
    resolver, `crucible sdk config|generate` and the `Cargo.lock` revision
    check; Rust and TypeScript metadata, `crucible.json` schema 2 and
    `crucible-model.json`, and the change log seeded with entry `0`.
-   *Phase 1b:* `plan|build|verify|publish` for npm (GitHub Packages included) and git
+   *Phase 1b (built):* `plan|build|verify|publish` for npm (GitHub Packages included) and git
    channels, with consumer tests against the release, lockfile
    reconciliation, the release record and resumable publishing; Pigeon's
    version rule (patch, floor, `--bump`, `--first-release`); imported

@@ -40,7 +40,7 @@ const LEGACY_MARKER: &str =
 const HASH_CHUNK: usize = 100;
 
 /// A distribution repository, one branch, one directory and one tag line.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct GitChannelConfig {
     /// The repository: an SSH or HTTPS URL, never with a password or token.
     pub url: String,

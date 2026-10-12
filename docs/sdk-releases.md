@@ -10,8 +10,9 @@ designed in [SDK packaging and releases](sdk-packaging.md): package
 metadata for every language, versions chosen against what is published,
 provenance, and release channels including Git tags, so a service needs no
 packaging scripts. Today it declares SDKs, prints their configuration and
-generates them; releasing them (`plan`, `build`, `verify`, `publish`)
-comes next.
+generates them, and releases them on npm and git channels (`plan`,
+`build`, `verify`, `publish`); `tools/sdk_release.py` remains for the
+other languages until their channels land.
 
 ## Declare SDKs: `crucible-sdk.toml`
 
@@ -156,7 +157,8 @@ Rust and TypeScript packages carry two files at their root, which npm's
   `crates/crucible-codegen/sdk-changes.toml`), `language`, `package`,
   `packageVersion`, `audience`, `service`, `serviceVersion`,
   `schemaSha256` (the shared wire schema's digest), `configSha256` (for a
-  declared SDK) and `contentDigest`. A release build will add `source`.
+  declared SDK) and `contentDigest`. `crucible sdk build` adds `source`:
+  the service repository and commit, and `dirty` with `--allow-dirty`.
 - `crucible-model.json`: the compiled model as the package's audience sees
   it, in the release snapshot format of `crucible freeze`, as compact JSON
   of the typed contract: no documentation strings and no raw trait maps,
@@ -175,6 +177,84 @@ path bytes: the path's length as 8 bytes big-endian, the path (UTF-8,
 relative, `/`-separated), the content's length the same way, the content,
 and one byte, 1 for an executable file and 0 otherwise. The other
 languages keep their schema-1 `crucible.json` for now.
+
+## Release declared SDKs: `crucible sdk plan|build|verify|publish`
+
+```sh
+crucible sdk plan     [--sdk <name>]... [--json] [--first-release <name>]... [--bump <name>=<kind>]...
+crucible sdk build    --out target/sdk-release [--allow-dirty] [the plan's options]
+crucible sdk verify   target/sdk-release
+crucible sdk publish  target/sdk-release [--sdk <name>]... [--execute]
+```
+
+**Channels.** An SDK's `channel` is where its releases live:
+
+- `{ npm = "<registry url>", access = "restricted", dist_tag = "latest" }`,
+  GitHub Packages included, for TypeScript. The registry's package
+  document lists the versions; the provenance is read from inside the
+  latest tarball, after checking it against `dist.integrity`. Credentials
+  come from `.npmrc` as npm finds them (the project's, then
+  `NPM_CONFIG_USERCONFIG` or `~/.npmrc`), so `actions/setup-node` with
+  `NODE_AUTH_TOKEN` works; a bare `NODE_AUTH_TOKEN` is never sent on its
+  own. npm answers 404 both for a missing package and for a private one
+  read without credentials, so an anonymous 404 counts as empty only for
+  `access = "public"`; otherwise the plan fails. Downloads are HTTPS only,
+  and the token follows a redirect only to the registry's own scheme, host
+  and port. `publish` runs `npm publish <tgz> --ignore-scripts` on the
+  tested tarball, after checking its name, version and `publishConfig`
+  against the channel, and never moves the dist-tag backwards: if it
+  already points at a higher version, the release is tagged
+  `<tag>-<major>.<minor>` instead.
+- `{ git = "<url>", branch = "main", path = ".", tag = "v{version}", adopt = [..] }`
+  for a private crate, and natively for Go, Swift and PHP. Each release is
+  a commit on `branch`, tagged; `path` and a tag prefix such as
+  `go/v{version}` put a module in a subdirectory. Publishing fetches the
+  branch tip alone, removes what the previous release's `.crucible` lists,
+  writes the package's paths, commits, tags, and pushes branch and tag
+  with `git push --atomic`. It never re-tags. Everything else in the
+  repository (`NOTICE`, workflows) stays. A tree with no `.crucible`
+  predates Crucible and is adopted once: the `adopt` paths are removed.
+  Credentials are Git's own (an SSH agent or credential helper).
+
+**`plan`** reads each channel and prints the last release, whether the
+SDK changed, the next version and why. *Unchanged* means the current
+inputs, generated at the last release's version, have the same
+`contentDigest`; then there is no release unless the `version` floor is
+above the last version. Otherwise the version is the highest of the last
+version plus a patch, the floor, and `--bump <name>=patch|minor|major`
+(Cargo's and npm's caret rules: below 1.0, `major` moves the minor). A
+release made before `crucible.json` schema 2 (Pigeon's `contractHash`
+tarballs and `sdk-release.json` tags) counts as changed once. An empty
+channel needs `--first-release <name>`, which takes the floor or `0.1.0`;
+a channel that cannot be read fails the plan. For a `.cru` service, a
+changed `serviceVersion` warns until `--bump <name>=major`.
+
+**`build`** plans again, then, into a new or empty `--out`:
+
+1. generates each released SDK at its version into `<name>/package`, with
+   `source` (the service commit; every input must be committed, unless
+   `--allow-dirty`) in `crucible.json`, and packages it: TypeScript with
+   `npm install --ignore-scripts` (the TypeScript compiler pinned to
+   5.9.3), `npm run build` and `npm pack --ignore-scripts`; a git channel
+   as the package tree, archived (`package.tar`). A local `runtime_path`
+   is refused;
+2. writes `plan.json`;
+3. regenerates the release into each SDK's `out`, so a consumer's path
+   dependency builds the sources being released;
+4. rewrites the SDK's own path entry in each `lockfiles` Cargo lockfile to
+   the release version (restored afterwards), and runs its `test`
+   commands, argument arrays with `{artifact}` and `{package}` substituted,
+   from the SDK file's directory;
+5. writes `release.json` once every test passed.
+
+**`verify`** re-hashes every artifact against `release.json`. **`publish`**
+reads only the release directory. Without `--execute` it prints what it
+would upload. For each SDK it is resumable: an upload journalled in
+`publication.json` is done; the plan's version already on the channel with
+the same bytes (npm's `dist.integrity`, or the tag's tree holding the
+package's paths) is done; other bytes under that version, or a latest
+release that is no longer the plan's baseline, stop the publish and ask
+for a new plan.
 
 ## Release with `tools/sdk_release.py`
 

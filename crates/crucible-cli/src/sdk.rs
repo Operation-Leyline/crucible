@@ -1,7 +1,14 @@
 //! `crucible sdk`: the SDKs a service declares in `crucible-sdk.toml`
 //! (docs/sdk-packaging.md). `config` prints their effective configuration
-//! and `generate` writes the development exports. Both run only at the
-//! Crucible revision the service's `Cargo.lock` pins.
+//! and `generate` writes the development exports; `plan`, `build`, `verify`
+//! and `publish` release them (see the `release` and `publish` modules).
+//! Every command that reads the SDK file runs only at the Crucible revision
+//! the service's `Cargo.lock` pins; `verify` and `publish` read only the
+//! release directory.
+
+mod lockfile;
+mod publish;
+mod release;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -36,10 +43,79 @@ enum SdkCommand {
         #[arg(long = "sdk", value_name = "NAME")]
         sdks: Vec<String>,
     },
+    /// Print each SDK's last release, change, next version and why, read
+    /// from its channel. Writes nothing.
+    Plan {
+        #[command(flatten)]
+        plan: release::PlanArgs,
+        /// Print the plan as JSON, as `build` records it in plan.json.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Build what the plan chose into a fresh directory, run each SDK's
+    /// consumer tests against it, and record plan.json and release.json.
+    Build {
+        #[command(flatten)]
+        plan: release::PlanArgs,
+        /// The release directory, which must be new or empty.
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        /// Build even though an input (the model, the SDK file, a README or
+        /// license file) is untracked or modified; provenance records it.
+        #[arg(long)]
+        allow_dirty: bool,
+    },
+    /// Re-hash every artifact in a release directory against release.json.
+    Verify {
+        /// The release directory `build` wrote.
+        release: PathBuf,
+    },
+    /// Publish a built release: print what would be uploaded, or upload it
+    /// with --execute. Resumes a partial publish; stops if a channel moved.
+    Publish {
+        /// The release directory `build` wrote.
+        release: PathBuf,
+        /// Only this SDK; repeat for more. Defaults to every released SDK.
+        #[arg(long = "sdk", value_name = "NAME")]
+        sdks: Vec<String>,
+        /// Upload. Without it, publish only says what it would do.
+        #[arg(long)]
+        execute: bool,
+    },
 }
 
 pub(crate) fn run(args: SdkArgs) -> Result<(), String> {
-    let path = match args.file {
+    let file = match &args.command {
+        SdkCommand::Verify { release } => return publish::verify(release),
+        SdkCommand::Publish {
+            release,
+            sdks,
+            execute,
+        } => return publish::publish(release, sdks, *execute),
+        SdkCommand::Config { sdks, .. } | SdkCommand::Generate { sdks } => {
+            sdk_file(args.file, sdks)?
+        }
+        SdkCommand::Plan { plan, .. } | SdkCommand::Build { plan, .. } => {
+            sdk_file(args.file, &plan.sdks)?
+        }
+    };
+    match args.command {
+        SdkCommand::Config { sdks, json } => config(&file, &sdks, json),
+        SdkCommand::Generate { sdks } => generate(&file, &sdks),
+        SdkCommand::Plan { plan, json } => release::plan(&file, &plan, json),
+        SdkCommand::Build {
+            plan,
+            out,
+            allow_dirty,
+        } => release::build(&file, &plan, &out, allow_dirty),
+        SdkCommand::Verify { .. } | SdkCommand::Publish { .. } => unreachable!("handled above"),
+    }
+}
+
+/// The SDK file, found and checked, at the pinned Crucible revision, with
+/// the environment read for the selected SDKs (`names`, or all) only.
+fn sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> {
+    let path = match file {
         Some(path) => path,
         None => {
             let here = std::env::current_dir().map_err(|error| error.to_string())?;
@@ -66,16 +142,10 @@ pub(crate) fn run(args: SdkArgs) -> Result<(), String> {
     }
     // The whole file is checked; only the selected SDKs' environment is read.
     let mut file = sdk::load(&path).map_err(|errors| errors.to_string())?;
-    let names = match &args.command {
-        SdkCommand::Config { sdks, .. } | SdkCommand::Generate { sdks } => sdks.clone(),
-    };
-    file.select(&names)?;
-    file.resolve_endpoints(&names, |name| std::env::var(name).ok())
+    file.select(names)?;
+    file.resolve_endpoints(names, |name| std::env::var(name).ok())
         .map_err(|errors| errors.to_string())?;
-    match args.command {
-        SdkCommand::Config { sdks, json } => config(&file, &sdks, json),
-        SdkCommand::Generate { sdks } => generate(&file, &sdks),
-    }
+    Ok(file)
 }
 
 fn config(file: &SdkFile, names: &[String], json: bool) -> Result<(), String> {

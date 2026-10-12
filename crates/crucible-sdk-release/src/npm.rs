@@ -30,7 +30,8 @@ pub const PACKUMENT_LIMIT: u64 = 64 << 20;
 pub const TARBALL_LIMIT: u64 = 512 << 20;
 
 /// `npm publish --access`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum NpmAccess {
     Public,
     Restricted,
@@ -54,13 +55,15 @@ impl NpmAccess {
 }
 
 /// One package on one npm registry.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NpmChannelConfig {
     /// The registry URL: the channel's `npm`, which the generated
     /// `package.json` also names as `publishConfig.registry`.
     pub registry: String,
     /// The npm package name, `@scope/name` or `name`.
     pub package: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access: Option<NpmAccess>,
     /// The dist-tag a release moves (`latest`), never backwards.
     pub dist_tag: String,

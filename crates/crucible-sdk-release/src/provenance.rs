@@ -1,11 +1,10 @@
 //! Reading a released package's `crucible.json` (docs/sdk-packaging.md,
 //! "Provenance"), whichever schema wrote it.
 //!
-//! TODO(sdk phase 1a): the writer is `crucible_codegen::provenance` (with
-//! `PROVENANCE_FILE`, `MODEL_FILE` and `OWNERSHIP_FILE`). This reader stays
-//! separate on purpose: it must read what *older and newer* generators
-//! wrote, so it is lenient where the writer is exact. When 1a lands, take
-//! the file-name constants from there.
+//! The writer is `crucible_codegen::provenance`. This reader stays separate
+//! on purpose: it reads what older and newer generators wrote, so it is
+//! lenient where the writer is exact, and the publish job needs no
+//! generator to run it.
 
 use serde::Deserialize;
 

@@ -8,14 +8,11 @@ use crate::git::{GitChannelConfig, GitTagChannel};
 use crate::npm::{NpmChannel, NpmChannelConfig};
 use crate::release::{ChannelRead, LastRelease, ReleaseRef};
 
-/// Where one SDK is released.
-///
-/// TODO(sdk phase 1a): `crucible_codegen::sdk::Channel` is the resolved
-/// form of an SDK file's `channel` table. Integration maps
-/// `Channel::Npm { url, access, dist_tag }` to [`NpmChannelConfig`] (adding
-/// the SDK's `package`) and `Channel::Git { url, branch, path, tag, adopt }`
-/// to [`GitChannelConfig`] field for field.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Where one SDK is released. `crucible sdk` makes it from the resolved
+/// `crucible_codegen::sdk::Channel` (adding the SDK's npm `package`) and
+/// records it in `plan.json`, so `publish` reads it from there.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum ChannelConfig {
     Npm(NpmChannelConfig),
     Git(GitChannelConfig),

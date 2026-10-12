@@ -36,9 +36,9 @@ pub mod journal;
 pub mod legacy;
 pub mod npm;
 pub mod npmrc;
-pub mod plan;
 pub mod provenance;
 pub mod publish;
+pub mod record;
 pub mod release;
 pub mod version;
 

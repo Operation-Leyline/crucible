@@ -588,6 +588,7 @@ dependencies = [
  "crucible-lang",
  "crucible-policy",
  "crucible-revision",
+ "crucible-sdk-release",
  "crucible-smithy",
  "serde",
  "serde_json",
