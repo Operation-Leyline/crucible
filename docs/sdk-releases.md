@@ -23,31 +23,31 @@ segment, and a README or license must not resolve (through a symlink)
 outside it.
 
 ```toml
+# crucible-sdk.toml, at the root of the Pigeon repository
 schema_version = 1
 model = "model/api"                     # a .cru package, Smithy sources, or a JSON AST
 # service = "vip.mailpigeon#Pigeon"     # when the model has several
 
 [defaults]                              # every SDK below, unless it sets its own
-description = "Client for the Pigeon email API."
 repository = "https://github.com/Operation-Pigeon/pigeon"
-license = "LicenseRef-Proprietary"      # an SPDX expression, or license_file
-authors = ["Operation Pigeon <sdk@mailpigeon.vip>"]
-readme = "sdk/README.md"
-keywords = ["email", "pigeon"]
 private = true
 
 [sdk.ts]
 package = "@operation-pigeon/sdk"
-endpoint = { env = "PIGEON_SDK_ENDPOINT" }   # or a URL
+endpoint = "https://api.mailpigeon.vip"
 out = "generated/pigeon-sdk-ts"
 channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
 
 [sdk.rust]
 package = "pigeon-sdk"
-version = "0.2.0"                       # a floor for releases; generate ignores it
-out = "generated/pigeon-sdk-rust"
+version = "0.2.0"                       # a floor: see Versions
+description = "Generated Pigeon API client. Do not edit; see Operation-Pigeon/pigeon model/api/."
+repository = "https://github.com/Operation-Pigeon/mailpigeon-rs"
 readme = "sdk/rust/README.md"
-channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{version}" }
+out = "generated/pigeon-sdk-rust"
+test = [["cargo", "test", "--locked", "--manifest-path", "sdk/rust-tests/Cargo.toml"]]
+lockfiles = ["sdk/rust-tests/Cargo.lock"]
+channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{version}", adopt = ["tests", "docs", "Cargo.lock", "sdk-release.json", ".gitignore"] }
 ```
 
 - **`[defaults]`** holds only the common keys: `description`,
@@ -68,7 +68,8 @@ channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{
   `artifact_id`, `package_id` (C#), `module_name`, `namespace`, `prefix`
   (C), `module_path` (Go), `client_name` and `package_json` (TypeScript),
   `endpoint`, `content_sha256`, `middleware` (TypeScript), and
-  `runtime = { git, rev, version }` or `runtime_path` (Rust). A key the
+  `runtime = { git, rev, version }` or `runtime_path` (Rust).
+  `endpoint` may be `{ env = "NAME" }`, read when the SDK is selected. A key the
   language does not take is an error at that key: Rust takes no
   `endpoint`. The coordinates `crucible generate <language>` requires are
   required here too.
@@ -124,7 +125,8 @@ Go), and never reads a registry.
 `crucible-server-runtime-rust` from Git, `crucible sdk` runs only at that
 revision, and names the command that installs it. A crucible built from a
 checkout with uncommitted changes has no verified revision, so it never
-passes. With no `Cargo.lock` up to the repository root, it warns that
+passes. If the pinned revision predates `crucible sdk`, installing it gives
+no `sdk` command: move the service's pin to the newer revision first. With no `Cargo.lock` up to the repository root, it warns that
 nothing was checked:
 
 ```sh
@@ -145,14 +147,15 @@ Rust and TypeScript packages carry two files at their root, which npm's
 - `crucible.json`, schema 2: `schemaVersion`, `generator`,
   `generatorVersion`, `generatorRevision` (the Git revision the
   generator was built from, when it has one; `<rev>+dirty` when its
-  checkout had uncommitted changes), `generatorChanges` (the
+  checkout had uncommitted changes; `crucible --version` prints it too), `generatorChanges` (the
   highest entry of the generator change log,
   `crates/crucible-codegen/sdk-changes.toml`), `language`, `package`,
   `packageVersion`, `audience`, `service`, `serviceVersion`,
   `schemaSha256` (the shared wire schema's digest), `configSha256` (for a
   declared SDK) and `contentDigest`. A release build will add `source`.
 - `crucible-model.json`: the compiled model as the package's audience sees
-  it, in the release snapshot format of `crucible freeze`. An external
+  it, in the release snapshot format of `crucible freeze`, as compact JSON
+  without documentation strings, which no compatibility comparison reads. An external
   package reveals nothing `@internal`: the projection also drops the raw
   copies of protocol tests, examples, waiters and endpoint tests, whose
   projected forms it keeps.

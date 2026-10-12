@@ -44,6 +44,91 @@ pub fn write(service: &Service, compiler: &str) -> String {
     text
 }
 
+/// `service` as a package carries it (`crucible-model.json`): the release
+/// snapshot without documentation, as compact JSON. A package ships in
+/// every release, so it holds what a compatibility comparison reads and no
+/// more: the comparison never reads documentation strings (`docs`, waiter
+/// `documentation`, the raw `smithy.api#documentation` trait). [`read`]
+/// reads it like any snapshot.
+pub fn write_contract(service: &Service, compiler: &str) -> String {
+    let mut service = service.clone();
+    without_documentation(&mut service);
+    let text = write(&service, compiler);
+    let value: serde_json::Value = serde_json::from_str(&text).expect("a snapshot is JSON");
+    let mut text = serde_json::to_string(&value).expect("JSON serializes");
+    text.push('\n');
+    text
+}
+
+/// Clears every documentation string, typed or raw, from `service`.
+fn without_documentation(service: &mut Service) {
+    use crate::ir::{Member, Shape, Traits};
+    fn strip(traits: &mut Traits) {
+        traits.retain(|id, _| id.to_string() != "smithy.api#documentation");
+    }
+    fn member(member: &mut Member) {
+        member.docs = None;
+        strip(&mut member.traits);
+    }
+    service.docs = None;
+    strip(&mut service.traits);
+    for resource in service.resources.values_mut() {
+        resource.docs = None;
+        strip(&mut resource.traits);
+    }
+    for op in &mut service.operations {
+        op.docs = None;
+        strip(&mut op.traits);
+        for example in &mut op.examples {
+            example.docs = None;
+        }
+        for waiter in op.waiters.values_mut() {
+            waiter.documentation = None;
+        }
+    }
+    for shape in service.shapes.values_mut() {
+        match shape {
+            Shape::Unit { .. } => {}
+            Shape::Simple(s) => {
+                s.docs = None;
+                strip(&mut s.traits);
+            }
+            Shape::Enum(s) => {
+                s.docs = None;
+                strip(&mut s.traits);
+                for value in &mut s.values {
+                    value.docs = None;
+                    strip(&mut value.traits);
+                }
+            }
+            Shape::IntEnum(s) => {
+                s.docs = None;
+                strip(&mut s.traits);
+                for value in &mut s.values {
+                    value.docs = None;
+                    strip(&mut value.traits);
+                }
+            }
+            Shape::List(s) => {
+                s.docs = None;
+                strip(&mut s.traits);
+                member(&mut s.member);
+            }
+            Shape::Map(s) => {
+                s.docs = None;
+                strip(&mut s.traits);
+                member(&mut s.key);
+                member(&mut s.value);
+            }
+            Shape::Structure(s) | Shape::Union(s) => {
+                s.docs = None;
+                strip(&mut s.traits);
+                s.members.iter_mut().for_each(member);
+            }
+        }
+    }
+}
+
 /// The model a snapshot froze.
 pub fn read(text: &str) -> Result<Service, String> {
     let value: serde_json::Value =

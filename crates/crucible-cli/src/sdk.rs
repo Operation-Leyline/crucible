@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use clap::{Args, Subcommand};
-use crucible_codegen::sdk::{self, Channel, SdkFile};
+use crucible_codegen::sdk::{self, SdkFile};
 
 #[derive(Args)]
 pub(crate) struct SdkArgs {
@@ -103,32 +103,26 @@ fn config(file: &SdkFile, names: &[String], json: bool) -> Result<(), String> {
         let effective = sdk.effective(file);
         println!();
         println!("[sdk.{}] {}", sdk.name, sdk.language.display());
-        let mut rows: BTreeMap<&str, String> = BTreeMap::new();
+        // Every effective key, the channel's flattened to `channel.<key>`.
+        let mut rows: BTreeMap<String, String> = BTreeMap::new();
+        let text = |value: &serde_json::Value| match value {
+            serde_json::Value::String(text) => text.clone(),
+            other => other.to_string(),
+        };
         for (key, value) in effective.as_object().expect("an object") {
-            if matches!(
-                key.as_str(),
-                "name" | "language" | "model" | "service" | "channel"
-            ) {
-                continue;
+            match key.as_str() {
+                "name" | "language" | "model" | "service" => {}
+                "channel" => {
+                    for (field, value) in value.as_object().expect("a channel is a table") {
+                        rows.insert(format!("channel.{field}"), text(value));
+                    }
+                }
+                _ => {
+                    rows.insert(key.clone(), text(value));
+                }
             }
-            rows.insert(
-                key,
-                match value {
-                    serde_json::Value::String(text) => text.clone(),
-                    other => other.to_string(),
-                },
-            );
         }
-        if let Some(channel) = &sdk.channel {
-            rows.insert(
-                "channel",
-                match channel {
-                    Channel::Npm { url, .. } => format!("npm {url}"),
-                    Channel::Git { url, tag, .. } => format!("git {url} ({tag})"),
-                },
-            );
-        }
-        rows.insert("config_sha256", sdk.config_sha256(file));
+        rows.insert("config_sha256".into(), sdk.config_sha256(file));
         let width = rows.keys().map(|key| key.len()).max().unwrap_or(0);
         for (key, value) in rows {
             println!("  {key:width$}  {value}");

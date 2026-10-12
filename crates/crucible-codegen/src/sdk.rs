@@ -257,9 +257,15 @@ impl SdkFile {
         self.path.parent().unwrap_or(Path::new("."))
     }
 
-    /// A path from the file, made relative to the working directory.
+    /// A path from the file (written with `/`), joined segment by segment
+    /// so it displays with the platform's one separator.
     pub fn join(&self, relative: &str) -> PathBuf {
-        self.root().join(relative)
+        relative
+            .split('/')
+            .filter(|segment| !segment.is_empty())
+            .fold(self.root().to_path_buf(), |path, segment| {
+                path.join(segment)
+            })
     }
 
     /// The SDKs named in `names`, or every SDK when `names` is empty. An

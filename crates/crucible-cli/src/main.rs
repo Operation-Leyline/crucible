@@ -129,8 +129,7 @@ enum Command {
         #[arg(long, value_name = "GIT_REF")]
         from: Option<String>,
     },
-    /// The SDKs a service declares in crucible-sdk.toml: print their
-    /// effective configuration, or generate them to their `out`.
+    /// Work with the SDKs a service declares in crucible-sdk.toml.
     Sdk(sdk::SdkArgs),
     /// Write a stub for every operation that has no file yet: one file per
     /// operation, in a folder per resource (`service/` for the operations the
@@ -642,7 +641,24 @@ enum MiddlewareArg {
 }
 
 fn main() -> ExitCode {
-    run(Cli::parse().command)
+    use clap::{CommandFactory, FromArgMatches};
+    // The version names the revision too: it is what `crucible sdk`'s
+    // revision check compares with a service's Cargo.lock.
+    let version: &'static str = Box::leak(version().into_boxed_str());
+    let matches = Cli::command().version(version).get_matches();
+    match Cli::from_arg_matches(&matches) {
+        Ok(cli) => run(cli.command),
+        Err(error) => error.exit(),
+    }
+}
+
+/// `0.6.1 (<revision>)`, `0.6.1 (<revision>+dirty)` from a checkout with
+/// uncommitted changes, or `0.6.1` without a verified Git revision.
+fn version() -> String {
+    match crucible_revision::recorded_revision() {
+        Some(revision) => format!("{} ({revision})", env!("CARGO_PKG_VERSION")),
+        None => env!("CARGO_PKG_VERSION").into(),
+    }
 }
 
 // Keep parsing separate from dispatch: their debug-build stack frames together

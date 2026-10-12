@@ -227,7 +227,7 @@ pub(crate) fn stamp(
     };
     let mut text = serde_json::to_string_pretty(&record).expect("provenance serializes");
     text.push('\n');
-    let model = crucible_smithy::snapshot::write(
+    let model = crucible_smithy::snapshot::write_contract(
         service,
         &format!("crucible {}", env!("CARGO_PKG_VERSION")),
     );

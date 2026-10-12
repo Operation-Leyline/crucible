@@ -564,7 +564,7 @@ fn the_source_commit_must_reproduce_every_input() {
     assert!(!source.dirty);
     assert_eq!(
         source.repository.as_deref(),
-        Some("https://github.com/example/weather.git")
+        Some("https://github.com/example/weather")
     );
     // Generated output is not an input.
     fs::create_dir_all(root.join("generated/rust")).unwrap();
@@ -585,10 +585,9 @@ fn the_source_commit_must_reproduce_every_input() {
     git(root, &["rm", "-q", "--cached", "sdk/README.md"]);
     fs::write(root.join("sdk/README.md"), "# Weather\n").unwrap();
     let error = sdk::source(&file, rust, false).unwrap_err();
-    assert!(
-        error.contains("not tracked") || error.contains("untracked"),
-        "{error}"
-    );
+    // Each input is named once, with one reason.
+    assert_eq!(error.matches("sdk/README.md").count(), 1, "{error}");
+    assert!(error.contains("sdk/README.md is not tracked"), "{error}");
 }
 
 const SENTINEL: &str = "sentinel-secret-5d81";
@@ -840,4 +839,19 @@ fn declared_reads_names_leniently() {
     {
         assert_eq!(sdk::find_in_repository(loose.path()), None);
     }
+}
+
+/// A path from the file displays with one separator on every platform.
+#[test]
+fn joined_paths_use_one_separator() {
+    let (_directory, path) = repository("schema_version = 1\nmodel = \"model/api\"\n");
+    let file = sdk::load(&path).unwrap();
+    let joined = file.join("model/api").display().to_string();
+    let other = if std::path::MAIN_SEPARATOR == '/' {
+        '\\'
+    } else {
+        '/'
+    };
+    assert!(!joined.contains(other), "{joined}");
+    assert!(joined.ends_with(&format!("model{}api", std::path::MAIN_SEPARATOR)));
 }

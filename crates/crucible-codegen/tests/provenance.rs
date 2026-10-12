@@ -199,11 +199,18 @@ fn the_model_snapshot_is_the_audiences_model() {
             let files = client.emit_for_audience(&full, audience).unwrap();
             let snapshot = find(&files, "crucible-model.json");
             let read = crucible_smithy::snapshot::read(snapshot).unwrap();
-            let mut projected = crucible_smithy::project(&full, audience).unwrap();
-            projected.versions.clear();
+            let projected = crucible_smithy::project(&full, audience).unwrap();
             assert_eq!(
-                serde_json::to_value(&read).unwrap(),
-                serde_json::to_value(&projected).unwrap()
+                snapshot,
+                crucible_smithy::snapshot::write_contract(
+                    &projected,
+                    &format!("crucible {}", env!("CARGO_PKG_VERSION"))
+                )
+            );
+            assert_eq!(read.operations.len(), projected.operations.len());
+            assert_eq!(
+                read.shapes.keys().collect::<Vec<_>>(),
+                projected.shapes.keys().collect::<Vec<_>>()
             );
             assert_eq!(
                 snapshot.contains("SecretInput"),

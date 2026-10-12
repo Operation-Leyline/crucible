@@ -148,3 +148,30 @@ fn numbers_by_value(debug: &str) -> String {
     out.push_str(rest);
     out
 }
+
+/// A package's snapshot is compact and carries no documentation, and still
+/// reads back as the same contract.
+#[test]
+fn a_package_contract_is_compact_and_has_no_documentation() {
+    let service = Model::from_json(include_str!("fixtures/weather.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let full = snapshot::write(&service, "test");
+    let contract = snapshot::write_contract(&service, "test");
+    assert!(
+        contract.len() < full.len() * 2 / 3,
+        "{} vs {}",
+        contract.len(),
+        full.len()
+    );
+    assert_eq!(contract.lines().count(), 1);
+    assert!(!contract.contains("smithy.api#documentation"));
+    assert!(!contract.contains("\"docs\":\""));
+    let read = snapshot::read(&contract).unwrap();
+    assert_eq!(read.operations.len(), service.operations.len());
+    assert_eq!(read.shapes.len(), service.shapes.len());
+    assert!(read.operations.iter().all(|op| op.docs.is_none()));
+    // Deterministic: the same model writes the same bytes.
+    assert_eq!(snapshot::write_contract(&read, "test"), contract);
+}

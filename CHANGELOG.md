@@ -66,13 +66,19 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   `crucible_build::Registry`. A Git channel or `private` gives
   `publish = false`; a README used as crate documentation is left out of
   doctests.
+- `crucible --version` prints the Git revision the CLI was built from,
+  `0.6.1 (<revision>)`, with `+dirty` for a checkout with uncommitted
+  changes: the revision `crucible sdk` compares with a service's lock.
 - Rust and TypeScript packages carry `crucible.json` schema 2
   (`schemaVersion`, generator version, verified revision and change-log
   `id`, language, package, version, audience, service, `schemaSha256`,
   `configSha256` for a declared SDK, and `contentDigest`, a
   `crucible-content-1` digest of the generated files) and
   `crucible-model.json`, the compiled model as the package's audience sees
-  it. Rust packages gain both; npm's `files` lists both.
+  it, as compact JSON without documentation strings
+  (`snapshot::write_contract`). Rust packages gain both; npm's `files`
+  lists both. A release's `source.repository` is the https URL of the
+  service's `origin`, without credentials or `.git`.
 - `crates/crucible-codegen/sdk-changes.toml`, the reviewed log of generator
   and runtime changes that move SDKs, seeded with entry `0` and embedded in
   the generator. A PR that changes a generator's public output or a

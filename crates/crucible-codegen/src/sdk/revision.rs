@@ -15,6 +15,8 @@ pub struct Pin {
     pub repository: String,
     /// The full commit the lock resolved.
     pub revision: String,
+    /// The package version the lock records at that commit.
+    pub version: Option<String>,
 }
 
 /// The `Cargo.lock` in `start` or its nearest parent, up to the repository
@@ -69,6 +71,10 @@ pub fn pinned_revisions(lock: &Path) -> Result<Vec<Pin>, String> {
             package: name.into(),
             repository: without_credentials(url.split('?').next().unwrap_or(url)),
             revision: revision.into(),
+            version: package
+                .get("version")
+                .and_then(toml::Value::as_str)
+                .map(str::to_owned),
         });
     }
     Ok(pins)
@@ -120,14 +126,25 @@ pub fn check_revision(root: &Path, own: Option<&str>) -> Result<Option<PathBuf>,
         Some(own) => format!("this crucible is at {own}"),
         None => "this crucible has no verified Git revision (it was built outside a Crucible checkout, or from one with uncommitted changes)".into(),
     };
-    Err(format!(
+    let mut message = format!(
         "{running}, but {} pins {} at {}: generate the SDKs with the compiler the server builds with. Install it:\n  cargo install --locked --git {} --rev {} crucible-cli",
         lock.display(),
         first.package,
         first.revision,
         first.repository,
         first.revision
-    ))
+    );
+    // The pinned Crucible may predate `crucible sdk`, so installing it
+    // would leave no command to run: the pin has to move first.
+    if let Some(own) = own {
+        message.push_str(&format!(
+            "\nIf that revision predates `crucible sdk` (the lock records {} {}; this crucible is {}), it has no `sdk` command: move the service's Crucible pin (crucible-build and crucible-server-runtime-rust) to {own} first, then rebuild the service.",
+            first.package,
+            first.version.as_deref().unwrap_or("at an unknown version"),
+            env!("CARGO_PKG_VERSION"),
+        ));
+    }
+    Err(message)
 }
 
 #[cfg(test)]
@@ -181,6 +198,15 @@ mod tests {
                 .unwrap_err()
                 .contains("no verified")
         );
+        // A pin older than `crucible sdk` cannot be installed to run it.
+        let advice = check_revision(&nested, Some(B)).unwrap_err();
+        assert!(
+            advice.contains(&format!(
+                "pin (crucible-build and crucible-server-runtime-rust) to {B}"
+            )),
+            "{advice}"
+        );
+        assert!(advice.contains("crucible-build 0.6.1"), "{advice}");
     }
 
     #[test]

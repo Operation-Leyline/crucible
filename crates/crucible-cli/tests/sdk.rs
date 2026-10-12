@@ -434,3 +434,26 @@ fn generate_ts_takes_an_npm_registry() {
     ));
     assert!(error.contains("public registry"), "{error}");
 }
+
+#[test]
+fn the_version_names_the_revision_and_config_shows_the_whole_channel() {
+    let directory = service(SDK_FILE);
+    let version = success(crucible(directory.path(), &["--version"]));
+    assert!(version.contains(env!("CARGO_PKG_VERSION")), "{version}");
+    if let Some(revision) = crucible_revision::recorded_revision() {
+        assert!(version.contains(&format!("({revision})")), "{version}");
+    }
+    let text = success(crucible(directory.path(), &["sdk", "config"]));
+    for row in [
+        "channel.git",
+        "channel.branch",
+        "channel.path",
+        "channel.tag",
+        "channel.adopt",
+        "channel.npm",
+        "channel.access",
+        "channel.dist_tag",
+    ] {
+        assert!(text.contains(row), "{row} missing from:\n{text}");
+    }
+}

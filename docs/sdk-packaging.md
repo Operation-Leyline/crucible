@@ -62,13 +62,7 @@ model = "model/api"                     # a .cru package, Smithy sources, or a J
 # service = "vip.mailpigeon#Pigeon"     # when the model has several
 
 [defaults]                              # every SDK below, unless it sets its own
-description = "Client for the Pigeon email API."
 repository = "https://github.com/Operation-Pigeon/pigeon"
-homepage = "https://mailpigeon.vip"
-license = "LicenseRef-Proprietary"      # an SPDX expression, or license_file
-authors = ["Operation Pigeon <sdk@mailpigeon.vip>"]
-readme = "sdk/README.md"
-keywords = ["email", "pigeon"]
 private = true
 
 [sdk.ts]
@@ -80,12 +74,13 @@ channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
 [sdk.rust]
 package = "pigeon-sdk"
 version = "0.2.0"                       # a floor: see Versions
+description = "Generated Pigeon API client. Do not edit; see Operation-Pigeon/pigeon model/api/."
 repository = "https://github.com/Operation-Pigeon/mailpigeon-rs"
-out = "generated/pigeon-sdk-rust"
 readme = "sdk/rust/README.md"
+out = "generated/pigeon-sdk-rust"
 test = [["cargo", "test", "--locked", "--manifest-path", "sdk/rust-tests/Cargo.toml"]]
 lockfiles = ["sdk/rust-tests/Cargo.lock"]
-channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{version}" }
+channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{version}", adopt = ["tests", "docs", "Cargo.lock", "sdk-release.json", ".gitignore"] }
 ```
 
 It is not a table in the model package's `crucible.toml`. Not every
@@ -375,8 +370,15 @@ which `cargo package` includes, and npm's `files` lists both:
   built from, when it has one. **`generatorChanges`** is the change log's
   highest `id`. **`configSha256`** digests the effective configuration.
 - **`crucible-model.json`** is the model as the SDK's audience sees it,
-  written by `snapshot::write`. It is the API the package already
-  exposes, so an external SDK reveals nothing `@internal`.
+  written by `snapshot::write_contract` *(built)*: the release snapshot
+  format (`format`, `compiler`, `service`: the audience-projected IR,
+  without older API versions), as compact JSON, without documentation
+  (every `docs` string, waiter `documentation`, and the raw
+  `smithy.api#documentation` trait), which no compatibility comparison
+  reads. The projection also drops the raw copies of protocol tests,
+  examples, waiters and endpoint tests, whose projected typed forms remain.
+  It is the API the package already exposes, so an external SDK reveals
+  nothing `@internal`; `snapshot::read` reads it like any snapshot.
 - **`source`** is written by `crucible sdk build` only, from the Git
   checkout holding the SDK file. Every configured input (the model, the
   SDK file, a README or license file) must be tracked and unmodified, so
@@ -582,11 +584,14 @@ Pigeon's versions from npm's `@operation-pigeon/sdk` and the `v0.x.y` tags
 of `mailpigeon-rs`. Neither has a schema-2 `contentDigest` (the TypeScript
 releases carry a schema-1 `crucible.json` and a `contractHash`, the Rust
 tags `sdk-release.json`), so the first `crucible sdk` release of each
-counts as changed and takes the next patch, or the Rust floor `0.2.0`. The
-Rust channel adopts its old layout once, with
+counts as changed and takes the next patch: `0.2.2` for Rust, whose
+`v0.2.1` is already above its floor `0.2.0`. The Rust channel adopts its old
+layout once, with
 `adopt = ["tests", "docs", "Cargo.lock", "sdk-release.json", ".gitignore"]`;
 the package writes `Cargo.toml`, `README.md`, `src` and `.rustfmt.toml`
-itself.
+itself. The `sdk/rust-tests` consumer's `Cargo.lock` is committed with it:
+`--locked` runs against it, and `lockfiles` names it so a release can
+reconcile the SDK's own entry.
 
 ### Leyline (phase 3)
 
