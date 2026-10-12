@@ -1,11 +1,13 @@
 # SDK packaging and releases
 
-**Status: phase 1a built** (decisions below): the SDK file and its
+**Status: phase 1 built** (decisions below): the SDK file and its
 resolver, `crucible sdk config|generate` with the `Cargo.lock` revision
 check, Rust and TypeScript metadata, `crucible.json` schema 2 with
-`crucible-model.json`, and the change log. Sections and bullets marked
-*(built)* exist; the rest is designed, not built. Releasing (`crucible sdk
-plan|build|verify|publish`) is phase 1b. Before this design, a service got
+`crucible-model.json`, and the change log (phase 1a); and releasing,
+`crucible sdk plan|build|verify|publish` on npm and git channels with
+Pigeon's version rule, imported releases and resumable publishing
+(phase 1b, in `crates/crucible-sdk-release`). Sections and bullets marked
+*(built)* exist; the rest is designed, not built. Before this design, a service got
 complete native packages from `crucible_build` or `crucible generate`, and
 then wrote its own scripts to make them publishable: package metadata,
 versions, provenance, the "has anything changed" check, and the upload.
@@ -139,7 +141,8 @@ into the release record.
 **One compiler for SDKs and server** *(built)*. When the service's `Cargo.lock`
 resolves `crucible-build` or `crucible-server-runtime-rust` from Git,
 `crucible sdk` refuses to run at any other revision, and names the one to
-install. `setup-crucible` can read that revision from the lock. This
+install. A workflow step reads that revision from the lock and passes it
+to `setup-crucible` as `crucible-ref` (section 5). This
 replaces `codegen.sh`'s install-per-revision.
 
 **Build scripts (phase 3).** `model.sdks("../crucible-sdk.toml")` writes
@@ -215,7 +218,7 @@ crate with a path dependency on the SDK's `out`.
 
 ## 3. Versions
 
-### The rule
+### The rule *(built)*
 
 Each SDK has its own line, since a generator change can touch one
 language and channels differ. Its version is chosen against its last
@@ -310,7 +313,7 @@ phase 5c) come later. Each has its own identity on its channel (a
 package, tag prefix or dist-tag), and only the current line moves npm's
 `latest`.
 
-### Planned state and published state
+### Planned state and published state *(built)*
 
 - **The channel says what is published.** Each plan reads it again:
   versions, and the `crucible.json` and `crucible-model.json` inside the
@@ -421,7 +424,7 @@ patch. A last release without a schema-2 `contentDigest` (every release
 before this design) counts as changed once. Built archives are never
 compared for "unchanged", and no service script is hashed.
 
-## 5. Releasing: `crucible sdk`
+## 5. Releasing: `crucible sdk` *(built for npm and git channels)*
 
 `config` and `generate` are built; the rest is phase 1b.
 
@@ -515,37 +518,75 @@ server refuses an unknown release ([api-versions-clients.md](api-versions-client
 concurrency: { group: sdk-release, cancel-in-progress: false }
 jobs:
   sdk:
+    # Planning reads every channel, so the build job needs read access too:
+    # packages: read for GitHub Packages, a read-only deploy key for a git channel.
     permissions: { contents: read, packages: read }
+    outputs: { crucible-ref: '${{ steps.pin.outputs.rev }}' }
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
+      # Crucible is private, and github.token cannot read another repository.
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          owner: Operation-Leyline
+          repositories: crucible
+      # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
+      - id: pin
+        shell: bash
+        run: |
+          rev=$(awk -F'"' '/^name = /{n=$2} /^source = "git\+/ && (n=="crucible-build" || n=="crucible-server-runtime-rust") {sub(/.*#/, "", $2); print $2; exit}' Cargo.lock)
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+      # Builds the CLI (a debug build) and names it in its `cli` output; it
+      # is not put on PATH.
+      - id: crucible
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ steps.pin.outputs.rev }}', token: '${{ steps.token.outputs.token }}' }
       - uses: ./.github/actions/crucible-access            # private Crucible, for the consumer's cargo test
-      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>   # the revision Cargo.lock pins
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
         with: { ssh-private-key: '${{ secrets.SDK_READ_KEY }}' }          # reads the git channel
-      - run: crucible sdk build --out target/sdk-release    # plans, builds, runs the consumers' tests
+      # Plans, builds, runs the consumers' tests.
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk build --out target/sdk-release'
         env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
       - uses: actions/upload-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
   deploy:
     needs: sdk
   sdk-publish:
-    needs: deploy
+    needs: [sdk, deploy]
     environment: sdk-publish
     permissions: { contents: read, packages: write }
     steps:
       - uses: actions/download-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
-      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          owner: Operation-Leyline
+          repositories: crucible
+      - id: crucible
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}', token: '${{ steps.token.outputs.token }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
         with: { ssh-private-key: '${{ secrets.SDK_PUBLISH_KEY }}' }
-      - run: crucible sdk verify target/sdk-release
-      - run: crucible sdk publish target/sdk-release --execute
-        env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk verify target/sdk-release'
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk publish target/sdk-release --execute'
+        env:
+          NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          # Who git-channel release commits name; unset, they are
+          # `Crucible <crucible@noreply.invalid>`.
+          GIT_AUTHOR_NAME: sdk-release
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: sdk-release
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
 ```
 
 No history is fetched: the baseline is the last release's own snapshot,
@@ -624,7 +665,7 @@ pointing here.
    resolver, `crucible sdk config|generate` and the `Cargo.lock` revision
    check; Rust and TypeScript metadata, `crucible.json` schema 2 and
    `crucible-model.json`, and the change log seeded with entry `0`.
-   *Phase 1b:* `plan|build|verify|publish` for npm (GitHub Packages included) and git
+   *Phase 1b (built):* `plan|build|verify|publish` for npm (GitHub Packages included) and git
    channels, with consumer tests against the release, lockfile
    reconciliation, the release record and resumable publishing; Pigeon's
    version rule (patch, floor, `--bump`, `--first-release`); imported

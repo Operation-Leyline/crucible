@@ -64,6 +64,7 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-codegen-terraform` | protocol-v6 Terraform/OpenTofu provider for the diagnosed supported lifecycle subset; reuses the Go client wire runtime |
 | `crucible-codegen-{python,go,java,csharp,kotlin,swift,dart,php,ruby,cpp,c,r}` | native client models, operation wrappers, bundled runtimes, and package metadata; each reads only the IR |
 | `crucible-cli` | `check`, `generate <language>`, and service scaffolding |
+| `crucible-sdk-release` | SDK release channels (`docs/sdk-packaging.md`): reading the last release from inside its artifact (npm tarball, git tag tree, Pigeon's legacy records), the version rule, HTTPS-only downloads with origin-bound credentials, and resumable publishing with `publication.json` |
 | `crucible-codegen-cli` | IR → standalone service CLI package and typed Rust SDK dispatch |
 | `crucible-cli-runtime` | service CLI parsing, configuration, completion, and output; calls use `crucible-client-runtime-rust` |
 

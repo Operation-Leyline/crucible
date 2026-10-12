@@ -18,7 +18,8 @@ version's section when it is prepared.
 SDK packaging, phase 1a ([design](docs/sdk-packaging.md)): a service
 declares its SDKs once in `crucible-sdk.toml`, `crucible sdk config|generate`
 reads it, Rust and TypeScript packages take common metadata, and they carry
-schema-2 provenance and their audience's model. Releasing them is next.
+schema-2 provenance and their audience's model. Phase 1b releases them:
+`crucible sdk plan|build|verify|publish` on npm and git channels.
 Breaking for TypeScript `package_json` overrides: follow *Migration*.
 
 ### Added
@@ -79,6 +80,27 @@ Breaking for TypeScript `package_json` overrides: follow *Migration*.
   or raw trait maps (`snapshot::write_contract`). Rust packages gain both; npm's `files`
   lists both. A release's `source.repository` is the https URL of the
   service's `origin`, without credentials or `.git`.
+- `crucible sdk plan|build|verify|publish` releases declared SDKs
+  ([guide](docs/sdk-releases.md#release-declared-sdks-crucible-sdk-planbuildverifypublish)).
+  `plan` reads each SDK's channel and chooses its version: no release when
+  the content digest is unchanged, otherwise the highest of the last
+  version plus a patch, the `version` floor and `--bump`; an empty channel
+  needs `--first-release`, and a channel that cannot be read fails.
+  `build` packages each release in a fresh directory (npm tarballs with a
+  pinned TypeScript compiler; git channels as the archived tree), points
+  the SDK's `out` at it, reconciles consumer `Cargo.lock` path entries,
+  runs the `test` commands, and records `plan.json` and `release.json`.
+  `verify` re-hashes the artifacts; `publish` (dry run unless `--execute`)
+  journals uploads in `publication.json`, treats the same bytes already
+  published as done, and stops when a channel moved since the plan.
+- Release channels in a new crate, `crucible-sdk-release`: npm registries
+  (GitHub Packages included; credentials from `.npmrc`, HTTPS-only
+  downloads whose token never follows a redirect off its origin, a
+  dist-tag that never moves backwards) and git tags (atomic branch and
+  tag push, never a re-tag, `.crucible`-owned paths replaced, `adopt` for
+  a pre-Crucible tree, tag prefixes for subdirectory modules). Releases
+  made before schema 2, Pigeon's `contractHash` tarballs and
+  `sdk-release.json` tags, are imported as the last release.
 - `crates/crucible-codegen/sdk-changes.toml`, the reviewed log of generator
   and runtime changes that move SDKs, seeded with entry `0` and embedded in
   the generator. A PR that changes a generator's public output or a

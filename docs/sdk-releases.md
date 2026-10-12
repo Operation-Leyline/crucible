@@ -10,8 +10,9 @@ designed in [SDK packaging and releases](sdk-packaging.md): package
 metadata for every language, versions chosen against what is published,
 provenance, and release channels including Git tags, so a service needs no
 packaging scripts. Today it declares SDKs, prints their configuration and
-generates them; releasing them (`plan`, `build`, `verify`, `publish`)
-comes next.
+generates them, and releases them on npm and git channels (`plan`,
+`build`, `verify`, `publish`); `tools/sdk_release.py` remains for the
+other languages until their channels land.
 
 ## Declare SDKs: `crucible-sdk.toml`
 
@@ -156,7 +157,8 @@ Rust and TypeScript packages carry two files at their root, which npm's
   `crates/crucible-codegen/sdk-changes.toml`), `language`, `package`,
   `packageVersion`, `audience`, `service`, `serviceVersion`,
   `schemaSha256` (the shared wire schema's digest), `configSha256` (for a
-  declared SDK) and `contentDigest`. A release build will add `source`.
+  declared SDK) and `contentDigest`. `crucible sdk build` adds `source`:
+  the service repository and commit, and `dirty` with `--allow-dirty`.
 - `crucible-model.json`: the compiled model as the package's audience sees
   it, in the release snapshot format of `crucible freeze`, as compact JSON
   of the typed contract: no documentation strings and no raw trait maps,
@@ -175,6 +177,213 @@ path bytes: the path's length as 8 bytes big-endian, the path (UTF-8,
 relative, `/`-separated), the content's length the same way, the content,
 and one byte, 1 for an executable file and 0 otherwise. The other
 languages keep their schema-1 `crucible.json` for now.
+
+## Release declared SDKs: `crucible sdk plan|build|verify|publish`
+
+```sh
+crucible sdk plan     [--sdk <name>]... [--json] [--first-release <name>]... [--bump <name>=<kind>]...
+crucible sdk build    --out target/sdk-release [--allow-dirty] [the plan's options]
+crucible sdk verify   target/sdk-release
+crucible sdk publish  target/sdk-release [--sdk <name>]... [--execute]
+```
+
+**Channels.** An SDK's `channel` is where its releases live:
+
+- `{ npm = "<registry url>", access = "restricted", dist_tag = "latest" }`,
+  GitHub Packages included, for TypeScript. The registry's package
+  document lists the versions; the provenance is read from inside the
+  latest tarball, after checking it against `dist.integrity`. Credentials
+  come from `.npmrc` as npm finds them: npm's project directory is the
+  nearest of the starting directory (the SDK file's for `plan` and
+  `build`, the current one for `publish`) and its parents holding
+  `package.json` or `node_modules`; its `.npmrc` comes first, then
+  `NPM_CONFIG_USERCONFIG` or `~/.npmrc`, and npm itself runs there, so
+  Crucible and npm read the same files. `actions/setup-node` with
+  `NODE_AUTH_TOKEN` works; a bare `NODE_AUTH_TOKEN` is never sent on its
+  own. A credential goes only to requests under the path its key names.
+  npm publishes only with the key at the registry's exact URL
+  (`//npm.pkg.github.com/:_authToken`: lowercase host, the registry's whole
+  path, a trailing slash), so `publish`, its dry run included, refuses
+  before uploading when reads found a credential only under another key,
+  and names the key it needs. It also needs npm 9 or later, and a
+  tarball whose `publishConfig` sets nothing but `registry` and
+  `access`. npm answers 404 both for a missing package and for a private one
+  read without credentials, so an anonymous 404 counts as empty only for
+  `access = "public"`; otherwise the plan fails. Downloads are HTTPS only,
+  and the token follows a redirect only to the registry's own scheme, host
+  and port. Layers merge as npm merges them (the project's `.npmrc`, then
+  the user's, then `NPM_CONFIG_GLOBALCONFIG`), and the longest matching
+  scope wins; a credential whose `${NAME}` is unset is skipped, so a
+  public package still plans in a fork's pull request. `publish` runs
+  `npm publish <tgz> --ignore-scripts` on the tested tarball, after
+  checking its name, version and `publishConfig` against the channel. It
+  pins the registry for the package's scope (`--@scope:registry=`, which
+  an `.npmrc` scope would otherwise override) and passes
+  `--dry-run=false`, and counts the upload done only once the registry
+  lists the version with the tested `dist.integrity`. It never moves the
+  dist-tag backwards: if it already points at a higher version, the
+  release is tagged `<tag>-<major>.<minor>` instead.
+- `{ git = "<url>", branch = "main", path = ".", tag = "v{version}", adopt = [..] }`
+  for a private crate, and natively for Go, Swift and PHP. Each release is
+  a commit on `branch`, tagged; `path` and a tag prefix such as
+  `go/v{version}` put a module in a subdirectory. Publishing fetches the
+  branch tip alone, unstages what the previous release's `.crucible`
+  lists, stages the package's files as raw blobs with their modes (no
+  working tree, so the repository's `.gitattributes` and filters never
+  rewrite them), checks the resulting tree against the package, and
+  pushes branch and tag with `git push --atomic`. It never re-tags.
+  Everything else in the repository (`NOTICE`, workflows) stays. A tree
+  with no `.crucible` predates Crucible and is adopted once: the `adopt`
+  paths are removed. The commit reads `Release <package> <tag> from
+  <source commit>`, by `GIT_AUTHOR_*`/`GIT_COMMITTER_*` or the configured
+  identity, else `Crucible <crucible@noreply.invalid>`. Credentials are
+  Git's own (an SSH agent or credential helper). Every Git command runs
+  hermetically, so publishing from a hook or a configured workstation
+  behaves as in CI: the repository variables a hook inherits (`GIT_DIR`,
+  `GIT_INDEX_FILE`, ...) are removed, no user hook runs (an empty
+  `core.hooksPath`, empty init templates, `push --no-verify`), the tag is
+  created with `update-ref` so `tag.gpgSign` cannot ask for a message, and
+  nothing waits for input. Release commits and tags are unsigned: commits
+  are written with `git commit-tree`, which signs only when asked, and
+  tags are lightweight. A channel that requires signed commits is out of
+  scope for now.
+
+**`plan`** reads each channel and prints the last release, whether the
+SDK changed, the next version and why. *Unchanged* means the current
+inputs, generated at the last release's version, have the same
+`contentDigest`; then there is no release unless the `version` floor is
+above the last version. Otherwise the version is the highest of the last
+version plus a patch, the floor, and `--bump <name>=patch|minor|major`
+(Cargo's and npm's caret rules: below 1.0, `major` moves the minor). A
+release made before `crucible.json` schema 2 (Pigeon's `contractHash`
+tarballs and `sdk-release.json` tags) counts as changed once. An empty
+channel needs `--first-release <name>`, which takes the floor or `0.1.0`;
+a channel that cannot be read fails the plan. For a `.cru` service, a
+changed `serviceVersion` warns until `--bump <name>=major`.
+
+**`build`** plans again, then, into a new or empty `--out`:
+
+1. checks, before building anything, that no released SDK uses a local
+   `runtime_path` and that every `lockfiles` entry exists;
+2. generates each released SDK at its version into `<name>/package`, with
+   `source` (the service commit; every input must be committed, unless
+   `--allow-dirty`) in `crucible.json`, and packages it: TypeScript with
+   `npm install --ignore-scripts --no-save typescript@5.9.3` (the compiler
+   is the package's only dependency, installed exactly, so no lockfile is
+   written; the version that installed is recorded), `npm run build` and
+   `npm pack --ignore-scripts`, then removes `node_modules`; a git channel
+   as the package tree, archived (`package.tar`);
+3. writes `plan.json`;
+4. regenerates the release into each SDK's `out`, so a consumer's path
+   dependency builds the sources being released, and refuses any other
+   file there (outside `target`, `node_modules`, `dist`, `.build` and
+   lockfiles): the tests would build it, but the release would not ship
+   it. An `out` written before Crucible tracked its files must be deleted
+   once;
+5. rewrites the SDK's own path entry in each `lockfiles` Cargo lockfile to
+   the release version, and runs its `test` commands, argument arrays with
+   `{artifact}` (the built archive) and `{package}` (the package
+   directory) substituted, from the SDK file's directory. On Windows a
+   bare program name is found through `PATHEXT`, so `npm` works on every
+   runner. For a git channel `{artifact}` is a `.tar`, so a Cargo consumer
+   uses `{package}` or the SDK's `out`. The lockfiles are restored
+   afterwards, and a restore that fails fails the build; a build killed
+   outright restores nothing, so `git checkout` them;
+6. writes `release.json`, with `plan.json`'s SHA-256, once every test
+   passed. When every SDK is unchanged, nothing is built or tested and
+   `release.json` lists none: pull-request CI tests the development
+   export (`crucible sdk generate`), not a release.
+
+**`verify`** checks `plan.json` against `release.json` and re-hashes every
+artifact. **`publish`** reads only the release directory, refusing a
+`plan.json` changed since the release was recorded, since it names each
+channel and baseline. Without `--execute` it prints what it would upload.
+For each SDK it is resumable: an upload journalled in `publication.json`
+for the same channel and artifact is done; the plan's version already on
+the channel with the same bytes (npm's `dist.integrity`, or the tag's tree
+holding the package's paths and modes) is done; other bytes under that
+version, or a latest release that is no longer the plan's baseline, stop
+that SDK and ask for a new plan. Every SDK is attempted, and every failure
+reported.
+
+In CI, build once and publish those bytes after the deploy. The real
+`setup-crucible` needs the pinned `crucible-ref` and a token that can read
+Crucible, and names the CLI in its `cli` output:
+
+```yaml
+concurrency: { group: sdk-release, cancel-in-progress: false }
+jobs:
+  sdk:
+    # Planning reads every channel, so the build job needs read access too:
+    # packages: read for GitHub Packages, a read-only deploy key for a git channel.
+    permissions: { contents: read, packages: read }
+    outputs: { crucible-ref: '${{ steps.pin.outputs.rev }}' }
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
+      # Crucible is private, and github.token cannot read another repository.
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          owner: Operation-Leyline
+          repositories: crucible
+      # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
+      - id: pin
+        shell: bash
+        run: |
+          rev=$(awk -F'"' '/^name = /{n=$2} /^source = "git\+/ && (n=="crucible-build" || n=="crucible-server-runtime-rust") {sub(/.*#/, "", $2); print $2; exit}' Cargo.lock)
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+      # Builds the CLI (a debug build) and names it in its `cli` output; it
+      # is not put on PATH.
+      - id: crucible
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ steps.pin.outputs.rev }}', token: '${{ steps.token.outputs.token }}' }
+      - uses: ./.github/actions/crucible-access            # private Crucible, for the consumer's cargo test
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
+      - uses: webfactory/ssh-agent@<pinned sha>
+        with: { ssh-private-key: '${{ secrets.SDK_READ_KEY }}' }          # reads the git channel
+      # Plans, builds, runs the consumers' tests.
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk build --out target/sdk-release'
+        env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: actions/upload-artifact@v4
+        with: { name: sdk-release, path: target/sdk-release }
+  deploy:
+    needs: sdk
+  sdk-publish:
+    needs: [sdk, deploy]
+    environment: sdk-publish
+    permissions: { contents: read, packages: write }
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { name: sdk-release, path: target/sdk-release }
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          owner: Operation-Leyline
+          repositories: crucible
+      - id: crucible
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}', token: '${{ steps.token.outputs.token }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
+      - uses: webfactory/ssh-agent@<pinned sha>
+        with: { ssh-private-key: '${{ secrets.SDK_PUBLISH_KEY }}' }
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk verify target/sdk-release'
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk publish target/sdk-release --execute'
+        env:
+          NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          # Who git-channel release commits name; unset, they are
+          # `Crucible <crucible@noreply.invalid>`.
+          GIT_AUTHOR_NAME: sdk-release
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: sdk-release
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+```
 
 ## Release with `tools/sdk_release.py`
 
