@@ -52,6 +52,9 @@ pub struct PublishRequest<'a> {
     /// The service commit the release was built from, for the git
     /// channel's commit message.
     pub source_commit: Option<&'a str>,
+    /// The package name (`pigeon-sdk`), for the git channel's commit
+    /// message; the SDK's name when unknown.
+    pub package: Option<&'a str>,
 }
 
 /// What an upload did.

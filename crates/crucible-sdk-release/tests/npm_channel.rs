@@ -43,6 +43,14 @@ struct State {
     commands: Vec<CommandLine>,
     /// Makes `npm publish` fail.
     refuse_publish: bool,
+    /// An `.npmrc` sends the scope elsewhere (`@operation-pigeon:registry=
+    /// https://registry.npmjs.org/`), as npm honours over `--registry`
+    /// unless the command pins the scope itself.
+    scope_elsewhere: bool,
+    /// An inherited `dry-run=true`, unless the command says otherwise.
+    inherited_dry_run: bool,
+    /// npm reports success and does nothing, whatever it is told.
+    swallow: bool,
 }
 
 #[derive(Clone, Default)]
@@ -165,6 +173,22 @@ impl CommandRunner for Registry {
                 .position(|arg| arg == name)
                 .map(|at| command.args[at + 1].clone())
         };
+        let has = |arg: &str| command.args.iter().any(|candidate| candidate == arg);
+        let lands = !state.swallow
+            && (!state.scope_elsewhere
+                || has("--@operation-pigeon:registry=https://npm.pkg.github.com/"))
+            && (!state.inherited_dry_run || has("--dry-run=false"));
+        if !lands
+            && command
+                .args
+                .first()
+                .is_some_and(|arg| arg != "publish" || !state.refuse_publish)
+        {
+            return Ok(CommandOutput {
+                success: true,
+                ..CommandOutput::default()
+            });
+        }
         match command.args.first().map(String::as_str) {
             Some("publish") if state.refuse_publish => Ok(CommandOutput {
                 success: false,
@@ -269,6 +293,7 @@ fn channel(
     )
     .unwrap()
     .with_npm("npm")
+    .with_confirmation(2, std::time::Duration::ZERO)
 }
 
 fn write(dir: &Path, name: &str, bytes: &[u8]) -> std::path::PathBuf {
@@ -440,6 +465,7 @@ fn publishes_the_tested_tarball_with_the_channels_settings() {
         version: &version,
         artifact: &artifact,
         source_commit: None,
+        package: None,
     };
     let preview = npm.describe_publish(&request).unwrap();
     let outcome = npm.publish(&request).unwrap();
@@ -448,7 +474,7 @@ fn publishes_the_tested_tarball_with_the_channels_settings() {
     assert_eq!(preview, commands);
     assert!(
         commands[0].ends_with(
-            "--ignore-scripts --registry https://npm.pkg.github.com/ --tag latest --access restricted"
+            "--ignore-scripts --tag latest --registry https://npm.pkg.github.com/ --@operation-pigeon:registry=https://npm.pkg.github.com/ --dry-run=false --access restricted"
         ),
         "{commands:?}"
     );
@@ -492,6 +518,7 @@ fn refuses_a_tarball_bound_elsewhere() {
                 version: &version,
                 artifact: &artifact,
                 source_commit: None,
+                package: None,
             })
             .unwrap_err();
         assert!(matches!(error, ChannelError::Artifact { .. }), "{error}");
@@ -513,6 +540,7 @@ fn a_failed_publish_never_shows_the_token() {
             version: &Version::new(0, 2, 1),
             artifact: &artifact,
             source_commit: None,
+            package: None,
         })
         .unwrap_err();
     let shown = error.to_string();
@@ -540,6 +568,7 @@ fn the_dist_tag_never_moves_backwards() {
         version: &version,
         artifact: &artifact,
         source_commit: None,
+        package: None,
     };
     let preview = npm.describe_publish(&request).unwrap();
     assert!(preview[1].contains("stays"), "{preview:?}");
@@ -556,7 +585,8 @@ fn the_dist_tag_never_moves_backwards() {
     assert_eq!(npm.settle(&version).unwrap().len(), 1);
     assert_eq!(registry.0.borrow().tags["latest"], "0.2.1");
     assert!(
-        registry.commands()[1].starts_with("npm dist-tag add @operation-pigeon/sdk@0.2.1 latest")
+        registry.commands()[1]
+            .starts_with("npm dist-tag add @operation-pigeon/sdk@0.2.1 latest --registry")
     );
 }
 
@@ -602,6 +632,7 @@ fn publish_resumes_and_stops_on_a_moved_channel() {
         artifact: artifact.clone(),
         artifact_sha256: Some(crucible_sdk_release::archive::sha256_file(&artifact).unwrap()),
         source_commit: None,
+        package: None,
     };
     let mut journal = Journal::load(release_dir.path()).unwrap();
 
@@ -695,6 +726,7 @@ fn a_first_release_publishes_to_an_empty_channel() {
         artifact,
         artifact_sha256: None,
         source_commit: None,
+        package: None,
     };
     let step = publish(
         &npm,
@@ -715,4 +747,72 @@ fn a_first_release_publishes_to_an_empty_channel() {
     )
     .unwrap();
     assert!(matches!(step, Step::AlreadyPublished { .. }));
+}
+
+/// npm sends a scoped package wherever an `.npmrc` scope says, and an
+/// inherited `dry-run` makes it upload nothing: the commands pin both, so
+/// the release lands on the channel's registry.
+#[test]
+fn the_scope_registry_and_dry_run_are_pinned_on_every_command() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    {
+        let mut state = registry.0.borrow_mut();
+        state.scope_elsewhere = true;
+        state.inherited_dry_run = true;
+    }
+    let npm = channel(&registry, Some(credential()), None);
+    let dir = tempfile::tempdir().unwrap();
+    let artifact = write(dir.path(), "a.tgz", &release("0.2.1", "d3"));
+    let version = Version::new(0, 2, 1);
+    npm.publish(&PublishRequest {
+        sdk: "ts",
+        version: &version,
+        artifact: &artifact,
+        source_commit: None,
+        package: None,
+    })
+    .unwrap();
+    assert!(registry.0.borrow().versions.contains_key("0.2.1"));
+    registry
+        .0
+        .borrow_mut()
+        .tags
+        .insert("latest".into(), "0.2.0".into());
+    npm.settle(&version).unwrap();
+    assert_eq!(registry.0.borrow().tags["latest"], "0.2.1");
+    for command in registry.commands() {
+        assert!(
+            command.contains("--@operation-pigeon:registry=https://npm.pkg.github.com/")
+                && command.contains("--dry-run=false"),
+            "{command}"
+        );
+    }
+}
+
+/// An npm that reports success without uploading is caught, and nothing
+/// is journalled: the next run publishes for real.
+#[test]
+fn a_success_the_registry_does_not_show_is_not_recorded() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    registry.0.borrow_mut().swallow = true;
+    let npm = channel(&registry, Some(credential()), None);
+    let dir = tempfile::tempdir().unwrap();
+    let artifact = write(dir.path(), "a.tgz", &release("0.2.1", "d3"));
+    let item = PublishItem {
+        sdk: "ts".into(),
+        version: Version::new(0, 2, 1),
+        baseline: Some(npm.latest().unwrap().unwrap().baseline()),
+        artifact,
+        artifact_sha256: None,
+        source_commit: None,
+        package: None,
+    };
+    let mut journal = Journal::default();
+    let error = publish(&npm, &item, dir.path(), &mut journal, Mode::Execute).unwrap_err();
+    assert!(error.to_string().contains("does not show"), "{error}");
+    assert!(journal.uploads.is_empty());
+    assert!(!Journal::path(dir.path()).exists());
+    registry.0.borrow_mut().swallow = false;
+    let step = publish(&npm, &item, dir.path(), &mut journal, Mode::Execute).unwrap();
+    assert!(matches!(step, Step::Published(_)));
 }

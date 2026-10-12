@@ -16,8 +16,6 @@
 //! that carries a password or token is refused.
 
 use std::collections::BTreeMap;
-use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 
 use semver::Version;
@@ -122,7 +120,7 @@ impl GitTagChannel {
         runner: Box<dyn CommandRunner>,
     ) -> Result<Self, ChannelError> {
         let invalid = |reason: String| ChannelError::Invalid {
-            channel: format!("git {}", config.url),
+            channel: format!("git {}", without_userinfo(&config.url)),
             reason,
         };
         if config.url.is_empty() || config.url.starts_with('-') {
@@ -210,6 +208,8 @@ impl GitTagChannel {
                 "advice.detachedHead=false",
             ])
             .env("GIT_TERMINAL_PROMPT", "0")
+            // Paths from a `.crucible` or `adopt` are paths, never globs.
+            .env("GIT_LITERAL_PATHSPECS", "1")
     }
 
     fn git_in(&self, repo: &Path) -> CommandLine {
@@ -361,13 +361,17 @@ impl GitTagChannel {
     }
 
     /// Git's object ids for `files`' contents, as the files are (no
-    /// filters), in order.
-    fn hash(&self, repo: &Path, files: &[PackageFile]) -> Result<Vec<String>, String> {
+    /// filters), in order; with `write`, stored as blobs too.
+    fn hash(&self, repo: &Path, files: &[PackageFile], write: bool) -> Result<Vec<String>, String> {
         let mut ids = Vec::with_capacity(files.len());
         for chunk in files.chunks(HASH_CHUNK) {
+            let mut command = self.git_in(repo).arg("hash-object");
+            if write {
+                command = command.arg("-w");
+            }
             let text = self.run_text(
-                self.git_in(repo)
-                    .args(["hash-object", "--no-filters", "--"])
+                command
+                    .args(["--no-filters", "--"])
                     .args(chunk.iter().map(|file| file.absolute.to_string_lossy())),
             )?;
             ids.extend(text.lines().map(str::to_owned));
@@ -378,18 +382,22 @@ impl GitTagChannel {
         Ok(ids)
     }
 
-    /// Compares the package's paths with the tree at `rev`. Only the
-    /// package's own paths count: the repository's other files are not
-    /// the release's.
+    /// Compares the package's paths (contents and modes) with the tree at
+    /// `rev`. Only the package's own paths count: the repository's other
+    /// files are not the release's.
     fn compare(&self, repo: &Path, rev: &str, files: &[PackageFile]) -> Result<Published, String> {
         let tree = self.tree(repo, rev)?;
-        let ids = self.hash(repo, files)?;
+        let ids = self.hash(repo, files, false)?;
         let mut differences = Vec::new();
         for (file, id) in files.iter().zip(&ids) {
             match tree.get(&file.path) {
-                None => differences.push(format!("{} is not in the tag", file.path)),
-                Some((mode, _)) if !matches!(mode.as_str(), "100644" | "100755") => {
-                    differences.push(format!("{} is not a file in the tag", file.path));
+                None => differences.push(format!("{} is not in the tree", file.path)),
+                Some((mode, _)) if mode != mode_of(file) => {
+                    differences.push(format!(
+                        "{} is mode {mode} in the tree, not {}",
+                        file.path,
+                        mode_of(file)
+                    ));
                 }
                 Some((_, sha)) if sha != id => {
                     differences.push(format!("{} differs", file.path));
@@ -410,73 +418,82 @@ impl GitTagChannel {
         })
     }
 
-    fn pathspec(&self) -> &str {
-        &self.config.path
+    /// The channel's directory as a tree path prefix: empty, or `path/`.
+    fn prefix(&self) -> String {
+        if self.config.path == "." {
+            String::new()
+        } else {
+            format!("{}/", self.config.path)
+        }
     }
 
-    /// Removes what the previous release owned under `target`: the paths
-    /// its `.crucible` lists or, with none, the `adopt` paths. Returns what
-    /// it did, for the log.
-    fn clear_previous(&self, root: &Path, target: &Path) -> Result<String, String> {
-        let marker = target.join(OWNERSHIP_FILE);
-        let listed = match fs::read_to_string(&marker) {
-            Ok(text) if text == LEGACY_MARKER => None,
-            Ok(text) => Some(serde_json::from_str::<Vec<String>>(&text).map_err(|error| {
-                format!("{OWNERSHIP_FILE} in the repository is not a path list: {error}")
-            })?),
-            Err(error) if error.kind() == io::ErrorKind::NotFound => None,
-            Err(error) => return Err(error.to_string()),
-        };
-        match listed {
-            Some(paths) => {
-                for path in &paths {
-                    if !is_relative_path(path) {
-                        return Err(format!(
-                            "{OWNERSHIP_FILE} in the repository lists {path:?}, which is not a relative path"
-                        ));
-                    }
-                    let full = safe_join(root, target, path)?;
-                    match fs::symlink_metadata(&full) {
-                        Ok(metadata) if metadata.is_dir() => {
-                            return Err(format!(
-                                "{OWNERSHIP_FILE} lists {path}, which is a directory"
-                            ));
-                        }
-                        Ok(_) => fs::remove_file(&full).map_err(|error| error.to_string())?,
-                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                        Err(error) => return Err(error.to_string()),
-                    }
-                    prune_empty_parents(target, &full);
-                }
-                Ok(format!(
-                    "removed the {} paths the previous {OWNERSHIP_FILE} lists",
-                    paths.len()
-                ))
+    /// The index paths the previous release owned: what its `.crucible`
+    /// lists or, with none, everything under the `adopt` paths. Returns
+    /// them with a description for the log.
+    fn previous_paths(
+        &self,
+        repo: &Path,
+        parent: Option<&str>,
+    ) -> Result<(Vec<String>, String), String> {
+        let prefix = self.prefix();
+        let manifest = match parent {
+            Some(parent) => {
+                let tree = self.tree(repo, parent)?;
+                tree.get(OWNERSHIP_FILE)
+                    .map(|(_, sha)| self.blob(repo, sha))
+                    .transpose()?
             }
-            None => {
-                let mut removed = Vec::new();
-                for path in &self.config.adopt {
-                    let full = safe_join(root, target, path)?;
-                    match fs::symlink_metadata(&full) {
-                        Ok(metadata) if metadata.is_dir() => {
-                            fs::remove_dir_all(&full).map_err(|error| error.to_string())?;
-                        }
-                        Ok(_) => fs::remove_file(&full).map_err(|error| error.to_string())?,
-                        Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                        Err(error) => return Err(error.to_string()),
-                    }
-                    removed.push(path.as_str());
-                }
-                Ok(if removed.is_empty() {
-                    format!("no previous {OWNERSHIP_FILE}; nothing to adopt")
-                } else {
-                    format!(
-                        "no previous {OWNERSHIP_FILE}; adopted the tree, removing {}",
-                        removed.join(", ")
-                    )
-                })
+            None => None,
+        };
+        let listed = match manifest {
+            Some(bytes) if bytes == LEGACY_MARKER.as_bytes() => None,
+            Some(bytes) => Some(serde_json::from_slice::<Vec<String>>(&bytes).map_err(
+                |error| format!("{OWNERSHIP_FILE} in the repository is not a path list: {error}"),
+            )?),
+            None => None,
+        };
+        if let Some(paths) = listed {
+            if let Some(bad) = paths.iter().find(|path| !is_relative_path(path)) {
+                return Err(format!(
+                    "{OWNERSHIP_FILE} in the repository lists {bad:?}, which is not a relative path"
+                ));
+            }
+            let count = paths.len();
+            return Ok((
+                paths
+                    .into_iter()
+                    .map(|path| format!("{prefix}{path}"))
+                    .collect(),
+                format!("replaced the {count} paths the previous {OWNERSHIP_FILE} lists"),
+            ));
+        }
+        let mut removed = Vec::new();
+        let mut adopted = Vec::new();
+        for path in &self.config.adopt {
+            let out = self.run(
+                self.git_in(repo)
+                    .args(["ls-files", "-z", "--"])
+                    .arg(format!("{prefix}{path}")),
+            )?;
+            let found: Vec<String> = out
+                .split(|byte| *byte == 0)
+                .filter(|entry| !entry.is_empty())
+                .map(|entry| String::from_utf8_lossy(entry).into_owned())
+                .collect();
+            if !found.is_empty() {
+                adopted.push(path.as_str());
+                removed.extend(found);
             }
         }
+        let description = if adopted.is_empty() {
+            format!("no previous {OWNERSHIP_FILE}; nothing to adopt")
+        } else {
+            format!(
+                "no previous {OWNERSHIP_FILE}; adopted the tree, removing {}",
+                adopted.join(", ")
+            )
+        };
+        Ok((removed, description))
     }
 
     /// Whether commits need an identity supplied: none is configured.
@@ -598,16 +615,19 @@ impl Channel for GitTagChannel {
         Ok(vec![
             format!("git fetch --depth 1 {url} refs/heads/{branch}"),
             format!(
-                "remove what {}/{OWNERSHIP_FILE} lists{adopt}, then write the package's {} files there",
+                "unstage what {}/{OWNERSHIP_FILE} lists{adopt}, then stage the package's {} files as raw blobs (no attributes or filters) and check the tree",
                 self.config.path,
                 files.len()
             ),
             format!(
-                "git commit -m 'Release {} {}'",
-                request.sdk, request.version
+                "git commit-tree -m '{}'",
+                release_message(request, &tag)
+                    .lines()
+                    .next()
+                    .unwrap_or_default()
             ),
             format!("git tag {tag}"),
-            format!("git push --atomic {url} HEAD:refs/heads/{branch} refs/tags/{tag}"),
+            format!("git push --atomic {url} <commit>:refs/heads/{branch} refs/tags/{tag}"),
         ])
     }
 
@@ -622,10 +642,15 @@ impl Channel for GitTagChannel {
                 .arg(format!("refs/tags/{tag}")),
         )
         .map_err(|_| self.failed(format!("{tag:?} is not a valid tag name")))?;
+        // Everything below works on the index and object store, never a
+        // working tree: `git add` would apply the distribution repository's
+        // attributes and filters (`ident`, `text`, LFS), and the bytes
+        // pushed must be the bytes tested.
         let work = tempfile::tempdir().map_err(|error| self.failed(error.to_string()))?;
-        let repo = work.path().join("checkout");
+        let repo = work.path().join("repository");
         let repo = repo.as_path();
         let step = |result: Result<Vec<u8>, String>| result.map_err(|reason| self.failed(reason));
+        let text = |result: Result<String, String>| result.map_err(|reason| self.failed(reason));
         step(self.run(self.git().args(["init", "-q"]).arg(repo.to_string_lossy())))?;
         let heads = self
             .run_text(
@@ -635,14 +660,9 @@ impl Channel for GitTagChannel {
                     .arg(format!("refs/heads/{branch}")),
             )
             .map_err(|reason| self.unreadable(reason))?;
-        if heads.is_empty() {
-            // A new repository, or a new branch: the release starts it.
-            step(
-                self.run(
-                    self.git_in(repo)
-                        .args(["checkout", "-q", "--orphan", branch]),
-                ),
-            )?;
+        // A new repository or branch starts from an empty index.
+        let parent = if heads.is_empty() {
+            None
         } else {
             step(
                 self.run(
@@ -654,127 +674,139 @@ impl Channel for GitTagChannel {
                         )),
                 ),
             )?;
+            let parent = text(
+                self.run_text(
+                    self.git_in(repo)
+                        .args(["rev-parse", "--verify"])
+                        .arg(format!("refs/remotes/channel/{branch}^{{commit}}")),
+                ),
+            )?;
+            step(self.run(self.git_in(repo).args(["read-tree", &parent])))?;
+            Some(parent)
+        };
+        let (removed, cleared) = self
+            .previous_paths(repo, parent.as_deref())
+            .map_err(|reason| self.failed(reason))?;
+        for chunk in removed.chunks(HASH_CHUNK) {
             step(
                 self.run(
                     self.git_in(repo)
-                        .args(["checkout", "-q", "-B", branch])
-                        .arg(format!("refs/remotes/channel/{branch}")),
+                        .args(["update-index", "--force-remove", "--"])
+                        .args(chunk.iter().cloned()),
                 ),
             )?;
         }
-        let target = if self.config.path == "." {
-            repo.to_owned()
-        } else {
-            safe_join(repo, repo, &self.config.path).map_err(|reason| self.failed(reason))?
-        };
-        let cleared = self
-            .clear_previous(repo, &target)
+        let ids = self
+            .hash(repo, &files, true)
             .map_err(|reason| self.failed(reason))?;
-        for file in &files {
-            let destination =
-                safe_join(repo, &target, &file.path).map_err(|reason| self.failed(reason))?;
-            write_file(&file.absolute, &destination)
-                .map_err(|error| self.failed(format!("writing {}: {error}", file.path)))?;
+        let prefix = self.prefix();
+        let staged: Vec<(&PackageFile, &String)> = files.iter().zip(&ids).collect();
+        for chunk in staged.chunks(HASH_CHUNK) {
+            let mut command = self
+                .git_in(repo)
+                .args(["update-index", "--add", "--replace"]);
+            for (file, id) in chunk {
+                command = command.arg("--cacheinfo").arg(format!(
+                    "{},{id},{prefix}{}",
+                    mode_of(file),
+                    file.path
+                ));
+            }
+            step(self.run(command))?;
         }
-        // `--force`: a package file the repository's .gitignore matches is
-        // still the package's. The checkout holds nothing else new.
-        step(
-            self.run(
-                self.git_in(repo)
-                    .args(["add", "--all", "--force", "--"])
-                    .arg(self.pathspec()),
-            ),
-        )?;
-        let mut message = format!("Release {} {}", request.sdk, request.version);
-        if let Some(commit) = request.source_commit {
-            message.push_str(&format!("\n\nBuilt from {commit}."));
+        let tree = text(self.run_text(self.git_in(repo).arg("write-tree")))?;
+        // The tree must hold exactly the tested bytes and modes, and none
+        // of the previous release's paths the package dropped.
+        match self
+            .compare(repo, &tree, &files)
+            .map_err(|reason| self.failed(reason))?
+        {
+            Published::SameBytes => {}
+            other => {
+                return Err(self.failed(format!(
+                    "the staged tree is not the tested package: {other:?}"
+                )));
+            }
         }
-        let mut commit = self.git_in(repo);
+        let written = self
+            .tree(repo, &tree)
+            .map_err(|reason| self.failed(reason))?;
+        let owned: std::collections::BTreeSet<&str> =
+            files.iter().map(|file| file.path.as_str()).collect();
+        if let Some(stale) = removed
+            .iter()
+            .filter_map(|path| path.strip_prefix(&prefix))
+            .find(|path| !owned.contains(path) && written.contains_key(*path))
+        {
+            return Err(self.failed(format!("{stale} survived its removal")));
+        }
+        let message = release_message(request, &tag);
+        let mut commit_tree = self.git_in(repo);
         if self.needs_identity(repo) {
-            commit = commit.args([
+            commit_tree = commit_tree.args([
                 "-c",
                 "user.name=Crucible",
                 "-c",
                 "user.email=crucible@noreply.invalid",
             ]);
         }
-        step(
-            self.run(
-                commit
-                    .args(["commit", "-q", "--allow-empty", "-m"])
-                    .arg(message),
-            ),
-        )?;
-        step(self.run(self.git_in(repo).args(["tag", "--"]).arg(&tag)))?;
+        commit_tree = commit_tree.args(["commit-tree", &tree]);
+        if let Some(parent) = &parent {
+            commit_tree = commit_tree.args(["-p", parent]);
+        }
+        let commit = text(self.run_text(commit_tree.arg("-m").arg(message)))?;
+        step(self.run(self.git_in(repo).args(["tag", "--"]).arg(&tag).arg(&commit)))?;
         step(
             self.run(
                 self.git_in(repo)
                     .args(["push", "-q", "--atomic"])
                     .arg(&self.config.url)
-                    .arg(format!("HEAD:refs/heads/{branch}"))
+                    .arg(format!("{commit}:refs/heads/{branch}"))
                     .arg(format!("refs/tags/{tag}:refs/tags/{tag}")),
             ),
         )?;
-        let head = self
-            .run_text(self.git_in(repo).args(["rev-parse", "HEAD"]))
-            .map_err(|reason| self.failed(reason))?;
         Ok(PublishOutcome {
             detail: format!(
                 "pushed {tag} at {} to {branch}; {cleared}",
-                &head[..head.len().min(12)]
+                commit.get(..12).unwrap_or(&commit)
             ),
         })
     }
 }
 
-/// `base/relative`, refusing a path whose existing components under `root`
-/// include a symlink: a distribution repository could otherwise point a
-/// package directory anywhere on disk.
-fn safe_join(root: &Path, base: &Path, relative: &str) -> Result<PathBuf, String> {
-    if !is_relative_path(relative) {
-        return Err(format!("{relative:?} is not a relative path"));
+/// `Release pigeon-sdk v0.2.1 from b43a1c5c9f7c`, with the full source
+/// commit in the body.
+fn release_message(request: &PublishRequest<'_>, tag: &str) -> String {
+    let package = request.package.unwrap_or(request.sdk);
+    match request.source_commit {
+        Some(commit) => format!(
+            "Release {package} {tag} from {}\n\nBuilt from {commit}.",
+            commit.get(..12).unwrap_or(commit)
+        ),
+        None => format!("Release {package} {tag}"),
     }
-    let full = base.join(relative);
-    let mut current = root.to_owned();
-    let inside = full
-        .strip_prefix(root)
-        .map_err(|_| format!("{relative} is outside the checkout"))?;
-    for component in inside.components() {
-        current.push(component);
-        match fs::symlink_metadata(&current) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "{} is a symlink in the repository; refusing to write through it",
-                    current.strip_prefix(root).unwrap_or(&current).display()
-                ));
+}
+
+/// The tree mode a package file takes.
+fn mode_of(file: &PackageFile) -> &'static str {
+    if file.executable { "100755" } else { "100644" }
+}
+
+/// `url` for a message, with any user information (which could be a
+/// token) replaced.
+fn without_userinfo(url: &str) -> String {
+    match url.split_once("://") {
+        Some((scheme, rest)) => {
+            let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+            match rest[..end].rsplit_once('@') {
+                Some((_, host)) => format!("{scheme}://<redacted>@{host}{}", &rest[end..]),
+                None => url.to_owned(),
             }
-            Ok(_) => {}
-            Err(error) if error.kind() == io::ErrorKind::NotFound => break,
-            Err(error) => return Err(error.to_string()),
         }
-    }
-    Ok(full)
-}
-
-fn write_file(source: &Path, destination: &Path) -> io::Result<()> {
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    if destination.is_dir() {
-        // An empty directory left by a removed file's parent.
-        fs::remove_dir(destination)?;
-    }
-    fs::copy(source, destination).map(|_| ())
-}
-
-/// Removes `path`'s empty parent directories, up to `base`.
-fn prune_empty_parents(base: &Path, path: &Path) {
-    let mut current = path.parent();
-    while let Some(dir) = current {
-        if dir == base || !dir.starts_with(base) || fs::remove_dir(dir).is_err() {
-            break;
-        }
-        current = dir.parent();
+        None => match url.split_once('@') {
+            Some((user, rest)) if user.contains(':') => format!("<redacted>@{rest}"),
+            _ => url.to_owned(),
+        },
     }
 }
 

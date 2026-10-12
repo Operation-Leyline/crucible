@@ -100,6 +100,7 @@ pub(crate) fn publish(release: &Path, names: &[String], execute: bool) -> Result
                 .map_err(|error| error.to_string())?,
             artifact_sha256: Some(built.artifact.sha256.clone()),
             source_commit: planned.source_commit.clone(),
+            package: planned.package.clone(),
         };
         let step = publish_one(&*channel, &item, &release, &mut journal, mode)
             .map_err(|error| error.to_string())?;

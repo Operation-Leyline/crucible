@@ -201,6 +201,7 @@ fn request<'a>(version: &'a Version, artifact: &'a Path) -> PublishRequest<'a> {
         version,
         artifact,
         source_commit: Some("20ccb55"),
+        package: Some("pigeon-sdk"),
     }
 }
 
@@ -268,7 +269,10 @@ fn releases_and_reads_back_with_ownership() {
         Some(&fixture.remote()),
         &["log", "-1", "--format=%B", "v0.1.0"],
     );
-    assert!(message.starts_with("Release rust 0.1.0"), "{message}");
+    assert!(
+        message.starts_with("Release pigeon-sdk v0.1.0 from 20ccb55\n"),
+        "{message}"
+    );
     assert!(message.contains("20ccb55"), "{message}");
 
     // Someone adds a file the package does not own.
@@ -428,6 +432,7 @@ fn imports_and_adopts_pigeons_rust_distribution() {
         artifact: package.clone(),
         artifact_sha256: None,
         source_commit: None,
+        package: None,
     };
     let mut journal = Journal::default();
     let step = publish(
@@ -544,6 +549,7 @@ fn publish_resumes_and_stops_on_a_moved_channel() {
         artifact: package.clone(),
         artifact_sha256: None,
         source_commit: None,
+        package: None,
     };
     let release_dir = tempfile::tempdir().unwrap();
     let mut journal = Journal::load(release_dir.path()).unwrap();
@@ -660,4 +666,93 @@ fn a_package_without_an_ownership_manifest_is_refused() {
             .git(None, &["ls-remote", "--tags", &fixture.url()])
             .is_empty()
     );
+}
+
+/// The distribution repository's attributes never touch the release:
+/// `ident` would rewrite `$Id$` and `text` would turn CRLF into LF, so the
+/// tree would hold bytes nobody tested.
+#[test]
+fn publishes_the_tested_bytes_whatever_the_repositorys_attributes_say() {
+    let fixture = Fixture::new();
+    fixture.seed(
+        &[(".gitattributes", "* text eol=lf\nREADME.md ident\n")],
+        "seed",
+        false,
+    );
+    let channel = fixture.channel(GitChannelConfig::new(fixture.url()));
+    let package = fixture.package(
+        "p",
+        &[
+            ("README.md", "$Id: reviewed $\r\nCRLF stays\r\n"),
+            ("src/lib.rs", "pub fn f() {}\r\n"),
+        ],
+    );
+    let version = Version::new(0, 1, 0);
+    channel.publish(&request(&version, &package)).unwrap();
+    for path in ["README.md", "src/lib.rs"] {
+        let tested = fixture.git(
+            None,
+            &[
+                "hash-object",
+                "--no-filters",
+                package.join(path).to_str().unwrap(),
+            ],
+        );
+        let published = fixture.git(
+            Some(&fixture.remote()),
+            &["rev-parse", &format!("v0.1.0:{path}")],
+        );
+        assert_eq!(tested, published, "{path}");
+    }
+    assert_eq!(
+        channel.check_published(&version, &package).unwrap(),
+        Published::SameBytes
+    );
+    // The repository's own file stays.
+    assert!(
+        fixture
+            .paths("v0.1.0")
+            .contains(&".gitattributes".to_owned())
+    );
+}
+
+/// A file's mode is part of what was published: the same bytes under
+/// another mode are not the same release.
+#[test]
+fn modes_are_compared() {
+    let fixture = Fixture::new();
+    let work = tempfile::tempdir_in(fixture.root.path()).unwrap();
+    let dir = work.path();
+    fixture.git(Some(dir), &["init", "-q", "-b", "main"]);
+    fs::write(dir.join("a.txt"), "1\n").unwrap();
+    fs::write(dir.join(".crucible"), "[\"a.txt\"]").unwrap();
+    fixture.git(Some(dir), &["add", "-A"]);
+    fixture.git(Some(dir), &["update-index", "--chmod=+x", "a.txt"]);
+    fixture.git(Some(dir), &["commit", "-q", "-m", "executable"]);
+    fixture.git(Some(dir), &["tag", "v0.1.0"]);
+    fixture.git(
+        Some(dir),
+        &[
+            "push",
+            "-q",
+            &fixture.url(),
+            "HEAD:refs/heads/main",
+            "refs/tags/v0.1.0",
+        ],
+    );
+    let channel = fixture.channel(GitChannelConfig::new(fixture.url()));
+    let package = fixture.package("p", &[("a.txt", "1\n")]);
+    let Published::DifferentBytes { detail } = channel
+        .check_published(&Version::new(0, 1, 0), &package)
+        .unwrap()
+    else {
+        panic!("a mode change is a difference")
+    };
+    assert!(detail.contains("mode 100755"), "{detail}");
+    // Publishing writes the package's mode, whatever the parent had.
+    channel
+        .publish(&request(&Version::new(0, 1, 1), &package))
+        .unwrap();
+    let listing = fixture.git(Some(&fixture.remote()), &["ls-tree", "v0.1.1", "a.txt"]);
+    assert!(listing.starts_with("100644 "), "{listing}");
 }

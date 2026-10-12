@@ -10,6 +10,7 @@
 
 use std::fs;
 use std::path::Path;
+use std::time::Duration;
 
 use semver::Version;
 use serde_json::Value;
@@ -88,6 +89,10 @@ pub struct NpmChannel {
     http: Box<dyn HttpTransport>,
     runner: Box<dyn CommandRunner>,
     npm: String,
+    /// How often, and how far apart, an upload is looked for on the
+    /// registry before it counts as done.
+    confirm_attempts: u32,
+    confirm_delay: Duration,
 }
 
 /// What the registry's package document says.
@@ -154,7 +159,16 @@ impl NpmChannel {
             http,
             runner,
             npm: if cfg!(windows) { "npm.cmd" } else { "npm" }.into(),
+            confirm_attempts: 12,
+            confirm_delay: Duration::from_secs(5),
         })
+    }
+
+    /// Looks for an upload `attempts` times, `delay` apart, before failing.
+    pub fn with_confirmation(mut self, attempts: u32, delay: Duration) -> Self {
+        self.confirm_attempts = attempts.max(1);
+        self.confirm_delay = delay;
+        self
     }
 
     /// The real channel: HTTPS, the credential npm would use from
@@ -373,17 +387,57 @@ impl NpmChannel {
         }
     }
 
-    fn publish_command(&self, artifact: &Path, tag: &str) -> CommandLine {
+    /// `npm <args>`, bound to this channel's registry whatever the
+    /// environment says: a scoped package's `@scope:registry` in any
+    /// `.npmrc` beats `--registry` and `publishConfig`, so the scope is
+    /// pinned too; and an inherited `dry-run` would make an upload a no-op.
+    fn npm_command<I, S>(&self, args: I) -> CommandLine
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
         let mut command = CommandLine::new(&self.npm)
-            .arg("publish")
-            .arg(artifact.to_string_lossy())
-            .args(["--ignore-scripts", "--registry"])
-            .arg(self.registry.as_str())
-            .args(["--tag", tag]);
+            .args(args)
+            .arg("--registry")
+            .arg(self.registry.as_str());
+        if let Some((scope, _)) = self.config.package.split_once('/') {
+            command = command.arg(format!("--{scope}:registry={}", self.registry));
+        }
+        command.arg("--dry-run=false")
+    }
+
+    fn publish_command(&self, artifact: &Path, tag: &str) -> CommandLine {
+        let mut command = self.npm_command([
+            "publish".to_owned(),
+            artifact.to_string_lossy().into_owned(),
+            "--ignore-scripts".into(),
+            "--tag".into(),
+            tag.to_owned(),
+        ]);
         if let Some(access) = self.config.access {
             command = command.args(["--access", access.as_str()]);
         }
         command
+    }
+
+    /// Waits until the registry shows what an `npm` command claimed to do.
+    /// A success npm reported is not trusted alone: a dry-run setting or a
+    /// redirected scope makes npm succeed without touching this registry.
+    fn confirm(&self, what: &str, done: impl Fn(&Packument) -> bool) -> Result<(), ChannelError> {
+        for attempt in 0..self.confirm_attempts {
+            if attempt > 0 {
+                std::thread::sleep(self.confirm_delay);
+            }
+            if self.packument()?.as_ref().is_some_and(&done) {
+                return Ok(());
+            }
+        }
+        Err(ChannelError::Publish {
+            channel: self.describe(),
+            reason: format!(
+                "npm reported success, but the registry does not show {what}; nothing is recorded as published"
+            ),
+        })
     }
 
     fn run(&self, command: &CommandLine) -> Result<(), ChannelError> {
@@ -562,6 +616,21 @@ impl Channel for NpmChannel {
         let packument = self.packument()?;
         let tag = self.publish_tag(packument.as_ref(), request.version);
         self.run(&self.publish_command(request.artifact, &tag))?;
+        let bytes = fs::read(request.artifact).map_err(|error| ChannelError::Artifact {
+            channel: self.describe(),
+            path: request.artifact.to_owned(),
+            reason: error.to_string(),
+        })?;
+        self.confirm(
+            &format!("{} with the tested bytes", request.version),
+            |packument| {
+                packument
+                    .dist(request.version)
+                    .and_then(|dist| dist.integrity.as_deref())
+                    .and_then(|integrity| sri_matches(integrity, &bytes))
+                    == Some(true)
+            },
+        )?;
         Ok(PublishOutcome {
             detail: format!(
                 "published {}@{} with dist-tag {tag}",
@@ -578,13 +647,18 @@ impl Channel for NpmChannel {
         match packument.tag(tag) {
             Some(current) if current >= *version => Ok(Vec::new()),
             _ => {
-                let command = CommandLine::new(&self.npm)
-                    .args(["dist-tag", "add"])
-                    .arg(format!("{}@{version}", self.config.package))
-                    .arg(tag)
-                    .arg("--registry")
-                    .arg(self.registry.as_str());
+                let command = self.npm_command([
+                    "dist-tag".to_owned(),
+                    "add".into(),
+                    format!("{}@{version}", self.config.package),
+                    tag.clone(),
+                ]);
                 self.run(&command)?;
+                self.confirm(&format!("dist-tag {tag} at {version}"), |packument| {
+                    packument
+                        .tag(tag)
+                        .is_some_and(|current| current >= *version)
+                })?;
                 Ok(vec![format!("pointed dist-tag {tag} at {version}")])
             }
         }

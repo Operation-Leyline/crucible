@@ -35,6 +35,8 @@ pub struct PublishItem {
     /// when the artifact is a file.
     pub artifact_sha256: Option<String>,
     pub source_commit: Option<String>,
+    /// The package name, for messages and commits.
+    pub package: Option<String>,
 }
 
 /// Whether `publish` uploads or only says what it would do.
@@ -156,6 +158,7 @@ pub fn publish(
         version: &item.version,
         artifact: &item.artifact,
         source_commit: item.source_commit.as_deref(),
+        package: item.package.as_deref(),
     };
     let record = |journal: &mut Journal, outcome, detail: String| {
         journal.record(
