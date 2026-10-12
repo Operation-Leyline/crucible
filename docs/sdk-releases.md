@@ -53,11 +53,20 @@ Commands run without a shell; environment variables stay in the environment.
 
 Every generator emits its native package metadata. Rust's client is a complete
 Cargo package (`Cargo.toml` with its runtime dependency, and `src/lib.rs`), but
-this runner predates it: it passes `<package>/src/lib.rs` as `--out` and no
-`--client`, so its Rust target does not produce a client package (a fix is
-tracked separately). Until then, generate the Rust client with
-`crucible generate rust --client --package-version <version> --out <dir>` and
-package it with Cargo. Languages distributed by Git tags, source archives, or package
+this runner predates it: it passes `<package>/src/lib.rs` as `--out`. A Rust
+target that does not list `--client` in its `arguments` generates server
+bindings there. One that does writes the client package into a directory named
+`src/lib.rs`. The checked-in Weather recipe has no Rust target, and a fix is
+tracked separately. Until then, generate the Rust client directly and package
+it with Cargo:
+
+```sh
+crucible generate rust path/to/model --client --package-name weather-sdk \
+  --package-version 1.0.0 --out target/rust-sdk
+cargo package --manifest-path target/rust-sdk/Cargo.toml
+```
+
+ Languages distributed by Git tags, source archives, or package
 manager manifests should use their native release mechanism in the recipe.
 The runner does not pretend every language has an upload registry.
 

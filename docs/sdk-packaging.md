@@ -368,10 +368,11 @@ which `cargo package` includes, and npm's `files` lists both:
   written by `snapshot::write`. It is the API the package already
   exposes, so an external SDK reveals nothing `@internal`.
 - **`source`** is written by `crucible sdk build` only, from the Git
-  checkout holding the SDK file. A tracked input (the model, the SDK file,
-  a README) with uncommitted changes fails the build unless
-  `--allow-dirty`, which records `"dirty": true`. Development exports
-  carry no `source`. Today's files have no `schemaVersion` and read as 1.
+  checkout holding the SDK file. Every configured input (the model, the
+  SDK file, a README or license file) must be tracked and unmodified, so
+  `source.commit` reproduces it. An untracked or modified input fails the
+  build, unless `--allow-dirty`, which records `"dirty": true` in
+  provenance. Development exports carry no `source`. Today's files have no `schemaVersion` and read as 1.
 - **`provenance = "minimal"` (later)** leaves `source` and
   `generatorRevision` out of a public package built from a private
   repository. The release record keeps them, and `publish` tags the
@@ -487,8 +488,10 @@ Crucible's channel readers both find them: `NODE_AUTH_TOKEN` (through the
 `.npmrc` `actions/setup-node` writes), `CARGO_REGISTRY_TOKEN` or
 `CARGO_REGISTRIES_<NAME>_TOKEN`, `TWINE_*`, and Git's SSH agent or
 credential helper. Planning reads the channel, so the building job needs
-read access too. Crucible downloads a tarball or `.crate` over HTTP itself,
-and never prints or records a credential.
+read access too. Crucible downloads a tarball or `.crate` itself, over
+HTTPS only. On a redirect it sends a channel credential only to the same
+scheme, host and port, and never over plain HTTP. It never prints or
+records a credential.
 
 **CI builds once, tests, then publishes those bytes**, after the deploy.
 A client ahead of its API breaks everyone who installs it, and an older
