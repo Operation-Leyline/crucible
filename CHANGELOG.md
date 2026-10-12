@@ -15,6 +15,84 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+SDK packaging, phase 1a ([design](docs/sdk-packaging.md)): a service
+declares its SDKs once in `crucible-sdk.toml`, `crucible sdk config|generate`
+reads it, Rust and TypeScript packages take common metadata, and they carry
+schema-2 provenance and their audience's model. Releasing them is next.
+Breaking for TypeScript `package_json` overrides: follow *Migration*.
+
+### Added
+
+- `crucible-sdk.toml`, the SDKs a service declares: the model it generates
+  from, `[defaults]` with the common keys, and one `[sdk.<name>]` per SDK
+  with its language, audience, `out`, the generator's options, and release
+  settings (`version` floor, `test`, `lockfiles`, `channel`). One resolver,
+  `crucible_codegen::sdk::resolve`, reads it for the CLI and the build
+  helper; every error in the file is reported in one run, at its key:
+  unknown keys, keys the language does not take, a language's name used
+  for another language, keywords crates.io would refuse, channel URLs
+  carrying credentials, and private or internal SDKs on a public registry.
+  See [releasing generated SDKs](docs/sdk-releases.md#declare-sdks-crucible-sdktoml).
+- `crucible sdk config [--sdk <name>]... [--json]` prints each declared
+  SDK's effective configuration and its `config_sha256`, and
+  `crucible sdk generate [--sdk <name>]...` writes each one to its `out` at
+  the development version, through the `.crucible` ownership manifest. Both
+  find the file in the current directory or its nearest parent (`--file`
+  names another), and refuse to run at any Crucible revision other than
+  the one the service's `Cargo.lock` resolves `crucible-build` or
+  `crucible-server-runtime-rust` to from Git, naming the one to install.
+- Common package metadata for Rust and TypeScript SDKs: description,
+  repository, homepage, documentation, license or license file, authors,
+  README, keywords and `private`. `Cargo.toml` gains the matching keys,
+  `publish = false` for a private crate and the README as crate
+  documentation; `package.json` gains `keywords`, `homepage`,
+  `repository`, `license`, `author`/`contributors`, `"private": true` for
+  a private package with no npm registry, and `publishConfig` for a
+  declared npm channel. The README and license are copied in with LF line
+  endings. They come from `crucible-sdk.toml`, from new
+  `crucible generate rust --client|ts` flags (`--description`,
+  `--repository`, `--homepage`, `--documentation`, `--license`,
+  `--license-file`, `--author`, `--readme`, `--keyword`, `--private`), and
+  from new `RustSdk`/`TsSdk` setters in `crucible_build` (`description`,
+  `repository`, `homepage`, `documentation`, `license`, `license_file`,
+  `authors`, `readme`, `keywords`, `private`, `metadata`), with
+  `crucible_build::PackageMetadata`.
+- Rust and TypeScript packages carry `crucible.json` schema 2
+  (`schemaVersion`, generator version, verified revision and change-log
+  `id`, language, package, version, audience, service, `schemaSha256`,
+  `configSha256` for a declared SDK, and `contentDigest`, a
+  `crucible-content-1` digest of the generated files) and
+  `crucible-model.json`, the compiled model as the package's audience sees
+  it. Rust packages gain both; npm's `files` lists both.
+- `crates/crucible-codegen/sdk-changes.toml`, the reviewed log of generator
+  and runtime changes that move SDKs, seeded with entry `0` and embedded in
+  the generator. A PR that changes a generator's public output or a
+  runtime's public API adds an entry ([releases](docs/releases.md#checklist-stable-surface-diff)).
+
+### Changed
+
+- A `crucible_build` client helper whose output name a `crucible-sdk.toml`
+  (found from the producer's directory up to the repository root) declares
+  fails: `crucible sdk generate` writes declared SDKs, so the build script
+  and the release cannot drift. Builder-only names are unaffected.
+- TypeScript packages no longer write their schema-1 `crucible.json`
+  themselves; the shared generator layer writes schema 2, which keeps
+  `generatorVersion`, `service`, `serviceVersion` and `schemaSha256`.
+  `crucible_codegen_ts::emit` alone emits neither provenance file.
+- The `RustOptions` and `TsOptions` generator structs gain a `metadata`
+  field (exempt from the stability policy).
+
+### Migration
+
+- **TypeScript `package_json` cannot set what the package owns.**
+  `crucible generate ts --package-json`, `TsSdk::package_json` and
+  `TsOptions::package_json` refuse a fragment that sets `name`, `version`,
+  `crucible`, `files`, `private` or `publishConfig`, naming each key. Set
+  the name and version with `--package-name`/`.package(..)` and
+  `--package-version`/`.version(..)`, `private` with `--private`/
+  `.private(true)`, and `publishConfig` with an npm `channel` in
+  `crucible-sdk.toml`. See [migrating](docs/migrating.md#061-to-the-next-minor-release).
+
 ## [0.6.1] - 2026-10-12
 
 Editor support: `crucible-lsp` completes `$` bindings with what the member

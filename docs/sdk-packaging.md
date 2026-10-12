@@ -1,17 +1,22 @@
 # SDK packaging and releases
 
-**Status: designed, not built** (decisions below). Today a service gets
+**Status: phase 1a built** (decisions below): the SDK file and its
+resolver, `crucible sdk config|generate` with the `Cargo.lock` revision
+check, Rust and TypeScript metadata, `crucible.json` schema 2 with
+`crucible-model.json`, and the change log. Sections and bullets marked
+*(built)* exist; the rest is designed, not built. Releasing (`crucible sdk
+plan|build|verify|publish`) is phase 1b. Before this design, a service got
 complete native packages from `crucible_build` or `crucible generate`, and
-then writes its own scripts to make them publishable: package metadata,
+then wrote its own scripts to make them publishable: package metadata,
 versions, provenance, the "has anything changed" check, and the upload.
 This document moves that work into Crucible. A service declares its SDKs
 once. Crucible generates publishable packages, tests the built packages
 in the service's own consumers, chooses each version, records where it
 came from, and publishes the bytes it tested.
 
-[SDK releases](sdk-releases.md) documents what is built today
-(`tools/sdk_release.py`). It becomes the guide to `crucible sdk` as the
-phases below land.
+[SDK releases](sdk-releases.md) documents what is built today: the SDK
+file, `crucible sdk config|generate`, and `tools/sdk_release.py`. It
+becomes the whole guide to `crucible sdk` as the phases below land.
 
 ## What services do today
 
@@ -44,7 +49,7 @@ describe is deployed.
 
 ## 1. Declaring SDKs
 
-### The SDK file
+### The SDK file *(built)*
 
 A service declares its releasable SDKs in `crucible-sdk.toml`, in its own
 repository. The file names the model it generates from: a `.cru` package,
@@ -120,11 +125,12 @@ Rules:
   `crucible sdk`. A channel URL that carries a password or token is an
   error; a user name such as `git@` is fine.
 
-### One resolver
+### One resolver *(built)*
 
 `crucible_codegen::sdk::resolve` turns the file into each SDK's effective
 configuration. `crucible sdk config --json` prints it, and its digest goes
 into the release record.
+
 - `crucible sdk generate` writes every declared SDK to its `out`, at the
   CLI's current development versions: `0.0.0-dev` (TypeScript, Dart,
   Swift, C#), `0.0.0.dev0` (Python), `0.0.0-SNAPSHOT` (Java, Kotlin),
@@ -135,7 +141,7 @@ into the release record.
 - Neither reads a registry or picks a version, and a declared SDK takes
   nothing from a Cargo package's `CARGO_PKG_*`.
 
-**One compiler for SDKs and server.** When the service's `Cargo.lock`
+**One compiler for SDKs and server** *(built)*. When the service's `Cargo.lock`
 resolves `crucible-build` or `crucible-server-runtime-rust` from Git,
 `crucible sdk` refuses to run at any other revision, and names the one to
 install. `setup-crucible` can read that revision from the lock. This
@@ -144,7 +150,9 @@ replaces `codegen.sh`'s install-per-revision.
 **Build scripts (phase 3).** `model.sdks("../crucible-sdk.toml")` writes
 the declared SDKs from `build.rs`, and refuses a file whose `model` is not
 the builder's source. A builder call naming a declared SDK is an error, so
-the build script and the release cannot drift. Builder-only SDKs keep
+the build script and the release cannot drift *(built: any client builder
+call whose output name an SDK file found from the producer's directory
+declares)*. Builder-only SDKs keep
 today's options and defaults (`CARGO_PKG_VERSION` included) and gain the
 common setters, but `crucible sdk` never releases them. `CdkOutput`'s
 `author`, `repository_url` and `license` become deprecated aliases of
@@ -152,7 +160,8 @@ those setters.
 
 The common keys live in one `PackageMetadata` in
 `crucible-codegen-common`, which every client generator already depends
-on; each language's `Options` gains it as a `metadata` field.
+on; each language's `Options` gains it as a `metadata` field *(built for
+Rust and TypeScript, with the builders' common setters)*.
 
 There is no general escape hatch for native manifests. Crucible owns the
 generated manifest, and a hatch could override the version, the
@@ -161,7 +170,7 @@ appears. TypeScript's existing `package_json` stays, merged last. It
 cannot set the name, version, `crucible`, `files`, `private` or
 `publishConfig`.
 
-### The common keys
+### The common keys *(built for Rust and TypeScript)*
 
 | Key | Meaning |
 |---|---|
@@ -297,7 +306,7 @@ Crucible by Git revision and the workspace version moves only at a
 release. The generator embeds the log, `crucible.json` records the highest
 `id`, and the plan counts the entries in between, so a change on `main`
 counts as soon as a service builds with it. Phase 1 seeds the log with
-entry `0`. The *stable-surface diff* checklist in
+entry `0` *(built)*. The *stable-surface diff* checklist in
 [releases.md](releases.md) gains the rule: a PR that changes a generator's
 public output or a runtime's public API adds an entry.
 
@@ -337,7 +346,8 @@ package, tag prefix or dist-tag), and only the current line moves npm's
 
 ## 4. Provenance
 
-Every package carries `crucible.json` and `crucible-model.json`, side by
+*(Built for Rust and TypeScript packages, except `source`, which only
+`crucible sdk build` writes, and `provenance = "minimal"`.)* Every package carries `crucible.json` and `crucible-model.json`, side by
 side, where `crucible.json` is today. Rust gains both at the crate root,
 which `cargo package` includes, and npm's `files` lists both:
 
@@ -410,6 +420,8 @@ before this design) counts as changed once. Built archives are never
 compared for "unchanged", and no service script is hashed.
 
 ## 5. Releasing: `crucible sdk`
+
+`config` and `generate` are built; the rest is phase 1b.
 
 ```sh
 crucible sdk config   [--sdk <name>]... [--json]                 # effective configuration
@@ -603,11 +615,11 @@ pointing here.
 
 ## Phases
 
-1. **Pigeon's slice, enough to delete its scripts:** the SDK file,
+1. **Pigeon's slice, enough to delete its scripts.** *Phase 1a (built):* the SDK file,
    resolver, `crucible sdk config|generate` and the `Cargo.lock` revision
    check; Rust and TypeScript metadata, `crucible.json` schema 2 and
-   `crucible-model.json`, and the change log seeded with entry `0`;
-   `plan|build|verify|publish` for npm (GitHub Packages included) and git
+   `crucible-model.json`, and the change log seeded with entry `0`.
+   *Phase 1b:* `plan|build|verify|publish` for npm (GitHub Packages included) and git
    channels, with consumer tests against the release, lockfile
    reconciliation, the release record and resumable publishing; Pigeon's
    version rule (patch, floor, `--bump`, `--first-release`); imported

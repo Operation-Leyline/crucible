@@ -10,6 +10,7 @@ pub struct RustSdk<'a> {
     name: String,
     audience: crucible_codegen::Audience,
     options: RustOptions,
+    files: crate::package_metadata::MetadataFiles,
 }
 
 impl<'a> RustSdk<'a> {
@@ -25,6 +26,7 @@ impl<'a> RustSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: RustOptions::default(),
+            files: crate::package_metadata::MetadataFiles::default(),
         }
     }
 
@@ -67,20 +69,26 @@ impl<'a> RustSdk<'a> {
         self
     }
 
+    crate::package_metadata::metadata_setters!();
+
+    /// The output this builder configures, with its metadata files read.
+    fn output(mut self) -> Result<crate::Output<'a>, String> {
+        self.files.apply(&mut self.options.metadata)?;
+        Ok(self
+            .model
+            .sdk(&self.name, Client::Rust(self.options))
+            .audience(self.audience))
+    }
+
     /// Generate and publish the named Cargo source package under OUT_DIR.
     pub fn generate(self) -> Artifact {
-        self.model
-            .sdk(&self.name, Client::Rust(self.options))
-            .audience(self.audience)
-            .generate()
+        self.try_generate()
+            .unwrap_or_else(|message| panic!("crucible: {message}"))
     }
 
     /// Fallible equivalent of generation.
     pub fn try_generate(self) -> Result<Artifact, String> {
-        self.model
-            .sdk(&self.name, Client::Rust(self.options))
-            .audience(self.audience)
-            .try_generate()
+        self.output()?.try_generate()
     }
 
     /// Generate under OUT_DIR and export to a stable native package path.
@@ -91,9 +99,6 @@ impl<'a> RustSdk<'a> {
 
     /// Fallible equivalent of native package generation and export.
     pub fn try_generate_into(self, output: impl AsRef<Path>) -> Result<Artifact, String> {
-        self.model
-            .sdk(&self.name, Client::Rust(self.options))
-            .audience(self.audience)
-            .try_generate_into(output)
+        self.output()?.try_generate_into(output)
     }
 }

@@ -23,6 +23,7 @@ fn legacy_enum_models_match_golden() {
         endpoint: None,
         middleware: vec![],
         package_json: None,
+        metadata: Default::default(),
     };
     let models = emit(&service, &options)
         .unwrap()
@@ -51,6 +52,7 @@ fn weather_client_matches_golden_files() {
         endpoint: Some("https://weather.example".into()),
         middleware: vec![Middleware::ContentSha256],
         package_json: None,
+        metadata: Default::default(),
     };
     let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/weather");
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
@@ -114,6 +116,7 @@ fn a_shape_named_date_does_not_shadow_timestamps() {
         endpoint: None,
         middleware: vec![],
         package_json: None,
+        metadata: Default::default(),
     };
     let files = emit(&service, &options).unwrap();
     let models = &files
@@ -149,6 +152,7 @@ fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .unwrap();
@@ -201,6 +205,7 @@ fn prototype_named_members_defaults_and_errors_are_own_metadata() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .unwrap();
@@ -230,6 +235,7 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .unwrap();
@@ -286,6 +292,7 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .unwrap();
@@ -306,60 +313,118 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
     }
 }
 
+/// Common package metadata maps onto `package.json` as
+/// docs/sdk-packaging.md's table says, and the README and license are copied.
 #[test]
-fn packaged_provenance_tracks_the_shared_wire_schema() {
-    use sha2::{Digest, Sha256};
+fn package_metadata_matches_golden() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"
     ))
     .unwrap()
     .lower(None)
     .unwrap();
-    let options = Options {
-        package_name: "weather".into(),
-        package_version: "1".into(),
-        client_name: None,
-        endpoint: None,
-        middleware: vec![],
-        package_json: None,
+    let mut options = options("@example/weather");
+    options.metadata = crucible_codegen_common::PackageMetadata {
+        description: Some("Client for the Weather API.".into()),
+        repository: Some("https://github.com/example/weather".into()),
+        homepage: Some("https://weather.example".into()),
+        documentation: Some("https://docs.weather.example".into()),
+        license: None,
+        license_file: Some("Proprietary.\n".into()),
+        authors: vec![
+            "Weather Team <sdk@weather.example>".into(),
+            "Ops <ops@weather.example>".into(),
+        ],
+        readme: Some("# Weather\n".into()),
+        keywords: vec!["weather".into(), "forecast".into()],
+        private: true,
+        registry: Some(crucible_codegen_common::Registry::Npm {
+            url: "https://npm.pkg.github.com".into(),
+            access: Some("restricted".into()),
+        }),
     };
     let files = emit(&service, &options).unwrap();
-    let manifest: serde_json::Value = serde_json::from_str(
-        &files
-            .iter()
-            .find(|f| f.path == "crucible.json")
-            .unwrap()
-            .contents,
-    )
-    .unwrap();
-    let schema =
-        serde_json::to_string(&crucible_codegen_common::schema(&service, str::to_owned)).unwrap();
+    let package = file(&files, "package.json");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/metadata.package.json");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, package).unwrap();
+    }
     assert_eq!(
-        manifest["schemaSha256"],
-        format!("{:x}", Sha256::digest(schema.as_bytes()))
+        fs::read_to_string(path).unwrap().replace("\r\n", "\n"),
+        package
     );
-    let package: serde_json::Value = serde_json::from_str(
-        &files
-            .iter()
-            .find(|f| f.path == "package.json")
-            .unwrap()
-            .contents,
-    )
+    assert_eq!(file(&files, "README.md"), "# Weather\n");
+    assert_eq!(file(&files, "LICENSE"), "Proprietary.\n");
+    // Publishable to the named registry, so not `"private": true`.
+    let json: serde_json::Value = serde_json::from_str(package).unwrap();
+    assert!(json.get("private").is_none());
+    // Private with no npm registry: npm refuses to publish it.
+    options.metadata.registry = None;
+    let files = emit(&service, &options).unwrap();
+    let json: serde_json::Value = serde_json::from_str(file(&files, "package.json")).unwrap();
+    assert_eq!(json["private"], true);
+    assert!(json.get("publishConfig").is_none());
+}
+
+/// Provenance is stamped by the shared layer: the package lists both files
+/// without the generator writing either.
+#[test]
+fn the_package_lists_provenance_it_does_not_write() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
     .unwrap();
+    let files = emit(&service, &options("weather")).unwrap();
+    let package: serde_json::Value = serde_json::from_str(file(&files, "package.json")).unwrap();
+    assert_eq!(
+        package["files"],
+        serde_json::json!(["dist", "crucible.json", "crucible-model.json"])
+    );
     assert!(
-        package["files"]
-            .as_array()
-            .unwrap()
+        !files
             .iter()
-            .any(|f| f == "crucible.json")
+            .any(|f| f.path == "crucible.json" || f.path == "crucible-model.json")
     );
-    let mut changed = service.clone();
-    changed.version.push_str("-next");
-    let updated = emit(&changed, &options).unwrap();
-    assert_ne!(
-        files.iter().find(|f| f.path == "crucible.json"),
-        updated.iter().find(|f| f.path == "crucible.json")
+    assert!(
+        !files
+            .iter()
+            .any(|f| f.path == "README.md" || f.path == "LICENSE")
     );
+}
+
+#[test]
+fn package_json_cannot_override_what_the_package_owns() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let mut options = options("weather");
+    options.package_json = Some(serde_json::json!({
+        "name": "other", "version": "9.9.9", "crucible": {}, "files": [],
+        "private": false, "publishConfig": {}, "bugs": "https://x.example"
+    }));
+    let error = emit(&service, &options).unwrap_err().to_string();
+    for key in [
+        "name",
+        "version",
+        "crucible",
+        "files",
+        "private",
+        "publishConfig",
+    ] {
+        assert!(error.contains(&format!("cannot set `{key}`")), "{error}");
+    }
+    assert!(!error.contains("bugs"));
+    options.package_json = Some(serde_json::json!({ "bugs": "https://x.example" }));
+    let files = emit(&service, &options).unwrap();
+    assert!(file(&files, "package.json").contains("\"bugs\": \"https://x.example\""));
+    options.package_json = None;
+    options.metadata.repository = Some("not a url".into());
+    assert!(emit(&service, &options).is_err());
 }
 
 fn options(name: &str) -> Options {
@@ -370,6 +435,7 @@ fn options(name: &str) -> Options {
         endpoint: None,
         middleware: vec![],
         package_json: None,
+        metadata: Default::default(),
     }
 }
 
@@ -523,6 +589,7 @@ fn operations_named_like_schemas_imports_are_exported_under_an_alias() {
         endpoint: None,
         middleware: vec![],
         package_json: None,
+        metadata: Default::default(),
     };
     let files = emit(&service, &options).unwrap();
     let file = |path: &str| {
@@ -586,6 +653,7 @@ fn the_import_alias_avoids_another_operations_name() {
         endpoint: None,
         middleware: vec![],
         package_json: None,
+        metadata: Default::default(),
     };
     let files = emit(&service, &options).unwrap();
     let schemas = &files
@@ -641,6 +709,7 @@ fn an_operation_named_endpoint_rules_is_diagnosed_when_rules_are_exported() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .unwrap_err()
@@ -666,6 +735,7 @@ fn documentation_and_formatting_use_the_lowered_contract() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .unwrap();
@@ -711,6 +781,7 @@ fn representation_method_collisions_are_diagnosed() {
             endpoint: None,
             middleware: vec![],
             package_json: None,
+            metadata: Default::default(),
         },
     )
     .err()

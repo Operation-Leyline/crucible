@@ -20,6 +20,7 @@ fn adapters_preserve_every_native_emitters_output() {
                 revision: "a".repeat(40),
                 version_requirement: ">=0.1.0, <0.2.0".into(),
             },
+            metadata: Default::default(),
         };
         let expected: Vec<File> =
             crucible_codegen_rust::emit_client_package(&service, &rust_options)
@@ -30,7 +31,10 @@ fn adapters_preserve_every_native_emitters_output() {
                     contents: file.contents,
                 })
                 .collect();
-        assert_eq!(Client::Rust(rust_options).emit(&full).unwrap(), expected);
+        assert_eq!(
+            stamped(Client::Rust(rust_options).emit(&full).unwrap()),
+            expected
+        );
         macro_rules! compare {
             ($variant:ident, $emitter:ident, $options:expr) => {
                 let options = $options;
@@ -44,7 +48,15 @@ fn adapters_preserve_every_native_emitters_output() {
                     .collect();
                 let client = Client::$variant(options);
                 assert_eq!(client.capabilities(), $emitter::capabilities());
-                assert_eq!(client.emit(&full).unwrap(), expected);
+                let emitted = client.emit(&full).unwrap();
+                // Rust and TypeScript packages gain provenance from the
+                // shared layer; the others emit their own.
+                let emitted = if stringify!($variant) == "Ts" {
+                    stamped(emitted)
+                } else {
+                    emitted
+                };
+                assert_eq!(emitted, expected);
             };
         }
         compare!(
@@ -56,7 +68,8 @@ fn adapters_preserve_every_native_emitters_output() {
                 client_name: None,
                 endpoint: Some("https://example.test".into()),
                 middleware: vec![],
-                package_json: None
+                package_json: None,
+                metadata: Default::default(),
             }
         );
         compare!(
@@ -191,4 +204,20 @@ fn adapters_preserve_every_native_emitters_output() {
             }
         );
     }
+}
+
+/// The generator's own files from a stamped package, after checking the
+/// stamp: `crucible.json` (schema 2) and `crucible-model.json` come last.
+fn stamped(mut files: Vec<File>) -> Vec<File> {
+    let model = files.pop().expect("a model snapshot");
+    let provenance = files.pop().expect("a provenance record");
+    assert_eq!(model.path, "crucible-model.json");
+    assert_eq!(provenance.path, "crucible.json");
+    let record: serde_json::Value = serde_json::from_str(&provenance.contents).unwrap();
+    assert_eq!(record["schemaVersion"], 2);
+    assert_eq!(
+        record["contentDigest"],
+        crucible_codegen::provenance::files_digest(&files).unwrap()
+    );
+    files
 }

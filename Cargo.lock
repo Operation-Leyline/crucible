@@ -639,6 +639,7 @@ dependencies = [
  "crucible-codegen-c",
  "crucible-codegen-cdk",
  "crucible-codegen-cli",
+ "crucible-codegen-common",
  "crucible-codegen-cpp",
  "crucible-codegen-csharp",
  "crucible-codegen-dart",
@@ -657,8 +658,11 @@ dependencies = [
  "crucible-codegen-terraform",
  "crucible-codegen-ts",
  "crucible-smithy",
+ "serde",
  "serde_json",
+ "sha2",
  "tempfile",
+ "toml",
 ]
 
 [[package]]
@@ -875,7 +879,6 @@ dependencies = [
  "crucible-codegen-common",
  "crucible-smithy",
  "serde_json",
- "sha2",
 ]
 
 [[package]]

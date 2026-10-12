@@ -1,6 +1,5 @@
 // Each adapter configures native options; publication and export stay in Output.
 #[cfg(any(
-    feature = "ts",
     feature = "python",
     feature = "go",
     feature = "csharp",
@@ -52,7 +51,6 @@ macro_rules! generation_methods {
     };
 }
 #[cfg(any(
-    feature = "ts",
     feature = "python",
     feature = "go",
     feature = "csharp",

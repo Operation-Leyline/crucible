@@ -80,6 +80,58 @@ fn package_probe() {
         assert_eq!(old, fs::read(out.join("crucible-artifacts.json")).unwrap());
         return;
     }
+    if mode == "declared" {
+        let package = crucible_build::model("model.json").compile();
+        let error = package.rust_client("rust").try_generate().unwrap_err();
+        assert!(error.contains("[sdk.rust]"), "{error}");
+        assert!(!out.join("outputs/rust").exists());
+        // A builder-only SDK keeps today's options and gains the common setters.
+        let artifact = package
+            .rust_client("builder-only")
+            .package("builder-only-sdk")
+            .description("Built by a build script.")
+            .repository("https://github.com/example/weather")
+            .license_file("LICENSE")
+            .authors(&["Weather <sdk@weather.example>"])
+            .readme("README.md")
+            .keywords(&["weather"])
+            .private(true)
+            .generate();
+        let manifest = fs::read_to_string(artifact.path.join("Cargo.toml")).unwrap();
+        assert!(manifest.contains("description = \"Built by a build script.\""));
+        assert!(manifest.contains("license-file = \"LICENSE\""));
+        assert!(manifest.contains("publish = false"));
+        assert_eq!(
+            fs::read_to_string(artifact.path.join("README.md")).unwrap(),
+            "# Weather\n"
+        );
+        assert!(artifact.files.contains(&"crucible.json".to_owned()));
+        assert!(artifact.files.contains(&"crucible-model.json".to_owned()));
+        let error = package
+            .rust_client("missing-readme")
+            .readme("missing.md")
+            .try_generate()
+            .unwrap_err();
+        assert!(error.contains("missing.md"), "{error}");
+        #[cfg(feature = "ts")]
+        {
+            assert!(package.ts_client("ts").try_generate().is_err());
+            let artifact = package
+                .ts_client("ts-builder")
+                .package("@example/builder")
+                .description("Built by a build script.")
+                .license("MIT")
+                .private(true)
+                .generate();
+            let manifest: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(artifact.path.join("package.json")).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(manifest["license"], "MIT");
+            assert_eq!(manifest["private"], true);
+        }
+        return;
+    }
     if mode == "empty" {
         let package = crucible_build::model("model.json");
         package.publish();
@@ -266,4 +318,23 @@ fn named_outputs_default_external_and_can_select_internal() {
     )
     .unwrap();
     probe(root.path(), "audience");
+}
+
+/// A build script may not configure an SDK the service declares in
+/// crucible-sdk.toml; builder-only SDKs take the common metadata setters.
+#[test]
+fn a_declared_sdk_is_not_a_builder_output() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    fs::create_dir(root.join(".git")).unwrap();
+    fs::write(root.join("model.json"), WEATHER).unwrap();
+    fs::write(root.join("README.md"), "# Weather\r\n").unwrap();
+    fs::write(root.join("LICENSE"), "Proprietary.\n").unwrap();
+    fs::write(
+        root.join("crucible-sdk.toml"),
+        "schema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"generated/rust\"\n[sdk.ts]\npackage = \"@example/weather\"\nout = \"generated/ts\"\n",
+    )
+    .unwrap();
+    let stdout = probe(root, "declared");
+    assert!(stdout.contains("crucible-sdk.toml"), "{stdout}");
 }

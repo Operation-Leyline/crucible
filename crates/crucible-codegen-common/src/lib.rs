@@ -4,11 +4,20 @@ pub mod docs;
 pub mod documentation;
 pub mod json_schema;
 pub mod mcp;
+pub mod metadata;
+
+pub use metadata::{PackageMetadata, Registry};
 
 use crucible_smithy::ir::{
     Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,
 };
 use serde_json::{Value, json};
+
+/// Verified Crucible Git revision embedded when the generators were built.
+/// Packaged or vendored generators without source provenance return `None`.
+pub fn source_revision() -> Option<&'static str> {
+    option_env!("CRUCIBLE_GENERATOR_REVISION")
+}
 
 /// Public service identity shared by exception classes, protocols and interfaces.
 pub fn service_exception_name(service: &Service) -> String {

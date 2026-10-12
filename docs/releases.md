@@ -166,6 +166,16 @@ be exempt (`__generated`, `__private`), carry a `#[deprecated]` shim from the
 previous release, or appear under *Migration* in the CHANGELOG. Record the
 result in the release PR.
 
+**Generator change entries.** A PR that changes a generator's public output
+or a runtime's public API (a bundled runtime's, or
+`crucible-client-runtime-rust`'s, which every Rust SDK re-exports, and
+minimum toolchain versions) adds an entry to
+`crates/crucible-codegen/sdk-changes.toml`: the next `id`, the languages
+whose SDKs it moves, its kind (`breaking`, `additive` or `patch`) and a
+summary. Generated packages record the highest `id` in `crucible.json`, and
+SDK releases count the entries in between ([SDK packaging](sdk-packaging.md#evidence-for-the-kind-phase-2)).
+Check that every such PR since the previous tag has one.
+
 ## Publishing the merged version
 
 Run **Release Crucible** from the GitHub Actions page, select `main`, and enter

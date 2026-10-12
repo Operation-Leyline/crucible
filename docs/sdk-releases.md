@@ -4,14 +4,152 @@ Build and test package archives once, then publish those same archives. The rele
 runner records the model hash, release recipe hash, package sizes, and SHA-256
 hashes in `release.json`. Publication verifies the manifest before each command.
 
-This page documents `tools/sdk_release.py`, a runner in this repository.
-Its replacement, `crucible sdk`, is designed in
-[SDK packaging and releases](sdk-packaging.md): package metadata for every
-language, versions chosen against what is published, provenance, and
-release channels including Git tags, so a service needs no packaging
-scripts.
+This page documents `crucible sdk`, as far as it is built, and
+`tools/sdk_release.py`, a runner in this repository. `crucible sdk` is
+designed in [SDK packaging and releases](sdk-packaging.md): package
+metadata for every language, versions chosen against what is published,
+provenance, and release channels including Git tags, so a service needs no
+packaging scripts. Today it declares SDKs, prints their configuration and
+generates them; releasing them (`plan`, `build`, `verify`, `publish`)
+comes next.
 
-## Build a release
+## Declare SDKs: `crucible-sdk.toml`
+
+A service declares its SDKs once, in `crucible-sdk.toml` at the root of
+its repository. The file names the model: a `.cru` package, Smithy
+sources or a JSON AST. Every path in it is relative to the file and written
+with `/`.
+
+```toml
+schema_version = 1
+model = "model/api"                     # a .cru package, Smithy sources, or a JSON AST
+# service = "vip.mailpigeon#Pigeon"     # when the model has several
+
+[defaults]                              # every SDK below, unless it sets its own
+description = "Client for the Pigeon email API."
+repository = "https://github.com/Operation-Pigeon/pigeon"
+license = "LicenseRef-Proprietary"      # an SPDX expression, or license_file
+authors = ["Operation Pigeon <sdk@mailpigeon.vip>"]
+readme = "sdk/README.md"
+keywords = ["email", "pigeon"]
+private = true
+
+[sdk.ts]
+package = "@operation-pigeon/sdk"
+endpoint = { env = "PIGEON_SDK_ENDPOINT" }   # or a URL
+out = "generated/pigeon-sdk-ts"
+channel = { npm = "https://npm.pkg.github.com", access = "restricted" }
+
+[sdk.rust]
+package = "pigeon-sdk"
+version = "0.2.0"                       # a floor for releases; generate ignores it
+out = "generated/pigeon-sdk-rust"
+readme = "sdk/rust/README.md"
+channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{version}" }
+```
+
+- **`[defaults]`** holds only the common keys: `description`,
+  `repository`, `homepage`, `documentation`, `license` or `license_file`,
+  `authors`, `readme`, `keywords`, `private` and `provenance` (`"full"`).
+  An SDK inherits each key it does not set; a list it sets replaces the
+  default's, and setting `license` or `license_file` replaces both.
+- **`[sdk.<name>]`** is one SDK, named like a build output: a lowercase
+  letter, then lowercase letters, digits or hyphens. `language` defaults
+  to the name when it is a language as `crucible generate` spells it
+  (`rust`, `ts`, `python`, `go`, `java`, `kotlin`, `csharp`, `swift`,
+  `dart`, `php`, `ruby`, `cpp`, `c`, `r`). A language's name is reserved
+  for that language, so `[sdk.java-internal]` sets `language = "java"`.
+  `audience` is `"external"` (the default) or `"internal"`, and `out` is
+  where `crucible sdk generate` writes the package.
+- **Language keys** are the generator's options, in snake case:
+  `package` (what the builder's `.package(..)` sets), `group_id`,
+  `artifact_id`, `package_id` (C#), `module_name`, `namespace`, `prefix`
+  (C), `module_path` (Go), `client_name` and `package_json` (TypeScript),
+  `endpoint`, `content_sha256`, `middleware` (TypeScript), and
+  `runtime = { git, rev, version }` or `runtime_path` (Rust). A key the
+  language does not take is an error at that key: Rust takes no
+  `endpoint`. The coordinates `crucible generate <language>` requires are
+  required here too.
+- **Release settings** `version` (a floor such as `"0.2.0"`), `test`
+  (argument arrays), `lockfiles` and `channel` are read by the release
+  commands. A channel is `{ npm = "<registry>", access, dist_tag }` (for
+  TypeScript) or `{ git = "<url>", branch, path, tag, adopt }`. A channel
+  URL that carries a password or token is an error, and so is any user
+  name over HTTP(S); credentials come from the environment. A `private`
+  SDK must name a channel that is not a public registry's default, and an
+  `internal` SDK never names one.
+
+Every error in the file is reported in one run, at its key.
+
+Rust and TypeScript packages map the common keys onto `Cargo.toml` and
+`package.json` (see [the mapping](sdk-packaging.md#the-common-keys-built-for-rust-and-typescript));
+the README and license are copied into the package with LF line endings.
+The other languages record the keys in their configuration and take them
+in a later release.
+
+## Print and generate declared SDKs
+
+```sh
+crucible sdk config [--sdk <name>]... [--json]
+crucible sdk generate [--sdk <name>]...
+```
+
+Both find `crucible-sdk.toml` in the current directory or its nearest
+parent, up to the repository root; `--file` names another. `config`
+prints each SDK's effective configuration: the file with `[defaults]`
+applied and `{ env = ".." }` endpoints read. `--json` adds each SDK's
+`config_sha256`, the SHA-256 of its configuration as canonical JSON,
+which its packages record as `configSha256`.
+
+`generate` writes each SDK to its `out` through the same ownership
+manifest (`.crucible`) as `crucible generate`: only files Crucible wrote
+are replaced, and nothing else in `out` is touched. It generates at the
+development version (`0.0.0-dev` for TypeScript, Dart, Swift and C#,
+`0.0.0.dev0` for Python, `0.0.0-SNAPSHOT` for Java and Kotlin, `0.0.0`
+for Ruby, PHP, C, C++ and R, the generator's version for Rust, none for
+Go), and never reads a registry.
+
+**One compiler for SDKs and server.** When the service's `Cargo.lock`
+(the nearest to the SDK file) resolves `crucible-build` or
+`crucible-server-runtime-rust` from Git, `crucible sdk` runs only at that
+revision, and names the command that installs it:
+
+```sh
+cargo install --locked --git https://github.com/Operation-Leyline/crucible --rev <revision> crucible-cli
+```
+
+A build script cannot configure a declared SDK: a `crucible_build` client
+builder whose output name the SDK file (found from the producer's
+directory) declares fails, so the build and the release cannot drift.
+
+## Package provenance
+
+Rust and TypeScript packages carry two files at their root, which npm's
+`files` lists and `cargo package` includes:
+
+- `crucible.json`, schema 2: `schemaVersion`, `generator`,
+  `generatorVersion`, `generatorRevision` (the verified Git revision the
+  generator was built from, when it has one), `generatorChanges` (the
+  highest entry of the generator change log,
+  `crates/crucible-codegen/sdk-changes.toml`), `language`, `package`,
+  `packageVersion`, `audience`, `service`, `serviceVersion`,
+  `schemaSha256` (the shared wire schema's digest), `configSha256` (for a
+  declared SDK) and `contentDigest`. A release build will add `source`.
+- `crucible-model.json`: the compiled model as the package's audience sees
+  it, in the release snapshot format of `crucible freeze`. An external
+  package reveals nothing `@internal`.
+
+`contentDigest` is `crucible-content-1:sha256:<hex>`, the SHA-256 of the
+label `crucible-content-1` followed by one record per generated file
+except `crucible.json`, `crucible-model.json` and `.crucible`, sorted by
+path bytes: the path's length as 8 bytes big-endian, the path (UTF-8,
+relative, `/`-separated), the content's length the same way, the content,
+and one byte, 1 for an executable file and 0 otherwise. The other
+languages keep their schema-1 `crucible.json` for now.
+
+## Release with `tools/sdk_release.py`
+
+### Build a release
 
 Install the generator and the native package tools used by your recipe. The
 checked-in [Weather recipe](../tools/sdk-releases/weather.json) builds a Python
@@ -29,7 +167,7 @@ Use a fresh output directory. A failed build leaves its output available for
 inspection and never creates a successful release manifest. Copy the entire
 release directory when moving validated artifacts to another runner.
 
-## Write a service recipe
+### Write a service recipe
 
 The JSON recipe has `schemaVersion: 1`, a fully qualified `service`, a `model`
 path relative to the recipe, an optional `generator` argument array, and a
@@ -91,7 +229,7 @@ The Weather recipe is a runnable example for Python and TypeScript. Other native
 recipes belong to the service's packaging and distribution policy; the table does
 not claim those registries have been configured or exercised.
 
-## Publish verified artifacts
+### Publish verified artifacts
 
 First change the example package names to namespaces you own and configure the
 registry's normal credential environment. Inspect the publication plan:

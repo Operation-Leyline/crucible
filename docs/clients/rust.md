@@ -28,6 +28,15 @@ and other runtime APIs. Consumer crates depend on that package normally, with no
 build script or inclusion macro. The single-crate and AST-based options below
 remain supported for generating directly inside an existing crate.
 
+`crucible generate rust --client` writes the same package, and takes the
+common package metadata keys as flags: `--description`, `--repository`,
+`--homepage`, `--documentation`, `--license` or `--license-file <path>`,
+`--author` and `--keyword` (repeat them), `--readme <path>` (copied in as
+`README.md` and used as the crate's documentation) and `--private`
+(`publish = false`). Each package carries `crucible.json` (schema 2) and
+`crucible-model.json` at its root; see [package provenance](../sdk-releases.md#package-provenance).
+To declare the SDK once, use [`crucible-sdk.toml`](../sdk-releases.md#declare-sdks-crucible-sdktoml).
+
 Create a Rust client library with a Smithy model and runnable example:
 
 ```sh

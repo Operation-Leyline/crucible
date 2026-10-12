@@ -575,9 +575,13 @@ dependencies = [
 name = "crucible-codegen"
 version = "0.6.1"
 dependencies = [
+ "crucible-codegen-common",
  "crucible-codegen-rust",
  "crucible-smithy",
+ "serde",
  "serde_json",
+ "sha2",
+ "toml",
 ]
 
 [[package]]

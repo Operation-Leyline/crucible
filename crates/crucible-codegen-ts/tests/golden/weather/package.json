@@ -13,7 +13,8 @@
   },
   "files": [
     "dist",
-    "crucible.json"
+    "crucible.json",
+    "crucible-model.json"
   ],
   "sideEffects": false,
   "scripts": {

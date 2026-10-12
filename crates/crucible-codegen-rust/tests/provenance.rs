@@ -42,7 +42,7 @@ fn probe_binary(root: &Path) -> PathBuf {
                 "--crate-name",
                 "crucible_provenance_probe",
             ])
-            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("build.rs"))
+            .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-codegen-common/build.rs"))
             .arg("-o")
             .arg(&executable)
             .output()
@@ -209,10 +209,14 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
             }
         }
     }
-    copy_tree(
-        &root.join("crates/crucible-codegen-rust"),
-        &repository.join("crates/crucible-codegen-rust"),
-    );
+    for crate_name in ["crucible-codegen-rust", "crucible-codegen-common"] {
+        // The tracked copy may be removed (a moved build script).
+        let _ = fs::remove_dir_all(repository.join("crates").join(crate_name));
+        copy_tree(
+            &root.join("crates").join(crate_name),
+            &repository.join("crates").join(crate_name),
+        );
+    }
     git(&repository, &["init", "-q", "-b", "main"]);
     git(
         &repository,

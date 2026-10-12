@@ -83,6 +83,9 @@ impl Output<'_> {
     /// Generate without panicking, preserving this output's files on diagnostics.
     pub fn try_generate(self) -> Result<Artifact, String> {
         crate::artifact::validate_name(&self.name)?;
+        if matches!(self.generator, Generator::Client(_)) {
+            crate::declared_sdk::refuse(&self.name)?;
+        }
         if self.model.artifacts.borrow().contains_key(&self.name) {
             return Err(format!(
                 "output {:?} is already configured; use a distinct variant name",
