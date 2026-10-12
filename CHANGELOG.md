@@ -48,6 +48,14 @@ version's section when it is prepared.
 
 ### Fixed
 
+- An operation that only an older API version serves (a later release
+  removed it) answered 500 once any operation-aware middleware was
+  registered: `Prepare::operations()` listed the current version's
+  operations alone, so the authentication chain had no plan for it and
+  failed with "authentication plan missing". It now lists those operations
+  too, after the current ones, and `Prepare::metadata` returns their own
+  release's metadata. An operation in both keeps the current version's.
+
 - Model text with unusual characters no longer breaks generated clients.
   Each of these was a compile error before: a CR in documentation (rustc
   refuses a bare CR in a doc comment), a byte order mark anywhere (Go

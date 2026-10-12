@@ -288,6 +288,26 @@ async fn a_removed_operation_keeps_serving_older_versions() {
     assert_eq!(body["reason"], "unknownOperation", "{body}");
 }
 
+/// An operation-aware extension prepares a plan per operation, older
+/// versions' included: authentication on a service that removed an
+/// operation still serves it to the clients that call it.
+#[tokio::test]
+async fn a_removed_operation_passes_operation_aware_extensions() {
+    let service = Crucible::builder(shop::operations(Arc::new(Shop)))
+        .defaults()
+        .api_version(Unversioned::Oldest)
+        .operation_middleware(crucible_auth::AuthenticatorChain::new(Vec::new()))
+        .build()
+        .unwrap();
+    for version in ["v1", "v2"] {
+        let (status, _, body) = call(&service, "GET", "/count", Some(version)).await;
+        assert_eq!(status, StatusCode::OK, "{version}: {body}");
+        assert_eq!(body, json!({ "count": 3 }));
+    }
+    let (status, _, body) = call(&service, "GET", "/items?limit=2&sort=name", Some("v3")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
 #[tokio::test]
 async fn a_request_without_a_version_is_settled_by_the_builder() {
     // By default: the oldest supported version.
