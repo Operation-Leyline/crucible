@@ -27,7 +27,7 @@ namespace. File and declaration order never matter.
 - **Byte-order mark.** A leading BOM is whitespace.
 - **Numbers.** Optional `-`, digits, optional fraction and exponent. `1..5`
   is two integers around `..`, never a float.
-- **Punctuation.** `{ } ( ) [ ] , ; : ? = . .. -> <- @ $` and the
+- **Punctuation.** `{ } ( ) [ ] , ; : ? = . .. -> <- @ $ *` and the
   comparison operators `== != < <= > >=`.
 
 ## Grammar
@@ -57,9 +57,11 @@ protocol    = "protocol" ident "{" { clause } "}" ;
 clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
-resource_entry = [ doc ] { annotation } ( "id" | "property" ) ident ":" type_ref ;
-                 (* decided, not built (34a, 34e, 34f): mutability keywords
-                    and `?` on properties, `id x: T as name` *)
+resource_entry = [ doc ] { annotation } { entry_modifier } ( "id" | "property" )
+                 ident [ "?" ] ":" type_ref [ "as" ident ] ;
+                 (* `?` on a property, `as` on an identifier: its name in views *)
+entry_modifier = "readonly" | "immutable" | "writeonly" ;
+                 (* properties only; `immutable writeonly` is the one combination *)
 
 operation   = "operation" ident [ role ident [ "collection" ] ] "{" { op_entry } "}" ;
 role        = ident ;          (* creates | puts | reads | updates | deletes | lists | on;
@@ -77,11 +79,11 @@ union       = "union" ident "{" { member } "}" ;
 error       = "error" ident "{" { error_entry } "}" ;
 error_entry = "status" number | "retryable" [ "throttling" ] | member ;
 
-member      = [ doc ] { annotation } { modifier } ( include | elided | field_member ) ;
+member      = [ doc ] { annotation } { modifier } ( include | all | elided | field_member ) ;
                                                            (* modifiers: internal, sensitive *)
 include     = "include" ident ;
+all         = "$" "*" ;          (* in a `for` view only *)
 elided      = "$" ident [ "as" ident ] [ "?" ] ;
-                                    (* decided, not built (34d): `$*` in a `for` view *)
 field_member = ident [ "?" ] [ ":" type_ref ] [ "=" value ] ;   (* no type: unit union arm *)
 
 type_ref    = ident [ constraints ] ;
@@ -169,8 +171,24 @@ language's own checks include:
 - a metadata declaration is checked once (targets, conflicts, retention,
   value type, no built-in annotation's name) and each use's value against
   its type;
-- resources: the parent is a resource with no cycle, entries are unique
-  across the chain, identifiers are strings or string enums;
+- resources: the parent is a resource with no cycle, identifier names are
+  unique across the chain, a property's name differs from every identifier
+  the resource has (inherited ones too) and from its other properties,
+  identifiers are strings or string enums and take no keyword or `?`, only
+  `readonly`, `immutable`, `writeonly` and `immutable writeonly` apply to a
+  property, and an identifier's `as` spelling is unique among the names the
+  resource's own views show;
+- `$name` names one of the resource's own identifiers or properties, or an
+  inherited identifier; an ancestor's properties are not inherited;
+- `$*` appears once, only in a `for` view, and an entry it includes is
+  named again only as `$name?` after it, which loosens it for that view;
+- property mutability (decision 34a): an `updates` input does not bind a
+  `readonly` or `immutable` property, a `creates` or `puts` input does not
+  bind a `readonly` one, some `creates`, `puts` or `on .. collection` input
+  binds every `immutable` property, a view or output never shows a `writeonly` one,
+  and `@mutability` on a member that binds a property agrees with its
+  keyword. Bindings under `@query` and the inputs of `reads`, `lists`,
+  `deletes` and `on` operations are not writes;
 - roles: each lifecycle role is held once per resource, instance roles
   bind every identifier and collection roles only the parent's, and a
   role's implied keyword is not contradicted;
@@ -179,8 +197,15 @@ language's own checks include:
 
 Warnings never withhold the IR. The compiler warns about a plain member
 whose name is a resource identifier or property ("did you mean
-`$name`?", decision 33), an operation attached to a resource the service
-does not reach, a member constraint that loosens its type's (it replaces
+`$name`?", decision 33), a property that is neither `readonly` nor
+`immutable` and that no `updates`, `puts` or instance `on` input binds
+(declare it `immutable`, or `readonly` when nothing writes it, or an
+identifier's `as id` for a `property id` that repeats it; decision 34a), a
+`for` view used as a member type in a writing input, which binds nothing, a
+resource with `reads`, `lists` or `creates` operations whose outputs show
+none of its properties, a structure without `for` that restates a
+resource's identifier and a property (decision 34h), an operation attached
+to a resource the service does not reach, a member constraint that loosens its type's (it replaces
 it, so `length ..40` on a `1..100` type drops the minimum), a `[Name]`
 doc link that names nothing (decision 41), and a `///` comment that
 documents nothing.

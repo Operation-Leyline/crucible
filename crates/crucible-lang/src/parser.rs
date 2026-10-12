@@ -27,6 +27,9 @@ const MODIFIERS: &[&str] = &[
     "sensitive",
 ];
 
+/// Words that may precede a resource's `id` or `property` (decision 34a).
+const ENTRY_MODIFIERS: &[&str] = &["readonly", "immutable", "writeonly"];
+
 const SCALARS: &[&str] = &[
     "string",
     "boolean",
@@ -997,6 +1000,13 @@ impl<'s> Parser<'s> {
             let doc = p.take_doc();
             let start = p.here();
             let annotations = p.annotations();
+            let mut modifiers = Vec::new();
+            while p.at(TokenKind::Ident)
+                && ENTRY_MODIFIERS.contains(&p.text(0))
+                && p.kind(1) == Some(TokenKind::Ident)
+            {
+                modifiers.push(p.ident("a modifier"));
+            }
             let kind = if p.eat_word("id") {
                 ResourceEntryKind::Id
             } else if p.eat_word("property") {
@@ -1006,14 +1016,19 @@ impl<'s> Parser<'s> {
                 return None;
             };
             let name = p.ident("a name");
+            let optional = p.eat(TokenKind::Question);
             p.expect(TokenKind::Colon);
             let ty = p.type_ref("a type");
+            let alias = p.eat_word("as").then(|| p.ident("a member name"));
             Some(ResourceEntry {
                 doc,
                 annotations,
+                modifiers,
                 kind,
                 name,
+                optional,
                 ty,
+                alias,
                 span: start.to(p.last_end()),
             })
         });
@@ -1151,6 +1166,23 @@ impl<'s> Parser<'s> {
         let kind = if self.at_word("include") && self.kind(1) == Some(TokenKind::Ident) {
             self.pos += 1;
             MemberKind::Include(self.ident("a structure name"))
+        } else if self.at(TokenKind::Dollar) && self.kind(1) == Some(TokenKind::Star) {
+            let start = self.bump().expect("checked").span;
+            let star = self.bump().expect("checked").span;
+            // `$*` takes each entry's own name and presence; a stray `as` or
+            // `?` is consumed so it is reported once, here.
+            if self.at_word("as") || self.at(TokenKind::Question) {
+                let span = self.here();
+                if self.eat_word("as") {
+                    self.ident("a member name");
+                }
+                self.eat(TokenKind::Question);
+                self.error(
+                    span.to(self.last_end()),
+                    "`$*` takes no `as` or `?`: it includes each entry under its own name and presence; loosen one with `$name?` after it",
+                );
+            }
+            MemberKind::All(start.to(star))
         } else if self.eat(TokenKind::Dollar) {
             let name = self.ident("an identifier or property name");
             let alias = self.eat_word("as").then(|| self.ident("a member name"));

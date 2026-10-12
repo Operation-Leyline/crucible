@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crucible_lang::{Package, SourceFile, compile};
-use crucible_smithy::ir::{Service, Shape};
+use crucible_smithy::ir::{Mutability, Service, Shape};
 
 fn smithy_weather() -> Service {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -36,14 +36,25 @@ fn cru_weather() -> (Package, crucible_lang::Compiled) {
     (package, compiled)
 }
 
+/// The members `weather.cru` binds to City's properties, and the mutability
+/// each property's keyword declares (decision 34a). The language writes it on
+/// every member that carries a property's value; Smithy sets it only from
+/// `@cfnMutability`, which the fixture does not use.
+const PROPERTY_MEMBERS: &[(&str, &str, Mutability)] = &[
+    ("CitySummary", "updatedAt", Mutability::Read),
+    ("CitySummary", "createdAt", Mutability::Read),
+];
+
 /// The deliberate differences between the two front ends (decision 63). This
-/// applies the first three to the Smithy side:
+/// applies the first four to the Smithy side:
 /// - decision 20: members are never client-optional, where Smithy makes every
 ///   member of an `@input` structure optional for clients;
 /// - decision 43: raw `traits` carry project metadata only, because every
 ///   standard trait is a typed IR field;
 /// - `api_version`: a `.cru` service's version is the release its clients
-///   send; a Smithy model has none.
+///   send; a Smithy model has none;
+/// - decision 34a: a member that carries a property's value has the
+///   property's declared mutability ([`PROPERTY_MEMBERS`]).
 ///
 /// The weather model avoids the other two rather than applying them:
 /// - decision 26: a `@token` member makes an operation idempotent without the
@@ -60,6 +71,21 @@ fn as_cru_lowers_it(mut service: Service) -> Service {
                 member.client_optional = false;
             }
         }
+    }
+    for (name, member, mutability) in PROPERTY_MEMBERS {
+        let Some(Shape::Structure(s)) = service
+            .shapes
+            .iter_mut()
+            .find_map(|(id, shape)| (id.name() == *name).then_some(shape))
+        else {
+            panic!("{name} is not a structure");
+        };
+        let member = s
+            .members
+            .iter_mut()
+            .find(|m| m.name == *member)
+            .unwrap_or_else(|| panic!("{name} has no {member}"));
+        member.mutability = Some(*mutability);
     }
     service
 }

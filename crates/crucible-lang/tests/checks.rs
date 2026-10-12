@@ -23,7 +23,7 @@ readonly operation Ping {
 
 resource Order {
     id orderId: string
-    property note: string
+    readonly property note: string
 }
 "#;
 
@@ -218,7 +218,7 @@ fn an_included_structure_binds_where_it_is_included() {
     // Included into an input, the bindings apply there, and the structure is
     // not also judged as a nested type nobody uses.
     let model = compiled(&format!(
-        "{PAGING}operation ListOrders lists Order {{\n    http GET \"/orders\"\n    input {{ include Paging }}\n}}"
+        "{PAGING}structure OrderView for Order {{ $* }}\nlist Orders: OrderView\noperation ListOrders lists Order {{\n    http GET \"/orders\"\n    input {{ include Paging }}\n    output {{ orders: Orders }}\n}}"
     ));
     assert_eq!(model.render(), "");
     let list = operation(&model, "ListOrders");
@@ -425,7 +425,7 @@ fn updates_implies_no_idempotency() {
     // that appends a version is not safe to repeat.
     let edit = |modifiers: &str, method: &str| {
         compiled(&format!(
-            "{modifiers}operation EditOrder updates Order {{\n    http {method} \"/orders/{{orderId}}\"\n    input {{\n        $orderId\n        $note?\n    }}\n}}"
+            "{modifiers}operation EditOrder updates Order {{\n    http {method} \"/orders/{{orderId}}\"\n    input {{\n        $orderId\n        comment?: string\n    }}\n}}"
         ))
     };
     let patch = edit("", "PATCH");
@@ -544,12 +544,17 @@ fn did_you_mean_is_only_for_a_member_elision_could_replace() {
     // A collection operation filtering on a child identifier may not bind
     // it, so `$lineId` would be an error, not a fix.
     let (errors, warnings) = split(
-        "resource Line in Order {\n    id lineId: string\n    property qty: long\n}\noperation ListLines lists Line {\n    http GET \"/orders/{orderId}/lines\"\n    input {\n        $orderId\n        @query lineId?: string\n        @query qty?: long\n    }\n}",
+        "resource Line in Order {\n    id lineId: string\n    readonly property qty: long\n}\noperation ListLines lists Line {\n    http GET \"/orders/{orderId}/lines\"\n    input {\n        $orderId\n        @query lineId?: string\n        @query qty?: long\n    }\n}",
     );
     assert_eq!(errors, Vec::<String>::new());
-    // A property it may bind still gets the hint.
-    assert_eq!(warnings.len(), 1, "{warnings:?}");
-    assert!(warnings[0].contains("did you mean `$qty`"), "{warnings:?}");
+    // A property it may bind still gets the hint. (Line's outputs show none
+    // of its properties, which decision 34h warns about too.)
+    let hints: Vec<&String> = warnings
+        .iter()
+        .filter(|w| w.contains("did you mean"))
+        .collect();
+    assert_eq!(hints.len(), 1, "{warnings:?}");
+    assert!(hints[0].contains("did you mean `$qty`"), "{warnings:?}");
 }
 
 #[test]

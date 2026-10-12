@@ -40,6 +40,8 @@ pub enum TokenKind {
     LArrow,
     At,
     Dollar,
+    /// `*`, in `$*` (decision 34d).
+    Star,
     /// A character that starts no token; reported once per run of them.
     Unknown,
 }
@@ -85,6 +87,7 @@ impl TokenKind {
             TokenKind::LArrow => "`<-`",
             TokenKind::At => "`@`",
             TokenKind::Dollar => "`$`",
+            TokenKind::Star => "`*`",
             TokenKind::Unknown => "an unexpected character",
         }
     }
@@ -174,6 +177,7 @@ impl Lexer<'_> {
                 b'?' => self.fixed(1, TokenKind::Question),
                 b'@' => self.fixed(1, TokenKind::At),
                 b'$' => self.fixed(1, TokenKind::Dollar),
+                b'*' => self.fixed(1, TokenKind::Star),
                 b'=' if self.peek(1) == Some(b'=') => self.fixed(2, TokenKind::EqEq),
                 b'=' => self.fixed(1, TokenKind::Eq),
                 b'!' if self.peek(1) == Some(b'=') => self.fixed(2, TokenKind::NotEq),
@@ -330,5 +334,5 @@ pub fn unescape(text: &str) -> Result<String, String> {
 
 /// Whether `c` can begin a token, so a run of unknown characters stops there.
 fn starts_token(c: char) -> bool {
-    c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "{}()[],;:?@$=!<>.-/\"_".contains(c)
+    c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "{}()[],;:?@$*=!<>.-/\"_".contains(c)
 }

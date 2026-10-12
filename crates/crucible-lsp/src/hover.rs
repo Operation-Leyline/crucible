@@ -33,6 +33,8 @@ const ERROR: &[&str] = &["error"];
 const METADATA: &[&str] = &["metadata"];
 const MIGRATION: &[&str] = &["migration"];
 const EXAMPLE: &[&str] = &["example"];
+/// Where a member may elide a resource entry: views and operation bodies.
+const MEMBERS: &[&str] = &["structure", "operation"];
 const TYPE: &[&str] = &["type"];
 
 /// What each keyword, built-in type and built-in annotation means: the word
@@ -191,6 +193,30 @@ const KEYWORDS: &[Row] = &[
         RESOURCE,
         "Declares a property of the resource. Views and attached operations bind it with `$name`, taking its type and documentation.",
         "resource City {\n    id cityId: CityId\n    property name: CityName\n}",
+    ),
+    (
+        "readonly",
+        RESOURCE,
+        "On a property: the service assigns it. A `creates`, `puts` or `updates` input cannot bind it; views and outputs return it.",
+        "resource City {\n    id cityId: CityId\n    readonly property createdAt: DateTime\n}",
+    ),
+    (
+        "immutable",
+        RESOURCE,
+        "On a property: set by a `creates` or `puts` input and fixed afterwards, so an `updates` input cannot bind it and changing it replaces the resource. Some `creates` or `puts` must bind it. `immutable writeonly` is set once and never returned.",
+        "resource Graph {\n    id graphId: GraphId\n    immutable property homeRegion: Region\n}",
+    ),
+    (
+        "writeonly",
+        RESOURCE,
+        "On a property: written by inputs and never returned, so no view or output may show it and `$*` leaves it out. `immutable writeonly` is set once at creation.",
+        "resource Account {\n    id accountId: AccountId\n    writeonly property password: Password\n}",
+    ),
+    (
+        "as",
+        RESOURCE,
+        "On an identifier: its name in the resource's own views and outputs, where `$cityId` and `$*` show it under this name. Inputs still bind it by its identifier name, the URI label's.",
+        "resource City {\n    id cityId: CityId as id\n}",
     ),
     (
         "in",
@@ -371,9 +397,15 @@ const KEYWORDS: &[Row] = &[
     ),
     (
         "as",
-        ANYWHERE,
+        MEMBERS,
         "Binds a resource identifier or property under another member name.",
         "structure CityData for City {\n    $cityId as id\n}",
+    ),
+    (
+        "$*",
+        &["structure"],
+        "In a `for` view: every identifier the resource declares, under its `as` name, then every property that is not `writeonly`, in declaration order, each with the property's presence. Inherited identifiers are not included; `$name?` after `$*` makes one entry optional in this view.",
+        "structure CityData for City {\n    $*\n    $population?\n}",
     ),
     // ---- errors ------------------------------------------------------------
     (
@@ -708,13 +740,18 @@ pub fn hover(
     package: &[Parsed],
     offset: usize,
 ) -> Option<(u32, u32, String)> {
+    let model = Model {
+        files: std::iter::once(parsed).chain(package).collect(),
+    };
+    if let Some((start, end)) = star_at(parsed, offset as u32) {
+        return model
+            .star(parsed, start)
+            .map(|markdown| (start, end, markdown));
+    }
     let (start, end, word) = analysis::ident_at(parsed, text, offset)?;
     let highlight = analysis::highlights(parsed, index)
         .into_iter()
         .find(|highlight| highlight.start == start)?;
-    let model = Model {
-        files: std::iter::once(parsed).chain(package).collect(),
-    };
     let markdown = match highlight.role {
         Role::Keyword => {
             let context = context(parsed, start)?;
@@ -740,6 +777,23 @@ pub fn hover(
         _ => None,
     }?;
     Some((start, end, markdown))
+}
+
+/// The byte range of the `$*` whose `$` or `*` covers `offset`.
+fn star_at(parsed: &Parsed, offset: u32) -> Option<(u32, u32)> {
+    let significant: Vec<_> = parsed
+        .tokens
+        .iter()
+        .filter(|token| !token.kind.is_trivia())
+        .collect();
+    significant.windows(2).find_map(|pair| {
+        let (dollar, star) = (pair[0], pair[1]);
+        (dollar.kind == TokenKind::Dollar
+            && star.kind == TokenKind::Star
+            && dollar.span.start <= offset
+            && offset <= star.span.end)
+            .then_some((dollar.span.start, star.span.end))
+    })
 }
 
 /// Whether the identifier starting at `start` follows an `@`.
@@ -822,6 +876,12 @@ struct Found<'a> {
     /// The resource its `$members` draw from.
     resource: Option<&'a str>,
     union: bool,
+    /// A `for` view's or an output's member: a representation of the
+    /// resource, where a property's own `?` applies and an identifier takes
+    /// its `as` spelling (decisions 34e, 34f).
+    representation: bool,
+    /// A member of a `structure .. for` view, the only place `$*` expands.
+    view: bool,
 }
 
 impl<'a> Model<'a> {
@@ -1062,26 +1122,52 @@ impl<'a> Model<'a> {
                     out.extend(self.type_sections(&ty.name.name));
                 }
             }
-            MemberKind::Elided { name, optional, .. } => {
-                let presence = if *optional {
-                    "An optional"
-                } else {
-                    "A required"
-                };
+            MemberKind::Elided {
+                name,
+                alias,
+                optional,
+            } => {
                 let resources = insight::resources(&self.files);
                 let entry = found
                     .resource
                     .and_then(|resource| insight::resource_entry(&resources, resource, &name.name));
+                // In a representation a property's own `?` applies too.
+                let loosened = found.representation
+                    && entry.is_some_and(|(_, entry)| {
+                        entry.kind == ResourceEntryKind::Property && entry.optional
+                    });
+                let presence = if *optional || loosened {
+                    "An optional"
+                } else {
+                    "A required"
+                };
                 match entry {
                     Some((owner, entry)) => {
+                        let keyword = match mutability(entry) {
+                            "" => String::new(),
+                            keyword => format!("{} ", code(keyword)),
+                        };
                         out.push(format!(
-                            "{presence} member of {}, bound to {} {} of resource {}: {}.",
+                            "{presence} member of {}, bound to {keyword}{} {} of resource {}: {}.",
                             found.container,
                             entry_kind(entry),
                             code(&name.name),
                             code(&owner.name.name),
                             code(&render_type(&entry.ty))
                         ));
+                        let own = found.resource == Some(owner.name.name.as_str());
+                        if let Some(spelled) = entry.alias.as_ref().filter(|_| {
+                            found.representation
+                                && own
+                                && alias.is_none()
+                                && entry.kind == ResourceEntryKind::Id
+                        }) {
+                            out.push(format!(
+                                "Named {} here: {}'s spelling of the identifier in its views and outputs.",
+                                code(&spelled.name),
+                                code(&owner.name.name)
+                            ));
+                        }
                         out.extend(self.constraints(&entry.ty.constraints, &entry.ty.name.name));
                         if let Some(doc) = member.doc.as_ref().or(entry.doc.as_ref()) {
                             out.push(documentation(&doc.text));
@@ -1100,23 +1186,95 @@ impl<'a> Model<'a> {
                     }
                 }
             }
-            MemberKind::Include(_) => return None,
+            MemberKind::Include(_) | MemberKind::All(_) => return None,
+        }
+        Some(join(out))
+    }
+
+    /// `$*` at `start`: what it means, and what it includes here.
+    fn star(&self, parsed: &'a Parsed, start: u32) -> Option<String> {
+        let found = find_member(parsed, start)?;
+        let row = keyword("$*", "structure")?;
+        let mut out = vec![explain(row.0, row.2, row.3)];
+        let resources = insight::resources(&self.files);
+        match found
+            .resource
+            .filter(|_| found.view)
+            .and_then(|name| resources.get(name))
+        {
+            Some(resource) => {
+                let ids = resource
+                    .entries
+                    .iter()
+                    .filter(|e| e.kind == ResourceEntryKind::Id);
+                let properties = resource.entries.iter().filter(|e| {
+                    e.kind == ResourceEntryKind::Property
+                        && !e.modifiers.iter().any(|m| m.name == "writeonly")
+                });
+                let lines: Vec<String> = ids
+                    .chain(properties)
+                    .filter(|e| !e.name.is_missing())
+                    .map(|e| {
+                        let name = e.alias.as_ref().unwrap_or(&e.name);
+                        let optional = if e.optional { "?" } else { "" };
+                        format!("{}{optional}: {}", name.name, render_type(&e.ty))
+                    })
+                    .collect();
+                if lines.is_empty() {
+                    out.push(format!(
+                        "Here it includes nothing: resource {} declares no identifier or readable property.",
+                        code(&resource.name.name)
+                    ));
+                } else {
+                    out.push(format!(
+                        "Here it includes, from resource {}:",
+                        code(&resource.name.name)
+                    ));
+                    out.push(fence(&lines.join("\n")));
+                }
+            }
+            None => out.push(format!(
+                "Here it is in {}, which is not a `for` view, so it includes nothing.",
+                found.container
+            )),
         }
         Some(join(out))
     }
 
     fn resource_entry(&self, resource: &str, entry: &ResourceEntry) -> String {
         let mut out = vec![fence(&render_entry(entry))];
-        out.push(format!(
-            "{} {} of resource {}.",
-            if entry.kind == ResourceEntryKind::Id {
-                "An"
-            } else {
-                "A"
-            },
-            entry_kind(entry),
-            code(resource)
-        ));
+        let what = match entry.kind {
+            ResourceEntryKind::Id => format!("An identifier of resource {}.", code(resource)),
+            ResourceEntryKind::Property => format!(
+                "{} property of resource {}{}.",
+                if entry.optional {
+                    "An optional"
+                } else {
+                    "A required"
+                },
+                code(resource),
+                match mutability(entry) {
+                    "readonly" => ", assigned by the service",
+                    "immutable" => ", set by `creates` or `puts` and fixed afterwards",
+                    "writeonly" => ", written by inputs and never returned",
+                    "immutable writeonly" => ", set once at creation and never returned",
+                    _ => ", set at creation and changed by `updates`",
+                }
+            ),
+        };
+        out.push(what);
+        if let Some(alias) = entry
+            .alias
+            .as_ref()
+            .filter(|_| entry.kind == ResourceEntryKind::Id)
+        {
+            out.push(format!(
+                "Shown as {} in {}'s own views and outputs; inputs bind it as {}.",
+                code(&alias.name),
+                code(resource),
+                code(&entry.name.name)
+            ));
+        }
         out.extend(self.constraints(&entry.ty.constraints, &entry.ty.name.name));
         if let Some(doc) = &entry.doc {
             out.push(documentation(&doc.text));
@@ -1147,6 +1305,18 @@ impl<'a> Model<'a> {
     }
 }
 
+/// A property's mutability keywords as written, or `` for read-write.
+fn mutability(entry: &ResourceEntry) -> &'static str {
+    let has = |word: &str| entry.modifiers.iter().any(|m| m.name == word);
+    match (has("readonly"), has("immutable"), has("writeonly")) {
+        (true, _, _) => "readonly",
+        (false, true, true) => "immutable writeonly",
+        (false, true, false) => "immutable",
+        (false, false, true) => "writeonly",
+        (false, false, false) => "",
+    }
+}
+
 /// `identifier` or `property`.
 fn entry_kind(entry: &ResourceEntry) -> &'static str {
     match entry.kind {
@@ -1172,20 +1342,21 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
         MemberKind::Elided { name, alias, .. } => {
             name.span.start == start || alias.as_ref().is_some_and(|a| a.span.start == start)
         }
+        MemberKind::All(span) => span.start == start,
         MemberKind::Include(_) => false,
     };
     fn bodies<'p>(
         entries: &'p [OpEntry],
         owner: String,
         at: &dyn Fn(&Member) -> bool,
-    ) -> Option<(&'p Member, String)> {
+    ) -> Option<(&'p Member, String, BodyKind)> {
         entries.iter().find_map(|entry| match entry {
             OpEntry::Body(Body { kind, members, .. }) => members.iter().find(|m| at(m)).map(|m| {
                 let part = match kind {
                     BodyKind::Input => "input",
                     BodyKind::Output => "output",
                 };
-                (m, format!("the {part} of {owner}"))
+                (m, format!("the {part} of {owner}"), *kind)
             }),
             _ => None,
         })
@@ -1197,12 +1368,16 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
                 container: format!("structure {}", code(&structure.name.name)),
                 resource: structure.resource.as_ref().map(|r| r.name.as_str()),
                 union: false,
+                representation: structure.resource.is_some(),
+                view: structure.resource.is_some(),
             }),
             Decl::Union(union) => union.members.iter().find(|m| at(m)).map(|m| Found {
                 member: m,
                 container: format!("union {}", code(&union.name.name)),
                 resource: None,
                 union: true,
+                representation: false,
+                view: false,
             }),
             Decl::Error(error) => error.entries.iter().find_map(|entry| match entry {
                 ErrorEntry::Member(m) if at(m) => Some(Found {
@@ -1210,12 +1385,14 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
                     container: format!("error {}", code(&error.name.name)),
                     resource: None,
                     union: false,
+                    representation: false,
+                    view: false,
                 }),
                 _ => None,
             }),
             Decl::Operation(operation) => {
-                bodies(&operation.entries, code(&operation.name.name), &at).map(|(m, container)| {
-                    Found {
+                bodies(&operation.entries, code(&operation.name.name), &at).map(
+                    |(m, container, kind)| Found {
                         member: m,
                         container,
                         resource: operation
@@ -1223,19 +1400,23 @@ fn find_member(parsed: &Parsed, start: u32) -> Option<Found<'_>> {
                             .as_ref()
                             .map(|attachment| attachment.resource.name.as_str()),
                         union: false,
-                    }
-                })
+                        representation: kind == BodyKind::Output,
+                        view: false,
+                    },
+                )
             }
             Decl::Template(template) => bodies(
                 &template.entries,
                 format!("template {}", code(&template.role.name)),
                 &at,
             )
-            .map(|(m, container)| Found {
+            .map(|(m, container, _)| Found {
                 member: m,
                 container,
                 resource: None,
                 union: false,
+                representation: false,
+                view: false,
             }),
             _ => None,
         };
@@ -1593,16 +1774,20 @@ fn render_clause(clause: &Clause) -> String {
 }
 
 fn render_entry(entry: &ResourceEntry) -> String {
-    let mut out = render_prefix(&entry.annotations, &[]);
+    let mut out = render_prefix(&entry.annotations, &entry.modifiers);
     out.push_str(&format!(
-        "{} {}: {}",
+        "{} {}{}: {}",
         match entry.kind {
             ResourceEntryKind::Id => "id",
             ResourceEntryKind::Property => "property",
         },
         entry.name.name,
+        if entry.optional { "?" } else { "" },
         render_type(&entry.ty)
     ));
+    if let Some(alias) = &entry.alias {
+        out.push_str(&format!(" as {}", alias.name));
+    }
     out
 }
 
@@ -1611,6 +1796,7 @@ fn render_member(member: &Member) -> String {
     let mut out = render_prefix(&member.annotations, &member.modifiers);
     match &member.kind {
         MemberKind::Include(name) => out.push_str(&format!("include {}", name.name)),
+        MemberKind::All(_) => out.push_str("$*"),
         MemberKind::Elided {
             name,
             alias,
@@ -2238,6 +2424,132 @@ readonly operation GetCity reads City {
             input.contains("A required member of the input of `GetCity`"),
             "{input}"
         );
+    }
+
+    #[test]
+    fn entries_show_their_keywords_presence_and_spelling() {
+        let source = "resource Inbox {
+    id inboxId: InboxId as id
+    immutable property address: Address
+    property note?: Note
+    writeonly property secret: Secret
+}
+structure InboxData for Inbox {
+    $*
+}
+structure Loose {
+    $*
+}
+";
+        let id = hover_at(source, "inboxId", 0).unwrap();
+        assert!(
+            id.starts_with(
+                "```crucible
+id inboxId: InboxId as id
+```"
+            ),
+            "{id}"
+        );
+        assert!(
+            id.contains(
+                "Shown as `id` in `Inbox`'s own views and outputs; inputs bind it as `inboxId`."
+            ),
+            "{id}"
+        );
+        let address = hover_at(source, "address", 0).unwrap();
+        assert!(
+            address.starts_with(
+                "```crucible
+immutable property address: Address
+```"
+            ),
+            "{address}"
+        );
+        assert!(
+            address.contains("A required property of resource `Inbox`, set by `creates` or `puts` and fixed afterwards."),
+            "{address}"
+        );
+        let note = hover_at(source, "note", 0).unwrap();
+        assert!(
+            note.starts_with(
+                "```crucible
+property note?: Note
+```"
+            ),
+            "{note}"
+        );
+        assert!(note.contains("An optional property"), "{note}");
+
+        // `$*` explains itself and lists what it includes here: the
+        // identifier under its spelling, then the readable properties.
+        let parsed = crucible_lang::parse(source);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let at = source.find("$*").unwrap();
+        for offset in [at, at + 1, at + 2] {
+            let (start, end, star) = hover(&parsed, source, &index, &[], offset).unwrap();
+            assert_eq!((start as usize, end as usize), (at, at + 2));
+            assert!(
+                star.contains("Here it includes, from resource `Inbox`:"),
+                "{star}"
+            );
+            assert!(
+                star.contains(
+                    "```crucible
+id: InboxId
+address: Address
+note?: Note
+```"
+                ),
+                "{star}"
+            );
+            assert_fenced(&star);
+        }
+        let loose = source.rfind("$*").unwrap();
+        let (_, _, star) = hover(&parsed, source, &index, &[], loose).unwrap();
+        assert!(star.contains("not a `for` view"), "{star}");
+    }
+
+    #[test]
+    fn bindings_show_presence_and_spelling_where_they_apply() {
+        let source = "resource Inbox {
+    id inboxId: InboxId as id
+    property note?: Note
+}
+structure InboxView for Inbox {
+    $inboxId
+    $note
+}
+operation EditInbox updates Inbox {
+    input {
+        $inboxId
+        $note
+        $*
+    }
+}
+";
+        // A view: the property's `?` applies, and the identifier its spelling.
+        let view_note = hover_at(source, "note", 1).unwrap();
+        assert!(
+            view_note.contains("An optional member of structure `InboxView`"),
+            "{view_note}"
+        );
+        let view_id = hover_at(source, "inboxId", 1).unwrap();
+        assert!(view_id.contains("Named `id` here"), "{view_id}");
+        // An input asks for what it needs, by identifier name.
+        let input_note = hover_at(source, "note", 2).unwrap();
+        assert!(
+            input_note.contains("A required member of the input of `EditInbox`"),
+            "{input_note}"
+        );
+        let input_id = hover_at(source, "inboxId", 2).unwrap();
+        assert!(!input_id.contains("Named `id`"), "{input_id}");
+        // `$*` in an input expands to nothing: lowering refuses it there.
+        let parsed = crucible_lang::parse(source);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let at = source.find("$*").unwrap();
+        let (_, _, star) = hover(&parsed, source, &index, &[], at).unwrap();
+        assert!(star.contains("not a `for` view"), "{star}");
+        assert!(!star.contains("Here it includes,"), "{star}");
     }
 
     #[test]

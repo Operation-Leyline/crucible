@@ -339,6 +339,7 @@ impl Walker<'_> {
         self.annotations(&member.annotations);
         match &member.kind {
             MemberKind::Include(name) => self.reference(name, Some(Role::Struct)),
+            MemberKind::All(_) => {}
             MemberKind::Elided { name, alias, .. } => {
                 self.set(name, Role::Property, 0);
                 if let Some(alias) = alias {
@@ -402,6 +403,9 @@ impl Walker<'_> {
                     self.annotations(&entry.annotations);
                     self.declare(&entry.name, Role::Property);
                     self.type_ref(&entry.ty);
+                    if let Some(alias) = &entry.alias {
+                        self.declare(alias, Role::Property);
+                    }
                 }
             }
             Decl::Operation(operation) => {
@@ -706,6 +710,7 @@ pub fn outline(parsed: &Parsed) -> Vec<Symbol> {
                         (alias.as_ref().unwrap_or(name), format!("${}", name.name))
                     }
                     MemberKind::Include(name) => (name, "include".to_owned()),
+                    MemberKind::All(_) => continue,
                 };
                 if name.is_missing() {
                     continue;

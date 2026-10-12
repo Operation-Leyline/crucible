@@ -312,14 +312,26 @@ trait when a project defines it.
     property name: GraphName; ... }`. A child resource names its parent
     with `in` and inherits the parent's identifiers, so `Graph` is
     addressed by `organizationId` and `graphId` without restating the
-    first. Root resources are listed on the service as today. A resource
-    does not list its operations. *Replaces:* `identifiers`, `properties`,
-    the lifecycle slots, `operations`, `collectionOperations`, the
-    parent's `resources: [..]` list, and Smithy's rule that a child
-    restates every parent identifier. *Why:* both consumers keep one file
-    per operation in a folder per resource; a resource-side list means
-    every new operation edits two distant files, and Leyline's `Graph`
-    would list 13 operations and 4 children in its block.
+    first. It inherits identifiers only, as in Smithy, not the parent's
+    properties: a child is addressed by its parents but described by its
+    own state. Identifier names are therefore unique across the chain,
+    since an instance operation binds every one of them; a property name
+    must differ from every identifier the resource has, its own and
+    inherited, and from its other properties, while properties of
+    different resources in a chain are independent (Pigeon's `Workspace`
+    and its child `Domain` both have `name` and `createdAt`). `$name` in an
+    operation attached to a resource, or in a `for` view of it, names one
+    of its own identifiers or properties or an inherited identifier, never
+    an ancestor's property. Root resources are listed on the service as
+    today. A resource does not list its operations. *Replaces:*
+    `identifiers`, `properties`, the lifecycle slots, `operations`,
+    `collectionOperations`, the parent's `resources: [..]` list, and
+    Smithy's rule that a child restates every parent identifier. *Why:*
+    both consumers keep one file per operation in a folder per resource; a
+    resource-side list means every new operation edits two distant files,
+    and Leyline's `Graph` would list 13 operations and 4 children in its
+    block. A namespace shared with every ancestor's properties made Pigeon
+    rename `Workspace`'s `name` so that no resource below it could have one.
 
     *Known limit:* identifiers a collection operation binds come only from
     a parent (decision 32). Smithy allows a root resource whose own
@@ -373,7 +385,8 @@ trait when a project defines it.
     `Message` property is `to: AddressList`), and not an identifier of the
     resource itself in a collection operation's input, which decision 32
     forbids binding (a `ListGrants` that filters on `principalType`).
-    *Replaces:*
+    A member typed by a `for` view binds nothing in an input: the view's
+    members are a representation, not writes (34a). *Replaces:*
     `@notProperty` (323 uses), `@resourceIdentifier` (32 uses),
     `@property`, and Smithy's rule that every top-level member must bind or
     be excluded. *Why:* binding is positive and visible at the member;
@@ -390,11 +403,13 @@ trait when a project defines it.
     the `for` elision on structures. *Why:* list-output binding becomes
     first-class, which Smithy still gets wrong (smithy #2968).
 
-> **Revised 2026-10-11; decided, not built.** 34a and 34c-34i follow three
-> independent reviews of a proposal to make a resource its own full
-> representation, which they rejected as written. The compiler still parses
-> resource entries without modifiers, `?` or `as`, refuses annotations on
-> them, and leaves `Service::resources` empty (decision 63).
+> **Revised 2026-10-11.** 34a and 34c-34i follow three independent reviews
+> of a proposal to make a resource its own full representation, which they
+> rejected as written. Built: 34a's keywords, checks and lowering, `$*`
+> (34d), property presence (34e), identifier spelling (34f) and 34h's two
+> warnings. Not built: `references` (34b) and 34c's default-view shorthand;
+> 34i is open. The compiler still refuses annotations on resource entries
+> and leaves `Service::resources` empty (decision 63).
 
 34a. **Property mutability is declared on the property, from a closed set
     of keywords, and the compiler checks bindings against it.**
@@ -411,13 +426,14 @@ trait when a project defines it.
     immutable and take no keyword. What was a derivation is now validation:
     - an `updates` input binding a `readonly` or `immutable` property is an
       error, and so is a `creates` or `puts` input binding a `readonly` one;
-    - an `immutable` property that no `creates` or `puts` input binds is an
-      error: nothing could ever set it;
+    - an `immutable` property that no `creates`, `puts` or `on ..
+      collection` input binds is an error: nothing could ever set it;
     - a property that is neither `readonly` nor `immutable` and that no
-      `updates` or `puts` input binds is a warning ("declare it
-      `immutable`"): left read-write, the infrastructure generators would
-      offer an in-place update nothing implements, where CloudFormation
-      treats a missing update handler as replacement (Pigeon's `ApiKey`,
+      `updates`, `puts` or instance `on` input binds (outside `@query`) is a
+      warning ("declare it `immutable`"): left read-write, the
+      infrastructure generators would offer an in-place update nothing
+      implements, where CloudFormation treats a missing update handler as
+      replacement (Pigeon's `ApiKey`,
       `Thread` and `Domain`, Leyline's `ImportJob` and `QueryJob` have no
       `updates`);
     - a `puts` that changes an `immutable` value on an existing resource
@@ -430,11 +446,22 @@ trait when a project defines it.
     - a binding under `@query`, or in a `reads`, `lists` or `deletes`
       input, selects or filters; it is not a write and is not checked;
     - an `on` operation's input is not checked: a custom action may change
-      state the lifecycle cannot (a suspend sets a `readonly` status).
+      state the lifecycle cannot (a suspend sets a `readonly` status). Its
+      bindings still count. An instance `on` binding is a change after
+      creation, so a property a custom action changes is not create-only
+      (Leyline's `groupId` changes only through `PutGraphGroupMembership`).
+      An `on .. collection` binding is a create, since a custom collection
+      action makes instances (Pigeon's `CreateApiKey`, 34g): it sets an
+      `immutable` property and carries mutability like a `creates` input;
+    - a `for` view used as a member type in a `creates`, `puts`, `updates`
+      or `on` input binds nothing and its keywords are not checked; the
+      compiler warns, since a write is bound with `$name` where the check
+      can see it.
 
     Lowering writes the property's mutability to `ir::Member::mutability`
     on every member that carries the property's value: view and output
-    members and the bindings in `creates`, `puts` and `updates` inputs.
+    members and the bindings in `creates`, `puts`, `updates` and `on ..
+    collection` inputs.
     Filter bindings carry none, since the infrastructure generators hide
     a `Write` or `Create` member and every shape containing one
     (`write_only_shape`), and a filter is not the property. Smithy fills
@@ -548,7 +575,7 @@ trait when a project defines it.
     `Workspace`. A representation name must therefore be unique among the
     entries the resource's own views can show (its own entries and
     inherited identifiers under their identifier names), not across the
-    chain, which still holds for identifier and property names. Composite
+    chain, which holds only for identifier names (31). Composite
     identifiers keep their own names: Pigeon's `Grant` (`principalType`,
     `principalId`, `resourceType`, `resourceId`) has no single `id` to
     invent. *Replaces:* declaring an identifier beside a `property id` of
@@ -1185,11 +1212,11 @@ these are working choices, changed freely as implementation teaches.
       (decision 26), where Smithy needs `@idempotent` written;
     - `include` does not copy the included structure's documentation onto
       the includer (decision 40), where Smithy's mixin flattening does;
-    - once built, every member that carries a property's value has
-      `mutability` set from the property's keyword (decision 34a), where
-      Smithy sets it only from `@cfnMutability`; the weather comparison's
-      normalization (`as_cru_lowers_it` in `weather_ir.rs`) has to fill it
-      the same way.
+    - every member that carries a property's value has `mutability` set
+      from the property's keyword (decision 34a), where Smithy sets it only
+      from `@cfnMutability`; the weather comparison's normalization
+      (`as_cru_lowers_it` in `weather_ir.rs`) fills it on the members
+      `weather.cru` binds to `City`'s properties.
     Like Smithy's `lower`, the `.cru` compile produces the contract IR and
     leaves `Service::resources` empty; resource views come with the
     documentation and infrastructure lowerings, which the language does not
