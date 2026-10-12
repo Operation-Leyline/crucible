@@ -56,6 +56,12 @@ async fn query_characters_a_uri_does_not_carry_are_read_as_sent() {
     }
     // A known one arrives with the characters the client sent: `"5"` is not
     // an integer, and the rejection says so rather than the platform's 502.
+    // `%` passes through unencoded: a malformed escape (a trailing one
+    // included) is the protocol's own 400, not a conversion failure.
+    for query in ["maxResults=100%", "maxResults=%zz"] {
+        let answer = answer(event("GET", query, None)).await;
+        assert_eq!(answer["statusCode"], 400, "{query}: {answer}");
+    }
     let answer = answer(event("GET", "maxResults=\"5\"", None)).await;
     assert_eq!(answer["statusCode"], 400, "{answer}");
     let body: Value = serde_json::from_str(answer["body"].as_str().unwrap()).unwrap();

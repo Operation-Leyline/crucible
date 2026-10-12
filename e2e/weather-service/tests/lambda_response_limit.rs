@@ -120,3 +120,24 @@ async fn a_direct_invoke_answer_too_large_for_lambda_is_the_failure_envelope() {
     let answer: Value = serde_json::from_str(answer.get()).unwrap();
     assert!(answer.get("error").is_some(), "{answer}");
 }
+
+/// A Tower layer that answers by itself skips the pipeline, and with it the
+/// `x-request-id` header; the 500 still carries the event's request id.
+#[tokio::test]
+async fn an_oversized_answer_from_a_layer_keeps_the_events_request_id() {
+    let service = weather_service::builder(Arc::new(MemoryCities::default()))
+        .tower_layer(tower::layer::layer_fn(|_inner| {
+            tower::service_fn(|_request: axum::http::Request<Body>| async {
+                Ok::<_, std::convert::Infallible>(Response::new(Body::from(vec![
+                    b'x';
+                    7 * 1024 * 1024
+                ])))
+            })
+        }))
+        .build()
+        .unwrap();
+    let (size, answer) = answer(&service, "").await;
+    assert!(size < 64 * 1024, "{size} bytes");
+    assert_eq!(answer["statusCode"], 500, "{answer}");
+    assert_eq!(answer["headers"]["x-request-id"], "big-request", "{answer}");
+}

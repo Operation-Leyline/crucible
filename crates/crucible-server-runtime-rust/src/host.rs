@@ -431,9 +431,9 @@ mod lambda_event {
             uri.path_and_query = Some(path_and_query.parse()?);
             parts.uri = axum::http::Uri::from_parts(uri)?;
         }
-        let event_id = event_request_id(&parts.extensions);
+        let event_id = event_request_id(&parts.extensions).or(meta.request_id);
         parts.extensions.insert(crate::RequestMeta {
-            request_id: event_id.or(meta.request_id),
+            request_id: event_id.clone(),
             deadline: meta.deadline,
         });
         let body = match body {
@@ -445,14 +445,26 @@ mod lambda_event {
             .handle(Request::from_parts(parts, Body::from(body)))
             .await;
         let (parts, body) = response.into_parts();
-        let bytes = axum::body::to_bytes(body, usize::MAX).await?.to_vec();
+        // A layer that answers by itself skips the pipeline's `x-request-id`;
+        // the event's id still names the request.
+        let id = parts.headers.get("x-request-id").cloned().or(event_id);
+        // A body over the limit makes an answer over it: stop reading there.
+        let bytes = match axum::body::to_bytes(body, RESPONSE_LIMIT).await {
+            Ok(bytes) => bytes.to_vec(),
+            Err(error)
+                if std::error::Error::source(&error)
+                    .is_some_and(|cause| cause.is::<http_body_util::LengthLimitError>()) =>
+            {
+                return oversized(origin, id, RESPONSE_LIMIT + 1);
+            }
+            Err(error) => return Err(error.into()),
+        };
         let (body, base64) = match String::from_utf8(bytes) {
             Ok(text) if text.is_empty() => (None, false),
             Ok(text) => (Some(lambda_http::Body::Text(text)), false),
             Err(error) => (Some(lambda_http::Body::Binary(error.into_bytes())), true),
         };
         let status = i64::from(parts.status.as_u16());
-        let id = parts.headers.get("x-request-id").cloned();
         let answer = respond(
             origin.clone(),
             status,
@@ -464,9 +476,18 @@ mod lambda_event {
         if answer.get().len() <= RESPONSE_LIMIT {
             return Ok(answer);
         }
-        // The caller gets the framework's internal failure with the request
-        // id to quote, in the event's shape, instead of the platform's 502.
-        too_large(&request_id(id.as_ref()), answer.get().len());
+        oversized(origin, id, answer.get().len())
+    }
+
+    /// The framework's internal failure with the request id to quote, in the
+    /// event's shape, for an answer Lambda would refuse: the caller gets it
+    /// instead of the platform's 502.
+    fn oversized(
+        origin: RequestOrigin,
+        id: Option<HeaderValue>,
+        size: usize,
+    ) -> Result<Box<RawValue>, BoxError> {
+        too_large(&request_id(id.as_ref()), size);
         let failure = FrameworkError::InternalFailure;
         let mut headers = HeaderMap::new();
         headers.insert(
