@@ -156,8 +156,12 @@ fn main() {
 The common keys live in one `crucible_codegen::PackageMetadata`. Every
 language's `Options` gains it as a `metadata` field, and a macro beside
 `generation_methods!` adds the setters, so a new key is added once.
-Native escape hatches (`package_json` today) merge last, but cannot set
-the name, version, `crucible.json`, or the publication guards below.
+There is no general escape hatch for native manifests. Crucible owns
+the generated manifest, and a hatch could override the version, the
+provenance or `private`. A key is added to the generator when a real need
+appears. TypeScript's existing `package_json` stays, merged last, and it
+cannot set the name, version, `crucible`, `files`, `private` or
+`publishConfig`.
 
 ### The common keys
 
@@ -302,14 +306,17 @@ plan collects every signal, and the kind is the strongest one:
   wrote it, and every IR field is serialized, so the digest changes with
   each Crucible version. Smithy sources need a new route, assembling the
   sources at that commit the way `crucible diff` assembles directories.
-  CI then needs the commit (`fetch-depth: 0`, or a fetch of that commit).
+  CI needs only that commit, not the history: the plan runs
+  `git fetch --depth 1 origin <sha>` for it.
 
 **Generator change entries.** Crucible keeps a reviewed log of generator
 and runtime changes that move generated SDKs:
 `crates/crucible-codegen/sdk-changes.toml`, one entry per change, with an
 increasing `id`, its languages, its kind (`breaking`, `additive`, `patch`),
-and a summary. 0.6.0's `#[non_exhaustive]` Rust types are a `breaking`
-Rust entry. The Rust SDK re-exports its whole runtime
+and a summary. Entries are per language, not per feature: a coarse entry
+can bump an SDK that never touches the changed code, but it can never miss
+a break. Feature scoping can come later, if the extra bumps hurt.
+0.6.0's `#[non_exhaustive]` Rust types are a `breaking` Rust entry. The Rust SDK re-exports its whole runtime
 (`pub use crucible_client_runtime_rust as runtime`), so any change to the
 runtime's public API is an entry for Rust. The bundled runtimes' public
 APIs and minimum toolchain versions count the same way. The generator embeds the log, and
@@ -350,11 +357,11 @@ error, not a major; a generator break bumps its major as anywhere else.
   pick the same version.
 - **No SDK version lock is committed.** A committed lock written after
   each publish needs CI to push to the service's main branch, and
-  disagrees with the channel whenever a publish half-fails. A release-PR
-  flow (release-please) suits services that release by hand. Pigeon
-  releases after every deploy, and a release PR per merge would double
-  its merges. The floor and `--bump` are the source-controlled and
-  recorded intent.
+  disagrees with the channel whenever a publish half-fails. Pigeon
+  releases after every deploy, so a release PR for every merge would
+  double its merges. A release-PR flow (release-please) suits services
+  that release by hand. The floor and `--bump` are the source-controlled
+  intent; `plan.json` records the rest.
 - **Partial releases resume.** `publication.json` journals each completed
   upload. Rerunning `publish` on the same directory skips them.
   "Already there" counts as done only for the same artifact bytes: npm's
@@ -424,7 +431,8 @@ published" compares.
 release's* version, the package's content digest equals that release's.
 Generating at the old version keeps version-dependent output comparable,
 such as a Go module path's `/vN`. Generation takes milliseconds, so this is
-one more emit. A last release without a schema-2 `contentDigest` (every
+one more emit. The copied README and license are part of the content,
+so editing either releases a patch. A last release without a schema-2 `contentDigest` (every
 release made before this design) counts as changed once. Built archives
 are never compared, and no service script is hashed.
 
@@ -530,7 +538,8 @@ jobs:
     permissions: { contents: read, packages: read }
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }                  # the baseline compiles from history (later phase)
+        # Phase 2 also fetches the last release's source commit for its baseline,
+        # `git fetch --depth 1 origin <sha>`, which the plan runs itself. No full history.
       - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
@@ -557,6 +566,9 @@ jobs:
         env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
 ```
 
+The checkout stays shallow. When phase 2 compares models, the plan
+fetches the last release's source commit itself with
+`git fetch --depth 1 origin <sha>`, using the checkout's credentials.
 The publish job needs Crucible and each channel's uploader (`npm`, `git`,
 and for a Cargo registry, `cargo`), but no build toolchain. A reusable
 form of these jobs belongs in `crucible-actions`.
@@ -657,17 +669,6 @@ pointing here.
    - Per-release SDK lines with their dist-tags and tag prefixes.
    - OIDC trusted publishing.
 
-## Open questions
-
-1. **Feature-scoped change entries.** Should a generator entry name the
-   features it touches (streaming, waiters), so an SDK without them is not
-   moved?
-2. **README-only changes.** They are a patch here, since the registry page
-   changes. Pigeon chose not to release for them. Should there be a skip
-   policy?
-3. **A Cargo escape hatch** like TypeScript's `package_json`, for manifest
-   keys Crucible does not model.
-
 ## Decisions
 
 1. **SDKs are declared in the service's `crucible-sdk.toml`,** which names
@@ -698,3 +699,14 @@ pointing here.
 7. **`crucible sdk` replaces `tools/sdk_release.py`** and service release
    scripts: build once, test those bytes, publish after the deploy,
    credentials in the environment, and git tags as a first-class channel.
+8. **The baseline is the previous release recompiled from its recorded
+   source commit** with the current compiler. CI fetches that one commit
+   (`git fetch --depth 1 origin <sha>`); it never needs full history.
+9. **A README-only or license-only change releases a patch.** Both ship in
+   the package, so "unchanged" stays "identical bytes".
+10. **Generator change entries are per language,** not per feature. Coarse
+    entries can only over-bump, never miss a break. Feature scoping can
+    come later if needless bumps hurt.
+11. **No general native-manifest escape hatch.** Crucible owns the
+    generated manifest; a hatch could override the version, provenance or
+    `private`. Specific keys are added when a real need appears.
