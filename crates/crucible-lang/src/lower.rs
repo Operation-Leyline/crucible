@@ -59,6 +59,8 @@ pub(crate) fn lower(
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
+    lowerer.check_lifecycle();
+    lowerer.check_restated_resources();
     lowerer.check_metadata();
     let service = lowerer.service(service);
     lowerer.report_recursion();
@@ -101,6 +103,12 @@ struct MemberContext<'a> {
     /// `on .. collection`), which cannot bind the resource's own
     /// identifiers (decision 32).
     collection: bool,
+    /// The role of the operation whose input or output this is, while the
+    /// members elide against that operation's resource.
+    role: Option<&'a str>,
+    /// The members are a `for` view's, wherever it is used: they are a
+    /// representation of the resource (decisions 34d-34f).
+    view: bool,
 }
 
 /// What a structure is on the wire.
@@ -154,6 +162,59 @@ struct Annotations {
     /// `@mutability(..)`: an explicit override of the derived mutability.
     mutability: Option<Mutability>,
 }
+
+/// A resource entry `$name` resolved to, and whether it is the resource's
+/// own or an inherited identifier.
+#[derive(Clone, Copy)]
+struct EntryRef<'a> {
+    file: usize,
+    entry: &'a ResourceEntry,
+    own: bool,
+}
+
+/// A property's declared mutability (decision 34a); an identifier has
+/// none. Combinations `check_resources` refuses lower as their first
+/// keyword would.
+fn entry_mutability(entry: &ResourceEntry) -> Option<Mutability> {
+    if entry.kind == ResourceEntryKind::Id {
+        return None;
+    }
+    let has = |word: &str| entry.modifiers.iter().any(|m| m.name == word);
+    Some(
+        match (has("readonly"), has("immutable"), has("writeonly")) {
+            (true, _, _) => Mutability::Read,
+            (false, true, true) => Mutability::Create,
+            (false, true, false) => Mutability::CreateAndRead,
+            (false, false, true) => Mutability::Write,
+            (false, false, false) => Mutability::Full,
+        },
+    )
+}
+
+/// How the source declares a mutability on a property.
+fn mutability_keyword(mutability: Mutability) -> &'static str {
+    match mutability {
+        Mutability::Full => "read-write (no keyword)",
+        Mutability::Read => "`readonly`",
+        Mutability::CreateAndRead => "`immutable`",
+        Mutability::Write => "`writeonly`",
+        Mutability::Create => "`immutable writeonly`",
+    }
+}
+
+/// The `@mutability(..)` spelling of a mutability.
+fn mutability_annotation(mutability: Mutability) -> &'static str {
+    match mutability {
+        Mutability::Full => "full",
+        Mutability::Read => "read",
+        Mutability::CreateAndRead => "createAndRead",
+        Mutability::Write => "write",
+        Mutability::Create => "create",
+    }
+}
+
+/// The roles whose input writes the resource's state (decision 34a).
+const WRITES: &[&str] = &["creates", "puts", "updates"];
 
 #[derive(Default)]
 struct ConstraintInfo {
@@ -536,6 +597,10 @@ impl<'a> Lowerer<'a> {
                 }
             }
             self.doc(file, decl.item.doc.as_ref());
+            // Identifier names are unique across the chain, since a child
+            // binds every inherited one; a property belongs to its own
+            // resource and only must not shadow an identifier (decision 31).
+            let (inherited, _) = self.identifiers(&resource.name.name);
             let mut names = BTreeSet::new();
             for entry in &resource.entries {
                 self.doc(file, entry.doc.as_ref());
@@ -546,26 +611,29 @@ impl<'a> Lowerer<'a> {
                         "annotations on a resource identifier or property are not supported by the compiler yet",
                     );
                 }
+                self.entry_keywords(file, entry);
                 if !names.insert(entry.name.name.as_str()) {
                     self.error(
                         file,
                         entry.name.span,
                         format!("`{}` is declared twice", entry.name.name),
                     );
-                } else if let Some(parent) = &resource.parent
-                    && self
-                        .resource_entry(&parent.name, &entry.name.name)
-                        .is_some()
-                {
-                    self.error(
-                        file,
-                        entry.name.span,
-                        format!(
+                } else if inherited.contains(&entry.name.name) {
+                    let message = match entry.kind {
+                        ResourceEntryKind::Id => format!(
                             "`{}` is already declared by an ancestor of `{}`",
                             entry.name.name, resource.name.name
                         ),
-                    );
+                        ResourceEntryKind::Property => format!(
+                            "`{}` is an identifier `{}` inherits; a property cannot share its name",
+                            entry.name.name, resource.name.name
+                        ),
+                    };
+                    self.error(file, entry.name.span, message);
                 }
+            }
+            self.representation_names(file, resource, &inherited);
+            for entry in &resource.entries {
                 let Some(target) = self.resolve_type(file, &entry.ty.name) else {
                     continue;
                 };
@@ -612,6 +680,428 @@ impl<'a> Lowerer<'a> {
                 );
             } else {
                 holders.insert(key, operation.name.name.clone());
+            }
+        }
+    }
+
+    /// The operations of this package attached to `resource`, with their
+    /// roles.
+    fn attached(&self, resource: &str) -> Vec<(&'a Operation, &'a str)> {
+        self.decls
+            .values()
+            .filter(|decl| decl.ns == self.ns)
+            .filter_map(|decl| match &decl.item.decl {
+                Decl::Operation(operation) => operation
+                    .attachment
+                    .as_ref()
+                    .filter(|a| a.resource.name == resource)
+                    .map(|a| (operation, a.role.name.as_str())),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The body of `kind` an operation declares, if any.
+    fn body(operation: &'a Operation, kind: BodyKind) -> Option<&'a Body> {
+        operation.entries.iter().find_map(|entry| match entry {
+            OpEntry::Body(body) if body.kind == kind => Some(body),
+            _ => None,
+        })
+    }
+
+    /// The names of `resource`'s own properties that `members` write:
+    /// elisions not under `@query`, through `include`s of structures for no
+    /// other resource. Mirrors which bindings `bound_mutability` treats as
+    /// writes.
+    fn written(
+        &self,
+        members: &'a [Member],
+        resource: &str,
+        including: &mut Vec<&'a str>,
+        out: &mut BTreeSet<&'a str>,
+    ) {
+        for member in members {
+            match &member.kind {
+                MemberKind::Elided { name, .. }
+                    if !member.annotations.iter().any(|a| a.name.name == "query") =>
+                {
+                    if let Some(found) = self.resource_entry(resource, &name.name)
+                        && found.own
+                        && found.entry.kind == ResourceEntryKind::Property
+                    {
+                        out.insert(found.entry.name.name.as_str());
+                    }
+                }
+                MemberKind::Include(name) if !including.contains(&name.name.as_str()) => {
+                    if let Some(Decl::Structure(structure)) =
+                        self.decl(&name.name).map(|d| &d.item.decl)
+                        && structure
+                            .resource
+                            .as_ref()
+                            .is_none_or(|r| r.name == resource)
+                    {
+                        including.push(&name.name);
+                        self.written(&structure.members, resource, including, out);
+                        including.pop();
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Whether `members`, elided against `resource`, show one of its
+    /// properties: an elision, `$*` over a readable property, an included
+    /// view, or a member typed by a `for` view of it (or a list or map of
+    /// one). Decision 34h's first warning counts these.
+    fn shows_property(
+        &self,
+        members: &'a [Member],
+        resource: &str,
+        seen: &mut BTreeSet<&'a str>,
+    ) -> bool {
+        members.iter().any(|member| match &member.kind {
+            MemberKind::Elided { name, .. } => self
+                .resource_entry(resource, &name.name)
+                .is_some_and(|found| found.own && found.entry.kind == ResourceEntryKind::Property),
+            MemberKind::All(_) => self.chain(resource).first().is_some_and(|(_, r)| {
+                r.entries.iter().any(|e| {
+                    e.kind == ResourceEntryKind::Property
+                        && !e.modifiers.iter().any(|m| m.name == "writeonly")
+                })
+            }),
+            MemberKind::Include(name) => self.view_shows_property(&name.name, resource, seen, true),
+            MemberKind::Field { ty: Some(ty), .. } => {
+                self.view_shows_property(&ty.name.name, resource, seen, false)
+            }
+            MemberKind::Field { ty: None, .. } => false,
+        })
+    }
+
+    /// Whether the type `name` is (a list or map of) a `for resource` view
+    /// that shows one of its properties. An included plain structure counts
+    /// too, since its members land where it is included.
+    fn view_shows_property(
+        &self,
+        name: &'a str,
+        resource: &str,
+        seen: &mut BTreeSet<&'a str>,
+        included: bool,
+    ) -> bool {
+        if !seen.insert(name) {
+            return false;
+        }
+        match self.decl(name).map(|d| &d.item.decl) {
+            Some(Decl::Structure(structure)) => match &structure.resource {
+                Some(of) if of.name == resource => {
+                    self.shows_property(&structure.members, resource, seen)
+                }
+                None if included => self.shows_property(&structure.members, resource, seen),
+                _ => false,
+            },
+            Some(Decl::List(list)) if !included => {
+                self.view_shows_property(&list.member.name, resource, seen, false)
+            }
+            Some(Decl::Map(map)) if !included => {
+                self.view_shows_property(&map.value.name, resource, seen, false)
+            }
+            _ => false,
+        }
+    }
+
+    /// Decisions 34a and 34h, per resource of this package: an `immutable`
+    /// property something must set, a property nothing updates that is left
+    /// read-write, and a resource whose outputs show none of its properties.
+    fn check_lifecycle(&mut self) {
+        let decls: Vec<DeclRef<'a>> = self
+            .decls
+            .values()
+            .filter(|decl| decl.ns == self.ns)
+            .copied()
+            .collect();
+        for decl in decls {
+            let Decl::Resource(resource) = &decl.item.decl else {
+                continue;
+            };
+            let file = decl.file;
+            let name = resource.name.name.as_str();
+            let operations = self.attached(name);
+            let mut created = BTreeSet::new();
+            let mut updated = BTreeSet::new();
+            for (operation, role) in &operations {
+                let Some(input) = Self::body(operation, BodyKind::Input) else {
+                    continue;
+                };
+                match *role {
+                    "creates" => self.written(&input.members, name, &mut Vec::new(), &mut created),
+                    "updates" => self.written(&input.members, name, &mut Vec::new(), &mut updated),
+                    "puts" => {
+                        let mut put = BTreeSet::new();
+                        self.written(&input.members, name, &mut Vec::new(), &mut put);
+                        created.extend(put.iter().copied());
+                        updated.extend(put);
+                    }
+                    _ => {}
+                }
+            }
+            for entry in &resource.entries {
+                let property = entry.name.name.as_str();
+                let Some(mutability) = entry_mutability(entry) else {
+                    continue;
+                };
+                if property.is_empty() {
+                    continue;
+                }
+                match mutability {
+                    Mutability::CreateAndRead | Mutability::Create
+                        if !created.contains(property) =>
+                    {
+                        self.error(
+                            file,
+                            entry.name.span,
+                            format!(
+                                "`{property}` is {}, but no `creates` or `puts` input binds `${property}`: nothing could ever set it",
+                                mutability_keyword(mutability)
+                            ),
+                        );
+                    }
+                    Mutability::Full | Mutability::Write if !updated.contains(property) => {
+                        let message = if created.contains(property) {
+                            let keyword = if mutability == Mutability::Write {
+                                "immutable writeonly"
+                            } else {
+                                "immutable"
+                            };
+                            format!(
+                                "no `updates` or `puts` input binds `${property}`, so nothing changes it after creation: declare it `{keyword}`, or infrastructure tools will offer an update nothing implements"
+                            )
+                        } else if mutability == Mutability::Write {
+                            format!(
+                                "no `creates`, `puts` or `updates` input binds `${property}`: a `writeonly` property nothing writes is never set nor read"
+                            )
+                        } else {
+                            format!(
+                                "no `creates`, `puts` or `updates` input binds `${property}`, so the service alone sets it: declare it `readonly`"
+                            )
+                        };
+                        self.warning(file, entry.name.span, message);
+                    }
+                    _ => {}
+                }
+            }
+            let shown_by: Vec<&str> = operations
+                .iter()
+                .filter(|(_, role)| matches!(*role, "reads" | "lists" | "creates"))
+                .map(|(_, role)| *role)
+                .collect();
+            if shown_by.is_empty() {
+                continue;
+            }
+            let shown = operations.iter().any(|(operation, _)| {
+                Self::body(operation, BodyKind::Output).is_some_and(|output| {
+                    self.shows_property(&output.members, name, &mut BTreeSet::new())
+                })
+            });
+            if !shown {
+                let mut roles: Vec<&str> = shown_by;
+                roles.sort_unstable();
+                roles.dedup();
+                let mut roles: Vec<String> = roles.iter().map(|r| format!("`{r}`")).collect();
+                let last = roles.pop().unwrap_or_default();
+                let roles = if roles.is_empty() {
+                    last
+                } else {
+                    format!("{} and {last}", roles.join(", "))
+                };
+                self.warning(
+                    file,
+                    resource.name.span,
+                    format!(
+                        "`{name}` has {roles} operations, but no output shows one of its properties, through a `for {name}` view or a `$` elision: a representation written as a plain structure loses `$` binding, mutability and infrastructure lowering"
+                    ),
+                );
+            }
+        }
+    }
+
+    /// Decision 34h's second warning: a structure declared without `for`
+    /// that restates, by name and type, an identifier and a property of one
+    /// resource of this package.
+    fn check_restated_resources(&mut self) {
+        let decls: Vec<DeclRef<'a>> = self
+            .decls
+            .values()
+            .filter(|decl| decl.ns == self.ns)
+            .copied()
+            .collect();
+        let resources: Vec<&'a Resource> = decls
+            .iter()
+            .filter_map(|decl| match &decl.item.decl {
+                Decl::Resource(r) => Some(r),
+                _ => None,
+            })
+            .collect();
+        for decl in &decls {
+            let Decl::Structure(structure) = &decl.item.decl else {
+                continue;
+            };
+            if structure.resource.is_some() {
+                continue;
+            }
+            let fields: Vec<(&str, Option<ShapeId>)> = structure
+                .members
+                .iter()
+                .filter_map(|member| match &member.kind {
+                    MemberKind::Field {
+                        name, ty: Some(ty), ..
+                    } => Some((name.name.as_str(), self.type_id(&ty.name.name))),
+                    _ => None,
+                })
+                .collect();
+            let restates = |entry: &ResourceEntry, spelled: &str| {
+                let ty = self.type_id(&entry.ty.name.name);
+                ty.is_some()
+                    && fields
+                        .iter()
+                        .any(|(name, field)| *name == spelled && *field == ty)
+            };
+            let found = resources.iter().find_map(|resource| {
+                let id = resource.entries.iter().find(|e| {
+                    e.kind == ResourceEntryKind::Id
+                        && (restates(e, &e.name.name)
+                            || e.alias.as_ref().is_some_and(|a| restates(e, &a.name)))
+                })?;
+                let property = resource
+                    .entries
+                    .iter()
+                    .find(|e| e.kind == ResourceEntryKind::Property && restates(e, &e.name.name))?;
+                Some((resource.name.name.as_str(), id, property))
+            });
+            if let Some((resource, id, property)) = found {
+                self.warning(
+                    decl.file,
+                    structure.name.span,
+                    format!(
+                        "`{0}` restates `{resource}`'s identifier `{1}` and property `{2}`: did you mean `structure {0} for {resource}`, whose `$` entries take their types and mutability from the resource?",
+                        structure.name.name, id.name.name, property.name.name
+                    ),
+                );
+            }
+        }
+    }
+
+    /// Decisions 34a, 34e and 34f: what an entry's keywords, `?` and `as`
+    /// may say.
+    fn entry_keywords(&mut self, file: usize, entry: &ResourceEntry) {
+        match entry.kind {
+            ResourceEntryKind::Id => {
+                if let Some(modifier) = entry.modifiers.first() {
+                    self.error(
+                        file,
+                        modifier.span,
+                        format!(
+                            "an identifier is immutable and takes no keyword; `{}` applies to a property",
+                            modifier.name
+                        ),
+                    );
+                }
+                if entry.optional {
+                    self.error(
+                        file,
+                        entry.name.span,
+                        format!(
+                            "an identifier is always present: `{}` cannot be optional",
+                            entry.name.name
+                        ),
+                    );
+                }
+            }
+            ResourceEntryKind::Property => {
+                let mut given = BTreeSet::new();
+                for modifier in &entry.modifiers {
+                    if !given.insert(modifier.name.as_str()) {
+                        self.error(
+                            file,
+                            modifier.span,
+                            format!("`{}` is given twice", modifier.name),
+                        );
+                    }
+                }
+                if given.contains("readonly") && given.len() > 1 {
+                    let other = entry
+                        .modifiers
+                        .iter()
+                        .find(|m| m.name != "readonly")
+                        .expect("two keywords");
+                    self.error(
+                        file,
+                        other.span,
+                        format!(
+                            "`readonly` combines with no other keyword: the service assigns `{}`, so no client sets it once or writes it unseen",
+                            entry.name.name
+                        ),
+                    );
+                }
+                if let Some(alias) = &entry.alias {
+                    self.error(
+                        file,
+                        alias.span,
+                        format!(
+                            "only an identifier names its spelling in views; a view binds a property under another name with `${} as {}`",
+                            entry.name.name, alias.name
+                        ),
+                    );
+                }
+            }
+        }
+    }
+
+    /// Decision 34f: a representation name is unique among the entries the
+    /// resource's own views can show, its own entries and its inherited
+    /// identifiers. Plain name clashes are reported with the entries; this
+    /// reports the clashes an identifier's `as` spelling makes.
+    fn representation_names(&mut self, file: usize, resource: &Resource, inherited: &[String]) {
+        let mut shown: BTreeMap<String, String> = inherited
+            .iter()
+            .map(|id| (id.clone(), format!("the inherited identifier `{id}`")))
+            .collect();
+        for entry in &resource.entries {
+            let spelled = entry
+                .alias
+                .as_ref()
+                .filter(|_| entry.kind == ResourceEntryKind::Id);
+            if spelled.is_none_or(|alias| alias.name == entry.name.name) {
+                let what = match entry.kind {
+                    ResourceEntryKind::Id => "identifier",
+                    ResourceEntryKind::Property => "property",
+                };
+                shown
+                    .entry(entry.name.name.clone())
+                    .or_insert_with(|| format!("the {what} `{}`", entry.name.name));
+            }
+        }
+        for entry in &resource.entries {
+            let Some(alias) = &entry.alias else {
+                continue;
+            };
+            if entry.kind != ResourceEntryKind::Id || alias.name == entry.name.name {
+                continue;
+            }
+            match shown.get(&alias.name).cloned() {
+                Some(other) => self.error(
+                    file,
+                    alias.span,
+                    format!(
+                        "`{}` already names {other} in `{}`'s views; an identifier's spelling is unique among the names its resource's views show",
+                        alias.name, resource.name.name
+                    ),
+                ),
+                None => {
+                    shown.insert(
+                        alias.name.clone(),
+                        format!("the identifier `{}`", entry.name.name),
+                    );
+                }
             }
         }
     }
@@ -2017,6 +2507,8 @@ impl<'a> Lowerer<'a> {
                     site: Site::Structure,
                     included: false,
                     collection: false,
+                    role: None,
+                    view: resource.is_some(),
                 };
                 let members = self.members(file, &structure.members, context);
                 Shape::Structure(IrStructure {
@@ -2043,6 +2535,8 @@ impl<'a> Lowerer<'a> {
                     site: Site::Nested,
                     included: false,
                     collection: false,
+                    role: None,
+                    view: false,
                 };
                 let members = self.members(file, &union.members, context);
                 Shape::Union(IrStructure {
@@ -2128,6 +2622,8 @@ impl<'a> Lowerer<'a> {
                     site: Site::Error,
                     included: false,
                     collection: false,
+                    role: None,
+                    view: false,
                 };
                 let members = self.members(file, &members, context);
                 let info = self.error_info(id, &members, fault, status, retryable);
@@ -2274,6 +2770,8 @@ impl<'a> Lowerer<'a> {
                 && attachment.is_some_and(|a| {
                     a.collection || matches!(a.role.name.as_str(), "creates" | "lists")
                 }),
+            role: attachment.map(|a| a.role.name.as_str()),
+            view: false,
         };
         let members = self.members(file, &source.body.members, context);
         let docs = self.doc(file, source.body.doc.as_ref());
@@ -2386,7 +2884,60 @@ impl<'a> Lowerer<'a> {
         names: &mut BTreeSet<String>,
         including: &mut Vec<String>,
     ) {
+        // Decision 34d: the entries `$*` included, by name, at their index in
+        // `out`; and the `$name`s written before it, which it would repeat.
+        let mut star: Option<BTreeMap<String, usize>> = None;
+        let mut before_star: BTreeMap<String, Span> = BTreeMap::new();
         for member in members {
+            if let MemberKind::All(span) = &member.kind {
+                self.expand_all(
+                    file,
+                    member,
+                    *span,
+                    context,
+                    out,
+                    names,
+                    &mut star,
+                    &before_star,
+                );
+                continue;
+            }
+            if let MemberKind::Elided {
+                name,
+                alias,
+                optional,
+            } = &member.kind
+                && context.view
+            {
+                match &star {
+                    Some(included) => {
+                        if let Some(&index) = included.get(&name.name) {
+                            let bare = alias.is_none()
+                                && member.annotations.is_empty()
+                                && member.modifiers.is_empty()
+                                && member.doc.is_none();
+                            if *optional && bare {
+                                // Loosened for this view, where `$*` put it.
+                                out[index].required = false;
+                                out[index].traits.remove(&smithy("required"));
+                            } else {
+                                self.error(
+                                    file,
+                                    member.span,
+                                    format!(
+                                        "`${0}` is already included by `$*`; after it, only `${0}?` names it again, to make it optional in this view",
+                                        name.name
+                                    ),
+                                );
+                            }
+                            continue;
+                        }
+                    }
+                    None => {
+                        before_star.entry(name.name.clone()).or_insert(member.span);
+                    }
+                }
+            }
             if let MemberKind::Include(name) = &member.kind {
                 if !member.annotations.is_empty() {
                     self.error(file, member.span, "`include` takes no annotations");
@@ -2420,10 +2971,17 @@ impl<'a> Lowerer<'a> {
                 // resource, wherever it is included; the including operation's
                 // collection role does not carry over to that resource.
                 let own = structure.resource.as_ref().map(|r| r.name.as_str());
+                // Its members are a representation unless they land in an
+                // input, where they bind what the operation takes; the
+                // operation's role applies only to its own resource.
                 let context = MemberContext {
                     resource: own.or(context.resource),
                     included: true,
                     collection: context.collection && own.is_none(),
+                    role: context
+                        .role
+                        .filter(|_| own.is_none() || own == context.resource),
+                    view: context.view || (own.is_some() && context.site != Site::Input),
                     ..context
                 };
                 self.members_into(
@@ -2457,24 +3015,255 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// The identifier or property `name` of `resource`, searching parents.
-    fn resource_entry(&self, resource: &str, name: &str) -> Option<(usize, &'a ResourceEntry)> {
+    /// `$*` (decision 34d): the view's own identifiers under their
+    /// representation names, then every property that is not `writeonly`, in
+    /// declaration order, each with the property's presence. Inherited
+    /// identifiers are not included; a view that shows one names it.
+    #[allow(clippy::too_many_arguments)]
+    fn expand_all(
+        &mut self,
+        file: usize,
+        member: &Member,
+        span: Span,
+        context: MemberContext<'_>,
+        out: &mut Vec<IrMember>,
+        names: &mut BTreeSet<String>,
+        star: &mut Option<BTreeMap<String, usize>>,
+        before_star: &BTreeMap<String, Span>,
+    ) {
+        if !context.view {
+            let message = if context.site == Site::Input {
+                "`$*` belongs in a `for` view: an input binds what the operation takes, not the resource's state"
+            } else {
+                "`$*` belongs in a `for` view, where it includes the resource's identifiers and readable properties"
+            };
+            self.error(file, span, message);
+            return;
+        }
+        if star.is_some() {
+            self.error(file, span, "`$*` appears once in a view");
+            return;
+        }
+        if member.doc.is_some() || !member.annotations.is_empty() || !member.modifiers.is_empty() {
+            self.error(
+                file,
+                member.span,
+                "`$*` takes no documentation, annotations or modifiers: each member it includes keeps its entry's",
+            );
+        }
+        let mut included = BTreeMap::new();
+        let Some(resource) = context.resource else {
+            *star = Some(included);
+            return;
+        };
+        let Some((_, own)) = self.chain(resource).into_iter().next() else {
+            *star = Some(included);
+            return;
+        };
+        let entries = own
+            .entries
+            .iter()
+            .filter(|e| e.kind == ResourceEntryKind::Id)
+            .chain(own.entries.iter().filter(|e| {
+                e.kind == ResourceEntryKind::Property
+                    && !e.modifiers.iter().any(|m| m.name == "writeonly")
+            }));
+        for entry in entries {
+            let name = &entry.name.name;
+            if name.is_empty() {
+                continue;
+            }
+            if let Some(&earlier) = before_star.get(name) {
+                self.error(
+                    file,
+                    earlier,
+                    format!(
+                        "`${name}` is written before `$*`, which includes it: remove it, or loosen it with `${name}?` after `$*`"
+                    ),
+                );
+                continue;
+            }
+            let synthetic = Member {
+                doc: None,
+                annotations: Vec::new(),
+                modifiers: Vec::new(),
+                kind: MemberKind::Elided {
+                    name: Ident {
+                        name: name.clone(),
+                        span,
+                    },
+                    alias: None,
+                    optional: false,
+                },
+                span,
+            };
+            let Some(lowered) = self.member(file, &synthetic, context) else {
+                continue;
+            };
+            if !names.insert(lowered.name.clone()) {
+                self.error(
+                    file,
+                    span,
+                    format!(
+                        "`$*` includes `{}`, which `{}` already declares",
+                        lowered.name,
+                        context.owner.name()
+                    ),
+                );
+                continue;
+            }
+            included.insert(name.clone(), out.len());
+            out.push(lowered);
+        }
+        *star = Some(included);
+    }
+
+    /// `resource` and its ancestors, nearest first, with their files; a
+    /// cycle (reported by `check_resources`) ends the chain.
+    fn chain(&self, resource: &str) -> Vec<(usize, &'a Resource)> {
+        let mut out = Vec::new();
         let mut current = Some(resource.to_owned());
         let mut seen = BTreeSet::new();
-        while let Some(resource) = current {
-            if !seen.insert(resource.clone()) {
-                return None;
+        while let Some(name) = current {
+            if !seen.insert(name.clone()) {
+                break;
             }
-            let decl = self.decl(&resource)?;
-            let Decl::Resource(r) = &decl.item.decl else {
-                return None;
+            let Some(decl) = self.decl(&name) else {
+                break;
             };
-            if let Some(entry) = r.entries.iter().find(|entry| entry.name.name == name) {
-                return Some((decl.file, entry));
-            }
+            let Decl::Resource(r) = &decl.item.decl else {
+                break;
+            };
+            out.push((decl.file, r));
             current = r.parent.as_ref().map(|parent| parent.name.clone());
         }
-        None
+        out
+    }
+
+    /// What `$name` names in `resource`: one of its own identifiers or
+    /// properties, or an identifier it inherits. An ancestor's properties
+    /// are not inherited (decision 31): a child is addressed by its
+    /// parents' identifiers, not described by their state.
+    fn resource_entry(&self, resource: &str, name: &str) -> Option<EntryRef<'a>> {
+        self.chain(resource)
+            .into_iter()
+            .enumerate()
+            .find_map(|(depth, (file, r))| {
+                r.entries
+                    .iter()
+                    .find(|entry| {
+                        entry.name.name == name
+                            && (depth == 0 || entry.kind == ResourceEntryKind::Id)
+                    })
+                    .map(|entry| EntryRef {
+                        file,
+                        entry,
+                        own: depth == 0,
+                    })
+            })
+    }
+
+    /// The ancestor of `resource` that declares a property `name`, which
+    /// `resource` does not inherit: for the diagnostic of a `$name` that
+    /// expects it to.
+    fn ancestor_property(&self, resource: &str, name: &str) -> Option<String> {
+        self.chain(resource).into_iter().skip(1).find_map(|(_, r)| {
+            r.entries
+                .iter()
+                .any(|e| e.kind == ResourceEntryKind::Property && e.name.name == name)
+                .then(|| r.name.name.clone())
+        })
+    }
+
+    /// Decision 34a for a member that binds a resource entry: the checks of
+    /// a write against the property's keyword, and the mutability the member
+    /// carries. Views, outputs and the inputs of `creates`, `puts` and
+    /// `updates` carry the property's value, and so its mutability; a filter
+    /// (`@query`, or another role's input) carries none, since the
+    /// infrastructure generators hide every shape holding a write-only
+    /// member. An identifier is not a property and carries none.
+    fn bound_mutability(
+        &mut self,
+        file: usize,
+        member: &Member,
+        name: &str,
+        entry: &ResourceEntry,
+        annotations: &Annotations,
+        context: MemberContext<'_>,
+    ) -> Option<Mutability> {
+        let Some(declared) = entry_mutability(entry) else {
+            return annotations.mutability;
+        };
+        let property = &entry.name.name;
+        let representation = context.view || context.site == Site::Output;
+        let role = context
+            .role
+            .filter(|role| context.site == Site::Input && WRITES.contains(role));
+        let write = role.filter(|_| annotations.query.is_none());
+        if representation && declared.write_only() {
+            self.error(
+                file,
+                member.span,
+                format!(
+                    "`{property}` is {}: a view or an output never returns it",
+                    mutability_keyword(declared)
+                ),
+            );
+        }
+        match (write, declared) {
+            (
+                Some("updates"),
+                Mutability::Read | Mutability::CreateAndRead | Mutability::Create,
+            ) => {
+                self.error(
+                    file,
+                    member.span,
+                    format!(
+                        "an `updates` input cannot bind `{property}`, which is {}: {}",
+                        mutability_keyword(declared),
+                        if declared == Mutability::Read {
+                            "the service assigns it"
+                        } else {
+                            "it is set by `creates` or `puts` and fixed afterwards"
+                        }
+                    ),
+                );
+            }
+            (Some(role @ ("creates" | "puts")), Mutability::Read) => {
+                self.error(
+                    file,
+                    member.span,
+                    format!(
+                        "a `{role}` input cannot bind `{property}`, which is `readonly`: the service assigns it"
+                    ),
+                );
+            }
+            _ => {}
+        }
+        if let Some(explicit) = annotations.mutability
+            && explicit != declared
+        {
+            let at = member
+                .annotations
+                .iter()
+                .find(|a| a.name.name == "mutability")
+                .map_or(member.span, |a| a.span);
+            self.error(
+                file,
+                at,
+                format!(
+                    "`@mutability({})` disagrees with `{property}`, which is {} (`{}`): `{name}` takes its mutability from the property",
+                    mutability_annotation(explicit),
+                    mutability_keyword(declared),
+                    mutability_annotation(declared)
+                ),
+            );
+        }
+        if representation || write.is_some() {
+            Some(declared)
+        } else {
+            annotations.mutability
+        }
     }
 
     fn member(
@@ -2483,8 +3272,9 @@ impl<'a> Lowerer<'a> {
         member: &Member,
         context: MemberContext<'_>,
     ) -> Option<IrMember> {
+        let mut bound: Option<EntryRef<'a>> = None;
         let (name, name_span, ty, ty_file, required, default, doc) = match &member.kind {
-            MemberKind::Include(_) => return None,
+            MemberKind::Include(_) | MemberKind::All(_) => return None,
             MemberKind::Elided {
                 name,
                 alias,
@@ -2498,25 +3288,43 @@ impl<'a> Lowerer<'a> {
                     );
                     return None;
                 };
-                let Some((entry_file, entry)) = self.resource_entry(resource, &name.name) else {
-                    self.error(
-                        file,
-                        name.span,
-                        format!(
+                let Some(found) = self.resource_entry(resource, &name.name) else {
+                    let message = match self.ancestor_property(resource, &name.name) {
+                        Some(ancestor) => format!(
+                            "resource `{resource}` has no identifier or property `{0}`: `{0}` is a property of its ancestor `{ancestor}`, and a child inherits only its ancestors' identifiers",
+                            name.name
+                        ),
+                        None => format!(
                             "resource `{resource}` has no identifier or property `{}`",
                             name.name
                         ),
-                    );
+                    };
+                    self.error(file, name.span, message);
                     return None;
                 };
-                let member_name = alias.as_ref().unwrap_or(name);
+                let entry = found.entry;
+                bound = Some(found);
+                // Views and outputs are the resource's representations: an own
+                // identifier takes its spelling there (34f), and a property its
+                // declared presence (34e). An input binds by entry name, and
+                // asks for what the operation needs.
+                let representation = context.view || context.site == Site::Output;
+                let spelled = entry
+                    .alias
+                    .as_ref()
+                    .filter(|_| representation && found.own && entry.kind == ResourceEntryKind::Id);
+                let (member_name, member_span) = match (alias, spelled) {
+                    (Some(alias), _) => (alias.name.clone(), alias.span),
+                    (None, Some(spelled)) => (spelled.name.clone(), name.span),
+                    (None, None) => (name.name.clone(), name.span),
+                };
                 let doc = member.doc.as_ref().or(entry.doc.as_ref());
                 (
-                    member_name.name.clone(),
-                    member_name.span,
+                    member_name,
+                    member_span,
                     Some(&entry.ty),
-                    entry_file,
-                    !optional,
+                    found.file,
+                    !optional && !(representation && entry.optional),
                     None,
                     doc,
                 )
@@ -2560,6 +3368,12 @@ impl<'a> Lowerer<'a> {
             &member.modifiers,
             Position::Member,
         );
+        let mutability = match bound {
+            Some(found) => {
+                self.bound_mutability(file, member, &name, found.entry, &annotations, context)
+            }
+            None => annotations.mutability,
+        };
         let target = match ty {
             Some(ty) => self.resolve_type(ty_file, &ty.name)?,
             None => smithy("Unit"),
@@ -2596,8 +3410,8 @@ impl<'a> Lowerer<'a> {
         // bind (decision 32), where `$name` would be an error.
         if matches!(member.kind, MemberKind::Field { .. })
             && let Some(resource) = context.resource
-            && let Some((_, entry)) = self.resource_entry(resource, &name)
-            && self.type_id(&entry.ty.name.name).as_ref() == Some(&target)
+            && let Some(found) = self.resource_entry(resource, &name)
+            && self.type_id(&found.entry.ty.name.name).as_ref() == Some(&target)
             && !(context.collection && self.identifiers(resource).1.contains(&name))
         {
             self.warning(
@@ -2742,7 +3556,7 @@ impl<'a> Lowerer<'a> {
             // Decision 20: a required member is required in generated clients too.
             client_optional: false,
             idempotency_token: annotations.token,
-            mutability: annotations.mutability,
+            mutability,
             constraints,
             timestamp_format: own.format,
             wire_timestamp_format,
@@ -3287,7 +4101,7 @@ impl<'a> Lowerer<'a> {
                         MemberKind::Elided { name, alias, .. } => {
                             Some(alias.as_ref().unwrap_or(name).name.as_str())
                         }
-                        MemberKind::Include(_) => None,
+                        MemberKind::Include(_) | MemberKind::All(_) => None,
                     })
                     .collect()
             })

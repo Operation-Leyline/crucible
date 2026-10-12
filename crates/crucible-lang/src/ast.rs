@@ -173,9 +173,17 @@ pub enum ResourceEntryKind {
 pub struct ResourceEntry {
     pub doc: Option<Doc>,
     pub annotations: Vec<Annotation>,
+    /// `readonly`, `immutable`, `writeonly` (decision 34a). Lowering checks
+    /// which apply and which combine.
+    pub modifiers: Vec<Ident>,
     pub kind: ResourceEntryKind,
     pub name: Ident,
+    /// `property lastMessageAt?: DateTime` (decision 34e).
+    pub optional: bool,
     pub ty: TypeRef,
+    /// `id inboxId: InboxId as id`: the identifier's name in the resource's
+    /// own views and output elisions (decision 34f).
+    pub alias: Option<Ident>,
     pub span: Span,
 }
 
@@ -280,6 +288,9 @@ pub enum MemberKind {
         alias: Option<Ident>,
         optional: bool,
     },
+    /// `$*` in a `for` view: the resource's own identifiers and readable
+    /// properties (decision 34d). The span covers `$*`.
+    All(Span),
     /// `name?: Type { constraints } = default`. A union arm may have no type.
     Field {
         name: Ident,

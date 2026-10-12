@@ -593,8 +593,13 @@ pub struct Member {
     pub client_optional: bool,
     /// The input member a client fills with a fresh idempotency token.
     pub idempotency_token: bool,
-    /// An explicit infrastructure mutability for the property this member
-    /// carries; `None` leaves it to the resource lifecycle.
+    /// The infrastructure mutability of the property this member carries.
+    /// A `.cru` package sets it from the property's keyword on every member
+    /// that carries the value (views, outputs, and the inputs of `creates`,
+    /// `puts` and `updates`), and from `@mutability` on a member that binds
+    /// no property; the Smithy front end sets it only from `@cfnMutability`.
+    /// `None` declares nothing: a filter binding, an identifier, or a
+    /// Smithy member without the trait.
     pub mutability: Option<Mutability>,
     /// The target's constraints with the member's own laid over them.
     pub constraints: Constraints,

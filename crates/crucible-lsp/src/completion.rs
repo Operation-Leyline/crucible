@@ -416,6 +416,11 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "include another structure's members",
                 "include ${1:Structure}",
             );
+            items.snippet(
+                "$*",
+                "a `for` view's identifiers and readable properties",
+                "\\$*",
+            );
         }
         Context::ErrorEntries => {
             items.snippet("status", "HTTP status", "status ${1:400}");
@@ -428,6 +433,9 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "resource property",
                 "property ${1:name}: ${2:Type}",
             );
+            items.keyword("readonly", "assigned by the service");
+            items.keyword("immutable", "set by creates or puts, then fixed");
+            items.keyword("writeonly", "written, never returned");
         }
         Context::Constraints => {
             items.snippet(

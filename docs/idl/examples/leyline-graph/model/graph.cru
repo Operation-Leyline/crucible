@@ -45,29 +45,38 @@ metadata auditField on member conflicts sensitive
 // The resource lists no operations; each operation attaches itself with a role
 // verb. Index, ImportJob, QueryJob and Write declare `in Graph` the same way.
 resource Graph in Organization {
-    id graphId: GraphId
+    // `as id`: the identifier is `id` in Graph's own views and outputs;
+    // inputs bind it as `graphId`, the URI label's name.
+    id graphId: GraphId as id
 
-    property groupId: GraphGroupId
-    property groupRevision: GraphGroupRevision
+    // A keyword declares what may change: `readonly` is assigned by Leyline,
+    // `immutable` is chosen at creation and fixed, and a property with
+    // neither is updatable. The compiler checks every `creates` and `updates`
+    // input against them. `?` means absent in every view.
+    //
+    // `groupId` changes through PutGraphGroupMembership, an `on` operation,
+    // which those checks do not count (a custom action may change anything),
+    // so the compiler warns that no `updates` binds it.
+    property groupId?: GraphGroupId
+    readonly property groupRevision: GraphGroupRevision
     property name: GraphName
-    property homeRegion: GraphHomeRegion
-    property description: GraphDescription
-    property createdAt: DateTime
-    property updatedAt: DateTime
-    property manifestGeneration: GraphGeneration
-    property nodeCount: Count
-    property edgeCount: Count
-    property keySpec: KeySpec
-    property sizeBytes: ByteCount
-    property indexBytes: ByteCount
-    property importSummary: GraphImportSummary
-    property schemaPreview: GraphSchemaPreview
-    property searchMetadata: GraphSearchMetadata
-    property historyId: GraphHistoryId
+    immutable property homeRegion: GraphHomeRegion
+    property description?: GraphDescription
+    readonly property createdAt: DateTime
+    readonly property updatedAt: DateTime
+    readonly property manifestGeneration: GraphGeneration
+    readonly property nodeCount: Count
+    readonly property edgeCount: Count
+    immutable property keySpec?: KeySpec
+    readonly property sizeBytes?: ByteCount
+    readonly property indexBytes?: ByteCount
+    readonly property importSummary?: GraphImportSummary
+    readonly property schemaPreview?: GraphSchemaPreview
+    readonly property searchMetadata?: GraphSearchMetadata
+    readonly property historyId?: GraphHistoryId
 }
 
 // Elsewhere, one file per operation, as Leyline lays them out today:
-//   operation UpdateGraph updates Graph { .. }
 //   operation RevertGraph on Graph { .. }
 //   operation ExecuteQuery on Graph { .. }
 //   operation BatchGetGraph on Graph collection { .. }
@@ -92,9 +101,11 @@ string GraphDescription { length 0..2000; pattern "^[^\\x00-\\x08\\x0B\\x0C\\x0E
 /// One graph. `for Graph` makes this a view of the resource: a `$member` is
 /// that identifier or property, with its type and docs; any member written in
 /// full is not. Nothing is marked "not a property".
+// The list is explicit because its members carry docs of their own; a view
+// that only repeats the resource would be `structure GraphData for Graph { $* }`.
 structure GraphData for Graph {
     /// The identifier Leyline assigned. Every request addresses the graph by it.
-    $graphId as id
+    $graphId
 
     /// The region holding this graph's data. Every graph has one.
     $homeRegion
@@ -200,6 +211,28 @@ operation GetGraph reads Graph {
     }
 
     errors [ResourceNotFoundException]
+}
+
+/// Rename a graph or change its description.
+// `updates` binds only what may change: the `immutable` homeRegion or a
+// `readonly` property here would be an error.
+@auditCategory(management)
+@operationClass(controlWrite)
+idempotent operation UpdateGraph updates Graph {
+    http PATCH "/v1/organizations/{organizationId}/graphs/{graphId}"
+
+    input {
+        $organizationId
+        $graphId
+        $name?
+        $description?
+    }
+
+    output {
+        graph: GraphData
+    }
+
+    errors [ResourceNotFoundException, ConflictException]
 }
 
 /// List an organization's graphs.

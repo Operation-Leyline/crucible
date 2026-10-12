@@ -29,8 +29,44 @@ version's section when it is prepared.
   required, its default, and spells out the constraints that apply to it,
   its own laid over its type's. Code is fenced as `crucible`, so editors,
   the IntelliJ plugin among them, highlight it; prose stays outside.
+- `.cru` resources declare property mutability with keywords (decision
+  34a): `readonly`, `immutable`, `writeonly` and `immutable writeonly`.
+  Lowering writes it to `ir::Member::mutability` on every member that
+  carries the property's value (views, outputs, and the inputs of
+  `creates`, `puts` and `updates`), and the compiler checks bindings
+  against it: an `updates` input cannot write a `readonly` or `immutable`
+  property, a `creates` or `puts` input cannot write a `readonly` one, an
+  `immutable` property needs a `creates` or `puts` that sets it, a
+  `writeonly` one never appears in a view or output, and a `@mutability`
+  annotation on a member that binds a property must agree with its
+  keyword. A property nothing updates that is left read-write is a
+  warning.
+- `$*` in a `for` view (decision 34d) expands to the resource's own
+  identifiers and every property that is not `writeonly`, in declaration
+  order; `$name?` after it loosens one entry for that view.
+- A property declares its presence, `property lastMessageAt?: DateTime`
+  (decision 34e): optional in every view and output without a `?`, while
+  inputs keep per-site presence.
+- An identifier names its spelling in its resource's own views and
+  outputs, `id inboxId: InboxId as id` (decision 34f); inputs still bind
+  it as `inboxId`.
+- Two warnings for a resource modelled beside its representation
+  (decision 34h): a resource with `reads`, `lists` or `creates` operations
+  whose outputs show none of its properties, and a structure without `for`
+  that restates a resource's identifier and a property.
 
 ### Changed
+
+- **Breaking (`.cru`):** a child resource inherits its ancestors'
+  identifiers, not their properties (decision 31). A property name now
+  only has to differ from the resource's identifiers, inherited ones
+  included, and from its own other properties, so a parent and a child may
+  both declare `name` or `createdAt`; `$name` in a child's operation or
+  view no longer finds an ancestor's property and reports that it is not
+  inherited.
+- `ir::Member::mutability` is no longer only an explicit override: from a
+  `.cru` package it is the declared mutability of the property the member
+  carries.
 
 - **Breaking:** generated Rust client models, enums, unions and per-operation
   error enums are `#[non_exhaustive]`. Code in another crate builds models

@@ -312,14 +312,26 @@ trait when a project defines it.
     property name: GraphName; ... }`. A child resource names its parent
     with `in` and inherits the parent's identifiers, so `Graph` is
     addressed by `organizationId` and `graphId` without restating the
-    first. Root resources are listed on the service as today. A resource
-    does not list its operations. *Replaces:* `identifiers`, `properties`,
-    the lifecycle slots, `operations`, `collectionOperations`, the
-    parent's `resources: [..]` list, and Smithy's rule that a child
-    restates every parent identifier. *Why:* both consumers keep one file
-    per operation in a folder per resource; a resource-side list means
-    every new operation edits two distant files, and Leyline's `Graph`
-    would list 13 operations and 4 children in its block.
+    first. It inherits identifiers only, as in Smithy, not the parent's
+    properties: a child is addressed by its parents but described by its
+    own state. Identifier names are therefore unique across the chain,
+    since an instance operation binds every one of them; a property name
+    must differ from every identifier the resource has, its own and
+    inherited, and from its other properties, while properties of
+    different resources in a chain are independent (Pigeon's `Workspace`
+    and its child `Domain` both have `name` and `createdAt`). `$name` in an
+    operation attached to a resource, or in a `for` view of it, names one
+    of its own identifiers or properties or an inherited identifier, never
+    an ancestor's property. Root resources are listed on the service as
+    today. A resource does not list its operations. *Replaces:*
+    `identifiers`, `properties`, the lifecycle slots, `operations`,
+    `collectionOperations`, the parent's `resources: [..]` list, and
+    Smithy's rule that a child restates every parent identifier. *Why:*
+    both consumers keep one file per operation in a folder per resource; a
+    resource-side list means every new operation edits two distant files,
+    and Leyline's `Graph` would list 13 operations and 4 children in its
+    block. A namespace shared with every ancestor's properties made Pigeon
+    rename `Workspace`'s `name` so that no resource below it could have one.
 
     *Known limit:* identifiers a collection operation binds come only from
     a parent (decision 32). Smithy allows a root resource whose own
@@ -390,11 +402,13 @@ trait when a project defines it.
     the `for` elision on structures. *Why:* list-output binding becomes
     first-class, which Smithy still gets wrong (smithy #2968).
 
-> **Revised 2026-10-11; decided, not built.** 34a and 34c-34i follow three
-> independent reviews of a proposal to make a resource its own full
-> representation, which they rejected as written. The compiler still parses
-> resource entries without modifiers, `?` or `as`, refuses annotations on
-> them, and leaves `Service::resources` empty (decision 63).
+> **Revised 2026-10-11.** 34a and 34c-34i follow three independent reviews
+> of a proposal to make a resource its own full representation, which they
+> rejected as written. Built: 34a's keywords, checks and lowering, `$*`
+> (34d), property presence (34e), identifier spelling (34f) and 34h's two
+> warnings. Not built: `references` (34b) and 34c's default-view shorthand;
+> 34i is open. The compiler still refuses annotations on resource entries
+> and leaves `Service::resources` empty (decision 63).
 
 34a. **Property mutability is declared on the property, from a closed set
     of keywords, and the compiler checks bindings against it.**
@@ -548,7 +562,7 @@ trait when a project defines it.
     `Workspace`. A representation name must therefore be unique among the
     entries the resource's own views can show (its own entries and
     inherited identifiers under their identifier names), not across the
-    chain, which still holds for identifier and property names. Composite
+    chain, which holds only for identifier names (31). Composite
     identifiers keep their own names: Pigeon's `Grant` (`principalType`,
     `principalId`, `resourceType`, `resourceId`) has no single `id` to
     invent. *Replaces:* declaring an identifier beside a `property id` of
@@ -1185,11 +1199,11 @@ these are working choices, changed freely as implementation teaches.
       (decision 26), where Smithy needs `@idempotent` written;
     - `include` does not copy the included structure's documentation onto
       the includer (decision 40), where Smithy's mixin flattening does;
-    - once built, every member that carries a property's value has
-      `mutability` set from the property's keyword (decision 34a), where
-      Smithy sets it only from `@cfnMutability`; the weather comparison's
-      normalization (`as_cru_lowers_it` in `weather_ir.rs`) has to fill it
-      the same way.
+    - every member that carries a property's value has `mutability` set
+      from the property's keyword (decision 34a), where Smithy sets it only
+      from `@cfnMutability`; the weather comparison's normalization
+      (`as_cru_lowers_it` in `weather_ir.rs`) fills it on the members
+      `weather.cru` binds to `City`'s properties.
     Like Smithy's `lower`, the `.cru` compile produces the contract IR and
     leaves `Service::resources` empty; resource views come with the
     documentation and infrastructure lowerings, which the language does not

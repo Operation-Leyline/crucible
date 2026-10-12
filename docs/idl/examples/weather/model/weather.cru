@@ -26,8 +26,13 @@ metadata audited on member
 
 // A resource declares only what it is. Operations attach themselves with a
 // role verb (creates, reads, lists, on ...), so the resource never lists them.
+// `as id` spells the identifier `id` in City's views; inputs still bind it as
+// `cityId`, the URI label. `readonly` properties are assigned by the service,
+// and `?` makes a property optional in every view.
 resource City {
-    id cityId: CityId
+    id cityId: CityId as id
+    readonly property updatedAt?: timestamp
+    readonly property createdAt?: timestamp { format epoch-seconds }
 }
 
 @deprecated(since: "2026-09", message: "Use Status instead.")
@@ -42,7 +47,7 @@ readonly operation Status {
 }
 
 // `creates` binds only parent identifiers (City has none). The members below
-// are plain input members: City declares no properties in this model.
+// are plain input members: the client sets none of City's properties.
 @tier("write")
 idempotent operation CreateCity creates City {
     http POST "/cities" -> 201
@@ -188,13 +193,16 @@ list ValidationFieldList: ValidationField
 
 map Forecast: Sky -> document
 
-structure CitySummary {
-    id: CityId
+// A view of City: `$cityId` is the member `id`, and the elided properties
+// take their type, presence and mutability from the resource. A view may
+// also hold plain members.
+structure CitySummary for City {
+    $cityId
     name: CityName
     population: long = 0
-    updatedAt?: timestamp
+    $updatedAt
     @deprecated(since: "2026-08", message: "Use updatedAt.")
-    createdAt?: timestamp { format epoch-seconds }
+    $createdAt
 }
 
 @unstable
