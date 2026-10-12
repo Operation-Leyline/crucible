@@ -128,7 +128,8 @@ in [explorer.md](explorer.md) and the traits coordinates in
 [clients.md](clients.md):
 
 ```sh
-git grep -n '=X\.Y\.Z\|crucible-traits:X\.Y\.Z' -- docs   # the previous version
+PREVIOUS=0.2.0   # the version being replaced
+git grep -n -F -e "=$PREVIOUS" -e "crucible-traits:$PREVIOUS" -- docs
 ```
 
 Commit the version bump and reviewed golden changes together, then open a PR:
