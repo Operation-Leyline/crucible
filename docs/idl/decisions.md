@@ -269,9 +269,9 @@ trait when a project defines it.
 27a. **Keywords versus annotations follow one rule.** A keyword is a
     modifier from a closed set the compiler validates and the IR models as
     a flag: `readonly`, `idempotent`, `public`, `strict`, `internal`,
-    `sensitive`, `unique`, `retryable`, and on properties `immutable` and
-    `writeonly` (34a). An `@annotation(..)` carries a value or binds a
-    member to something outside the type system: HTTP
+    `sensitive`, `unique`, `retryable`, and on properties `readonly` (34a),
+    `immutable` and `writeonly`. An `@annotation(..)` carries a value or
+    binds a member to something outside the type system: HTTP
     bindings, `@token`, documentation notes, and all project metadata.
     Annotation arguments are type-checked. *Replaces:* Smithy's "everything
     is a trait". *Why:* research found no comparative evidence for either
@@ -399,15 +399,32 @@ trait when a project defines it.
 34a. **Property mutability is declared on the property, from a closed set
     of keywords, and the compiler checks bindings against it.**
     `property name: GraphName` is read-write; `readonly property status:
-    DomainStatus` is assigned by the service; `immutable property address:
-    EmailAddress` is set by `creates` or `puts` and read-only afterwards;
-    `writeonly property password: Password` is written and never returned;
-    `immutable writeonly` is set on create and never returned. They map one
-    to one onto `ir::Mutability` (`full`, `read`, `createAndRead`, `write`,
-    `create`); identifiers are immutable and take no keyword. What was a
-    derivation is now validation:
+    DomainStatus` is assigned by the service; `immutable property
+    homeRegion: GraphHomeRegion` (Leyline) is set by `creates` or `puts`
+    and read-only afterwards; `writeonly property password: Password` is
+    written and never returned; `immutable writeonly` is set on create and
+    never returned. `immutable writeonly` is the only combination:
+    `readonly` combines with neither, as AIP-203 refuses `OUTPUT_ONLY`
+    with `INPUT_ONLY`. Read-write, `readonly`, `immutable`, `writeonly` and
+    `immutable writeonly` lower to the `ir::Mutability` variants `Full`,
+    `Read`, `CreateAndRead`, `Write` and `Create`; identifiers are
+    immutable and take no keyword. What was a derivation is now validation:
     - an `updates` input binding a `readonly` or `immutable` property is an
       error, and so is a `creates` or `puts` input binding a `readonly` one;
+    - an `immutable` property that no `creates` or `puts` input binds is an
+      error: nothing could ever set it;
+    - a property that is neither `readonly` nor `immutable` and that no
+      `updates` or `puts` input binds is a warning ("declare it
+      `immutable`"): left read-write, the infrastructure generators would
+      offer an in-place update nothing implements, where CloudFormation
+      treats a missing update handler as replacement (Pigeon's `ApiKey`,
+      `Thread` and `Domain`, Leyline's `ImportJob` and `QueryJob` have no
+      `updates`);
+    - a `puts` that changes an `immutable` value on an existing resource
+      replaces the resource, the meaning of PUT (RFC 9110) and of a
+      create-only change in CloudFormation, CDK and Terraform; a handler
+      that cannot replace reports a conflict, which is its error, not a
+      model fact;
     - a `writeonly` property in a `for` view or an output elision is an
       error, and `$*` (34d) leaves it out;
     - a binding under `@query`, or in a `reads`, `lists` or `deletes`
@@ -416,26 +433,35 @@ trait when a project defines it.
       state the lifecycle cannot (a suspend sets a `readonly` status).
 
     Lowering writes the property's mutability to `ir::Member::mutability`
-    on every member that binds it; the infrastructure generators read that
-    field, and the Smithy front end fills it from `@cfnMutability`. The
-    `@mutability(full | create | createAndRead | read | write)` member
-    annotation stays for members that bind no property (Pigeon's
-    `localPart`, a create-time parameter of `CreateInbox`, is `create`); on
-    a member that binds a property it is an error when it disagrees with
-    the keyword. *Replaces:* the earlier 34a, which derived mutability from
-    which inputs and outputs bind a property, and Smithy's
-    `aws.cloudformation` derivation and `@cfnMutability`. *Why:* the
-    derivation turns circular once a view can expand (34d): `$*` takes the
-    readable properties, readability was inferred from appearing in
-    outputs, so adding an operation could change an existing
-    representation. It also could not separate create-only from
-    write-only, which are two facts, and it called everything a `puts` sets
-    create-only though a repeated put replaces state. A declared keyword is
-    one fact that validation, `$*`, and the CDK, Terraform and
-    CloudFormation generators all read, as AIP-203 field behaviours and
-    OpenAPI `readOnly`/`writeOnly` declare it. It describes the contract,
-    not authorization: who may change a field stays in handlers and
-    middleware.
+    on every member that carries the property's value: view and output
+    members and the bindings in `creates`, `puts` and `updates` inputs.
+    Filter bindings carry none, since the infrastructure generators hide
+    a `Write` or `Create` member and every shape containing one
+    (`write_only_shape`), and a filter is not the property. Smithy fills
+    the field only from `@cfnMutability`, so this is a deliberate
+    front-end difference (decision 63), and `ir::Member::mutability`'s doc
+    comment ("`None` leaves it to the resource lifecycle") changes with
+    it. The `@mutability(full | create | createAndRead | read | write)`
+    member annotation, whose lower-case spellings are the annotation's and
+    not the IR's, stays for members that bind no property (Pigeon's
+    `localPart`, a create-time parameter of `CreateInbox` from which the
+    service derives the `readonly` address, is `create`); on a member that
+    binds a property it is an error when it disagrees with the keyword.
+    *Replaces:* the earlier 34a, which derived mutability from which inputs
+    and outputs bind a property, and Smithy's `aws.cloudformation`
+    derivation and `@cfnMutability`. *Why:* the derivation turns circular
+    once a view can expand (34d): `$*` takes the readable properties,
+    readability was inferred from appearing in outputs, so adding an
+    operation could change an existing representation. It also could not
+    separate create-only from write-only, which are two facts, and it
+    called everything a `puts` sets create-only though a repeated put
+    replaces state. A declared keyword is one fact that validation, `$*`,
+    and the CDK, Terraform and CloudFormation generators all read, as
+    AIP-203 field behaviours and OpenAPI `readOnly`/`writeOnly` declare it.
+    The two binding checks keep what the derivation got right: a property
+    no update writes is not offered as updatable. Mutability describes
+    the contract, not authorization: who may change a field stays in
+    handlers and middleware.
 
 34b. **`references Resource` on a member or structure is kept.**
     *Replaces:* `@references`. *Why:* Pigeon's `WorkspaceScoped` uses it;
@@ -465,9 +491,12 @@ trait when a project defines it.
     every readable property.** `structure InboxData for Inbox { $*;
     $lastOtp? }`. Identifiers come first under their representation name
     (34f), then every property that is not `writeonly`, in property
-    declaration order, each with the property's presence (34e). An
-    explicit `$x?` after `$*` overrides that entry's presence in this view
-    and keeps its position; any other entry lands where it is written.
+    declaration order, each with the property's presence (34e). An entry
+    `$*` includes may be named again only as `$x?` after `$*`, which
+    overrides its presence in this view and keeps its position; `$x`
+    without `?`, `$x as y`, or any mention before `$*` is an error
+    ("already included by `$*`"). Every other entry lands where it is
+    written.
     Inherited parent identifiers are not included: a view that carries
     `workspaceId` writes `$workspaceId`. `$*` appears at most once, and
     only in a `for` view: an input binds what the operation takes, not the
@@ -508,11 +537,18 @@ trait when a project defines it.
     asks for it is a fact about the operation.
 
 34f. **An identifier may name its representation spelling: `id inboxId:
-    InboxId as id`.** In views and output elisions the identifier appears as
-    `id`: `$inboxId` written there, and `$*`, produce the member `id`
-    without a per-view `as`. Inputs still bind it as `inboxId`, the URI
-    label's name. A property named like an identifier's representation name
-    is an error, since entries are unique across the chain. Composite
+    InboxId as id`.** In views and output elisions of `Inbox` the
+    identifier appears as `id`: `$inboxId` written there, and `$*`, produce
+    the member `id` without a per-view `as`. Inputs still bind it as
+    `inboxId`, the URI label's name. The spelling belongs to the declaring
+    resource's own representations only: in a child's views an inherited
+    identifier appears under its identifier name unless written with `as`,
+    so Leyline's `Graph` and its child `Index` can both show `id` (the
+    graph's and the index's), as can Pigeon's `AuditEventData` under
+    `Workspace`. A representation name must therefore be unique among the
+    entries the resource's own views can show (its own entries and
+    inherited identifiers under their identifier names), not across the
+    chain, which still holds for identifier and property names. Composite
     identifiers keep their own names: Pigeon's `Grant` (`principalType`,
     `principalId`, `resourceType`, `resourceId`) has no single `id` to
     invent. *Replaces:* declaring an identifier beside a `property id` of
@@ -535,8 +571,9 @@ trait when a project defines it.
     filters them; they have no life as resource state.
 
 34h. **Two warnings catch a resource modelled beside its
-    representation:** a resource that holds a lifecycle role (32) while no
-    operation output carries a `for` view of it, and a structure without
+    representation:** a resource holding `reads`, `lists` or `creates`
+    (32) whose operations' outputs bind none of its properties, through a
+    `for` view or a top-level elision (34), and a structure without
     `for` that restates, by name and type, an identifier and a property of
     one resource ("did you mean `structure GrantData for Grant`?").
     *Replaces:* nothing; Smithy's property validator forced bindings only
@@ -551,15 +588,19 @@ trait when a project defines it.
 34i. **OPEN: update semantics.** Clearing an optional property, merge
     versus replace, and field masks are left to their own decision. `$x?`
     in an `updates` input says the member may be absent, not what absence
-    does, and decision 20 makes absent and null one state, so a model
-    cannot say "leave unchanged" apart from "clear". Pigeon's
-    `UpdateTemplate` shows both in one input: an omitted `name` is kept,
-    while giving any of `subject`, `text` or `html` replaces all three, so
-    an omitted `html` removes it; only its documentation says so.
-    Candidates are a `merge`/`replace` declaration per operation or
-    member, an explicit clear (JSON Merge Patch's null, which 20 rules
-    out), and an update mask (AIP-134); each needs runtime support.
-    *Why open:* the choice changes every SDK's update builders, and 34a's
+    does. Decision 20 defines required, optional and defaulted members but
+    not what an explicit null means for an optional input: the Rust wire
+    layer keeps absent, null and value apart (`Field`), clients keep an
+    explicit null distinct from absence ([clients.md](../clients.md)), and
+    a protocol that omits null members reads one as absence (`NullAbsent`),
+    so the model cannot yet say "leave unchanged" apart from "clear".
+    Pigeon's `UpdateTemplate` shows both in one input: an omitted `name` is
+    kept, while giving any of `subject`, `text` or `html` replaces all
+    three, so an omitted `html` removes it; only its documentation says so.
+    Candidates are a `merge`/`replace` declaration per operation or member,
+    an explicit clear (JSON Merge Patch's null, which would need every
+    protocol to keep null distinct), and an update mask (AIP-134); each
+    needs runtime support. *Why open:* the choice changes every SDK's update builders, and 34a's
     validation holds whichever is chosen.
 
 ## Protocols, auth and transport
@@ -1143,7 +1184,12 @@ these are working choices, changed freely as implementation teaches.
     - a `@token` member makes an operation idempotent without the keyword
       (decision 26), where Smithy needs `@idempotent` written;
     - `include` does not copy the included structure's documentation onto
-      the includer (decision 40), where Smithy's mixin flattening does.
+      the includer (decision 40), where Smithy's mixin flattening does;
+    - once built, every member that carries a property's value has
+      `mutability` set from the property's keyword (decision 34a), where
+      Smithy sets it only from `@cfnMutability`; the weather comparison's
+      normalization (`as_cru_lowers_it` in `weather_ir.rs`) has to fill it
+      the same way.
     Like Smithy's `lower`, the `.cru` compile produces the contract IR and
     leaves `Service::resources` empty; resource views come with the
     documentation and infrastructure lowerings, which the language does not

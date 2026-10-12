@@ -58,8 +58,8 @@ clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
 resource_entry = [ doc ] { annotation } ( "id" | "property" ) ident ":" type_ref ;
-                 (* decided, not built (34a, 34d-34f): mutability keywords and
-                    `?` on properties, `id x: T as name`, and `$*` in a view *)
+                 (* decided, not built (34a, 34e, 34f): mutability keywords
+                    and `?` on properties, `id x: T as name` *)
 
 operation   = "operation" ident [ role ident [ "collection" ] ] "{" { op_entry } "}" ;
 role        = ident ;          (* creates | puts | reads | updates | deletes | lists | on;
@@ -81,6 +81,7 @@ member      = [ doc ] { annotation } { modifier } ( include | elided | field_mem
                                                            (* modifiers: internal, sensitive *)
 include     = "include" ident ;
 elided      = "$" ident [ "as" ident ] [ "?" ] ;
+                                    (* decided, not built (34d): `$*` in a `for` view *)
 field_member = ident [ "?" ] [ ":" type_ref ] [ "=" value ] ;   (* no type: unit union arm *)
 
 type_ref    = ident [ constraints ] ;
