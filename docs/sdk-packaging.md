@@ -141,7 +141,8 @@ into the release record.
 **One compiler for SDKs and server** *(built)*. When the service's `Cargo.lock`
 resolves `crucible-build` or `crucible-server-runtime-rust` from Git,
 `crucible sdk` refuses to run at any other revision, and names the one to
-install. `setup-crucible` can read that revision from the lock. This
+install. A workflow step reads that revision from the lock and passes it
+to `setup-crucible` as `crucible-ref` (section 5). This
 replaces `codegen.sh`'s install-per-revision.
 
 **Build scripts (phase 3).** `model.sdks("../crucible-sdk.toml")` writes
@@ -517,37 +518,75 @@ server refuses an unknown release ([api-versions-clients.md](api-versions-client
 concurrency: { group: sdk-release, cancel-in-progress: false }
 jobs:
   sdk:
+    # Planning reads every channel, so the build job needs read access too:
+    # packages: read for GitHub Packages, a read-only deploy key for a git channel.
     permissions: { contents: read, packages: read }
+    outputs: { crucible-ref: '${{ steps.pin.outputs.rev }}' }
     steps:
       - uses: actions/checkout@v4
         with: { ref: '${{ github.event.workflow_run.head_sha || github.sha }}' }
+      # Crucible is private, and github.token cannot read another repository.
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          owner: Operation-Leyline
+          repositories: crucible
+      # The revision Cargo.lock pins; `crucible sdk` refuses to run at any other.
+      - id: pin
+        shell: bash
+        run: |
+          rev=$(awk -F'"' '/^name = /{n=$2} /^source = "git\+/ && (n=="crucible-build" || n=="crucible-server-runtime-rust") {sub(/.*#/, "", $2); print $2; exit}' Cargo.lock)
+          echo "rev=$rev" >> "$GITHUB_OUTPUT"
+      # Builds the CLI (a debug build) and names it in its `cli` output; it
+      # is not put on PATH.
+      - id: crucible
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ steps.pin.outputs.rev }}', token: '${{ steps.token.outputs.token }}' }
       - uses: ./.github/actions/crucible-access            # private Crucible, for the consumer's cargo test
-      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>   # the revision Cargo.lock pins
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
         with: { ssh-private-key: '${{ secrets.SDK_READ_KEY }}' }          # reads the git channel
-      - run: crucible sdk build --out target/sdk-release    # plans, builds, runs the consumers' tests
+      # Plans, builds, runs the consumers' tests.
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk build --out target/sdk-release'
         env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
       - uses: actions/upload-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
   deploy:
     needs: sdk
   sdk-publish:
-    needs: deploy
+    needs: [sdk, deploy]
     environment: sdk-publish
     permissions: { contents: read, packages: write }
     steps:
       - uses: actions/download-artifact@v4
         with: { name: sdk-release, path: target/sdk-release }
-      - uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+      - id: token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: '${{ vars.CRUCIBLE_APP_ID }}'
+          private-key: '${{ secrets.CRUCIBLE_APP_KEY }}'
+          owner: Operation-Leyline
+          repositories: crucible
+      - id: crucible
+        uses: Operation-Leyline/crucible-actions/setup-crucible@<pinned sha>
+        with: { crucible-ref: '${{ needs.sdk.outputs.crucible-ref }}', token: '${{ steps.token.outputs.token }}' }
       - uses: actions/setup-node@v4
         with: { node-version: '22', registry-url: 'https://npm.pkg.github.com' }
       - uses: webfactory/ssh-agent@<pinned sha>
         with: { ssh-private-key: '${{ secrets.SDK_PUBLISH_KEY }}' }
-      - run: crucible sdk verify target/sdk-release
-      - run: crucible sdk publish target/sdk-release --execute
-        env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk verify target/sdk-release'
+      - run: '"${{ steps.crucible.outputs.cli }}" sdk publish target/sdk-release --execute'
+        env:
+          NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
+          # Who git-channel release commits name; unset, they are
+          # `Crucible <crucible@noreply.invalid>`.
+          GIT_AUTHOR_NAME: sdk-release
+          GIT_AUTHOR_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: sdk-release
+          GIT_COMMITTER_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
 ```
 
 No history is fetched: the baseline is the last release's own snapshot,
