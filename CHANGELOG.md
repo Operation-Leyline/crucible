@@ -15,6 +15,25 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- Deadlines are enforced. A request is stopped at the host's deadline (a
+  Lambda invocation's) less `DEADLINE_RESERVE` (250 ms), or at
+  `Builder::request_timeout(duration)` after it arrived, whichever comes
+  first. It then fails with the new `DeadlineExceeded` error: the phases
+  already entered unwind, the exception rules apply, and the service log
+  records the cause. Behind CloudFront (30 s origin timeout by default) or a
+  gateway, set `request_timeout` below that timeout. Otherwise the caller
+  gets the CDN's 504 while the function keeps running, billed, for nobody.
+  See [docs/framework.md](docs/framework.md#deadlines).
+
+### Changed
+
+- `Context::deadline()` reports the deadline the framework enforces: the
+  host's less `DEADLINE_RESERVE`, or the `request_timeout`, whichever is
+  earlier. Before, it reported the host's deadline unchanged, and nothing
+  enforced it.
+
 ### Security
 
 - A rejection lists at most 100 violations

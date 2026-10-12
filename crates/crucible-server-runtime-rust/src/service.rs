@@ -5,6 +5,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::body::{Body, Bytes, HttpBody};
 use axum::http::{HeaderValue, Request};
@@ -94,6 +95,7 @@ struct Inner {
     translator: ExceptionTranslator,
     reject: Reject,
     body_limit: usize,
+    request_timeout: Option<Duration>,
     request_id: Option<RequestIdSource>,
     unversioned: Unversioned,
 }
@@ -111,6 +113,7 @@ impl Crucible {
             reject: None,
             body_limit: DEFAULT_BODY_LIMIT,
             body_limits: Vec::new(),
+            request_timeout: None,
             request_id: None,
             unversioned: Unversioned::default(),
         }
@@ -191,8 +194,26 @@ impl Crucible {
             .or_else(|| meta.and_then(|meta| meta.request_id.clone()))
             .filter(|id| !id.is_empty() && id.len() <= MAX_REQUEST_ID && id.to_str().is_ok())
             .unwrap_or_else(request_id);
-        let deadline = meta.and_then(|meta| meta.deadline);
+        let host_deadline = meta.and_then(|meta| meta.deadline);
         let context = Arc::new(Context::new(id, None, parts));
+        // The deadline the framework enforces: the host's, less the time the
+        // after phases and the response need, or the service's own budget,
+        // whichever comes first. The context holds it, so an extension or
+        // an implementation budgets against the moment it is stopped.
+        let deadline = host_deadline
+            .map(|deadline| {
+                deadline
+                    .checked_sub(crate::DEADLINE_RESERVE)
+                    .unwrap_or(deadline)
+            })
+            .into_iter()
+            // A budget too long for an `Instant` is no budget.
+            .chain(
+                inner
+                    .request_timeout
+                    .and_then(|timeout| context.received().checked_add(timeout)),
+            )
+            .min();
         if let Some(deadline) = deadline {
             context.set_deadline(deadline);
         }
@@ -233,7 +254,26 @@ impl Crucible {
                         .iter()
                         .position(|p| p.owns(job.request()))
                         .unwrap_or(inner.fallback);
-                    self.execute(&mut job, &mut entered, &mut selected).await;
+                    let execute = self.execute(&mut job, &mut entered, &mut selected);
+                    // Past the deadline the phase running is dropped, as a
+                    // panic would end it: the phases entered still unwind.
+                    let expired = match deadline {
+                        None => {
+                            execute.await;
+                            false
+                        }
+                        Some(deadline) => {
+                            tokio::select! {
+                                biased;
+                                () = execute => false,
+                                () = tokio::time::sleep_until(deadline.into()) => true,
+                            }
+                        }
+                    };
+                    if expired {
+                        let elapsed = job.context().received().elapsed();
+                        job.fail(Error::new(crate::DeadlineExceeded::new(elapsed)));
+                    }
                     // Decoded input is still present when an interceptor refuses or answers.
                     if entered.decoded && job.wants_snapshot && job.input_snapshot.is_none() {
                         job.input_snapshot = job.input.as_ref().map(|input| input.to_json());
@@ -708,6 +748,7 @@ pub struct Builder {
     reject: Option<Reject>,
     body_limit: usize,
     body_limits: Vec<BodyLimit>,
+    request_timeout: Option<Duration>,
     request_id: Option<RequestIdSource>,
     unversioned: Unversioned,
 }
@@ -911,6 +952,18 @@ impl Builder {
         self
     }
 
+    /// How long a request may take, from its arrival until its outcome is
+    /// settled. Past it, the framework stops the request and fails it with
+    /// [`DeadlineExceeded`](crate::DeadlineExceeded). Set it below what
+    /// waits in front of the service: a CDN's origin timeout (CloudFront's
+    /// is 30 s by default), or a gateway's. Otherwise the caller has gone
+    /// before the service answers. A host's own deadline, such as a Lambda
+    /// invocation's, applies with or without it; the earlier wins.
+    pub fn request_timeout(mut self, timeout: Duration) -> Self {
+        self.request_timeout = Some(timeout);
+        self
+    }
+
     pub fn build(mut self) -> Result<Crucible, BuildError> {
         let cors = self
             .operations
@@ -974,6 +1027,7 @@ impl Builder {
                 translator: self.translator,
                 reject,
                 body_limit: self.body_limit,
+                request_timeout: self.request_timeout,
                 request_id: self.request_id,
                 unversioned: self.unversioned,
             }),

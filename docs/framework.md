@@ -247,9 +247,32 @@ The request id comes from `Builder::request_id(source)` when the service
 names one (an inbound header behind a trusted edge), else from the host, else
 it is a fresh UUID; an id that is empty or over 128 bytes is replaced. On
 Lambda the host supplies an HTTP event's own request id, or the invocation's
-id for a direct invoke, and the invocation deadline, so middleware can budget
-work against the time the function has left. Hosts pass both through a
+id for a direct invoke, and the invocation deadline. Hosts pass both through a
 `RequestMeta` request extension.
+
+### Deadlines
+
+The framework enforces a request's deadline: the host's, less
+`DEADLINE_RESERVE` (250 ms), or `Builder::request_timeout(duration)` after
+arrival, whichever comes first. Past it, the phase running is dropped (the
+operation's future included, as if it panicked), the phases already entered
+unwind, and the request fails with `DeadlineExceeded`. That error meets the
+exception rules like any other. Unmatched, the caller gets the service's
+internal error, and the service log records the cause. An exception rule can
+answer a modelled error instead, such as a 503. `context.deadline()` reports
+the enforced deadline, so extensions and implementations can budget work
+against it. Changing it with `set_deadline` changes what they read, not when
+the framework stops the request.
+
+Set `request_timeout` below whatever waits in front of the service.
+CloudFront's origin response timeout is 30 s by default, and a Lambda
+function's own timeout is often longer. Without a budget, CloudFront returns
+504 while the function runs on, billed, and logs an answer nobody receives.
+The after phases and the response are not under the deadline: they are what
+the reserve is for. Neither is a streamed response body, which is read after
+the outcome is settled. An operation reading an input event stream is under
+the deadline for as long as it reads. Work an implementation spawned is not stopped; give
+it its own timeout from `context.deadline()`.
 
 ## The request pipeline
 
