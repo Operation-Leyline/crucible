@@ -48,6 +48,14 @@ version's section when it is prepared.
 
 ### Fixed
 
+- An answer larger than a Lambda invocation returns (6 MB, the event's
+  shape and base64 included) was handed to the platform, which refused it
+  after the service log had recorded the request as served: the caller
+  got a bare 502 from the Function URL or CloudFront and nothing said
+  why. The Lambda host now answers 500 `InternalFailure` in the event's
+  shape with the request id (the failure envelope for a direct invoke)
+  and logs the size through `tracing`.
+
 - An operation that only an older API version serves (a later release
   removed it) answered 500 once any operation-aware middleware was
   registered: `Prepare::operations()` listed the current version's

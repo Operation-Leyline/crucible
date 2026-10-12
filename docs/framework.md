@@ -797,7 +797,14 @@ authentication, audience selection and browser limits.
 - **Inside Lambda** (`AWS_LAMBDA_RUNTIME_API` set): it takes events from the
   Lambda runtime. HTTP events (Function URLs, API Gateway REST and HTTP
   APIs, ALB) are answered in their source's response shape. Direct JSON
-  invokes go to `InvokeProtocol`. One function can receive both.
+  invokes go to `InvokeProtocol`. One function can receive both. Lambda
+  returns at most 6 MB (6,291,456 bytes) from a synchronous invocation,
+  the event's shape and base64 for a binary body included; a larger
+  answer becomes the framework's 500 `InternalFailure` (with its request
+  id), or the failure envelope for a direct invoke, and the host logs
+  why through `tracing`. The service log has already recorded the
+  request as served by then. Return large objects through a presigned
+  S3 URL rather than in the body.
 - **Elsewhere** (ECS, a VM, a laptop): it serves HTTP on `CRUCIBLE_ADDR`,
   else `0.0.0.0:$PORT`, else `0.0.0.0:8080`. On SIGTERM or Ctrl-C it stops
   accepting and finishes the requests in flight.
