@@ -250,6 +250,13 @@ fn tarball(package_json: Value, extra: &[(&str, &[u8])]) -> Vec<u8> {
 }
 
 fn release(version: &str, digest: &str) -> Vec<u8> {
+    // A short name stands for a well-formed digest.
+    let digest = if digest.contains(':') {
+        digest.to_owned()
+    } else {
+        let hex: String = digest.bytes().map(|byte| format!("{byte:02x}")).collect();
+        format!("crucible-content-1:sha256:{hex}")
+    };
     let provenance = json!({
         "schemaVersion": 2, "generator": "crucible", "language": "ts", "package": PACKAGE,
         "packageVersion": version, "service": "vip.mailpigeon#Pigeon", "serviceVersion": "2026-10-01",
@@ -815,4 +822,67 @@ fn a_success_the_registry_does_not_show_is_not_recorded() {
     registry.0.borrow_mut().swallow = false;
     let step = publish(&npm, &item, dir.path(), &mut journal, Mode::Execute).unwrap();
     assert!(matches!(step, Step::Published(_)));
+}
+
+/// A credential skipped for an unset variable is named when the channel
+/// cannot be read without it.
+#[test]
+fn an_unreadable_channel_says_which_credential_was_skipped() {
+    let registry = Registry::default();
+    let error = channel(&registry, None, Some(NpmAccess::Restricted))
+        .with_credential_note(
+            "the .npmrc _authToken for //npm.pkg.github.com/ names ${NODE_AUTH_TOKEN}, which is not set",
+        )
+        .read_last()
+        .unwrap_err();
+    assert!(error.to_string().contains("${NODE_AUTH_TOKEN}"), "{error}");
+}
+
+/// A journal entry skips an upload only for the same channel and bytes: a
+/// restored or stale journal must not hide a different release.
+#[test]
+fn a_journal_entry_for_other_bytes_or_another_channel_is_refused() {
+    let registry = Registry::with(&[("0.2.0", release("0.2.0", "d2"))], "0.2.0");
+    let npm = channel(&registry, Some(credential()), None);
+    let dir = tempfile::tempdir().unwrap();
+    let artifact = write(dir.path(), "a.tgz", &release("0.2.1", "d3"));
+    let item = PublishItem {
+        sdk: "ts".into(),
+        version: Version::new(0, 2, 1),
+        baseline: Some(npm.latest().unwrap().unwrap().baseline()),
+        artifact,
+        artifact_sha256: None,
+        source_commit: None,
+        package: None,
+    };
+    let upload = |channel: String, sha: &str| crucible_sdk_release::Upload {
+        sdk: "ts".into(),
+        version: Version::new(0, 2, 1),
+        channel,
+        artifact_sha256: Some(sha.into()),
+        outcome: UploadOutcome::Published,
+        detail: String::new(),
+        completed_at: 0,
+    };
+    let actual = crucible_sdk_release::archive::sha256_file(&item.artifact).unwrap();
+    for stale in [
+        upload(npm.describe(), "0000"),
+        upload(
+            "npm @operation-pigeon/sdk on https://registry.npmjs.org/".into(),
+            &actual,
+        ),
+    ] {
+        let mut journal = Journal::default();
+        journal.uploads.push(stale);
+        let error = publish(&npm, &item, dir.path(), &mut journal, Mode::Execute).unwrap_err();
+        assert!(
+            matches!(error, PublishError::JournalMismatch { .. }),
+            "{error}"
+        );
+    }
+    assert!(registry.commands().is_empty());
+    let mut journal = Journal::default();
+    journal.uploads.push(upload(npm.describe(), &actual));
+    let step = publish(&npm, &item, dir.path(), &mut journal, Mode::Execute).unwrap();
+    assert!(matches!(step, Step::Journaled(_)));
 }

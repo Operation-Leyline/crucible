@@ -89,6 +89,14 @@ pub enum PublishError {
         version: Version,
         latest: Version,
     },
+    #[error(
+        "{sdk}: publication.json already lists {version}, but not this upload: {detail}; remove the entry only if that upload really happened elsewhere"
+    )]
+    JournalMismatch {
+        sdk: String,
+        version: Version,
+        detail: String,
+    },
     #[error("{0}")]
     Io(#[from] io::Error),
 }
@@ -122,8 +130,8 @@ fn show(baseline: Option<&Baseline>) -> String {
     )
 }
 
-fn short(artifact: &str) -> &str {
-    &artifact[..artifact.len().min(20)]
+fn short(artifact: &str) -> String {
+    artifact.chars().take(20).collect()
 }
 
 /// Publishes one SDK, resumably. `release_dir` holds the journal.
@@ -134,9 +142,6 @@ pub fn publish(
     journal: &mut Journal,
     mode: Mode,
 ) -> Result<Step, PublishError> {
-    if let Some(upload) = journal.find(&item.sdk, &item.version) {
-        return Ok(Step::Journaled(upload.clone()));
-    }
     let artifact_sha256 = if item.artifact.is_file() {
         let actual = sha256_file(&item.artifact)?;
         if let Some(expected) = &item.artifact_sha256
@@ -153,6 +158,24 @@ pub fn publish(
     } else {
         None
     };
+    // A journal entry counts only for this channel and these bytes: a
+    // restored or stale journal must not skip a different upload.
+    if let Some(upload) = journal.find(&item.sdk, &item.version) {
+        if upload.channel != channel.describe() || upload.artifact_sha256 != artifact_sha256 {
+            return Err(PublishError::JournalMismatch {
+                sdk: item.sdk.clone(),
+                version: item.version.clone(),
+                detail: format!(
+                    "it records {} with artifact {}, and this upload is {} with {}",
+                    upload.channel,
+                    upload.artifact_sha256.as_deref().unwrap_or("(a directory)"),
+                    channel.describe(),
+                    artifact_sha256.as_deref().unwrap_or("(a directory)")
+                ),
+            });
+        }
+        return Ok(Step::Journaled(upload.clone()));
+    }
     let request = PublishRequest {
         sdk: &item.sdk,
         version: &item.version,

@@ -139,9 +139,9 @@ impl fmt::Display for Reason {
     }
 }
 
-fn short(digest: &str) -> &str {
+fn short(digest: &str) -> String {
     let hex = digest.rsplit(':').next().unwrap_or(digest);
-    &hex[..hex.len().min(12)]
+    hex.chars().take(12).collect()
 }
 
 /// What the rule decided for one SDK.
@@ -366,15 +366,12 @@ mod tests {
     }
 
     fn released(version: &str, digest: Option<&str>, service_version: &str) -> ChannelRead {
-        let provenance = Provenance::parse(
-            serde_json::json!({
-                "schemaVersion": if digest.is_some() { 2 } else { 1 },
-                "serviceVersion": service_version,
-                "contentDigest": digest,
-            })
-            .to_string()
-            .as_bytes(),
-        )
+        // Built directly, so the rule sees exactly the digests a test names.
+        let provenance: Provenance = serde_json::from_value(serde_json::json!({
+            "schemaVersion": if digest.is_some() { 2 } else { 1 },
+            "serviceVersion": service_version,
+            "contentDigest": digest,
+        }))
         .unwrap();
         ChannelRead::Released(Box::new(LastRelease {
             version: v(version),
@@ -507,7 +504,7 @@ mod tests {
 
     #[test]
     fn a_release_before_schema_two_counts_as_changed_once() {
-        // Pigeon's Rust: last tag v0.2.0, floor 0.2.0.
+        // A Rust tag from before schema 2 (as Pigeon's v0.2.0), floor 0.2.0.
         let read = ChannelRead::Released(Box::new(LastRelease {
             version: v("0.2.0"),
             artifact: "git:abc".into(),
@@ -595,6 +592,18 @@ mod tests {
     fn an_sdk_without_a_channel_takes_its_floor_or_the_development_version() {
         assert_eq!(without_channel(Some(&v("0.3.0")), "0.0.0-dev"), "0.3.0");
         assert_eq!(without_channel(None, "0.0.0-dev"), "0.0.0-dev");
+    }
+
+    #[test]
+    fn reasons_shorten_any_text_without_panicking() {
+        let reason = Reason::ContentChanged {
+            last: "aaaaaaaaaaa\u{e9}\u{e9}".into(),
+            current: "x:y:\u{1F600}".into(),
+        };
+        assert_eq!(
+            reason.to_string(),
+            "content changed (aaaaaaaaaaa\u{e9} -> \u{1F600})"
+        );
     }
 
     #[test]

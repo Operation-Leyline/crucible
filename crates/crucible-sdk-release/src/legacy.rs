@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn reads_pigeons_rust_release_record() {
-        // mailpigeon-rs v0.2.0, verbatim.
+        // An sdk-release.json from mailpigeon-rs, verbatim.
         let record = LegacyRecord::sdk_release(
             br#"{
   "contractHash": "a03f504b756b952bf1fa4f84e2b43bcb41b85b79aa2201e8f1c7f7ad97fe09bc",

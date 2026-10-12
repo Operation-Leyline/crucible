@@ -93,6 +93,9 @@ pub struct NpmChannel {
     /// registry before it counts as done.
     confirm_attempts: u32,
     confirm_delay: Duration,
+    /// Why a configured credential was skipped, for an unreadable channel's
+    /// message.
+    credential_note: Option<String>,
 }
 
 /// What the registry's package document says.
@@ -161,6 +164,7 @@ impl NpmChannel {
             npm: if cfg!(windows) { "npm.cmd" } else { "npm" }.into(),
             confirm_attempts: 12,
             confirm_delay: Duration::from_secs(5),
+            credential_note: None,
         })
     }
 
@@ -182,18 +186,27 @@ impl NpmChannel {
             reason,
         })?;
         let env = |name: &str| std::env::var(name).ok();
-        let credential = npmrc::credential(&registry, Some(project), &env).map_err(|reason| {
+        let lookup = npmrc::credential(&registry, Some(project), &env).map_err(|reason| {
             ChannelError::Unreadable {
                 channel: format!("npm {} on {}", config.package, http::display(&registry)),
                 reason,
             }
         })?;
-        Self::new(
+        let mut channel = Self::new(
             config,
-            credential,
+            lookup.credential,
             Box::new(UreqTransport::new()),
             Box::new(SystemRunner),
-        )
+        )?;
+        channel.credential_note = lookup.note;
+        Ok(channel)
+    }
+
+    /// Says why a configured credential was skipped, in the messages of a
+    /// channel that could not be read without it.
+    pub fn with_credential_note(mut self, note: impl Into<String>) -> Self {
+        self.credential_note = Some(note.into());
+        self
     }
 
     /// Runs this program instead of `npm`.
@@ -211,6 +224,14 @@ impl NpmChannel {
         ChannelError::Unreadable {
             channel: self.describe(),
             reason: reason.into(),
+        }
+    }
+
+    /// `reason`, with why a configured credential was skipped.
+    fn without_credential(&self, reason: String) -> ChannelError {
+        match &self.credential_note {
+            Some(note) => self.unreadable(format!("{reason} ({note})")),
+            None => self.unreadable(reason),
         }
     }
 
@@ -242,11 +263,11 @@ impl NpmChannel {
             200 => self.parse_packument(&response.body).map(Some),
             404 if self.credential.is_some() => Ok(None),
             404 if self.config.access == Some(NpmAccess::Public) => Ok(None),
-            404 => Err(self.unreadable(format!(
+            404 => Err(self.without_credential(format!(
                 "the registry answered 404 to a read without credentials, which a private package and a missing one both answer. Give npm a token for it in .npmrc (`//{}/:_authToken=${{NODE_AUTH_TOKEN}}`, as actions/setup-node writes), or declare access = \"public\"",
                 self.registry.host_str().unwrap_or_default()
             ))),
-            401 | 403 => Err(self.unreadable(format!(
+            401 | 403 => Err(self.without_credential(format!(
                 "the registry refused {} ({})",
                 if self.credential.is_some() {
                     "the credential from .npmrc"

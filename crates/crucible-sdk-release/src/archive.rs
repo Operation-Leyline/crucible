@@ -37,7 +37,10 @@ fn walk(root: &Path, dir: &Path, files: &mut Vec<PackageFile>) -> io::Result<()>
         let path = entry.path();
         let kind = entry.file_type()?;
         let relative = relative(root, &path)?;
-        if relative.split('/').any(|segment| segment == ".git") {
+        if relative
+            .split('/')
+            .any(|segment| segment.eq_ignore_ascii_case(".git"))
+        {
             return Err(io::Error::other(format!(
                 "{} holds a .git entry: {relative}",
                 root.display()
@@ -104,9 +107,11 @@ pub fn is_relative_path(path: &str) -> bool {
     !path.is_empty()
         && !path.starts_with('/')
         && !path.contains(['\\', ':', '\0'])
-        && path
-            .split('/')
-            .all(|segment| !matches!(segment, "" | "." | ".."))
+        && path.split('/').all(|segment| {
+            !matches!(segment, "" | "." | "..")
+                // A repository, on a case-insensitive filesystem too.
+                && !segment.eq_ignore_ascii_case(".git")
+        })
 }
 
 /// Archives a package tree as an uncompressed tar, the git channel's
@@ -130,9 +135,14 @@ pub fn write_tree_archive(root: &Path, out: &Path) -> io::Result<()> {
     builder.into_inner()?.sync_all()
 }
 
+/// The largest file a tree archive may hold, and the most it may unpack.
+pub const TREE_FILE_LIMIT: u64 = 256 << 20;
+pub const TREE_TOTAL_LIMIT: u64 = 1 << 30;
+
 /// Unpacks a tree archive into `into`, refusing anything but regular files
-/// and directories at safe relative paths.
+/// and directories at safe relative paths, and more than the size limits.
 pub fn extract_tree_archive(archive: &Path, into: &Path) -> io::Result<()> {
+    let mut total = 0u64;
     let mut archive = tar::Archive::new(fs::File::open(archive)?);
     for entry in archive.entries()? {
         let mut entry = entry?;
@@ -145,6 +155,13 @@ pub fn extract_tree_archive(archive: &Path, into: &Path) -> io::Result<()> {
                 let target = into.join(&path);
                 if let Some(parent) = target.parent() {
                     fs::create_dir_all(parent)?;
+                }
+                let size = entry.size();
+                total = total.saturating_add(size);
+                if size > TREE_FILE_LIMIT || total > TREE_TOTAL_LIMIT {
+                    return Err(io::Error::other(format!(
+                        "the archive is over its size limit at {path}"
+                    )));
                 }
                 let mut contents = Vec::new();
                 entry.read_to_end(&mut contents)?;
@@ -177,7 +194,7 @@ fn entry_path<R: Read>(entry: &tar::Entry<'_, R>) -> io::Result<String> {
         .ok_or_else(|| io::Error::other("an archive path is not UTF-8"))?
         .replace('\\', "/");
     let text = text.trim_end_matches('/').to_owned();
-    if !is_relative_path(&text) || text.split('/').any(|segment| segment == ".git") {
+    if !is_relative_path(&text) {
         return Err(io::Error::other(format!(
             "the archive holds an unsafe path: {text:?}"
         )));
@@ -367,7 +384,18 @@ mod tests {
         for good in ["a", "a/b.txt", ".crucible", "src/.hidden"] {
             assert!(is_relative_path(good), "{good}");
         }
-        for bad in ["", "/a", "a/../b", "./a", "a//b", "a\\b", "C:a", "a/"] {
+        for bad in [
+            "",
+            "/a",
+            "a/../b",
+            "./a",
+            "a//b",
+            "a\\b",
+            "C:a",
+            "a/",
+            ".git",
+            "x/.GIT/config",
+        ] {
             assert!(!is_relative_path(bad), "{bad}");
         }
     }

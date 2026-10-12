@@ -882,6 +882,22 @@ mod tests {
     }
 
     #[test]
+    fn a_refused_url_never_shows_its_secret() {
+        for url in [
+            "https://x-access-token:ghp_secret@github.com/o/r.git",
+            "https://ghp_secret@github.com/o/r.git",
+            "git:ghp_secret@github.com:o/r.git",
+        ] {
+            let Err(error) = GitTagChannel::new(&GitChannelConfig::new(url)) else {
+                panic!("{url} was accepted");
+            };
+            let shown = error.to_string();
+            assert!(!shown.contains("ghp_secret"), "{shown}");
+            assert!(shown.contains("github.com"), "{shown}");
+        }
+    }
+
+    #[test]
     fn configurations_are_checked() {
         let ok = GitChannelConfig::new("git@github.com:o/r.git");
         assert!(GitTagChannel::new(&ok).is_ok());

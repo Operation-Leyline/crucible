@@ -337,7 +337,7 @@ fn print_plan(record: &PlanRecord) {
             Some(last) => println!(
                 "  last  {} ({})",
                 last.version,
-                &last.artifact[..last.artifact.len().min(19)]
+                last.artifact.chars().take(19).collect::<String>()
             ),
             None => println!("  last  none"),
         }

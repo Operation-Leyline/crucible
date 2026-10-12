@@ -54,6 +54,20 @@ fn schema_one() -> u32 {
     1
 }
 
+fn valid_digest(digest: &str) -> bool {
+    let parts: Vec<&str> = digest.split(':').collect();
+    digest.len() <= 256
+        && parts.len() == 3
+        && parts[..2].iter().all(|part| {
+            !part.is_empty()
+                && part
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        })
+        && !parts[2].is_empty()
+        && parts[2].chars().all(|c| c.is_ascii_hexdigit())
+}
+
 impl Provenance {
     /// Parses a `crucible.json`.
     pub fn parse(bytes: &[u8]) -> Result<Self, String> {
@@ -61,6 +75,15 @@ impl Provenance {
             .map_err(|error| format!("{PROVENANCE_FILE} is not a provenance record: {error}"))?;
         if provenance.schema_version == 0 {
             return Err(format!("{PROVENANCE_FILE} has schemaVersion 0"));
+        }
+        // A digest is `<label>:<algorithm>:<hex>`: anything else is not
+        // one this or a later generator wrote.
+        if let Some(digest) = &provenance.content_digest
+            && !valid_digest(digest)
+        {
+            return Err(format!(
+                "{PROVENANCE_FILE} has a contentDigest that is not <label>:<algorithm>:<hex>"
+            ));
         }
         Ok(provenance)
     }
@@ -109,6 +132,22 @@ mod tests {
         );
         assert_eq!(record.source.unwrap().commit, "20ccb55");
         assert_eq!(record.generator_changes, Some(3));
+    }
+
+    #[test]
+    fn a_content_digest_must_look_like_one() {
+        for bad in [
+            "aaaaaaaaaaaé",
+            "crucible-content-1:sha256:zz",
+            "crucible-content-1:sha256",
+            "a b:sha256:00",
+            "",
+        ] {
+            let text = serde_json::json!({"schemaVersion": 2, "contentDigest": bad}).to_string();
+            assert!(Provenance::parse(text.as_bytes()).is_err(), "{bad}");
+        }
+        let text = r#"{"schemaVersion":2,"contentDigest":"crucible-content-2:blake3:0aF9"}"#;
+        assert!(Provenance::parse(text.as_bytes()).is_ok());
     }
 
     #[test]
