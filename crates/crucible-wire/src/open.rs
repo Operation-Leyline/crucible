@@ -112,8 +112,7 @@ pub fn deserialize_int_enum<'de, T: IntEnum, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<T, D::Error> {
     let value = <i32 as serde::Deserialize>::deserialize(deserializer)?;
-    T::from_i32(value)
-        .ok_or_else(|| serde::de::Error::custom(format!("unknown integer enum value {value}")))
+    T::from_i32(value).ok_or_else(|| serde::de::Error::custom("unknown integer enum value"))
 }
 
 #[cfg(test)]

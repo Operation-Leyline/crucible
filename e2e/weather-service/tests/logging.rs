@@ -92,6 +92,44 @@ async fn generated_redaction_preserves_public_fields_and_never_changes_the_respo
 }
 
 #[tokio::test]
+async fn a_malformed_sensitive_value_reaches_neither_the_response_nor_the_log() {
+    let records = Records::default();
+    let service = service(ServiceLog::new(LogPolicy::everything()).sink(records.clone()));
+    // `whole` is a @sensitive structure; a string there is unreadable, and
+    // serde's message for it quotes the string.
+    let payload = r#"{"whole":"hunter2"}"#;
+    let response = service
+        .handle(
+            Request::post("/echo?mode=echo&flag")
+                .header("content-type", "application/json")
+                .body(Body::from(payload))
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status().as_u16(), 400);
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body: Value = serde_json::from_slice(&body).unwrap();
+    let invoked: Value =
+        serde_json::from_slice(&service.invoke_json("Echo", payload.as_bytes()).await).unwrap();
+    for answer in [&body, &invoked["error"]] {
+        let message = answer["message"].as_str().unwrap();
+        assert!(
+            message.starts_with("invalid type: string, expected struct Whole"),
+            "{answer}"
+        );
+    }
+    let records = records.0.lock().unwrap();
+    assert_eq!(records.len(), 2);
+    let everything = format!(
+        "{body}{invoked}{}",
+        serde_json::to_string(&*records).unwrap()
+    );
+    assert!(!everything.contains("hunter2"), "{everything}");
+}
+
+#[tokio::test]
 async fn literal_queries_select_the_operation_and_the_generated_client_sends_them() {
     let records = Records::default();
     let service = service(ServiceLog::new(LogPolicy::everything()).sink(records.clone()));

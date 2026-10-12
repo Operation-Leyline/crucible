@@ -536,7 +536,11 @@ A request that breaks the model becomes the service's validation error. The
 generator fills it when it can: `message`, a `fieldList` of `path`/`name`
 plus `message`, and the standard `reason` enum (`cannotParse` for a request
 that does not read as its input, `fieldValidationFailed` for a broken
-constraint). A declared `crucible.errors#UnknownOperationException` answers
+constraint). The `fieldList` holds at most 100 violations
+(`validate::MAX_VIOLATIONS`) and then one more, with an empty path, counting
+the rest. Messages name the kind of a value that does not read, never the value
+itself, so a `@sensitive` member's value cannot reach the response or the
+service log. A declared `crucible.errors#UnknownOperationException` answers
 an unmatched route as a modelled 404. It takes precedence over the validation
 error's `unknownOperation` reason. A custom routing error can be selected with
 `.unknown_operation_error("namespace#Error")` in the build helper, or

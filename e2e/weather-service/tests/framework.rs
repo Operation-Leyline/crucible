@@ -415,6 +415,33 @@ async fn a_strict_input_refuses_a_member_it_does_not_define() {
 }
 
 #[tokio::test]
+async fn unreadable_header_and_query_values_are_named_but_not_repeated() {
+    let service = service();
+    let create = axum::http::Request::post("/cities")
+        .header("content-type", "application/json")
+        .header("x-expected-revision", "hunter2")
+        .body(axum::body::Body::from(r#"{"name":"Lima"}"#))
+        .unwrap();
+    let list = axum::http::Request::get("/cities?maxResults=hunter2")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    for (request, path) in [(create, "x-expected-revision"), (list, "maxResults")] {
+        let response = service.handle(request).await;
+        assert_eq!(response.status(), 400);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let body: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(body["fieldList"][0]["path"], path, "{body}");
+        assert_eq!(
+            body["fieldList"][0]["message"], "must be an integer",
+            "{body}"
+        );
+        assert!(!body.to_string().contains("hunter2"), "{body}");
+    }
+}
+
+#[tokio::test]
 async fn an_operation_can_take_a_smaller_body_than_the_service() {
     let body = json!({ "name": "Lima", "clientToken": "x".repeat(80) }).to_string();
     let create = || {

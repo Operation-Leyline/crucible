@@ -146,7 +146,16 @@ impl fmt::Display for Step {
 pub struct Validator {
     path: Steps,
     violations: Vec<Violation>,
+    /// Violations past [`MAX_VIOLATIONS`]: counted, not recorded.
+    unlisted: usize,
 }
+
+/// The violations a rejection lists. Each is a path and a message that the
+/// response, the service log and the error's field list all copy, and one
+/// broken constraint on a list's items fails once per item: a 10 MiB body of
+/// empty strings would otherwise list millions. Past this many, a rejection
+/// ends with one more violation counting the rest.
+pub const MAX_VIOLATIONS: usize = 100;
 
 /// Steps kept inline before spilling to the heap: deeper than most inputs go.
 const INLINE_STEPS: usize = 8;
@@ -188,6 +197,13 @@ impl Validator {
     pub fn check<T: Validate>(value: &T) -> Result<(), Rejection> {
         let mut validator = Self::default();
         value.validate(&mut validator);
+        if validator.unlisted > 0 {
+            validator.violations.push(Violation {
+                path: String::new(),
+                message: format!("{} more violations are not listed", validator.unlisted),
+                kind: ViolationKind::Constraint,
+            });
+        }
         if validator.violations.is_empty() {
             Ok(())
         } else {
@@ -204,6 +220,10 @@ impl Validator {
     }
 
     pub fn fail(&mut self, message: impl Into<String>) {
+        if self.violations.len() >= MAX_VIOLATIONS {
+            self.unlisted += 1;
+            return;
+        }
         let path = self
             .path
             .iter()
@@ -338,6 +358,29 @@ mod tests {
                 format!("must match the pattern {pattern}")
             );
         }
+    }
+
+    #[test]
+    fn a_rejection_lists_at_most_max_violations_and_counts_the_rest() {
+        struct Items(usize);
+        impl super::Validate for Items {
+            fn validate(&self, validator: &mut Validator) {
+                for index in 0..self.0 {
+                    validator.at("items", |v| v.at(index, |v| v.length(0, Some(1), None)));
+                }
+            }
+        }
+        let rejection = Validator::check(&Items(super::MAX_VIOLATIONS)).unwrap_err();
+        assert_eq!(rejection.violations.len(), super::MAX_VIOLATIONS);
+        assert_eq!(rejection.violations[99].path, "items/99");
+
+        let rejection = Validator::check(&Items(1_000_000)).unwrap_err();
+        assert_eq!(rejection.violations.len(), super::MAX_VIOLATIONS + 1);
+        assert_eq!(rejection.violations[0].path, "items/0");
+        assert_eq!(rejection.violations[0].message, "length must be at least 1");
+        let last = rejection.violations.last().unwrap();
+        assert_eq!(last.path, "");
+        assert_eq!(last.message, "999900 more violations are not listed");
     }
 
     #[test]

@@ -15,6 +15,33 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Security
+
+- A rejection lists at most 100 violations
+  (`validate::MAX_VIOLATIONS`), then one more counting the rest. One
+  broken constraint on a list's items used to fail once per item, and the
+  response, the service log and the validation error's `fieldList` each
+  copied every violation. So a body of a few megabytes of empty strings
+  could build an error response, and a log record, of hundreds of
+  megabytes.
+- Rejections no longer quote the request's values, so a `@sensitive`
+  member's value stays out of the response and the service log.
+  - A JSON or CBOR value of the wrong type is named by its kind:
+    `invalid type: string, expected i64` instead of quoting the string.
+  - An unknown enum value now reads `unknown variant, expected ...`.
+  - An unknown intEnum value is reported without the number.
+  - A header, query or label value that is not an integer or a number
+    reads `must be an integer` or `must be a number`.
+  - CBOR read errors are words, not the decoder's `Debug` form.
+  - An MCP tool call whose arguments, or whose output, break the tool's
+    schema names the location and the keyword (`/name does not satisfy
+    the schema's `type``) instead of jsonschema's message, which quotes
+    the value.
+  - A value an API version hook cannot read becomes an internal error
+    without quoting the value, so its logged cause carries no request data.
+
+  Paths and the model's expectations are unchanged.
+
 ## [0.6.1] - 2026-10-12
 
 Editor support: `crucible-lsp` completes `$` bindings with what the member

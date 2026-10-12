@@ -132,8 +132,10 @@ pub(crate) type Hooks = BTreeMap<&'static str, HookFn>;
 #[doc(hidden)]
 pub fn hook_input<T: serde::de::DeserializeOwned>(hook: &str, value: Value) -> crate::Result<T> {
     serde_json::from_value(value).map_err(|error| {
+        // The value is the request's, and an internal error's cause is logged.
         Error::internal(format!(
-            "API version hook {hook}: unreadable value: {error}"
+            "API version hook {hook}: unreadable value: {}",
+            crucible_wire::text::without_values(&error.to_string())
         ))
     })
 }

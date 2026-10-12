@@ -161,7 +161,7 @@ pub(crate) fn unreadable(error: serde_json::Error) -> Rejection {
     if let Some(member) = named("missing field `") {
         return Rejection::constraint(member, "is required");
     }
-    Rejection::malformed("", message)
+    Rejection::malformed("", crucible_wire::text::without_values(&message))
 }
 
 pub(crate) fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {

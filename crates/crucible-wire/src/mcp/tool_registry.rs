@@ -80,7 +80,7 @@ impl ToolRegistry {
         let tool = self.tools.get(name).ok_or("unknown tool")?;
         tool.input_validator
             .validate(&arguments)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| schema_failure(&e))?;
         Ok(project(&tool.input, &tool.input, arguments))
     }
     /// Publish only the External document members and enforce the advertised schema.
@@ -91,13 +91,27 @@ impl ToolRegistry {
             None => output,
         };
         if let Some(validator) = &tool.output_validator {
-            validator.validate(&output).map_err(|e| e.to_string())?;
+            validator
+                .validate(&output)
+                .map_err(|e| schema_failure(&e))?;
         }
         if !output.is_object() {
             return Err("structuredContent must be an object".into());
         }
         Ok(output)
     }
+}
+
+/// Where a value broke its schema and which keyword it broke. jsonschema's
+/// own message quotes the value (`"hunter2" is not of type "integer"`), and
+/// this text becomes a client's rejection or an internal error's logged
+/// cause, where a `@sensitive` member's value must not appear.
+fn schema_failure(error: &jsonschema::ValidationError<'_>) -> String {
+    let schema_path = error.schema_path.to_string();
+    let keyword = schema_path.rsplit('/').next().unwrap_or_default();
+    let at = error.instance_path.to_string();
+    let at = if at.is_empty() { "/" } else { at.as_str() };
+    format!("{at} does not satisfy the schema's `{keyword}`")
 }
 
 fn validator(schema: &Value) -> Result<jsonschema::Validator, String> {
