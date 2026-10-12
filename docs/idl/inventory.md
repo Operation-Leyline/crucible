@@ -134,6 +134,9 @@ property validator for members such as `workspaceId`, `nextToken`,
 infrastructure and docs; it does not need the annotations, only the
 resolved identifier and property paths.
 
+Decisions 31-34b settle binding; 34a and 34c-34i (declared mutability,
+`$*` views, identifier spelling) are decided, not built.
+
 ## Reuse
 
 | Construct | Leyline | Pigeon |

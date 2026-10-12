@@ -58,6 +58,8 @@ clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
 resource_entry = [ doc ] { annotation } ( "id" | "property" ) ident ":" type_ref ;
+                 (* decided, not built (34a, 34d-34f): mutability keywords and
+                    `?` on properties, `id x: T as name`, and `$*` in a view *)
 
 operation   = "operation" ident [ role ident [ "collection" ] ] "{" { op_entry } "}" ;
 role        = ident ;          (* creates | puts | reads | updates | deletes | lists | on;
@@ -186,5 +188,6 @@ documents nothing.
 
 The meaning of each construct is in [decisions.md](decisions.md): members
 are required unless marked `?` (20), inputs and outputs are anonymous (25),
-resources and roles (31-34a), protocols and families (35-35d), metadata (43),
-rules, templates and exceptions (45-47f), migrations (51-59).
+resources, roles and representations (31-34i), protocols and families
+(35-35d), metadata (43), rules, templates and exceptions (45-47f),
+migrations (51-59).
