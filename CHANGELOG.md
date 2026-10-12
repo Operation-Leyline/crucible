@@ -15,6 +15,29 @@ version's section when it is prepared.
 
 ## [Unreleased]
 
+### Added
+
+- `crucible-lsp` completes `$` bindings. `$` is a completion trigger, and
+  after `$` (or `$` and part of a name) in the `input` or `output` of an
+  operation attached to a resource, or in a `structure .. for` view, it
+  offers what that list may bind: the resource's identifiers, its
+  ancestors' identifiers and its own properties, never an ancestor's
+  property. Identifiers come first. The role decides the rest, as the
+  compiler does: a `creates`, `lists` or `on .. collection` input does not
+  bind the resource's own identifier, an `updates` input does not write a
+  `readonly` or `immutable` property, a `creates` or `puts` input does not
+  write a `readonly` one, and a view or output does not show a `writeonly`
+  one; a `@query` binding only reads, so it may name any property. In a
+  view with `$*`, what `$*` includes is not offered before it and is offered
+  after it only as `name?`, which loosens it. A view or output shows an own
+  identifier's `as` spelling beside its name. Each item gives the entry's
+  type, its keywords and the resource that declares it, with its doc
+  comment, and replaces only the name after the `$`. Names the list already
+  has are left out. A view also offers `$*` while it has none and nothing
+  `$*` would include is named already. A `$` in a comment or string opens no
+  list, and completion offers nothing inside comments and strings. It works
+  before the package compiles, from the open file.
+
 ## [0.6.0] - 2026-10-12
 
 Resources in the Crucible language say more about themselves: property

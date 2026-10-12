@@ -39,6 +39,30 @@ pub(crate) fn resources<'a>(files: &[&'a Parsed]) -> HashMap<&'a str, &'a Resour
     out
 }
 
+/// `resource` and its ancestors, nearest first, as far as they are declared;
+/// a cycle ends the chain where it repeats.
+pub(crate) fn resource_chain<'a>(
+    resources: &HashMap<&str, &'a Resource>,
+    resource: &str,
+) -> Vec<&'a Resource> {
+    let mut chain: Vec<&'a Resource> = Vec::new();
+    let mut current = Some(resource);
+    while let Some(name) = current {
+        let Some(&declaration) = resources.get(name) else {
+            break;
+        };
+        if chain.iter().any(|seen| std::ptr::eq(*seen, declaration)) {
+            break;
+        }
+        chain.push(declaration);
+        current = declaration
+            .parent
+            .as_ref()
+            .map(|parent| parent.name.as_str());
+    }
+    chain
+}
+
 /// A resource's identifier or property and the resource that declares it,
 /// as lowering finds it: the resource's own entries, then the identifiers
 /// its parents declare. A child does not inherit its parents' properties.
@@ -47,28 +71,18 @@ pub(crate) fn resource_entry<'a>(
     resource: &str,
     name: &str,
 ) -> Option<(&'a Resource, &'a ResourceEntry)> {
-    let mut current = Some(resource);
-    let mut seen = Vec::new();
-    while let Some(resource) = current {
-        if seen.contains(&resource) {
-            return None;
-        }
-        seen.push(resource);
-        let declaration = resources.get(resource)?;
-        let own = seen.len() == 1;
-        if let Some(entry) = declaration
-            .entries
-            .iter()
-            .find(|entry| entry.name.name == name && (own || entry.kind == ResourceEntryKind::Id))
-        {
-            return Some((declaration, entry));
-        }
-        current = declaration
-            .parent
-            .as_ref()
-            .map(|parent| parent.name.as_str());
-    }
-    None
+    resource_chain(resources, resource)
+        .into_iter()
+        .enumerate()
+        .find_map(|(depth, declaration)| {
+            declaration
+                .entries
+                .iter()
+                .find(|entry| {
+                    entry.name.name == name && (depth == 0 || entry.kind == ResourceEntryKind::Id)
+                })
+                .map(|entry| (declaration, entry))
+        })
 }
 
 /// The type of a resource's identifier or property.
