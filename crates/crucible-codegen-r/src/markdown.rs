@@ -9,8 +9,11 @@ pub(crate) fn escape(text: &str) -> String {
 }
 
 pub(crate) fn render(text: &str) -> String {
+    // Rd is read by R's parser too: model text carries no raw control
+    // characters, separators or BOM into it.
+    let text = crucible_codegen_common::docs::comment_text(text);
     let mut out = String::new();
-    for event in Parser::new(text) {
+    for event in Parser::new(&text) {
         match event {
             Event::Start(tag) => match tag {
                 Tag::Strong => out.push_str("\\strong{"),

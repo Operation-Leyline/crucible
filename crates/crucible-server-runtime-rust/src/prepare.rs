@@ -28,7 +28,7 @@ impl<'a> Prepare<'a> {
     /// Effective metadata for an operation in this extension's scope.
     pub fn metadata(&self, operation: &OperationInfo) -> Option<&crate::OperationMetadata> {
         self.applies(operation)
-            .then(|| self.registry.metadata(operation.name))
+            .then(|| self.registry.served_metadata(operation))
             .flatten()
     }
 
@@ -38,12 +38,30 @@ impl<'a> Prepare<'a> {
             && self.scope.is_none_or(|scope| scope(operation))
     }
 
-    /// The operations the extension runs for.
+    /// The operations the extension runs for: the current version's, then
+    /// those only an older API version serves (an operation a later release
+    /// removed), newest version first. A request for one passes the same
+    /// extensions, so whatever an extension prepares per operation (an
+    /// authentication plan) must cover it.
     pub fn operations(&self) -> impl Iterator<Item = &'static OperationInfo> + '_ {
+        let mut seen: Vec<&'static str> = Vec::new();
+        let older = self
+            .registry
+            .versions
+            .older
+            .iter()
+            .rev()
+            .flat_map(|older| older.operations.service.operations.iter().copied());
         self.service
             .operations
             .iter()
             .copied()
+            .chain(older)
+            .filter(move |op| {
+                let first = !seen.contains(&op.id);
+                seen.push(op.id);
+                first
+            })
             .filter(|op| self.applies(op))
     }
 

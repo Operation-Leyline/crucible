@@ -112,8 +112,11 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                     };
                     let mut tag = format!("@param {value} ${}", field(&member.name));
                     if let Some(text) = docs::annotated(member.docs.as_deref(), &member.notes) {
+                        // This docblock is assembled here, not by
+                        // `docs::block_comment`: `*/` in the member's docs
+                        // would end it and the rest would be PHP.
                         tag.push(' ');
-                        tag.push_str(&text);
+                        tag.push_str(&text.replace("*/", "*\u{5c}/"));
                     }
                     for (index, line) in tag.lines().enumerate() {
                         let text = if line.is_empty() {

@@ -7,6 +7,14 @@ pub fn literal(value: &str) -> String {
             c if (c as u32) < 32 || c == '\u{7f}' => {
                 quoted.push_str(&format!("\\{:03o}", c as u32))
             }
+            // C1 controls, line separators and a BOM: their UTF-8 bytes, so
+            // the literal stays the same bytes and visible in a diff.
+            c if c.is_control() || matches!(c, '\u{2028}' | '\u{2029}' | '\u{feff}') => {
+                let mut bytes = [0; 4];
+                for byte in c.encode_utf8(&mut bytes).bytes() {
+                    quoted.push_str(&format!("\\{byte:03o}"));
+                }
+            }
             c => quoted.push(c),
         }
     }

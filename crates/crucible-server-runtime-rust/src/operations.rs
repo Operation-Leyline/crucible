@@ -121,6 +121,28 @@ impl Operations {
         self.entries.get(operation).map(|entry| &entry.metadata)
     }
 
+    /// The metadata `operation` is served with: the current version's
+    /// entry, else the newest older version that serves it.
+    pub(crate) fn served_metadata(&self, operation: &OperationInfo) -> Option<&OperationMetadata> {
+        fn own<'a>(
+            operations: &'a Operations,
+            operation: &OperationInfo,
+        ) -> Option<&'a OperationMetadata> {
+            operations
+                .entries
+                .get(operation.name)
+                .filter(|entry| entry.info.id == operation.id)
+                .map(|entry| &entry.metadata)
+        }
+        own(self, operation).or_else(|| {
+            self.versions
+                .older
+                .iter()
+                .rev()
+                .find_map(|older| own(&older.operations, operation))
+        })
+    }
+
     pub(crate) fn entry(&self, name: &str) -> Option<&Entry> {
         self.entries.get(name)
     }

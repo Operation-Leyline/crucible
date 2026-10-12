@@ -26,7 +26,10 @@ fn literal(text: &str) -> String {
             '\n' => result.push_str("\\n"),
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
-            ch if ch.is_control() => result.push_str(&format!("\\u{{{:x}}}", u32::from(ch))),
+            // Line separators and a BOM are legal raw but invisible in a diff.
+            ch if ch.is_control() || matches!(ch, '\u{2028}' | '\u{2029}' | '\u{feff}') => {
+                result.push_str(&format!("\\u{{{:x}}}", u32::from(ch)))
+            }
             ch => result.push(ch),
         }
     }

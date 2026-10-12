@@ -144,6 +144,7 @@ pub fn operation(service: &Service, op: &Operation) -> String {
 
 /// Preserve prose, links and code while removing Markdown-only delimiters.
 pub fn text(markdown: &str) -> String {
+    let markdown = &crate::docs::comment_text(markdown);
     let mut out = String::new();
     let mut links = Vec::new();
     let mut code = false;
@@ -263,18 +264,18 @@ pub fn lines(text: &str) -> Vec<&str> {
 
 /// Escapes plain prose (not Smithy Markdown) for a Javadoc body.
 pub fn javadoc_text(text: &str) -> String {
-    html_escape(text)
+    html_escape(&crate::docs::comment_text(text))
 }
 
 /// Escapes plain prose for KDoc.
 pub fn kdoc_text(text: &str) -> String {
-    kdoc_escape(text)
+    kdoc_escape(&crate::docs::comment_text(text))
 }
 
 /// An inline KDoc code span for plain text such as a wire value: fenced to
 /// survive backticks inside it, and unable to close or open a comment.
 pub fn kdoc_code(text: &str) -> String {
-    let c = defuse(text);
+    let c = defuse(&crate::docs::comment_text(text));
     let fence = "`".repeat(longest_run(&c, '`') + 1);
     let pad = if c.starts_with('`') || c.ends_with('`') {
         " "
@@ -287,16 +288,16 @@ pub fn kdoc_code(text: &str) -> String {
 /// Breaks up `*/` and `/*` in KDoc text that is already Markdown, a last guard
 /// for Crucible's own notes and tags that interpolate model strings.
 pub fn kdoc_guard(text: &str) -> String {
-    defuse(text)
+    defuse(&crate::docs::comment_text(text))
 }
 
 /// Escapes plain prose for C# XML documentation.
 pub fn xmldoc_text(text: &str) -> String {
-    xml_escape(text)
+    xml_escape(&crate::docs::comment_text(text))
 }
 
 fn render(markdown: &str, dialect: Dialect) -> Vec<String> {
-    parse_blocks(markdown)
+    parse_blocks(&crate::docs::comment_text(markdown))
         .iter()
         .map(|block| {
             let text = render_block(block, dialect);
@@ -707,10 +708,8 @@ mod tests {
             assert!(!out.contains("\n@") && !out.contains("\r@"), "{out:?}");
             assert!(out.contains("\\@param"), "{out:?}");
         }
-        assert_eq!(
-            kdoc_text("a\u{2028}@b\u{85}@c\t@d"),
-            "a\u{2028}\\@b\u{85}\\@c\t\\@d"
-        );
+        // Unicode line breaks become LF, so no compiler reads them as one.
+        assert_eq!(kdoc_text("a\u{2028}@b\u{85}@c\t@d"), "a\n\\@b\n\\@c\t\\@d");
     }
 
     #[test]

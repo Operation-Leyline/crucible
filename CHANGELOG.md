@@ -46,6 +46,50 @@ version's section when it is prepared.
   earlier. Before, it reported the host's deadline unchanged, and nothing
   enforced it.
 
+### Fixed
+
+- A Lambda HTTP event whose query string held characters a URI does not
+  carry raw (`"`, `<`, `>`, a space: curl and other non-browser clients
+  send them unencoded, and a Function URL passes them on as received)
+  panicked inside `lambda_http` while the event was converted, and the
+  caller got a bare 502. The host percent-encodes those bytes first, which
+  query decoding undoes, so the service reads what the client sent. Any
+  other event `lambda_http` cannot convert (a body that claims base64 but
+  is not) is answered 400 with the request id instead of failing the
+  invocation.
+
+- An answer larger than a Lambda invocation returns (6 MB, the event's
+  shape and base64 included) was handed to the platform, which refused it
+  after the service log had recorded the request as served: the caller
+  got a bare 502 from the Function URL or CloudFront and nothing said
+  why. The Lambda host now answers 500 `InternalFailure` in the event's
+  shape with the request id (the failure envelope for a direct invoke)
+  and logs the size through `tracing`.
+
+- An operation that only an older API version serves (a later release
+  removed it) answered 500 once any operation-aware middleware was
+  registered: `Prepare::operations()` listed the current version's
+  operations alone, so the authentication chain had no plan for it and
+  failed with "authentication plan missing". It now lists those operations
+  too, after the current ones, and `Prepare::metadata` returns their own
+  release's metadata. An operation in both keeps the current version's.
+
+- Model text with unusual characters no longer breaks generated clients.
+  Each of these was a compile error before: a CR in documentation (rustc
+  refuses a bare CR in a doc comment), a byte order mark anywhere (Go
+  refuses one but at a file's start), U+2028, U+2029 or NEL in an enum
+  value or default (C# ends a line at each, inside a string literal too),
+  and `*/` in a PHP member's documentation, which ended the constructor's
+  docblock. Documentation reaches every generated comment with its line
+  breaks as LF and no control characters or BOM
+  (`docs::comment_text`), `*/` is defused in block-comment tags as well
+  as prose, and double-quoted literals in C#, Go, Java, TypeScript,
+  Python, Dart and R escape what JSON leaves raw (`quoted`); Kotlin,
+  Swift and C++ escape the same characters their own way. PHP and Ruby
+  keep single-quoted literals, which take every byte as written.
+  `fixtures/hostile-text.json` covers documentation, a deprecation
+  message, enum values, a default, a pattern and a JSON name.
+
 ### Security
 
 - A rejection lists at most 100 violations

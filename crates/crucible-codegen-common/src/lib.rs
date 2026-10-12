@@ -13,6 +13,26 @@ use crucible_smithy::ir::{
 };
 use serde_json::{Value, json};
 
+/// `text` as a double-quoted string literal in a language whose escapes
+/// include JSON's (C#, Go, Java, JavaScript, Python, Dart): JSON's quoting,
+/// and `\uXXXX` for what JSON leaves raw but a lexer may not accept. C#
+/// ends a line at U+0085, U+2028 and U+2029 (not allowed in a string), Go
+/// refuses a byte order mark anywhere but a file's start, and the rest are
+/// invisible in a reviewed diff.
+pub fn quoted(text: &str) -> String {
+    let json = serde_json::to_string(text).expect("a string serializes");
+    let mut out = String::with_capacity(json.len());
+    for c in json.chars() {
+        match c {
+            '\u{7f}'..='\u{9f}' | '\u{2028}' | '\u{2029}' | '\u{feff}' => {
+                out.push_str(&format!("\\u{:04x}", u32::from(c)));
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 /// Public service identity shared by exception classes, protocols and interfaces.
 pub fn service_exception_name(service: &Service) -> String {
     format!("{}Exception", service.id.name())
@@ -259,6 +279,19 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
         value["protocolTests"] = json!(service.protocol_tests);
     }
     value
+}
+
+#[cfg(test)]
+mod quoted_tests {
+    use super::quoted;
+
+    #[test]
+    fn escapes_what_json_leaves_raw() {
+        assert_eq!(
+            quoted("a\"\\\r\u{0}\u{7f}\u{85}\u{2028}\u{2029}\u{feff}é"),
+            r#""a\"\\\r\u0000\u007f\u0085\u2028\u2029\ufeffé""#
+        );
+    }
 }
 
 #[cfg(test)]
@@ -623,7 +656,7 @@ mod tests {
 
 /// CommonMark supported by Doxygen, with comment boundaries and commands escaped.
 pub fn doxygen(text: &str, indent: &str) -> String {
-    let text = text
+    let text = docs::comment_text(text)
         .replace('\\', "&#92;")
         .replace('@', "&#64;")
         .replace("*/", "*&#47;")
@@ -653,8 +686,7 @@ pub fn doxygen_for(docs: Option<&str>, notes: &DocNotes, indent: &str) -> String
     }
     let mut out = doxygen(&text, indent);
     if let Some(deprecated) = &notes.deprecated {
-        let note = deprecated
-            .note()
+        let note = docs::comment_text(&deprecated.note())
             .replace('\\', "&#92;")
             .replace('@', "&#64;")
             .replace("*/", "*&#47;")

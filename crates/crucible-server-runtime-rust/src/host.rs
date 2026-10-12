@@ -309,7 +309,25 @@ mod lambda_event {
     use serde_json::value::{RawValue, to_raw_value};
 
     use super::BoxError;
+    use crate::error::FrameworkError;
     use crate::service::Crucible;
+
+    /// The most a synchronous invocation returns (Lambda quotas: 6 MB, in
+    /// Lambda's MB of 1,048,576 bytes). The platform refuses a larger
+    /// answer after the service has served and logged it, and the caller
+    /// sees a bare 502 from the Function URL or CloudFront in front of it.
+    const RESPONSE_LIMIT: usize = 6 * 1024 * 1024;
+
+    /// Says why an answer was replaced, in the function's logs: the service
+    /// log has already recorded the request as served.
+    fn too_large(request_id: &str, size: usize) {
+        tracing::error!(
+            request_id,
+            size,
+            limit = RESPONSE_LIMIT,
+            "the response is larger than a Lambda invocation returns; answered 500 instead"
+        );
+    }
 
     /// What tells a direct invoke from an HTTP event, read without building
     /// the event: the input stays a slice of the event text.
@@ -350,9 +368,17 @@ mod lambda_event {
             (operation, &envelope.request_context, &envelope.http_method)
         {
             let input = envelope.input.map_or("{}", RawValue::get);
+            let meta_id = meta.request_id.clone();
             let answer = service
                 .invoke_json_with(&operation, Bytes::copy_from_slice(input.as_bytes()), meta)
                 .await;
+            if answer.len() > RESPONSE_LIMIT {
+                too_large(&request_id(meta_id.as_ref()), answer.len());
+                return Ok(
+                    RawValue::from_string(crate::service::INVOKE_FAILURE.to_owned())
+                        .expect("the failure envelope is JSON"),
+                );
+            }
             // A custom protocol may answer bytes that are not JSON.
             let answer = String::from_utf8(answer.to_vec())
                 .ok()
@@ -362,10 +388,33 @@ mod lambda_event {
                     .expect("the failure envelope is JSON")
             }));
         }
-        let request: LambdaRequest = serde_json::from_str(payload)?;
+        let mut request: LambdaRequest = serde_json::from_str(payload)?;
+        // A Function URL or HTTP API passes the query as the client sent it;
+        // lambda_http appends it to the URI and panics if the URI then fails
+        // to parse (`"`, `<`, `>`, a space, from curl and the like).
+        if let LambdaRequest::ApiGatewayV2(event) = &mut request
+            && let Some(query) = &mut event.raw_query_string
+        {
+            *query = uri_query(query);
+        }
         let origin = request.request_origin();
-        let (mut parts, body) =
-            axum::http::Request::<lambda_http::Body>::from(request).into_parts();
+        // The event's own request id, as `event_request_id` reads it after
+        // the conversion, for an answer when the conversion fails.
+        let event_id = match &request {
+            LambdaRequest::ApiGatewayV2(event) => event.request_context.request_id.as_deref(),
+            LambdaRequest::ApiGatewayV1(event) => event.request_context.request_id.as_deref(),
+            _ => None,
+        }
+        .and_then(|id| HeaderValue::from_str(id).ok());
+        // The conversion panics on what it cannot read (a body that claims
+        // base64 but is not); that is the client's malformed request.
+        let converted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            axum::http::Request::<lambda_http::Body>::from(request)
+        }));
+        let Ok(converted) = converted else {
+            return malformed(origin, event_id.or(meta.request_id));
+        };
+        let (mut parts, body) = converted.into_parts();
         if matches!(
             origin,
             RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
@@ -382,9 +431,9 @@ mod lambda_event {
             uri.path_and_query = Some(path_and_query.parse()?);
             parts.uri = axum::http::Uri::from_parts(uri)?;
         }
-        let event_id = event_request_id(&parts.extensions);
+        let event_id = event_request_id(&parts.extensions).or(meta.request_id);
         parts.extensions.insert(crate::RequestMeta {
-            request_id: event_id.or(meta.request_id),
+            request_id: event_id.clone(),
             deadline: meta.deadline,
         });
         let body = match body {
@@ -396,21 +445,117 @@ mod lambda_event {
             .handle(Request::from_parts(parts, Body::from(body)))
             .await;
         let (parts, body) = response.into_parts();
-        let bytes = axum::body::to_bytes(body, usize::MAX).await?.to_vec();
+        // A layer that answers by itself skips the pipeline's `x-request-id`;
+        // the event's id still names the request.
+        let id = parts.headers.get("x-request-id").cloned().or(event_id);
+        // A body over the limit makes an answer over it: stop reading there.
+        let bytes = match axum::body::to_bytes(body, RESPONSE_LIMIT).await {
+            Ok(bytes) => bytes.to_vec(),
+            Err(error)
+                if std::error::Error::source(&error)
+                    .is_some_and(|cause| cause.is::<http_body_util::LengthLimitError>()) =>
+            {
+                return oversized(origin, id, RESPONSE_LIMIT + 1);
+            }
+            Err(error) => return Err(error.into()),
+        };
         let (body, base64) = match String::from_utf8(bytes) {
             Ok(text) if text.is_empty() => (None, false),
             Ok(text) => (Some(lambda_http::Body::Text(text)), false),
             Err(error) => (Some(lambda_http::Body::Binary(error.into_bytes())), true),
         };
         let status = i64::from(parts.status.as_u16());
-        respond(
-            origin,
+        let answer = respond(
+            origin.clone(),
             status,
             parts.headers,
             body,
             base64,
             parts.status.canonical_reason(),
+        )?;
+        if answer.get().len() <= RESPONSE_LIMIT {
+            return Ok(answer);
+        }
+        oversized(origin, id, answer.get().len())
+    }
+
+    /// The framework's internal failure with the request id to quote, in the
+    /// event's shape, for an answer Lambda would refuse: the caller gets it
+    /// instead of the platform's 502.
+    fn oversized(
+        origin: RequestOrigin,
+        id: Option<HeaderValue>,
+        size: usize,
+    ) -> Result<Box<RawValue>, BoxError> {
+        too_large(&request_id(id.as_ref()), size);
+        let failure = FrameworkError::InternalFailure;
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        if let Some(id) = id {
+            headers.insert("x-request-id", id);
+        }
+        let body = serde_json::json!({ "__type": failure.name(), "message": failure.message() });
+        respond(
+            origin,
+            i64::from(failure.status()),
+            headers,
+            Some(lambda_http::Body::Text(body.to_string())),
+            false,
+            Some("Internal Server Error"),
         )
+    }
+
+    /// `query` with every byte a URI query does not carry raw
+    /// percent-encoded, so it parses. Existing `%` escapes are kept, and a
+    /// malformed one still reaches the protocol, which rejects it as the
+    /// client's. Decoding gives back exactly what the client sent.
+    fn uri_query(query: &str) -> String {
+        let mut out = String::with_capacity(query.len());
+        for byte in query.bytes() {
+            if byte.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=:@/?%".contains(&byte) {
+                out.push(char::from(byte));
+            } else {
+                out.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        out
+    }
+
+    /// A 400 in the event's shape for an event lambda_http cannot convert.
+    fn malformed(
+        origin: RequestOrigin,
+        request_id: Option<HeaderValue>,
+    ) -> Result<Box<RawValue>, BoxError> {
+        tracing::warn!(
+            request_id = request_id.as_ref().and_then(|id| id.to_str().ok()),
+            "the Lambda event is not a request that can be read; answered 400"
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            axum::http::header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        if let Some(id) = request_id {
+            headers.insert("x-request-id", id);
+        }
+        let body = serde_json::json!({ "message": "the request could not be read" });
+        respond(
+            origin,
+            400,
+            headers,
+            Some(lambda_http::Body::Text(body.to_string())),
+            false,
+            Some("Bad Request"),
+        )
+    }
+
+    fn request_id(id: Option<&HeaderValue>) -> String {
+        id.and_then(|id| id.to_str().ok())
+            .unwrap_or_default()
+            .to_owned()
     }
 
     fn respond(

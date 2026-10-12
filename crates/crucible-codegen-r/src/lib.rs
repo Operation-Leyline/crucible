@@ -44,7 +44,7 @@ pub fn field(name: &str) -> String {
     result
 }
 fn literal(value: &str) -> String {
-    serde_json::to_string(value).expect("string")
+    crucible_codegen_common::quoted(value)
 }
 fn function(name: &str) -> String {
     format!("`{name}`")
@@ -52,7 +52,8 @@ fn function(name: &str) -> String {
 fn roxygen(text: &str) -> String {
     format!(
         "#' @description\n{}#' @md\n",
-        text.replace('@', "@@")
+        crucible_codegen_common::docs::comment_text(text)
+            .replace('@', "@@")
             .lines()
             .map(|line| if line.trim().is_empty() {
                 "#'\n".to_owned()
@@ -374,7 +375,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     values.push(format!("{} = {}",literal(&f),function(&f)));
                     schema["shapes"][id.to_string()]["members"][&m.name]["optional"] = json!(m.optional_on_client());
                 }
-                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), crucible_codegen_common::documentation::with_notes(Some(m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.")), &m.notes).unwrap_or_default().replace('@', "@@").replace('\n', "\n#' "))); }
+                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), crucible_codegen_common::docs::comment_text(&crucible_codegen_common::documentation::with_notes(Some(m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.")), &m.notes).unwrap_or_default()).replace('@', "@@").replace('\n', "\n#' "))); }
                 out.push_str(&format!("{} <- function({}) .crucible_model({}, list({}))\n", function(name),args.join(", "),literal(&id.to_string()),values.join(", ")));
             }
             Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'), crucible_target = {} )\n",function(name),literal(name),literal(&id.to_string()))),

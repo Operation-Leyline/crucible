@@ -18,7 +18,7 @@ pub struct File {
 }
 
 fn literal(value: &str) -> String {
-    serde_json::to_string(value).expect("string serializes")
+    crucible_codegen_common::quoted(value)
 }
 
 fn exported(value: &str) -> String {
