@@ -252,8 +252,16 @@ pub fn write_json<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
 /// old file or the new one, never an empty or partial one: a temporary
 /// file in the same directory, synced, renamed over `path`, and on Unix
 /// the directory synced so the rename itself survives.
+/// The directory holding `path`: a bare file name has an empty parent,
+/// which no syscall accepts, so it means the current directory.
+fn directory_of(path: &Path) -> &Path {
+    path.parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or(Path::new("."))
+}
+
 pub fn write_durably(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let directory = path.parent().unwrap_or(Path::new("."));
+    let directory = directory_of(path);
     let mut temporary = tempfile::NamedTempFile::new_in(directory)?;
     io::Write::write_all(&mut temporary, bytes)?;
     temporary.as_file().sync_all()?;
@@ -298,6 +306,7 @@ mod tests {
     use crate::npm::{NpmAccess, NpmChannelConfig};
     use std::collections::BTreeMap;
     use std::fs;
+    use std::path::Path;
 
     #[test]
     fn plans_round_trip_with_their_channels() {
@@ -380,6 +389,15 @@ mod tests {
             .map(|entry| entry.unwrap().file_name())
             .collect();
         assert_eq!(names, ["release.json"]);
+    }
+
+    #[test]
+    fn a_bare_file_name_lives_in_the_current_directory() {
+        assert_eq!(super::directory_of(Path::new("plan.json")), Path::new("."));
+        assert_eq!(
+            super::directory_of(Path::new("out/plan.json")),
+            Path::new("out")
+        );
     }
 
     #[test]
