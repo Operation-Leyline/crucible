@@ -243,8 +243,10 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(onboarding_hosts("pull_request", {}, Mock()), ALL_HOSTS)
         self.assertEqual(onboarding_hosts("pull_request", EVENT, Mock(side_effect=OSError())), ALL_HOSTS)
         self.assertEqual(onboarding_hosts("push", {}, Mock()), ["ubuntu-latest"])
-        for name in ("workflow_dispatch", "workflow_call", "schedule"):
+        for name in ("workflow_dispatch", "workflow_call"):
             self.assertEqual(onboarding_hosts(name, {}, Mock()), ALL_HOSTS)
+        # The weekly run is every language, on Linux only.
+        self.assertEqual(onboarding_hosts("schedule", {}, Mock()), ["ubuntu-latest"])
 
     def test_three_dot_diff_excludes_new_base_changes_and_keeps_deleted_paths(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -286,6 +288,13 @@ class PlanTests(unittest.TestCase):
             self.assertEqual(dict(line.split("=") for line in output.read_text().splitlines()),
                              {**{group: "true" for group in GROUPS}, "full": "true", "tools": "true",
                               "onboarding_hosts": json.dumps(ALL_HOSTS, separators=(",", ":"))})
+            # The weekly run selects every group, on Linux only.
+            output.write_text("")
+            subprocess.run([sys.executable, str(ROOT / "tools/ci_plan.py")],
+                           env={**env, "GITHUB_EVENT_NAME": "schedule"}, check=True, capture_output=True)
+            self.assertEqual(dict(line.split("=") for line in output.read_text().splitlines()),
+                             {**{group: "true" for group in GROUPS}, "full": "false", "tools": "true",
+                              "onboarding_hosts": json.dumps(ALL_HOSTS[:1], separators=(",", ":"))})
         workflow = (ROOT / ".github/workflows/ci.yml").read_text()
         jobs = re.findall(r"^  ([\w-]+):\n(.*?)(?=^  [\w-]+:|\Z)", workflow.split("jobs:\n", 1)[1],
                           re.MULTILINE | re.DOTALL)
@@ -345,7 +354,8 @@ class PlanTests(unittest.TestCase):
             if name == "onboarding":
                 self.assertEqual(variant, "ubuntu-latest")
         release = (ROOT / ".github/workflows/release.yml").read_text()
-        self.assertNotIn("schedule:", workflow)
+        self.assertIn("schedule:", workflow)
+        self.assertNotIn("schedule:", release)
         self.assertIn("workflow_call:", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("workflow_dispatch:", release)

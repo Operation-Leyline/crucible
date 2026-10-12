@@ -17,7 +17,8 @@ GROUPS = frozenset({
 # dependency-free TS runtime cover the server path on every shared-code PR.
 CORE_GROUPS = frozenset({"rust", "e2e", "typescript", "onboarding"})
 # Model/wire-description changes also compile representative native SDKs.
-# The complete language/platform matrix runs on the scheduled/manual tier.
+# Every language runs on Linux weekly (schedule); the complete
+# language/platform matrix runs on the manual and release tier.
 MODEL_GROUPS = CORE_GROUPS | {"python", "go"}
 # The shared engine and Cargo facade own clients, schemas, provisioning and CLI
 # packages. Keep representative SDKs and each additional native output consumer.
@@ -84,6 +85,9 @@ ONBOARDING_HOST_PATHS = (
     "crates/crucible-cli/src/starter", "vendor/smithy-tooling/",
 )
 ALL_HOSTS = ["ubuntu-latest", "windows-latest", "macos-latest"]
+# Runs that never reach the extra platforms: a merged commit was qualified as a
+# PR, and the weekly run is every language on Linux, where breaks show first.
+LINUX_ONLY_EVENTS = frozenset({"push", "schedule"})
 
 # Jobs whose selection builds the generator and HTTP fixture once per run
 # (`qualification-tools`) for every job that reuses them (ci.yml). TypeScript
@@ -212,7 +216,7 @@ def select_groups(event_name, event, diff):
 
 def onboarding_hosts(event_name, event, diff):
     if event_name != "pull_request":
-        return ALL_HOSTS if event_name != "push" else ALL_HOSTS[:1]
+        return ALL_HOSTS[:1] if event_name in LINUX_ONLY_EVENTS else ALL_HOSTS
     paths = pull_request_paths(event, diff)
     if paths is None or any(path.startswith(ONBOARDING_HOST_PATHS) for path in paths):
         return ALL_HOSTS
@@ -244,7 +248,7 @@ def main():
     outputs += f"onboarding_hosts={json.dumps(hosts, separators=(',', ':'))}\n"
     # Unknown paths/diff failures still select all Linux consumers on PRs, but
     # only explicit full runs spend minutes on the extra platforms/versions.
-    full = event_name not in {"pull_request", "push"}
+    full = event_name not in {"pull_request", *LINUX_ONLY_EVENTS}
     outputs += f"full={str(full).lower()}\n"
     print(outputs, end="")
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
