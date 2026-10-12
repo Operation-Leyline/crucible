@@ -21,8 +21,8 @@ version's section when it is prepared.
   error enums are `#[non_exhaustive]`. Code in another crate builds models
   with their builders, destructures with `..` and matches with a `_` arm.
 - The `compatibility.sdk` check no longer reports a new optional member (not
-  required, no default) added after a structure's existing members: no
-  generated client turns it into a source change, so a `.cru` package adds
+  required, no default) added after the existing members of a structure that
+  is not an error: no generated client turns it into a source change, so a `.cru` package adds
   one without a migration. One inserted between existing members is still
   reported (it shifts positional constructors in C, C++, PHP and R), as are
   required and defaulted members and union arms.

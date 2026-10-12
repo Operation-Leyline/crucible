@@ -261,6 +261,51 @@ fn an_optional_member_after_the_others_is_not_a_source_change() {
             "example.api#GetItemOutput$nox: new optional member before an existing one"
         )
     );
+
+    // A defaulted member is a new constructor argument in most clients.
+    let mut new = old.clone();
+    new["shapes"][output]["members"]["zzz"] =
+        json!({"target":"smithy.api#String","traits":{"smithy.api#default":"z"}});
+    assert!(
+        sdk_findings(&old, &new)
+            .iter()
+            .any(|f| f.starts_with("example.api#GetItemOutput$zzz: new public member"))
+    );
+}
+
+#[test]
+fn errors_and_unions_report_every_new_member() {
+    let mut old = model();
+    old["shapes"]["example.api#GetItem"]["errors"] = json!([{"target":"example.api#Missing"}]);
+    old["shapes"]["example.api#Missing"] = json!({
+        "type":"structure",
+        "traits":{"smithy.api#error":"client","smithy.api#httpError":404},
+        "members":{"message":{"target":"smithy.api#String"}}
+    });
+    old["shapes"]["example.api#GetItemOutput"]["members"]["shape"] =
+        json!({"target":"example.api#Shape"});
+    old["shapes"]["example.api#Shape"] = json!({
+        "type":"union",
+        "members":{"circle":{"target":"smithy.api#Integer"}}
+    });
+
+    // C++ and PHP error constructors take their metadata after the members.
+    let mut new = old.clone();
+    new["shapes"]["example.api#Missing"]["members"]["zzz"] = json!({"target":"smithy.api#String"});
+    assert!(
+        sdk_findings(&old, &new)
+            .iter()
+            .any(|f| f.starts_with("example.api#Missing$zzz: new public member"))
+    );
+
+    // A union arm breaks exhaustive matches.
+    let mut new = old.clone();
+    new["shapes"]["example.api#Shape"]["members"]["zzz"] = json!({"target":"smithy.api#Integer"});
+    assert!(
+        sdk_findings(&old, &new)
+            .iter()
+            .any(|f| f.starts_with("example.api#Shape$zzz: new public member"))
+    );
 }
 
 #[test]

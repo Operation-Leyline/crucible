@@ -618,12 +618,14 @@ impl Checker<'_> {
                     // other new member can: a required or defaulted one is
                     // a new constructor argument in most languages, one in
                     // the middle shifts positional ones (C, C++, PHP, R),
-                    // and a union arm breaks exhaustive matches.
+                    // and a union arm breaks exhaustive matches. An error
+                    // structure is excluded: C++ and PHP put its metadata
+                    // parameter after the members, so any new member shifts it.
                     let last_old = b
                         .members
                         .iter()
                         .rposition(|member| a.member(&member.name).is_some());
-                    let structure = matches!(new, Shape::Structure(_));
+                    let structure = matches!(new, Shape::Structure(s) if s.error.is_none());
                     for (index, member) in b.members.iter().enumerate() {
                         if a.member(&member.name).is_some() {
                             continue;

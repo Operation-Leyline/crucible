@@ -219,7 +219,8 @@ error enum a `_` arm. In exchange, a member the model adds after the existing
 ones, a new enum value, union arm or operation error is not a source change
 for code that depends on the SDK package. Code that includes the bindings with
 `include_client!()` defines these types in its own crate, where the attribute
-has no effect.
+has no effect: use the builders there too, or a regenerated model with a new
+member breaks your struct literals.
 
 Generated member getters borrow native values: `result.request_id()` returns
 `Option<&String>`, and `result.city()` returns `&CitySummary`. Optional getters
