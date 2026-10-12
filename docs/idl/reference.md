@@ -155,7 +155,13 @@ Beyond the grammar, the compiler refuses a model that breaks the rules in
 rules of decision 35c (labels, query and header targets, header names,
 bodiless responses, one payload, unique routes) and the checks on
 pagination members, examples and name collisions run on the IR in
-`crucible_smithy::validate`, shared with the Smithy front end. The
+`crucible_smithy::validate`, shared with the Smithy front end. So do
+Smithy's limits on recursive shapes, which are otherwise allowed (a
+structure or union may reach itself through its members): a cycle must
+pass through a structure or union, not lists and maps alone, and a value
+must be finite, so a structure needs a way back to itself that is not all
+required members, and a union a member that does not lead back, or leads
+back only through a list, map or optional member. The
 language's own checks include:
 
 - a binding appears only where its part of the message exists (`@query`

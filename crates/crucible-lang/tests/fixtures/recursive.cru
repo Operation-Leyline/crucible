@@ -1,0 +1,46 @@
+// Recursive shapes: a union with a way out, and a structure that recurs
+// through a list and a map. `crates/crucible-codegen-rust/tests/recursive_shapes.rs`
+// generates a server and an SDK from it and compiles both.
+
+service Search {
+    version "1"
+    protocol json
+    operations [Find]
+    errors [Invalid]
+}
+
+error Invalid {
+    status 400
+    message: string
+}
+
+/// A query: a test on a field, or queries combined.
+union Filter {
+    field: string
+    all: Filters
+    not: Filter
+}
+
+list Filters: Filter { length ..20 }
+
+/// A labelled tree; a leaf has no children.
+structure Tree {
+    label: string
+    children?: Forest
+    named?: Grove
+}
+
+list Forest: Tree { length ..10 }
+
+map Grove: string -> Tree { length ..5 }
+
+operation Find {
+    http POST "/find"
+    input {
+        filter: Filter
+    }
+    output {
+        forest: Forest
+        best?: Tree
+    }
+}

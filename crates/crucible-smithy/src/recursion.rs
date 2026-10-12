@@ -1,6 +1,7 @@
 //! Recursive components are a property of the model, independent of language boxing.
-use crate::ast::{Kind, Shape};
-use crate::{Diagnostics, ShapeId};
+use crate::ShapeId;
+use crate::ast::Shape;
+use crate::ir;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -10,33 +11,57 @@ pub struct RecursiveGroup {
     pub members: Vec<ShapeId>,
 }
 
-pub(crate) fn lower(
-    model: &BTreeMap<ShapeId, Shape>,
-    reached: &[ShapeId],
-    diagnostics: &mut Diagnostics,
-) -> Vec<RecursiveGroup> {
-    let nodes: BTreeSet<_> = reached.iter().cloned().collect();
-    let mut edges = BTreeMap::<ShapeId, Vec<(ShapeId, ShapeId)>>::new();
-    let mut reverse = BTreeMap::<ShapeId, Vec<ShapeId>>::new();
-    for id in reached {
+/// The recursive components among the Smithy shapes `reached`.
+pub(crate) fn lower(model: &BTreeMap<ShapeId, Shape>, reached: &[ShapeId]) -> Vec<RecursiveGroup> {
+    components(reached, |id| {
         let shape = &model[id];
-        let members = shape
+        shape
             .members
             .iter()
             .map(|(name, member)| (name.as_str(), member))
             .chain(shape.member.iter().map(|member| ("member", member)))
             .chain(shape.key.iter().map(|member| ("key", member)))
-            .chain(shape.value.iter().map(|member| ("value", member)));
-        for (name, member) in members {
-            if nodes.contains(&member.target) {
-                edges
-                    .entry(id.clone())
-                    .or_default()
-                    .push((id.with_member(name), member.target.clone()));
-                reverse
-                    .entry(member.target.clone())
-                    .or_default()
-                    .push(id.clone());
+            .chain(shape.value.iter().map(|member| ("value", member)))
+            .map(|(name, member)| (id.with_member(name), member.target.clone()))
+            .collect()
+    })
+}
+
+/// The recursive components among lowered shapes: what a front end that
+/// builds the IR directly (`.cru`) fills `Service::recursive_groups` with,
+/// by the same algorithm the Smithy front end uses.
+pub fn groups(shapes: &BTreeMap<ShapeId, ir::Shape>) -> Vec<RecursiveGroup> {
+    let reached: Vec<ShapeId> = shapes.keys().cloned().collect();
+    components(&reached, |id| {
+        let members: Vec<&ir::Member> = match &shapes[id] {
+            ir::Shape::Structure(s) | ir::Shape::Union(s) => s.members.iter().collect(),
+            ir::Shape::List(list) => vec![&list.member],
+            ir::Shape::Map(map) => vec![&map.key, &map.value],
+            _ => Vec::new(),
+        };
+        members
+            .into_iter()
+            .map(|member| (id.with_member(&member.name), member.target.clone()))
+            .collect()
+    })
+}
+
+/// Kosaraju's strongly connected components of the graph whose nodes are
+/// `reached` and whose edges are `edges(node)` (member id, target), keeping
+/// only those that recur: more than one shape, or a shape that targets itself.
+/// Sorted by shapes, so the result does not depend on the order of `reached`.
+fn components(
+    reached: &[ShapeId],
+    edges_of: impl Fn(&ShapeId) -> Vec<(ShapeId, ShapeId)>,
+) -> Vec<RecursiveGroup> {
+    let nodes: BTreeSet<_> = reached.iter().cloned().collect();
+    let mut edges = BTreeMap::<ShapeId, Vec<(ShapeId, ShapeId)>>::new();
+    let mut reverse = BTreeMap::<ShapeId, Vec<ShapeId>>::new();
+    for id in reached {
+        for (member, target) in edges_of(id) {
+            if nodes.contains(&target) {
+                reverse.entry(target.clone()).or_default().push(id.clone());
+                edges.entry(id.clone()).or_default().push((member, target));
             }
         }
     }
@@ -81,14 +106,6 @@ pub(crate) fn lower(
             .collect();
         if component.len() == 1 && members.is_empty() {
             continue;
-        }
-        if component
-            .iter()
-            .all(|id| matches!(model[id].kind, Kind::List | Kind::Set | Kind::Map))
-        {
-            for id in &component {
-                diagnostics.push(id,"recursive collections must pass through a structure or union; a collection-only cycle is invalid Smithy");
-            }
         }
         groups.push(RecursiveGroup {
             shapes: component.into_iter().collect(),

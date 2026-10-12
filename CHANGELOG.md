@@ -27,6 +27,18 @@ version's section when it is prepared.
   gets the CDN's 504 while the function keeps running, billed, for nobody.
   See [docs/framework.md](docs/framework.md#deadlines).
 
+- `.cru` models may declare recursive shapes: a structure or union that
+  reaches itself through its members, directly or through lists and maps.
+  They lower into the same IR as Smithy's, `recursive_groups` included,
+  computed by the algorithm the Smithy front end uses. Smithy's limits on
+  recursion are checked on the IR in `crucible_smithy::validate`, for both
+  front ends, decided as Smithy's own `ShapeRecursionValidator` decides
+  them: a cycle of lists and maps alone is refused (as before, now in one
+  place), and so are a structure that reaches itself through required
+  structure members alone and a union that cannot terminate. A Smithy model
+  with either was already invalid Smithy; one assembled without Smithy's
+  validators is now refused at lowering instead of reaching a generator.
+
 ### Changed
 
 - `Context::deadline()` reports the deadline the framework enforces: the

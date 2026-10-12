@@ -18,7 +18,7 @@ pub use crate::protocol_tests::{
     HttpMessageExpectation, HttpProtocolTest, HttpTestCase, MalformedBodyAssertion,
     MalformedRequestDefinition, MalformedResponseBody, MalformedResponseDefinition, TestAppliesTo,
 };
-pub use crate::recursion::RecursiveGroup;
+pub use crate::recursion::{RecursiveGroup, groups as recursive_groups};
 pub use crate::xml::{XmlMember, XmlNamespace, XmlShape};
 pub use crate::{Protocol, ProtocolSettings};
 pub use serde_json::{Number, Value};

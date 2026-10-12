@@ -50,7 +50,7 @@ pub(crate) fn lower(
         shapes: BTreeMap::new(),
         meta_shapes: BTreeMap::new(),
         visiting: BTreeSet::new(),
-        recursive: BTreeSet::new(),
+        pending: BTreeMap::new(),
         requirements: BTreeSet::new(),
         http_inputs: BTreeSet::new(),
         http_outputs: BTreeSet::new(),
@@ -63,9 +63,20 @@ pub(crate) fn lower(
     lowerer.check_restated_resources();
     lowerer.check_metadata();
     let service = lowerer.service(service);
-    lowerer.report_recursion();
     (service, lowerer.source_map, lowerer.diagnostics)
 }
+
+/// A shape being lowered, as its referrers see it (`Lowerer::pending`).
+#[derive(Clone)]
+enum Pending {
+    Structure,
+    Union,
+    List(Constraints),
+    Map(Constraints),
+}
+
+const UNION_DEFAULT: &str = "a union has no default: it has no value until one arm is set";
+const STRUCTURE_DEFAULT: &str = "a structure has no default; make the member optional";
 
 #[derive(Clone, Copy)]
 struct DeclRef<'a> {
@@ -347,7 +358,10 @@ struct Lowerer<'a> {
     /// Metadata value types, lowered apart from the service's shapes.
     meta_shapes: BTreeMap<ShapeId, Shape>,
     visiting: BTreeSet<ShapeId>,
-    recursive: BTreeSet<ShapeId>,
+    /// What a member may need of a shape still being lowered: one it
+    /// reaches again through its own members (recursion). A structure or
+    /// union has no constraints to give; a list or map has its own.
+    pending: BTreeMap<ShapeId, Pending>,
     requirements: BTreeSet<FeatureUse>,
     http_inputs: BTreeSet<ShapeId>,
     http_outputs: BTreeSet<ShapeId>,
@@ -1252,19 +1266,6 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    fn report_recursion(&mut self) {
-        let recursive = std::mem::take(&mut self.recursive);
-        for id in recursive {
-            if let Some(decl) = self.decl(id.name()) {
-                self.error(
-                    decl.file,
-                    decl.item.span,
-                    format!("`{}` refers to itself; recursive shapes are not supported by the compiler yet", id.name()),
-                );
-            }
-        }
-    }
-
     // ---- names and values --------------------------------------------------
 
     /// The type a name refers to, if it is one; [`Self::resolve_type`] reports
@@ -1736,7 +1737,6 @@ impl<'a> Lowerer<'a> {
         self.diagnostics.truncate(reported);
         self.unplaced = unplaced;
         self.requirements = requirements;
-        self.recursive.clear();
         self.meta_shapes = std::mem::take(&mut self.shapes);
     }
 
@@ -1998,11 +1998,11 @@ impl<'a> Lowerer<'a> {
 
     /// What kind of value a constraint would constrain at `id`.
     fn on_shape(&self, id: &ShapeId) -> On {
-        match self.shapes.get(id) {
-            Some(Shape::Simple(simple)) => on_kind(simple.kind),
-            Some(Shape::Enum(_)) => On::StringEnum,
-            Some(Shape::List(_)) => On::List,
-            Some(Shape::Map(_)) => On::Map,
+        match (self.shapes.get(id), self.pending.get(id)) {
+            (Some(Shape::Simple(simple)), _) => on_kind(simple.kind),
+            (Some(Shape::Enum(_)), _) => On::StringEnum,
+            (Some(Shape::List(_)), _) | (None, Some(Pending::List(_))) => On::List,
+            (Some(Shape::Map(_)), _) | (None, Some(Pending::Map(_))) => On::Map,
             _ => On::Other,
         }
     }
@@ -2066,6 +2066,16 @@ impl<'a> Lowerer<'a> {
         constraints: &Constraints,
     ) -> Json {
         let mut json = self.json(file, value);
+        // A recursive target is still pending: its kind is all there is.
+        let pending = match self.pending.get(target) {
+            Some(Pending::Union) => Some(UNION_DEFAULT),
+            Some(Pending::Structure) => Some(STRUCTURE_DEFAULT),
+            _ => None,
+        };
+        if let Some(message) = pending {
+            self.error(file, span, message);
+            return json;
+        }
         match self.shapes.get(target) {
             Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Timestamp => {
                 self.error(
@@ -2076,19 +2086,11 @@ impl<'a> Lowerer<'a> {
                 return json;
             }
             Some(Shape::Union(_)) => {
-                self.error(
-                    file,
-                    span,
-                    "a union has no default: it has no value until one arm is set",
-                );
+                self.error(file, span, UNION_DEFAULT);
                 return json;
             }
             Some(Shape::Structure(_)) => {
-                self.error(
-                    file,
-                    span,
-                    "a structure has no default; make the member optional",
-                );
+                self.error(file, span, STRUCTURE_DEFAULT);
                 return json;
             }
             Some(Shape::Enum(enumeration)) => {
@@ -2281,11 +2283,23 @@ impl<'a> Lowerer<'a> {
         if self.shapes.contains_key(id) {
             return;
         }
+        // A shape reached again while it is lowered: recursion, which the
+        // IR records by target id; `pending` answers what its referrers ask.
         if self.visiting.contains(id) {
-            self.recursive.insert(id.clone());
             return;
         }
         self.visiting.insert(id.clone());
+        if let Some(decl) = self.decl(id.name()) {
+            match decl.item.decl {
+                Decl::Structure(_) => {
+                    self.pending.insert(id.clone(), Pending::Structure);
+                }
+                Decl::Union(_) => {
+                    self.pending.insert(id.clone(), Pending::Union);
+                }
+                _ => {}
+            }
+        }
         let shape = if id.namespace() == "smithy.api" {
             self.prelude_shape(id)
         } else if let Some(body) = self.bodies.get(id).cloned() {
@@ -2298,6 +2312,7 @@ impl<'a> Lowerer<'a> {
             None
         };
         self.visiting.remove(id);
+        self.pending.remove(id);
         if let Some(shape) = shape {
             self.shapes.insert(id.clone(), shape);
         }
@@ -2459,10 +2474,14 @@ impl<'a> Lowerer<'a> {
             Decl::List(list) => {
                 let modifiers = self.modifiers(file, item, &["internal", "sensitive"]);
                 let (mut traits, notes, docs) = self.shape_traits(file, item, "list", &modifiers);
-                let target = self.resolve_type(file, &list.member)?;
-                let member = self.collection_member(id, "member", &target);
+                // Its own constraints first: a member reaching this list
+                // again (recursion) reads them while it is pending.
                 let info = self.constraint_block(file, &list.constraints);
                 self.check_constraints(file, &list.constraints, On::List, false);
+                self.pending
+                    .insert(id.clone(), Pending::List(info.constraints.clone()));
+                let target = self.resolve_type(file, &list.member)?;
+                let member = self.collection_member(id, "member", &target);
                 traits.extend(info.traits);
                 Shape::List(List {
                     internal: modifiers.contains("internal"),
@@ -2479,6 +2498,10 @@ impl<'a> Lowerer<'a> {
             Decl::Map(map) => {
                 let modifiers = self.modifiers(file, item, &["internal", "sensitive"]);
                 let (mut traits, notes, docs) = self.shape_traits(file, item, "map", &modifiers);
+                let info = self.constraint_block(file, &map.constraints);
+                self.check_constraints(file, &map.constraints, On::Map, false);
+                self.pending
+                    .insert(id.clone(), Pending::Map(info.constraints.clone()));
                 let key = self.resolve_type(file, &map.key)?;
                 let value = self.resolve_type(file, &map.value)?;
                 self.visit(&key);
@@ -2491,8 +2514,6 @@ impl<'a> Lowerer<'a> {
                 }
                 let key = self.collection_member(id, "key", &key);
                 let value = self.collection_member(id, "value", &value);
-                let info = self.constraint_block(file, &map.constraints);
-                self.check_constraints(file, &map.constraints, On::Map, false);
                 traits.extend(info.traits);
                 Shape::Map(Map {
                     internal: modifiers.contains("internal"),
@@ -2855,10 +2876,11 @@ impl<'a> Lowerer<'a> {
     }
 
     fn constraints_of(&self, id: &ShapeId) -> Constraints {
-        match self.shapes.get(id) {
-            Some(Shape::Simple(s)) => s.constraints.clone(),
-            Some(Shape::List(l)) => l.constraints.clone(),
-            Some(Shape::Map(m)) => m.constraints.clone(),
+        match (self.shapes.get(id), self.pending.get(id)) {
+            (Some(Shape::Simple(s)), _) => s.constraints.clone(),
+            (Some(Shape::List(l)), _) => l.constraints.clone(),
+            (Some(Shape::Map(m)), _) => m.constraints.clone(),
+            (None, Some(Pending::List(c) | Pending::Map(c))) => c.clone(),
             _ => Constraints::default(),
         }
     }
@@ -4723,7 +4745,7 @@ impl<'a> Lowerer<'a> {
             cors: None,
             internal: false,
             endpoint_discovery: None,
-            recursive_groups: Vec::new(),
+            recursive_groups: crucible_smithy::ir::recursive_groups(&self.shapes),
             xml_namespace: None,
             xml_shapes: BTreeMap::new(),
             protocol: self.protocol,
