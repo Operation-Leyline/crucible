@@ -652,8 +652,8 @@ fn main() -> ExitCode {
     }
 }
 
-/// `0.6.1 (<revision>)`, `0.6.1 (<revision>+dirty)` from a checkout with
-/// uncommitted changes, or `0.6.1` without a verified Git revision.
+/// `X.Y.Z (<revision>)`, `X.Y.Z (<revision>+dirty)` from a checkout with
+/// uncommitted changes, or `X.Y.Z` without a verified Git revision.
 fn version() -> String {
     match crucible_revision::recorded_revision() {
         Some(revision) => format!("{} ({revision})", env!("CARGO_PKG_VERSION")),
