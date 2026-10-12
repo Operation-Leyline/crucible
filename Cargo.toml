@@ -20,6 +20,7 @@ crucible-cli-runtime = { path = "crates/crucible-cli-runtime" }
 crucible-codegen-cli = { path = "crates/crucible-codegen-cli" }
 crucible-build = { path = "crates/crucible-build" }
 crucible-policy = { path = "crates/crucible-policy" }
+crucible-sdk-release = { path = "crates/crucible-sdk-release" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-smithy = { path = "crates/crucible-smithy" }
 crucible-lang = { path = "crates/crucible-lang" }
