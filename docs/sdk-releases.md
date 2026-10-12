@@ -4,6 +4,13 @@ Build and test package archives once, then publish those same archives. The rele
 runner records the model hash, release recipe hash, package sizes, and SHA-256
 hashes in `release.json`. Publication verifies the manifest before each command.
 
+This page documents `tools/sdk_release.py`, a runner in this repository.
+Its replacement, `crucible sdk`, is designed in
+[SDK packaging and releases](sdk-packaging.md): package metadata for every
+language, versions chosen against what is published, provenance, and
+release channels including Git tags, so a service needs no packaging
+scripts.
+
 ## Build a release
 
 Install the generator and the native package tools used by your recipe. The
@@ -44,10 +51,25 @@ commands also receive `{source}`, the recipe's directory. Publication recipes
 must work from the release directory without accessing the original source tree.
 Commands run without a shell; environment variables stay in the environment.
 
-Rust emits `src/lib.rs`; its `prepare` recipe must supply a Cargo manifest with
-the chosen version and runtime dependencies. Other generators emit their native
-package metadata. Languages distributed by Git tags, source archives, or package
-manager manifests should use their native release mechanism in the recipe.
+Every generator emits its native package metadata. Rust's client is a complete
+Cargo package (`Cargo.toml` with its runtime dependency, and `src/lib.rs`), but
+this runner predates it: it passes `<package>/src/lib.rs` as `--out`. A Rust
+target that does not list `--client` in its `arguments` generates server
+bindings there. One that does writes the client package into a directory named
+`src/lib.rs`. The checked-in Weather recipe has no Rust target, and a fix is
+tracked separately. Until then, generate and build the Rust client directly:
+
+```sh
+crucible generate rust path/to/model --client --package-name weather-sdk \
+  --package-version 1.0.0 --out target/rust-sdk
+cargo build --manifest-path target/rust-sdk/Cargo.toml
+```
+
+Distribute it by Git tag or path. `cargo package` needs the Rust runtime crates
+in a registry, and they are not published yet.
+
+Languages distributed by Git tags, source archives, or package manager
+manifests should use their native release mechanism in the recipe.
 The runner does not pretend every language has an upload registry.
 
 | Ecosystem | Native artifact and publication mechanism |
