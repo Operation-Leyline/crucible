@@ -406,6 +406,8 @@ pub(crate) fn build(
     if !refused.is_empty() {
         return Err(refused.join("\n"));
     }
+    // Two `out`s that alias would overwrite each other.
+    file.check_outs()?;
     fs::create_dir_all(&out).map_err(|error| format!("cannot create {}: {error}", shown(&out)))?;
     let mut built: Vec<(&Sdk, Vec<File>)> = Vec::new();
     for (sdk, plan) in &mut planned {
@@ -431,6 +433,9 @@ pub(crate) fn build(
         // Point `out` at the release, so a path dependency resolves to the
         // sources being released.
         let target = file.join(&sdk.out);
+        // Again before each write: writing one `out` creates directories
+        // another may alias.
+        file.check_outs()?;
         crucible_codegen::write(&target, files).map_err(|error| {
             format!(
                 "sdk.{}: cannot write {}: {error}{}",

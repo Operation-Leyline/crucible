@@ -547,7 +547,8 @@ impl GitTagChannel {
 
 impl Channel for GitTagChannel {
     fn describe(&self) -> String {
-        let mut shown = format!("git {} ({}", self.config.url, self.config.branch);
+        // Accepted URLs carry no credential; redacted all the same.
+        let mut shown = format!("git {} ({}", redact(&self.config.url), self.config.branch);
         if self.config.path != "." {
             shown.push_str(&format!(", {}", self.config.path));
         }
@@ -914,6 +915,8 @@ mod tests {
             "https://x-access-token:ghp_secret@github.com/o/r.git",
             "https://ghp_secret@github.com/o/r.git",
             "git:ghp_secret@github.com:o/r.git",
+            // A single slash still names user information to a URL parser.
+            "https:/x-access-token:ghp_secret@github.com/o/r.git",
         ] {
             let Err(error) = GitTagChannel::new(&GitChannelConfig::new(url)) else {
                 panic!("{url} was accepted");

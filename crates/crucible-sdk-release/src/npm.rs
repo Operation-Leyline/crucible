@@ -761,6 +761,13 @@ impl Channel for NpmChannel {
 /// fragment, with a trailing slash.
 fn registry_url(text: &str) -> Result<Url, String> {
     let shown = crucible_codegen_common::metadata::redact(text);
+    // The SDK file's own rule first, so every spelling it refuses is
+    // refused here too, and never shown.
+    if crucible_codegen_common::metadata::credential_problem(text).is_some() {
+        return Err(format!(
+            "{shown}: credentials come from .npmrc, never the channel URL"
+        ));
+    }
     let mut url = Url::parse(text).map_err(|error| format!("{shown:?}: {error}"))?;
     // Before anything else names the URL: user information is a secret.
     if !url.username().is_empty() || url.password().is_some() {
@@ -851,6 +858,8 @@ mod tests {
             "http://_:npm_SECRET@r.example/",
             "https://npm_SECRET@r.example/",
             "https://_:npm_SECRET@r.example:99999/",
+            "https:/_:npm_SECRET@r.example/",
+            "https:npm_SECRET@r.example/",
         ] {
             let error = registry_url(text).unwrap_err();
             assert!(!error.contains("npm_SECRET"), "{error}");
