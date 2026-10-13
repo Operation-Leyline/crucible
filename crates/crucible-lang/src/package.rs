@@ -271,6 +271,7 @@ fn overlay_in_source(package: &Path, root: &Path, file: &SourceFile) -> bool {
     {
         return false;
     }
+    let source_exists = root.is_dir();
     let mut within_source = false;
     let mut at = path.parent();
     while let Some(parent) = at {
@@ -281,7 +282,15 @@ fn overlay_in_source(package: &Path, root: &Path, file: &SourceFile) -> bool {
             return within_source && parent.is_dir();
         }
         match std::fs::symlink_metadata(parent) {
-            Ok(metadata) if !metadata.is_dir() || metadata.file_type().is_symlink() => {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                // The disk walk follows an explicitly selected existing
+                // root, including its parents, but never links below it.
+                // A virtual root cannot opt into following an ancestor link.
+                if !source_exists || !within_source || !parent.is_dir() {
+                    return false;
+                }
+            }
+            Ok(metadata) if !metadata.is_dir() => {
                 return false;
             }
             Err(error) if error.kind() != std::io::ErrorKind::NotFound => return false,

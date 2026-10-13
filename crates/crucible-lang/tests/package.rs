@@ -462,6 +462,33 @@ fn new_buffers_do_not_cross_linked_directories() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn existing_declared_source_roots_can_follow_directory_links() {
+    for (name, source, target_file) in [
+        ("linked-root", "link", "actual/saved.cru"),
+        ("linked-parent", "link/model", "actual/model/saved.cru"),
+    ] {
+        let manifest = format!("[model]\nnamespace = \"example.shop\"\nsources = [\"{source}\"]\n");
+        let dir = package_dir(name, &manifest, &[(target_file, "string Saved\n")]);
+        std::os::unix::fs::symlink(dir.join("actual"), dir.join("link")).unwrap();
+        let overlays = [crucible_lang::SourceFile {
+            path: dir.join(source).join("new.cru").display().to_string(),
+            text: "string New\n".into(),
+        }];
+        let disk = load_package(&dir).unwrap();
+        assert_eq!(disk.files.len(), 1, "{name}");
+        let editor =
+            crucible_lang::package::load_package_with_overlays(&dir, &manifest, &overlays).unwrap();
+        assert_eq!(editor.files.len(), 2, "{name}");
+        assert!(
+            editor.files.iter().any(|file| file.text == "string New\n"),
+            "{name}"
+        );
+        assert!(!dir.join(source).join("new.cru").exists());
+    }
+}
+
 #[test]
 fn the_manifest_checks_cover_language_naming_and_namespaces() {
     let dir = package_dir("manifest-more", "", &[("model/a.cru", "")]);
