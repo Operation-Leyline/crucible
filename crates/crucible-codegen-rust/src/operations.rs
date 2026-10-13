@@ -293,6 +293,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     );
     if !client {
         auth.push_str(&scope_items(service, op));
+        auth.push_str(&pagination_items(service, op));
     }
     auth.push_str(&wire(service, op));
     auth.push_str(&crate::events::marker_items(service, op, client));
@@ -553,4 +554,35 @@ fn scope_items(service: &Service, op: &Operation) -> String {
         ));
     }
     items
+}
+
+/// `PAGINATION` for a `@paginated` operation, naming each input member as
+/// the model does and as the input's JSON form does, so a server extension
+/// can read the token without knowing the input's type.
+fn pagination_items(service: &Service, op: &Operation) -> String {
+    let Some(paginated) = &op.paginated else {
+        return String::new();
+    };
+    let input = structure(service, op.input.as_ref());
+    let member = |name: &str| {
+        let wire = input
+            .and_then(|s| s.member(name))
+            .map_or(name, |m| m.wire_name.as_str());
+        format!(
+            "::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {}, wire_name: {} }}",
+            literal(name),
+            literal(wire)
+        )
+    };
+    let page_size = paginated
+        .page_size
+        .as_deref()
+        .map_or("::std::option::Option::None".to_owned(), |name| {
+            format!("::std::option::Option::Some({})", member(name))
+        });
+    format!(
+        "    const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination {{ input_token: {}, page_size: {page_size} }});
+",
+        member(&paginated.input_token)
+    )
 }

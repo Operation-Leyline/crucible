@@ -18,6 +18,9 @@ lambda = ["dep:lambda_http", "dep:lambda_runtime"]
 logging = ["dep:tracing-subscriber"]
 # Embedded local-development API explorer; never enabled by default.
 explorer = []
+# Sealed pagination tokens (`page_tokens`): authenticated encryption, so a
+# service that does not page through it carries no cryptography.
+page-tokens = ["dep:chacha20poly1305", "dep:hkdf", "dep:sha2", "dep:base64"]
 # The conformance harness that generated `smithy.test` vector tests call. Enable it
 # from [dev-dependencies]: nothing in a production build needs it. (This crate's
 # own tests always include it.)
@@ -43,6 +46,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", optional = true, features = ["env-filter", "json"] }
 uuid = { version = "1", features = ["v4", "fast-rng"] }
 url = "2"
+chacha20poly1305 = { version = "0.10", optional = true }
+hkdf = { version = "0.12", optional = true }
+sha2 = { version = "0.10", optional = true }
+base64 = { version = "0.22", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

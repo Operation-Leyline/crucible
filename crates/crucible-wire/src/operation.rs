@@ -35,6 +35,9 @@ pub trait Operation: Send + Sync + 'static {
     const PROTOCOL: Protocol = Protocol::CrucibleJson;
     /// The operation's modeled HTTP checksum behavior, for clients.
     const CHECKSUM: Option<Checksum> = None;
+    /// How the operation pages (`@paginated`), for server extensions that
+    /// read the token from the decoded input.
+    const PAGINATION: Option<Pagination> = None;
     const HAS_INPUT: bool = true;
     const HAS_OUTPUT: bool = true;
     fn output_status(_output: &Self::Output) -> Option<u16> {
@@ -384,6 +387,22 @@ impl Protocol {
     pub fn rpc_v2(self) -> bool {
         matches!(self, Self::SmithyRpcV2Json | Self::SmithyRpcV2Cbor)
     }
+}
+
+/// The input members of a `@paginated` operation that say where a listing
+/// resumes and how much of it to return.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Pagination {
+    pub input_token: PaginationMember,
+    pub page_size: Option<PaginationMember>,
+}
+
+/// A top-level input member, named as the model names it (a validation
+/// path) and as its key in the input's JSON form ([`Input::to_json`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaginationMember {
+    pub name: &'static str,
+    pub wire_name: &'static str,
 }
 
 /// An operation's modeled HTTP checksum behavior.

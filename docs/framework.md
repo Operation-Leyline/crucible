@@ -434,6 +434,64 @@ interceptors and the handler see only current types. Before encoding,
 after the interceptors' and operation middleware's `after` phases, the
 output or error is converted back.
 
+### Pagination tokens
+
+A `@paginated` operation hands its caller a token saying where the listing
+resumes. Whatever the service keeps there (a DynamoDB `LastEvaluatedKey`, an
+offset) should not reach the caller as it is: a readable token can be edited,
+replayed against another listing or caller, or kept forever. The
+`page-tokens` feature seals it instead. It needs no store and no network
+call: a token is checked by opening it.
+
+```toml
+crucible-server-runtime-rust = { version = "=0.7.0", features = ["page-tokens"] }
+```
+
+```rust
+use crucible_server_runtime_rust::page_tokens::{PageKeys, PageTokens};
+
+// Any secret of 32 bytes or more, from wherever the service keeps secrets.
+let keys = PageKeys::new("k1", secret.as_bytes())?;
+let builder = builder.interceptor(PageTokens::new(keys, |context| {
+    // Who is asking, so one caller's token does not open for another.
+    context
+        .attribute::<crucible_auth::Principal>()
+        .map(|principal| format!("{}
+{}", principal.issuer, principal.subject))
+}));
+```
+
+The operation keeps its own cursor bytes and never sees a token:
+
+```rust
+let start = page_tokens::resume()?; // the cursor the request's token sealed; None on the first page
+let (items, last) = store.page(start.as_deref(), size).await?;
+let next_token = last.map(|key| page_tokens::issue(&key)).transpose()?;
+```
+
+- **Sealed.** XChaCha20-Poly1305 with a random nonce per token, under a key
+  derived from the secret with HKDF-SHA256. A caller can neither read the
+  cursor nor change a byte of the token.
+- **Bound to the request.** The seal covers a digest of the service, the
+  operation, the caller and the decoded input without its token and page
+  size. A token opens only for the same caller, listing and filters,
+  whichever protocol or binding carried them. The page size may change
+  between pages.
+- **Expiring.** The expiry is sealed inside: 24 hours, or
+  `PageTokens::ttl`. A change applies to tokens issued after it.
+- **Rotatable.** A token names its key. `PageKeys::accept` keeps a retired
+  key opening the tokens it sealed while the current key seals new ones;
+  drop it after one token lifetime.
+
+The interceptor opens the request's token before the operation runs. A token
+that does not open, whatever the reason, is the service's validation error
+naming the token member (`fieldValidationFailed`), never echoing the token.
+`PageTokens::refusal` builds a different error, for a service with a reason
+of its own. Operations that are not `@paginated` pass through untouched;
+`resume` and `issue` called from one are an internal error. The generated
+`Operation::PAGINATION` (on `OperationMetadata::pagination`) names the
+token and page size members it reads.
+
 ## Protocols
 
 A protocol implements `identify`, `decode`, and `write`. Identification returns
