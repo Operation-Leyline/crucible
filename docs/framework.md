@@ -544,9 +544,11 @@ protocol declining a request must leave it available to later protocols.
 
 ### Model-driven authentication
 
-The optional [JWT bearer authentication](auth.md) crate (with its opt-in
+The optional [bearer authentication](auth.md) crate (with its opt-in
 [OAuth scope enforcement](auth.md#oauth-scopes)) supplies a model-driven
-authenticator chain, Cognito presets, cached JWT verification, and test issuers.
+authenticator chain, Cognito presets, cached JWT verification, cached
+[API-key checks](auth.md#api-keys) against a service-owned store, and test
+issuers and stores.
 Install it explicitly; `defaults()` continues to leave authentication off.
 
 `Prepare::metadata(operation)`, `OperationJob::metadata()`, and

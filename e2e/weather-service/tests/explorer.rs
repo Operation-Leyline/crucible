@@ -315,15 +315,11 @@ impl Authenticator for Token {
             .get("authorization")
             .and_then(|v| v.to_str().ok())
         {
-            Some("Bearer token") => AuthenticateResult::Authenticated(Principal {
-                subject: "developer".into(),
-                issuer: "local".into(),
-                client_id: None,
-                token_kind: TokenKind::Access,
-                scopes: Default::default(),
-                groups: Default::default(),
-                claims: Value::Null,
-            }),
+            Some("Bearer token") => AuthenticateResult::Authenticated(Principal::new(
+                "developer",
+                "local",
+                TokenKind::Access,
+            )),
             Some("Bearer outage") => AuthenticateResult::Unavailable(
                 crucible_server_runtime_rust::Error::internal("private outage"),
             ),

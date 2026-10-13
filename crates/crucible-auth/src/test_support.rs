@@ -1,4 +1,8 @@
-//! Real signing keys for service tests. Never enabled by default.
+//! Real signing keys and an in-memory API-key store for service tests. Never enabled by default.
+mod in_memory_api_key_store;
+
+pub use in_memory_api_key_store::InMemoryApiKeyStore;
+
 use crate::{Algorithm, AuthError, IssuerConfig};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use jsonwebtoken::{EncodingKey, Header, encode};

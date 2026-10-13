@@ -17,6 +17,35 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible_auth::ApiKeyAuthenticator`: bearer API keys checked against a
+  service-owned `ApiKeyStore` (`lookup(digest)` returning an `ApiKeyRecord`
+  of key ID, tenant, `ApiKeyState`, optional expiry and attributes). It
+  claims only credentials with its prefix that pass an optional
+  `well_formed` check, so it sits in an `AuthenticatorChain` beside
+  `JwtAuthenticator` and a JWT costs no read. It reads `Authorization:
+  Bearer` by default, or an ordered `credential_headers` list, with
+  `allow_bare` for scheme-less keys. Valid keys are cached for 5 minutes
+  from the read (`valid_ttl`; zero turns that cache off alone, for
+  immediate revocation) with one background `refresh_ahead` re-read near
+  the end, and an answer older than the TTL when it arrives is read again;
+  refused keys go in a separate LRU with backoff from 2 s to a 60 s ceiling
+  (`refusal_backoff`), a dead row straight to the ceiling. Concurrent misses
+  share one read and reads are bounded (`lookup_concurrency`). `forget`
+  drops a revoked key on this instance; `fence` answers every key with a
+  5xx while a replica is unhealthy; `last_used` hands
+  an `ApiKeyUsageRecorder` each key's use at most once per
+  `last_used_resolution`. A store error is a sanitized 5xx, never a refusal.
+  It serves the bearer scheme only, not `@httpApiKeyAuth`.
+  `api_key_digest(credential)` is the lowercase hex SHA-256 lookup key, for
+  minting. `test_support::InMemoryApiKeyStore` stands in for the table in
+  service tests. See [docs/auth.md](docs/auth.md#api-keys).
+
+- `Principal::tenant`: the workspace or organization a credential is bound
+  to. API keys fill it from their record; ID and access tokens leave it
+  `None`, and no token claim sets it. `Principal::new(subject, issuer,
+  token_kind)` with `with_client_id`, `with_scopes`, `with_groups`,
+  `with_claims` and `with_tenant` construct one.
+
 - Sealed pagination tokens, behind the runtime's `page-tokens` feature.
   `PageTokens` is an `Interceptor` that opens the token a `@paginated`
   request carries before the operation runs, and the operation reads its own
@@ -138,6 +167,17 @@ version's section when it is prepared.
     indexes and public map keys still appear.
 
   Paths and the model's expectations are unchanged.
+
+### Migration
+
+- **`crucible_auth::Principal` is non-exhaustive.** A custom `Authenticator`
+  can no longer build one with a struct literal. Replace
+  `Principal { subject, issuer, client_id: None, token_kind, scopes, groups, claims }`
+  with `Principal::new(subject, issuer, token_kind)` and the `with_*`
+  setters for the fields it set (`.with_claims(claims)`, ...), and add `..`
+  to any exhaustive destructuring. No shim is possible: the attribute is on
+  the type. Reading fields is unchanged. See
+  [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12
 
