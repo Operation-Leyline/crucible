@@ -8,6 +8,12 @@ use crucible_smithy::ir::{DocNotes, Member, Operation, Service, Shape};
 
 const BACKSLASH: char = '\u{5c}';
 
+/// What API documentation says about an idempotency token member
+/// (`@idempotencyToken`): models never mark it required, since SDKs fill it,
+/// so a caller writing requests by hand learns here that a service refuses a
+/// request without one.
+pub const IDEMPOTENCY_TOKEN_NOTE: &str = "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; services refuse requests without one.";
+
 /// What a string representation prints in place of a `@sensitive` value.
 pub const REDACTED: &str = "*** Sensitive Data Redacted ***";
 

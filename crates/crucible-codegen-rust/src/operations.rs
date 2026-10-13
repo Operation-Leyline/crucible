@@ -294,6 +294,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
     if !client {
         auth.push_str(&scope_items(service, op));
         auth.push_str(&pagination_items(service, op));
+        auth.push_str(&idempotency_items(service, op, output_ty));
     }
     auth.push_str(&wire(service, op));
     auth.push_str(&crate::events::marker_items(service, op, client));
@@ -554,6 +555,34 @@ fn scope_items(service: &Service, op: &Operation) -> String {
         ));
     }
     items
+}
+
+/// `IDEMPOTENCY_TOKEN` for an operation with an idempotency token, naming
+/// the member as the model does and as the input's JSON form does, and
+/// `OUTPUT_FROM_JSON` when its output does not stream, so a server extension
+/// can answer a retry with an earlier attempt's output. Only these operations
+/// get the reader: nothing else replays.
+fn idempotency_items(service: &Service, op: &Operation, output_ty: &str) -> String {
+    let Some(token) = &op.idempotency_token else {
+        return String::new();
+    };
+    let wire = structure(service, op.input.as_ref())
+        .and_then(|s| s.member(token))
+        .map_or(token.as_str(), |m| m.wire_name.as_str());
+    let mut out = format!(
+        "    const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {}, wire_name: {} }});\n",
+        literal(token),
+        literal(wire)
+    );
+    let streams = op.response.payload.as_ref().is_some_and(|payload| {
+        payload.streaming || payload.kind == crucible_smithy::ir::PayloadKind::EventStream
+    });
+    if !streams {
+        out.push_str(&format!(
+            "    const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<{output_ty}>);\n"
+        ));
+    }
+    out
 }
 
 /// `PAGINATION` for a `@paginated` operation, naming each input member as

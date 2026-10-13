@@ -2,8 +2,8 @@ use crate::OperationMetadata;
 use crate::error::{Error, Result};
 use crate::operation::{Input, Operation, Output, Segment, ServiceInfo};
 use crate::operations::{
-    Entry, Invoke, MissingOperations, OlderVersion, Operations, StreamingOutput, decode,
-    decode_bound, decode_cbor, decode_events, decode_json,
+    Entry, Invoke, MissingOperations, OlderVersion, Operations, OutputFromJson, StreamingOutput,
+    decode, decode_bound, decode_cbor, decode_events, decode_json, output_from_json,
 };
 use crate::validate::Validator;
 use crate::versioning::{
@@ -75,6 +75,7 @@ where
         decode_bound: decode_bound::<O>,
         decode_events: decode_events::<O>,
         invoke,
+        output_from_json: O::OUTPUT_FROM_JSON.map(|_| output_from_json::<O> as OutputFromJson),
         body_limit: None,
         upgrade: None,
         downgrade: None,
@@ -353,13 +354,21 @@ where
     });
     Entry {
         info: Old::INFO,
-        metadata: OperationMetadata::of::<Old>(),
+        // The interceptors see the current version's input, and a replay
+        // reads the current version's output, which converts down as the
+        // operation's own would.
+        metadata: OperationMetadata {
+            idempotency_token: serving.metadata.idempotency_token,
+            replays_output: serving.metadata.replays_output,
+            ..OperationMetadata::of::<Old>()
+        },
         decode: decode::<Old>,
         decode_json: decode_json::<Old>,
         decode_cbor: decode_cbor::<Old>,
         decode_bound: decode_bound::<Old>,
         decode_events: decode_events::<Old>,
         invoke: serving.invoke.clone(),
+        output_from_json: serving.output_from_json,
         body_limit: serving.body_limit,
         upgrade: Some(upgrade),
         downgrade: Some(downgrade),

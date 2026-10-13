@@ -547,8 +547,9 @@ fn operation(d: &Description, op: &Value) -> String {
     ));
     if let Some(token) = op["idempotencyToken"].as_str() {
         out.push_str(&format!(
-            "Clients fill an omitted {} token once per call and reuse it for retries.\n\n",
-            code(token)
+            "Idempotency token: {}. {}\n\n",
+            code(token),
+            crucible_codegen_common::docs::IDEMPOTENCY_TOKEN_NOTE
         ));
     }
     if !op["pagination"].is_null() {

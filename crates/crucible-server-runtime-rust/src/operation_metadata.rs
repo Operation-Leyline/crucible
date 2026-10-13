@@ -1,4 +1,4 @@
-use crate::operation::{AuthScheme, Operation, Pagination, Protocol};
+use crate::operation::{AuthScheme, Operation, Pagination, PaginationMember, Protocol};
 
 /// Effective wire and authentication settings retained after type-erased registration.
 /// These describe the model; middleware remains responsible for enforcing authentication.
@@ -20,6 +20,11 @@ pub struct OperationMetadata {
     pub output_events: Option<&'static crate::event_stream::EventStreamInfo>,
     /// Where a `@paginated` operation's input carries its token and page size.
     pub pagination: Option<Pagination>,
+    /// Where the input carries the operation's idempotency token.
+    pub idempotency_token: Option<PaginationMember>,
+    /// Whether a stored output can answer a retry
+    /// ([`DecodedJob::replay_output`](crate::DecodedJob::replay_output)).
+    pub replays_output: bool,
 }
 
 impl OperationMetadata {
@@ -41,6 +46,8 @@ impl OperationMetadata {
             input_events: O::INPUT_EVENTS,
             output_events: O::OUTPUT_EVENTS,
             pagination: O::PAGINATION,
+            idempotency_token: O::IDEMPOTENCY_TOKEN,
+            replays_output: O::OUTPUT_FROM_JSON.is_some(),
         }
     }
 }

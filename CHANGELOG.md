@@ -60,6 +60,39 @@ version's section when it is prepared.
   `OperationMetadata::pagination`. See
   [docs/framework.md](docs/framework.md#pagination-tokens).
 
+- Server-side idempotency (client tokens), behind the runtime's
+  `idempotency` feature. `Idempotency::new(store, caller)` is an
+  `Interceptor` for every operation whose input has an idempotency token:
+  a request without one is the validation error naming the member (unless
+  `optional_tokens`); the token is claimed atomically in the service's
+  `IdempotencyStore` (`claim`, `hold`, `complete`, `release`), keyed by
+  service, operation, caller binding and token, with a SHA-256
+  `Fingerprint` of the canonical decoded input without its token. A retry
+  with the same input gets the first success re-encoded for its own
+  protocol, API version and request id, without the operation running; the
+  same token with other input, or while the first request runs, is a 409.
+  A failure releases the claim so a retry runs again, unless the operation
+  called `idempotency::commit()` before an irreversible side effect, after
+  which the claim is held for the retention. Successes replay for 24 hours
+  (`retention`); an unsettled claim lapses after 15 minutes (`lease`), or a
+  minute past the request's deadline. `refusal_factory` maps an
+  `IdempotencyRefusal` (`Missing`, `Mismatch`, `InFlight`) to the service's
+  own errors. Store errors are sanitized 5xx answers; a failed completion
+  write never turns a success into an error. `MemoryIdempotencyStore`
+  (`test-support`) stands in for the table in tests. See
+  [docs/framework.md](docs/framework.md#idempotency-tokens).
+
+- `FrameworkError::Conflict { message }`: HTTP 409 `ConflictException`
+  (`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
+  what `Idempotency` answers by default without a modelled conflict error.
+
+- `DecodedJob::replay_output(json)` ends an invocation with an output read
+  from its JSON form, which the protocol encodes as the operation's own.
+  Generated server operations with an idempotency token carry
+  `Operation::IDEMPOTENCY_TOKEN` and, when the output does not stream,
+  `Operation::OUTPUT_FROM_JSON` (an `operation::OutputFromJson`), also on
+  `OperationMetadata` (`idempotency_token`, `replays_output`).
+
 - Deadlines are enforced. A request is stopped at the host's deadline (a
   Lambda invocation's) less `DEADLINE_RESERVE` (250 ms), or at
   `Builder::request_timeout(duration)` after it arrived, whichever comes
@@ -83,6 +116,13 @@ version's section when it is prepared.
   validators is now refused at lowering instead of reaching a generator.
 
 ### Changed
+
+- An idempotency token member is described, in OpenAPI and MCP schemas,
+  `crucible.describe/1` member schemas and the API reference, as sent
+  automatically by SDKs, and as one a caller of the API itself must send,
+  unique per intended operation and the same on a retry, since services
+  refuse requests without one. It replaces the reference's "Clients fill an
+  omitted token" sentence.
 
 - `Context::deadline()` reports the deadline the framework enforces: the
   host's less `DEADLINE_RESERVE`, or the `request_timeout`, whichever is
@@ -169,6 +209,11 @@ version's section when it is prepared.
   Paths and the model's expectations are unchanged.
 
 ### Migration
+
+- **`FrameworkError` has a `Conflict` variant.** A `match` over
+  `FrameworkError` with no wildcard arm needs one for `Conflict { .. }`
+  (HTTP 409). No shim is possible for a new variant. See
+  [migrating](docs/migrating.md#unreleased).
 
 - **`crucible_auth::Principal` is non-exhaustive.** A custom `Authenticator`
   can no longer build one with a struct literal. Replace

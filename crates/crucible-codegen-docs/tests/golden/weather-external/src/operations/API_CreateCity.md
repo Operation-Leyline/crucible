@@ -68,7 +68,7 @@ Content-Type: application/json
 
 Readonly: false. Idempotent: true.
 
-Clients fill an omitted <code>clientToken</code> token once per call and reuse it for retries.
+Idempotency token: <code>clientToken</code>. SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; services refuse requests without one.
 
 ## Examples
 

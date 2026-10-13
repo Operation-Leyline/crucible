@@ -28,6 +28,9 @@ pub(crate) type DecodeBound = for<'a> fn(
     Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection>;
 
+/// Reads an operation's output back from its JSON form, for a replay.
+pub(crate) type OutputFromJson = fn(Value) -> Result<Box<dyn Output>>;
+
 pub(crate) type DecodeEvents = for<'a> fn(
     &'a [u8],
     Vec<(&'static str, BoundValue<'a>)>,
@@ -43,6 +46,9 @@ pub(crate) struct Entry {
     pub decode_bound: DecodeBound,
     pub decode_events: DecodeEvents,
     pub invoke: Invoke,
+    /// Reads the current version's output from JSON, when the operation's
+    /// output can be replayed (`Operation::OUTPUT_FROM_JSON`).
+    pub output_from_json: Option<OutputFromJson>,
     /// This operation's body limit when the builder chose one; `None` keeps
     /// the service-wide limit. Settled at build, not looked up per request.
     pub body_limit: Option<usize>,
@@ -273,6 +279,22 @@ impl fmt::Display for MissingOperations {
 }
 
 impl std::error::Error for MissingOperations {}
+
+/// `O`'s output read from its JSON form, wrapped as the operation's own
+/// output is, so the protocol and an older version's downgrade treat a
+/// replayed output as the operation's.
+pub(crate) fn output_from_json<O: Operation>(value: Value) -> Result<Box<dyn Output>> {
+    let read = O::OUTPUT_FROM_JSON.ok_or_else(|| {
+        crate::Error::internal(format!("{}: the output cannot be replayed", O::INFO.name))
+    })?;
+    let output = read(value).map_err(|error| {
+        crate::Error::internal(format!(
+            "{}: a stored output does not read as the operation's output: {error}",
+            O::INFO.name
+        ))
+    })?;
+    Ok(Box::new(StreamingOutput::<O>(output)))
+}
 
 pub(crate) struct StreamingOutput<O: Operation>(pub(crate) O::Output);
 impl<O: Operation> Output for StreamingOutput<O> {

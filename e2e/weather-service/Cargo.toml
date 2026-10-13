@@ -19,7 +19,7 @@ crucible-build = { path = "../../crates/crucible-build" }
 [dev-dependencies]
 jsonschema = { version = "0.26.2", default-features = false }
 # The conformance harness for the generated smithy.test vector tests.
-crucible-server-runtime-rust = { path = "../../crates/crucible-server-runtime-rust", features = ["test-support", "page-tokens"] }
+crucible-server-runtime-rust = { path = "../../crates/crucible-server-runtime-rust", features = ["test-support", "page-tokens", "idempotency"] }
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "json"] }
 crucible-auth = { path = "../../crates/crucible-auth", features = ["test-support"] }
 crucible-client-runtime-rust = { path = "../../crates/crucible-client-runtime-rust" }

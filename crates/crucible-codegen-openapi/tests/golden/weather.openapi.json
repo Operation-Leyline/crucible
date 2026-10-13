@@ -262,6 +262,7 @@
                         "type": "null"
                       }
                     ],
+                    "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; services refuse requests without one.",
                     "x-smithy-traits": {
                       "smithy.api#idempotencyToken": {}
                     }
@@ -1828,6 +1829,7 @@
                 "type": "null"
               }
             ],
+            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; services refuse requests without one.",
             "x-smithy-traits": {
               "smithy.api#idempotencyToken": {}
             }

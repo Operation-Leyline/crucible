@@ -146,6 +146,12 @@ pub enum FrameworkError {
     Unauthenticated,
     /// An authenticated principal cannot perform the requested action.
     Forbidden,
+    /// The request conflicts with one the service already accepted: an
+    /// idempotency token reused for a different request, or for one still
+    /// running. The message says which, and what the caller can do.
+    Conflict {
+        message: &'static str,
+    },
     UnknownOperation,
     MethodNotAllowed {
         allowed: Vec<&'static str>,
@@ -159,6 +165,7 @@ impl FrameworkError {
         match self {
             Self::Unauthenticated => "UnauthenticatedException",
             Self::Forbidden => "ForbiddenException",
+            Self::Conflict { .. } => "ConflictException",
             Self::UnknownOperation => "UnknownOperation",
             Self::MethodNotAllowed { .. } => "MethodNotAllowed",
             Self::UnsupportedMediaType => "UnsupportedMediaTypeException",
@@ -170,6 +177,7 @@ impl FrameworkError {
         match self {
             Self::Unauthenticated => 401,
             Self::Forbidden => 403,
+            Self::Conflict { .. } => 409,
             Self::UnknownOperation => 404,
             Self::MethodNotAllowed { .. } => 405,
             Self::UnsupportedMediaType => 415,
@@ -181,6 +189,7 @@ impl FrameworkError {
         match self {
             Self::Unauthenticated => "authentication is required",
             Self::Forbidden => "access is forbidden",
+            Self::Conflict { message } => message,
             Self::UnknownOperation => "no operation serves this request",
             Self::MethodNotAllowed { .. } => "the request method is not allowed for this target",
             Self::UnsupportedMediaType => "the request content-type is not supported",

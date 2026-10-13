@@ -24,7 +24,15 @@ tag.
 
 The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
 authority. Only code that constructs or exhaustively destructures
-`crucible_auth::Principal` has to change; reading its fields does not.
+`crucible_auth::Principal`, or matches `FrameworkError` without a wildcard
+arm, has to change; reading `Principal`'s fields does not.
+
+### `FrameworkError::Conflict`
+
+`FrameworkError` gained `Conflict { message }`, the 409 that idempotency
+answers by default. A `match` naming every variant needs an arm for it (or
+`_`); `name()`, `status()` and `message()` cover it, so code that only calls
+those is unaffected.
 
 ### `Principal` is non-exhaustive
 

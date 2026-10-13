@@ -43,6 +43,7 @@ pub struct Job {
     pub(crate) decode_cbor: Option<DecodeJson>,
     pub(crate) decode_events: Option<crate::operations::DecodeEvents>,
     pub(crate) decode_bound: Option<crate::operations::DecodeBound>,
+    pub(crate) output_from_json: Option<crate::operations::OutputFromJson>,
     pub(crate) input: Option<Box<dyn Input>>,
     pub(crate) outcome: Option<Outcome>,
     /// At an older API version: how the outcome reads at that version.
