@@ -19,6 +19,7 @@ mod bearer_challenge;
 mod cached_api_key;
 mod client_claim;
 mod endpoint_authenticator;
+mod inflight_waiter;
 mod issuer_config;
 mod jwks_cache;
 mod jwt_authenticator;

@@ -5,6 +5,7 @@ use crate::{
     api_key_policy::ApiKeyPolicy,
     api_key_store_unavailable::ApiKeyStoreUnavailable,
     cached_api_key::CachedApiKey,
+    inflight_waiter::InflightWaiter,
     lookup_outcome::LookupOutcome,
     lru_map::LruMap,
     refresh_claim::RefreshClaim,
@@ -28,10 +29,14 @@ pub(crate) struct ApiKeyCore {
 
 impl ApiKeyCore {
     pub async fn authenticate(&self, credential: &str) -> AuthenticateResult {
-        // A fence (an unhealthy credential replica) refuses before any cache or
-        // read: a cached answer is no better than the replica it came from.
+        // A fence (an unhealthy credential replica) answers before any cache or
+        // read: a cached answer is no better than the replica it came from. It
+        // is an outage (5xx), not a verdict on the key: valid keys must not be
+        // told they are invalid.
         if self.policy.fence.as_ref().is_some_and(|fenced| fenced()) {
-            return AuthenticateResult::Refused;
+            return AuthenticateResult::Unavailable(Error::internal(
+                "API key lookups fenced: credential store degraded",
+            ));
         }
         let digest = api_key_digest(credential);
         let outcome = match self.cached(&digest, self.now()) {
@@ -56,6 +61,11 @@ impl ApiKeyCore {
         // Later requests start a fresh read instead of joining one that began
         // before the revocation.
         self.cache.inflight.lock().expect(LOCK).remove(digest);
+    }
+
+    #[cfg(test)]
+    pub fn inflight(&self) -> usize {
+        self.cache.inflight.lock().expect(LOCK).len()
     }
 
     fn now(&self) -> SystemTime {
@@ -102,41 +112,71 @@ impl ApiKeyCore {
     }
 
     /// Reads the store once for every concurrent request for this digest.
+    ///
+    /// An answer is only as fresh as the moment its read started. One older
+    /// than the valid TTL when it arrives (a slow store, or a refresh paused by
+    /// a Lambda freeze that a later request joined) is not served: the read is
+    /// repeated once, and a second stale answer is an outage.
     async fn lookup(&self, digest: &str) -> LookupOutcome {
-        let cell = {
-            let mut inflight = self.cache.inflight.lock().expect(LOCK);
-            Arc::clone(inflight.entry(digest.to_owned()).or_default())
-        };
-        // A cancelled reader leaves the cell empty; the next waiter reads instead.
-        cell.get_or_init(|| async {
-            let outcome = self.read(digest).await;
-            let mut inflight = self.cache.inflight.lock().expect(LOCK);
-            if inflight
-                .get(digest)
-                .is_some_and(|current| Arc::ptr_eq(current, &cell))
-            {
-                inflight.remove(digest);
+        for _ in 0..2 {
+            let waiter = InflightWaiter::join(&self.cache.inflight, digest);
+            // A cancelled reader leaves the cell empty; the next waiter reads instead.
+            let (read_at, outcome) = waiter
+                .cell
+                .get_or_init(|| async {
+                    let read = self.read(digest).await;
+                    waiter.finish();
+                    read
+                })
+                .await
+                .clone();
+            if !self.too_old(read_at, self.now()) {
+                return outcome;
             }
-            outcome
-        })
-        .await
-        .clone()
+        }
+        LookupOutcome::Unavailable(Arc::new(Error::internal(
+            "API key store reads take longer than the valid-key TTL",
+        )))
     }
 
-    async fn read(&self, digest: &str) -> LookupOutcome {
+    /// With no valid-key cache there is no staleness bound to keep: the
+    /// answer goes only to the requests that were waiting for it.
+    fn too_old(&self, read_at: SystemTime, now: SystemTime) -> bool {
+        let ttl = self.policy.valid_ttl;
+        !ttl.is_zero() && now.duration_since(read_at).is_ok_and(|age| age >= ttl)
+    }
+
+    async fn read(&self, digest: &str) -> (SystemTime, LookupOutcome) {
         let epoch = self.cache.epoch.load(Ordering::SeqCst);
-        let result = {
+        let (read_at, result) = {
             let Ok(_permit) = self.cache.lookups.acquire().await else {
-                return LookupOutcome::Unavailable(Arc::new(Error::internal(
-                    "API key lookups closed",
-                )));
+                let error = Arc::new(Error::internal("API key lookups closed"));
+                return (self.now(), LookupOutcome::Unavailable(error));
             };
-            self.store.lookup(digest).await
+            // Stamped before the read, not when the reply arrives: the reply
+            // may describe the row as it was at any point since.
+            let read_at = self.now();
+            (read_at, self.store.lookup(digest).await)
         };
         let now = self.now();
+        (read_at, self.settle(digest, epoch, read_at, now, result))
+    }
+
+    /// Applies a finished read to the caches and decides its outcome.
+    fn settle(
+        &self,
+        digest: &str,
+        epoch: u64,
+        read_at: SystemTime,
+        now: SystemTime,
+        result: Result<Option<ApiKeyRecord>, Error>,
+    ) -> LookupOutcome {
         let policy = &self.policy;
         let mut valid = self.cache.valid.lock().expect(LOCK);
-        let current = self.cache.epoch.load(Ordering::SeqCst) == epoch;
+        // A read that started before a forget, or whose answer is already too
+        // old, caches nothing; evicting stays safe either way.
+        let current =
+            self.cache.epoch.load(Ordering::SeqCst) == epoch && !self.too_old(read_at, now);
         match result {
             // Nothing is cached: an outage is not evidence about the key, and a
             // valid entry keeps serving until its TTL runs out.
@@ -150,7 +190,7 @@ impl ApiKeyCore {
                             digest,
                             CachedApiKey {
                                 record: Arc::clone(&record),
-                                read_at: now,
+                                read_at,
                             },
                         );
                     }
@@ -173,7 +213,7 @@ impl ApiKeyCore {
                             })
                             .min(policy.refusal_ceiling)
                     };
-                    refuse(&mut refused, digest, now, lasts);
+                    refuse(&mut refused, digest, read_at, lasts);
                 }
                 LookupOutcome::Refused
             }
@@ -245,3 +285,6 @@ fn refuse(refused: &mut LruMap<Refusal>, digest: &str, now: SystemTime, lasts: D
         refused.insert(digest, Refusal { at: now, lasts });
     }
 }
+
+#[cfg(test)]
+mod tests;

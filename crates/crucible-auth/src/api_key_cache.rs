@@ -9,6 +9,10 @@ use std::{
 };
 use tokio::sync::{OnceCell, Semaphore};
 
+/// One store read shared by every request for its digest: when the read
+/// started (what its answer's age is measured from) and what it found.
+pub(crate) type ReadCell = Arc<OnceCell<(SystemTime, LookupOutcome)>>;
+
 /// How many keys the last-used throttle remembers. Forgetting one only means
 /// its next use is recorded early.
 const LAST_USED_CAPACITY: usize = 10_000;
@@ -21,12 +25,15 @@ pub(crate) struct ApiKeyCache {
     pub refused: Mutex<LruMap<Refusal>>,
     pub used: Mutex<LruMap<SystemTime>>,
     /// Single flight: concurrent misses for one digest share one store read.
-    pub inflight: Mutex<HashMap<String, Arc<OnceCell<LookupOutcome>>>>,
+    /// An entry lives only while someone waits on it (`InflightWaiter`).
+    pub inflight: Mutex<HashMap<String, ReadCell>>,
     /// Digests with a refresh-ahead read in flight, so a hit starts at most one.
     pub refreshing: Mutex<HashSet<String>>,
     pub lookups: Semaphore,
     /// Bumped (under `valid`) by every `forget`, so a read that started before
-    /// a revocation cannot cache what it read.
+    /// a revocation cannot cache what it read. Global, not per digest: a
+    /// forget stops every read in flight from caching, which costs at most one
+    /// extra read each and keeps no per-digest state.
     pub epoch: AtomicU64,
 }
 

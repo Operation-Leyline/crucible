@@ -27,13 +27,15 @@ version's section when it is prepared.
   `allow_bare` for scheme-less keys. Valid keys are cached for 5 minutes
   from the read (`valid_ttl`; zero turns that cache off alone, for
   immediate revocation) with one background `refresh_ahead` re-read near
-  the end; refused keys go in a separate LRU with backoff from 2 s to a
-  60 s ceiling (`refusal_backoff`), a dead row straight to the ceiling.
-  Concurrent misses share one read and reads are bounded
-  (`lookup_concurrency`). `forget` drops a revoked key on this instance;
-  `fence` refuses every key while a replica is unhealthy; `last_used` hands
+  the end, and an answer older than the TTL when it arrives is read again;
+  refused keys go in a separate LRU with backoff from 2 s to a 60 s ceiling
+  (`refusal_backoff`), a dead row straight to the ceiling. Concurrent misses
+  share one read and reads are bounded (`lookup_concurrency`). `forget`
+  drops a revoked key on this instance; `fence` answers every key with a
+  5xx while a replica is unhealthy; `last_used` hands
   an `ApiKeyUsageRecorder` each key's use at most once per
   `last_used_resolution`. A store error is a sanitized 5xx, never a refusal.
+  It serves the bearer scheme only, not `@httpApiKeyAuth`.
   `api_key_digest(credential)` is the lowercase hex SHA-256 lookup key, for
   minting. `test_support::InMemoryApiKeyStore` stands in for the table in
   service tests. See [docs/auth.md](docs/auth.md#api-keys).

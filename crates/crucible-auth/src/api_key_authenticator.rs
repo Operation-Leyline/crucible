@@ -14,6 +14,12 @@ use std::{
 /// caching every store needs: valid keys for a TTL, refused keys with backoff,
 /// one read per digest at a time, and a bounded number of reads at once.
 ///
+/// It serves the model's bearer scheme (`@httpBearerAuth`, `AuthScheme::Bearer`)
+/// only: keys arrive as `Authorization: Bearer KEY` or in the configured
+/// [`credential_headers`](Self::credential_headers). It does not serve Smithy
+/// `@httpApiKeyAuth` (`AuthScheme::ApiKey`); a service that models that scheme
+/// needs its own `Authenticator` for it for now.
+///
 /// It recognizes only credentials with its prefix (and passing its
 /// well-formedness check), so in an [`AuthenticatorChain`](crate::AuthenticatorChain)
 /// beside a `JwtAuthenticator` a token falls through to the JWT verifier
@@ -64,9 +70,18 @@ impl ApiKeyAuthenticator {
 
     /// Headers to read, in order; the first one present is the only one read.
     /// Defaults to `Authorization`. Duplicate values of that header are refused.
-    pub fn credential_headers(self, headers: impl IntoIterator<Item = HeaderName>) -> Self {
-        let headers = headers.into_iter().collect();
-        self.configure(|policy| policy.headers = headers)
+    /// An empty list is a configuration error: it would never see a key.
+    pub fn credential_headers(
+        self,
+        headers: impl IntoIterator<Item = HeaderName>,
+    ) -> std::result::Result<Self, AuthError> {
+        let headers: Vec<_> = headers.into_iter().collect();
+        if headers.is_empty() {
+            return Err(AuthError::Configuration(
+                "API key credential headers must not be empty".into(),
+            ));
+        }
+        Ok(self.configure(|policy| policy.headers = headers))
     }
 
     /// Also accept a key with no `Bearer ` scheme. Off by default.
@@ -106,12 +121,27 @@ impl ApiKeyAuthenticator {
     /// time it is still unknown, up to `ceiling`; a revoked, disabled or
     /// expired key is refused for `ceiling` at once. Defaults to 2 s and 60 s,
     /// kept below the valid TTL so a correct answer is cached longer than an
-    /// incorrect one. A zero `ceiling` disables refusal caching.
-    pub fn refusal_backoff(self, initial: Duration, ceiling: Duration) -> Self {
-        self.configure(|policy| {
+    /// incorrect one.
+    ///
+    /// Both zero disables refusal caching. Otherwise `initial` must be
+    /// nonzero and no greater than `ceiling`; anything else is a configuration
+    /// error rather than a silently different policy.
+    pub fn refusal_backoff(
+        self,
+        initial: Duration,
+        ceiling: Duration,
+    ) -> std::result::Result<Self, AuthError> {
+        let disabled = initial.is_zero() && ceiling.is_zero();
+        if !disabled && (initial.is_zero() || initial > ceiling) {
+            return Err(AuthError::Configuration(
+                "API key refusal backoff needs 0 < initial <= ceiling, or both zero to disable it"
+                    .into(),
+            ));
+        }
+        Ok(self.configure(|policy| {
             policy.refusal_initial = initial;
             policy.refusal_ceiling = ceiling;
-        })
+        }))
     }
 
     /// Refused digests remembered at once, separately from valid keys so a
@@ -125,8 +155,11 @@ impl ApiKeyAuthenticator {
         self.configure(|policy| policy.lookup_concurrency = limit)
     }
 
-    /// While `fenced` returns true every key is refused without a read or a
-    /// cache hit (an unhealthy credential replica).
+    /// While `fenced` returns true every key gets a sanitized 5xx
+    /// (`AuthenticateResult::Unavailable`) without a read or a cache hit: an
+    /// unhealthy credential replica is an outage, not a verdict on the key, so
+    /// valid keys are never told they are invalid. Other credentials in the
+    /// chain (JWTs) are unaffected.
     pub fn fence(self, fenced: impl Fn() -> bool + Send + Sync + 'static) -> Self {
         self.configure(|policy| policy.fence = Some(Arc::new(fenced)))
     }
@@ -148,8 +181,16 @@ impl ApiKeyAuthenticator {
     }
 
     /// Drops a digest from the valid and refused caches on this instance, for a
-    /// service's revoke or delete path; reads already in flight do not cache
-    /// their result. Other instances see the revocation within the valid TTL.
+    /// service's revoke or delete path. Call it after the store write that
+    /// revokes or deletes the key has committed, and make the store's `lookup`
+    /// strongly consistent (DynamoDB `ConsistentRead`): otherwise a read just
+    /// after the forget can still see the key active and cache it (or, with
+    /// `valid_ttl` zero, admit it once).
+    ///
+    /// Reads already in flight do not cache their result. That is tracked by
+    /// one generation for the whole authenticator, so any forget stops every
+    /// read in flight from caching, at the cost of at most one extra read
+    /// each. Other instances see the revocation within the valid TTL.
     pub fn forget(&self, digest: &str) {
         self.core.forget(digest);
     }

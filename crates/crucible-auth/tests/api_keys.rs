@@ -82,6 +82,22 @@ fn prefix_must_be_nonempty_without_spaces() {
 }
 
 #[test]
+fn inconsistent_configuration_is_an_error() {
+    let auth = || ApiKeyAuthenticator::new("pgn_", InMemoryApiKeyStore::new()).unwrap();
+    let second = Duration::from_secs(1);
+    assert!(auth().credential_headers([]).is_err());
+    assert!(auth().refusal_backoff(Duration::ZERO, second).is_err());
+    assert!(auth().refusal_backoff(second * 2, second).is_err());
+    assert!(auth().refusal_backoff(second, Duration::ZERO).is_err());
+    assert!(auth().refusal_backoff(second, second).is_ok());
+    assert!(
+        auth()
+            .refusal_backoff(Duration::ZERO, Duration::ZERO)
+            .is_ok()
+    );
+}
+
+#[test]
 fn digest_is_lowercase_hex_sha256_of_the_whole_credential() {
     assert_eq!(
         api_key_digest("abc"),
@@ -164,10 +180,12 @@ async fn bearer_scheme_bare_keys_and_duplicate_headers() {
 async fn first_present_header_wins() {
     let (store, _, auth) = setup();
     store.insert(KEY, active("key-1"));
-    let auth = auth.credential_headers([
-        HeaderName::from_static("x-leyline-authorization"),
-        HeaderName::from_static("authorization"),
-    ]);
+    let auth = auth
+        .credential_headers([
+            HeaderName::from_static("x-leyline-authorization"),
+            HeaderName::from_static("authorization"),
+        ])
+        .unwrap();
     let scheme = AuthScheme::Bearer;
     let key = format!("Bearer {KEY}");
     let custom = parts(&[
@@ -419,7 +437,8 @@ async fn both_caches_off_caches_nothing() {
     let (store, _, auth) = setup();
     let auth = auth
         .valid_ttl(Duration::ZERO)
-        .refusal_backoff(Duration::ZERO, Duration::ZERO);
+        .refusal_backoff(Duration::ZERO, Duration::ZERO)
+        .unwrap();
     store.insert(KEY, active("key-1"));
     for key in [KEY, KEY, "pgn_forged", "pgn_forged"] {
         check(&auth, key).await;
@@ -443,8 +462,12 @@ async fn an_outage_is_unavailable_and_never_cached() {
     assert_eq!(store.lookups(), 2);
 }
 
+fn unavailable(result: &AuthenticateResult) -> bool {
+    matches!(result, AuthenticateResult::Unavailable(_))
+}
+
 #[tokio::test]
-async fn fence_refuses_every_key_without_reading() {
+async fn a_fence_is_an_outage_for_every_key_without_reading() {
     let (store, _, auth) = setup();
     let fenced = Arc::new(AtomicBool::new(false));
     let flag = Arc::clone(&fenced);
@@ -452,8 +475,9 @@ async fn fence_refuses_every_key_without_reading() {
     store.insert(KEY, active("key-1"));
     assert!(admitted(&check(&auth, KEY).await));
     fenced.store(true, Ordering::SeqCst);
-    assert!(refused(&check(&auth, KEY).await), "cached keys too");
-    assert!(refused(&check(&auth, "pgn_other").await));
+    // A valid key is never told it is invalid because a replica is degraded.
+    assert!(unavailable(&check(&auth, KEY).await), "cached keys too");
+    assert!(unavailable(&check(&auth, "pgn_other").await));
     assert_eq!(store.lookups(), 1);
     fenced.store(false, Ordering::SeqCst);
     assert!(admitted(&check(&auth, KEY).await));
@@ -512,23 +536,43 @@ async fn last_used_is_recorded_once_per_resolution() {
     assert_eq!(uses.lock().unwrap().len(), 2, "refusals are not uses");
 }
 
-/// Holds every lookup until released, and records how many ran at once.
+/// What a `GatedStore` read is doing, in order, so a test can wait for a step
+/// instead of counting yields.
+#[derive(Debug, PartialEq)]
+enum Step {
+    /// The row was read (the snapshot is fixed) and the reply is held.
+    Entered,
+    /// The held reply was released to the authenticator.
+    Left,
+}
+
+/// Reads the row at once, then holds the reply until released: a slow store
+/// whose answer describes the row as it was when the read began. Records how
+/// many replies were held at once.
 #[derive(Clone)]
 struct GatedStore {
     inner: InMemoryApiKeyStore,
     gate: Arc<tokio::sync::Semaphore>,
     running: Arc<AtomicUsize>,
     peak: Arc<AtomicUsize>,
+    steps: tokio::sync::mpsc::UnboundedSender<Step>,
 }
 
 impl GatedStore {
-    fn new(inner: InMemoryApiKeyStore) -> Self {
-        Self {
+    fn new(inner: InMemoryApiKeyStore) -> (Self, tokio::sync::mpsc::UnboundedReceiver<Step>) {
+        let (steps, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let store = Self {
             inner,
             gate: Arc::new(tokio::sync::Semaphore::new(0)),
             running: Arc::new(AtomicUsize::new(0)),
             peak: Arc::new(AtomicUsize::new(0)),
-        }
+            steps,
+        };
+        (store, receiver)
+    }
+
+    fn release(&self, reads: usize) {
+        self.gate.add_permits(reads);
     }
 }
 
@@ -538,63 +582,78 @@ impl ApiKeyStore for GatedStore {
         &self,
         digest: &str,
     ) -> Result<Option<ApiKeyRecord>, crucible_server_runtime_rust::Error> {
+        let snapshot = self.inner.lookup(digest).await;
         let running = self.running.fetch_add(1, Ordering::SeqCst) + 1;
         self.peak.fetch_max(running, Ordering::SeqCst);
+        let _ = self.steps.send(Step::Entered);
         self.gate.acquire().await.unwrap().forget();
         self.running.fetch_sub(1, Ordering::SeqCst);
-        self.inner.lookup(digest).await
+        let _ = self.steps.send(Step::Left);
+        snapshot
     }
 }
 
-async fn settle() {
-    for _ in 0..50 {
-        tokio::task::yield_now().await;
-    }
+async fn expect(steps: &mut tokio::sync::mpsc::UnboundedReceiver<Step>, step: Step) {
+    assert_eq!(steps.recv().await, Some(step));
+}
+
+fn gated(
+    store: &InMemoryApiKeyStore,
+    clock: &TestClock,
+) -> (
+    GatedStore,
+    tokio::sync::mpsc::UnboundedReceiver<Step>,
+    Arc<ApiKeyAuthenticator>,
+) {
+    let (gated, steps) = GatedStore::new(store.clone());
+    let now = clock.clone();
+    let auth = ApiKeyAuthenticator::new("pgn_", gated.clone())
+        .unwrap()
+        .clock(move || now.now());
+    (gated, steps, Arc::new(auth))
 }
 
 #[tokio::test]
 async fn concurrent_misses_for_one_key_share_one_lookup() {
     let store = InMemoryApiKeyStore::new();
     store.insert(KEY, active("key-1"));
-    let gated = GatedStore::new(store.clone());
+    let (gated, mut steps, auth) = gated(&store, &TestClock::new());
     // No valid cache, so only single flight can explain one read.
-    let auth = Arc::new(
-        ApiKeyAuthenticator::new("pgn_", gated.clone())
-            .unwrap()
-            .valid_ttl(Duration::ZERO),
-    );
+    let auth = Arc::new(Arc::into_inner(auth).unwrap().valid_ttl(Duration::ZERO));
     let mut tasks = tokio::task::JoinSet::new();
     for _ in 0..20 {
         let auth = Arc::clone(&auth);
         tasks.spawn(async move { admitted(&check(&auth, KEY).await) });
     }
-    settle().await;
-    assert_eq!(store.lookups(), 0);
-    assert_eq!(gated.running.load(Ordering::SeqCst), 1);
-    gated.gate.add_permits(100);
+    expect(&mut steps, Step::Entered).await;
+    gated.release(100);
     while let Some(result) = tasks.join_next().await {
         assert!(result.unwrap());
     }
     assert_eq!(store.lookups(), 1);
+    assert_eq!(gated.peak.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]
 async fn store_reads_are_bounded_by_the_lookup_limit() {
     let store = InMemoryApiKeyStore::new();
-    let gated = GatedStore::new(store.clone());
-    let auth = Arc::new(
-        ApiKeyAuthenticator::new("pgn_", gated.clone())
-            .unwrap()
-            .lookup_concurrency(2),
-    );
+    let (gated, mut steps, auth) = gated(&store, &TestClock::new());
+    let auth = Arc::new(Arc::into_inner(auth).unwrap().lookup_concurrency(2));
     let mut tasks = tokio::task::JoinSet::new();
     for n in 0..10 {
         let auth = Arc::clone(&auth);
         tasks.spawn(async move { refused(&check(&auth, &format!("pgn_key_{n}")).await) });
     }
-    settle().await;
-    assert_eq!(gated.running.load(Ordering::SeqCst), 2);
-    gated.gate.add_permits(100);
+    expect(&mut steps, Step::Entered).await;
+    expect(&mut steps, Step::Entered).await;
+    // Each released read lets exactly one more in.
+    for _ in 0..8 {
+        gated.release(1);
+        expect(&mut steps, Step::Left).await;
+        expect(&mut steps, Step::Entered).await;
+        assert!(gated.running.load(Ordering::SeqCst) <= 2);
+    }
+    gated.release(100);
     while let Some(result) = tasks.join_next().await {
         assert!(result.unwrap());
     }
@@ -606,21 +665,112 @@ async fn store_reads_are_bounded_by_the_lookup_limit() {
 async fn a_read_in_flight_during_forget_is_not_cached() {
     let store = InMemoryApiKeyStore::new();
     store.insert(KEY, active("key-1"));
-    let gated = GatedStore::new(store.clone());
-    let auth = Arc::new(ApiKeyAuthenticator::new("pgn_", gated.clone()).unwrap());
+    let clock = TestClock::new();
+    let (gated, mut steps, auth) = gated(&store, &clock);
     let reader = Arc::clone(&auth);
     let task = tokio::spawn(async move { admitted(&check(&reader, KEY).await) });
-    settle().await;
+    expect(&mut steps, Step::Entered).await;
     store.revoke(KEY);
     auth.forget_credential(KEY);
-    // The read began before the revocation and sees the old row.
-    store.insert(KEY, active("key-1"));
-    gated.gate.add_permits(100);
+    gated.release(100);
+    // The read began before the revocation, so it answers with the old row...
     assert!(task.await.unwrap());
-    store.revoke(KEY);
-    assert!(
-        refused(&check(&auth, KEY).await),
-        "nothing stale was cached"
-    );
+    // ...but did not cache it.
+    assert!(refused(&check(&auth, KEY).await));
     assert_eq!(store.lookups(), 2);
+}
+
+#[tokio::test]
+async fn a_slow_read_older_than_the_ttl_is_not_served() {
+    let store = InMemoryApiKeyStore::new();
+    store.insert(KEY, active("key-1"));
+    let clock = TestClock::new();
+    let (gated, mut steps, auth) = gated(&store, &clock);
+    let reader = Arc::clone(&auth);
+    let task = tokio::spawn(async move { check(&reader, KEY).await });
+    expect(&mut steps, Step::Entered).await;
+    // Revoked while the reply (still saying active) is held for over an hour.
+    store.revoke(KEY);
+    clock.advance(3800);
+    gated.release(100);
+    let result = task.await.unwrap();
+    assert!(refused(&result), "the stale reply is re-read: {result:?}");
+    assert_eq!(store.lookups(), 2);
+    assert!(refused(&check(&auth, KEY).await));
+}
+
+#[tokio::test]
+async fn a_request_joining_a_refresh_paused_past_the_ttl_reads_again() {
+    let store = InMemoryApiKeyStore::new();
+    store.insert(KEY, active("key-1"));
+    let clock = TestClock::new();
+    let (gated, mut steps, auth) = gated(&store, &clock);
+    gated.release(1);
+    assert!(admitted(&check(&auth, KEY).await));
+    expect(&mut steps, Step::Entered).await;
+    expect(&mut steps, Step::Left).await;
+    clock.advance(250);
+    assert!(admitted(&check(&auth, KEY).await));
+    // The refresh-ahead read takes its snapshot, then the process "freezes".
+    expect(&mut steps, Step::Entered).await;
+    store.revoke(KEY);
+    clock.advance(3800);
+    // The entry has expired, so this request joins the paused refresh (polled
+    // first, so it is waiting before the refresh is released).
+    let (result, ()) = tokio::join!(check(&auth, KEY), async { gated.release(100) });
+    assert!(
+        refused(&result),
+        "the old snapshot is not served: {result:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_refresh_racing_forget_cannot_cache_the_old_row() {
+    let store = InMemoryApiKeyStore::new();
+    store.insert(KEY, active("key-1"));
+    let clock = TestClock::new();
+    let (gated, mut steps, auth) = gated(&store, &clock);
+    gated.release(1);
+    assert!(admitted(&check(&auth, KEY).await));
+    expect(&mut steps, Step::Entered).await;
+    expect(&mut steps, Step::Left).await;
+    clock.advance(250);
+    assert!(admitted(&check(&auth, KEY).await));
+    expect(&mut steps, Step::Entered).await;
+    store.revoke(KEY);
+    auth.forget_credential(KEY);
+    gated.release(100);
+    assert!(refused(&check(&auth, KEY).await));
+    // Both held replies are out: the request's and the refresh's (old row).
+    expect(&mut steps, Step::Entered).await;
+    expect(&mut steps, Step::Left).await;
+    expect(&mut steps, Step::Left).await;
+    tokio::task::yield_now().await;
+    assert!(refused(&check(&auth, KEY).await));
+    assert_eq!(store.lookups(), 3);
+}
+
+#[tokio::test]
+async fn a_failed_refresh_keeps_the_entry_until_its_ttl() {
+    let store = InMemoryApiKeyStore::new();
+    store.insert(KEY, active("key-1"));
+    let clock = TestClock::new();
+    let (gated, mut steps, auth) = gated(&store, &clock);
+    gated.release(1000);
+    assert!(admitted(&check(&auth, KEY).await));
+    expect(&mut steps, Step::Entered).await;
+    expect(&mut steps, Step::Left).await;
+    clock.advance(250);
+    store.set_unavailable(true);
+    assert!(admitted(&check(&auth, KEY).await));
+    expect(&mut steps, Step::Entered).await;
+    expect(&mut steps, Step::Left).await;
+    tokio::task::yield_now().await;
+    clock.advance(49);
+    assert!(admitted(&check(&auth, KEY).await), "still within its TTL");
+    clock.advance(1);
+    assert!(
+        unavailable(&check(&auth, KEY).await),
+        "past its TTL the outage shows, as a 5xx and not a refusal"
+    );
 }

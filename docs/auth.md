@@ -157,10 +157,14 @@ traits on each request.
 ## API keys
 
 `ApiKeyAuthenticator` checks bearer API keys against a table the service owns,
-and does the caching every such table needs. It supports the bearer scheme and
-joins an `AuthenticatorChain` beside a `JwtAuthenticator`, in either order:
-it claims only credentials with its prefix, so a JWT falls through to the JWT
-verifier without a store read.
+and does the caching every such table needs. It joins an `AuthenticatorChain`
+beside a `JwtAuthenticator`, in either order: it claims only credentials with
+its prefix, so a JWT falls through to the JWT verifier without a store read.
+
+It serves the model's bearer scheme (`@httpBearerAuth`) only: keys are sent as
+`Authorization: Bearer KEY` or in the configured headers. It does not serve
+Smithy `@httpApiKeyAuth` (`AuthScheme::ApiKey`); a service that models that
+scheme still needs its own `Authenticator` for it.
 
 ```rust
 use std::sync::Arc;
@@ -218,9 +222,10 @@ falls through to the next authenticator.
 
 The credential comes from `Authorization: Bearer KEY` (scheme
 case-insensitive) by default. `credential_headers([..])` sets an ordered list
-of headers; the first one present is the only one read. `allow_bare(true)`
-also accepts a key with no scheme (off by default). A duplicated header that
-holds a recognizable key is refused, never treated as absent.
+of headers; the first one present is the only one read (an empty list is a
+configuration error). `allow_bare(true)` also accepts a key with no scheme
+(off by default). A duplicated header that holds a recognizable key is
+refused, never treated as absent.
 
 ### Caching and the revocation window
 
@@ -229,7 +234,7 @@ holds a recognizable key is refused, never treated as absent.
 | `valid_ttl` | 5 minutes, from the read: a hit does not extend it. Expiry is re-checked on every hit. Zero turns the valid-key cache off and nothing else. |
 | `valid_capacity` | 10,000 valid keys, least recently used evicted. |
 | `refresh_ahead` | The last fifth of the TTL. A hit in it is answered from cache and starts one background re-read (one per digest) that refreshes the entry, or evicts it if the key is gone or no longer valid. Zero disables it. |
-| `refusal_backoff(initial, ceiling)` | 2 s and 60 s. An unknown digest is refused without a read for 2 s, then 4, 8, 16, 32 and 60 s while it stays unknown. A revoked, disabled or expired row goes straight to 60 s. A zero ceiling turns refusal caching off. |
+| `refusal_backoff(initial, ceiling)` | 2 s and 60 s. An unknown digest is refused without a read for 2 s, then 4, 8, 16, 32 and 60 s while it stays unknown. A revoked, disabled or expired row goes straight to 60 s. Both zero turn refusal caching off; otherwise `initial` must be nonzero and at most `ceiling`, or the setter returns a configuration error. |
 | `refused_capacity` | 20,000 refused digests, in their own LRU, so a flood of forged keys never evicts a valid one. |
 | `lookup_concurrency` | 32 store reads at once. Concurrent misses for one digest share one read (single flight) regardless. |
 
@@ -238,10 +243,28 @@ cached longer than an incorrect one. A valid read clears a digest's refusal,
 and a refusal clears its valid entry. A store outage caches nothing, and a
 valid entry keeps serving through one until its TTL runs out.
 
+An answer is as old as the moment its read started, not when it arrived. A
+cached entry's TTL runs from that moment, and an answer already older than
+`valid_ttl` when it arrives (a slow store, or a refresh-ahead read paused by a
+Lambda freeze that a later request joined) is not served or cached: the read is
+repeated once, and a second such answer is an outage.
+
 A revocation is seen at once on the instance that calls `forget(digest)` (or
 `forget_credential(key)`) from its revoke or delete path: that removes the
 digest from both caches, and a read already in flight does not cache its
-result. Other instances see it within `valid_ttl`.
+result. Other instances see it within `valid_ttl`. Two things make that hold:
+
+- Call `forget` after the store write that revokes or deletes the key has
+  committed, not before.
+- Make `ApiKeyStore::lookup` strongly consistent (DynamoDB `GetItem` with
+  `ConsistentRead`). An eventually consistent read just after the revocation
+  can still return the key as active; it would be cached for `valid_ttl` (or,
+  with `valid_ttl` zero, admit that one request).
+
+The in-flight guard is one generation for the whole authenticator, not per
+digest: any `forget` stops every read then in flight from caching its answer.
+That costs at most one extra read per affected key and keeps no per-digest
+state.
 
 On Lambda, the process is frozen between invocations, so a refresh-ahead read
 may only finish during a later invocation. The TTL still bounds staleness: an
@@ -256,16 +279,21 @@ cache and keep the rest:
 let keys = ApiKeyAuthenticator::new("pgn_", store)?.valid_ttl(Duration::ZERO);
 ```
 
-Every request with a valid key reads the store, so a revoked key is refused on
-its next use on any instance. Refusal backoff, single flight and the lookup
+Every request with a valid key reads the store, so with a strongly consistent
+lookup a revoked key is refused on its next use on any instance (a request
+whose read was already in flight when the revocation committed may still be
+admitted). Refusal backoff, single flight and the lookup
 limit stay on: a repeated forged key still costs one read per backoff window,
 and a burst of concurrent requests with one key costs one read. Setting
 `refusal_backoff(Duration::ZERO, Duration::ZERO)` as well caches nothing.
 
 ### Hooks
 
-- `fence(|| ..)`: while it returns true, every key is refused with no read and
-  no cache hit (Leyline's degraded credential replica).
+- `fence(|| ..)`: while it returns true, every key gets a sanitized 5xx
+  (`AuthenticateResult::Unavailable`) with no read and no cache hit (Leyline's
+  degraded credential replica). It is an outage, not a verdict on the key, so
+  a valid key is never answered `invalid_token`. JWTs in the same chain are
+  unaffected.
 - `last_used(recorder)`: an `ApiKeyUsageRecorder` receives the digest and record
   of an authenticated key at most once per key per `last_used_resolution`
   (one hour; zero records every use). The throttle is marked before the call,
@@ -444,12 +472,13 @@ authenticator with an `ApiKeyAuthenticator` over its DynamoDB table:
 | `ley_` keys, Crockford base32 payload, CRC-32 checksum | `new("ley_", store)` and `well_formed(..)` with Leyline's validator |
 | `x-leyline-authorization` before `Authorization`; bare keys | `credential_headers([x-leyline-authorization, AUTHORIZATION])`, `allow_bare(true)` |
 | Key cache and revocation | `valid_ttl`, `refusal_backoff`, `forget` on its revoke path |
-| `CREDENTIAL_REPLICA_DEGRADED` | `fence(..)` over its replica health |
+| `CREDENTIAL_REPLICA_DEGRADED` | `fence(..)` over its replica health. Fenced keys get a sanitized 5xx, where Leyline answers 403 today |
 | Last-use writes | `last_used(..)`, `last_used_resolution(..)` |
 | Display name, rate limits | the record's `attributes`, read back from `Principal::claims` |
 | Organization | the record's tenant, `Principal::tenant` |
 
-Rate limiting itself stays in Leyline. Map the verified subject, tenant and key
+Rate limiting itself stays in Leyline. Its store's lookup should read with
+`ConsistentRead` and its revoke path call `forget` after the write commits. Map the verified subject, tenant and key
 attributes into Leyline's Caller and Charge attributes in an
 authorization/identity interceptor. Preserve its modeled AccessDeniedException
 through the refusal factory. Replace harness identity extensions with signed
@@ -459,7 +488,8 @@ For Pigeon, replace the process-global once-only JWKS cache with an ID-token
 authenticator, and its custom `ApiKeys` authenticator with
 `ApiKeyAuthenticator::new("pgn_", store)`, where the store reads its DynamoDB
 table by `api_key_digest` and maps the row's status, workspace and key ID into
-an `ApiKeyRecord`. Mint keys with `api_key_digest` too. Pigeon's requirements
+an `ApiKeyRecord` (with `ConsistentRead`). Mint keys with `api_key_digest`
+too. Pigeon's requirements
 promise immediate revocation, so use the
 [immediate revocation](#immediate-revocation) configuration
 (`valid_ttl(Duration::ZERO)`). Send `Authorization: Bearer TOKEN` explicitly:
