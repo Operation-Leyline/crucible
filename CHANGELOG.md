@@ -91,6 +91,18 @@ version's section when it is prepared.
   tests. See
   [docs/framework.md](docs/framework.md#idempotency-tokens).
 
+- `idempotency::abandon()` takes back `idempotency::commit()` when the step
+  after it provably did not happen (the provider refused explicitly): a
+  failure then releases the claim as if `commit` had never been called, so
+  a retry with the same token runs the operation again instead of getting a
+  409 for the retention. It changes only what a failure does (a success
+  still completes and replays), makes no store call (the request's own
+  completion releases the claim, and a process that stops first leaves it
+  held as committed), does nothing without a prior `commit` or for an
+  unclaimed request, and is an internal error without `Idempotency`. A
+  `commit` after it commits again. See
+  [docs/framework.md](docs/framework.md#idempotency-tokens).
+
 - `FrameworkError::Conflict { message }`: HTTP 409 `ConflictException`
   (`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
   what `Idempotency` answers by default without a modelled conflict error.

@@ -551,8 +551,9 @@ For every operation with a token, before the operation runs:
 - **Refused.** The same token with a different fingerprint is a 409
   `ConflictException`, and so is the same request while the first is still
   running: it cannot be replayed yet, and the message says so.
-- **Released.** When the operation fails before its point of no return, its
-  claim is removed and a retry runs it again.
+- **Released.** When the operation fails before its point of no return (or
+  after abandoning it, below), its claim is removed and a retry runs it
+  again.
 
 `Idempotency::refusal_factory` builds a service's own errors from an
 `IdempotencyRefusal` (`Missing`, `Invalid`, `Mismatch`, `InFlight`, `Lapsed`,
@@ -583,6 +584,42 @@ the store could not record the claim (an internal error), or the request ran
 past its lease and no longer holds its claim (`IdempotencyRefusal::Lapsed`, a
 409), since a retry may have taken the token over and be running the
 operation itself.
+
+**Abandoning the step.** Sometimes the step fails in a way that proves it
+did not happen: the provider answered with an explicit refusal (throttled,
+the message rejected) and sent nothing. Keeping the claim then only spends
+the token, and the SDK's automatic retry with the same token is a 409 for
+the whole retention instead of a success. `idempotency::abandon()` takes
+`commit` back: if the operation then fails, the claim is released exactly as
+if `commit` had never been called, and the retry runs the operation again.
+Call it only on such a refusal. An ambiguous failure (a timeout, a reset
+connection: the provider may have acted) must keep the claim, so return it
+without abandoning:
+
+```rust
+let message = compose(&input)?;
+idempotency::commit().await?;
+if let Err(error) = mailer.send(&message).await {
+    if error.nothing_sent() {      // an explicit refusal: nothing was sent
+        idempotency::abandon()?;   // the claim is released, a retry runs again
+    }
+    return Err(error.into());      // otherwise it may have been sent: a retry is refused
+}
+outbox.record(&message).await?;
+```
+
+`abandon` changes only what a failure does: an operation that succeeds after
+it completes as usual, and its retries replay the success. It makes no store
+call; the claim is released when the request finishes, so a retry that
+arrives while the operation still runs is refused as in flight. If the
+process stops after `abandon` but before the request finishes, the claim
+stays held as committed and retries are refused until the retention ends,
+the conservative outcome. `abandon` without a prior `commit` does nothing (a
+failure releases the claim anyway), and a `commit` after it commits again.
+Both do nothing for a request that runs unclaimed (no token where
+`optional_tokens` allows it, or an API version without one), and both are an
+internal error when `Idempotency` is not installed or the operation has no
+token.
 
 **Leases, cancellation and the window.** A claim that is never settled stays
 in flight until its lease lapses: 15 minutes (`Idempotency::lease`), and

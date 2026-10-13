@@ -2,7 +2,8 @@
 //! token, and `Idempotency` claims it in a store before the operation runs,
 //! replays the first success to a retry, refuses a reused token with other
 //! input or while the first request runs, and releases the claim when the
-//! operation fails before `idempotency::commit`.
+//! operation fails before `idempotency::commit`, or after
+//! `idempotency::abandon` takes the commit back.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -26,6 +27,15 @@ enum Step {
     FailBeforeCommit,
     /// Commits, then fails: a retry must not run again.
     FailAfterCommit,
+    /// Commits, finds its step refused (nothing happened), abandons the
+    /// commit and fails: a retry runs again.
+    AbandonThenFail,
+    /// Abandons without having committed, then fails: a retry runs again.
+    AbandonWithoutCommitThenFail,
+    /// Commits, abandons, then succeeds anyway: a retry replays.
+    AbandonThenSucceed,
+    /// Commits, abandons, commits again, then fails: a retry must not run.
+    RecommitThenFail,
     /// Says it entered, then waits to be let go.
     Wait {
         entered: Arc<Notify>,
@@ -80,6 +90,25 @@ impl CityStore for Counted {
         match step {
             Some(Step::FailBeforeCommit) => return Err(Error::internal("the database is down")),
             Some(Step::FailAfterCommit) => {
+                idempotency::commit().await?;
+                return Err(Error::internal("recorded nothing after the side effect"));
+            }
+            Some(Step::AbandonThenFail) => {
+                idempotency::commit().await?;
+                idempotency::abandon()?;
+                return Err(Error::internal("the provider refused; nothing was sent"));
+            }
+            Some(Step::AbandonWithoutCommitThenFail) => {
+                idempotency::abandon()?;
+                return Err(Error::internal("failed before the point of no return"));
+            }
+            Some(Step::AbandonThenSucceed) => {
+                idempotency::commit().await?;
+                idempotency::abandon()?;
+            }
+            Some(Step::RecommitThenFail) => {
+                idempotency::commit().await?;
+                idempotency::abandon()?;
                 idempotency::commit().await?;
                 return Err(Error::internal("recorded nothing after the side effect"));
             }
@@ -372,6 +401,55 @@ async fn a_failure_before_commit_lets_the_retry_run() {
 async fn a_failure_after_commit_keeps_the_claim_so_the_retry_does_not_run() {
     let harness = serve(Idempotency::new(store(), caller)).await;
     harness.cities.next(Step::FailAfterCommit);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 409);
+    assert!(
+        retry.json()["message"]
+            .as_str()
+            .unwrap()
+            .contains("in progress")
+    );
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_failure_after_abandoning_the_commit_lets_the_retry_run() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::AbandonThenFail);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201, "{}", retry.json());
+    assert_eq!(retry.json()["city"]["name"], "Oslo-2");
+    assert_eq!(harness.cities.creates(), 2);
+}
+
+#[tokio::test]
+async fn abandoning_without_a_commit_still_lets_the_retry_run() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::AbandonWithoutCommitThenFail);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201, "{}", retry.json());
+    assert_eq!(harness.cities.creates(), 2);
+}
+
+#[tokio::test]
+async fn a_success_after_abandoning_the_commit_replays() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::AbandonThenSucceed);
+    let first = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(first.status, 201, "{}", first.json());
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201);
+    assert_eq!(retry.body, first.body, "the same bytes");
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_commit_after_abandoning_keeps_the_claim_again() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::RecommitThenFail);
     assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
     let retry = harness.create(Some("alice"), oslo("t-1")).await;
     assert_eq!(retry.status, 409);

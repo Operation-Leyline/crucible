@@ -14,7 +14,8 @@ pub(crate) type RefusalFactory = Arc<dyn Fn(IdempotencyRefusal) -> Error + Send 
 const TARGET: &str = "crucible_server_runtime_rust::idempotency";
 
 /// One request's idempotency state, left on the request context by
-/// [`super::Idempotency`] for [`super::commit`] and its own `after` hook.
+/// [`super::Idempotency`] for [`super::commit`], [`super::abandon`] and its
+/// own `after` hook.
 /// `claim` is `None` when the request runs unclaimed: it carried no token
 /// and the service accepts that, or its API version has no token.
 #[derive(Clone)]
@@ -36,7 +37,8 @@ pub(crate) struct HeldClaim {
     pub api_version: &'static str,
     pub refusal: RefusalFactory,
     pub clock: Clock,
-    /// Set once the operation passed its point of no return.
+    /// Set once the operation passed its point of no return, and cleared
+    /// again when it abandoned that step: what a failure does with the claim.
     pub committed: AtomicBool,
 }
 
@@ -72,10 +74,24 @@ impl HeldClaim {
         }
     }
 
+    /// Takes back [`commit`](Self::commit): the irreversible step did not
+    /// happen, so a failure releases the claim as if it had never been
+    /// committed. Only the flag changes; the claim stays held in the store
+    /// (until the retention) while the operation runs, so a retry is still
+    /// refused as in flight until [`finish`] settles it, and a crash before
+    /// `finish` keeps it held: the conservative outcome. A later `commit`
+    /// commits again.
+    ///
+    /// [`finish`]: Self::finish
+    pub fn abandon(&self) {
+        self.committed.store(false, Ordering::SeqCst);
+    }
+
     /// Settles the claim once the outcome is known: `output` (the
     /// operation's success, in its JSON form) completes it for replay; a
-    /// failure releases it, unless the operation had committed. Neither
-    /// changes the request's answer, so problems here are logged.
+    /// failure releases it, unless the operation had committed (and not
+    /// abandoned since). Neither changes the request's answer, so problems
+    /// here are logged.
     ///
     /// A success that cannot be stored (too large, or the write failed) is
     /// held in flight for the retention instead, so a retry is refused
