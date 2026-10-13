@@ -231,6 +231,7 @@ impl Crucible {
             decode_cbor: None,
             decode_bound: None,
             decode_events: None,
+            output_from_json: None,
             input: None,
             outcome: None,
             downgrade: None,
@@ -649,6 +650,7 @@ impl Crucible {
         job.decode_cbor = Some(entry.decode_cbor);
         job.decode_bound = Some(entry.decode_bound);
         job.decode_events = Some(entry.decode_events);
+        job.output_from_json = entry.output_from_json;
         let limit = entry.body_limit.unwrap_or(inner.body_limit);
         let buffered = job.select_body_limit(limit);
         for middleware in &inner.operation_middleware {

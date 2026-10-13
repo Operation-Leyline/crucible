@@ -2,8 +2,8 @@ use crate::OperationMetadata;
 use crate::error::{Error, Result};
 use crate::operation::{Input, Operation, Output, Segment, ServiceInfo};
 use crate::operations::{
-    Entry, Invoke, MissingOperations, OlderVersion, Operations, StreamingOutput, decode,
-    decode_bound, decode_cbor, decode_events, decode_json,
+    Entry, Invoke, MissingOperations, OlderVersion, Operations, OutputFromJson, StreamingOutput,
+    decode, decode_bound, decode_cbor, decode_events, decode_json, output_from_json,
 };
 use crate::validate::Validator;
 use crate::versioning::{
@@ -75,6 +75,7 @@ where
         decode_bound: decode_bound::<O>,
         decode_events: decode_events::<O>,
         invoke,
+        output_from_json: O::OUTPUT_FROM_JSON.map(|_| output_from_json::<O> as OutputFromJson),
         body_limit: None,
         upgrade: None,
         downgrade: None,
@@ -353,17 +354,129 @@ where
     });
     Entry {
         info: Old::INFO,
-        metadata: OperationMetadata::of::<Old>(),
+        // The interceptors see the current version's input, and a replay
+        // reads the current version's output, which converts down as the
+        // operation's own would. A version whose model had no token cannot
+        // send one, so its requests run unclaimed.
+        metadata: OperationMetadata {
+            idempotency_token: serving.metadata.idempotency_token,
+            idempotency_token_sent: Old::IDEMPOTENCY_TOKEN.is_some()
+                && serving.metadata.idempotency_token.is_some(),
+            replays_output: serving.metadata.replays_output,
+            ..OperationMetadata::of::<Old>()
+        },
         decode: decode::<Old>,
         decode_json: decode_json::<Old>,
         decode_cbor: decode_cbor::<Old>,
         decode_bound: decode_bound::<Old>,
         decode_events: decode_events::<Old>,
         invoke: serving.invoke.clone(),
+        output_from_json: serving.output_from_json,
         body_limit: serving.body_limit,
         upgrade: Some(upgrade),
         downgrade: Some(downgrade),
         downgrade_error: Some(downgrade_error),
         errors: serving.errors,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use crucible_wire::__generated::{operation_info, service_info};
+
+    use super::{entry, versioned_entry};
+    use crate::error::ModelledError;
+    use crate::operation::{
+        Operation, OperationInfo, OutputFromJson, PaginationMember, ServiceInfo, Unit,
+    };
+
+    static INFO: OperationInfo = operation_info(
+        "t#Create",
+        "Create",
+        None,
+        "POST",
+        &[],
+        &[],
+        200,
+        &[],
+        &[],
+        &[],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    fn classify<'a>(_: &'a (dyn std::error::Error + 'static)) -> Option<&'a dyn ModelledError> {
+        None
+    }
+
+    static SERVICE: ServiceInfo = service_info(
+        "t#Service",
+        "v1",
+        None,
+        None,
+        &[&INFO],
+        &[],
+        classify,
+        None,
+        None,
+        None,
+    );
+
+    const TOKEN: PaginationMember = PaginationMember {
+        name: "token",
+        wire_name: "token",
+    };
+
+    /// The current version, which has the token.
+    struct Current;
+    impl Operation for Current {
+        const INFO: &'static OperationInfo = &INFO;
+        const IDEMPOTENCY_TOKEN: Option<PaginationMember> = Some(TOKEN);
+        const OUTPUT_FROM_JSON: Option<OutputFromJson<Unit>> = Some(serde_json::from_value::<Unit>);
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    /// An older version that had the token too.
+    struct Tokened;
+    impl Operation for Tokened {
+        const INFO: &'static OperationInfo = &INFO;
+        const IDEMPOTENCY_TOKEN: Option<PaginationMember> = Some(TOKEN);
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    /// An older version from before the token was added.
+    struct Untokened;
+    impl Operation for Untokened {
+        const INFO: &'static OperationInfo = &INFO;
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    #[test]
+    fn an_older_version_without_the_token_runs_unclaimed() {
+        let current = entry::<Current, (), _>(Arc::new(()), |_, _| std::future::ready(Ok(Unit {})));
+        assert_eq!(current.metadata.idempotency_token, Some(TOKEN));
+        assert!(current.metadata.idempotency_token_sent);
+        assert!(current.metadata.replays_output);
+
+        let before = versioned_entry::<Untokened, Current>(&current, &SERVICE, &[], Arc::default());
+        // The decoded input is the current version's, so the member is the
+        // current one; but this version's clients cannot send it.
+        assert_eq!(before.metadata.idempotency_token, Some(TOKEN));
+        assert!(!before.metadata.idempotency_token_sent);
+
+        let since = versioned_entry::<Tokened, Current>(&current, &SERVICE, &[], Arc::default());
+        assert!(since.metadata.idempotency_token_sent);
+        // A replay reads the current output, which converts down as the
+        // operation's own would.
+        assert!(since.metadata.replays_output);
+        assert!(since.output_from_json.is_some());
     }
 }

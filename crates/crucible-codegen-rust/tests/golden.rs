@@ -912,3 +912,41 @@ fn internal_audience_server_and_projected_client_match_goldens() {
     );
     matches_golden(&generate_client(&full).unwrap(), "internal_client.rs");
 }
+
+#[test]
+fn only_tokened_operations_with_buffered_outputs_can_replay() {
+    let code = generate(&edited(|_| {}), &Options::default()).unwrap();
+    // CreateCity has a token and a buffered output; nothing else replays.
+    assert_eq!(code.matches("const IDEMPOTENCY_TOKEN").count(), 1, "{code}");
+    assert_eq!(code.matches("const OUTPUT_FROM_JSON").count(), 1, "{code}");
+    assert!(
+        code.contains("PaginationMember { name: \"clientToken\", wire_name: \"clientToken\" }")
+    );
+    assert!(
+        !generate_client(&edited(|_| {}))
+            .unwrap()
+            .contains("IDEMPOTENCY_TOKEN")
+    );
+
+    // A token on an operation whose output streams is described, but its
+    // output is never read back: a stream cannot be replayed.
+    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
+    model["shapes"]["example.weather#Photo"]["traits"]["smithy.api#streaming"] = json!({});
+    for (shape, member) in [
+        ("example.weather#GetCityPhotoOutput", "photo"),
+        ("example.weather#PutCityPhotoInput", "photo"),
+    ] {
+        model["shapes"][shape]["members"][member]["traits"]["smithy.api#required"] = json!({});
+    }
+    model["shapes"]["example.weather#GetCityPhotoInput"]["members"]["token"] = json!({
+        "target": "smithy.api#String",
+        "traits": { "smithy.api#idempotencyToken": {} }
+    });
+    let streaming = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+        .unwrap();
+    let code = generate(&streaming, &Options::default()).unwrap();
+    assert_eq!(code.matches("const IDEMPOTENCY_TOKEN").count(), 2, "{code}");
+    assert_eq!(code.matches("const OUTPUT_FROM_JSON").count(), 1, "{code}");
+}

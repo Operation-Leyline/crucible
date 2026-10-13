@@ -644,6 +644,8 @@ pub mod weather {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
         const OPTIONAL_AUTH: bool = false;
+        const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "clientToken", wire_name: "clientToken" });
+        const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<model::CreateCityOutput>);
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &CREATE_CITY_OPERATION;
         type Input = model::CreateCityInput;
         type Output = model::CreateCityOutput;

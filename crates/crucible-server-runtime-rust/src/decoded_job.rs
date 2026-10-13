@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use axum::http::HeaderMap;
 use axum::response::Response;
+use serde_json::Value;
 
 use crate::operation::{Input, OperationInfo, ServiceInfo};
-use crate::{Context, Job};
+use crate::{Context, Error, Job, Outcome, Result};
 
 /// The operation's validated input, before its implementation consumes it.
 /// The orchestrator constructs this view only after decoding succeeds.
@@ -56,6 +57,28 @@ impl<'a> DecodedJob<'a> {
     /// Entered interceptors still run their `after` hooks.
     pub fn respond(&mut self, response: Response) {
         self.job.respond(response);
+    }
+
+    /// Ends the invocation as if the operation had returned `output`, read
+    /// from its JSON form ([`Output::to_json`](crate::operation::Output::to_json)):
+    /// the operation does not run, and the protocol encodes the output for
+    /// this request as it would the operation's own, at the request's API
+    /// version, with its own request id. For answering a retry with what an
+    /// earlier attempt produced. Entered interceptors still run their `after`
+    /// hooks, and see a success.
+    ///
+    /// An error when the operation's output cannot be replayed
+    /// ([`OperationMetadata::replays_output`](crate::OperationMetadata::replays_output))
+    /// or `output` does not read as it; the invocation is left as it was.
+    pub fn replay_output(&mut self, output: Value) -> Result<()> {
+        let read = self.job.output_from_json.ok_or_else(|| {
+            Error::internal(format!(
+                "{}: the output cannot be replayed",
+                self.operation().name
+            ))
+        })?;
+        self.job.outcome = Some(Outcome::Output(read(output)?));
+        Ok(())
     }
 
     pub fn response_headers_mut(&mut self) -> &mut HeaderMap {

@@ -298,6 +298,7 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
         match error {
             FrameworkError::Unauthenticated => "smithy.framework#UnauthenticatedException",
             FrameworkError::Forbidden => "smithy.framework#ForbiddenException",
+            FrameworkError::Conflict { .. } => "smithy.framework#ConflictException",
             FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
             FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
             FrameworkError::UnsupportedMediaType => {
@@ -400,4 +401,31 @@ fn respond(
         response.headers_mut().insert(name, value);
     }
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Format, framework_response};
+    use crate::error::FrameworkError;
+
+    #[tokio::test]
+    async fn a_conflict_is_a_409_named_for_each_protocol() {
+        let conflict = FrameworkError::Conflict {
+            message: "the token was used for a different request",
+        };
+        for (format, name) in [
+            (Format::Crucible, "ConflictException"),
+            (Format::RestJson, "ConflictException"),
+            (Format::RpcV2Json, "smithy.framework#ConflictException"),
+        ] {
+            let response = framework_response(&conflict, format);
+            assert_eq!(response.status().as_u16(), 409);
+            let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            assert_eq!(body["__type"], name);
+            assert_eq!(body["message"], conflict.message());
+        }
+    }
 }

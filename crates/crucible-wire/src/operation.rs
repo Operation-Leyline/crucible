@@ -38,6 +38,17 @@ pub trait Operation: Send + Sync + 'static {
     /// How the operation pages (`@paginated`), for server extensions that
     /// read the token from the decoded input.
     const PAGINATION: Option<Pagination> = None;
+    /// The input member that carries the operation's idempotency token
+    /// (`@idempotencyToken`), for server extensions that read it from the
+    /// decoded input. Generated for server bindings.
+    const IDEMPOTENCY_TOKEN: Option<PaginationMember> = None;
+    /// Reads a successful output back from its JSON form
+    /// ([`Output::to_json`]), so a server extension can answer a retry with
+    /// the output an earlier attempt produced, encoded afresh for the
+    /// retry. Generated for server operations that have an idempotency token
+    /// and an output that does not stream; `None` means the operation's
+    /// output cannot be replayed.
+    const OUTPUT_FROM_JSON: Option<OutputFromJson<Self::Output>> = None;
     const HAS_INPUT: bool = true;
     const HAS_OUTPUT: bool = true;
     fn output_status(_output: &Self::Output) -> Option<u16> {
@@ -398,7 +409,9 @@ pub struct Pagination {
 }
 
 /// A top-level input member, named as the model names it (a validation
-/// path) and as its key in the input's JSON form ([`Input::to_json`]).
+/// path) and as its key in the input's JSON form ([`Input::to_json`]): a
+/// pagination member, or an operation's idempotency token
+/// ([`Operation::IDEMPOTENCY_TOKEN`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PaginationMember {
     pub name: &'static str,
@@ -552,6 +565,9 @@ pub struct ResponseBindings {
     pub headers: Vec<(String, String)>,
     pub status: Option<u16>,
 }
+
+/// Reads an output of type `O` from its JSON form: [`Operation::OUTPUT_FROM_JSON`].
+pub type OutputFromJson<O> = fn(Value) -> serde_json::Result<O>;
 
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {

@@ -430,6 +430,12 @@ impl Protocol for McpProtocol {
             Some(Resolution::Rejected(rejection)) => {
                 rpc_error(call.id, -32602, &rejection.summary())
             }
+            // A conflict is the caller's to resolve (a reused idempotency
+            // token), so the agent sees it as a tool error it can act on.
+            Some(Resolution::Framework(error @ FrameworkError::Conflict { .. })) => rpc_result(
+                call.id,
+                json!({"content":[{"type":"text","text":json!({"name":error.name(),"message":error.message()}).to_string()}],"isError":true}),
+            ),
             _ => rpc_error(call.id, -32603, "Internal error"),
         }
     }

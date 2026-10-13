@@ -32,6 +32,8 @@ mod async_interceptor;
 mod async_middleware;
 mod async_operation_middleware;
 mod auth_refusal;
+#[cfg(any(feature = "page-tokens", feature = "idempotency"))]
+mod canonical_json;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub mod conformance;
@@ -47,6 +49,8 @@ mod fn_middleware;
 mod generated_operations_builder;
 mod hook;
 pub mod host;
+#[cfg(feature = "idempotency")]
+pub mod idempotency;
 pub mod interceptor;
 pub mod interceptors;
 pub mod job;

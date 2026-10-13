@@ -469,7 +469,16 @@
         { id: sectionId("idempotency") },
         sectionHeading(op, "idempotency", "Idempotency and retries"),
         h("p", {}, "Readonly: ", op.readonly ? "yes" : "no", ". Idempotent: ", op.idempotent ? "yes" : "no", "."),
-        op.idempotencyToken ? h("p", {}, "Clients fill an omitted ", code(op.idempotencyToken), " token once per call and reuse it for retries.") : null,
+        // The same note as crucible_codegen_common::docs::IDEMPOTENCY_TOKEN_NOTE.
+        op.idempotencyToken
+          ? h(
+              "p",
+              {},
+              "Idempotency token: ",
+              code(op.idempotencyToken),
+              ". SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.",
+            )
+          : null,
       ),
     ];
     if (op.pagination) {

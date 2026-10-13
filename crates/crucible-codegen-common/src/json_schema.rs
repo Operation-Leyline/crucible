@@ -214,7 +214,15 @@ pub fn member(
     if nullable {
         value = json!({"anyOf": [value, {"type": "null"}]});
     }
-    description(&mut value, member.docs.as_deref());
+    if member.idempotency_token {
+        let docs = member.docs.as_deref().map_or_else(
+            || crate::docs::IDEMPOTENCY_TOKEN_NOTE.to_owned(),
+            |docs| format!("{docs}\n\n{}", crate::docs::IDEMPOTENCY_TOKEN_NOTE),
+        );
+        description(&mut value, Some(&docs));
+    } else {
+        description(&mut value, member.docs.as_deref());
+    }
     annotate(&mut value, &member.notes, Slot::Native);
     if !member.traits.is_empty() {
         value["x-smithy-traits"] = traits(&member.traits);
