@@ -289,7 +289,8 @@ pub enum Location {
     /// The whole HTTP body as UTF-8 text (`@httpPayload` on a string or enum).
     TextPayload(&'static str),
     /// The whole HTTP body as one JSON value (`@httpPayload` on a structure,
-    /// union or document). An absent or null value sends no body.
+    /// union or document). Model serialization decides omission; an explicitly
+    /// serialized null is the JSON value `null`.
     DocumentPayload(&'static str),
     StreamingPayload {
         media_type: &'static str,

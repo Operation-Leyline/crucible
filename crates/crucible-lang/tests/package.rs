@@ -33,6 +33,175 @@ readonly operation Ping {
 "#;
 
 #[test]
+fn editor_overlays_use_the_packages_source_selection() {
+    let manifest = "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\n";
+    let dir = package_dir(
+        "editor-overlays",
+        manifest,
+        &[
+            ("model/a.cru", "string Saved\n"),
+            ("model/ops/existing.cru", "string Existing\n"),
+            (
+                "model/child/crucible.toml",
+                "[model]\nnamespace = \"example.child\"\n",
+            ),
+            ("model/child/saved.cru", "string Child\n"),
+        ],
+    );
+    let overlay = |path: &str, text: &str| crucible_lang::SourceFile {
+        path: dir.join(path).display().to_string(),
+        text: text.into(),
+    };
+    let mut overlays = vec![
+        overlay("model/ops/new.cru", "string NestedNew\n"),
+        overlay("excluded.cru", "string Excluded\n"),
+        overlay("model/new.cru", "string New\n"),
+        overlay("model/a.cru", "string Edited\n"),
+        overlay("model/child/new.cru", "string ChildNew\n"),
+        overlay("model/readme.txt", "string NotAModel\n"),
+    ];
+    // Editors may spell the same Windows file with different path casing.
+    if cfg!(windows) {
+        overlays[3].path = overlays[3].path.to_lowercase();
+    }
+    let package =
+        crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays).unwrap();
+    let texts: Vec<&str> = package
+        .files
+        .iter()
+        .map(|file| file.text.as_str())
+        .collect();
+    assert_eq!(
+        texts,
+        [
+            "string Edited\n",
+            "string New\n",
+            "string Existing\n",
+            "string NestedNew\n"
+        ]
+    );
+    let disk = load_package(&dir).unwrap();
+    assert_eq!(disk.files.len(), 2);
+    assert_eq!(disk.files[0].text, "string Saved\n");
+}
+
+#[test]
+fn a_packages_first_source_can_be_an_unsaved_buffer() {
+    let manifest = "[model]\nnamespace = \"example.shop\"\n";
+    let dir = package_dir("editor-first-source", manifest, &[]);
+    let overlays = [crucible_lang::SourceFile {
+        path: dir.join("first.cru").display().to_string(),
+        text: "string First\n".into(),
+    }];
+    let package =
+        crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays).unwrap();
+    assert_eq!(package.namespace, "example.shop");
+    assert_eq!(package.files.len(), 1);
+    assert_eq!(package.files[0].path, overlays[0].path);
+    assert_eq!(package.files[0].text, overlays[0].text);
+    assert!(
+        load_package(&dir)
+            .unwrap_err()
+            .contains("declares no .cru files")
+    );
+}
+
+#[test]
+fn unsaved_sources_can_live_under_missing_source_directories() {
+    let manifest = "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\n";
+    let dir = package_dir("editor-missing-source-root", manifest, &[]);
+    let overlays = [
+        crucible_lang::SourceFile {
+            path: dir.join("model/first.cru").display().to_string(),
+            text: "string First\n".into(),
+        },
+        crucible_lang::SourceFile {
+            path: dir.join("model/new/second.cru").display().to_string(),
+            text: "string Second\n".into(),
+        },
+    ];
+    let loaded =
+        crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays).unwrap();
+    assert_eq!(loaded.namespace, "example.shop");
+    assert_eq!(loaded.files.len(), 2);
+    assert_eq!(loaded.files[0].text, "string First\n");
+    assert_eq!(loaded.files[1].text, "string Second\n");
+    assert!(!dir.join("model").exists());
+    assert!(load_package(&dir).unwrap_err().contains("not a directory"));
+    assert!(!check_manifest(&dir, manifest).is_empty());
+}
+
+#[test]
+fn missing_source_directories_need_an_eligible_overlay() {
+    let manifest = "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\n";
+    let dir = package_dir("editor-missing-ineligible-source-root", manifest, &[]);
+    for path in [
+        "model-other/new.cru",
+        "model/../outside.cru",
+        "model/new.txt",
+        "elsewhere/new.cru",
+    ] {
+        let overlays = [crucible_lang::SourceFile {
+            path: dir.join(path).display().to_string(),
+            text: "string Excluded\n".into(),
+        }];
+        let error = crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays)
+            .unwrap_err();
+        assert!(error.contains("not a directory"), "{path}: {error}");
+    }
+    let dir = package_dir(
+        "editor-nondirectory-source-root",
+        manifest,
+        &[("model", "file")],
+    );
+    let overlays = [crucible_lang::SourceFile {
+        path: dir.join("model/new.cru").display().to_string(),
+        text: "string Excluded\n".into(),
+    }];
+    assert!(
+        crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays)
+            .unwrap_err()
+            .contains("not a directory")
+    );
+}
+
+#[test]
+fn unsaved_subdirectories_keep_existing_source_exclusions() {
+    let manifest = "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\n";
+    let dir = package_dir(
+        "editor-new-subdirectories",
+        manifest,
+        &[
+            ("model/saved.cru", "string Saved\n"),
+            ("model/blocked", "file"),
+            (
+                "model/child/crucible.toml",
+                "[model]\nnamespace = \"example.child\"\n",
+            ),
+        ],
+    );
+    let overlay = |path: &str, text: &str| crucible_lang::SourceFile {
+        path: dir.join(path).display().to_string(),
+        text: text.into(),
+    };
+    let mut overlays = [
+        overlay("model/new/nested/first.cru", "string First\n"),
+        overlay("model/child/new/child.cru", "string Child\n"),
+        overlay("model/blocked/new.cru", "string Blocked\n"),
+        overlay("model/../excluded.cru", "string Escaped\n"),
+        overlay("model-other/new.cru", "string Elsewhere\n"),
+    ];
+    if cfg!(windows) {
+        overlays[0].path = overlays[0].path.to_lowercase();
+    }
+    let loaded =
+        crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays).unwrap();
+    let mut texts: Vec<_> = loaded.files.iter().map(|file| file.text.as_str()).collect();
+    texts.sort();
+    assert_eq!(texts, ["string First\n", "string Saved\n"]);
+}
+
+#[test]
 fn a_package_loads_its_manifest_and_every_cru_file_in_order() {
     let dir = package_dir(
         "loads",
@@ -262,6 +431,62 @@ fn a_directory_symlink_loop_is_not_followed() {
     std::os::unix::fs::symlink(&dir, dir.join("loop")).unwrap();
     let package = load_package(&dir).unwrap();
     assert_eq!(package.files.len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn new_buffers_do_not_cross_linked_directories() {
+    let manifest = "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\n";
+    let dir = package_dir(
+        "editor-linked-directories",
+        manifest,
+        &[
+            ("model/saved.cru", "string Saved\n"),
+            ("other/saved.cru", "string Other\n"),
+        ],
+    );
+    std::os::unix::fs::symlink(dir.join("other"), dir.join("model/link")).unwrap();
+    let overlays = [crucible_lang::SourceFile {
+        path: dir.join("model/link/new/buffer.cru").display().to_string(),
+        text: "string Excluded\n".into(),
+    }];
+    let loaded =
+        crucible_lang::package::load_package_with_overlays(&dir, manifest, &overlays).unwrap();
+    assert_eq!(loaded.files.len(), 1);
+    assert_eq!(loaded.files[0].text, "string Saved\n");
+    let linked_source = "[model]\nnamespace = \"example.shop\"\nsources = [\"model/link/new\"]\n";
+    assert!(
+        crucible_lang::package::load_package_with_overlays(&dir, linked_source, &overlays)
+            .unwrap_err()
+            .contains("not a directory")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_declared_source_roots_can_follow_directory_links() {
+    for (name, source, target_file) in [
+        ("linked-root", "link", "actual/saved.cru"),
+        ("linked-parent", "link/model", "actual/model/saved.cru"),
+    ] {
+        let manifest = format!("[model]\nnamespace = \"example.shop\"\nsources = [\"{source}\"]\n");
+        let dir = package_dir(name, &manifest, &[(target_file, "string Saved\n")]);
+        std::os::unix::fs::symlink(dir.join("actual"), dir.join("link")).unwrap();
+        let overlays = [crucible_lang::SourceFile {
+            path: dir.join(source).join("new.cru").display().to_string(),
+            text: "string New\n".into(),
+        }];
+        let disk = load_package(&dir).unwrap();
+        assert_eq!(disk.files.len(), 1, "{name}");
+        let editor =
+            crucible_lang::package::load_package_with_overlays(&dir, &manifest, &overlays).unwrap();
+        assert_eq!(editor.files.len(), 2, "{name}");
+        assert!(
+            editor.files.iter().any(|file| file.text == "string New\n"),
+            "{name}"
+        );
+        assert!(!dir.join(source).join("new.cru").exists());
+    }
 }
 
 #[test]

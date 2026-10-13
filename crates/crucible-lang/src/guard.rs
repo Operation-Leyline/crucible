@@ -140,12 +140,14 @@ pub fn guard(
             new: service,
         };
         for step in &migration.steps {
-            match context.step(&step.kind) {
+            match context.checked_step(&step.kind) {
                 Ok(mut cover) => covers.append(&mut cover),
-                Err(diagnostic) => problems.push(FileDiagnostic {
-                    file: Some(*file),
-                    diagnostic,
-                }),
+                Err(diagnostics) => {
+                    problems.extend(diagnostics.into_iter().map(|diagnostic| FileDiagnostic {
+                        file: Some(*file),
+                        diagnostic,
+                    }))
+                }
             }
         }
         check_versions(migration, *file, &mut problems);
@@ -366,6 +368,69 @@ impl Context<'_> {
     fn has_member(&self, service: &Service, shape: &ShapeId, member: &str) -> bool {
         self.members(service, shape)
             .is_some_and(|members| members.contains(&member))
+    }
+
+    /// Validate literals as well as the structural change, collecting every
+    /// problem with a default before it reaches the runtime version pipeline.
+    fn checked_step(&self, step: &StepKind) -> Result<Vec<Cover>, Vec<Diagnostic>> {
+        let covers = self.step(step).map_err(|diagnostic| vec![diagnostic])?;
+        if let StepKind::Require {
+            path,
+            how: RequireHow::Default(value),
+        } = step
+            && let Some(target) = self.resolve(self.new, path)
+            && let Some(Shape::Structure(owner)) = self.new.shapes.get(&target.shape)
+            && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
+        {
+            let default = self.require_default(&target, value);
+            let problems: Vec<_> = crucible_smithy::validate::value(
+                &self.new.shapes,
+                &format!("the migration default for `{}`", member.name),
+                &member.target,
+                &member.constraints,
+                &default,
+            )
+            .into_iter()
+            .map(|message| error(value.span(), message))
+            .collect();
+            if !problems.is_empty() {
+                return Err(problems);
+            }
+        }
+        Ok(covers)
+    }
+
+    fn require_default(&self, target: &Target, value: &Value) -> Json {
+        // An enum literal names its symbol; validation and the runtime
+        // conversion must see the same corresponding wire value.
+        let default = json(value);
+        if let (Json::String(symbol), Some(Shape::Structure(owner))) =
+            (&default, self.new.shapes.get(&target.shape))
+            && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
+        {
+            match self.new.shapes.get(&member.target) {
+                Some(Shape::Enum(enumeration)) => {
+                    if let Some(found) = enumeration
+                        .values
+                        .iter()
+                        .find(|value| &value.name == symbol)
+                    {
+                        return Json::String(found.value.clone());
+                    }
+                }
+                Some(Shape::IntEnum(enumeration)) if matches!(value, Value::Ident(_)) => {
+                    if let Some(found) = enumeration
+                        .values
+                        .iter()
+                        .find(|value| &value.name == symbol)
+                    {
+                        return Json::Number(found.value.into());
+                    }
+                }
+                _ => {}
+            }
+        }
+        default
     }
 
     /// Checks one step against the two models and returns what it covers.
@@ -919,7 +984,16 @@ fn operations_reaching(service: &Service, shape: &ShapeId) -> Vec<ShapeId> {
 impl Context<'_> {
     /// A checked step, lowered with its paths resolved.
     fn lower(&self, step: &StepKind) -> Result<VersionStep, Diagnostic> {
-        self.step(step)?;
+        self.checked_step(step).map_err(|diagnostics| {
+            error(
+                diagnostics[0].span,
+                diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.message)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )
+        })?;
         let first = |path: &Dotted| {
             path.parts
                 .first()
@@ -943,18 +1017,14 @@ impl Context<'_> {
                 let member = new.member.clone().unwrap_or_default();
                 match how {
                     RequireHow::Default(value) => {
-                        // An enum default is its value's symbol; the wire
-                        // carries the value.
-                        let mut default = json(value);
-                        if let (Json::String(symbol), Some(Shape::Structure(owner))) =
-                            (&default, self.new.shapes.get(&new.shape))
-                            && let Some(target) = owner.member(&member).map(|m| m.target.clone())
-                            && let Some(Shape::Enum(enumeration)) = self.new.shapes.get(&target)
-                            && let Some(found) =
-                                enumeration.values.iter().find(|v| &v.name == symbol)
-                        {
-                            default = Json::String(found.value.clone());
-                        }
+                        let default = self.require_default(&new, value);
+                        let Some(Shape::Structure(owner)) = self.new.shapes.get(&new.shape) else {
+                            unreachable!("a checked requirement targets a structure member")
+                        };
+                        let target = owner.member(&member).expect("a checked requirement member");
+                        // Model literals accept epoch seconds and model member
+                        // names; conversions inject protocol document values.
+                        let default = self.new.wire_example(target, &default, None);
                         VersionStep::Require {
                             new: new.shape,
                             member,

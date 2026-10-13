@@ -1230,16 +1230,17 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		headers.Set("Content-Type", "application/json")
 	}
 	if source != nil {
-		headers.Set("Content-Type", op.Request.Payload[1])
+		if _, present := headers["Content-Type"]; !present { headers.Set("Content-Type", op.Request.Payload[1]) }
 		if source.sha256 != "" { headers.Set("X-Amz-Content-Sha256", source.sha256) }
 	} else if len(op.Request.Payload) == 2 && !op.Request.Streaming {
-		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && payload != nil {
+		// The codec has already applied the protocol's null-member policy.
+		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && (payload != nil || op.Request.PayloadKind == "document") {
 			switch op.Request.PayloadKind {
 			case "string": body = []byte(payload.(string))
 			case "document": var err error; body, err = json.Marshal(payload); if err != nil { return nil, err }
 			default: body = payload.([]byte)
 			}
-			headers.Set("Content-Type", op.Request.Payload[1])
+			if _, present := headers["Content-Type"]; !present { headers.Set("Content-Type", op.Request.Payload[1]) }
 		}
 	}
 	if c.schema.Protocol == "awsJson1_0" || c.schema.Protocol == "awsJson1_1" {

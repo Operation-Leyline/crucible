@@ -61,6 +61,414 @@ fn absent_response_headers_and_scalar_first_line_are_preserved() {
     assert_eq!(output["names"], "a");
 }
 
+#[test]
+fn response_bodies_cannot_supply_header_bound_members() {
+    static MEMBERS: [MemberInfo; 2] = [
+        response_header(Scalar::String),
+        crate::__generated::member_info(
+            "message",
+            Location::Body,
+            Scalar::String,
+            &crucible_wire::operation::Redaction::Public,
+            &[],
+        ),
+    ];
+    static HEADER_ERROR: ErrorInfo =
+        crate::__generated::error_info("HeaderError", 400, Fault::Client, false, false, &MEMBERS);
+    struct HeaderOutput;
+    impl Operation for HeaderOutput {
+        const INFO: &'static OperationInfo = Probe::INFO;
+        type Input = Unit;
+        type Output = Value;
+    }
+    let body = Bytes::from_static(br#"{"names":"from-body","message":"kept"}"#);
+    for value in [None, Some("from-header")] {
+        let mut headers = HeaderMap::new();
+        if let Some(value) = value {
+            headers.insert("x-names", HeaderValue::from_static(value));
+        }
+        let expected = match value {
+            Some(value) => serde_json::json!({"names": value, "message": "kept"}),
+            None => serde_json::json!({"message": "kept"}),
+        };
+        let output = decode_output::<HeaderOutput, Known>(200, &MEMBERS, &headers, &body).unwrap();
+        assert_eq!(output, expected);
+        let error: Value = decode_modelled_at(400, &HEADER_ERROR, &headers, &body).unwrap();
+        assert_eq!(error, expected);
+    }
+}
+
+async fn request_headers(socket: &mut tokio::net::TcpStream) -> String {
+    use tokio::io::AsyncReadExt;
+    let mut request = Vec::new();
+    let mut buffer = [0; 1024];
+    while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+        let count = socket.read(&mut buffer).await.unwrap();
+        assert_ne!(count, 0);
+        request.extend_from_slice(&buffer[..count]);
+    }
+    String::from_utf8(request).unwrap()
+}
+
+async fn redirect_attempt<O: Operation<Input = Unit, Output = Unit>>(
+    configure: impl FnOnce(Config) -> Config,
+) -> (Result<Unit, Error<Known>>, String, Option<String>) {
+    use tokio::io::AsyncWriteExt;
+    let source = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let target = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", source.local_addr().unwrap());
+    let location = format!("http://{}/redirected", target.local_addr().unwrap());
+    let source_task = tokio::spawn(async move {
+        let (mut socket, _) = source.accept().await.unwrap();
+        let request = request_headers(&mut socket).await;
+        socket.write_all(format!("HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes()).await.unwrap();
+        request
+    });
+    let mut target_task = tokio::spawn(async move {
+        let (mut socket, _) = target.accept().await.unwrap();
+        let request = request_headers(&mut socket).await;
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+            .await
+            .unwrap();
+        request
+    });
+    let transport = Transport::new(
+        configure(Config::new(endpoint))
+            .retry(crate::Retry::none())
+            .timeout(Duration::from_secs(5)),
+    );
+    let result = transport.send::<O, Known>(&Unit {}).await;
+    // A followed redirect must finish before the call returns. Start this
+    // observation window afterward so client setup cannot expire it early.
+    let target = match tokio::time::timeout(Duration::from_millis(100), &mut target_task).await {
+        Ok(request) => Some(request.unwrap()),
+        Err(_) => {
+            target_task.abort();
+            None
+        }
+    };
+    (result, source_task.await.unwrap(), target)
+}
+
+struct ApiKeyProbe;
+impl Operation for ApiKeyProbe {
+    const INFO: &'static OperationInfo = Probe::INFO;
+    const AUTH_SCHEMES: Option<&'static [crucible_wire::operation::AuthScheme]> =
+        Some(&[crucible_wire::operation::AuthScheme::ApiKey {
+            name: "x-api-key",
+            query: false,
+            scheme: None,
+        }]);
+    type Input = Unit;
+    type Output = Unit;
+}
+
+struct SigV4Probe;
+impl Operation for SigV4Probe {
+    const INFO: &'static OperationInfo = Probe::INFO;
+    const AUTH_SCHEMES: Option<&'static [crucible_wire::operation::AuthScheme]> =
+        Some(&[crucible_wire::operation::AuthScheme::SigV4 {
+            signing_name: "test",
+        }]);
+    type Input = Unit;
+    type Output = Unit;
+}
+
+#[tokio::test]
+async fn default_client_does_not_redirect_api_keys_to_another_origin() {
+    let (result, source, target) = redirect_attempt::<ApiKeyProbe>(|config| {
+        config.api_key(crate::Token::fixed("test-api-key"))
+    })
+    .await;
+    assert!(source.contains("x-api-key: test-api-key"));
+    assert!(target.is_none(), "the redirect target received a request");
+    assert!(matches!(result, Err(Error::Unknown(error)) if error.metadata.status == 302));
+}
+
+#[tokio::test]
+async fn default_client_does_not_redirect_sigv4_session_tokens_to_another_origin() {
+    let mut credentials = crate::AwsCredentials::new("test-access-key", "test-secret-key");
+    credentials.session_token = Some("test-session-token".into());
+    let (result, source, target) = redirect_attempt::<SigV4Probe>(|config| {
+        config
+            .region("us-west-2")
+            .aws_credentials(crate::Identity::fixed(credentials))
+    })
+    .await;
+    assert!(source.contains("x-amz-security-token: test-session-token"));
+    assert!(source.contains("authorization: AWS4-HMAC-SHA256"));
+    assert!(target.is_none(), "the redirect target received a request");
+    assert!(matches!(result, Err(Error::Unknown(error)) if error.metadata.status == 302));
+}
+
+#[tokio::test]
+async fn custom_http_client_can_explicitly_enable_redirects() {
+    let (result, _, target) = redirect_attempt::<Probe>(|config| {
+        config
+            .token(crate::Token::fixed("test-bearer-token"))
+            .http_client(
+                reqwest::Client::builder()
+                    .redirect(reqwest::redirect::Policy::limited(1))
+                    .build()
+                    .unwrap(),
+            )
+    })
+    .await;
+    assert!(result.is_ok());
+    assert!(target.is_some());
+}
+
+#[test]
+fn modeled_errors_cannot_read_absent_header_members_from_the_body() {
+    static MEMBERS: [MemberInfo; 1] = [response_header(Scalar::String)];
+    static HEADER_ERROR: ErrorInfo =
+        crate::__generated::error_info("HeaderError", 400, Fault::Client, false, false, &MEMBERS);
+    #[derive(Debug, serde::Deserialize)]
+    struct HeaderError {
+        names: Option<String>,
+    }
+    let error: HeaderError = decode_modelled_at(
+        400,
+        &HEADER_ERROR,
+        &HeaderMap::new(),
+        br#"{"names":"from-body"}"#,
+    )
+    .unwrap();
+    assert_eq!(error.names, None);
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct UploadInput<T> {
+    data: T,
+    content_type: Option<String>,
+}
+impl<T> crucible_wire::validate::Validate for UploadInput<T> {
+    fn validate(&self, _: &mut crucible_wire::validate::Validator) {}
+}
+
+const fn upload_member(name: &'static str, location: Location) -> MemberInfo {
+    crate::__generated::member_info(
+        name,
+        location,
+        Scalar::String,
+        &crucible_wire::operation::Redaction::Public,
+        &[],
+    )
+}
+const fn upload_info(members: &'static [MemberInfo]) -> OperationInfo {
+    crate::__generated::operation_info(
+        "test#Upload",
+        "Upload",
+        None,
+        "PUT",
+        &[],
+        &[],
+        200,
+        members,
+        &[],
+        &[],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    )
+}
+
+struct BufferedUpload;
+impl Operation for BufferedUpload {
+    const PROTOCOL: Protocol = Protocol::AwsRestJson1;
+    const INFO: &'static OperationInfo = &upload_info(&[
+        upload_member("data", Location::Payload("application/octet-stream")),
+        upload_member("content_type", Location::Header("content-type")),
+    ]);
+    type Input = UploadInput<crate::Blob>;
+    type Output = Unit;
+}
+
+struct StreamingUpload;
+impl Operation for StreamingUpload {
+    const PROTOCOL: Protocol = Protocol::AwsRestJson1;
+    const INFO: &'static OperationInfo = &upload_info(&[
+        upload_member(
+            "data",
+            Location::StreamingPayload {
+                media_type: "application/octet-stream",
+                requires_length: true,
+                minimum: None,
+                maximum: None,
+            },
+        ),
+        upload_member("content_type", Location::Header("content-type")),
+    ]);
+    type Input = UploadInput<ByteStream>;
+    type Output = Unit;
+    fn input_stream(input: &Self::Input) -> Option<ByteStream> {
+        Some(input.data.clone())
+    }
+}
+
+async fn upload_content_type<O: Operation<Output = Unit>>(
+    input: &O::Input,
+    configured: Option<&'static str>,
+) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let endpoint = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        let request = request_headers(&mut socket).await;
+        let (headers, body) = request.split_once("\r\n\r\n").unwrap();
+        let header = |name: &str| {
+            headers
+                .lines()
+                .find_map(|line| {
+                    let (key, value) = line.split_once(':')?;
+                    key.eq_ignore_ascii_case(name)
+                        .then(|| value.trim().to_owned())
+                })
+                .unwrap()
+        };
+        let content_type = header("content-type");
+        let length: usize = header("content-length").parse().unwrap();
+        let mut body = body.as_bytes().to_vec();
+        if body.len() < length {
+            let mut remaining = vec![0; length - body.len()];
+            socket.read_exact(&mut remaining).await.unwrap();
+            body.extend(remaining);
+        }
+        assert_eq!(body, b"png-data");
+        socket
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
+            .await
+            .unwrap();
+        content_type
+    });
+    let mut config = Config::new(endpoint)
+        .retry(crate::Retry::none())
+        .timeout(Duration::from_secs(5));
+    if let Some(content_type) = configured {
+        config = config.header(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static(content_type),
+        );
+    }
+    Transport::new(config)
+        .send::<O, Known>(input)
+        .await
+        .unwrap();
+    server.await.unwrap()
+}
+
+#[tokio::test]
+async fn buffered_upload_content_type_preserves_explicit_headers_and_defaults_when_absent() {
+    for (modeled, configured, expected) in [
+        (Some("image/png"), None, "image/png"),
+        (None, None, "application/octet-stream"),
+        (None, Some("image/jpeg"), "image/jpeg"),
+        (Some("image/png"), Some("image/jpeg"), "image/png"),
+    ] {
+        let input = UploadInput {
+            data: crate::Blob::new(Bytes::from_static(b"png-data")),
+            content_type: modeled.map(str::to_owned),
+        };
+        assert_eq!(
+            upload_content_type::<BufferedUpload>(&input, configured).await,
+            expected
+        );
+    }
+}
+
+#[tokio::test]
+async fn streaming_upload_content_type_preserves_explicit_headers_and_defaults_when_absent() {
+    for (modeled, configured, expected) in [
+        (Some("image/png"), None, "image/png"),
+        (None, None, "application/octet-stream"),
+        (None, Some("image/jpeg"), "image/jpeg"),
+        (Some("image/png"), Some("image/jpeg"), "image/png"),
+    ] {
+        let input = UploadInput {
+            data: ByteStream::from_bytes(Bytes::from_static(b"png-data")),
+            content_type: modeled.map(str::to_owned),
+        };
+        assert_eq!(
+            upload_content_type::<StreamingUpload>(&input, configured).await,
+            expected
+        );
+    }
+}
+
+struct JsonBodyProbe<const WIRE_PROTOCOL: u8>;
+impl<const WIRE_PROTOCOL: u8> Operation for JsonBodyProbe<WIRE_PROTOCOL> {
+    const PROTOCOL: Protocol = match WIRE_PROTOCOL {
+        0 => Protocol::CrucibleJson,
+        1 => Protocol::AwsRestJson1,
+        2 => Protocol::AwsJson10 { service: "Test" },
+        3 => Protocol::AwsJson11 { service: "Test" },
+        4 => Protocol::SmithyRpcV2Json,
+        _ => Protocol::SmithyRpcV2Cbor,
+    };
+    const INFO: &'static OperationInfo = &upload_info(&[
+        upload_member("data", Location::Body),
+        upload_member("content_type", Location::Header("content-type")),
+    ]);
+    type Input = UploadInput<String>;
+    type Output = Unit;
+}
+
+async fn protocol_content_type<const WIRE_PROTOCOL: u8>(modeled: Option<&str>, expected: &str) {
+    struct Capture(std::sync::Arc<std::sync::Mutex<Option<String>>>);
+    impl crate::Interceptor for Capture {
+        fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
+            assert!(request.body().is_some());
+            *self.0.lock().unwrap() = Some(
+                request.headers()[http::header::CONTENT_TYPE]
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+            );
+            Err("request captured".into())
+        }
+    }
+    let captured = Arc::new(std::sync::Mutex::new(None));
+    let config = Config::new("http://localhost")
+        .header(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("image/png"),
+        )
+        .interceptor(Capture(captured.clone()));
+    let input = UploadInput {
+        data: "json-data".into(),
+        content_type: modeled.map(str::to_owned),
+    };
+    let result = Transport::new(config)
+        .send::<JsonBodyProbe<WIRE_PROTOCOL>, Known>(&input)
+        .await;
+    assert!(matches!(result, Err(Error::Invalid(message)) if message == "request captured"));
+    assert_eq!(captured.lock().unwrap().as_deref(), Some(expected));
+}
+
+#[tokio::test]
+async fn json_document_content_type_overrides_configured_and_modeled_headers() {
+    for modeled in [None, Some("image/jpeg")] {
+        protocol_content_type::<0>(modeled, "application/json").await;
+        protocol_content_type::<1>(modeled, "application/json").await;
+    }
+}
+
+#[tokio::test]
+async fn aws_json_document_content_types_override_configured_headers() {
+    protocol_content_type::<2>(None, "application/x-amz-json-1.0").await;
+    protocol_content_type::<3>(None, "application/x-amz-json-1.1").await;
+}
+
+#[tokio::test]
+async fn rpc_document_content_types_override_configured_headers() {
+    protocol_content_type::<4>(None, "application/json").await;
+    protocol_content_type::<5>(None, "application/cbor").await;
+}
+
 #[derive(Debug)]
 struct Known;
 static ERROR: ErrorInfo =
@@ -221,6 +629,7 @@ async fn body_digests_cover_empty_writes_and_raw_bytes() {
                 "http://localhost",
                 &HeaderMap::new(),
                 body,
+                true,
                 crate::auth::OperationAuth::of::<Probe>(),
                 None,
                 &crate::checksum::Plan::default(),

@@ -153,6 +153,47 @@ version's section when it is prepared.
 
 ### Fixed
 
+- The Rust client's default HTTP transport no longer follows redirects,
+  which could forward custom API-key and SigV4 session-token headers to
+  another origin. Applications can configure an explicit redirect policy
+  with `Config::http_client`.
+
+- Rust clients ignore response JSON fields for members bound to HTTP
+  headers, even when the corresponding header is absent. This also applies
+  to modeled errors and the initial response of an event stream.
+
+- Rust, Python and Go clients send an explicitly null Document payload as
+  JSON `null`, preserving its distinction from an omitted payload. JSON
+  payloads follow the protocol's null-member policy: Crucible JSON retains
+  an explicit null structure payload, while AWS REST JSON omits it.
+  TypeScript no longer tries to serialize an omitted AWS structure payload
+  as `undefined`. Rust, Python and Go clients preserve an explicit modeled
+  Content-Type header on buffered and streaming payloads instead of
+  replacing it with the inferred media type.
+
+- Compatibility checks report added effective OAuth scope requirements
+  as authentication changes. Reordering or removing requirements remains
+  compatible.
+
+- `.cru` migration defaults are checked against the destination member's
+  type and effective constraints before a migration can be generated.
+  An invalid default can no longer pass the guard and break older requests.
+  Valid timestamp and integer-enum defaults use the destination wire
+  representation.
+
+- The language server includes new unsaved buffers inside a package's
+  source directories when checking diagnostics and resolving symbols.
+  Buffers also work before their source directory or subdirectory exists.
+  Excluded source paths and nested packages retain their existing rules.
+  Renaming a declaration to a built-in type is rejected before edits are
+  returned.
+
+- JWT authenticators refuse foreign, missing, or malformed issuers before
+  looking up signing keys. An unrelated issuer's JWKS outage can no longer
+  block a valid token from a later authenticator in the API chain or consume
+  the unrelated issuer's refresh cooldown. Signature and issuer validation
+  still run before authentication; a matching issuer's outage remains a 5xx.
+
 - A Lambda HTTP event whose query string held characters a URI does not
   carry raw (`"`, `<`, `>`, a space: curl and other non-browser clients
   send them unencoded, and a Function URL passes them on as received)

@@ -41,10 +41,21 @@ pub fn load_package(dir: &Path) -> Result<Package, String> {
 /// [`load_package`] with the manifest's text supplied, as an editor holding
 /// unsaved changes to it does.
 pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, String> {
+    load_package_with_overlays(dir, text, &[])
+}
+
+/// Loads an editor's package, replacing disk contents with open buffers and
+/// including new buffers under the same source directories walked on disk.
+/// Nested packages and linked directories stay outside that walk.
+pub fn load_package_with_overlays(
+    dir: &Path,
+    text: &str,
+    overlays: &[SourceFile],
+) -> Result<Package, String> {
     let manifest = dir.join("crucible.toml");
     // The build and the editor apply the same checks, so a manifest the
     // editor marks wrong never builds.
-    let problems = check_manifest(dir, text);
+    let problems = check_manifest_with_overlays(dir, text, overlays);
     if !problems.is_empty() {
         let lines = crate::span::LineIndex::new(text);
         let rendered: Vec<String> = problems
@@ -150,14 +161,25 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
         } else {
             dir.join(source_path)
         };
-        if !root.is_dir() {
+        let buffers: Vec<_> = overlays
+            .iter()
+            .filter(|file| overlay_in_source(dir, &root, file))
+            .collect();
+        if root.is_dir() {
+            collect_cru(&root, &mut paths)?;
+        } else if buffers.is_empty() {
             return Err(format!(
                 "{}: {} is not a directory",
                 field("sources"),
                 root.display()
             ));
         }
-        collect_cru(&root, &mut paths)?;
+        for file in buffers {
+            let path = Path::new(&file.path);
+            if !paths.iter().any(|existing| same_path(existing, path)) {
+                paths.push(path.to_path_buf());
+            }
+        }
     }
     paths.sort();
     paths.dedup();
@@ -170,8 +192,14 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
     let files = paths
         .into_iter()
         .map(|path| {
-            let text = std::fs::read_to_string(&path)
-                .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+            let text = match overlays
+                .iter()
+                .find(|file| same_path(Path::new(&file.path), &path))
+            {
+                Some(file) => file.text.clone(),
+                None => std::fs::read_to_string(&path)
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))?,
+            };
             Ok(SourceFile {
                 path: path.display().to_string(),
                 text,
@@ -215,6 +243,65 @@ fn outside(dir: &Path, path: &str) -> Option<&'static str> {
     let root = std::fs::canonicalize(dir).ok()?;
     let target = std::fs::canonicalize(dir.join(path)).ok()?;
     (!target.starts_with(&root)).then_some("must stay inside the package directory")
+}
+
+fn same_path(left: &Path, right: &Path) -> bool {
+    let clean = |path: &Path| -> PathBuf {
+        path.components()
+            .filter(|component| !matches!(component, Component::CurDir))
+            .collect()
+    };
+    let (left, right) = (clean(left), clean(right));
+    if cfg!(windows) {
+        left.to_string_lossy().to_lowercase() == right.to_string_lossy().to_lowercase()
+    } else {
+        left == right
+    }
+}
+
+/// A new buffer can have missing parent directories, but every existing
+/// ancestor must obey the disk walk's directory and package boundaries.
+fn overlay_in_source(package: &Path, root: &Path, file: &SourceFile) -> bool {
+    let path = Path::new(&file.path);
+    if path.extension().is_none_or(|extension| extension != "cru")
+        || path
+            .components()
+            .any(|component| matches!(component, Component::ParentDir))
+        || path.is_dir()
+    {
+        return false;
+    }
+    let source_exists = root.is_dir();
+    let mut within_source = false;
+    let mut at = path.parent();
+    while let Some(parent) = at {
+        if same_path(parent, root) {
+            within_source = true;
+        }
+        if same_path(parent, package) {
+            return within_source && parent.is_dir();
+        }
+        match std::fs::symlink_metadata(parent) {
+            Ok(metadata) if metadata.file_type().is_symlink() => {
+                // The disk walk follows an explicitly selected existing
+                // root, including its parents, but never links below it.
+                // A virtual root cannot opt into following an ancestor link.
+                if !source_exists || !within_source || !parent.is_dir() {
+                    return false;
+                }
+            }
+            Ok(metadata) if !metadata.is_dir() => {
+                return false;
+            }
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound => return false,
+            _ => {}
+        }
+        if !within_source && is_package(parent) {
+            return false;
+        }
+        at = parent.parent();
+    }
+    false
 }
 
 fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
@@ -262,6 +349,17 @@ fn top_level_key(text: &str, key: &str) -> Span {
 }
 
 pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
+    check_manifest_with_overlays(dir, text, &[])
+}
+
+/// [`check_manifest`] for an editor with open model buffers. A missing source
+/// directory is valid while an eligible buffer lives under it, using the
+/// same source selection as [`load_package_with_overlays`].
+pub fn check_manifest_with_overlays(
+    dir: &Path,
+    text: &str,
+    overlays: &[SourceFile],
+) -> Vec<Diagnostic> {
     #[derive(serde::Deserialize)]
     struct Manifest {
         model: Option<toml::Spanned<Model>>,
@@ -350,7 +448,11 @@ pub fn check_manifest(dir: &Path, text: &str) -> Vec<Diagnostic> {
                 span(source.span()),
                 format!("`{}` {problem}", source.get_ref()),
             ));
-        } else if !dir.join(source.get_ref()).is_dir() {
+        } else if !dir.join(source.get_ref()).is_dir()
+            && !overlays
+                .iter()
+                .any(|file| overlay_in_source(dir, &dir.join(source.get_ref()), file))
+        {
             out.push(Diagnostic::new(
                 span(source.span()),
                 format!(

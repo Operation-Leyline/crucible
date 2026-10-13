@@ -131,7 +131,8 @@ pub type ChecksumValidated =
     Arc<dyn Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm) + Send + Sync>;
 
 impl Config {
-    /// Creates settings with three attempts, a reqwest connection pool, and no total call deadline.
+    /// Creates settings with three attempts, a reqwest connection pool, no redirects,
+    /// and no total call deadline.
     pub fn new(endpoint: impl Into<String>) -> Self {
         // reqwest needs a process-wide TLS crypto provider. Install ring
         // unless the application already chose one; that choice stands.
@@ -150,7 +151,12 @@ impl Config {
             retry: Retry::default(),
             interceptors: Vec::new(),
             headers: HeaderMap::new(),
-            http: reqwest::Client::new(),
+            // Redirects bypass authentication and interceptors, and reqwest
+            // retains custom credential headers across origins.
+            http: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .expect("default HTTP client configuration is valid"),
             timeout: None,
             content_sha256: false,
             request_checksum_calculation: crate::ChecksumPolicy::WhenSupported,
@@ -278,7 +284,8 @@ impl Config {
         self
     }
 
-    /// The HTTP client to send with: for connection pools, proxies, timeouts.
+    /// The HTTP client to send with: for connection pools, proxies, timeouts,
+    /// and an explicit redirect policy.
     pub fn http_client(mut self, http: reqwest::Client) -> Self {
         self.http = http;
         self

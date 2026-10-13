@@ -126,6 +126,61 @@ fn removing_readonly_is_a_breaking_retry_contract_change() {
     }));
 }
 
+fn scoped_model(scopes: &[&str]) -> Value {
+    let mut value = model();
+    value["shapes"]["example.api#Catalog"]["traits"]["smithy.api#httpBearerAuth"] = json!({});
+    value["shapes"]["example.api#Catalog"]["traits"]["crucible.auth#scopes"] = json!(scopes);
+    value
+}
+
+#[test]
+fn tightened_effective_scopes_are_authentication_breaks() {
+    let old = scoped_model(&["read"]);
+    for (name, new) in [
+        ("inherited", scoped_model(&["read", "admin"])),
+        ("replaced", scoped_model(&["write"])),
+        ("overridden", {
+            let mut new = old.clone();
+            new["shapes"]["example.api#GetItem"]["traits"]["crucible.auth#scopes"] =
+                json!(["read", "admin"]);
+            new
+        }),
+    ] {
+        let findings = diff(&lower(&old), &lower(&new), &wire()).findings;
+        assert!(
+            findings.iter().any(|finding| {
+                finding.rule == "compatibility.auth"
+                    && finding.shape == "example.api#GetItem"
+                    && finding.message.contains("scope")
+            }),
+            "{name}: {findings:?}"
+        );
+    }
+}
+
+#[test]
+fn scope_order_and_relaxations_preserve_existing_credentials() {
+    let old = scoped_model(&["read", "admin"]);
+    for scopes in [vec!["admin", "read"], vec!["read"], vec![]] {
+        assert!(rules(&old, &scoped_model(&scopes)).is_empty());
+    }
+}
+
+#[test]
+fn service_scope_changes_do_not_affect_opted_out_or_public_operations() {
+    for (trait_name, value) in [
+        ("crucible.auth#scopes", json!([])),
+        ("smithy.api#auth", json!([])),
+    ] {
+        let mut old = scoped_model(&["read"]);
+        old["shapes"]["example.api#GetItem"]["traits"][trait_name] = value;
+        let mut new = old.clone();
+        new["shapes"]["example.api#Catalog"]["traits"]["crucible.auth#scopes"] =
+            json!(["read", "admin"]);
+        assert!(rules(&old, &new).is_empty());
+    }
+}
+
 #[test]
 fn optional_inputs_pass_but_new_required_inputs_and_lost_output_guarantees_fail() {
     let old = model();

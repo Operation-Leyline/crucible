@@ -442,7 +442,7 @@ async fn issuer_outage_does_not_block_another_issuers_valid_token() {
     let mut claims = available.access_claims("person", "mcp-client");
     claims["aud"] = json!(RESOURCE);
     claims["scope"] = json!(SCOPE);
-    // The first attempt sees connection refusal; the next sees refresh cooldown.
+    // Neither request needs the unavailable issuer's keys.
     for _ in 0..2 {
         assert_eq!(
             request(
@@ -455,6 +455,21 @@ async fn issuer_outage_does_not_block_another_issuers_valid_token() {
             .0,
             StatusCode::OK
         );
+    }
+    // A token for the unavailable issuer still reports an outage, then refresh cooldown.
+    let mut unavailable_claims = unavailable.access_claims("person", "mcp-client");
+    unavailable_claims["aud"] = json!(RESOURCE);
+    unavailable_claims["scope"] = json!(SCOPE);
+    for _ in 0..2 {
+        let (status, challenge, _) = request(
+            &service,
+            "/mcp",
+            Some(&unavailable.mint(&unavailable_claims).unwrap()),
+            message("ping"),
+        )
+        .await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(challenge.is_empty());
     }
     claims["scope"] = json!("weather/read");
     assert_eq!(
@@ -476,8 +491,8 @@ async fn issuer_outage_does_not_block_another_issuers_valid_token() {
         message("ping"),
     )
     .await;
-    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
-    assert!(challenge.is_empty());
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(challenge.contains("error=\"invalid_token\""));
     assert_eq!(
         request(&service, "/mcp", Some("malformed"), message("ping"))
             .await
