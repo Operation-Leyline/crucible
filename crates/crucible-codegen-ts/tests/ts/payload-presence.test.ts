@@ -29,3 +29,33 @@ for (const [sdk, protocol] of [[crucible, "Crucible JSON"], [rest, "REST JSON"]]
     assert.deepEqual(bodies, ["", protocol === "Crucible JSON" ? "null" : "", '{"name":"record"}']);
   });
 }
+
+const bytes = new Uint8Array([80, 78, 71]);
+const stream = () => new ReadableStream<Uint8Array>({start(controller) { controller.enqueue(bytes); controller.close(); }});
+type PayloadCall = (fetch: crucible.Fetch, streaming: boolean, contentType?: string) => Promise<void>;
+const payloadCalls: readonly [string, PayloadCall][] = [
+  ["Crucible JSON", async (fetch, streaming, contentType) => {
+    const client = new crucible.PayloadBindingsClient({endpoint: "https://example.test", fetch});
+    if (streaming) await client.uploadStream({data: new crucible.ByteStream(stream(), {length: bytes.length}), contentType});
+    else await client.upload({data: bytes, contentType});
+  }],
+  ["REST JSON", async (fetch, streaming, contentType) => {
+    const client = new rest.PayloadBindingsClient({endpoint: "https://example.test", fetch});
+    if (streaming) await client.uploadStream({data: new rest.ByteStream(stream(), {length: bytes.length}), contentType});
+    else await client.upload({data: bytes, contentType});
+  }],
+];
+
+for (const [protocol, call] of payloadCalls) {
+  for (const streaming of [false, true]) {
+    test(`${protocol} renamed ${streaming ? "streaming" : "buffered"} payload sends bytes and media type`, async () => {
+      for (const contentType of [undefined, "image/png"]) {
+        await call(async request => {
+          assert.deepEqual(new Uint8Array(await request.arrayBuffer()), bytes);
+          assert.equal(request.headers.get("content-type"), contentType ?? "application/octet-stream");
+          return new Response(null);
+        }, streaming, contentType);
+      }
+    });
+  }
+}

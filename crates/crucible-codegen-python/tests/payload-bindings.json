@@ -21,7 +21,7 @@
     "example.payload#UploadInput": {
       "type": "structure", "traits": {"smithy.api#input": {}},
       "members": {
-        "data": {"target": "smithy.api#Blob", "traits": {"smithy.api#httpPayload": {}}},
+        "data": {"target": "smithy.api#Blob", "traits": {"smithy.api#httpPayload": {}, "smithy.api#jsonName": "wireData"}},
         "contentType": {"target": "smithy.api#String", "traits": {"smithy.api#httpHeader": "CoNtEnT-TyPe"}}
       }
     },
@@ -32,7 +32,7 @@
     "example.payload#StreamInput": {
       "type": "structure", "traits": {"smithy.api#input": {}},
       "members": {
-        "data": {"target": "example.payload#Stream", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}}},
+        "data": {"target": "example.payload#Stream", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}, "smithy.api#jsonName": "wireStream"}},
         "contentType": {"target": "smithy.api#String", "traits": {"smithy.api#httpHeader": "CoNtEnT-TyPe"}}
       }
     },

@@ -198,11 +198,17 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
         .await
         .unwrap();
     assert_eq!(output.document(), Some(&document));
-    // An explicit null document sends no body; the response reads as absent.
+    // Explicit null is a document value; omission remains an empty body.
     let output = client
         .put_free(kinds::FreeInput {
             document: Field::Null,
         })
+        .await
+        .unwrap();
+    assert_eq!(seen.lock().unwrap().last().unwrap().body, b"null");
+    assert_eq!(output.document(), Some(&serde_json::Value::Null));
+    let output = client
+        .put_free(kinds::FreeInput::builder().build())
         .await
         .unwrap();
     assert!(seen.lock().unwrap().last().unwrap().body.is_empty());
