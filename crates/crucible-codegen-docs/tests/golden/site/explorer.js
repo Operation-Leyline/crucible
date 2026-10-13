@@ -476,7 +476,7 @@
               {},
               "Idempotency token: ",
               code(op.idempotencyToken),
-              ". SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; services refuse requests without one.",
+              ". SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.",
             )
           : null,
       ),

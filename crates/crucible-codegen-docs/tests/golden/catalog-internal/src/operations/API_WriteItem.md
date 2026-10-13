@@ -64,7 +64,7 @@ Smithy-Protocol: rpc-v2-json
 
 Readonly: false. Idempotent: true.
 
-Idempotency token: <code>clientToken</code>. SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; services refuse requests without one.
+Idempotency token: <code>clientToken</code>. SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.
 
 ## Examples
 

@@ -31,8 +31,9 @@ arm, has to change; reading `Principal`'s fields does not.
 
 `FrameworkError` gained `Conflict { message }`, the 409 that idempotency
 answers by default. A `match` naming every variant needs an arm for it (or
-`_`); `name()`, `status()` and `message()` cover it, so code that only calls
-those is unaffected.
+`_`), in server code and in client code that names it through
+`crucible_client_runtime_rust`, which re-exports it; `name()`, `status()` and
+`message()` cover it, so code that only calls those is unaffected.
 
 ### `Principal` is non-exhaustive
 

@@ -498,8 +498,8 @@ An operation whose input has an idempotency token (`@idempotencyToken` in
 Smithy, `@token` in a `.cru` model) is safe to retry: generated SDKs fill the
 token once per call and send the same one on every attempt. The model never
 marks it required, since SDKs fill it. The `idempotency` feature makes the
-server keep that promise: a retry gets the first success, and never runs the
-operation a second time.
+server keep that promise: a retry gets the first success, and does not run
+the operation a second time.
 
 ```toml
 crucible-server-runtime-rust = { version = "=0.7.0", features = ["idempotency"] }
@@ -510,18 +510,27 @@ use crucible_server_runtime_rust::idempotency::Idempotency;
 
 // `store` implements IdempotencyStore over the service's table.
 let builder = builder.interceptor(Idempotency::new(store, |context| {
-    // Who is asking, so one caller's token never replays or blocks another's.
+    // Who is asking, encoded unambiguously, so one caller's token never
+    // replays or blocks another's.
     context
         .attribute::<crucible_auth::Principal>()
-        .map(|principal| format!("{}\n{}", principal.issuer, principal.subject))
+        .map(|principal| serde_json::json!([principal.issuer, principal.subject]).to_string())
 }));
 ```
 
+The caller binding must name every authenticated caller, and encode the name
+unambiguously (the JSON array above, not `issuer` and `subject` joined by a
+separator either may contain). `None` is the anonymous caller, and every
+request it is returned for shares one binding: an authenticated caller
+answered `None` can replay or block every other one's tokens.
+
 For every operation with a token, before the operation runs:
 
-- **Required.** A request without a token, or with an empty one, is the
-  service's validation error naming the member (`fieldValidationFailed`).
-  `Idempotency::optional_tokens` lets it run unprotected instead.
+- **Required.** A request without a token, with an empty one, or with one
+  longer than 256 characters or outside visible ASCII, is the service's
+  validation error naming the member (`fieldValidationFailed`).
+  `Idempotency::optional_tokens` lets a request without one run unclaimed
+  instead.
 - **Claimed.** The token is claimed in the service's `IdempotencyStore`
   under an `IdempotencyKey` (the service, the operation, the caller binding
   and the token) with a `Fingerprint`: SHA-256 of the decoded input without
@@ -531,30 +540,33 @@ For every operation with a token, before the operation runs:
   runs.
 - **Replayed.** A retry with the same token and fingerprint after a success
   gets that success, and the operation does not run. What the store keeps is
-  the output in its JSON form; the retry's protocol encodes it afresh, so the
-  status, the output's modelled headers and the body are the first
-  response's, while the request id is the retry's own. A retry by another
-  protocol (a direct invoke, MCP) or at another API version gets the same
-  output in its own encoding.
+  the output in its JSON form, labelled with the service's API version; the
+  retry's protocol encodes it afresh, so the status, the output's modelled
+  headers and the body are the first response's, while the request id is the
+  retry's own. A retry by another protocol (a direct invoke, MCP) or at
+  another API version gets the same output in its own encoding. A response
+  written before a deploy that changed the service's version, or one that no
+  longer reads as the operation's output, is not replayed: the retry gets a
+  409 saying the response changed, not a 500.
 - **Refused.** The same token with a different fingerprint is a 409
   `ConflictException`, and so is the same request while the first is still
   running: it cannot be replayed yet, and the message says so.
-- **Released.** When the operation fails, its claim is removed and a retry
-  runs it again.
+- **Released.** When the operation fails before its point of no return, its
+  claim is removed and a retry runs it again.
 
 `Idempotency::refusal_factory` builds a service's own errors from an
-`IdempotencyRefusal` (`Missing { member }`, `Mismatch`, `InFlight`), say a
-modelled `ConflictException` with a `reason`; `IdempotencyRefusal::default_error`
-answers the cases a factory leaves alone. The error must be declared by the
-operation or the service. Without a factory the conflict is
-`FrameworkError::Conflict`, a framework error like `Unauthenticated`: HTTP
-409 named `ConflictException` (`smithy.framework#ConflictException` in RPC
-v2, a tool error in MCP), outside any model, so a service need not declare
-one to follow the standard.
+`IdempotencyRefusal` (`Missing`, `Invalid`, `Mismatch`, `InFlight`, `Lapsed`,
+`Unreplayable`), say a modelled `ConflictException` with a `reason`;
+`IdempotencyRefusal::default_error` answers the cases a factory leaves alone.
+The error must be declared by the operation or the service. Without a factory
+the conflicts are `FrameworkError::Conflict`, a framework error like
+`Unauthenticated`: HTTP 409 named `ConflictException`
+(`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
+outside any model, so a service need not declare one to follow the standard.
 
-**Point of no return.** An operation with an external side effect that cannot
-be undone (sending mail, charging a card) calls `idempotency::commit()` right
-before it:
+**Point of no return.** An operation calls `idempotency::commit()` right
+before any step that is not safe to repeat: an external side effect (sending
+mail, charging a card), and also any write a second run would make twice.
 
 ```rust
 let message = compose(&input)?;    // failing here: the claim is released, a retry runs again
@@ -566,9 +578,42 @@ outbox.record(&message).await?;
 From then on a failure keeps the claim in flight for the whole retention, so
 a retry is a 409 rather than a second email, and the failure is logged. The
 claim is extended in the store before `commit` returns, so a crash after the
-side effect is covered too; an error from `commit` means the store could not
-record it, and the operation must not take the step. Any operation with
-external side effects should call it.
+step is covered too. An error from `commit` means the step must not be taken:
+the store could not record the claim (an internal error), or the request ran
+past its lease and no longer holds its claim (`IdempotencyRefusal::Lapsed`, a
+409), since a retry may have taken the token over and be running the
+operation itself.
+
+**Leases, cancellation and the window.** A claim that is never settled stays
+in flight until its lease lapses: 15 minutes (`Idempotency::lease`), and
+never past the request's deadline plus a minute, since the framework stops
+the operation at its deadline. That happens when the process stops, and on
+the HTTP host whenever the client disconnects: hyper drops the request's
+future, and with it the operation, wherever it was. (A Lambda invocation is
+not cancelled by its client disconnecting.) Until the lease lapses a retry is
+refused as in flight; after it, the retry runs the operation again. So the
+lease bounds the window in which a dropped attempt's work can be repeated,
+and a write made before `commit` is the work that can be: put `commit` before
+every step that must not happen twice. Set the lease above the longest an
+operation runs. One that outlives its lease is stopped at its `commit`, and
+whatever it does after a lapsed claim (completing a success, releasing a
+failure) changes nothing in the store and is logged.
+
+**Retention.** A success replays for 24 hours (`Idempotency::retention`), the
+API standard's minimum being the lesser of 8 hours and the resource's
+lifetime plus an hour. A success the store cannot keep is held in flight for
+the retention instead, so a retry is refused rather than run again, and the
+service log says why: when the completion write fails (the success still
+stands), or when the response's JSON form is larger than
+`Idempotency::max_stored_response` (256 KiB by default; DynamoDB items stop at
+400 KB). Any other store error is an outage: the service's sanitized internal
+error, never a duplicate run and never a refusal.
+
+**What is stored.** The stored output is the whole output, `@sensitive`
+members included: a secret shown once (an API key at creation, say) sits in
+the store for the retention and is shown again to a retry. Protect the store
+accordingly, or leave such an operation without a token (or out of
+`Idempotency` with `.except(&[..])`).
 
 **Ordering.** The claim is taken in the interceptor phase. Authentication
 middleware runs before it, and so does any authorization interceptor
@@ -578,36 +623,33 @@ loads, run after the claim: the 403 or 404 it returns is a failure before
 the point of no return, so the claim is released and the token is not
 spent.
 
-**Retention and expiry.** A success replays for 24 hours
-(`Idempotency::retention`), the API standard's minimum being the lesser of
-8 hours and the resource's lifetime plus an hour. A claim that is never
-settled (the process stopped, or the request future was dropped) stays in
-flight until its lease lapses: 15 minutes (`Idempotency::lease`), and never
-past the request's deadline plus a minute, since the framework stops the
-operation at its deadline. Set the lease above the longest an operation
-runs. When completing a success fails in the store, the success still
-stands; the failure is logged, and retries are refused as in flight until
-the lease lapses. Any other store error is an outage: the service's
-sanitized internal error, never a duplicate run and never a refusal.
+**The store.** `IdempotencyStore` has four calls: `claim` (an unexpired
+record wins, else this attempt's in-flight record is written, answering
+`Claim::Fresh`, `Claim::Replay { fingerprint, response }` or
+`Claim::InFlight { fingerprint }`), `hold` (extend an in-flight claim),
+`complete` (keep the `StoredResponse` until the retention ends) and
+`release`. Each claim names its attempt; `hold`, `complete` and `release`
+change a record only while it is still that attempt's in-flight record, and
+answer `Ownership::Lost` otherwise, so an attempt whose claim lapsed never
+settles a later one's. On DynamoDB, `claim` is a single conditional
+`PutItem` (`attribute_not_exists(pk) OR expires <= :now`) with
+`ReturnValuesOnConditionCheckFailure = ALL_OLD`, which returns the winning
+record in the same call; reading it afterwards with `GetItem` is not atomic.
+The other three are conditional on the attempt, and a failed condition is
+`Lost`, not an error. `IdempotencyKey::digest` is a fixed-length partition
+key; `Fingerprint::to_hex` and `from_hex` store the fingerprint as text. The
+`test-support` feature adds `MemoryIdempotencyStore` for tests.
 
-**The store.** `IdempotencyStore` has four calls: `claim` (a conditional
-write: an unexpired record wins, else this attempt's in-flight record is
-written, answering `Claim::Fresh`, `Claim::Replay { fingerprint, response }`
-or `Claim::InFlight { fingerprint }`), `hold` (extend an in-flight claim, for
-`commit`), `complete` (keep the `StoredResponse` until the retention ends)
-and `release`. Each claim names its attempt, and `hold`, `complete` and
-`release` change a record only while that attempt holds it, so an attempt
-whose claim lapsed never settles a later one's. `IdempotencyKey::digest` is
-a fixed-length partition key; `Fingerprint::to_hex` and `from_hex` store the
-fingerprint as text. The `test-support` feature adds
-`MemoryIdempotencyStore` for tests.
-
-Operations without a token pass through untouched. Replay needs the
+**What it covers.** Operations without a token pass through untouched. An
+older API version whose model had no token runs unclaimed: its clients
+cannot send one, so they are neither refused nor protected. Replay needs the
 generated `Operation::OUTPUT_FROM_JSON` (and `Operation::IDEMPOTENCY_TOKEN`,
-on `OperationMetadata`), which only operations with a token and an output
-that does not stream get: building a service whose `Idempotency` covers an
-operation with a streaming output fails, naming it, so leave it out with
-`.except(&[..])`. `DecodedJob::replay_output` is the framework hook the
+both on `OperationMetadata`), which only operations with a token and an
+output that does not stream get. A streaming input cannot be fingerprinted
+(its bytes are not in the decoded input), so a retry with other bytes would
+replay the first; building a service whose `Idempotency` covers an operation
+with a streaming input or output therefore fails, naming it: leave it out
+with `.except(&[..])`. `DecodedJob::replay_output` is the framework hook the
 replay uses: it ends an invocation with an output read from its JSON form,
 which the protocol then encodes as if the operation had returned it.
 

@@ -3,12 +3,13 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::SystemTime;
 
-use super::{Claim, Fingerprint, IdempotencyKey, IdempotencyStore, StoredResponse};
+use super::{Claim, Fingerprint, IdempotencyKey, IdempotencyStore, Ownership, StoredResponse};
 use crate::{Error, Result};
 
 /// Idempotency records in memory, for tests: one process's records, gone
 /// when it exits, so never for a deployment, where every instance must see
-/// the same claims. A mutex makes each claim atomic.
+/// the same claims. A mutex makes each call atomic, with the semantics the
+/// conditional writes [`IdempotencyStore`] describes for DynamoDB give.
 #[derive(Default)]
 pub struct MemoryIdempotencyStore {
     records: Mutex<HashMap<IdempotencyKey, Record>>,
@@ -49,6 +50,12 @@ impl MemoryIdempotencyStore {
             .is_some_and(|record| record.response.is_none())
     }
 
+    /// Drops `key`'s record, as a store's TTL deletes an expired one: the
+    /// attempt that held it then finds its claim lost.
+    pub fn forget(&self, key: &IdempotencyKey) {
+        self.lock().remove(key);
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<IdempotencyKey, Record>> {
         // A panic while holding the lock leaves whole records behind.
         self.records
@@ -63,13 +70,20 @@ impl MemoryIdempotencyStore {
         Ok(())
     }
 
-    /// `f` on `attempt`'s record of `key`, when it still holds it in flight.
-    fn with_attempt(&self, key: &IdempotencyKey, attempt: &str, f: impl FnOnce(&mut Record)) {
-        if let Some(record) = self.lock().get_mut(key)
-            && record.attempt == attempt
-            && record.response.is_none()
-        {
-            f(record);
+    /// `f` on `attempt`'s record of `key`, when it is still that attempt's
+    /// in-flight record: the condition of a conditional write.
+    fn with_attempt(
+        &self,
+        key: &IdempotencyKey,
+        attempt: &str,
+        f: impl FnOnce(&mut Record),
+    ) -> Ownership {
+        match self.lock().get_mut(key) {
+            Some(record) if record.attempt == attempt && record.response.is_none() => {
+                f(record);
+                Ownership::Held
+            }
+            _ => Ownership::Lost,
         }
     }
 }
@@ -111,10 +125,14 @@ impl IdempotencyStore for MemoryIdempotencyStore {
         Ok(Claim::Fresh)
     }
 
-    async fn hold(&self, key: &IdempotencyKey, attempt: &str, expires: SystemTime) -> Result<()> {
+    async fn hold(
+        &self,
+        key: &IdempotencyKey,
+        attempt: &str,
+        expires: SystemTime,
+    ) -> Result<Ownership> {
         self.available()?;
-        self.with_attempt(key, attempt, |record| record.expires = expires);
-        Ok(())
+        Ok(self.with_attempt(key, attempt, |record| record.expires = expires))
     }
 
     async fn complete(
@@ -123,16 +141,15 @@ impl IdempotencyStore for MemoryIdempotencyStore {
         attempt: &str,
         response: &StoredResponse,
         expires: SystemTime,
-    ) -> Result<()> {
+    ) -> Result<Ownership> {
         self.available()?;
-        self.with_attempt(key, attempt, |record| {
+        Ok(self.with_attempt(key, attempt, |record| {
             record.response = Some(response.clone());
             record.expires = expires;
-        });
-        Ok(())
+        }))
     }
 
-    async fn release(&self, key: &IdempotencyKey, attempt: &str) -> Result<()> {
+    async fn release(&self, key: &IdempotencyKey, attempt: &str) -> Result<Ownership> {
         self.available()?;
         let mut records = self.lock();
         if records
@@ -140,8 +157,9 @@ impl IdempotencyStore for MemoryIdempotencyStore {
             .is_some_and(|record| record.attempt == attempt && record.response.is_none())
         {
             records.remove(key);
+            return Ok(Ownership::Held);
         }
-        Ok(())
+        Ok(Ownership::Lost)
     }
 }
 
@@ -153,7 +171,7 @@ mod tests {
 
     use super::MemoryIdempotencyStore;
     use crate::idempotency::{
-        Claim, Fingerprint, IdempotencyKey, IdempotencyStore, StoredResponse,
+        Claim, Fingerprint, IdempotencyKey, IdempotencyStore, Ownership, StoredResponse,
     };
 
     fn key(token: &str) -> IdempotencyKey {
@@ -173,10 +191,11 @@ mod tests {
         let second = store.claim(&key("t"), &print, "a2", at(1), at(61)).await;
         assert_eq!(second.unwrap(), Claim::InFlight { fingerprint: print });
         let response = StoredResponse::new(r#"{"city":{}}"#);
-        store
-            .complete(&key("t"), "a1", &response, at(100))
-            .await
-            .unwrap();
+        let completed = store.complete(&key("t"), "a1", &response, at(100)).await;
+        assert_eq!(completed.unwrap(), Ownership::Held);
+        // A completed record is no attempt's claim any more.
+        let late = store.release(&key("t"), "a1").await;
+        assert_eq!(late.unwrap(), Ownership::Lost);
         let third = store.claim(&key("t"), &print, "a3", at(2), at(62)).await;
         assert_eq!(
             third.unwrap(),
@@ -199,9 +218,11 @@ mod tests {
         let later = store.claim(&key("t"), &print, "a2", at(60), at(120)).await;
         assert_eq!(later.unwrap(), Claim::Fresh);
         // The first attempt no longer holds it, so it cannot release the second's.
-        store.release(&key("t"), "a1").await.unwrap();
+        let lost = store.release(&key("t"), "a1").await;
+        assert_eq!(lost.unwrap(), Ownership::Lost);
         assert!(store.in_flight(&key("t")));
-        store.release(&key("t"), "a2").await.unwrap();
+        let released = store.release(&key("t"), "a2").await;
+        assert_eq!(released.unwrap(), Ownership::Held);
         assert!(store.is_empty());
     }
 
@@ -213,12 +234,54 @@ mod tests {
             .claim(&key("t"), &print, "a1", at(0), at(60))
             .await
             .unwrap();
-        store.hold(&key("t"), "other", at(1000)).await.unwrap();
+        let other = store.hold(&key("t"), "other", at(1000)).await;
+        assert_eq!(other.unwrap(), Ownership::Lost);
         let expired = store.claim(&key("t"), &print, "a2", at(61), at(121)).await;
         assert_eq!(expired.unwrap(), Claim::Fresh);
-        store.hold(&key("t"), "a2", at(1000)).await.unwrap();
+        // The first attempt outlived its claim and another took it over.
+        let lapsed = store.hold(&key("t"), "a1", at(1000)).await;
+        assert_eq!(lapsed.unwrap(), Ownership::Lost);
+        let held = store.hold(&key("t"), "a2", at(1000)).await;
+        assert_eq!(held.unwrap(), Ownership::Held);
         let held = store.claim(&key("t"), &print, "a3", at(500), at(560)).await;
         assert_eq!(held.unwrap(), Claim::InFlight { fingerprint: print });
+    }
+
+    #[tokio::test]
+    async fn a_completion_after_a_takeover_is_lost_and_overwrites_nothing() {
+        let store = MemoryIdempotencyStore::new();
+        let print = Fingerprint::of(&json!({}));
+        store
+            .claim(&key("t"), &print, "a1", at(0), at(60))
+            .await
+            .unwrap();
+        store
+            .claim(&key("t"), &print, "a2", at(61), at(121))
+            .await
+            .unwrap();
+        let second = StoredResponse::new("2");
+        let completed = store.complete(&key("t"), "a2", &second, at(500)).await;
+        assert_eq!(completed.unwrap(), Ownership::Held);
+        let first = store
+            .complete(&key("t"), "a1", &StoredResponse::new("1"), at(500))
+            .await;
+        assert_eq!(first.unwrap(), Ownership::Lost);
+        let replay = store.claim(&key("t"), &print, "a3", at(62), at(122)).await;
+        assert_eq!(
+            replay.unwrap(),
+            Claim::Replay {
+                fingerprint: print,
+                response: second
+            }
+        );
+        // A record a TTL deleted is lost to its attempt too.
+        store
+            .claim(&key("u"), &print, "a4", at(0), at(60))
+            .await
+            .unwrap();
+        store.forget(&key("u"));
+        let deleted = store.hold(&key("u"), "a4", at(500)).await;
+        assert_eq!(deleted.unwrap(), Ownership::Lost);
     }
 
     #[tokio::test]

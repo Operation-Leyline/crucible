@@ -7,12 +7,13 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use crucible_server_runtime_rust::idempotency::{
     self, Claim, Fingerprint, Idempotency, IdempotencyKey, IdempotencyRefusal, IdempotencyStore,
-    MemoryIdempotencyStore, StoredResponse,
+    MemoryIdempotencyStore, Ownership, StoredResponse,
 };
+use crucible_server_runtime_rust::mcp::McpConfig;
 use crucible_server_runtime_rust::{Context, Crucible, Error};
 use serde_json::{Value, json};
 use tokio::sync::Notify;
@@ -30,6 +31,11 @@ enum Step {
         entered: Arc<Notify>,
         release: Arc<Notify>,
     },
+    /// Waits like `Wait`, then commits and takes its irreversible step.
+    WaitThenSend {
+        entered: Arc<Notify>,
+        release: Arc<Notify>,
+    },
 }
 
 /// The cities, counting the creates that reach the store: each is one run of
@@ -39,6 +45,8 @@ enum Step {
 struct Counted {
     inner: MemoryCities,
     creates: AtomicUsize,
+    /// Irreversible steps taken: each must happen at most once per token.
+    sends: AtomicUsize,
     script: Mutex<VecDeque<Step>>,
 }
 
@@ -49,6 +57,10 @@ impl Counted {
 
     fn creates(&self) -> usize {
         self.creates.load(Ordering::SeqCst)
+    }
+
+    fn sends(&self) -> usize {
+        self.sends.load(Ordering::SeqCst)
     }
 }
 
@@ -63,7 +75,7 @@ impl CityStore for Counted {
         city: NewCity,
         _token: Option<&str>,
     ) -> crucible_server_runtime_rust::Result<CitySummary> {
-        self.creates.fetch_add(1, Ordering::SeqCst);
+        let run = self.creates.fetch_add(1, Ordering::SeqCst) + 1;
         let step = self.script.lock().unwrap().pop_front();
         match step {
             Some(Step::FailBeforeCommit) => return Err(Error::internal("the database is down")),
@@ -75,10 +87,16 @@ impl CityStore for Counted {
                 entered.notify_one();
                 release.notified().await;
             }
+            Some(Step::WaitThenSend { entered, release }) => {
+                entered.notify_one();
+                release.notified().await;
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
+            }
             None => {}
         }
         // Each run is a new city, even for the same name.
-        let name = format!("{}-{}", city.name, self.creates());
+        let name = format!("{}-{run}", city.name);
         self.inner.create(NewCity { name, ..city }, None).await
     }
 
@@ -193,6 +211,25 @@ impl Harness {
             content_type,
             body,
         }
+    }
+}
+
+/// A clock a test moves by hand, for leases that lapse.
+#[derive(Clone)]
+struct Clock(Arc<Mutex<SystemTime>>);
+
+impl Clock {
+    fn new() -> Self {
+        Self(Arc::new(Mutex::new(SystemTime::now())))
+    }
+
+    fn advance(&self, by: Duration) {
+        *self.0.lock().unwrap() += by;
+    }
+
+    fn reader(&self) -> impl Fn() -> SystemTime + Send + Sync + 'static {
+        let clock = self.0.clone();
+        move || *clock.lock().unwrap()
     }
 }
 
@@ -409,12 +446,18 @@ async fn a_store_outage_is_an_internal_error_and_never_runs_the_operation() {
     assert_eq!(harness.cities.creates(), 0);
 }
 
-/// A store whose completion write fails, as a database might after the
-/// operation succeeded.
-struct LosesCompletions(MemoryIdempotencyStore, AtomicBool);
+/// A store that fails its completion writes, or answers replays with a
+/// response written before a deploy, as a database might.
+#[derive(Default)]
+struct Faulty {
+    inner: MemoryIdempotencyStore,
+    fail_completions: AtomicBool,
+    failed: AtomicBool,
+    stale: AtomicBool,
+}
 
 #[crucible_server_runtime_rust::async_trait]
-impl IdempotencyStore for LosesCompletions {
+impl IdempotencyStore for Faulty {
     async fn claim(
         &self,
         key: &IdempotencyKey,
@@ -423,7 +466,21 @@ impl IdempotencyStore for LosesCompletions {
         now: SystemTime,
         expires: SystemTime,
     ) -> crucible_server_runtime_rust::Result<Claim> {
-        self.0.claim(key, fingerprint, attempt, now, expires).await
+        let claim = self
+            .inner
+            .claim(key, fingerprint, attempt, now, expires)
+            .await?;
+        Ok(match claim {
+            Claim::Replay { fingerprint, .. } if self.stale.load(Ordering::SeqCst) => {
+                Claim::Replay {
+                    fingerprint,
+                    response: StoredResponse::new(
+                        r#"{"apiVersion":"1999-01-01","output":{"city":{}}}"#,
+                    ),
+                }
+            }
+            claim => claim,
+        })
     }
 
     async fn hold(
@@ -431,42 +488,208 @@ impl IdempotencyStore for LosesCompletions {
         key: &IdempotencyKey,
         attempt: &str,
         expires: SystemTime,
-    ) -> crucible_server_runtime_rust::Result<()> {
-        self.0.hold(key, attempt, expires).await
+    ) -> crucible_server_runtime_rust::Result<Ownership> {
+        self.inner.hold(key, attempt, expires).await
     }
 
     async fn complete(
         &self,
-        _: &IdempotencyKey,
-        _: &str,
-        _: &StoredResponse,
-        _: SystemTime,
-    ) -> crucible_server_runtime_rust::Result<()> {
-        self.1.store(true, Ordering::SeqCst);
-        Err(Error::internal("the write timed out"))
+        key: &IdempotencyKey,
+        attempt: &str,
+        response: &StoredResponse,
+        expires: SystemTime,
+    ) -> crucible_server_runtime_rust::Result<Ownership> {
+        if self.fail_completions.load(Ordering::SeqCst) {
+            self.failed.store(true, Ordering::SeqCst);
+            return Err(Error::internal("the write timed out"));
+        }
+        self.inner.complete(key, attempt, response, expires).await
     }
 
     async fn release(
         &self,
         key: &IdempotencyKey,
         attempt: &str,
-    ) -> crucible_server_runtime_rust::Result<()> {
-        self.0.release(key, attempt).await
+    ) -> crucible_server_runtime_rust::Result<Ownership> {
+        self.inner.release(key, attempt).await
     }
 }
 
 #[tokio::test]
-async fn a_lost_completion_keeps_the_success_and_leaves_the_claim_in_flight() {
-    let store = Arc::new(LosesCompletions(
-        MemoryIdempotencyStore::new(),
-        AtomicBool::new(false),
-    ));
-    let harness = serve(Idempotency::new(store.clone(), caller)).await;
+async fn a_lost_completion_keeps_the_success_and_holds_the_claim_for_the_retention() {
+    let store = Arc::new(Faulty::default());
+    store.fail_completions.store(true, Ordering::SeqCst);
+    let clock = Clock::new();
+    let idempotency = Idempotency::new(store.clone(), caller)
+        .lease(Duration::from_secs(60))
+        .clock(clock.reader());
+    let harness = serve(idempotency).await;
     let first = harness.create(Some("alice"), oslo("t-1")).await;
     assert_eq!(first.status, 201, "the success stands");
-    assert!(store.1.load(Ordering::SeqCst));
-    // Until the claim expires, a retry is refused rather than run again.
+    assert!(store.failed.load(Ordering::SeqCst));
+    // Held for the retention, not the lease: long after the lease, a retry
+    // is still refused rather than run again.
+    clock.advance(Duration::from_secs(60 * 60));
     let retry = harness.create(Some("alice"), oslo("t-1")).await;
     assert_eq!(retry.status, 409);
     assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_response_too_large_to_keep_is_held_rather_than_replayed() {
+    let idempotency = Idempotency::new(store(), caller).max_stored_response(16);
+    let harness = serve(idempotency).await;
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 201);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 409);
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_response_from_before_a_deploy_is_a_conflict_not_a_failure() {
+    let store = Arc::new(Faulty::default());
+    let harness = serve(Idempotency::new(store.clone(), caller)).await;
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 201);
+    store.stale.store(true, Ordering::SeqCst);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 409);
+    let body = retry.json();
+    assert_eq!(body["__type"], "ConflictException", "{body}");
+    assert!(
+        body["message"]
+            .as_str()
+            .unwrap()
+            .contains("cannot be replayed"),
+        "{body}"
+    );
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_malformed_token_is_refused_naming_the_member() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    for token in [
+        "x".repeat(257),
+        "with space".to_owned(),
+        "caf\u{e9}".to_owned(),
+    ] {
+        let refused = harness.create(Some("alice"), oslo(&token)).await;
+        assert_eq!(refused.status, 400, "{token:?}");
+        let body = refused.json();
+        assert_eq!(body["fieldList"][0]["path"], "clientToken", "{body}");
+    }
+    assert_eq!(harness.cities.creates(), 0);
+}
+
+#[tokio::test]
+async fn an_attempt_that_outlived_its_claim_is_stopped_at_commit() {
+    let clock = Clock::new();
+    let idempotency = Idempotency::new(store(), caller)
+        .lease(Duration::from_secs(60))
+        .clock(clock.reader());
+    let harness = Arc::new(serve(idempotency).await);
+    let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    harness.cities.next(Step::WaitThenSend {
+        entered: entered.clone(),
+        release: release.clone(),
+    });
+    let slow = tokio::spawn({
+        let harness = harness.clone();
+        async move { harness.create(Some("alice"), oslo("t-1")).await }
+    });
+    entered.notified().await;
+    // The first attempt runs past its lease; a retry takes the token over.
+    clock.advance(Duration::from_secs(120));
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201);
+    release.notify_one();
+    let slow = slow.await.unwrap();
+    // It no longer holds the token, so it stops before its irreversible step.
+    assert_eq!(slow.status, 409);
+    assert!(
+        slow.json()["message"]
+            .as_str()
+            .unwrap()
+            .contains("took longer"),
+        "{}",
+        slow.json()
+    );
+    assert_eq!(harness.cities.sends(), 0);
+    assert_eq!(harness.cities.creates(), 2);
+    // The retry's success is what replays.
+    let again = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(again.body, retry.body);
+}
+
+#[tokio::test]
+async fn a_completion_after_a_takeover_does_not_overwrite_the_record() {
+    let clock = Clock::new();
+    let idempotency = Idempotency::new(store(), caller)
+        .lease(Duration::from_secs(60))
+        .clock(clock.reader());
+    let harness = Arc::new(serve(idempotency).await);
+    let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    harness.cities.next(Step::Wait {
+        entered: entered.clone(),
+        release: release.clone(),
+    });
+    let slow = tokio::spawn({
+        let harness = harness.clone();
+        async move { harness.create(Some("alice"), oslo("t-1")).await }
+    });
+    entered.notified().await;
+    clock.advance(Duration::from_secs(120));
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201);
+    release.notify_one();
+    let slow = slow.await.unwrap();
+    // Its own success stands, but the record keeps the attempt that held it.
+    assert_eq!(slow.status, 201);
+    assert_ne!(slow.body, retry.body);
+    let again = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(again.body, retry.body);
+}
+
+#[tokio::test]
+async fn an_mcp_tool_call_reusing_a_token_gets_a_tool_error() {
+    let cities = Arc::new(Counted::default());
+    let service = weather_service::builder(cities.clone())
+        .mcp(McpConfig::new())
+        .interceptor(Idempotency::new(store(), |_| None))
+        .build()
+        .unwrap();
+    let call = |arguments: Value| {
+        let service = service.clone();
+        async move {
+            let message = json!({
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": { "name": "CreateCity", "arguments": arguments },
+            });
+            let request = axum::http::Request::post("/mcp")
+                .header("content-type", "application/json")
+                .header("accept", "application/json, text/event-stream")
+                .body(axum::body::Body::from(message.to_string()))
+                .unwrap();
+            let response = service.handle(request).await;
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .unwrap();
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        }
+    };
+    let first = call(json!({ "name": "Oslo", "clientToken": "t-1" })).await;
+    assert_eq!(first["result"]["isError"], false, "{first}");
+    let replay = call(json!({ "name": "Oslo", "clientToken": "t-1" })).await;
+    assert_eq!(
+        replay["result"]["structuredContent"],
+        first["result"]["structuredContent"]
+    );
+    let other = call(json!({ "name": "Bergen", "clientToken": "t-1" })).await;
+    assert_eq!(other["result"]["isError"], true, "{other}");
+    let error: Value =
+        serde_json::from_str(other["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(error["name"], "ConflictException", "{error}");
+    assert_eq!(cities.creates(), 1);
 }

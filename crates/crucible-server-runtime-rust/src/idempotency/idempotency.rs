@@ -4,12 +4,11 @@ use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::Value;
 
-use super::attempt::{Attempt, Clock, HeldClaim, after};
+use super::attempt::{Attempt, Clock, HeldClaim, RefusalFactory, after};
 use super::store_unavailable::StoreUnavailable;
 use super::{Claim, Fingerprint, IdempotencyKey, IdempotencyRefusal, IdempotencyStore};
-use crate::{
-    Context, DecodedJob, Error, Hook, Interceptor, OperationJob, Outcome, Prepare, Result,
-};
+use crate::operation::{Location, OperationInfo};
+use crate::{Context, DecodedJob, Hook, Interceptor, OperationJob, Outcome, Prepare, Result};
 
 /// How long a completed request's response is replayed: the API standard
 /// asks for at least the lesser of 8 hours and the resource's lifetime plus
@@ -25,8 +24,15 @@ const DEFAULT_LEASE: Duration = Duration::from_secs(15 * 60);
 /// leaves the after phases time to settle the claim before it lapses.
 const DEADLINE_GRACE: Duration = Duration::from_secs(60);
 
+/// The largest response an idempotency record keeps by default: well under
+/// DynamoDB's 400 KB item limit, with room for the record's other fields.
+const DEFAULT_MAX_STORED: usize = 256 * 1024;
+
+/// The longest token accepted. SDKs send a UUID (36 characters); a longer
+/// token only costs storage and log space.
+const MAX_TOKEN: usize = 256;
+
 type Caller = Arc<dyn Fn(&Context) -> Option<String> + Send + Sync>;
-type RefusalFactory = Arc<dyn Fn(IdempotencyRefusal) -> Error + Send + Sync>;
 
 /// Server-side idempotency for every operation with an idempotency token
 /// (see the [module docs](super)): it requires the token, claims it in the
@@ -45,16 +51,20 @@ pub struct Idempotency {
     refusal: RefusalFactory,
     retention: Duration,
     lease: Duration,
+    max_stored: usize,
     required: bool,
     clock: Clock,
 }
 
 impl Idempotency {
     /// Claims tokens in `store`. `caller` names who is asking, from the
-    /// request context (an authenticated principal's issuer and subject,
-    /// say), so one caller's token never replays or blocks another's. `None`
-    /// is an anonymous caller, and every anonymous caller shares one
-    /// binding: return a name for every authenticated request.
+    /// request context, so one caller's token never replays or blocks
+    /// another's. Encode it unambiguously (a JSON array of the principal's
+    /// issuer and subject, say): two callers whose names encode alike share
+    /// one binding. `None` is an anonymous caller, and every anonymous
+    /// caller shares one binding, so return a name for every authenticated
+    /// request: an authenticated caller answered `None` replays and blocks
+    /// every other one.
     pub fn new(
         store: impl IdempotencyStore,
         caller: impl Fn(&Context) -> Option<String> + Send + Sync + 'static,
@@ -65,14 +75,15 @@ impl Idempotency {
             refusal: Arc::new(IdempotencyRefusal::default_error),
             retention: DEFAULT_RETENTION,
             lease: DEFAULT_LEASE,
+            max_stored: DEFAULT_MAX_STORED,
             required: true,
             clock: Arc::new(SystemTime::now),
         }
     }
 
     /// How long a completed request's output answers its retries, and how
-    /// long a claim past its point of no return stays in flight. 24 hours
-    /// by default.
+    /// long a claim past its point of no return, or a success that could not
+    /// be stored, stays in flight. 24 hours by default.
     pub fn retention(mut self, retention: Duration) -> Self {
         self.retention = retention;
         self
@@ -83,10 +94,20 @@ impl Idempotency {
     /// as in flight until then. 15 minutes by default, and never past the
     /// request's deadline plus a minute, since the framework stops the
     /// operation at its deadline. Set it above the longest an operation
-    /// runs: a claim that lapses while its operation still runs lets a
-    /// retry run it again.
+    /// runs: an operation that outlives its claim is stopped at its
+    /// [`commit`](super::commit), but a write it made before that may be
+    /// made again by a retry.
     pub fn lease(mut self, lease: Duration) -> Self {
         self.lease = lease;
+        self
+    }
+
+    /// The largest response a record keeps, in bytes of its JSON form;
+    /// 256 KiB by default. A larger success is not stored: its claim is held
+    /// in flight for the retention, so a retry is refused rather than run
+    /// again, and the service log says why.
+    pub fn max_stored_response(mut self, bytes: usize) -> Self {
+        self.max_stored = bytes;
         self
     }
 
@@ -100,14 +121,13 @@ impl Idempotency {
 
     /// How a refusal is answered. By default it is
     /// [`IdempotencyRefusal::default_error`]: the service's validation
-    /// error naming the token member for a missing token, and a 409
-    /// `ConflictException` for a mismatch or a request still in flight. A
-    /// service with errors of its own (a `ConflictException` with a
-    /// `reason`) builds them here; the error must be declared by the
-    /// operation or the service.
+    /// error naming the token member for a missing or malformed token, and
+    /// a 409 `ConflictException` otherwise. A service with errors of its own
+    /// (a `ConflictException` with a `reason`) builds them here; the error
+    /// must be declared by the operation or the service.
     pub fn refusal_factory(
         mut self,
-        factory: impl Fn(IdempotencyRefusal) -> Error + Send + Sync + 'static,
+        factory: impl Fn(IdempotencyRefusal) -> crate::Error + Send + Sync + 'static,
     ) -> Self {
         self.refusal = Arc::new(factory);
         self
@@ -144,7 +164,8 @@ impl Idempotency {
             .store
             .claim(&key, &fingerprint, &attempt, now, expires)
             .await
-            .map_err(|error| Error::new(StoreUnavailable(error)))?;
+            .map_err(|error| crate::Error::new(StoreUnavailable(error)))?;
+        let api_version = job.service().version;
         match claim {
             Claim::Fresh => {
                 job.context().set_attribute(Attempt {
@@ -153,6 +174,9 @@ impl Idempotency {
                         key,
                         attempt,
                         retention: self.retention,
+                        max_stored: self.max_stored,
+                        api_version,
+                        refusal: self.refusal.clone(),
                         clock: self.clock.clone(),
                         committed: AtomicBool::new(false),
                     })),
@@ -163,13 +187,16 @@ impl Idempotency {
                 fingerprint: earlier,
                 response,
             } if earlier == fingerprint => {
-                let output: Value = serde_json::from_str(response.as_str()).map_err(|error| {
-                    Error::internal(format!(
-                        "{}: a stored idempotent response is not JSON: {error}",
-                        key.operation()
-                    ))
-                })?;
-                job.replay_output(output)
+                // A response written before a deploy that changed the
+                // operation's response cannot be replayed faithfully; the
+                // caller is told so rather than given a 500.
+                let replayed = response
+                    .unwrap(api_version)
+                    .map(|output| job.replay_output(output));
+                match replayed {
+                    Some(Ok(())) => Ok(()),
+                    _ => Err((self.refusal)(IdempotencyRefusal::Unreplayable)),
+                }
             }
             Claim::Replay { .. } => Err((self.refusal)(IdempotencyRefusal::Mismatch)),
             Claim::InFlight {
@@ -180,11 +207,36 @@ impl Idempotency {
     }
 }
 
+/// Whether the token is one a client may send: at most [`MAX_TOKEN`]
+/// visible ASCII characters, which a store can key and a log can show.
+fn well_formed(token: &str) -> bool {
+    token.len() <= MAX_TOKEN && token.bytes().all(|byte| byte.is_ascii_graphic())
+}
+
+/// Whether `operation`'s input streams: a stream is not part of the decoded
+/// input's JSON form, so two requests differing only in it would fingerprint
+/// alike.
+fn input_streams(operation: &OperationInfo) -> bool {
+    operation.input.iter().any(|member| {
+        matches!(
+            member.location,
+            Location::StreamingPayload { .. } | Location::EventStream
+        )
+    })
+}
+
 impl Interceptor for Idempotency {
     fn before<'a>(&'a self, job: &'a mut DecodedJob<'_>) -> Hook<'a, Result<()>> {
-        let Some(member) = job.metadata().idempotency_token else {
+        let metadata = job.metadata();
+        let Some(member) = metadata.idempotency_token else {
             return Hook::Ready(Ok(()));
         };
+        if !metadata.idempotency_token_sent {
+            // An older API version without the token: its clients cannot
+            // send one, so its requests run as they always did.
+            job.context().set_attribute(Attempt { claim: None });
+            return Hook::Ready(Ok(()));
+        }
         let mut input = job.input().to_json();
         let token = input
             .as_object_mut()
@@ -201,6 +253,11 @@ impl Interceptor for Idempotency {
                 return Hook::Ready(Ok(()));
             }
         };
+        if !well_formed(&token) {
+            return Hook::Ready(Err((self.refusal)(IdempotencyRefusal::Invalid {
+                member: member.name,
+            })));
+        }
         let fingerprint = Fingerprint::of(&input);
         let key = IdempotencyKey::new(
             job.service().id,
@@ -232,21 +289,46 @@ impl Interceptor for Idempotency {
         if self.retention.is_zero() || self.lease.is_zero() {
             return Err("an idempotency retention and lease must be positive".to_owned());
         }
-        let refused: Vec<&str> = prepare
+        let tokened = |operation: &&'static OperationInfo| {
+            prepare
+                .metadata(operation)
+                .is_some_and(|metadata| metadata.idempotency_token.is_some())
+        };
+        let mut problems = Vec::new();
+        let streamed: Vec<&str> = prepare
             .operations()
+            .filter(&tokened)
+            .filter(|operation| input_streams(operation))
+            .map(|operation| operation.name)
+            .collect();
+        if !streamed.is_empty() {
+            problems.push(format!(
+                "Idempotency cannot fingerprint the streaming input of {}: a retry with other bytes would replay the first",
+                streamed.join(", ")
+            ));
+        }
+        let unreplayable: Vec<&str> = prepare
+            .operations()
+            .filter(&tokened)
             .filter(|operation| {
-                prepare.metadata(operation).is_some_and(|metadata| {
-                    metadata.idempotency_token.is_some() && !metadata.replays_output
-                })
+                prepare
+                    .metadata(operation)
+                    .is_some_and(|metadata| !metadata.replays_output)
             })
             .map(|operation| operation.name)
             .collect();
-        if refused.is_empty() {
+        if !unreplayable.is_empty() {
+            problems.push(format!(
+                "Idempotency cannot replay the output of {}: it streams, or the bindings predate replay (regenerate them)",
+                unreplayable.join(", ")
+            ));
+        }
+        if problems.is_empty() {
             return Ok(());
         }
         Err(format!(
-            "Idempotency cannot replay the output of {}: it streams, or the bindings predate replay (regenerate them). Leave it out with `.except(&[..])`",
-            refused.join(", ")
+            "{}. Leave such operations out with `.except(&[..])`",
+            problems.join("; ")
         ))
     }
 }
@@ -257,7 +339,7 @@ mod tests {
 
     use axum::http::{HeaderValue, Request};
 
-    use super::{DEADLINE_GRACE, DEFAULT_LEASE, Idempotency};
+    use super::{DEADLINE_GRACE, DEFAULT_LEASE, Idempotency, MAX_TOKEN, well_formed};
     use crate::Context;
     use crate::idempotency::MemoryIdempotencyStore;
 
@@ -282,6 +364,16 @@ mod tests {
         let short = Idempotency::new(MemoryIdempotencyStore::new(), |_| None)
             .retention(Duration::from_secs(10));
         assert_eq!(short.lease_for(&request()), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn tokens_are_short_visible_ascii() {
+        assert!(well_formed("3f2b8c1e-5d4a-4c6b-9e7f-0a1b2c3d4e5f"));
+        assert!(well_formed(&"x".repeat(MAX_TOKEN)));
+        assert!(!well_formed(&"x".repeat(MAX_TOKEN + 1)));
+        for bad in ["with space", "tab\t", "line\n", "caf\u{e9}", "\u{7f}"] {
+            assert!(!well_formed(bad), "{bad:?}");
+        }
     }
 
     #[tokio::test]
