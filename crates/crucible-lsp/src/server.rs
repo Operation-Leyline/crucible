@@ -8,7 +8,7 @@ use std::path::{Component, Path, PathBuf};
 use crossbeam_channel::{Receiver, TryRecvError};
 use crucible_lang::{
     Compiled, FormatOptions, Package, Parsed, SourceFile, check_manifest, compile, format,
-    format_lines, is_package, load_package, load_package_with_manifest,
+    format_lines, is_package,
 };
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
@@ -754,6 +754,16 @@ impl Server {
             .iter()
             .find(|uri| self.documents[*uri].kind == Kind::Manifest)
             .map(|uri| self.documents[uri].text.as_str());
+        let overlays: Vec<SourceFile> = models
+            .iter()
+            .filter_map(|uri| {
+                let document = &self.documents[*uri];
+                Some(SourceFile {
+                    path: document.path.as_ref()?.display().to_string(),
+                    text: document.text.clone(),
+                })
+            })
+            .collect();
         let loaded = if standalone {
             let document = &self.documents[models[0]];
             Ok(Package::new(
@@ -764,12 +774,24 @@ impl Server {
                 }],
             ))
         } else {
-            match manifest {
-                Some(text) => load_package_with_manifest(unit, text),
-                None => load_package(unit),
-            }
+            let disk_manifest;
+            let text = match manifest {
+                Some(text) => Ok(text),
+                None => {
+                    disk_manifest = std::fs::read_to_string(unit.join("crucible.toml"));
+                    disk_manifest.as_deref().map_err(|error| {
+                        format!(
+                            "cannot read {}: {error}",
+                            unit.join("crucible.toml").display()
+                        )
+                    })
+                }
+            };
+            text.and_then(|text| {
+                crucible_lang::package::load_package_with_overlays(unit, text, &overlays)
+            })
         };
-        let (mut package, load_error) = match loaded {
+        let (package, load_error) = match loaded {
             Ok(package) => (package, None),
             // Still check the open files on their own, so a broken manifest
             // does not hide every other problem.
@@ -790,23 +812,6 @@ impl Server {
                 (Package::new("local", files), Some(error))
             }
         };
-        // Unsaved editor contents win over the files on disk.
-        for file in &mut package.files {
-            let key = normalize(Path::new(&file.path));
-            if let Some(document) =
-                models
-                    .iter()
-                    .map(|uri| &self.documents[*uri])
-                    .find(|document| {
-                        document
-                            .path
-                            .as_deref()
-                            .is_some_and(|path| normalize(path) == key)
-                    })
-            {
-                file.text.clone_from(&document.text);
-            }
-        }
         let own = package.files.len();
         let compiled = compile(&package, None);
         let index = Index::new(&compiled.parsed);
@@ -1485,6 +1490,11 @@ impl Server {
                 .all(|c| c.is_ascii_alphanumeric() || c == '_');
         if !valid {
             return Err(failed(format!("`{new_name}` is not a valid name")));
+        }
+        if analysis::BUILTIN_TYPES.contains(&new_name) {
+            return Err(failed(format!(
+                "`{new_name}` is a built-in type and cannot be declared"
+            )));
         }
         if new_name != name && unit.index.declarations.contains_key(new_name) {
             return Err(failed(format!("`{new_name}` is already declared")));

@@ -308,7 +308,8 @@ Handwritten operation implementations default to no bearer authentication;
 set the constant to `true` when the operation requires it. Public operations
 bypass the token provider.
 
-Use `Config::http_client(reqwest::Client)` for connection pools, proxies,
+The default client does not follow HTTP redirects. Use
+`Config::http_client(reqwest::Client)` for connection pools, proxies,
 redirect policy, and per-attempt timeout settings. `Config::timeout(Duration)`
 sets one total budget covering credential lookup, all attempts, body reads, and
 retry delays. There is no total-call timeout unless configured. Dropping a call

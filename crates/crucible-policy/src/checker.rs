@@ -114,6 +114,28 @@ impl Checker<'_> {
                     "authentication contract changed; assess existing credentials and callers",
                 );
             }
+            // Scopes are conjunctive requirements: only adding a requirement
+            // can exclude credentials that satisfied the previous contract.
+            let old_scopes: BTreeSet<_> = old_op.scopes.iter().collect();
+            let added_scopes: BTreeSet<_> = new_op
+                .scopes
+                .iter()
+                .filter(|scope| !old_scopes.contains(scope))
+                .collect();
+            if !added_scopes.is_empty() {
+                self.push(
+                    "compatibility.auth",
+                    &old_op.id,
+                    format!(
+                        "required OAuth scopes tightened; existing credentials may lack {}",
+                        added_scopes
+                            .into_iter()
+                            .map(|scope| format!("{scope:?}"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ),
+                );
+            }
             if old_op.paginated != new_op.paginated && old_op.paginated.is_some() {
                 self.push(
                     "compatibility.pagination",

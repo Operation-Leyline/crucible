@@ -158,6 +158,98 @@ readonly operation GetItem {
 
 const TYPES: &str = "/// An item's identifier.\nstring ItemId { length 1..10 }\n";
 
+#[test]
+fn unsaved_package_sources_have_diagnostics_and_symbols() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-unsaved-source");
+    package(&dir);
+    let service_uri = uri(&dir.join("service.cru"));
+    let new_uri = uri(&dir.join("new.cru"));
+    let new_text =
+        "string NewId { length 1..10 }\nstructure NewThing { value: DefinitelyMissing }\n";
+    let mut client = Client::start();
+    client.open(&service_uri, SERVICE);
+    assert!(client.diagnostics(&service_uri).is_empty());
+    client.open(&new_uri, new_text);
+    let diagnostics = client.diagnostics(&new_uri);
+    assert!(
+        diagnostics.iter().any(|diagnostic| diagnostic["message"]
+            .as_str()
+            .unwrap()
+            .contains("DefinitelyMissing")),
+        "{diagnostics:#?}"
+    );
+    let symbols = client.request("workspace/symbol", json!({ "query": "NewThing" }));
+    assert_eq!(symbols.as_array().unwrap().len(), 1, "{symbols}");
+    client.change(&service_uri, 2, &SERVICE.replace("ItemId", "NewId"));
+    let diagnostics = client.diagnostics(&service_uri);
+    assert!(
+        !diagnostics.iter().any(|diagnostic| diagnostic["message"]
+            .as_str()
+            .unwrap()
+            .contains("unknown type `NewId`")),
+        "{diagnostics:#?}"
+    );
+    client.stop();
+}
+
+#[test]
+fn unsaved_files_outside_package_sources_stay_excluded() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-unsaved-excluded-source");
+    package(&dir);
+    let model = dir.join("model");
+    std::fs::create_dir_all(&model).unwrap();
+    std::fs::write(model.join("service.cru"), SERVICE).unwrap();
+    std::fs::write(model.join("types.cru"), TYPES).unwrap();
+    std::fs::write(
+        dir.join("crucible.toml"),
+        "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\nimports = [\"crucible.errors\"]\n",
+    )
+    .unwrap();
+    let outside_uri = uri(&dir.join("excluded.cru"));
+    let mut client = Client::start();
+    client.open(
+        &outside_uri,
+        "structure Excluded { value: DefinitelyMissing }\n",
+    );
+    assert!(client.diagnostics(&outside_uri).is_empty());
+    let symbols = client.request("workspace/symbol", json!({ "query": "Excluded" }));
+    assert_eq!(symbols, json!([]));
+    client.stop();
+}
+
+#[test]
+fn renaming_a_declaration_to_a_builtin_type_is_rejected() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-rename-builtin");
+    package(&dir);
+    let service_uri = uri(&dir.join("service.cru"));
+    let mut client = Client::start();
+    client.open(&service_uri, SERVICE);
+    assert!(client.diagnostics(&service_uri).is_empty());
+    for new_name in ["string", "integer", "document", "timestamp"] {
+        client.send(json!({
+            "jsonrpc": "2.0", "id": 900, "method": "textDocument/rename",
+            "params": {
+                "textDocument": { "uri": service_uri },
+                "position": position(SERVICE, "ItemId", 0), "newName": new_name
+            }
+        }));
+        let response = loop {
+            let message = client.receive();
+            if message["id"] == 900 {
+                break message;
+            }
+        };
+        assert!(response["error"].is_object(), "{new_name}: {response}");
+        assert!(
+            response["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("built-in")
+        );
+    }
+    client.stop();
+}
+
 fn package(dir: &Path) {
     let _ = std::fs::remove_dir_all(dir);
     std::fs::create_dir_all(dir).unwrap();

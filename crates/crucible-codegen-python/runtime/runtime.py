@@ -684,11 +684,13 @@ class _Base:
             body = stream._data if stream._data is not None else stream
             if stream._data is None and stream.length is not None:
                 headers["content-length"] = str(stream.length)
-            headers["content-type"] = payload[1]
+            headers.setdefault("content-type", payload[1])
         elif payload is not None:
             # The bytes go as they are: a body digest covers exactly these.
             value = original(payload[0])
-            if value is not None and not isinstance(value, Unset):
+            # Document null is a JSON value; null structures and unions have no payload.
+            document = self._codec.shapes[members[payload[0]]["target"]]["kind"] == "document"
+            if not isinstance(value, Unset) and (value is not None or document):
                 kind = op["request"].get("payloadKind", "blob")
                 if kind == "string":
                     if not isinstance(value, str):
@@ -700,7 +702,7 @@ class _Base:
                     if not isinstance(value, (bytes, bytearray, memoryview)):
                         raise TypeError(f"{payload[0]} must be bytes")
                     body = bytes(value)
-                headers["content-type"] = payload[1]
+                headers.setdefault("content-type", payload[1])
         protocol = self._codec.schema.get("protocol", "crucibleJson")
         if protocol in ("awsJson1_0", "awsJson1_1"):
             body = body if body is not None else b"{}"

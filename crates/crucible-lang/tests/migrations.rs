@@ -63,10 +63,14 @@ fn freeze(dir: &Path, source: &str) {
 /// A package whose baseline, `releases/v1.json`, is `V1`, and whose model
 /// is `current` plus `migration`.
 fn package(name: &str, current: &str, migration: &str) -> PathBuf {
+    package_from(name, V1, current, migration)
+}
+
+fn package_from(name: &str, baseline: &str, current: &str, migration: &str) -> PathBuf {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("migrations-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    freeze(&dir, V1);
+    freeze(&dir, baseline);
     std::fs::write(
         dir.join("crucible.toml"),
         format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
@@ -80,6 +84,230 @@ fn package(name: &str, current: &str, migration: &str) -> PathBuf {
     };
     std::fs::write(dir.join("shop.cru"), format!("{current}\n{migration}")).unwrap();
     dir
+}
+
+fn requirement_package(name: &str, ty: &str, declarations: &str, default: &str) -> PathBuf {
+    let baseline = V1
+        .replace("http GET \"/items\"", "http POST \"/items\"")
+        .replace("@query\n        limit?: integer", &format!("limit?: {ty}"))
+        + declarations;
+    let current = baseline.replace("        limit?:", "        limit:");
+    package_from(
+        name,
+        &baseline,
+        &current,
+        &format!(
+            "migration \"v2\" from \"v1\" {{\n    require ListItems.input.limit default {default}\n}}\n"
+        ),
+    )
+}
+
+#[test]
+fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
+    for (name, ty, declarations, default, expected) in [
+        (
+            "wrong-type",
+            "integer",
+            "",
+            "\"not an integer\"",
+            "must be a integer",
+        ),
+        ("null", "integer", "", "null", "must be a integer"),
+        (
+            "range",
+            "integer { range 1..100 }",
+            "",
+            "0",
+            "outside its range",
+        ),
+        (
+            "type-range",
+            "integer",
+            "",
+            "2147483648",
+            "outside the range of the type",
+        ),
+        (
+            "length",
+            "string { length 2..4 }",
+            "",
+            "\"x\"",
+            "length bounds",
+        ),
+        ("enum", "Kind", "", "UNKNOWN", "not a value"),
+        (
+            "list-item",
+            "Numbers",
+            "\ninteger Count { range 1..10 }\nlist Numbers: Count\n",
+            "[0]",
+            "outside its range",
+        ),
+        (
+            "map-value",
+            "Counts",
+            "\ninteger Count { range 1..10 }\nmap Counts: string -> Count\n",
+            "{ small: 0 }",
+            "outside its range",
+        ),
+        (
+            "nested",
+            "Nested",
+            "\nstructure Nested { count: integer { range 1..10 } }\n",
+            "{ count: 0 }",
+            "outside its range",
+        ),
+    ] {
+        let dir = requirement_package(
+            &format!("require-default-{name}"),
+            ty,
+            declarations,
+            default,
+        );
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+        let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap();
+        assert!(checked.has_errors(), "{name}: {:?}", problems(&checked));
+        assert!(
+            problems(&checked)
+                .iter()
+                .any(|problem| problem.contains(expected)),
+            "{name}: {:?}",
+            problems(&checked)
+        );
+        let error = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap_err();
+        assert!(error.contains(expected), "{name}: {error}");
+    }
+}
+
+#[test]
+fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
+    for (name, ty, declarations, default, expected) in [
+        (
+            "integer",
+            "integer { range 1..100 }",
+            "",
+            "20",
+            serde_json::json!(20),
+        ),
+        (
+            "enum-symbol",
+            "Kind",
+            "",
+            "SMALL",
+            serde_json::json!("SMALL"),
+        ),
+        (
+            "enum-wire",
+            "Size",
+            "\nenum Size { SMALL = \"s\", LARGE = \"l\" }\n",
+            "SMALL",
+            serde_json::json!("s"),
+        ),
+        (
+            "list",
+            "Numbers",
+            "\ninteger Count { range 1..10 }\nlist Numbers: Count\n",
+            "[1, 10]",
+            serde_json::json!([1, 10]),
+        ),
+        (
+            "map",
+            "Counts",
+            "\ninteger Count { range 1..10 }\nmap Counts: string -> Count\n",
+            "{ small: 1 }",
+            serde_json::json!({"small": 1}),
+        ),
+        (
+            "nested",
+            "Nested",
+            "\nstructure Nested { count: integer { range 1..10 } }\n",
+            "{ count: 1 }",
+            serde_json::json!({"count": 1}),
+        ),
+    ] {
+        let dir = requirement_package(&format!("require-valid-{name}"), ty, declarations, default);
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+        let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap();
+        assert!(
+            !checked.has_errors(),
+            "{name}: {:?} {:?}",
+            rules(&checked),
+            problems(&checked)
+        );
+        let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
+        assert!(
+            matches!(
+                &versions[0].steps[..],
+                [crucible_smithy::ir::VersionStep::Require { default, .. }] if default == &expected
+            ),
+            "{name}: {:?}",
+            versions[0].steps
+        );
+    }
+}
+
+#[test]
+fn every_problem_in_a_requirement_default_is_collected() {
+    let dir = requirement_package(
+        "require-collected",
+        "Nested",
+        "\nstructure Nested {\n    count: integer { range 1..10 }\n    label: string { length 1..10 }\n}\n",
+        "{ count: 0, label: \"\" }",
+    );
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert_eq!(checked.problems.len(), 2, "{:?}", problems(&checked));
+    for member in ["count", "label"] {
+        assert!(
+            problems(&checked)
+                .iter()
+                .any(|problem| problem.contains(member))
+        );
+    }
+    assert!(checked.problems.iter().all(|problem| {
+        let source = &loaded.files[problem.file.unwrap()].text;
+        let span = problem.diagnostic.span;
+        &source[span.start as usize..span.end as usize] == "{ count: 0, label: \"\" }"
+    }));
+}
+
+#[test]
+fn historical_requirement_defaults_cannot_bypass_validation() {
+    let dir = package(
+        "require-historical",
+        &V1.replace("        limit?: integer", "        limit: integer"),
+        "migration \"v2\" from \"v1\" {\n    require ListItems.input.limit default \"bad\"\n}\n",
+    );
+    let v2 = std::fs::read_to_string(dir.join("shop.cru")).unwrap();
+    freeze(&dir, &v2);
+    std::fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v2.json\"\n"),
+    )
+    .unwrap();
+    let v3 = v2.replace("version \"v2\"", "version \"v3\"") + "\nmigration \"v3\" from \"v2\" {}\n";
+    std::fs::write(dir.join("shop.cru"), v3).unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let latest = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(!latest.has_errors(), "{:?}", problems(&latest));
+    let error = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap_err();
+    assert!(error.contains("the migration to \"v2\""), "{error}");
+    assert!(error.contains("must be a integer"), "{error}");
 }
 
 fn run(name: &str, current: &str, migration: &str) -> Guard {

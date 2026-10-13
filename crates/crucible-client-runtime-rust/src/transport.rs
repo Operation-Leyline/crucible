@@ -344,8 +344,7 @@ impl Transport {
                         "streaming payload requires a known length".into(),
                     ));
                 }
-                headers.insert(
-                    http::header::CONTENT_TYPE,
+                headers.entry(http::header::CONTENT_TYPE).or_insert(
                     HeaderValue::from_str(media_type).map_err(|e| Error::Invalid(e.to_string()))?,
                 );
             }
@@ -461,7 +460,8 @@ impl Transport {
                 let mut output: O::Output = if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
                     crucible_wire::cbor::read(&initial).map_err(Error::Decode)?
                 } else {
-                    bound::read(&initial, bound).map_err(|e| Error::Decode(e.to_string()))?
+                    bound::read_http(&initial, bound, info.output)
+                        .map_err(|e| Error::Decode(e.to_string()))?
                 };
                 O::set_output_events(&mut output, reader.into_incoming(pending));
                 return Ok(output);
@@ -501,8 +501,8 @@ impl Transport {
                 if let Some((member, _)) = Location::payload(info.output) {
                     bound.push((member.name, BoundValue::Json(Value::Null)));
                 }
-                let mut output =
-                    bound::read(&[], bound).map_err(|e| Error::Decode(e.to_string()))?;
+                let mut output = bound::read_http(&[], bound, info.output)
+                    .map_err(|e| Error::Decode(e.to_string()))?;
                 O::set_output_stream(&mut output, stream);
                 return Ok(output);
             }
@@ -792,7 +792,8 @@ impl Transport {
             };
             request
                 .headers_mut()
-                .insert(http::header::CONTENT_TYPE, content_type);
+                .entry(http::header::CONTENT_TYPE)
+                .or_insert(content_type);
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
         if let Some(stream) = stream {
@@ -986,7 +987,7 @@ fn read_response<T: DeserializeOwned>(
             // response's buffer.
             _ => bound.push((member.name, BoundValue::Bytes(bytes()))),
         }
-        return bound::read(&[], bound).map_err(|error| error.to_string());
+        return bound::read_http(&[], bound, members).map_err(|error| error.to_string());
     }
     // An operation without output answers `null` or nothing; both read as `{}`.
     let body = if body.trim_ascii() == b"null" {
@@ -994,7 +995,7 @@ fn read_response<T: DeserializeOwned>(
     } else {
         body
     };
-    bound::read(body, bound).map_err(|error| error.to_string())
+    bound::read_http(body, bound, members).map_err(|error| error.to_string())
 }
 
 /// Header members of a response, read as their kinds.

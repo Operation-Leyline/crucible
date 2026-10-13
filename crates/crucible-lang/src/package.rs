@@ -41,6 +41,17 @@ pub fn load_package(dir: &Path) -> Result<Package, String> {
 /// [`load_package`] with the manifest's text supplied, as an editor holding
 /// unsaved changes to it does.
 pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, String> {
+    load_package_with_overlays(dir, text, &[])
+}
+
+/// Loads an editor's package, replacing disk contents with open buffers and
+/// including new buffers under the same source directories walked on disk.
+/// Nested packages and linked directories stay outside that walk.
+pub fn load_package_with_overlays(
+    dir: &Path,
+    text: &str,
+    overlays: &[SourceFile],
+) -> Result<Package, String> {
     let manifest = dir.join("crucible.toml");
     // The build and the editor apply the same checks, so a manifest the
     // editor marks wrong never builds.
@@ -157,7 +168,7 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
                 root.display()
             ));
         }
-        collect_cru(&root, &mut paths)?;
+        collect_cru(&root, &mut paths, overlays)?;
     }
     paths.sort();
     paths.dedup();
@@ -170,8 +181,14 @@ pub fn load_package_with_manifest(dir: &Path, text: &str) -> Result<Package, Str
     let files = paths
         .into_iter()
         .map(|path| {
-            let text = std::fs::read_to_string(&path)
-                .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+            let text = match overlays
+                .iter()
+                .find(|file| same_path(Path::new(&file.path), &path))
+            {
+                Some(file) => file.text.clone(),
+                None => std::fs::read_to_string(&path)
+                    .map_err(|error| format!("cannot read {}: {error}", path.display()))?,
+            };
             Ok(SourceFile {
                 path: path.display().to_string(),
                 text,
@@ -217,7 +234,21 @@ fn outside(dir: &Path, path: &str) -> Option<&'static str> {
     (!target.starts_with(&root)).then_some("must stay inside the package directory")
 }
 
-fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
+fn same_path(left: &Path, right: &Path) -> bool {
+    let clean = |path: &Path| -> PathBuf {
+        path.components()
+            .filter(|component| !matches!(component, Component::CurDir))
+            .collect()
+    };
+    let (left, right) = (clean(left), clean(right));
+    if cfg!(windows) {
+        left.to_string_lossy().to_lowercase() == right.to_string_lossy().to_lowercase()
+    } else {
+        left == right
+    }
+}
+
+fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>, overlays: &[SourceFile]) -> Result<(), String> {
     let entries = std::fs::read_dir(dir)
         .map_err(|error| format!("cannot read {}: {error}", dir.display()))?;
     for entry in entries {
@@ -228,9 +259,20 @@ fn collect_cru(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
         let kind = entry.file_type().map_err(|error| error.to_string())?;
         // A directory with its own package manifest is a package of its own.
         if kind.is_dir() && !is_package(&path) {
-            collect_cru(&path, out)?;
+            collect_cru(&path, out, overlays)?;
         } else if path.extension().is_some_and(|ext| ext == "cru") && path.is_file() {
             out.push(path);
+        }
+    }
+    // Considering buffers while walking the directory keeps disk and editor
+    // source selection identical, including exclusions for nested packages.
+    for file in overlays {
+        let path = Path::new(&file.path);
+        if path.parent().is_some_and(|parent| same_path(parent, dir))
+            && path.extension().is_some_and(|ext| ext == "cru")
+            && !out.iter().any(|existing| same_path(existing, path))
+        {
+            out.push(path.to_path_buf());
         }
     }
     Ok(())

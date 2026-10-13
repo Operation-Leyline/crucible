@@ -153,6 +153,35 @@ version's section when it is prepared.
 
 ### Fixed
 
+- The Rust client's default HTTP transport no longer follows redirects,
+  which could forward custom API-key and SigV4 session-token headers to
+  another origin. Applications can configure an explicit redirect policy
+  with `Config::http_client`.
+
+- Rust clients ignore response JSON fields for members bound to HTTP
+  headers, even when the corresponding header is absent. This also applies
+  to modeled errors and the initial response of an event stream.
+
+- Python and Go clients send an explicitly null Document payload as JSON
+  `null`, preserving its distinction from an omitted payload. Rust, Python
+  and Go clients preserve an explicit modeled Content-Type header on
+  buffered and streaming payloads instead of replacing it with the
+  inferred media type.
+
+- Compatibility checks report added effective OAuth scope requirements
+  as authentication changes. Reordering or removing requirements remains
+  compatible.
+
+- `.cru` migration defaults are checked against the destination member's
+  type and effective constraints before a migration can be generated.
+  An invalid default can no longer pass the guard and break older requests.
+
+- The language server includes new unsaved buffers inside a package's
+  source directories when checking diagnostics and resolving symbols.
+  Excluded source paths and nested packages retain their existing rules.
+  Renaming a declaration to a built-in type is rejected before edits are
+  returned.
+
 - A Lambda HTTP event whose query string held characters a URI does not
   carry raw (`"`, `<`, `>`, a space: curl and other non-browser clients
   send them unencoded, and a Function URL passes them on as received)

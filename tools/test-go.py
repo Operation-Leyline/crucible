@@ -18,6 +18,16 @@ def run(*args, **kwargs):
 
 
 def qualify(output):
+    for protocol, name in (("crucible.protocols#json", "payloadbindings"),
+                           ("aws.protocols#restJson1", "restpayloadbindings")):
+        package = output / name
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+            "crates/crucible-codegen-python/tests/payload-bindings.json", "--protocol", protocol,
+            "--out", str(package), "--module-path", "example.com/" + name, "--package-name", "payloadbindings")
+        shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/payload_bindings_test.go", package / "payload_bindings_test.go")
+        run(GO, "fmt", "./...", cwd=package)
+        run(GO, "vet", "./...", cwd=package)
+        run(GO, "test", "-count=1", "-v", "./...", cwd=package)
     docs = output / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
         "tests/fixtures/client-docs.json", "--out", str(docs),

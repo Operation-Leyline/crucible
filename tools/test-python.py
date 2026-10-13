@@ -17,6 +17,15 @@ def run(*args, **kwargs):
 
 
 def qualify(package):
+    payload_bindings = []
+    for protocol, module in (("crucible.protocols#json", "payloadbindings_client"),
+                             ("aws.protocols#restJson1", "restpayloadbindings_client")):
+        output = package.parent / module
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+            "crates/crucible-codegen-python/tests/payload-bindings.json", "--protocol", protocol,
+            "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
+        run(sys.executable, "-m", "mypy", str(output / "src"))
+        payload_bindings.append(output)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
         "--package-name", "weather-client", "--module-name", "weather_client",
@@ -79,7 +88,7 @@ def qualify(package):
             "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
         protocols.append(output)
         run(sys.executable, "-m", "mypy", str(output / "src"))
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, *protocols)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, *protocols, *payload_bindings)))
     run(sys.executable, "-m", "mypy", str(package / "src"))
     run(sys.executable, "-m", "mypy", str(dynamic / "src"))
     run(sys.executable, "-m", "mypy", str(extended / "src"))
