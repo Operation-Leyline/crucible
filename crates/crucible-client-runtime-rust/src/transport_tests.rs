@@ -399,6 +399,76 @@ async fn streaming_upload_content_type_preserves_explicit_headers_and_defaults_w
     }
 }
 
+struct JsonBodyProbe<const WIRE_PROTOCOL: u8>;
+impl<const WIRE_PROTOCOL: u8> Operation for JsonBodyProbe<WIRE_PROTOCOL> {
+    const PROTOCOL: Protocol = match WIRE_PROTOCOL {
+        0 => Protocol::CrucibleJson,
+        1 => Protocol::AwsRestJson1,
+        2 => Protocol::AwsJson10 { service: "Test" },
+        3 => Protocol::AwsJson11 { service: "Test" },
+        4 => Protocol::SmithyRpcV2Json,
+        _ => Protocol::SmithyRpcV2Cbor,
+    };
+    const INFO: &'static OperationInfo = &upload_info(&[
+        upload_member("data", Location::Body),
+        upload_member("content_type", Location::Header("content-type")),
+    ]);
+    type Input = UploadInput<String>;
+    type Output = Unit;
+}
+
+async fn protocol_content_type<const WIRE_PROTOCOL: u8>(modeled: Option<&str>, expected: &str) {
+    struct Capture(std::sync::Arc<std::sync::Mutex<Option<String>>>);
+    impl crate::Interceptor for Capture {
+        fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
+            assert!(request.body().is_some());
+            *self.0.lock().unwrap() = Some(
+                request.headers()[http::header::CONTENT_TYPE]
+                    .to_str()
+                    .unwrap()
+                    .to_owned(),
+            );
+            Err("request captured".into())
+        }
+    }
+    let captured = Arc::new(std::sync::Mutex::new(None));
+    let config = Config::new("http://localhost")
+        .header(
+            http::header::CONTENT_TYPE,
+            HeaderValue::from_static("image/png"),
+        )
+        .interceptor(Capture(captured.clone()));
+    let input = UploadInput {
+        data: "json-data".into(),
+        content_type: modeled.map(str::to_owned),
+    };
+    let result = Transport::new(config)
+        .send::<JsonBodyProbe<WIRE_PROTOCOL>, Known>(&input)
+        .await;
+    assert!(matches!(result, Err(Error::Invalid(message)) if message == "request captured"));
+    assert_eq!(captured.lock().unwrap().as_deref(), Some(expected));
+}
+
+#[tokio::test]
+async fn json_document_content_type_overrides_configured_and_modeled_headers() {
+    for modeled in [None, Some("image/jpeg")] {
+        protocol_content_type::<0>(modeled, "application/json").await;
+        protocol_content_type::<1>(modeled, "application/json").await;
+    }
+}
+
+#[tokio::test]
+async fn aws_json_document_content_types_override_configured_headers() {
+    protocol_content_type::<2>(None, "application/x-amz-json-1.0").await;
+    protocol_content_type::<3>(None, "application/x-amz-json-1.1").await;
+}
+
+#[tokio::test]
+async fn rpc_document_content_types_override_configured_headers() {
+    protocol_content_type::<4>(None, "application/json").await;
+    protocol_content_type::<5>(None, "application/cbor").await;
+}
+
 #[derive(Debug)]
 struct Known;
 static ERROR: ErrorInfo =
@@ -559,6 +629,7 @@ async fn body_digests_cover_empty_writes_and_raw_bytes() {
                 "http://localhost",
                 &HeaderMap::new(),
                 body,
+                true,
                 crate::auth::OperationAuth::of::<Probe>(),
                 None,
                 &crate::checksum::Plan::default(),

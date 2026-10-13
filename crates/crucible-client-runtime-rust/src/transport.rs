@@ -364,6 +364,7 @@ impl Transport {
                     &url,
                     &headers,
                     body.clone(),
+                    Location::payload(info.input).is_some(),
                     crate::auth::OperationAuth::of::<O>()
                         .with_properties(endpoint.as_ref().map(|endpoint| &endpoint.properties)),
                     stream.as_ref(),
@@ -751,6 +752,7 @@ impl Transport {
         url: &str,
         bound_headers: &HeaderMap,
         body: Option<Body>,
+        payload: bool,
         auth: crate::auth::OperationAuth<'_>,
         stream: Option<&ByteStream>,
         plan: &crate::checksum::Plan,
@@ -790,10 +792,18 @@ impl Transport {
                 media_type => HeaderValue::from_str(media_type)
                     .map_err(|error| Error::Invalid(error.to_string()))?,
             };
-            request
-                .headers_mut()
-                .entry(http::header::CONTENT_TYPE)
-                .or_insert(content_type);
+            // Payload media types can be overridden; ordinary protocol
+            // documents must keep the media type matching their encoding.
+            if payload {
+                request
+                    .headers_mut()
+                    .entry(http::header::CONTENT_TYPE)
+                    .or_insert(content_type);
+            } else {
+                request
+                    .headers_mut()
+                    .insert(http::header::CONTENT_TYPE, content_type);
+            }
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
         if let Some(stream) = stream {
