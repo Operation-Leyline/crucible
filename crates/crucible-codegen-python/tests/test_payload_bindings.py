@@ -26,14 +26,18 @@ class PayloadBindingTests(unittest.TestCase):
                     if expected:
                         self.assertEqual(requests[0].headers["content-type"], "application/json")
 
-    def test_record_null_still_omits_payload(self):
+    def test_record_null_follows_protocol_member_presence(self):
         for module, sdk in self.clients():
-            with self.subTest(protocol=module):
-                def reply(request):
-                    self.assertEqual(request.content, b"")
-                    return httpx.Response(200)
-                with httpx.Client(transport=httpx.MockTransport(reply)) as http:
-                    sdk.PayloadBindingsClient(endpoint="https://example.test", http=http).put_record(sdk.RecordInput(record=None))
+            null_body = b"null" if module == "payloadbindings_client" else b""
+            for input, expected in ((sdk.RecordInput(), b""),
+                                    (sdk.RecordInput(record=None), null_body),
+                                    (sdk.RecordInput(record=sdk.Record(name="record")), b'{"name":"record"}')):
+                with self.subTest(protocol=module, expected=expected):
+                    def reply(request):
+                        self.assertEqual(request.content, expected)
+                        return httpx.Response(200)
+                    with httpx.Client(transport=httpx.MockTransport(reply)) as http:
+                        sdk.PayloadBindingsClient(endpoint="https://example.test", http=http).put_record(input)
 
     def test_payload_preserves_modeled_content_type_and_defaults_when_omitted(self):
         for module, sdk in self.clients():

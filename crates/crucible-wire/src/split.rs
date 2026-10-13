@@ -211,12 +211,9 @@ impl SerializeStruct for Fields<'_> {
                     };
                 }
                 Some(Location::DocumentPayload(_)) => {
-                    // Straight to bytes; an explicit null sends no body.
-                    let start = self.split.out.len();
+                    // Model serde owns omission; a serialized null is a
+                    // present document value and must remain on the wire.
                     serde_json::to_writer(&mut *self.split.out, value)?;
-                    if &self.split.out[start..] == b"null" {
-                        self.split.out.truncate(start);
-                    }
                     return Ok(());
                 }
                 _ => {}
@@ -795,14 +792,15 @@ mod tests {
             kind(Location::DocumentPayload("application/json"), "record"),
         ];
         for (record, expected) in [
-            (serde_json::json!({"a":[1,null]}), &br#"{"a":[1,null]}"#[..]),
-            (serde_json::Value::Null, &b""[..]),
+            (
+                Some(serde_json::json!({"a":[1,null]})),
+                &br#"{"a":[1,null]}"#[..],
+            ),
+            (Some(serde_json::Value::Null), &b"null"[..]),
+            (None, &b""[..]),
         ] {
             let mut body = Vec::new();
-            let value = Kinds {
-                text: None,
-                record: Some(record),
-            };
+            let value = Kinds { text: None, record };
             write(&value, &document, &mut body).unwrap();
             assert_eq!(body, expected);
         }

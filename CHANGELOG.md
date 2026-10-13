@@ -162,9 +162,13 @@ version's section when it is prepared.
   headers, even when the corresponding header is absent. This also applies
   to modeled errors and the initial response of an event stream.
 
-- Python and Go clients send an explicitly null Document payload as JSON
-  `null`, preserving its distinction from an omitted payload. Rust, Python
-  and Go clients preserve an explicit modeled Content-Type header on
+- Rust, Python and Go clients send an explicitly null Document payload as
+  JSON `null`, preserving its distinction from an omitted payload. JSON
+  payloads follow the protocol's null-member policy: Crucible JSON retains
+  an explicit null structure payload, while AWS REST JSON omits it.
+  TypeScript no longer tries to serialize an omitted AWS structure payload
+  as `undefined`. Rust, Python and Go clients preserve an explicit modeled
+  Content-Type header on
   buffered and streaming payloads instead of replacing it with the
   inferred media type.
 

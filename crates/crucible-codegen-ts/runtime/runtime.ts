@@ -987,7 +987,9 @@ export class Transport {
     if (operation.payload !== undefined) {
       // The bytes go as they are: a body digest covers exactly these.
       const value = values[operation.payload.member];
-      if (value !== undefined && (value !== null || operation.payload.kind==="document")) {
+      // Conversion has already applied the protocol's null-member policy.
+      const encodedPayload = encoded[wireName(operation.input, operation.payload.member)];
+      if (encodedPayload !== undefined && (value !== null || operation.payload.kind==="document")) {
         if (operation.payload.streaming) {
           if (!(value instanceof ByteStream)) throw new TypeError(`${operation.name}: streaming payload must be a ByteStream`);
           if (operation.payload.requiresLength && value.length === undefined) throw new TypeError(`${operation.name}: streaming payload requires a known length`);
@@ -998,7 +1000,7 @@ export class Transport {
         } else if (operation.payload.kind==="string") {
           if (typeof value!=="string") throw new TypeError(`${operation.name}: payload must be a string`);body=value;
         } else if (operation.payload.kind==="document") {
-          body=stringifyJson(encoded[wireName(operation.input,operation.payload.member)]);
+          body=stringifyJson(encodedPayload);
         } else {
           if (!(value instanceof Uint8Array)) throw new TypeError(`${operation.name}: payload must be a Uint8Array`);
           body = value as BodyInit;

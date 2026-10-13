@@ -1233,9 +1233,8 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		if _, present := headers["Content-Type"]; !present { headers.Set("Content-Type", op.Request.Payload[1]) }
 		if source.sha256 != "" { headers.Set("X-Amz-Content-Sha256", source.sha256) }
 	} else if len(op.Request.Payload) == 2 && !op.Request.Streaming {
-		// Document null is a JSON value; null structures and unions have no payload.
-		document := c.schema.Shapes[inputShape.Members[op.Request.Payload[0]].Target].Kind == "document"
-		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && (payload != nil || document) {
+		// The codec has already applied the protocol's null-member policy.
+		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && (payload != nil || op.Request.PayloadKind == "document") {
 			switch op.Request.PayloadKind {
 			case "string": body = []byte(payload.(string))
 			case "document": var err error; body, err = json.Marshal(payload); if err != nil { return nil, err }

@@ -46,6 +46,10 @@ crucible generate ts crates/crucible-codegen-ts/tests/fixtures/sigv4.json \
   --out "$dir/generated-sigv4" --package-name @example/sigv4 >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/error-payloads.json \
   --out "$dir/generated-payloads" --package-name @example/payloads >/dev/null
+crucible generate ts crates/crucible-codegen-python/tests/payload-bindings.json \
+  --protocol 'crucible.protocols#json' --out "$dir/generated-payloadbindings" --package-name @example/payloadbindings >/dev/null
+crucible generate ts crates/crucible-codegen-python/tests/payload-bindings.json \
+  --protocol 'aws.protocols#restJson1' --out "$dir/generated-rest-payloadbindings" --package-name @example/rest-payloadbindings >/dev/null
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/globals.json \
   --out "$dir/generated-globals" --package-name @example/globals >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/checksums.json \

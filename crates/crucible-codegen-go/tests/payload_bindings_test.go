@@ -32,18 +32,30 @@ func TestDocumentPayloadPresence(t *testing.T) {
     }
 }
 
-func TestRecordNullStillOmitsPayload(t *testing.T) {
-    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        body, err := io.ReadAll(r.Body)
-        if err != nil { t.Error(err) }
-        if len(body) != 0 { t.Errorf("body = %q, want empty", body) }
-    }))
-    defer server.Close()
-    client, err := NewPayloadBindingsClient(Config{Endpoint: server.URL})
-    if err != nil { t.Fatal(err) }
-    input := &RecordInput{}
-    input.SetRecord(nil)
-    if _, err := client.PutRecord(context.Background(), input); err != nil { t.Fatal(err) }
+func TestRecordNullFollowsProtocolMemberPresence(t *testing.T) {
+    for _, state := range []string{"omitted", "null", "value"} {
+        t.Run(state, func(t *testing.T) {
+            expected := ""
+            input := &RecordInput{}
+            switch state {
+            case "null":
+                input.SetRecord(nil)
+                if !wireSchema.ProtocolSettings.OmitNullStructureMembers { expected = "null" }
+            case "value":
+                record := &Record{}; record.SetName("record")
+                input.SetRecord(record); expected = `{"name":"record"}`
+            }
+            server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                body, err := io.ReadAll(r.Body)
+                if err != nil { t.Error(err) }
+                if string(body) != expected { t.Errorf("body = %q, want %q", body, expected) }
+            }))
+            defer server.Close()
+            client, err := NewPayloadBindingsClient(Config{Endpoint: server.URL})
+            if err != nil { t.Fatal(err) }
+            if _, err := client.PutRecord(context.Background(), input); err != nil { t.Fatal(err) }
+        })
+    }
 }
 
 func TestPayloadContentType(t *testing.T) {

@@ -688,10 +688,9 @@ class _Base:
         elif payload is not None:
             # The bytes go as they are: a body digest covers exactly these.
             value = original(payload[0])
-            # Document null is a JSON value; null structures and unions have no payload.
-            document = self._codec.shapes[members[payload[0]]["target"]]["kind"] == "document"
-            if not isinstance(value, Unset) and (value is not None or document):
-                kind = op["request"].get("payloadKind", "blob")
+            # The codec has already applied the protocol's null-member policy.
+            kind = op["request"].get("payloadKind", "blob")
+            if json_name(payload[0]) in values and (value is not None or kind == "document"):
                 if kind == "string":
                     if not isinstance(value, str):
                         raise TypeError(f"{payload[0]} must be a string")
