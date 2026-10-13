@@ -227,6 +227,20 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
             "{ count: 1 }",
             serde_json::json!({"count": 1}),
         ),
+        (
+            "nested-timestamp",
+            "Nested",
+            "\nstructure Nested { created: timestamp }\n",
+            "{ created: 0 }",
+            serde_json::json!({"created": "1970-01-01T00:00:00Z"}),
+        ),
+        (
+            "timestamp-list",
+            "Times",
+            "\nlist Times: timestamp\n",
+            "[0]",
+            serde_json::json!(["1970-01-01T00:00:00Z"]),
+        ),
     ] {
         let dir = requirement_package(&format!("require-valid-{name}"), ty, declarations, default);
         let loaded = load_package(&dir).unwrap();
@@ -280,6 +294,64 @@ fn every_problem_in_a_requirement_default_is_collected() {
         let span = problem.diagnostic.span;
         &source[span.start as usize..span.end as usize] == "{ count: 0, label: \"\" }"
     }));
+}
+
+#[test]
+fn timestamp_requirement_defaults_use_the_destination_wire_format() {
+    for (name, ty, default, expected) in [
+        (
+            "date-time",
+            "timestamp",
+            "0",
+            serde_json::json!("1970-01-01T00:00:00Z"),
+        ),
+        (
+            "epoch",
+            "timestamp { format epoch-seconds }",
+            "\"1970-01-01T00:00:00Z\"",
+            serde_json::json!(0),
+        ),
+    ] {
+        let dir = requirement_package(&format!("require-timestamp-{name}"), ty, "", default);
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+        let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap();
+        assert!(!checked.has_errors(), "{name}: {:?}", problems(&checked));
+        let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
+        assert!(
+            matches!(
+                &versions[0].steps[..],
+                [crucible_smithy::ir::VersionStep::Require { default, .. }] if default == &expected
+            ),
+            "{name}: {:?}",
+            versions[0].steps
+        );
+    }
+}
+
+#[test]
+fn integer_enum_requirement_defaults_accept_symbols_and_emit_numbers() {
+    let dir = requirement_package(
+        "require-intenum",
+        "Count",
+        "\nenum Count: integer { SMALL = 1, LARGE = 2 }\n",
+        "SMALL",
+    );
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(!checked.has_errors(), "{:?}", problems(&checked));
+    let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
+    assert!(matches!(
+        &versions[0].steps[..],
+        [crucible_smithy::ir::VersionStep::Require { default, .. }] if default == &serde_json::json!(1)
+    ));
 }
 
 #[test]

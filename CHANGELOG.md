@@ -175,6 +175,8 @@ version's section when it is prepared.
 - `.cru` migration defaults are checked against the destination member's
   type and effective constraints before a migration can be generated.
   An invalid default can no longer pass the guard and break older requests.
+  Valid timestamp and integer-enum defaults use the destination wire
+  representation.
 
 - The language server includes new unsaved buffers inside a package's
   source directories when checking diagnostics and resolving symbols.

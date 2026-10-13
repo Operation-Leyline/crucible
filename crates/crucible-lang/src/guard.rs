@@ -407,13 +407,28 @@ impl Context<'_> {
         if let (Json::String(symbol), Some(Shape::Structure(owner))) =
             (&default, self.new.shapes.get(&target.shape))
             && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
-            && let Some(Shape::Enum(enumeration)) = self.new.shapes.get(&member.target)
-            && let Some(found) = enumeration
-                .values
-                .iter()
-                .find(|value| &value.name == symbol)
         {
-            return Json::String(found.value.clone());
+            match self.new.shapes.get(&member.target) {
+                Some(Shape::Enum(enumeration)) => {
+                    if let Some(found) = enumeration
+                        .values
+                        .iter()
+                        .find(|value| &value.name == symbol)
+                    {
+                        return Json::String(found.value.clone());
+                    }
+                }
+                Some(Shape::IntEnum(enumeration)) if matches!(value, Value::Ident(_)) => {
+                    if let Some(found) = enumeration
+                        .values
+                        .iter()
+                        .find(|value| &value.name == symbol)
+                    {
+                        return Json::Number(found.value.into());
+                    }
+                }
+                _ => {}
+            }
         }
         default
     }
@@ -1003,6 +1018,13 @@ impl Context<'_> {
                 match how {
                     RequireHow::Default(value) => {
                         let default = self.require_default(&new, value);
+                        let Some(Shape::Structure(owner)) = self.new.shapes.get(&new.shape) else {
+                            unreachable!("a checked requirement targets a structure member")
+                        };
+                        let target = owner.member(&member).expect("a checked requirement member");
+                        // Model literals accept epoch seconds and model member
+                        // names; conversions inject protocol document values.
+                        let default = self.new.wire_example(target, &default, None);
                         VersionStep::Require {
                             new: new.shape,
                             member,
