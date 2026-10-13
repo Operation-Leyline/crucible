@@ -193,6 +193,80 @@ fn unsaved_package_sources_have_diagnostics_and_symbols() {
 }
 
 #[test]
+fn unsaved_sources_in_new_directories_belong_to_their_package() {
+    for (name, missing_root) in [("missing-root", true), ("new-subdirectory", false)] {
+        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("lsp-unsaved-{name}"));
+        package(&dir);
+        let missing = if missing_root {
+            "model"
+        } else {
+            "new/subdirectory"
+        };
+        if missing_root {
+            std::fs::write(
+                dir.join("crucible.toml"),
+                "[model]\nnamespace = \"example.shop\"\nsources = [\".\", \"model\"]\nimports = [\"crucible.errors\"]\n",
+            )
+            .unwrap();
+        }
+        let new_uri = uri(&dir.join(missing).join("new.cru"));
+        let mut client = Client::start();
+        client.open(
+            &new_uri,
+            "string NewId\nstructure NewThing { value: DefinitelyMissing }\n",
+        );
+        let diagnostics = client.diagnostics(&new_uri);
+        assert!(
+            diagnostics.iter().any(|diagnostic| diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("DefinitelyMissing")),
+            "{name}: {diagnostics:#?}"
+        );
+        assert!(
+            !diagnostics.iter().any(|diagnostic| diagnostic["message"]
+                .as_str()
+                .unwrap()
+                .contains("declares no service")),
+            "{name}: {diagnostics:#?}"
+        );
+        let symbols = client.request("workspace/symbol", json!({ "query": "NewThing" }));
+        assert_eq!(symbols.as_array().unwrap().len(), 1, "{name}: {symbols}");
+        assert_eq!(
+            symbols[0]["containerName"], "example.shop",
+            "{name}: {symbols}"
+        );
+        assert!(!dir.join(missing).exists());
+        if missing_root {
+            let manifest_uri = uri(&dir.join("crucible.toml"));
+            let manifest = std::fs::read_to_string(dir.join("crucible.toml")).unwrap();
+            client.open(&manifest_uri, &manifest);
+            let diagnostics = client.diagnostics(&manifest_uri);
+            assert!(
+                !diagnostics.iter().any(|diagnostic| diagnostic["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("not a directory")),
+                "eligible open buffer: {diagnostics:#?}"
+            );
+            client.notify(
+                "textDocument/didClose",
+                json!({ "textDocument": { "uri": new_uri } }),
+            );
+            let diagnostics = client.diagnostics(&manifest_uri);
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic["message"]
+                    .as_str()
+                    .unwrap()
+                    .contains("not a directory")),
+                "closed buffer: {diagnostics:#?}"
+            );
+        }
+        client.stop();
+    }
+}
+
+#[test]
 fn unsaved_files_outside_package_sources_stay_excluded() {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-unsaved-excluded-source");
     package(&dir);

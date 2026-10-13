@@ -6,9 +6,9 @@ use std::collections::{HashMap, VecDeque};
 use std::path::{Component, Path, PathBuf};
 
 use crossbeam_channel::{Receiver, TryRecvError};
+use crucible_lang::package::check_manifest_with_overlays;
 use crucible_lang::{
-    Compiled, FormatOptions, Package, Parsed, SourceFile, check_manifest, compile, format,
-    format_lines, is_package,
+    Compiled, FormatOptions, Package, Parsed, SourceFile, compile, format, format_lines, is_package,
 };
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
@@ -984,7 +984,20 @@ impl Server {
             return Vec::new();
         };
         let lines = Lines::new(&document.text);
-        let mut out: Vec<Diagnostic> = check_manifest(dir, &document.text)
+        let overlays: Vec<SourceFile> = self
+            .documents
+            .values()
+            .filter(|open| {
+                open.kind == Kind::Model && document.unit.is_some() && open.unit == document.unit
+            })
+            .filter_map(|open| {
+                Some(SourceFile {
+                    path: open.path.as_ref()?.display().to_string(),
+                    text: open.text.clone(),
+                })
+            })
+            .collect();
+        let mut out: Vec<Diagnostic> = check_manifest_with_overlays(dir, &document.text, &overlays)
             .into_iter()
             .map(|diagnostic| {
                 at_severity(

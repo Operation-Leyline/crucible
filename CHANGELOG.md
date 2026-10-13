@@ -183,6 +183,7 @@ version's section when it is prepared.
 
 - The language server includes new unsaved buffers inside a package's
   source directories when checking diagnostics and resolving symbols.
+  Buffers also work before their source directory or subdirectory exists.
   Excluded source paths and nested packages retain their existing rules.
   Renaming a declaration to a built-in type is rejected before edits are
   returned.
