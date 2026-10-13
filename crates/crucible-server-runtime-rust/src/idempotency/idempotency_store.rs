@@ -76,7 +76,9 @@ pub trait IdempotencyStore: Send + Sync + 'static {
     ) -> Result<Ownership>;
 
     /// Removes `attempt`'s in-flight record: the attempt failed before its
-    /// point of no return, so a retry runs the operation again.
+    /// point of no return, or after [`abandon`](super::abandon)ing it (so
+    /// the record may be one `hold` extended), and a retry runs the
+    /// operation again.
     async fn release(&self, key: &IdempotencyKey, attempt: &str) -> Result<Ownership>;
 }
 

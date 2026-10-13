@@ -380,4 +380,9 @@ mod tests {
     async fn commit_outside_an_idempotent_request_is_a_wiring_error() {
         assert!(crate::idempotency::commit().await.is_err());
     }
+
+    #[test]
+    fn abandon_outside_an_idempotent_request_is_a_wiring_error() {
+        assert!(crate::idempotency::abandon().is_err());
+    }
 }
