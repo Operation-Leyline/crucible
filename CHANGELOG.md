@@ -17,6 +17,20 @@ version's section when it is prepared.
 
 ### Added
 
+- Sealed pagination tokens, behind the runtime's `page-tokens` feature.
+  `PageTokens` is an `Interceptor` that opens the token a `@paginated`
+  request carries before the operation runs, and the operation reads its own
+  cursor with `page_tokens::resume()` and seals the next one with
+  `page_tokens::issue(&cursor)`. Tokens are XChaCha20-Poly1305 under keys
+  derived from a secret (`PageKeys`, with retired keys accepted for
+  rotation), bound to the service, operation, caller and filters, and expire
+  after 24 hours (`ttl`). Nothing is stored. A token that does not open is
+  the service's validation error naming the token member, or what
+  `PageTokens::refusal` builds. Generated server operations carry
+  `Operation::PAGINATION`, the token and page size members, also on
+  `OperationMetadata::pagination`. See
+  [docs/framework.md](docs/framework.md#pagination-tokens).
+
 - Deadlines are enforced. A request is stopped at the host's deadline (a
   Lambda invocation's) less `DEADLINE_RESERVE` (250 ms), or at
   `Builder::request_timeout(duration)` after it arrived, whichever comes

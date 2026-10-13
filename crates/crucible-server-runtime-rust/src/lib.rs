@@ -61,6 +61,8 @@ mod operation_metadata;
 pub mod operation_middleware;
 pub mod operations;
 mod outcome;
+#[cfg(feature = "page-tokens")]
+pub mod page_tokens;
 mod prepare;
 pub mod protocol;
 mod resolution;
