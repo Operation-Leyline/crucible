@@ -168,9 +168,8 @@ version's section when it is prepared.
   an explicit null structure payload, while AWS REST JSON omits it.
   TypeScript no longer tries to serialize an omitted AWS structure payload
   as `undefined`. Rust, Python and Go clients preserve an explicit modeled
-  Content-Type header on
-  buffered and streaming payloads instead of replacing it with the
-  inferred media type.
+  Content-Type header on buffered and streaming payloads instead of
+  replacing it with the inferred media type.
 
 - Compatibility checks report added effective OAuth scope requirements
   as authentication changes. Reordering or removing requirements remains
@@ -187,6 +186,12 @@ version's section when it is prepared.
   Excluded source paths and nested packages retain their existing rules.
   Renaming a declaration to a built-in type is rejected before edits are
   returned.
+
+- JWT authenticators refuse foreign, missing, or malformed issuers before
+  looking up signing keys. An unrelated issuer's JWKS outage can no longer
+  block a valid token from a later authenticator in the API chain or consume
+  the unrelated issuer's refresh cooldown. Signature and issuer validation
+  still run before authentication; a matching issuer's outage remains a 5xx.
 
 - A Lambda HTTP event whose query string held characters a URI does not
   carry raw (`"`, `<`, `>`, a space: curl and other non-browser clients

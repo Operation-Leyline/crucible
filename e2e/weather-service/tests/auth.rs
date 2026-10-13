@@ -5,8 +5,8 @@ use axum::{
     routing::get,
 };
 use crucible_auth::{
-    AuthenticateResult, Authenticator, AuthenticatorChain, IssuerConfig, JwtAuthenticator,
-    Principal, TokenKind, test_support::TestTokenIssuer,
+    AuthError, AuthenticateResult, Authenticator, AuthenticatorChain, IssuerConfig,
+    JwtAuthenticator, Principal, TokenKind, test_support::TestTokenIssuer,
 };
 use crucible_server_runtime_rust::__generated as generated;
 use crucible_server_runtime_rust::{
@@ -508,6 +508,86 @@ impl JwksServer {
             task,
         }
     }
+}
+
+#[tokio::test]
+async fn foreign_issuer_tokens_do_not_touch_an_unavailable_provider_in_the_chain() {
+    let server = JwksServer::start().await;
+    server.available.store(false, Ordering::SeqCst);
+    let first = TestTokenIssuer::es256(&server.url, "first").unwrap();
+    let second = TestTokenIssuer::es256("https://second.example", "second").unwrap();
+    let first_auth = JwtAuthenticator::new(first.config(vec!["client".into()])).unwrap();
+    let second_auth =
+        JwtAuthenticator::with_jwks(second.config(vec!["client".into()]), second.jwks()).unwrap();
+    let service = service(vec![
+        Arc::new(first_auth),
+        Arc::new(second_auth),
+        Arc::new(ApiKey),
+    ]);
+    let second_bearer = format!(
+        "Bearer {}",
+        second.mint(&second.id_claims("person", "client")).unwrap()
+    );
+    let (status, _, body) =
+        call(&service, "/protected", &[("authorization", &second_bearer)]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["subject"], "person");
+    assert_eq!(server.requests.load(Ordering::SeqCst), 0);
+
+    // A token for this provider must still report its outage, including during cooldown.
+    let first_bearer = format!(
+        "Bearer {}",
+        first.mint(&first.id_claims("person", "client")).unwrap()
+    );
+    for _ in 0..2 {
+        let (status, headers, _) =
+            call(&service, "/protected", &[("authorization", &first_bearer)]).await;
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(!headers.contains_key("www-authenticate"));
+    }
+    assert_eq!(server.requests.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        call(&service, "/protected", &[("authorization", &second_bearer)])
+            .await
+            .0,
+        StatusCode::OK
+    );
+    assert_eq!(server.requests.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn foreign_missing_and_malformed_issuers_do_not_fetch_or_start_jwks_cooldown() {
+    let server = JwksServer::start().await;
+    let issuer = TestTokenIssuer::es256(&server.url, "first").unwrap();
+    *server.keys.write().unwrap() = issuer.jwks();
+    let auth = JwtAuthenticator::new(issuer.config(vec!["client".into()])).unwrap();
+    let claims = issuer.id_claims("person", "client");
+    for value in [json!("https://other.example"), json!(null), json!(1)] {
+        let mut wrong = claims.clone();
+        wrong["iss"] = value;
+        assert!(matches!(
+            auth.verify(&issuer.mint(&wrong).unwrap()).await,
+            Err(AuthError::Refused)
+        ));
+    }
+    let mut missing = claims.clone();
+    missing.as_object_mut().unwrap().remove("iss");
+    assert!(matches!(
+        auth.verify(&issuer.mint(&missing).unwrap()).await,
+        Err(AuthError::Refused)
+    ));
+    let token = issuer.mint(&claims).unwrap();
+    let parts: Vec<_> = token.split('.').collect();
+    for payload in ["!", "eyJpc3MiOiI"] {
+        let malformed = format!("{}.{payload}.{}", parts[0], parts[2]);
+        assert!(matches!(
+            auth.verify(&malformed).await,
+            Err(AuthError::Refused)
+        ));
+    }
+    assert_eq!(server.requests.load(Ordering::SeqCst), 0);
+    auth.verify(&token).await.unwrap();
+    assert_eq!(server.requests.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

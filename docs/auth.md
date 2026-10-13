@@ -84,6 +84,12 @@ the issuer and key endpoint are deployment configuration. No URL supplied in a
 token selects the trust store. Redirects, URL credentials, fragments, and query
 strings are refused. Each authenticator owns its own issuer cache.
 
+Before any key lookup, an authenticator refuses tokens whose unverified `iss`
+is missing, malformed, or different from its configured issuer. This refusal
+lets other issuers in the chain try without fetching keys or starting a refresh
+cooldown. The unverified claim grants no trust: authentication still requires
+signature verification and validation of the signed issuer and all other claims.
+
 | Setting | Default and behavior |
 | --- | --- |
 | `algorithms` | RS256 and ES256 for a generic issuer; RS256 for Cognito. HMAC and `none` are unsupported. |
