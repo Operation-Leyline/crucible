@@ -283,6 +283,16 @@ impl JwtAuthenticator {
             .as_deref()
             .filter(|kid| !kid.is_empty() && kid.len() <= 256)
             .ok_or(AuthError::Refused)?;
+        // Only refuse based on untrusted claims: acceptance still validates the signed issuer.
+        // Foreign tokens must not fetch this issuer's keys or consume its refresh cooldown.
+        if jsonwebtoken::dangerous::insecure_decode_claims::<Value>(token)
+            .map_err(|_| AuthError::Refused)?
+            .get("iss")
+            .and_then(Value::as_str)
+            != Some(self.config.issuer.as_str())
+        {
+            return Err(AuthError::Refused);
+        }
         let key = self.key(kid, header.alg).await?;
         let validation = if header.alg == Algorithm::RS256 {
             &self.rsa_validation

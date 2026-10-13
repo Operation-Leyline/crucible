@@ -153,6 +153,12 @@ version's section when it is prepared.
 
 ### Fixed
 
+- JWT authenticators refuse foreign, missing, or malformed issuers before
+  looking up signing keys. An unrelated issuer's JWKS outage can no longer
+  block a valid token from a later authenticator in the API chain or consume
+  the unrelated issuer's refresh cooldown. Signature and issuer validation
+  still run before authentication; a matching issuer's outage remains a 5xx.
+
 - A Lambda HTTP event whose query string held characters a URI does not
   carry raw (`"`, `<`, `>`, a space: curl and other non-browser clients
   send them unencoded, and a Function URL passes them on as received)
