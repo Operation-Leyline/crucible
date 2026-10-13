@@ -12,12 +12,53 @@ tag.
 
 | From | To | CHANGELOG | Section |
 |---|---|---|---|
+| 0.7.x | next | [Unreleased](../CHANGELOG.md#unreleased) | [Unreleased](#unreleased) |
 | 0.6.x | 0.7.0 | [0.7.0](../CHANGELOG.md#070---2026-10-12) | [0.6.0 to 0.7.0](#060-to-070) |
 | 0.5.x | 0.6.0 | [0.6.0](../CHANGELOG.md#060---2026-10-12) | [0.5.0 to 0.6.0](#050-to-060) |
 | 0.4.x | 0.5.0 | [0.5.0](../CHANGELOG.md#050---2026-10-11) | [0.4.0 to 0.5.0](#040-to-050) |
 | 0.3.x | 0.4.0 | [0.4.0](../CHANGELOG.md#040---2026-10-08) | [0.3.0 to 0.4.0](#030-to-040) |
 | 0.2.x | 0.3.0 | [0.3.0](../CHANGELOG.md#030---2026-10-07) | [0.2.0 to 0.3.0](#020-to-030) |
 | 0.1.x | 0.2.0 | [0.2.0](../CHANGELOG.md#020---2026-10-06) | [0.1.0 to 0.2.0](#010-to-020) |
+
+## Unreleased
+
+The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
+authority. Only code that constructs or exhaustively destructures
+`crucible_auth::Principal` has to change; reading its fields does not.
+
+### `Principal` is non-exhaustive
+
+`Principal` gained `tenant` and is `#[non_exhaustive]`, so later fields are
+not breaking. A struct literal in a custom `Authenticator` (or a test) no
+longer compiles outside `crucible-auth`; build it with `Principal::new` and
+the setters for the fields you set:
+
+```rust
+// 0.7
+AuthenticateResult::Authenticated(Principal {
+    subject: key.id.clone(),
+    issuer: "local-store".into(),
+    client_id: None,
+    token_kind: TokenKind::ApiKey,
+    scopes: BTreeSet::new(),
+    groups: BTreeSet::new(),
+    claims: json!({ "tenant": key.workspace }),
+})
+
+// next
+AuthenticateResult::Authenticated(
+    Principal::new(key.id.clone(), "local-store", TokenKind::ApiKey)
+        .with_tenant(key.workspace.clone()),
+)
+```
+
+`new` leaves `client_id` and `tenant` `None`, `scopes` and `groups` empty and
+`claims` `Value::Null`; `with_client_id`, `with_scopes`, `with_groups`,
+`with_claims` and `with_tenant` set the rest. A pattern that names every
+field needs `..`. A tenant that was carried in `claims` belongs in `tenant`
+now. If the custom authenticator checks bearer API keys against a table,
+consider replacing it with [`ApiKeyAuthenticator`](auth.md#api-keys) and an
+`ApiKeyStore` over that table.
 
 ## 0.6.0 to 0.7.0
 

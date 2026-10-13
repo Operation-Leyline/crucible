@@ -1,12 +1,14 @@
-# JWT bearer authentication
+# Bearer authentication: JWTs and API keys
 
-Install `crucible-auth` explicitly to verify JWTs and enforce the Smithy model's
-authentication settings. `Crucible::defaults()` keeps authentication off. The
-separate crate keeps JWT cryptography, JWKS HTTP fetching, and test issuers out
-of services that do not use bearer authentication.
+Install `crucible-auth` explicitly to verify JWTs and API keys and enforce the
+Smithy model's authentication settings. `Crucible::defaults()` keeps
+authentication off. The separate crate keeps JWT cryptography, JWKS HTTP
+fetching, and test issuers out of services that do not use bearer
+authentication.
 
-Authentication establishes identity. Services still own API-key storage,
-tenant membership, permissions, revocation policy, and authorization.
+Authentication establishes identity. Services still own the API-key table,
+tenant membership for token callers, permissions, and authorization;
+[`ApiKeyAuthenticator`](#api-keys) owns key recognition, hashing and caching.
 
 ## Configuring Cognito
 
@@ -47,8 +49,9 @@ let service = builder.operation_middleware(AuthenticatorChain::new(vec![jwt]))
     .build()?;
 ```
 
-Register a custom API-key authenticator too when the service declares API-key
-auth. Construction fails with collected operation IDs when a modeled scheme
+Add an [`ApiKeyAuthenticator`](#api-keys) to the same chain for bearer API
+keys, or register a custom authenticator when the service declares
+`@httpApiKeyAuth`. Construction fails with collected operation IDs when a modeled scheme
 has no configured authenticator. Bindings without explicit auth metadata also
 fail at construction; regenerate old bindings before installing the chain.
 
@@ -120,16 +123,24 @@ let principal = self.context().attribute::<Principal>();
 
 `Principal` contains subject, issuer, matched client ID, token kind, deduplicated
 scopes from the space-separated `scope` claim, Cognito groups from
-`cognito:groups`, and the verified raw claims. Public and anonymous optional
-requests have no Principal. Claims remain identity-provider statements;
+`cognito:groups`, the verified raw claims, and `tenant`. Public and anonymous
+optional requests have no Principal. Claims remain identity-provider statements;
 tenant reach and grants must still be checked by the service.
 
-Implement `Authenticator` for your credential store:
+`tenant` is the workspace or organization the credential itself is bound to.
+An API key fills it from its stored record. ID and access tokens leave it
+`None`, and no token claim ever sets it, so a token caller's tenant is still the
+service's membership check. `Principal` is non-exhaustive: an authenticator
+outside this crate builds one with
+`Principal::new(subject, issuer, token_kind)` and the `with_client_id`,
+`with_scopes`, `with_groups`, `with_claims` and `with_tenant` setters.
+
+For a credential other than a bearer API key, implement `Authenticator`:
 
 - `supports` selects modeled schemes at service construction.
 - `has_credentials` checks the configured source without a store lookup.
 - `authenticate` returns `Authenticated(Principal)`, `Refused`, or
-  `Unavailable(Error)`. Hash API keys and check revocation in your store.
+  `Unavailable(Error)`.
 
 The trait receives the static `AuthScheme` with API-key header/query placement
 and optional scheme prefix. The service controls its source extraction and
@@ -142,6 +153,136 @@ an unavailable provider stops the chain with a 5xx. Optional auth permits
 absence, but refuses credentials that were presented and failed verification.
 Scheme matching and operation plans are computed in `prepare`, never from raw
 traits on each request.
+
+## API keys
+
+`ApiKeyAuthenticator` checks bearer API keys against a table the service owns,
+and does the caching every such table needs. It supports the bearer scheme and
+joins an `AuthenticatorChain` beside a `JwtAuthenticator`, in either order:
+it claims only credentials with its prefix, so a JWT falls through to the JWT
+verifier without a store read.
+
+```rust
+use std::sync::Arc;
+use crucible_auth::{
+    ApiKeyAuthenticator, ApiKeyRecord, ApiKeyState, ApiKeyStore, AuthenticatorChain,
+};
+
+struct Keys { /* a DynamoDB client, a table name */ }
+
+#[crucible_server_runtime_rust::async_trait]
+impl ApiKeyStore for Keys {
+    async fn lookup(&self, digest: &str)
+        -> Result<Option<ApiKeyRecord>, crucible_server_runtime_rust::Error>
+    {
+        let Some(row) = self.get(digest).await? else { return Ok(None) };
+        let state = if row.status == "active" { ApiKeyState::Active } else { ApiKeyState::Revoked };
+        Ok(Some(ApiKeyRecord::new(row.key_id, row.workspace_id, state)
+            .with_attributes(serde_json::json!({ "name": row.name }))))
+    }
+}
+
+let keys = Arc::new(ApiKeyAuthenticator::new("pgn_", Keys { /* .. */ })?);
+let chain = AuthenticatorChain::new(vec![keys.clone(), jwt]);
+```
+
+### The store
+
+`ApiKeyStore::lookup(digest)` reads one row by digest and maps it to an
+`ApiKeyRecord`: the key ID (`Principal::subject`), the tenant
+(`Principal::tenant`), an `ApiKeyState` mapped from the store's own status
+field, an optional expiry (`SystemTime`), and free-form `attributes`
+(`Principal::claims`: a display name, rate limits). The principal's token kind
+is `TokenKind::ApiKey` and its issuer is `issuer(..)` (default `"api-key"`);
+it has no client ID, scopes or groups. Row mapping stays in the store.
+
+- `Ok(None)`: no such key. Refused (401).
+- `Err(..)`: the store could not answer. A sanitized 5xx, never a refusal, and
+  nothing is cached. Keep the digest out of the error: it reaches the log.
+- A record admits a request only when its state is `Active` and, if it has an
+  expiry, the expiry is still in the future (fail closed).
+
+`api_key_digest(credential)` is the lookup key: lowercase hex SHA-256 of the
+whole credential, prefix included. Call it when minting a key and store the
+digest, never the key, so minting and checking cannot disagree. A fast hash
+suffices because a key is random data, not a password.
+
+### Recognition and credential source
+
+Before any read, a credential must start with the prefix, have something after
+it, contain no whitespace, be at most 1 KiB, and pass the optional
+`well_formed(|credential| ..)` check (given the whole credential, prefix
+included: Leyline's Crockford base32 payload and CRC-32 checksum).
+`has_credentials` is true only for a credential that passes, so anything else
+falls through to the next authenticator.
+
+The credential comes from `Authorization: Bearer KEY` (scheme
+case-insensitive) by default. `credential_headers([..])` sets an ordered list
+of headers; the first one present is the only one read. `allow_bare(true)`
+also accepts a key with no scheme (off by default). A duplicated header that
+holds a recognizable key is refused, never treated as absent.
+
+### Caching and the revocation window
+
+| Setting | Default and behavior |
+| --- | --- |
+| `valid_ttl` | 5 minutes, from the read: a hit does not extend it. Expiry is re-checked on every hit. Zero turns the valid-key cache off and nothing else. |
+| `valid_capacity` | 10,000 valid keys, least recently used evicted. |
+| `refresh_ahead` | The last fifth of the TTL. A hit in it is answered from cache and starts one background re-read (one per digest) that refreshes the entry, or evicts it if the key is gone or no longer valid. Zero disables it. |
+| `refusal_backoff(initial, ceiling)` | 2 s and 60 s. An unknown digest is refused without a read for 2 s, then 4, 8, 16, 32 and 60 s while it stays unknown. A revoked, disabled or expired row goes straight to 60 s. A zero ceiling turns refusal caching off. |
+| `refused_capacity` | 20,000 refused digests, in their own LRU, so a flood of forged keys never evicts a valid one. |
+| `lookup_concurrency` | 32 store reads at once. Concurrent misses for one digest share one read (single flight) regardless. |
+
+The refusal ceiling stays below the valid TTL by default: a correct answer is
+cached longer than an incorrect one. A valid read clears a digest's refusal,
+and a refusal clears its valid entry. A store outage caches nothing, and a
+valid entry keeps serving through one until its TTL runs out.
+
+A revocation is seen at once on the instance that calls `forget(digest)` (or
+`forget_credential(key)`) from its revoke or delete path: that removes the
+digest from both caches, and a read already in flight does not cache its
+result. Other instances see it within `valid_ttl`.
+
+On Lambda, the process is frozen between invocations, so a refresh-ahead read
+may only finish during a later invocation. The TTL still bounds staleness: an
+entry past its TTL is never served, refresh or no refresh.
+
+#### Immediate revocation
+
+When revocation must take effect everywhere at once, turn off the valid-key
+cache and keep the rest:
+
+```rust
+let keys = ApiKeyAuthenticator::new("pgn_", store)?.valid_ttl(Duration::ZERO);
+```
+
+Every request with a valid key reads the store, so a revoked key is refused on
+its next use on any instance. Refusal backoff, single flight and the lookup
+limit stay on: a repeated forged key still costs one read per backoff window,
+and a burst of concurrent requests with one key costs one read. Setting
+`refusal_backoff(Duration::ZERO, Duration::ZERO)` as well caches nothing.
+
+### Hooks
+
+- `fence(|| ..)`: while it returns true, every key is refused with no read and
+  no cache hit (Leyline's degraded credential replica).
+- `last_used(recorder)`: an `ApiKeyUsageRecorder` receives the digest and record
+  of an authenticated key at most once per key per `last_used_resolution`
+  (one hour; zero records every use). The throttle is marked before the call,
+  so a failed write is not retried within the window. The call is awaited
+  inline and returns nothing: it cannot fail the request.
+- `clock(..)` injects time for cache ages and expiry, for deterministic tests.
+
+The authenticator never logs a credential or digest and never puts one in an
+error or response.
+
+### Testing
+
+With `test-support`, `test_support::InMemoryApiKeyStore` is a cloneable
+in-memory store: `insert(credential, record)` stores by digest and returns it,
+`revoke`, `remove`, `set_unavailable(true)` simulates an outage, and `lookups()`
+counts reads. See the
+[HTTP test that chains it with a JWT authenticator](../e2e/weather-service/tests/auth_api_keys.rs).
 
 ## Refusals and authorization
 
@@ -295,20 +436,38 @@ identity without request-extension identity bypasses.
 For Leyline, replace the Cognito JWT verifier with an ID-token authenticator
 and preserve its app-client allowlist. Configure
 `credential_header(HeaderName::from_static("x-leyline-authorization"))`:
-CloudFront OAC uses `Authorization` for SigV4. Keep API-key caching,
-revocation, replica health, last-use writes, and rate limits in a custom
-Authenticator. Map the verified subject and key metadata into Leyline's Caller
-and Charge attributes in an authorization/identity interceptor. Preserve its
-modeled AccessDeniedException through the refusal factory. Replace harness
-identity extensions with signed test tokens.
+CloudFront OAC uses `Authorization` for SigV4. Replace its API-key
+authenticator with an `ApiKeyAuthenticator` over its DynamoDB table:
+
+| Leyline feature | `ApiKeyAuthenticator` |
+| --- | --- |
+| `ley_` keys, Crockford base32 payload, CRC-32 checksum | `new("ley_", store)` and `well_formed(..)` with Leyline's validator |
+| `x-leyline-authorization` before `Authorization`; bare keys | `credential_headers([x-leyline-authorization, AUTHORIZATION])`, `allow_bare(true)` |
+| Key cache and revocation | `valid_ttl`, `refusal_backoff`, `forget` on its revoke path |
+| `CREDENTIAL_REPLICA_DEGRADED` | `fence(..)` over its replica health |
+| Last-use writes | `last_used(..)`, `last_used_resolution(..)` |
+| Display name, rate limits | the record's `attributes`, read back from `Principal::claims` |
+| Organization | the record's tenant, `Principal::tenant` |
+
+Rate limiting itself stays in Leyline. Map the verified subject, tenant and key
+attributes into Leyline's Caller and Charge attributes in an
+authorization/identity interceptor. Preserve its modeled AccessDeniedException
+through the refusal factory. Replace harness identity extensions with signed
+test tokens and `InMemoryApiKeyStore`.
 
 For Pigeon, replace the process-global once-only JWKS cache with an ID-token
-authenticator. Keep DynamoDB hashing, revocation, workspace binding, and key
-IDs in its custom Authenticator. Send `Authorization: Bearer TOKEN` explicitly:
-Pigeon's current verifier accepts bare tokens, while this implementation requires
-the scheme. Select a separately scoped access-token authenticator only for
-operations deliberately accepting access tokens. Map `Principal` into Pigeon's
-domain principal, and continue checking workspace membership in authorization.
+authenticator, and its custom `ApiKeys` authenticator with
+`ApiKeyAuthenticator::new("pgn_", store)`, where the store reads its DynamoDB
+table by `api_key_digest` and maps the row's status, workspace and key ID into
+an `ApiKeyRecord`. Mint keys with `api_key_digest` too. Pigeon's requirements
+promise immediate revocation, so use the
+[immediate revocation](#immediate-revocation) configuration
+(`valid_ttl(Duration::ZERO)`). Send `Authorization: Bearer TOKEN` explicitly:
+Pigeon's current verifier accepts bare tokens, while both authenticators require
+the scheme by default. Select a separately scoped access-token authenticator
+only for operations deliberately accepting access tokens. Map `Principal` into
+Pigeon's domain principal: an API key's workspace is `Principal::tenant`; a
+token caller's workspace membership is still checked in authorization.
 
 Neither consumer repository is changed by this feature. Adopt the new crate,
 regenerate server contracts with effective auth metadata, and update each

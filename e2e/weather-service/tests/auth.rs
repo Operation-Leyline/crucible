@@ -16,7 +16,6 @@ use crucible_server_runtime_rust::{
 };
 use serde_json::{Value, json};
 use std::{
-    collections::BTreeSet,
     sync::{
         Arc, OnceLock, RwLock,
         atomic::{AtomicBool, AtomicUsize, Ordering},
@@ -197,15 +196,9 @@ impl Authenticator for ApiKey {
             .get(*name)
             .and_then(|value| value.to_str().ok())
         {
-            Some("active-key") => AuthenticateResult::Authenticated(Principal {
-                subject: "key-123".into(),
-                issuer: "local-store".into(),
-                client_id: None,
-                token_kind: TokenKind::ApiKey,
-                scopes: BTreeSet::new(),
-                groups: BTreeSet::new(),
-                claims: json!({"tenant":"tenant-1"}),
-            }),
+            Some("active-key") => AuthenticateResult::Authenticated(
+                Principal::new("key-123", "local-store", TokenKind::ApiKey).with_tenant("tenant-1"),
+            ),
             Some("store-down") => AuthenticateResult::Unavailable(
                 crucible_server_runtime_rust::Error::internal("store unavailable"),
             ),

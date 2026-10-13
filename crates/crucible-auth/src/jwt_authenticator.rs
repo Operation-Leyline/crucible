@@ -376,15 +376,14 @@ impl JwtAuthenticator {
                 .collect::<Option<BTreeSet<_>>>()
                 .ok_or(AuthError::Refused)?,
         };
-        Ok(Principal {
-            subject: subject.to_owned(),
-            issuer: self.config.issuer.clone(),
-            client_id: Some(client_id),
-            token_kind: rule.kind.clone(),
-            scopes,
-            groups,
-            claims,
-        })
+        // No tenant: a token claim never binds the credential to a tenant.
+        Ok(
+            Principal::new(subject, self.config.issuer.clone(), rule.kind.clone())
+                .with_client_id(client_id)
+                .with_scopes(scopes)
+                .with_groups(groups)
+                .with_claims(claims),
+        )
     }
 }
 
