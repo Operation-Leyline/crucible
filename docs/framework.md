@@ -779,7 +779,9 @@ Bindings and conditions read the typed input: a member path through
 optional members and union arms, `has`, `==`, `in`, `and`, `or` and `not`.
 Nothing is parsed or looked up by name per request. Older API versions'
 modules state no requirements: their requests are authorized by the
-current version's, on the converted input.
+current version's, on the converted input. An operation a later release
+removed is the exception: its legacy handler takes that release's input,
+so its marker keeps that release's requirements and `CHECKS`.
 
 ```rust
 use mail::permissions::Permission;
@@ -834,7 +836,10 @@ For each operation it covers, `Permissions`:
 - **Refuses undeclared operations.** An authenticated operation without
   requirement metadata (bindings generated before the model declared any
   permission) is answered with the internal error and logged as a wiring
-  error; the build logs every such operation. `allow_undeclared()` lets
+  error; the build logs every such operation, and
+  `Permissions::undeclared_operations()`, taken before registering it,
+  reports them once the service is built (for a test or a startup check).
+  `allow_undeclared()` lets
   them through, each pass logged. An operation the model explicitly makes
   public (`Operation::PUBLIC`, from `@auth([])` or a `.cru` public
   operation) has nothing to authorize and passes. An empty list of

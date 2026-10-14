@@ -152,7 +152,13 @@ version's section when it is prepared.
   optional members and union arms; `when` conditions), `PUBLIC` for an
   operation the model makes public, and a constant per `by handler` clause
   (`DeleteGrant::ADMIN_ON_WORKSPACE`); `SERVICE` carries the registry.
-  Older API versions' modules state no requirements. Rust and TypeScript
+  Older API versions' modules state no requirements, except an operation a
+  later release removed, whose legacy handler is authorized by its own
+  release's requirements and `CHECKS`. `Permissions::undeclared_operations()`
+  reports the operations the build found without requirement metadata,
+  older releases' included. A `when` condition compares a number only as a
+  value of its member's type, and never a `bigInteger` or `bigDecimal`
+  member (`permissions.condition`). Rust and TypeScript
   clients get open permission types that keep unknown values (Rust
   `client::permissions::InboxPermission` with `UnknownValue` and
   `canonical()`; TypeScript `InboxPermission` constants,

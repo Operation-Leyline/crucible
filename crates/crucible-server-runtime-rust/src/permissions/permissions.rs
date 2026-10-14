@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use super::session::{RefusalFactory, Registry, Session, Settings, TARGET};
 use super::{
@@ -44,6 +44,25 @@ pub struct Permissions {
     allow_undeclared: bool,
     shadow: bool,
     assert_obligations: bool,
+    undeclared: UndeclaredOperations,
+}
+
+/// The operations a built service serves without requirement metadata,
+/// which [`Permissions`] refuses (or, with
+/// [`allow_undeclared`](Permissions::allow_undeclared), lets through):
+/// what the build logs, for a test or a startup check to assert on. Cheap
+/// to clone; every clone reads the same report.
+#[derive(Clone, Debug, Default)]
+pub struct UndeclaredOperations(Arc<Mutex<Option<Vec<&'static str>>>>);
+
+impl UndeclaredOperations {
+    /// The operations' names, current version's first, then those only an
+    /// older API version serves; `None` until a service with the
+    /// `Permissions` this came from is built. Public operations are never
+    /// listed.
+    pub fn get(&self) -> Option<Vec<&'static str>> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    }
 }
 
 impl Permissions {
@@ -55,7 +74,15 @@ impl Permissions {
             allow_undeclared: false,
             shadow: false,
             assert_obligations: cfg!(any(debug_assertions, feature = "test-support")),
+            undeclared: UndeclaredOperations::default(),
         }
+    }
+
+    /// The report of the operations the built service serves without
+    /// requirement metadata, filled when the service is built. Take it
+    /// before registering `Permissions`.
+    pub fn undeclared_operations(&self) -> UndeclaredOperations {
+        self.undeclared.clone()
     }
 
     /// How a Denied verdict is answered: by default
@@ -531,6 +558,7 @@ impl Interceptor for Permissions {
                 _ => {}
             }
         }
+        *self.undeclared.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(undeclared.clone());
         if !undeclared.is_empty() && !self.allow_undeclared {
             tracing::warn!(
                 target: TARGET,

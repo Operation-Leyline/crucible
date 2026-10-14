@@ -1658,32 +1658,16 @@ fn registering_permissions_after_idempotency_fails_the_build() {
 
 #[test]
 fn the_build_names_authenticated_operations_that_declare_nothing() {
-    #[derive(Clone, Default)]
-    struct Captured(Arc<Mutex<Vec<u8>>>);
-    impl std::io::Write for Captured {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-    let captured = Captured::default();
-    let writer = captured.clone();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(move || writer.clone())
-        .with_ansi(false)
-        .finish();
-    tracing::subscriber::with_default(subscriber, || {
-        Crucible::builder(operations(state()))
-            .protocol(JsonProtocol)
-            .interceptor(Permissions::new(Shared(Arc::default())))
-            .build()
-            .unwrap();
-    });
-    let text = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
-    assert!(text.contains("Legacy"), "{text}");
-    // Public by the model, not by an empty scheme list.
-    assert!(!text.contains("Health"), "{text}");
+    // What the build logs, read from Permissions itself: a captured log
+    // races other tests over the callsite's cached interest.
+    let permissions = Permissions::new(Shared(Arc::default()));
+    let report = permissions.undeclared_operations();
+    assert_eq!(report.get(), None);
+    Crucible::builder(operations(state()))
+        .protocol(JsonProtocol)
+        .interceptor(permissions)
+        .build()
+        .unwrap();
+    // Public by the model, not by an empty scheme list: Health is absent.
+    assert_eq!(report.get(), Some(vec!["Legacy"]));
 }

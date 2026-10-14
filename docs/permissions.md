@@ -946,6 +946,21 @@ constant. A typed reference converts with `.into()` where the handler API
 takes a `ResourceRef` (`discharge(ExecuteQuery::WRITE_ON_GRAPH,
 GraphRef::new(&org, &graph).into())`).
 
+*As built, clients and docs.* The Rust client keeps a deprecated alias as
+its own `#[deprecated]` variant, so it round-trips the value it was sent;
+it equals its primary only after `canonical()`. TypeScript has one
+`canonicalPermission(resourceType, value)` for every resource instead of a
+method per type. The registry JSON (`describe.json` `service.permissions`,
+OpenAPI `x-crucible-permissions`) adds each permission's `symbol` and each
+resource's `identifiers` to the fields above. An operation whose
+requirements are all internal shows as `{"kind": "internal"}` in a
+client-audience `requirements` and `x-crucible-requires`: it says a
+requirement exists without naming it, where omitting it would read as
+`requires none`. A condition never compares a `bigInteger` or
+`bigDecimal` member (test it with `has`), and a compared number must be a
+value of the member's type, so every generator states the comparison in
+that type (`float` as `f32`).
+
 ### 6.3 Clients, docs and OpenAPI
 
 - **SDKs.** Each client gets the registry as constants of its language,
@@ -1138,7 +1153,12 @@ handler               loads; data-dependent validation; obligations discharged
   authorization, in the handler, or a 400 becomes an existence oracle.
 - **After API-version conversion.** Interceptors see the current version's
   input (`docs/framework.md`, "serving older API versions"), so
-  requirements are written against the current model only.
+  requirements are written against the current model only. The exception
+  is an operation a later release removed: its legacy handler receives
+  the last release's input, so that release's own requirements and
+  `CHECKS` authorize it, naming the current permission statics (matched by
+  authorization name and value; a permission the current model no longer
+  declares is a build error).
 - **Before `Idempotency`.** Today Pigeon claims the token and then the
   handler authorizes (`send_message.rs:261-264`). A refused request costs a
   claim and a release, and a **replay is served without any authorization

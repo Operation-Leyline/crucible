@@ -111,6 +111,7 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
             "variant",
             diagnostics,
         );
+        associated_names(id, names, diagnostics);
         let resource = names.resource;
         out.push_str(&format!(
             "\n/// `{}`, as authorization names it.\npub(super) static {}: {P}::ResourceInfo = {P}::ResourceInfo {{\n    name: {},\n    identifiers: &[{}],\n    not_found: {},\n}};\n",
@@ -150,6 +151,33 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
         "\n/// The model's permissions: a closed enum per resource, [`Permission`]\n/// over all of them, and typed references to the instances checks name.\n#[allow(deprecated, unreachable_patterns, clippy::all)]\npub mod permissions {{\n{}}}\n",
         crate::indent(&out)
     )
+}
+
+/// The names one resource's enum defines as `Self::..`: its generated
+/// constants, a variant per primary and a constant per alias. Two alike
+/// would not compile, so they are a diagnostic.
+fn associated_names(id: &ShapeId, names: &Names<'_>, diagnostics: &mut Diagnostics) {
+    let mut taken: BTreeMap<String, String> = ["ALL", "RESOURCE"]
+        .into_iter()
+        .map(|name| (name.to_owned(), format!("the generated `{name}`")))
+        .collect();
+    for permission in &names.resource.permissions {
+        let name = if permission.alias_of.is_some() {
+            constant(&permission.symbol)
+        } else {
+            variant(&permission.symbol)
+        };
+        let this = format!("permission `{}`", permission.symbol);
+        if let Some(previous) = taken.insert(name.clone(), this.clone()) {
+            diagnostics.push(
+                id,
+                format!(
+                    "{this} generates `{}::{name}`, as {previous} does",
+                    names.permission_enum()
+                ),
+            );
+        }
+    }
 }
 
 fn tier(tier: Tier) -> &'static str {
@@ -534,7 +562,7 @@ pub(crate) fn marker_items(
     ));
     if let Some(checks) = checks(service, op, diagnostics) {
         out.push_str(&format!(
-            "    #[allow(clippy::all, unreachable_patterns)]\n    const CHECKS: ::std::option::Option<{P}::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {{\n{checks}    }});\n"
+            "    #[allow(clippy::all, unreachable_patterns, unused_parens)]\n    const CHECKS: ::std::option::Option<{P}::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {{\n{checks}    }});\n"
         ));
     }
     out
@@ -899,9 +927,15 @@ impl<'a> Reader<'a> {
                         | SimpleKind::Long,
                         Value::Number(n),
                     ) if n.is_i64() => format!("i64::from(*v) == {n}"),
-                    (SimpleKind::Float | SimpleKind::Double, Value::Number(n)) => {
+                    // Compared in the member's own type: the literal is
+                    // the nearest value of it, as the decoded input is.
+                    (SimpleKind::Float, Value::Number(n)) => {
                         let n = n.as_f64().unwrap_or_default();
-                        format!("f64::from(*v) == {n:?}")
+                        format!("*v == {n:?}_f32")
+                    }
+                    (SimpleKind::Double, Value::Number(n)) => {
+                        let n = n.as_f64().unwrap_or_default();
+                        format!("*v == {n:?}_f64")
                     }
                     _ => {
                         diagnostics.push(

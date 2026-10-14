@@ -183,18 +183,23 @@ pub(crate) fn body(
     explorer_service: &Service,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    body_with(service, options, explorer_service, true, diagnostics)
+    body_with(service, options, explorer_service, true, false, diagnostics)
 }
 
 /// [`body`], with `strict` false for an older release. Its output types read
 /// the current version's values converted down, which may carry members
 /// added since, so a structure an output or error reaches never refuses an
 /// unknown member; one only inputs reach decodes as strictly as before.
+///
+/// `parent_permissions`: the module states requirements against the
+/// service module's `permissions`, two levels up (an older release's
+/// legacy operations), instead of generating its own.
 pub(crate) fn body_with(
     service: &Service,
     options: &Options,
     explorer_service: &Service,
     strict: bool,
+    parent_permissions: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let mut strict_shapes = models::strict_shapes(service, options.strict_inputs);
@@ -274,7 +279,11 @@ pub(crate) fn body_with(
         info::redactions(service),
         operations::emit(service, functions, options.mcp, diagnostics),
         events::statics(service, diagnostics, false),
-        permissions::module(service, diagnostics),
+        if parent_permissions {
+            "\n#[allow(unused_imports)]\nuse super::super::permissions;\n".to_owned()
+        } else {
+            permissions::module(service, diagnostics)
+        },
     );
     let exports = server_api::exports(service, diagnostics);
     let mcp = if options.mcp {

@@ -239,7 +239,8 @@ language's own checks include:
   identifier the input binds, `*` binds only the resource's own
   identifier, and no binding passes through a list or map;
   a path through an optional member or union arm is guarded by `when`,
-  which reads input members and compares like with like; `filters`
+  which reads input members and compares like with like (a number of the
+  member's own type; never a `bigInteger` or `bigDecimal`); `filters`
   appears once, on a `lists` or `on .. collection` operation; `by handler`
   takes no bindings or `when`; `@authorizationName` is on a resource
   that declares permissions; and once a service declares any permission,

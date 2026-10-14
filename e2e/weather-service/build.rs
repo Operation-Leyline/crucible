@@ -100,6 +100,25 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Every kind of `when` condition and binding, through the interceptor.
+    std::fs::write(
+        out.join("conditions.rs"),
+        crucible_build::model("conditions")
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+    // Permissions across releases: a removed operation's legacy handler is
+    // authorized by its own release's requirements.
+    std::fs::write(
+        out.join("versioned_permissions.rs"),
+        crucible_build::model("versioned_permissions")
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     // A client of the current release, which names it in `Crucible-Version`.
     std::fs::write(
         out.join("versioned_client.rs"),

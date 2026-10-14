@@ -1,0 +1,5 @@
+# Typed permissions' `when` conditions and bindings (docs/permissions.md
+# §4.5), generated and enforced end to end by tests/permissions_conditions.rs.
+[model]
+namespace = "test.conditions"
+imports = ["crucible.errors"]

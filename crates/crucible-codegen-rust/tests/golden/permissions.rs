@@ -359,7 +359,7 @@ pub mod leyline {
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
         ]);
-        #[allow(clippy::all, unreachable_patterns)]
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__WRITE, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
         });
@@ -407,7 +407,7 @@ pub mod leyline {
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::HISTORY__READ, conditional: true },
         ]);
-        #[allow(clippy::all, unreachable_patterns)]
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.graph_id)])));
             if input.target.as_ref().and_then(|v| match v { model::QueryTarget::History(v) => ::std::option::Option::Some(v), _ => ::std::option::Option::None }).is_some() {
@@ -464,7 +464,7 @@ pub mod leyline {
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
         ]);
-        #[allow(clippy::all, unreachable_patterns)]
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.graph)])));
         });
@@ -507,7 +507,7 @@ pub mod leyline {
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: false },
         ]);
-        #[allow(clippy::all, unreachable_patterns)]
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::ORGANIZATION__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::ORGANIZATION, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id)])));
         });
@@ -587,7 +587,7 @@ pub mod leyline {
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::GRAPH__READ, conditional: false },
         ]);
-        #[allow(clippy::all, unreachable_patterns)]
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
         const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
             out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::all(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.org)])));
         });

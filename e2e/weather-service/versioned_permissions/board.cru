@@ -1,0 +1,45 @@
+/// Boards and their notes, authorized per resource.
+service Board {
+    version "v2"
+    protocol json
+    auth bearer
+
+    resources [Shelf]
+    errors [ValidationException, InternalServerException]
+}
+
+string ShelfId
+string NoteId
+
+/// A shelf of notes.
+resource Shelf {
+    id shelfId: ShelfId
+
+    /// Count the notes on it.
+    permission count = "shelf:count"
+}
+
+/// A note on a shelf.
+resource Note in Shelf {
+    id noteId: NoteId
+
+    /// The note.
+    permission read = "note:read"
+}
+
+readonly operation GetNote reads Note {
+    http GET "/shelves/{shelfId}/notes/{noteId}"
+    requires read
+    input {
+        $shelfId
+        $noteId
+    }
+    output { body: string }
+}
+
+// v2 renamed the note's text and dropped CountNotes, which v1 callers
+// still reach through a legacy handler bound by v1's own requirements.
+migration "v2" from "v1" {
+    rename GetNote.output.text -> body
+    remove operation CountNotes
+}

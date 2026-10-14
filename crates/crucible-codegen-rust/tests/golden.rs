@@ -39,6 +39,28 @@ fn scoped_server_metadata_matches_golden() {
     matches_golden(&code, "scopes.rs");
 }
 
+/// An alias whose constant is one the enum already defines (`ALL`,
+/// `RESOURCE`) is a diagnostic, not code that does not compile.
+#[test]
+fn an_alias_named_like_a_generated_constant_is_a_diagnostic() {
+    for symbol in ["ALL", "RESOURCE"] {
+        let model = include_str!("../../crucible-smithy/tests/fixtures/permissions.json")
+            .replace("\"VIEW\":", &format!("\"{symbol}\":"));
+        let service = Model::from_json(&model)
+            .unwrap()
+            .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+            .unwrap();
+        let diagnostics = generate(&service, &Options::default()).unwrap_err();
+        assert!(
+            diagnostics.iter().any(|d| d.message
+                == format!(
+                    "permission `{symbol}` generates `GraphPermission::{symbol}`, as the generated `{symbol}` does"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+}
+
 /// Typed permissions (docs/permissions.md §6.2): the descriptions, the
 /// closed enums and typed references, and per operation its requirements,
 /// the bindings' `CHECKS` and its handler obligations.
