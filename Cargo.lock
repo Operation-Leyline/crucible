@@ -793,6 +793,7 @@ name = "crucible-codegen-docs"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
 ]
@@ -841,6 +842,7 @@ name = "crucible-codegen-openapi"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
 ]
@@ -928,6 +930,7 @@ name = "crucible-codegen-ts"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
 ]

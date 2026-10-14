@@ -1,10 +1,14 @@
 # Typed permissions
 
-**Status: accepted; phases A1 and A2 are implemented, B is pending.** A1
-(the `.cru` language, the IR and the checks) is built: its syntax is in
-[idl/reference.md](idl/reference.md) and its decisions are 37a-37k in
-[idl/decisions.md](idl/decisions.md). The A2 runtime is in
-[framework.md](framework.md). The B generators are not built yet.
+**Status: accepted; phases A1, A2 and B are implemented, C is pending.**
+A1 (the `.cru` language, the IR and the checks; #245, made `.cru`-only by
+#247) is built: its syntax is in [idl/reference.md](idl/reference.md) and
+its decisions are 37a-37k in [idl/decisions.md](idl/decisions.md). The A2
+runtime (#246) and the B generators (#248: server bindings, client
+constants, the API reference and OpenAPI) are in
+[framework.md](framework.md#typed-permissions); the "As built" notes in
+§6.2 say where they differ from this document. Phase C, the consumers'
+adoption (Pigeon first, then Leyline; §10), has not started.
 
 **Permissions are declared in `.cru` models only.** A Smithy model cannot
 declare them: a consumer whose model is Smithy, such as Leyline, migrates
@@ -886,6 +890,41 @@ type-erased `checks` that downcasts `&dyn Input` (the pattern
 it. Every per-request cost is the binding clones and one `Vec`. Nothing is
 parsed or looked up by name at request time.
 
+*As built (phase B).* The enums, references and statics live in a
+`permissions` submodule of the service module (`pigeon::permissions::InboxPermission`),
+so they never collide with a model shape, such as an enum the model names
+`GraphPermission`. The typed reference over all resources is
+`permissions::Resource` (it would shadow the runtime's `ResourceRef` under
+the spec's name), built with `TryFrom<&ResourceRef>`. Per-resource enums have
+`parse(value) -> Option<Self>` rather than `FromStr`, which would need an
+error type of its own. Obligation constants are associated with the
+operation's marker type (`ExecuteQuery::WRITE_ON_GRAPH`): `ExecuteQueryOperation`
+is the trait the service implements, which cannot carry an inherent
+constant. Each is named `<PERMISSION>_ON_<RESOURCE>`; when two of an
+operation's clauses spell the same name (`lockOn` on `Room` and `lock` on
+`OnRoom`), the first keeps it and each later one gets its ordinal among
+them, `_2`, `_3`, in declaration order, so adding a clause never renames
+one a handler already uses. Two clauses with the same permission and
+resource cannot both exist: a `by handler` clause takes no bindings or
+`when`, so the second would repeat the first (`permissions.duplicate-clause`). A typed reference converts with `.into()` where the handler API
+takes a `ResourceRef` (`discharge(ExecuteQuery::WRITE_ON_GRAPH,
+GraphRef::new(&org, &graph).into())`).
+
+*As built, clients and docs.* The Rust client keeps a deprecated alias as
+its own `#[deprecated]` variant, so it round-trips the value it was sent;
+it equals its primary only after `canonical()`. TypeScript has one
+`canonicalPermission(resourceType, value)` for every resource instead of a
+method per type. The registry JSON (`describe.json` `service.permissions`,
+OpenAPI `x-crucible-permissions`) adds each permission's `symbol` and each
+resource's `identifiers` to the fields above. An operation whose
+requirements are all internal shows as `{"kind": "internal"}` in a
+client-audience `requirements` and `x-crucible-requires`: it says a
+requirement exists without naming it, where omitting it would read as
+`requires none`. A condition never compares a `bigInteger` or
+`bigDecimal` member (test it with `has`), and a compared number must be a
+value of the member's type, so every generator states the comparison in
+that type (`float` as `f32`).
+
 ### 6.3 Clients, docs and OpenAPI
 
 - **SDKs.** Each client gets the registry as constants of its language,
@@ -1078,7 +1117,12 @@ handler               loads; data-dependent validation; obligations discharged
   authorization, in the handler, or a 400 becomes an existence oracle.
 - **After API-version conversion.** Interceptors see the current version's
   input (`docs/framework.md`, "serving older API versions"), so
-  requirements are written against the current model only.
+  requirements are written against the current model only. The exception
+  is an operation a later release removed: its legacy handler receives
+  the last release's input, so that release's own requirements and
+  `CHECKS` authorize it, naming the current permission statics (matched by
+  authorization name and value; a permission the current model no longer
+  declares is a build error).
 - **Before `Idempotency`.** Today Pigeon claims the token and then the
   handler authorizes (`send_message.rs:261-264`). A refused request costs a
   claim and a release, and a **replay is served without any authorization

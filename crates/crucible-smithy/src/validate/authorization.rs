@@ -1055,18 +1055,32 @@ impl<'a> Checker<'a> {
                     step.member.target.name()
                 )),
             }),
+            // Arbitrary precision has no one equality every generator
+            // agrees on (`1.0` and `1.00`): test it with `has`.
+            Some(Shape::Simple(s))
+                if matches!(s.kind, SimpleKind::BigInteger | SimpleKind::BigDecimal) =>
+            {
+                Some(format!(
+                    "`{text}` is a {:?} value, which a condition cannot compare; test it with `has`",
+                    s.kind
+                ))
+            }
             Some(Shape::Simple(s)) => {
+                // Each literal must be a value of the member's type, so
+                // every generator can state the comparison.
+                let integer = |v: &Value, min: i64, max: i64| {
+                    v.as_i64().is_some_and(|n| (min..=max).contains(&n))
+                };
                 let fits = |v: &Value| match s.kind {
                     SimpleKind::String => v.is_string(),
                     SimpleKind::Boolean => v.is_boolean(),
-                    SimpleKind::Byte
-                    | SimpleKind::Short
-                    | SimpleKind::Integer
-                    | SimpleKind::Long
-                    | SimpleKind::BigInteger => v.is_i64() || v.is_u64(),
-                    SimpleKind::Float | SimpleKind::Double | SimpleKind::BigDecimal => {
-                        v.is_number()
-                    }
+                    SimpleKind::Byte => integer(v, i8::MIN.into(), i8::MAX.into()),
+                    SimpleKind::Short => integer(v, i16::MIN.into(), i16::MAX.into()),
+                    SimpleKind::Integer => integer(v, i32::MIN.into(), i32::MAX.into()),
+                    SimpleKind::Long => v.is_i64(),
+                    #[allow(clippy::cast_possible_truncation)]
+                    SimpleKind::Float => v.as_f64().is_some_and(|n| (n as f32).is_finite()),
+                    SimpleKind::Double => v.as_f64().is_some_and(f64::is_finite),
                     _ => false,
                 };
                 values.iter().find(|v| !fits(v)).map(|v| {

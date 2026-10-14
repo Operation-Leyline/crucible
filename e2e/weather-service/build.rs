@@ -59,6 +59,36 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Typed permissions: tests/permissions.rs serves this model's bindings
+    // and enforces their requirements end to end.
+    println!("cargo::rerun-if-changed=permissions");
+    std::fs::write(
+        out.join("permissions.rs"),
+        crucible_build::model("permissions")
+            .server()
+            .mcp()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+    // The generators' shared fixture: a binding through a union arm, a
+    // filter, a handler clause and an internal permission.
+    let leyline = "../../tests/fixtures/permissions";
+    println!("cargo::rerun-if-changed={leyline}");
+    std::fs::write(
+        out.join("leyline_permissions.rs"),
+        crucible_build::model(leyline).server().render().unwrap(),
+    )
+    .unwrap();
+    // And its client: open permission constants without the internal ones.
+    std::fs::write(
+        out.join("permissions_client.rs"),
+        crucible_build::model("permissions")
+            .client()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     // Three releases of one API, the older two served from the current
     // implementation (docs/api-versions.md).
     std::fs::write(
@@ -66,6 +96,25 @@ fn main() {
         crucible_build::model("versioned")
             .server()
             .mcp()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+    // Every kind of `when` condition and binding, through the interceptor.
+    std::fs::write(
+        out.join("conditions.rs"),
+        crucible_build::model("conditions")
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+    // Permissions across releases: a removed operation's legacy handler is
+    // authorized by its own release's requirements.
+    std::fs::write(
+        out.join("versioned_permissions.rs"),
+        crucible_build::model("versioned_permissions")
+            .server()
             .render()
             .unwrap(),
     )

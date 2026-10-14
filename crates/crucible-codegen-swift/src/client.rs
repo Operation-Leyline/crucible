@@ -42,6 +42,10 @@ fn operation_docs(
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
+    for sentence in docs::requirement_notes(service, op) {
+        text.push_str("\n\n");
+        text.push_str(&sentence);
+    }
     for note in docs::note_paragraphs(&op.notes) {
         text.push_str("\n\n");
         text.push_str(&note);

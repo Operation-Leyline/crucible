@@ -1,8 +1,12 @@
-//! Typed permissions over HTTP. The operations here are hand-written the way
-//! generated bindings will state them (`Operation::REQUIREMENTS`, `CHECKS`,
-//! obligation constants), and `Permissions` enforces them through a test
-//! Authorizer that keeps grants and workspace memberships in memory: a
-//! non-member is Hidden (404), a member without the grant is Denied (403).
+//! Typed permissions over HTTP, generated end to end: the operations are
+//! the bindings `crucible-codegen-rust` generates from
+//! `permissions/mail.cru` (`Operation::REQUIREMENTS`, `CHECKS`, obligation
+//! constants, the closed permission enums), and `Permissions` enforces them
+//! through a test Authorizer that keeps grants and workspace memberships in
+//! memory: a non-member is Hidden (404), a member without the grant is
+//! Denied (403). The two operations the compiler would refuse stay
+//! hand-written: one whose `CHECKS` binds nothing, and one with no
+//! requirement metadata.
 use crucible_server_runtime_rust::__generated as generated;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -14,13 +18,12 @@ use crucible_server_runtime_rust::idempotency::{
     MemoryIdempotencyStore, Ownership, StoredResponse,
 };
 use crucible_server_runtime_rust::operation::{
-    AuthScheme, Location, MemberInfo, OutputFromJson, PaginationMember, Redaction, Scalar, Segment,
-    Unit,
+    AuthScheme, Location, MemberInfo, Redaction, Scalar, Segment, Unit,
 };
 use crucible_server_runtime_rust::permissions::{
     self, AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Checks, Listing, Mode,
-    Obligation, ObligationOutcome, ObligationRecord, OperationFacts, PermissionInfo, Permissions,
-    RequirementInfo, Requirements, ResourceInfo, ResourceRef, Target, Tier, Verdict, Visibility,
+    ObligationOutcome, ObligationRecord, OperationFacts, PermissionInfo, Permissions,
+    RequirementInfo, Requirements, ResourceRef, Target, Tier, Verdict, Visibility,
 };
 use crucible_server_runtime_rust::validate::{Validate, Validator};
 use crucible_server_runtime_rust::{
@@ -29,110 +32,139 @@ use crucible_server_runtime_rust::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use weather_service::weather;
 
-// The model: a workspace owns inboxes and templates; graphs are a root
-// resource whose permission is internal.
+include!(concat!(env!("OUT_DIR"), "/permissions.rs"));
 
-static WORKSPACE: ResourceInfo = ResourceInfo {
-    name: "workspace",
-    identifiers: &["workspaceId"],
-    not_found: "No such workspace.",
-};
-static INBOX: ResourceInfo = ResourceInfo {
-    name: "inbox",
-    identifiers: &["workspaceId", "inboxId"],
-    not_found: "No such inbox.",
-};
-static TEMPLATE: ResourceInfo = ResourceInfo {
-    name: "template",
-    identifiers: &["workspaceId", "templateId"],
-    not_found: "No such template.",
-};
-static GRAPH: ResourceInfo = ResourceInfo {
-    name: "graph",
-    identifiers: &["graphId"],
-    not_found: "No such graph.",
+use mail::permissions::{
+    GraphPermission, InboxPermission, InboxRef, Permission, Resource, TemplatePermission,
+    WorkspacePermission, WorkspaceRef,
 };
 
-/// A permission as generated code describes it, its 403 message included.
-const fn permission(
-    resource: &'static ResourceInfo,
-    symbol: &'static str,
-    value: &'static str,
-    tier: Tier,
-    denied: &'static str,
-) -> PermissionInfo {
-    PermissionInfo {
-        resource,
-        symbol,
-        value,
-        aliases: &[],
-        tier,
-        denied,
-    }
+// The model's permissions, by the names the tests grant.
+
+const WORKSPACE_ADMIN: &PermissionInfo = WorkspacePermission::Admin.info();
+const GRANT_MANAGE: &PermissionInfo = WorkspacePermission::GrantManage.info();
+const INBOX_READ: &PermissionInfo = InboxPermission::Read.info();
+const INBOX_MANAGE: &PermissionInfo = InboxPermission::Manage.info();
+const MAIL_SEND: &PermissionInfo = InboxPermission::MailSend.info();
+const TEMPLATE_READ: &PermissionInfo = TemplatePermission::Read.info();
+const GRAPH_READ: &PermissionInfo = GraphPermission::Read.info();
+
+#[test]
+fn the_generated_descriptions_state_the_model() {
+    // One description per permission, its 403 message generated with it.
+    assert_eq!(MAIL_SEND.value, "mail:send");
+    assert_eq!(MAIL_SEND.aliases, ["email:send"]);
+    assert_eq!(MAIL_SEND.resource.identifiers, ["workspaceId", "inboxId"]);
+    assert_eq!(MAIL_SEND.resource.not_found, "No such inbox.");
+    assert_eq!(
+        MAIL_SEND.denied,
+        "This principal does not hold mail:send on that inbox."
+    );
+    assert_eq!(WORKSPACE_ADMIN.tier, Tier::NotGrantable);
+    assert_eq!(GRAPH_READ.tier, Tier::Internal);
+    assert_eq!(
+        GRAPH_READ.denied,
+        "This principal may not perform this operation."
+    );
+    // An alias is a constant, never a variant, and parses to its primary.
+    #[allow(deprecated)]
+    let alias = InboxPermission::EMAIL_SEND;
+    assert_eq!(alias, InboxPermission::MailSend);
+    assert_eq!(InboxPermission::parse("email:send"), Some(alias));
+    assert_eq!(InboxPermission::parse("mail:read"), None);
+    assert_eq!(
+        Permission::parse("inbox", "email:send"),
+        Some(Permission::Inbox(InboxPermission::MailSend))
+    );
+    assert_eq!(Permission::parse("template", "mail:send"), None);
+    assert_eq!(Permission::of("workspace").len(), 2);
+    assert_eq!(Permission::from_info(GRAPH_READ).to_string(), "graph:read");
+    // The registry is every primary, sorted by resource and value.
+    let registry: Vec<&str> = mail::SERVICE.permissions.iter().map(|p| p.value).collect();
+    assert_eq!(
+        registry,
+        [
+            "graph:read",
+            "inbox:manage",
+            "inbox:read",
+            "mail:send",
+            "template:read",
+            "grant:manage",
+            "workspace:admin"
+        ]
+    );
+    // Requirements mirror the model's clauses, in source order.
+    let Requirements::List(clauses) = <mail::SendMessage as Operation>::REQUIREMENTS else {
+        panic!("SendMessage declares requirements");
+    };
+    assert_eq!(clauses.len(), 2);
+    assert!(std::ptr::eq(clauses[0].permission, MAIL_SEND));
+    assert!(!clauses[0].conditional && clauses[1].conditional);
+    assert_eq!(
+        <mail::GetUsage as Operation>::REQUIREMENTS,
+        Requirements::Pending {
+            reason: "guard::allow in get_usage.rs"
+        }
+    );
+    assert_eq!(<mail::GetMe as Operation>::REQUIREMENTS, Requirements::None);
+    // Public by the model's `public`, so nothing to authorize; an
+    // authenticated operation never is.
+    const { assert!(<mail::Health as Operation>::PUBLIC) };
+    const { assert!(!<mail::GetMe as Operation>::PUBLIC) };
+    assert_eq!(
+        <mail::Health as Operation>::REQUIREMENTS,
+        Requirements::Undeclared
+    );
+    let obligation = mail::DeleteGrant::ADMIN_ON_WORKSPACE;
+    assert_eq!(obligation.operation, "test.permissions#DeleteGrant");
+    assert_eq!(obligation.index, 1);
+    assert!(std::ptr::eq(obligation.permission, WORKSPACE_ADMIN));
 }
 
-static WORKSPACE_ADMIN: PermissionInfo = permission(
-    &WORKSPACE,
-    "admin",
-    "workspace:admin",
-    Tier::NotGrantable,
-    "This principal does not hold workspace:admin on that workspace.",
-);
-static GRANT_MANAGE: PermissionInfo = permission(
-    &WORKSPACE,
-    "grantManage",
-    "grant:manage",
-    Tier::Public,
-    "This principal does not hold grant:manage on that workspace.",
-);
-static INBOX_READ: PermissionInfo = permission(
-    &INBOX,
-    "read",
-    "inbox:read",
-    Tier::Public,
-    "This principal does not hold inbox:read on that inbox.",
-);
-static INBOX_MANAGE: PermissionInfo = permission(
-    &INBOX,
-    "manage",
-    "inbox:manage",
-    Tier::Public,
-    "This principal does not hold inbox:manage on that inbox.",
-);
-static MAIL_SEND: PermissionInfo = PermissionInfo {
-    resource: &INBOX,
-    symbol: "mailSend",
-    value: "mail:send",
-    aliases: &["email:send"],
-    tier: Tier::Public,
-    denied: "This principal does not hold mail:send on that inbox.",
-};
-static TEMPLATE_READ: PermissionInfo = permission(
-    &TEMPLATE,
-    "read",
-    "template:read",
-    Tier::Public,
-    "This principal does not hold template:read on that template.",
-);
-static GRAPH_READ: PermissionInfo = permission(
-    &GRAPH,
-    "read",
-    "graph:read",
-    Tier::Internal,
-    "This principal does not hold graph:read on that graph.",
-);
-
-const fn check(permission: &'static PermissionInfo, conditional: bool) -> RequirementInfo {
-    RequirementInfo {
-        mode: Mode::Check,
-        permission,
-        conditional,
-    }
+#[test]
+fn checks_bind_the_typed_input() {
+    let checks = |input: &mail::SendMessageInput| {
+        let mut out = Vec::new();
+        (<mail::SendMessage as Operation>::CHECKS.unwrap())(input, &mut out);
+        out.into_iter()
+            .map(|check| format!("{} on {}", check.permission.value, check.resource))
+            .collect::<Vec<_>>()
+    };
+    let mut input = mail::SendMessageInput {
+        workspace_id: "w1".into(),
+        inbox_id: "i1".into(),
+        template_id: None,
+        client_token: None,
+    };
+    assert_eq!(checks(&input), ["mail:send on inbox(w1, i1)"]);
+    input.template_id = Some("t1".into());
+    assert_eq!(
+        checks(&input),
+        [
+            "mail:send on inbox(w1, i1)",
+            "template:read on template(w1, t1)"
+        ]
+    );
+    // A collection requirement names every instance under the parent.
+    let mut out = Vec::new();
+    (<mail::CreateInbox as Operation>::CHECKS.unwrap())(
+        &mail::CreateInboxInput {
+            workspace_id: "w1".into(),
+        },
+        &mut out,
+    );
+    assert_eq!(out[0].resource, ResourceRef::from(InboxRef::all("w1")));
+    // The typed view of a check's resource.
+    let Ok(Resource::Inbox(inbox)) = Resource::try_from(&out[0].resource) else {
+        panic!("an inbox");
+    };
+    assert_eq!(inbox.workspace_id, "w1");
+    assert_eq!(inbox.inbox_id, Target::All);
+    assert!(WorkspaceRef::try_from(&out[0].resource).is_err());
 }
 
-// Wire descriptions.
+// The operations generated code does not describe.
 
 const fn label(name: &'static str) -> MemberInfo {
     generated::member_info(
@@ -147,219 +179,74 @@ const fn member(name: &'static str) -> MemberInfo {
     generated::member_info(name, Location::Body, Scalar::Json, &Redaction::Public, &[])
 }
 const OUTPUT: &[MemberInfo] = &[member("value")];
-const TOKEN: PaginationMember = PaginationMember {
-    name: "clientToken",
-    wire_name: "clientToken",
-};
 
-#[allow(clippy::too_many_arguments)]
 const fn info(
-    name: &'static str,
     id: &'static str,
-    method: &'static str,
+    name: &'static str,
     path: &'static [Segment],
     input: &'static [MemberInfo],
-    errors: &'static [&'static str],
-    readonly: bool,
-    token: Option<&'static str>,
 ) -> OperationInfo {
     generated::operation_info(
         id,
         name,
         None,
-        method,
+        "GET",
         path,
         &[],
         200,
         input,
         OUTPUT,
-        errors,
-        readonly,
+        &[],
+        true,
         false,
         false,
-        token,
+        None,
         &[],
     )
 }
 
-const W: Segment = Segment::Literal("w");
-const WS: Segment = Segment::Label("workspaceId");
-const INBOXES: Segment = Segment::Literal("inboxes");
-const INBOX_ID: Segment = Segment::Label("inboxId");
-
-static GET_INBOX: OperationInfo = info(
-    "GetInbox",
-    "test.permissions#GetInbox",
-    "GET",
-    &[W, WS, INBOXES, INBOX_ID],
-    &[label("workspaceId"), label("inboxId")],
-    &["ConflictError"],
-    true,
-    None,
-);
-static SEND_MESSAGE: OperationInfo = info(
-    "SendMessage",
-    "test.permissions#SendMessage",
-    "POST",
-    &[W, WS, INBOXES, INBOX_ID, Segment::Literal("messages")],
-    &[
-        label("workspaceId"),
-        label("inboxId"),
-        member("templateId"),
-        member("clientToken"),
-    ],
-    &[],
-    false,
-    Some("clientToken"),
-);
-static CREATE_INBOX: OperationInfo = info(
-    "CreateInbox",
-    "test.permissions#CreateInbox",
-    "POST",
-    &[W, WS, INBOXES],
-    &[label("workspaceId")],
-    &[],
-    false,
-    None,
-);
-static LIST_INBOXES: OperationInfo = info(
-    "ListInboxes",
-    "test.permissions#ListInboxes",
-    "GET",
-    &[W, WS, INBOXES],
-    &[label("workspaceId")],
-    &[],
-    true,
-    None,
-);
-static RENAME_INBOX: OperationInfo = info(
-    "RenameInbox",
-    "test.permissions#RenameInbox",
-    "POST",
-    &[W, WS, INBOXES, INBOX_ID, Segment::Literal("rename")],
-    &[label("workspaceId"), label("inboxId")],
-    &[],
-    false,
-    None,
-);
-static GET_USAGE: OperationInfo = info(
-    "GetUsage",
-    "test.permissions#GetUsage",
-    "GET",
-    &[W, WS, Segment::Literal("usage")],
-    &[label("workspaceId")],
-    &[],
-    true,
-    None,
-);
-static DELETE_GRANT: OperationInfo = info(
-    "DeleteGrant",
-    "test.permissions#DeleteGrant",
-    "POST",
-    &[W, WS, Segment::Literal("grants"), Segment::Label("grantId")],
-    &[
-        label("workspaceId"),
-        label("grantId"),
-        member("mode"),
-        member("clientToken"),
-    ],
-    &[],
-    false,
-    Some("clientToken"),
-);
-static DELEGATE: OperationInfo = info(
-    "Delegate",
-    "test.permissions#Delegate",
-    "POST",
-    &[W, WS, Segment::Literal("delegate")],
-    &[label("workspaceId"), member("permissions")],
-    &[],
-    false,
-    None,
-);
-static GET_GRAPH: OperationInfo = info(
-    "GetGraph",
-    "test.permissions#GetGraph",
-    "GET",
-    &[Segment::Literal("graphs"), Segment::Label("graphId")],
-    &[label("graphId")],
-    &[],
-    true,
-    None,
-);
-static SEARCH_INBOXES: OperationInfo = info(
-    "SearchInboxes",
-    "test.permissions#SearchInboxes",
-    "GET",
-    &[W, WS, Segment::Literal("search")],
-    &[label("workspaceId")],
-    &[],
-    true,
-    None,
-);
 static MISWIRED: OperationInfo = info(
-    "Miswired",
     "test.permissions#Miswired",
-    "GET",
-    &[W, WS, INBOXES, INBOX_ID, Segment::Literal("miswired")],
+    "Miswired",
+    &[
+        Segment::Literal("w"),
+        Segment::Label("workspaceId"),
+        Segment::Literal("inboxes"),
+        Segment::Label("inboxId"),
+        Segment::Literal("miswired"),
+    ],
     &[label("workspaceId"), label("inboxId")],
-    &[],
-    true,
-    None,
-);
-static GET_ME: OperationInfo = info(
-    "GetMe",
-    "test.permissions#GetMe",
-    "GET",
-    &[Segment::Literal("me")],
-    &[],
-    &[],
-    true,
-    None,
 );
 static LEGACY: OperationInfo = info(
-    "Legacy",
     "test.permissions#Legacy",
-    "GET",
+    "Legacy",
     &[Segment::Literal("legacy")],
     &[],
-    &[],
-    true,
-    None,
-);
-static HEALTH: OperationInfo = info(
-    "Health",
-    "test.permissions#Health",
-    "GET",
-    &[Segment::Literal("health")],
-    &[],
-    &[],
-    true,
-    None,
 );
 
+/// The generated service, with the hand-written operations added.
 static SERVICE: ServiceInfo = {
-    let base = &(weather::SERVICE);
+    let base = &mail::SERVICE;
     generated::service_info(
-        "test.permissions#Service",
+        "test.permissions#Mail",
         base.version,
         None,
         None,
         &[
-            &GET_INBOX,
-            &SEND_MESSAGE,
-            &CREATE_INBOX,
-            &LIST_INBOXES,
-            &RENAME_INBOX,
-            &GET_USAGE,
-            &DELETE_GRANT,
-            &DELEGATE,
-            &GET_GRAPH,
-            &SEARCH_INBOXES,
+            <mail::GetInbox as Operation>::INFO,
+            <mail::SendMessage as Operation>::INFO,
+            <mail::CreateInbox as Operation>::INFO,
+            <mail::ListInboxes as Operation>::INFO,
+            <mail::RenameInbox as Operation>::INFO,
+            <mail::GetUsage as Operation>::INFO,
+            <mail::DeleteGrant as Operation>::INFO,
+            <mail::Delegate as Operation>::INFO,
+            <mail::GetGraph as Operation>::INFO,
+            <mail::SearchInboxes as Operation>::INFO,
+            <mail::GetMe as Operation>::INFO,
+            <mail::Health as Operation>::INFO,
             &MISWIRED,
-            &GET_ME,
             &LEGACY,
-            &HEALTH,
         ],
         base.errors,
         base.classify,
@@ -367,19 +254,8 @@ static SERVICE: ServiceInfo = {
         base.internal,
         base.unknown,
     )
-    // The registry generated code states: every permission the model declares.
-    .with_permissions(&[
-        &WORKSPACE_ADMIN,
-        &GRANT_MANAGE,
-        &INBOX_READ,
-        &INBOX_MANAGE,
-        &MAIL_SEND,
-        &TEMPLATE_READ,
-        &GRAPH_READ,
-    ])
+    .with_permissions(base.permissions)
 };
-
-// Inputs and the one output shape.
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -387,306 +263,43 @@ struct InboxInput {
     workspace_id: String,
     inbox_id: String,
 }
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WorkspaceInput {
-    workspace_id: String,
+impl Validate for InboxInput {
+    fn validate(&self, _: &mut Validator) {}
 }
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SendInput {
-    workspace_id: String,
-    inbox_id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    template_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    client_token: Option<String>,
-}
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GrantInput {
-    workspace_id: String,
-    grant_id: String,
-    mode: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    client_token: Option<String>,
-}
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct DelegateInput {
-    workspace_id: String,
-    permissions: Vec<String>,
-}
-#[derive(Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct GraphInput {
-    graph_id: String,
-}
-macro_rules! no_constraints {
-    ($($input:ty),*) => {$(
-        impl Validate for $input {
-            fn validate(&self, _: &mut Validator) {}
-        }
-    )*};
-}
-no_constraints!(
-    InboxInput,
-    WorkspaceInput,
-    SendInput,
-    GrantInput,
-    DelegateInput,
-    GraphInput
-);
 
 #[derive(Serialize, Deserialize)]
 struct Out {
     value: Value,
 }
-fn out(value: Value) -> Result<Out> {
-    Ok(Out { value })
-}
-
-// The operations, as generated code will describe them.
 
 const BEARER: Option<&[AuthScheme]> = Some(&[AuthScheme::Bearer]);
 
-/// `requires read on Inbox`.
-struct GetInbox;
-impl Operation for GetInbox {
-    const INFO: &'static OperationInfo = &GET_INBOX;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[check(&INBOX_READ, false)]);
-    const CHECKS: Option<Checks<InboxInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &INBOX_READ,
-            ResourceRef::new(&INBOX, [&input.workspace_id, &input.inbox_id]),
-        ));
-    });
-    type Input = InboxInput;
-    type Output = Out;
-}
-
-/// `requires mailSend on Inbox`, and `requires read on
-/// Template(templateId) when has templateId`.
-struct SendMessage;
-impl Operation for SendMessage {
-    const INFO: &'static OperationInfo = &SEND_MESSAGE;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const IDEMPOTENCY_TOKEN: Option<PaginationMember> = Some(TOKEN);
-    const OUTPUT_FROM_JSON: Option<OutputFromJson<Out>> = Some(serde_json::from_value::<Out>);
-    const REQUIREMENTS: Requirements =
-        Requirements::List(&[check(&MAIL_SEND, false), check(&TEMPLATE_READ, true)]);
-    const CHECKS: Option<Checks<SendInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &MAIL_SEND,
-            ResourceRef::new(&INBOX, [&input.workspace_id, &input.inbox_id]),
-        ));
-        if let Some(template) = &input.template_id {
-            out.push(Check::declared(
-                1,
-                &TEMPLATE_READ,
-                ResourceRef::new(&TEMPLATE, [&input.workspace_id, template]),
-            ));
-        }
-    });
-    type Input = SendInput;
-    type Output = Out;
-}
-
-/// `requires manage on Inbox(*)`.
-struct CreateInbox;
-impl Operation for CreateInbox {
-    const INFO: &'static OperationInfo = &CREATE_INBOX;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[check(&INBOX_MANAGE, false)]);
-    const CHECKS: Option<Checks<WorkspaceInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &INBOX_MANAGE,
-            ResourceRef::all(&INBOX, [&input.workspace_id]),
-        ));
-    });
-    type Input = WorkspaceInput;
-    type Output = Out;
-}
-
-/// `filters read on Inbox`.
-struct ListInboxes;
-impl Operation for ListInboxes {
-    const INFO: &'static OperationInfo = &LIST_INBOXES;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[RequirementInfo {
-        mode: Mode::Filter,
-        permission: &INBOX_READ,
-        conditional: false,
-    }]);
-    const CHECKS: Option<Checks<WorkspaceInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &INBOX_READ,
-            ResourceRef::all(&INBOX, [&input.workspace_id]),
-        ));
-    });
-    type Input = WorkspaceInput;
-    type Output = Out;
-}
-
-/// Not converted yet: its handler checks with `permissions::require`.
-struct RenameInbox;
-impl Operation for RenameInbox {
-    const INFO: &'static OperationInfo = &RENAME_INBOX;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::Pending {
-        reason: "permissions::require in the handler until the inbox folder moves",
-    };
-    type Input = InboxInput;
-    type Output = Out;
-}
-
-/// `requires pending because ..`.
-struct GetUsage;
-impl Operation for GetUsage {
-    const INFO: &'static OperationInfo = &GET_USAGE;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::Pending {
-        reason: "guard::allow in get_usage.rs",
-    };
-    type Input = WorkspaceInput;
-    type Output = Out;
-}
-
-/// `requires grantManage on Workspace`, and `requires admin on Workspace by
-/// handler`: only when the grant being deleted holds `workspace:admin`.
-struct DeleteGrant;
-impl Operation for DeleteGrant {
-    const INFO: &'static OperationInfo = &DELETE_GRANT;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const IDEMPOTENCY_TOKEN: Option<PaginationMember> = Some(TOKEN);
-    const OUTPUT_FROM_JSON: Option<OutputFromJson<Out>> = Some(serde_json::from_value::<Out>);
-    const REQUIREMENTS: Requirements = Requirements::List(&[
-        check(&GRANT_MANAGE, false),
-        RequirementInfo {
-            mode: Mode::Handler,
-            permission: &WORKSPACE_ADMIN,
-            conditional: false,
-        },
-    ]);
-    const CHECKS: Option<Checks<GrantInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &GRANT_MANAGE,
-            ResourceRef::new(&WORKSPACE, [&input.workspace_id]),
-        ));
-    });
-    type Input = GrantInput;
-    type Output = Out;
-}
-const MISWIRED_ADMIN: Obligation = Obligation {
-    operation: "test.permissions#Miswired",
-    index: 1,
-    permission: &WORKSPACE_ADMIN,
-};
-const ADMIN_ON_WORKSPACE: Obligation = Obligation {
-    operation: "test.permissions#DeleteGrant",
-    index: 1,
-    permission: &WORKSPACE_ADMIN,
-};
-
-/// `requires grantManage on Workspace`; the permissions handed out are the
-/// request's, checked by the handler through `permissions::decide`.
-struct Delegate;
-impl Operation for Delegate {
-    const INFO: &'static OperationInfo = &DELEGATE;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[check(&GRANT_MANAGE, false)]);
-    const CHECKS: Option<Checks<DelegateInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &GRANT_MANAGE,
-            ResourceRef::new(&WORKSPACE, [&input.workspace_id]),
-        ));
-    });
-    type Input = DelegateInput;
-    type Output = Out;
-}
-
-/// `requires read on Graph`, an internal permission on a root resource.
-struct GetGraph;
-impl Operation for GetGraph {
-    const INFO: &'static OperationInfo = &GET_GRAPH;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[check(&GRAPH_READ, false)]);
-    const CHECKS: Option<Checks<GraphInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &GRAPH_READ,
-            ResourceRef::new(&GRAPH, [&input.graph_id]),
-        ));
-    });
-    type Input = GraphInput;
-    type Output = Out;
-}
-
-/// `filters read on Inbox` first, then `requires grantManage on Workspace`:
-/// a refusal of the listing comes before one of the check.
-struct SearchInboxes;
-impl Operation for SearchInboxes {
-    const INFO: &'static OperationInfo = &SEARCH_INBOXES;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[
-        RequirementInfo {
-            mode: Mode::Filter,
-            permission: &INBOX_READ,
-            conditional: false,
-        },
-        check(&GRANT_MANAGE, false),
-    ]);
-    const CHECKS: Option<Checks<WorkspaceInput>> = Some(|input, out| {
-        out.push(Check::declared(
-            0,
-            &INBOX_READ,
-            ResourceRef::all(&INBOX, [&input.workspace_id]),
-        ));
-        out.push(Check::declared(
-            1,
-            &GRANT_MANAGE,
-            ResourceRef::new(&WORKSPACE, [&input.workspace_id]),
-        ));
-    });
-    type Input = WorkspaceInput;
-    type Output = Out;
-}
-
-/// Declares `requires read on Inbox` but binds nothing: a generator bug,
-/// which must fail closed. Its `requires admin on Workspace by handler`
+/// `requires read on Inbox`, with a `CHECKS` that binds nothing: what the
+/// compiler never generates. Its `requires admin on Workspace by handler`
 /// obligation the handler closes, as it would in enforcing mode.
 struct Miswired;
+const MISWIRED_ADMIN: permissions::Obligation = permissions::Obligation {
+    operation: "test.permissions#Miswired",
+    index: 1,
+    permission: WORKSPACE_ADMIN,
+};
 impl Operation for Miswired {
     const INFO: &'static OperationInfo = &MISWIRED;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
     const REQUIREMENTS: Requirements = Requirements::List(&[
-        check(&INBOX_READ, false),
+        RequirementInfo {
+            mode: Mode::Check,
+            permission: INBOX_READ,
+            conditional: false,
+        },
         RequirementInfo {
             mode: Mode::Handler,
-            permission: &WORKSPACE_ADMIN,
+            permission: WORKSPACE_ADMIN,
             conditional: false,
         },
     ]);
     const CHECKS: Option<Checks<InboxInput>> = Some(|_, _| {});
     type Input = InboxInput;
-    type Output = Out;
-}
-
-/// `requires none`.
-struct GetMe;
-impl Operation for GetMe {
-    const INFO: &'static OperationInfo = &GET_ME;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::None;
-    const HAS_INPUT: bool = false;
-    type Input = Unit;
     type Output = Out;
 }
 
@@ -696,17 +309,6 @@ struct Legacy;
 impl Operation for Legacy {
     const INFO: &'static OperationInfo = &LEGACY;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
-    const HAS_INPUT: bool = false;
-    type Input = Unit;
-    type Output = Out;
-}
-
-/// Public (`@auth([])`): no requirements, nothing to authorize.
-struct Health;
-impl Operation for Health {
-    const INFO: &'static OperationInfo = &HEALTH;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
-    const PUBLIC: bool = true;
     const HAS_INPUT: bool = false;
     type Input = Unit;
     type Output = Out;
@@ -732,137 +334,176 @@ fn state() -> Arc<State> {
     })
 }
 
-fn inbox_permission(value: &str) -> Option<&'static PermissionInfo> {
-    [&INBOX_READ, &INBOX_MANAGE, &MAIL_SEND]
-        .into_iter()
-        .find(|permission| permission.accepts(value))
+/// Each generated output is `{ value }`.
+macro_rules! answer {
+    ($output:ident, $value:expr) => {
+        Ok(mail::$output {
+            value: json!($value),
+        })
+    };
 }
 
 fn operations(state: Arc<State>) -> Operations {
     Operations::builder(&SERVICE)
-        .add::<GetInbox, _, _>(state.clone(), |state, input: InboxInput| async move {
-            let known = state
-                .inboxes
-                .get(&input.workspace_id)
-                .is_some_and(|inboxes| inboxes.contains(&input.inbox_id));
-            if !known {
-                // Genuine absence, answered as a hidden inbox is.
-                let inbox = ResourceRef::new(&INBOX, [&input.workspace_id, &input.inbox_id]);
-                return Err(permissions::not_found(&inbox));
-            }
-            out(json!(input.inbox_id))
-        })
-        .add::<SendMessage, _, _>(state.clone(), |state, _: SendInput| async move {
-            idempotency::commit().await?;
-            out(json!(state.sends.fetch_add(1, Ordering::SeqCst) + 1))
-        })
-        .add::<CreateInbox, _, _>(state.clone(), |_, _: WorkspaceInput| async move {
-            out(json!("created"))
-        })
-        .add::<ListInboxes, _, _>(state.clone(), |state, input: WorkspaceInput| async move {
-            let visible = permissions::visible()?;
-            let shown: Vec<&String> = state
-                .inboxes
-                .get(&input.workspace_id)
-                .into_iter()
-                .flatten()
-                .filter(|inbox| visible.shows(inbox))
-                .collect();
-            out(json!(shown))
-        })
-        .add::<RenameInbox, _, _>(state.clone(), |state, input: InboxInput| async move {
-            permissions::require(
-                &INBOX_MANAGE,
-                ResourceRef::new(&INBOX, [&input.workspace_id, &input.inbox_id]),
-            )
-            .await?;
-            state.renames.fetch_add(1, Ordering::SeqCst);
-            out(json!("renamed"))
-        })
-        .add::<GetUsage, _, _>(state.clone(), |_, _: WorkspaceInput| async move {
-            out(json!(42))
-        })
-        .add::<DeleteGrant, _, _>(state.clone(), |state, input: GrantInput| async move {
-            let workspace = ResourceRef::new(&WORKSPACE, [&input.workspace_id]);
-            match input.mode.as_str() {
-                // The grant holds workspace:admin: so must the caller.
-                "admin" => permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await?,
-                "plain" => {
-                    permissions::not_applicable(ADMIN_ON_WORKSPACE, "the grant is not admin")?
+        .add::<mail::GetInbox, _, _>(
+            state.clone(),
+            |state, input: mail::GetInboxInput| async move {
+                let known = state
+                    .inboxes
+                    .get(&input.workspace_id)
+                    .is_some_and(|inboxes| inboxes.contains(&input.inbox_id));
+                if !known {
+                    // Genuine absence, answered as a hidden inbox is.
+                    return Err(InboxRef::new(&input.workspace_id, &input.inbox_id).not_found());
                 }
-                // Commits first, then checks: commit refuses, so the step
-                // after it is never taken.
-                "commit-first" => {
-                    idempotency::commit().await?;
-                    permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await?;
-                }
-                // Swallows a refused discharge and goes on to commit.
-                "swallow" => {
-                    let _ = permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await;
-                }
-                // Swallows a refused discharge and succeeds without a commit.
-                "swallow-quietly" => {
-                    let _ = permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await;
-                    return out(json!(state.deletes.fetch_add(1, Ordering::SeqCst) + 1));
-                }
-                // Tries to overwrite a refused discharge.
-                "overwrite" => {
-                    let _ = permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await;
-                    permissions::not_applicable(ADMIN_ON_WORKSPACE, "never mind")?;
-                }
-                // Forgets the obligation and succeeds without a commit.
-                "forget" => return out(json!(state.deletes.fetch_add(1, Ordering::SeqCst) + 1)),
-                // Forgets the obligation, then reaches its point of no return.
-                _ => {}
-            }
-            idempotency::commit().await?;
-            out(json!(state.deletes.fetch_add(1, Ordering::SeqCst) + 1))
+                answer!(GetInboxOutput, input.inbox_id)
+            },
+        )
+        .add::<mail::SendMessage, _, _>(
+            state.clone(),
+            |state, _: mail::SendMessageInput| async move {
+                idempotency::commit().await?;
+                answer!(
+                    SendMessageOutput,
+                    state.sends.fetch_add(1, Ordering::SeqCst) + 1
+                )
+            },
+        )
+        .add::<mail::CreateInbox, _, _>(state.clone(), |_, _: mail::CreateInboxInput| async move {
+            answer!(CreateInboxOutput, "created")
         })
-        .add::<Delegate, _, _>(state.clone(), |_, input: DelegateInput| async move {
+        .add::<mail::ListInboxes, _, _>(
+            state.clone(),
+            |state, input: mail::ListInboxesInput| async move {
+                let visible = permissions::visible()?;
+                let shown: Vec<&String> = state
+                    .inboxes
+                    .get(&input.workspace_id)
+                    .into_iter()
+                    .flatten()
+                    .filter(|inbox| visible.shows(inbox))
+                    .collect();
+                answer!(ListInboxesOutput, shown)
+            },
+        )
+        .add::<mail::RenameInbox, _, _>(
+            state.clone(),
+            |state, input: mail::RenameInboxInput| async move {
+                permissions::require(
+                    InboxPermission::Manage,
+                    InboxRef::new(&input.workspace_id, &input.inbox_id).into(),
+                )
+                .await?;
+                state.renames.fetch_add(1, Ordering::SeqCst);
+                answer!(RenameInboxOutput, "renamed")
+            },
+        )
+        .add::<mail::GetUsage, _, _>(state.clone(), |_, _: mail::GetUsageInput| async move {
+            answer!(GetUsageOutput, 42)
+        })
+        .add::<mail::DeleteGrant, _, _>(
+            state.clone(),
+            |state, input: mail::DeleteGrantInput| async move {
+                const ADMIN: permissions::Obligation = mail::DeleteGrant::ADMIN_ON_WORKSPACE;
+                let workspace = ResourceRef::from(WorkspaceRef::new(&input.workspace_id));
+                let deleted = || {
+                    answer!(
+                        DeleteGrantOutput,
+                        state.deletes.fetch_add(1, Ordering::SeqCst) + 1
+                    )
+                };
+                match input.mode.as_str() {
+                    // The grant holds workspace:admin: so must the caller.
+                    "admin" => permissions::discharge(ADMIN, workspace).await?,
+                    "plain" => permissions::not_applicable(ADMIN, "the grant is not admin")?,
+                    // Commits first, then checks: commit refuses, so the step
+                    // after it is never taken.
+                    "commit-first" => {
+                        idempotency::commit().await?;
+                        permissions::discharge(ADMIN, workspace).await?;
+                    }
+                    // Swallows a refused discharge and goes on to commit.
+                    "swallow" => {
+                        let _ = permissions::discharge(ADMIN, workspace).await;
+                    }
+                    // Swallows a refused discharge and succeeds without a commit.
+                    "swallow-quietly" => {
+                        let _ = permissions::discharge(ADMIN, workspace).await;
+                        return deleted();
+                    }
+                    // Tries to overwrite a refused discharge.
+                    "overwrite" => {
+                        let _ = permissions::discharge(ADMIN, workspace).await;
+                        permissions::not_applicable(ADMIN, "never mind")?;
+                    }
+                    // Forgets the obligation and succeeds without a commit.
+                    "forget" => return deleted(),
+                    // Forgets the obligation, then reaches its point of no return.
+                    _ => {}
+                }
+                idempotency::commit().await?;
+                deleted()
+            },
+        )
+        .add::<mail::Delegate, _, _>(state.clone(), |_, input: mail::DelegateInput| async move {
+            // The permission comes from the request: parsed with the
+            // model's own vocabulary, aliases included.
             let checks: Vec<Check> = input
                 .permissions
                 .iter()
                 .map(|value| {
-                    let permission = inbox_permission(value)
+                    let permission = InboxPermission::parse(value)
                         .ok_or_else(|| Error::internal("an unknown permission"))?;
                     Ok(Check::handler(
                         permission,
-                        ResourceRef::all(&INBOX, [&input.workspace_id]),
+                        InboxRef::all(&input.workspace_id).into(),
                     ))
                 })
                 .collect::<Result<_>>()?;
             let verdicts = permissions::decide(&checks).await?;
-            out(json!(
+            answer!(
+                DelegateOutput,
                 verdicts
                     .iter()
                     .map(|verdict| format!("{verdict:?}"))
                     .collect::<Vec<_>>()
-            ))
+            )
         })
-        .add::<GetGraph, _, _>(state.clone(), |_, input: GraphInput| async move {
-            out(json!(input.graph_id))
+        .add::<mail::GetGraph, _, _>(state.clone(), |_, input: mail::GetGraphInput| async move {
+            answer!(GetGraphOutput, input.graph_id)
         })
-        .add::<SearchInboxes, _, _>(state.clone(), |state, input: WorkspaceInput| async move {
-            let visible = permissions::visible()?;
-            let shown: Vec<&String> = state
-                .inboxes
-                .get(&input.workspace_id)
-                .into_iter()
-                .flatten()
-                .filter(|inbox| visible.shows(inbox))
-                .collect();
-            out(json!(shown))
-        })
+        .add::<mail::SearchInboxes, _, _>(
+            state.clone(),
+            |state, input: mail::SearchInboxesInput| async move {
+                let visible = permissions::visible()?;
+                let shown: Vec<&String> = state
+                    .inboxes
+                    .get(&input.workspace_id)
+                    .into_iter()
+                    .flatten()
+                    .filter(|inbox| visible.shows(inbox))
+                    .collect();
+                answer!(SearchInboxesOutput, shown)
+            },
+        )
         .add::<Miswired, _, _>(state.clone(), |_, _: InboxInput| async move {
             permissions::not_applicable(MISWIRED_ADMIN, "not an admin request")?;
-            out(json!("ran"))
+            Ok(Out {
+                value: json!("ran"),
+            })
         })
-        .add::<GetMe, _, _>(state.clone(), |_, _: Unit| async move { out(json!("me")) })
-        .add::<Legacy, _, _>(
-            state.clone(),
-            |_, _: Unit| async move { out(json!("legacy")) },
+        .add::<mail::GetMe, _, _>(state.clone(), |_, _: Unit| async move {
+            answer!(GetMeOutput, "me")
+        })
+        .add::<Legacy, _, _>(state.clone(), |_, _: Unit| async move {
+            Ok(Out {
+                value: json!("legacy"),
+            })
+        })
+        .add::<mail::Health, _, _>(
+            state,
+            |_, _: Unit| async move { answer!(HealthOutput, "ok") },
         )
-        .add::<Health, _, _>(state, |_, _: Unit| async move { out(json!("ok")) })
         .build()
         .unwrap()
 }
@@ -933,7 +574,15 @@ impl Grants {
             .map(Target::to_string)
             .collect();
         let resource = check.resource.resource().name;
-        if resource == "graph" {
+        // The service's own rule, an exhaustive match over the model's
+        // vocabulary: a new permission is a compile error here. Graphs
+        // belong to no workspace, so membership and workspace:admin say
+        // nothing about them.
+        let in_a_workspace = match Permission::from_info(check.permission) {
+            Permission::Workspace(_) | Permission::Inbox(_) | Permission::Template(_) => true,
+            Permission::Graph(GraphPermission::Read) => false,
+        };
+        if !in_a_workspace {
             return if self.holds(caller, check.permission.value, resource, &ids.join("/")) {
                 Verdict::Allowed
             } else {
@@ -1239,7 +888,7 @@ async fn allowed_denied_and_hidden_and_a_hidden_inbox_reads_as_a_missing_one() {
         .grants
         .member("alice", "w1")
         .member("bob", "w1")
-        .grant("alice", &INBOX_READ, "w1/*");
+        .grant("alice", INBOX_READ, "w1/*");
 
     let allowed = harness.get("/w/w1/inboxes/i1", "alice").await;
     assert_eq!(allowed.status, 200);
@@ -1292,7 +941,7 @@ async fn a_conditional_requirement_is_checked_only_when_its_condition_holds() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &MAIL_SEND, "w1/i1");
+        .grant("alice", MAIL_SEND, "w1/i1");
     let plain = harness
         .post(
             "/w/w1/inboxes/i1/messages",
@@ -1313,7 +962,7 @@ async fn a_conditional_requirement_is_checked_only_when_its_condition_holds() {
         templated.json()["message"],
         "This principal does not hold template:read on that template."
     );
-    harness.grants.grant("alice", &TEMPLATE_READ, "w1/t1");
+    harness.grants.grant("alice", TEMPLATE_READ, "w1/t1");
     let granted = harness
         .post(
             "/w/w1/inboxes/i1/messages",
@@ -1364,7 +1013,7 @@ async fn several_requirements_refuse_with_the_first_in_declaration_order() {
         "This principal does not hold mail:send on that inbox."
     );
     // With the first held, the second refuses.
-    harness.grants.grant("dave", &MAIL_SEND, "w1/i1");
+    harness.grants.grant("dave", MAIL_SEND, "w1/i1");
     let second = harness
         .post(
             "/w/w1/inboxes/i1/messages",
@@ -1421,9 +1070,9 @@ async fn a_filtered_listing_shows_what_the_caller_may_read() {
         .grants
         .member("alice", "w1")
         .member("erin", "w1")
-        .grant("alice", &INBOX_READ, "w1/i1")
-        .grant("alice", &INBOX_READ, "w1/i3")
-        .grant("erin", &INBOX_READ, "w1/*");
+        .grant("alice", INBOX_READ, "w1/i1")
+        .grant("alice", INBOX_READ, "w1/i3")
+        .grant("erin", INBOX_READ, "w1/*");
     let some = harness.get("/w/w1/inboxes", "alice").await;
     assert_eq!(some.status, 200);
     assert_eq!(some.json()["value"], json!(["i1", "i3"]));
@@ -1448,9 +1097,9 @@ async fn a_collection_requirement_is_checked_on_every_instance() {
         .grants
         .member("alice", "w1")
         .member("bob", "w1")
-        .grant("alice", &INBOX_MANAGE, "w1/*")
+        .grant("alice", INBOX_MANAGE, "w1/*")
         // Holding it on one inbox is not holding it on all of them.
-        .grant("bob", &INBOX_MANAGE, "w1/i1");
+        .grant("bob", INBOX_MANAGE, "w1/i1");
     let created = harness.post("/w/w1/inboxes", "alice", json!({})).await;
     assert_eq!(created.status, 200);
     let denied = harness.post("/w/w1/inboxes", "bob", json!({})).await;
@@ -1501,18 +1150,18 @@ async fn a_refused_request_never_claims_and_a_replay_is_authorized_again() {
     assert_eq!(send("bob", "t-1").await.status, 403);
     assert_eq!(harness.store.claims.load(Ordering::SeqCst), 0);
     // So once granted, the same token runs.
-    harness.grants.grant("bob", &MAIL_SEND, "w1/i1");
+    harness.grants.grant("bob", MAIL_SEND, "w1/i1");
     let first = send("bob", "t-1").await;
     assert_eq!(first.status, 200);
     assert_eq!(harness.state.sends.load(Ordering::SeqCst), 1);
 
     // A replay is authorized against current grants: revoked, it is refused
     // rather than served the stored success.
-    harness.grants.revoke("bob", &MAIL_SEND, "w1/i1");
+    harness.grants.revoke("bob", MAIL_SEND, "w1/i1");
     let revoked = send("bob", "t-1").await;
     assert_eq!(revoked.status, 403);
     // Granted again, it replays without running.
-    harness.grants.grant("bob", &MAIL_SEND, "w1/i1");
+    harness.grants.grant("bob", MAIL_SEND, "w1/i1");
     let replay = send("bob", "t-1").await;
     assert_eq!(replay.status, 200);
     assert_eq!(replay.body, first.body);
@@ -1529,7 +1178,7 @@ async fn a_handler_obligation_is_discharged_or_declared_not_applicable() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &GRANT_MANAGE, "w1");
+        .grant("alice", GRANT_MANAGE, "w1");
     let delete = |mode: &'static str, token: &'static str| {
         let harness = &harness;
         async move {
@@ -1562,7 +1211,7 @@ async fn a_handler_obligation_is_discharged_or_declared_not_applicable() {
         "This principal does not hold workspace:admin on that workspace."
     );
     let deletes = harness.state.deletes.load(Ordering::SeqCst);
-    harness.grants.grant("alice", &WORKSPACE_ADMIN, "w1");
+    harness.grants.grant("alice", WORKSPACE_ADMIN, "w1");
     let granted = delete("admin", "o-2").await;
     assert_eq!(granted.status, 200, "{}", granted.json());
     assert_eq!(harness.state.deletes.load(Ordering::SeqCst), deletes + 1);
@@ -1586,7 +1235,7 @@ async fn commit_refuses_an_unsatisfied_obligation_in_every_build() {
         harness
             .grants
             .member("alice", "w1")
-            .grant("alice", &GRANT_MANAGE, "w1");
+            .grant("alice", GRANT_MANAGE, "w1");
         let delete = |mode: &'static str, token: &'static str| {
             harness.post(
                 "/w/w1/grants/g1",
@@ -1604,7 +1253,7 @@ async fn commit_refuses_an_unsatisfied_obligation_in_every_build() {
         // Nothing was committed, so each claim was released: a retry runs
         // the operation again, and once the caller holds the permission the
         // same token succeeds.
-        harness.grants.grant("alice", &WORKSPACE_ADMIN, "w1");
+        harness.grants.grant("alice", WORKSPACE_ADMIN, "w1");
         // (A claim kept by a commit would answer this retry 409.)
         assert_internal(&delete("commit-first", "x-3").await);
         assert_eq!(delete("admin", "x-4").await.status, 200);
@@ -1617,7 +1266,7 @@ async fn an_obligation_is_closed_once_and_a_swallowed_refusal_stays_on_record() 
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &GRANT_MANAGE, "w1");
+        .grant("alice", GRANT_MANAGE, "w1");
     // Overwriting a refused discharge with not_applicable is refused.
     let overwrite = harness
         .post(
@@ -1653,7 +1302,7 @@ async fn a_success_with_an_obligation_open_fails_before_it_is_stored() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &GRANT_MANAGE, "w1");
+        .grant("alice", GRANT_MANAGE, "w1");
     let forget = || {
         harness.post(
             "/w/w1/grants/g1",
@@ -1676,7 +1325,7 @@ async fn a_success_with_an_obligation_open_fails_before_it_is_stored() {
     release
         .grants
         .member("alice", "w1")
-        .grant("alice", &GRANT_MANAGE, "w1");
+        .grant("alice", GRANT_MANAGE, "w1");
     let forget = || {
         release.post(
             "/w/w1/grants/g1",
@@ -1707,8 +1356,8 @@ async fn a_replay_asks_again_for_the_handler_checks_its_success_was_allowed() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &GRANT_MANAGE, "w1")
-        .grant("alice", &WORKSPACE_ADMIN, "w1");
+        .grant("alice", GRANT_MANAGE, "w1")
+        .grant("alice", WORKSPACE_ADMIN, "w1");
     let delete = || {
         harness.post(
             "/w/w1/grants/g1",
@@ -1722,7 +1371,7 @@ async fn a_replay_asks_again_for_the_handler_checks_its_success_was_allowed() {
     // The admin grant that the handler's discharge needed is revoked: the
     // declared grant:manage still holds, but the replay is refused rather
     // than served.
-    harness.grants.revoke("alice", &WORKSPACE_ADMIN, "w1");
+    harness.grants.revoke("alice", WORKSPACE_ADMIN, "w1");
     let refused = delete().await;
     assert_eq!(refused.status, 403, "{}", refused.json());
     assert_eq!(
@@ -1737,7 +1386,7 @@ async fn a_replay_asks_again_for_the_handler_checks_its_success_was_allowed() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &WORKSPACE_ADMIN, "w1");
+        .grant("alice", WORKSPACE_ADMIN, "w1");
     let replay = delete().await;
     assert_eq!(replay.status, 200);
     assert_eq!(replay.body, first.body);
@@ -1769,8 +1418,8 @@ async fn a_hidden_listing_declared_first_is_a_404_before_a_later_denied_check() 
     let denied = harness.get("/w/w1/search", "bob").await;
     assert_eq!(denied.status, 403);
     // And with both, the listing is answered.
-    harness.grants.grant("bob", &GRANT_MANAGE, "w1");
-    harness.grants.grant("bob", &INBOX_READ, "w1/i2");
+    harness.grants.grant("bob", GRANT_MANAGE, "w1");
+    harness.grants.grant("bob", INBOX_READ, "w1/i2");
     let shown = harness.get("/w/w1/search", "bob").await;
     assert_eq!(shown.json()["value"], json!(["i2"]));
 }
@@ -1781,7 +1430,7 @@ async fn an_authorizer_answering_the_wrong_number_of_verdicts_is_a_500() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &INBOX_READ, "w1/*");
+        .grant("alice", INBOX_READ, "w1/*");
     harness.grants.short.store(true, Ordering::SeqCst);
     assert_internal(&harness.get("/w/w1/inboxes/i1", "alice").await);
 }
@@ -1793,9 +1442,9 @@ async fn handlers_require_and_decide_through_the_same_authorizer() {
         .grants
         .member("alice", "w1")
         .member("bob", "w1")
-        .grant("alice", &INBOX_MANAGE, "w1/i1")
-        .grant("alice", &GRANT_MANAGE, "w1")
-        .grant("alice", &INBOX_READ, "w1/*");
+        .grant("alice", INBOX_MANAGE, "w1/i1")
+        .grant("alice", GRANT_MANAGE, "w1")
+        .grant("alice", INBOX_READ, "w1/*");
 
     // `require`: refusals are answered as a declared check's.
     assert_eq!(
@@ -1856,7 +1505,7 @@ async fn an_internal_permission_is_never_named() {
         denied.json()["message"],
         "This principal may not perform this operation."
     );
-    harness.grants.grant("bob", &GRAPH_READ, "g1");
+    harness.grants.grant("bob", GRAPH_READ, "g1");
     assert_eq!(harness.get("/graphs/g1", "bob").await.status, 200);
 }
 
@@ -1864,7 +1513,7 @@ async fn an_internal_permission_is_never_named() {
 async fn a_refusal_factory_answers_denied_and_never_hidden() {
     let harness = serve(|permissions| {
         permissions.refusal_factory(|refusal| {
-            weather::ConflictError {
+            mail::ConflictError {
                 message: match refusal.public_permission() {
                     Some(permission) => {
                         format!("missing {} on {}", permission.value, refusal.resource())
@@ -1895,7 +1544,7 @@ async fn an_authorizer_that_cannot_tell_is_a_sanitized_500_never_an_allow() {
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &INBOX_READ, "w1/*");
+        .grant("alice", INBOX_READ, "w1/*");
     harness.grants.fail.store(true, Ordering::SeqCst);
     assert_internal(&harness.get("/w/w1/inboxes/i1", "alice").await);
     assert_internal(&harness.get("/w/w1/inboxes", "alice").await);
@@ -2009,32 +1658,16 @@ fn registering_permissions_after_idempotency_fails_the_build() {
 
 #[test]
 fn the_build_names_authenticated_operations_that_declare_nothing() {
-    #[derive(Clone, Default)]
-    struct Captured(Arc<Mutex<Vec<u8>>>);
-    impl std::io::Write for Captured {
-        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            self.0.lock().unwrap().extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
-    }
-    let captured = Captured::default();
-    let writer = captured.clone();
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(move || writer.clone())
-        .with_ansi(false)
-        .finish();
-    tracing::subscriber::with_default(subscriber, || {
-        Crucible::builder(operations(state()))
-            .protocol(JsonProtocol)
-            .interceptor(Permissions::new(Shared(Arc::default())))
-            .build()
-            .unwrap();
-    });
-    let text = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
-    assert!(text.contains("Legacy"), "{text}");
-    // Public by the model, not by an empty scheme list.
-    assert!(!text.contains("Health"), "{text}");
+    // What the build logs, read from Permissions itself: a captured log
+    // races other tests over the callsite's cached interest.
+    let permissions = Permissions::new(Shared(Arc::default()));
+    let report = permissions.undeclared_operations();
+    assert_eq!(report.get(), None);
+    Crucible::builder(operations(state()))
+        .protocol(JsonProtocol)
+        .interceptor(permissions)
+        .build()
+        .unwrap();
+    // Public by the model, not by an empty scheme list: Health is absent.
+    assert_eq!(report.get(), Some(vec!["Legacy"]));
 }

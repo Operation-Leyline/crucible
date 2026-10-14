@@ -41,6 +41,68 @@ fn weather_matches_reviewed_golden() {
     );
 }
 
+/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
+/// source first.
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
+}
+
+fn leyline() -> crucible_smithy::ir::Service {
+    leyline_with(|text| text)
+}
+
+/// Typed permissions (docs/permissions.md §6.3): `x-crucible-requires` per
+/// operation, `x-crucible-permissions` for the registry, a requirement
+/// sentence in each description, and the framework's 404 among the
+/// responses. Internal permissions only in the server-audience document.
+#[test]
+fn permissions_match_reviewed_golden_per_audience() {
+    let service = leyline();
+    for (audience, file) in [
+        (
+            crucible_smithy::Audience::Internal,
+            "permissions.openapi.json",
+        ),
+        (
+            crucible_smithy::Audience::External,
+            "permissions-external.openapi.json",
+        ),
+    ] {
+        let projected = crucible_smithy::project(&service, audience).unwrap();
+        let generated = generate(&projected, &Options::default()).unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden")
+            .join(file);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::write(&path, &generated).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .replace("\r\n", "\n"),
+            generated,
+            "{file}"
+        );
+        let internal = generated.contains("organization:read");
+        assert_eq!(
+            internal,
+            audience == crucible_smithy::Audience::Internal,
+            "{file}"
+        );
+        assert!(!generated.contains("crucible.auth#requires"), "{file}");
+    }
+}
+
 #[test]
 fn http_members_are_projected_into_their_wire_locations() {
     let doc = document(&service(|_| {}));

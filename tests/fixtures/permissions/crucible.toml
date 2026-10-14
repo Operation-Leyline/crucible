@@ -1,0 +1,6 @@
+# The typed permissions fixture every generator's tests share
+# (docs/permissions.md): every tier, an alias, each clause form, a binding
+# through a union arm, and an operation whose requirements are all internal.
+[model]
+namespace = "example.leyline"
+imports = ["crucible.errors"]

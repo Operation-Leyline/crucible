@@ -183,7 +183,8 @@ pub(crate) fn emit(
         // `versions` table's, not one of its own.
         let mut module = old.clone();
         module.api_version = None;
-        let mut body = crate::body_with(&module, &old_options, &module, false, diagnostics);
+        let parent = older_requirements(service, &mut module, version, diagnostics);
+        let mut body = crate::body_with(&module, &old_options, &module, false, parent, diagnostics);
         if !methods[index].is_empty()
             && (old.shapes.keys().any(|id| id.name() == "Migration")
                 || old.operations.iter().any(|op| op.name() == "Migration"))
@@ -246,6 +247,118 @@ pub(crate) fn emit(
 
 /// The `Migrations` trait every hook adds up to, and the builder methods
 /// that register them.
+/// What an older release's module states about authorization
+/// (docs/permissions.md §7.3). A converted operation states nothing: its
+/// requests are authorized by the current requirements, which bind the
+/// current input they are converted to. An operation the next release
+/// removes is served by a legacy handler on this release's input, so it
+/// keeps its own requirements and `CHECKS`, naming the current
+/// `permissions` statics: whether the module then reads `super::permissions`.
+fn older_requirements(
+    current: &Service,
+    module: &mut Service,
+    version: &crucible_smithy::ir::ApiVersion,
+    diagnostics: &mut Diagnostics,
+) -> bool {
+    let removed: BTreeSet<&ShapeId> = version
+        .steps
+        .iter()
+        .filter_map(|step| match step {
+            VersionStep::Hooked {
+                hook: Hook::RemoveOperation { operation },
+                ..
+            } => Some(operation),
+            _ => None,
+        })
+        .collect();
+    let old = std::mem::take(&mut module.permissions);
+    module.permission_types = None;
+    let mut kept = false;
+    for operation in &mut module.operations {
+        if !removed.contains(&operation.id) || streams(operation) {
+            operation.requirements = Default::default();
+            continue;
+        }
+        let (id, name) = (operation.id.clone(), operation.name().to_owned());
+        if let crucible_smithy::ir::Requirements::List(clauses) = &mut operation.requirements {
+            for clause in clauses.iter_mut() {
+                match current_permission(current, &old, clause) {
+                    Ok((resource, symbol)) => {
+                        clause.resource = resource;
+                        clause.permission = symbol;
+                    }
+                    Err(problem) => diagnostics.push(
+                        &id,
+                        format!(
+                            "release `{}` serves `{name}` with a legacy handler, which requires {problem}",
+                            version.name,
+                        ),
+                    ),
+                }
+            }
+        }
+        kept |= !matches!(
+            operation.requirements,
+            crucible_smithy::ir::Requirements::Undeclared
+        );
+    }
+    if kept {
+        module.permissions = current.permissions.clone();
+        for id in current.permissions.keys() {
+            module
+                .renames
+                .insert(id.clone(), current.name_of(id).to_owned());
+        }
+    }
+    kept
+}
+
+/// The current model's resource and primary symbol for an older clause,
+/// matched by authorization name and stored value.
+fn current_permission(
+    current: &Service,
+    old: &BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
+    clause: &crucible_smithy::ir::Requirement,
+) -> Result<(ShapeId, String), String> {
+    let resource = old
+        .get(&clause.resource)
+        .ok_or_else(|| format!("permissions of `{}`, which declares none", clause.resource))?;
+    let permission = resource
+        .permission(&clause.permission)
+        .map(|p| crucible_codegen_common::permissions::primary(resource, p))
+        .ok_or_else(|| format!("`{}` on `{}`", clause.permission, resource.name))?;
+    let gone = || {
+        format!(
+            "`{}` on `{}`, which the current model no longer declares",
+            permission.value, resource.name
+        )
+    };
+    let (id, now) = current
+        .permissions
+        .iter()
+        .find(|(_, now)| now.name == resource.name)
+        .ok_or_else(gone)?;
+    let symbol = now
+        .permissions
+        .iter()
+        .find(|p| p.value == permission.value)
+        .map(|p| {
+            crucible_codegen_common::permissions::primary(now, p)
+                .symbol
+                .clone()
+        })
+        .ok_or_else(gone)?;
+    if clause.mode != crucible_smithy::ir::Mode::Handler
+        && now.identifiers.len() != resource.identifiers.len()
+    {
+        return Err(format!(
+            "`{}` on `{}`, whose identifiers have changed since",
+            permission.value, resource.name
+        ));
+    }
+    Ok((id.clone(), symbol))
+}
+
 fn registration(service: &Service, methods: &Methods, diagnostics: &mut Diagnostics) -> String {
     let hooked: Vec<(usize, String)> = methods
         .iter()

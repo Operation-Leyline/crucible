@@ -1,0 +1,167 @@
+//! The client's `pub mod permissions { .. }` (docs/permissions.md §6.3):
+//! per resource an open enum that keeps values it does not know (a newer
+//! server's, an internal one's) and writes them back unchanged, with
+//! deprecated aliases as variants `canonical()` maps to their primaries,
+//! and `PERMISSIONS`, the registry a console's grant picker reads.
+//! Internal permissions never appear, whatever the audience.
+
+use crucible_codegen_common::permissions::primary;
+use crucible_smithy::ir::{Permission, ResourcePermissions, Service, Tier};
+use crucible_smithy::{Diagnostics, ShapeId};
+
+use crate::names::{documented, literal, variant};
+
+const RT: &str = "::crucible_server_runtime_rust::__generated";
+
+fn visible(resource: &ResourcePermissions, permission: &Permission) -> bool {
+    primary(resource, permission).tier != Tier::Internal
+}
+
+fn tier(tier: Tier) -> &'static str {
+    match tier {
+        Tier::Public => "Public",
+        Tier::PermissionOnly => "PermissionOnly",
+        Tier::NotGrantable => "NotGrantable",
+        Tier::Internal => "Internal",
+    }
+}
+
+pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String {
+    let mut resources: Vec<(&ShapeId, &ResourcePermissions)> = service
+        .permissions
+        .iter()
+        .filter(|(_, resource)| resource.permissions.iter().any(|p| visible(resource, p)))
+        .collect();
+    if resources.is_empty() {
+        return String::new();
+    }
+    resources.sort_by(|a, b| a.1.name.cmp(&b.1.name));
+    let mut out = String::new();
+    let mut registry = Vec::new();
+    for (id, resource) in resources {
+        let permissions: Vec<&Permission> = resource
+            .permissions
+            .iter()
+            .filter(|p| visible(resource, p))
+            .collect();
+        crate::names::check_distinct(
+            id,
+            permissions.iter().map(|p| p.symbol.as_str()),
+            variant,
+            "variant",
+            diagnostics,
+        );
+        out.push_str(&enumeration(service.name_of(id), resource, &permissions));
+        registry.push(entry(resource, &permissions));
+    }
+    out.push_str(&format!(
+        "\n/// Every permission this client knows, by resource type and value: what\n/// a grant picker offers, leaving out `grantable: false`.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
+        registry.join(",\n    ")
+    ));
+    format!(
+        "\n/// The model's permissions, as the values grants store.\n#[allow(deprecated, dead_code)]\npub mod permissions {{\n{}}}\n",
+        crate::indent(&out)
+    )
+}
+
+fn enumeration(shape: &str, resource: &ResourcePermissions, permissions: &[&Permission]) -> String {
+    let name = format!("{shape}Permission");
+    let unknown = crate::open::unknown_variant(permissions.iter().map(|p| p.symbol.as_str()));
+    let mut out = format!(
+        "\n/// The permissions `{shape}` accepts (`{}`). Open: a value this client\n/// does not know is kept as `{unknown}` and written back unchanged.\n#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
+        resource.name,
+        crate::NON_EXHAUSTIVE,
+    );
+    for permission in permissions {
+        let mut docs = permission.docs.clone().unwrap_or_default();
+        if !docs.is_empty() {
+            docs.push_str("\n\n");
+        }
+        docs.push_str(&format!("`{}`.", permission.value));
+        let mut notes = permission.notes.clone();
+        if permission.alias_of.is_some() && notes.deprecated.is_none() {
+            notes.deprecated = Some(Default::default());
+        }
+        documented(&mut out, "    ", Some(&docs), &notes);
+        out.push_str(&format!("    {},\n", variant(&permission.symbol)));
+    }
+    let all = permissions
+        .iter()
+        .map(|p| format!("Self::{}", variant(&p.symbol)))
+        .collect::<Vec<_>>()
+        .join(", ");
+    out.push_str(&format!(
+        "    /// A value this client does not know.\n    {unknown}(::std::string::String),\n}}\n\nimpl {name} {{\n    /// Every value this client knows, deprecated aliases included.\n    pub const ALL: &'static [Self] = &[{all}];\n\n    /// The value, as grants store it.\n    pub fn as_str(&self) -> &str {{\n        match self {{\n"
+    ));
+    for permission in permissions {
+        out.push_str(&format!(
+            "            Self::{} => {},\n",
+            variant(&permission.symbol),
+            literal(&permission.value)
+        ));
+    }
+    out.push_str(&format!(
+        "            Self::{unknown}(value) => value,\n        }}\n    }}\n\n    /// The permission a deprecated alias stands for; any other value is\n    /// itself.\n    pub fn canonical(&self) -> Self {{\n"
+    ));
+    let aliases: Vec<&&Permission> = permissions
+        .iter()
+        .filter(|p| p.alias_of.is_some())
+        .collect();
+    if aliases.is_empty() {
+        out.push_str("        self.clone()\n");
+    } else {
+        out.push_str("        match self {\n");
+        for alias in aliases {
+            out.push_str(&format!(
+                "            Self::{} => Self::{},\n",
+                variant(&alias.symbol),
+                variant(&primary(resource, alias).symbol)
+            ));
+        }
+        out.push_str("            other => other.clone(),\n        }\n");
+    }
+    out.push_str(&format!(
+        "    }}\n}}\n\nimpl {RT}::open::Enum for {name} {{\n    fn as_str(&self) -> &str {{\n        self.as_str()\n    }}\n\n    fn from_string(value: ::std::string::String) -> Self {{\n        match value.as_str() {{\n"
+    ));
+    for permission in permissions {
+        out.push_str(&format!(
+            "            {} => Self::{},\n",
+            literal(&permission.value),
+            variant(&permission.symbol)
+        ));
+    }
+    out.push_str(&format!(
+        "            _ => Self::{unknown}(value),\n        }}\n    }}\n}}\n\nimpl ::std::convert::From<&str> for {name} {{\n    fn from(value: &str) -> Self {{\n        <Self as {RT}::open::Enum>::from_string(value.to_owned())\n    }}\n}}\n\nimpl ::std::convert::From<::std::string::String> for {name} {{\n    fn from(value: ::std::string::String) -> Self {{\n        <Self as {RT}::open::Enum>::from_string(value)\n    }}\n}}\n\nimpl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        f.write_str(self.as_str())\n    }}\n}}\n\nimpl {RT}::serde::Serialize for {name} {{\n    fn serialize<S: {RT}::serde::Serializer>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error> {{\n        {RT}::open::serialize_enum(self, serializer)\n    }}\n}}\n\nimpl<'de> {RT}::serde::Deserialize<'de> for {name} {{\n    fn deserialize<D: {RT}::serde::Deserializer<'de>>(deserializer: D) -> ::std::result::Result<Self, D::Error> {{\n        {RT}::open::deserialize_enum(deserializer)\n    }}\n}}\n"
+    ));
+    out
+}
+
+/// The resource's `PERMISSIONS` entry, its permissions sorted by value.
+fn entry(resource: &ResourcePermissions, permissions: &[&Permission]) -> String {
+    let mut sorted = permissions.to_vec();
+    sorted.sort_by(|a, b| a.value.cmp(&b.value));
+    let entries: Vec<String> = sorted
+        .iter()
+        .map(|p| {
+            let primary = primary(resource, p);
+            let alias_of = if p.alias_of.is_some() {
+                format!("::std::option::Option::Some({})", literal(&primary.value))
+            } else {
+                "::std::option::Option::None".to_owned()
+            };
+            format!(
+                "{RT}::permissions::PermissionDescription {{ value: {}, description: {}, tier: {RT}::permissions::Tier::{}, grantable: {}, deprecated: {}, alias_of: {alias_of} }}",
+                literal(&p.value),
+                literal(p.docs.as_deref().map(str::trim).unwrap_or_default()),
+                tier(primary.tier),
+                primary.tier != Tier::NotGrantable,
+                p.notes.deprecated.is_some() || p.alias_of.is_some(),
+            )
+        })
+        .collect();
+    format!(
+        "{RT}::permissions::ResourcePermissions {{\n        resource_type: {},\n        permissions: &[\n            {},\n        ],\n    }}",
+        literal(&resource.name),
+        entries.join(",\n            ")
+    )
+}

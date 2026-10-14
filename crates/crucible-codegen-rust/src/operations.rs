@@ -24,7 +24,7 @@ pub(crate) fn emit(
 ) -> String {
     let mut out = String::new();
     for operation in &service.operations {
-        out.push_str(&operation_items(service, operation));
+        out.push_str(&operation_items(service, operation, diagnostics));
         if function(operation.name()) == "build" {
             diagnostics.push(
                 &operation.id,
@@ -78,9 +78,12 @@ pub(crate) fn structure<'s>(
     }
 }
 
-fn operation_items(service: &Service, op: &Operation) -> String {
+fn operation_items(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> String {
     let name = op.name();
-    let mut out = marker(service, op, &output_type(service, op), false);
+    // REQUIREMENTS and CHECKS go in the marker's impl; obligations beside it.
+    let permissions = crate::permissions::marker_items(service, op, diagnostics);
+    let mut out = marker(service, op, &output_type(service, op), &permissions);
+    out.push_str(&crate::permissions::obligations(service, op));
     // The marker type is what callers name, so it carries `#[deprecated]`. The
     // trait is what a service implements: warning there would only nag the
     // author about an operation they are still required to serve.
@@ -105,9 +108,21 @@ fn operation_items(service: &Service, op: &Operation) -> String {
     out
 }
 
+/// The server's marker: [`marker_for`] with its permission items.
+fn marker(service: &Service, op: &Operation, output_ty: &str, permissions: &str) -> String {
+    marker_for(service, op, output_ty, false, permissions)
+}
+
 /// The marker type, its `OperationInfo` and its `Operation` impl, with
 /// `output_ty` as the output type: a client reads a missing output as `Unit`.
-pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client: bool) -> String {
+/// `server_items` are the server's own associated items (requirements).
+pub(crate) fn marker_for(
+    service: &Service,
+    op: &Operation,
+    output_ty: &str,
+    client: bool,
+    server_items: &str,
+) -> String {
     let name = op.name();
     let mut out = String::from("\n");
     documented(&mut out, "", op.docs.as_deref(), &op.notes);
@@ -295,6 +310,7 @@ pub(crate) fn marker(service: &Service, op: &Operation, output_ty: &str, client:
         auth.push_str(&scope_items(service, op));
         auth.push_str(&pagination_items(service, op));
         auth.push_str(&idempotency_items(service, op, output_ty));
+        auth.push_str(server_items);
     }
     auth.push_str(&wire(service, op));
     auth.push_str(&crate::events::marker_items(service, op, client));
@@ -453,7 +469,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     };
     let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {cors},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n);\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {cors},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
@@ -462,6 +478,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         option(functions.reject.is_some(), "reject"),
         option(functions.internal.is_some(), "internal"),
         option(functions.unknown.is_some(), "unknown"),
+        crate::permissions::registry(service),
     )
 }
 

@@ -342,6 +342,59 @@
 
   const sectionId = (name) => `cx-${name}`;
 
+  // A generated sentence (`requirementSentences`): Markdown whose only
+  // markup is code spans.
+  function sentence(text) {
+    return String(text)
+      .split("`")
+      .map((part, i) => (i % 2 ? code(part) : part));
+  }
+
+  // What the caller must hold (docs/permissions.md §6.3), as the Markdown
+  // reference's Authorization section states it; nothing for an operation
+  // that declares nothing.
+  function authorizationSection(op) {
+    const r = op.requirements;
+    if (!r || !r.kind) return null;
+    const body = [];
+    if (r.kind === "none") body.push(h("p", {}, "Requires no permission."));
+    else if (r.kind === "pending") body.push(h("p", {}, "Requirements not declared yet; the service checks them itself: ", r.reason));
+    else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
+    else {
+      for (const s of list(op.requirementSentences)) body.push(h("p", {}, sentence(s)));
+      const rows = list(r.clauses).map((c) => [
+        c.mode,
+        code(c.permission),
+        code(c.resourceType),
+        list(c.bindings).map((b, i) => [i ? ", " : "", code(b.identifier), " = ", code(b.value)]),
+        c.when ? code(c.when) : c.mode === "handler" && c.documentation ? c.documentation : "",
+      ]);
+      body.push(table(["Mode", "Permission", "Resource type", "Bindings", "When"], rows, "Requirements"));
+    }
+    return h("section", { id: sectionId("authorization") }, sectionHeading(op, "authorization", "Authorization"), body);
+  }
+
+  // The permission registry by resource type (docs/permissions.md §6.3).
+  function permissionsSection(s) {
+    if (!list(s.permissions).length) return [];
+    return [
+      h("h2", {}, "Permissions"),
+      h("p", {}, "What a grant names: a resource type and a permission value. A deprecated alias means the same as the value it names."),
+      ...list(s.permissions).flatMap((r) => [
+        h("h3", {}, code(r.resourceType)),
+        table(
+          ["Permission", "Tier", "Description"],
+          list(r.permissions).map((p) => [
+            code(p.value),
+            p.tier,
+            [p.description || "", p.aliasOf ? [" Deprecated alias of ", code(p.aliasOf), "."] : p.deprecated ? " Deprecated." : ""],
+          ]),
+          `Permissions of ${r.resourceType}`,
+        ),
+      ]),
+    ];
+  }
+
   function sectionHeading(op, section, title) {
     return h("h2", {}, title, " ", h("a", { class: "cx-anchor", href: href("op", op.id, section), "aria-label": `Link to ${title}` }, "#"));
   }
@@ -418,6 +471,7 @@
         : h("p", { class: "cx-muted" }, "No default authentication schemes."),
     );
     if (list(s.scopes).length) out.push(h("p", {}, "Default scopes: ", list(s.scopes).map((sc) => code(sc))));
+    out.push(...permissionsSection(s));
     out.push(h("h2", {}, "Service errors"), errorsTable(m, s.errors));
     out.push(h("h2", {}, "Operations"));
     for (const group of navigation(m).filter((g) => g.kind !== "types")) {
@@ -461,6 +515,7 @@
       pageHeader(op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
       panels,
       h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", op.optionalAuth ? " (optional)" : "", "."), list(op.scopes).length ? h("p", {}, "Required scopes: ", list(op.scopes).map((s) => code(s))) : null),
+      authorizationSection(op),
       messageSection(m, op, true),
       messageSection(m, op, false),
       h("section", { id: sectionId("errors") }, sectionHeading(op, "errors", "Errors"), errorsTable(m, op.errors)),

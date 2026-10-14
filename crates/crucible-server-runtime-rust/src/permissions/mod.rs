@@ -91,7 +91,7 @@ pub use operation_facts::OperationFacts;
 #[cfg(feature = "permissions")]
 pub use permission_refusal::PermissionRefusal;
 #[cfg(feature = "permissions")]
-pub use permissions::Permissions;
+pub use permissions::{Permissions, UndeclaredOperations};
 #[cfg(feature = "permissions")]
 pub use verdict::Verdict;
 #[cfg(feature = "permissions")]

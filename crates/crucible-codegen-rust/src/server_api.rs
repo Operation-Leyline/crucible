@@ -26,6 +26,9 @@ pub(crate) fn exports(service: &Service, diagnostics: &mut Diagnostics) -> Strin
     if !service.versions.is_empty() {
         names.insert("versions".to_owned(), service.id.clone());
     }
+    if !service.permissions.is_empty() {
+        names.insert("permissions".to_owned(), service.id.clone());
+    }
     let mut register = |name: String, id: &ShapeId| {
         if let Some(previous) = names.insert(name.clone(), id.clone()) {
             diagnostics.push(

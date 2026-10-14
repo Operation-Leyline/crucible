@@ -1069,6 +1069,46 @@ fn conditions_read_input_members_and_compare_like_with_like() {
     expect(&check(&op("kind in []")), "`kind in []` is never true");
 }
 
+/// A literal is a value of the member's type, so every generator can state
+/// the comparison; arbitrary precision is never compared.
+#[test]
+fn compared_numbers_fit_the_member_type() {
+    let op = |when: &str| {
+        format!(
+            "operation X on Store {{
+    http POST \"/x/{{storeId}}\"
+    requires manage when {when}
+    input {{
+        $storeId
+        small?: byte
+        ratio?: float
+        exact?: double
+        big?: bigInteger
+        precise?: bigDecimal
+    }}
+}}"
+        )
+    };
+    assert!(check(&op("small == 127 or ratio == 0.1 or exact == 1e300")).is_empty());
+    expect(
+        &check(&op("small == 128")),
+        "`small` is a Byte value and cannot be compared with 128",
+    );
+    expect(
+        &check(&op("ratio == 1e300")),
+        "`ratio` is a Float value and cannot be compared with 1e+300",
+    );
+    expect(
+        &check(&op("big == 1")),
+        "`big` is a BigInteger value, which a condition cannot compare; test it with `has`",
+    );
+    expect(
+        &check(&op("precise == 1.5")),
+        "`precise` is a BigDecimal value, which a condition cannot compare",
+    );
+    assert!(check(&op("has big and has precise")).is_empty());
+}
+
 #[test]
 fn filters_belongs_on_a_listing_once() {
     let found = check(

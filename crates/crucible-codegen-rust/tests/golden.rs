@@ -39,6 +39,83 @@ fn scoped_server_metadata_matches_golden() {
     matches_golden(&code, "scopes.rs");
 }
 
+/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
+/// source first.
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
+}
+
+fn leyline() -> crucible_smithy::ir::Service {
+    leyline_with(|text| text)
+}
+
+/// An alias whose constant is one the enum already defines (`ALL`,
+/// `RESOURCE`) is a diagnostic, not code that does not compile.
+#[test]
+fn an_alias_named_like_a_generated_constant_is_a_diagnostic() {
+    for (symbol, constant) in [("all", "ALL"), ("resource", "RESOURCE")] {
+        let service = leyline_with(|text| {
+            text.replace(
+                "@aliasOf(read)\n    permission view",
+                &format!("@aliasOf(read)\n    permission {symbol}"),
+            )
+        });
+        let diagnostics = generate(&service, &Options::default()).unwrap_err();
+        assert!(
+            diagnostics.iter().any(|d| d.message
+                == format!(
+                    "permission `{symbol}` generates `GraphPermission::{constant}`, as the generated `{constant}` does"
+                )),
+            "{diagnostics:?}"
+        );
+    }
+}
+
+/// Typed permissions (docs/permissions.md §6.2): the descriptions, the
+/// closed enums and typed references, and per operation its requirements,
+/// the bindings' `CHECKS` and its handler obligations.
+#[test]
+fn permissions_server_bindings_match_golden() {
+    let service = leyline();
+    matches_golden(
+        &generate(&service, &Options::default()).unwrap(),
+        "permissions.rs",
+    );
+    // The client sees the external audience: open constants, no internal
+    // permission, and the requirements in each method's documentation.
+    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let client = generate_client(&external).unwrap();
+    assert!(!client.contains("organization:read"), "{client}");
+    assert!(!client.contains("const REQUIREMENTS"), "{client}");
+    matches_golden(&client, "permissions_client.rs");
+    // MCP tools carry the sentence too, from the External projection.
+    let mcp = generate(
+        &service,
+        &Options {
+            mcp: true,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    let tools = mcp.rsplit_once("pub static MCP_TOOLS").unwrap().1;
+    assert!(tools.contains("Requires no permission."), "{tools}");
+    assert!(
+        tools.contains("Requires `graph:write` on every graph in the organization."),
+        "{tools}"
+    );
+    assert!(!tools.contains("organization:read"), "{tools}");
+}
+
 #[test]
 fn cors_server_description_matches_golden() {
     let service = Model::from_json(include_str!(

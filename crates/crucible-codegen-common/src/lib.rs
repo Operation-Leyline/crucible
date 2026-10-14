@@ -5,6 +5,7 @@ pub mod documentation;
 pub mod json_schema;
 pub mod mcp;
 pub mod metadata;
+pub mod permissions;
 
 pub use metadata::{PackageMetadata, Registry};
 
@@ -255,6 +256,15 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     // (docs/api-versions-clients.md); absent for a Smithy model.
     if let Some(version) = &service.api_version {
         value["apiVersion"] = json!(version);
+    }
+    // The permission registry (docs/permissions.md §6.3), for a console's
+    // grant picker; never an internal permission, whatever the audience.
+    let permissions = permissions::registry(service, false);
+    if permissions
+        .as_array()
+        .is_some_and(|entries| !entries.is_empty())
+    {
+        value["permissions"] = permissions;
     }
     if service.protocol != crucible_smithy::Protocol::CrucibleJson {
         value["protocol"] = json!(service.protocol);

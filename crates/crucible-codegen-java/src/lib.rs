@@ -244,6 +244,12 @@ fn operation_javadoc(
     throws: bool,
 ) -> String {
     let mut notes = vec![variant.to_string()];
+    // What the caller must hold, as the model states it (docs/permissions.md §6.3).
+    notes.extend(
+        crucible_codegen_common::permissions::requirement_sentences(service, op)
+            .iter()
+            .map(|sentence| docs::javadoc_text(&docs::text(sentence))),
+    );
     if let Some(token) = &op.idempotency_token {
         notes.push(format!(
             "The {} member is filled with a fresh idempotency token when omitted, so retries are safe.",

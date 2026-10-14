@@ -185,6 +185,15 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         "x-smithy-traits": traits(&service.traits),
     });
     annotate(&mut document, &service.notes, Slot::Root);
+    // The permission registry with tiers and aliases; internal entries only
+    // in a server-audience document, whose IR keeps them.
+    let registry = crucible_codegen_common::permissions::registry(service, true);
+    if registry
+        .as_array()
+        .is_some_and(|entries| !entries.is_empty())
+    {
+        document["x-crucible-permissions"] = registry;
+    }
     if let Some(endpoint) = &options.endpoint {
         document["servers"] = json!([{"url": endpoint}]);
     }

@@ -20,6 +20,7 @@ mod client;
 mod client_api;
 mod client_options;
 mod client_package;
+mod client_permissions;
 mod conformance;
 mod debug;
 mod errors;
@@ -31,6 +32,7 @@ mod models;
 mod names;
 mod open;
 mod operations;
+mod permissions;
 mod runtime_dependency;
 mod scaffold;
 mod server_api;
@@ -181,18 +183,23 @@ pub(crate) fn body(
     explorer_service: &Service,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    body_with(service, options, explorer_service, true, diagnostics)
+    body_with(service, options, explorer_service, true, false, diagnostics)
 }
 
 /// [`body`], with `strict` false for an older release. Its output types read
 /// the current version's values converted down, which may carry members
 /// added since, so a structure an output or error reaches never refuses an
 /// unknown member; one only inputs reach decodes as strictly as before.
+///
+/// `parent_permissions`: the module states requirements against the
+/// service module's `permissions`, two levels up (an older release's
+/// legacy operations), instead of generating its own.
 pub(crate) fn body_with(
     service: &Service,
     options: &Options,
     explorer_service: &Service,
     strict: bool,
+    parent_permissions: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let mut strict_shapes = models::strict_shapes(service, options.strict_inputs);
@@ -268,10 +275,15 @@ pub(crate) fn body_with(
         internal: internal_fn,
     };
     let operations = format!(
-        "{}{}{}",
+        "{}{}{}{}",
         info::redactions(service),
         operations::emit(service, functions, options.mcp, diagnostics),
-        events::statics(service, diagnostics, false)
+        events::statics(service, diagnostics, false),
+        if parent_permissions {
+            "\n#[allow(unused_imports)]\nuse super::super::permissions;\n".to_owned()
+        } else {
+            permissions::module(service, diagnostics)
+        },
     );
     let exports = server_api::exports(service, diagnostics);
     let mcp = if options.mcp {
@@ -327,9 +339,10 @@ pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     let errors = errors::emit(service, true, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let client = format!(
-        "{}{}",
+        "{}{}{}",
         info::redactions(service),
-        client::emit(service, &mut diagnostics)
+        client::emit(service, &mut diagnostics),
+        client_permissions::module(service, &mut diagnostics),
     );
     let exports = client_api::exports(service, &mut diagnostics);
     if !diagnostics.is_empty() {

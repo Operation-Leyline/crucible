@@ -41,6 +41,80 @@ fn legacy_enum_models_match_golden() {
     );
 }
 
+/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
+/// source first.
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
+}
+
+fn leyline() -> crucible_smithy::ir::Service {
+    leyline_with(|text| text)
+}
+
+/// Typed permissions (docs/permissions.md §6.3): open constants per
+/// resource, deprecated aliases, the registry, and each method's
+/// requirements in its documentation; nothing of the internal tier.
+#[test]
+fn permission_constants_match_golden() {
+    let external =
+        crucible_smithy::project(&leyline(), crucible_smithy::Audience::External).unwrap();
+    let options = Options {
+        package_name: "@example/leyline".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+        metadata: Default::default(),
+    };
+    let files = emit(&external, &options).unwrap();
+    let file = |path: &str| {
+        files
+            .iter()
+            .find(|file| file.path == path)
+            .unwrap()
+            .contents
+            .clone()
+    };
+    let permissions = file("src/permissions.ts");
+    assert!(!permissions.contains("organization:read"), "{permissions}");
+    assert!(file("src/index.ts").contains("export * from \"./permissions.js\";"));
+    assert!(file("src/client.ts").contains(
+        "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`."
+    ));
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions.ts");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &permissions).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(path).unwrap().replace("\r\n", "\n"),
+        permissions
+    );
+    // A model without permissions gets no file.
+    let weather = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    assert!(
+        emit(&weather, &options)
+            .unwrap()
+            .iter()
+            .all(|file| file.path != "src/permissions.ts")
+    );
+}
+
 #[test]
 fn weather_client_matches_golden_files() {
     let model = include_str!("../../crucible-smithy/tests/fixtures/weather.json");

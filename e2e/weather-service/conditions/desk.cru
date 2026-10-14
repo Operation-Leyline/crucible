@@ -1,0 +1,110 @@
+/// Rooms and their seats: every clause of Configure is conditional on its
+/// input, so a test can tell which checks the bindings produce.
+service Desk {
+    version "1"
+    protocol json
+    auth bearer
+
+    resources [Room]
+    errors [ValidationException, InternalServerException]
+}
+
+string RoomId
+string SeatId
+
+/// Its wire values differ from its names: conditions compare wire values.
+enum Color {
+    RED = "red-wire"
+    BLUE = "blue-wire"
+}
+
+enum Level: integer {
+    LOW = 1
+    HIGH = 2
+}
+
+structure SeatPick {
+    seatId: SeatId
+}
+
+/// Where to act: the current seat, or a named one.
+union Target {
+    current
+    seat: SeatPick
+}
+
+resource Room {
+    id roomId: RoomId
+
+    permission enter = "room:enter"
+    permission paint = "room:paint"
+    permission heat = "room:heat"
+    permission lock = "room:lock"
+    permission light = "room:light"
+    permission cool = "room:cool"
+    permission clean = "room:clean"
+    /// Its lock: with `lock` on `OnRoom` below, the two handler clauses
+    /// of Wire spell the same constant name.
+    permission lockOn = "room:lock-on"
+}
+
+/// A room's annex, named so its handler clause collides with `lockOn`'s.
+resource OnRoom in Room {
+    id annexId: AnnexId
+
+    permission lock = "annex:lock"
+}
+
+string AnnexId
+
+resource Seat in Room {
+    id seatId: SeatId
+
+    permission sit = "seat:sit"
+    permission swap = "seat:swap"
+    permission reserve = "seat:reserve"
+}
+
+/// Two `by handler` clauses whose obligation constants spell the same
+/// name: the first keeps `LOCK_ON_ON_ROOM`, the second is `.._2`.
+operation Wire on Room {
+    http POST "/rooms/{roomId}/wire"
+    requires enter
+    requires lockOn by handler
+    requires lock on OnRoom by handler
+    input {
+        $roomId
+        annexId: AnnexId
+    }
+    output { done: boolean }
+}
+
+operation Configure on Room {
+    http POST "/rooms/{roomId}/configure"
+    requires enter
+    requires paint when color == "red-wire"
+    requires heat when level == 2
+    requires lock when urgent == true
+    requires light when count == 3 and label in ["a", "b"]
+    requires cool when ratio == 0.1 or exact == 2.5
+    requires clean when not has note
+    requires sit on Seat(seatId) when has seatId
+    requires swap on Seat(roomId: otherRoom, seatId: otherSeat) when has otherRoom and has otherSeat
+    requires reserve on Seat(target.seat.seatId) when has target.seat
+    input {
+        $roomId
+        color?: Color
+        level?: Level
+        urgent?: boolean
+        count?: integer
+        label?: string
+        ratio?: float
+        exact?: double
+        note?: string
+        seatId?: SeatId
+        otherRoom?: RoomId
+        otherSeat?: SeatId
+        target?: Target
+    }
+    output { done: boolean }
+}

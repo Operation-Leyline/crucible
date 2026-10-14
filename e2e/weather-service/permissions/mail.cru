@@ -1,0 +1,186 @@
+// A workspace owns inboxes and templates; graphs are a root resource whose
+// permission is internal. Every authenticated operation says something
+// about authorization (docs/permissions.md §4.7).
+
+/// Inboxes, templates and graphs, authorized per resource.
+service Mail {
+    version "2026-10-01"
+    protocol json
+    auth bearer
+
+    operations [GetMe, Health]
+    resources [Workspace, Graph]
+    errors [ValidationException, InternalServerException]
+}
+
+string WorkspaceId
+string InboxId
+string TemplateId
+string GraphId
+string GrantId
+string ClientToken
+
+/// A tenant: everything else lives in one.
+resource Workspace {
+    id workspaceId: WorkspaceId
+
+    /// Everything in the workspace.
+    @notGrantable
+    permission admin = "workspace:admin"
+    /// Write and delete grants.
+    permission grantManage = "grant:manage"
+}
+
+/// A disposable address.
+resource Inbox in Workspace {
+    id inboxId: InboxId
+
+    /// The inbox row.
+    permission read = "inbox:read"
+    /// Rename and delete. Creating one needs it on every inbox.
+    permission manage = "inbox:manage"
+    /// Send from this address.
+    permission mailSend = "mail:send"
+    /// Renamed to `mail:send`.
+    @deprecated(message: "Renamed to mail:send.")
+    @aliasOf(mailSend)
+    permission emailSend = "email:send"
+}
+
+/// A reusable message body.
+resource Template in Workspace {
+    id templateId: TemplateId
+
+    /// The template.
+    permission read = "template:read"
+}
+
+/// A graph: its permission is the server's own vocabulary.
+resource Graph {
+    id graphId: GraphId
+
+    /// Read a graph.
+    internal permission read = "graph:read"
+}
+
+/// The handler's own refusal, for `refusal_factory`.
+error ConflictError {
+    status 409
+    message: string
+}
+
+readonly operation GetInbox on Inbox {
+    http GET "/w/{workspaceId}/inboxes/{inboxId}"
+    requires read
+    input {
+        $workspaceId
+        $inboxId
+    }
+    errors [ConflictError]
+    output { value: document }
+}
+
+operation SendMessage on Inbox {
+    http POST "/w/{workspaceId}/inboxes/{inboxId}/messages"
+    requires mailSend
+    /// The rendered wording is what the recipient reads.
+    requires read on Template(templateId) when has templateId
+    input {
+        $workspaceId
+        $inboxId
+        templateId?: TemplateId
+        @token
+        clientToken?: ClientToken
+    }
+    output { value: document }
+}
+
+operation CreateInbox on Inbox collection {
+    http POST "/w/{workspaceId}/inboxes"
+    requires manage on Inbox(*)
+    input { $workspaceId }
+    output { value: document }
+}
+
+/// Returns only the inboxes the caller may read.
+readonly operation ListInboxes on Inbox collection {
+    http GET "/w/{workspaceId}/inboxes"
+    filters read on Inbox
+    input { $workspaceId }
+    output { value: document }
+}
+
+operation RenameInbox on Inbox {
+    http POST "/w/{workspaceId}/inboxes/{inboxId}/rename"
+    requires pending because "permissions::require in the handler until the inbox folder moves"
+    input {
+        $workspaceId
+        $inboxId
+    }
+    output { value: document }
+}
+
+readonly operation GetUsage on Workspace {
+    http GET "/w/{workspaceId}/usage"
+    requires pending because "guard::allow in get_usage.rs"
+    input { $workspaceId }
+    output { value: document }
+}
+
+operation DeleteGrant on Workspace {
+    http POST "/w/{workspaceId}/grants/{grantId}"
+    requires grantManage
+    /// Only when the grant being deleted holds `workspace:admin`.
+    requires admin on Workspace by handler
+    input {
+        $workspaceId
+        grantId: GrantId
+        mode: string
+        @token
+        clientToken?: ClientToken
+    }
+    output { value: document }
+}
+
+list Values: string
+
+/// The caller must already hold each permission it hands out: checked by
+/// the handler, since the request names them.
+operation Delegate on Workspace {
+    http POST "/w/{workspaceId}/delegate"
+    requires grantManage
+    input {
+        $workspaceId
+        permissions: Values
+    }
+    output { value: document }
+}
+
+readonly operation GetGraph on Graph {
+    http GET "/graphs/{graphId}"
+    requires read
+    input { $graphId }
+    output { value: document }
+}
+
+/// A listing that filters, behind a second check.
+readonly operation SearchInboxes on Inbox collection {
+    http GET "/w/{workspaceId}/search"
+    filters read on Inbox
+    requires grantManage on Workspace
+    input { $workspaceId }
+    output { value: document }
+}
+
+/// Answers about the caller's own credential; there is nothing to authorize.
+readonly operation GetMe {
+    http GET "/me"
+    requires none
+    output { value: document }
+}
+
+/// No authentication: nothing to authorize.
+public readonly operation Health {
+    http GET "/health"
+    output { value: document }
+}

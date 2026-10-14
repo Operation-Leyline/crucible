@@ -1,0 +1,9 @@
+# Typed permissions across API versions (docs/permissions.md §7.3): v1 is
+# frozen under releases/; v2 renames GetNote's output and removes
+# CountNotes, which a legacy handler still serves at v1.
+[model]
+namespace = "test.versioned_permissions"
+imports = ["crucible.errors"]
+
+[model.baseline]
+path = "releases/v1.json"

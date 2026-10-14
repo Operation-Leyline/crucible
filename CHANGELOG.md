@@ -139,6 +139,45 @@ version's section when it is prepared.
   replays with the declared checks alone). See
   [docs/framework.md](docs/framework.md#typed-permissions).
 
+- Typed permissions, phase B: the generators. Rust server bindings of a
+  model with permissions gain a `permissions` module: per resource a closed
+  enum (`InboxPermission`, with `ALL`, `value`, `info`, `parse` accepting
+  aliases, and each deprecated alias as a constant of its primary) and a
+  typed reference (`InboxRef`, with `new`, `all`, `not_found`, and
+  conversions to and from `ResourceRef`), `Permission` and `Resource` over
+  all of them (`Permission::parse(resource, value)`, `of`, `from_info`),
+  and the `ResourceInfo` and `PermissionInfo` statics with their 404 and 403
+  messages. Each marker states `REQUIREMENTS`, a `CHECKS` function that
+  binds every check and filter clause to the typed input (paths through
+  optional members and union arms; `when` conditions), `PUBLIC` for an
+  operation the model makes public, and a constant per `by handler` clause
+  (`DeleteGrant::ADMIN_ON_WORKSPACE`); `SERVICE` carries the registry.
+  Older API versions' modules state no requirements, except an operation a
+  later release removed, whose legacy handler is authorized by its own
+  release's requirements and `CHECKS`. `Permissions::undeclared_operations()`
+  reports the operations the build found without requirement metadata,
+  older releases' included. A `when` condition compares a number only as a
+  value of its member's type, and never a `bigInteger` or `bigDecimal`
+  member (`permissions.condition`). Rust and TypeScript
+  clients get open permission types that keep unknown values (Rust
+  `client::permissions::InboxPermission` with `UnknownValue` and
+  `canonical()`; TypeScript `InboxPermission` constants,
+  `InboxPermissionValue` and `canonicalPermission`), and `PERMISSIONS`, the
+  registry with tier, `grantable` and aliases
+  (`crucible_client_runtime_rust::permissions::{ResourcePermissions,
+  PermissionDescription}`). Every client's operation documentation, MCP
+  tool descriptions and the bundled runtimes' schema (`"permissions"`) carry
+  the requirements and registry; no client output names an internal
+  permission. The API reference gains a Permissions page (a table per tier)
+  and an Authorization section per operation, and `describe.json`
+  `service.permissions` and per operation `requirements` and
+  `requirementSentences`; OpenAPI gains `x-crucible-requires` per operation,
+  a requirement sentence in its description and `x-crucible-permissions`
+  (internal entries only in an internal-audience document). The client
+  projection drops a pending operation's reason, which is the server's
+  migration note. See
+  [docs/framework.md](docs/framework.md#typed-permissions).
+
 - `FrameworkError::NotFound { resource }`: HTTP 404, the modelled
   `crucible.errors#NotFoundException` with the resource's `message` (`No
   such inbox.`) and `resourceType`, sent with `Cache-Control: no-store` (a

@@ -51,6 +51,12 @@ pub use crucible_wire::open::{Enum as OpenEnum, UnknownUnion};
 pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm, Protocol};
 pub use crucible_wire::operation::{Operation, OperationInfo};
 pub use crucible_wire::{blob, number, operation, time, validate};
+
+/// The permission registry a generated client publishes
+/// (`permissions::PERMISSIONS`; docs/permissions.md §6.3).
+pub mod permissions {
+    pub use crucible_wire::permissions::{PermissionDescription, ResourcePermissions, Tier};
+}
 #[doc(hidden)]
 pub use metadata::{OperationMetadata, ServiceMetadata};
 pub use paginate::Paginator;
@@ -88,7 +94,8 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, field, number, open, operation, time, validate,
+        cbor, codec, error, event_stream, field, number, open, operation, permissions, time,
+        validate,
     };
 
     pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {
