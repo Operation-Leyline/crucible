@@ -862,6 +862,16 @@ version's section when it is prepared.
   unaffected. No shim is possible: the attribute is on the type. See
   [migrating](docs/migrating.md#unreleased).
 
+- **An `AuthenticatorChain` covering older API versions needs their
+  authenticators.** Each served API version's operations are now
+  authenticated by that release's own schemes, so the chain needs an
+  authenticator for every scheme an older release's operations declare.
+  Without one, `Builder::build` returns an error naming the API version and
+  scheme. Install the missing authenticator, or scope the chain away from
+  that release. No shim is possible: the old behaviour authenticated an
+  older release by the current one's schemes. See
+  [migrating](docs/migrating.md#unreleased).
+
 - **`OperationMetadata` is `#[non_exhaustive]` and has new fields.** Since
   0.7.0 it has gained `pagination`, `idempotency_token`,
   `idempotency_token_sent`, `replays_output`, `requirements`, `checks` and

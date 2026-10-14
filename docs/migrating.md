@@ -30,9 +30,10 @@ or pushes onto `Rejection`'s `violations` field (it is now private). Reading
 the fields of `Principal` and `OperationMetadata` does not need a change.
 Tests or clients that read a rejection's paths may need new expected values,
 and code that reads a `null` document payload as a value sees the member's
-null instead. A service that serves older API versions needs an
-authenticator for each scheme an older release declares, or it no longer
-builds.
+null instead. A service whose `AuthenticatorChain` covers older API
+versions needs an authenticator for each scheme an older release's
+operations declare; otherwise `Builder::build` returns an error naming the
+API version and scheme.
 
 ### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
 
