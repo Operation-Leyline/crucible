@@ -542,7 +542,7 @@ Option<String>`, given to `new`:
   |context: &Context| {
       let principal = context.attribute::<Principal>()?;
       let organization = principal.claims.get("org_id")?.as_str()?;
-      let parts = (principal.issuer, principal.subject, principal.tenant, organization);
+      let parts = (&principal.issuer, &principal.subject, &principal.tenant, organization);
       Some(serde_json::to_string(&parts).expect("strings serialize"))
   }
   ```
