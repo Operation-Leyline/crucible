@@ -431,6 +431,19 @@ version's section when it is prepared.
   [API versions](docs/api-versions.md#limits) promise. A construction error
   for an older version's entry names its API version.
 
+- A Crucible service accepts an explicitly null structure or union
+  `@httpPayload`. Rust, TypeScript, Python and Go clients send one under
+  Crucible JSON as the body `null`, which the server refused with a 400
+  (`invalid type: null, expected struct`). A JSON payload of `null` now reads
+  as the member's explicit null, exactly as `{"member": null}` would in a
+  body: an optional structure or union is absent on the server and
+  `Field::Null` in a Rust client, which also reads a `null` response
+  payload. A document payload follows the same body rule: a Crucible JSON
+  server reads `null` as absent (an AWS REST JSON server still keeps
+  `Some(Value::Null)`), and a Rust client reads it as `Field::Null` rather
+  than `Field::Value(Value::Null)`. Both document changes alter 0.7.0
+  behaviour; see Migration.
+
 - Typed permissions in `.cru` (unreleased) check what they let through
   before. A resource that declares permissions declares an identifier of
   its own (`permissions.identifier`): without one, `R(*)` bound the
@@ -786,6 +799,19 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **A `null` document payload reads as the member's null.** In 0.7.0 a
+  document `@httpPayload` sent as the body `null` read as a document value:
+  `Some(Value::Null)` in a Crucible JSON server's `Option<Value>` member,
+  and `Field::Value(Value::Null)` in a Rust client's response member. It
+  now reads as the same member would from `{"member": null}` in a body:
+  `None` on the server (an AWS REST JSON server keeps `Some(Value::Null)`),
+  and `Field::Null` in the client. A server that told an explicit null
+  document apart from an absent one can no longer do so for this payload
+  (as it already could not in a body); client code that matched
+  `Field::Value(Value::Null)` should use `is_null()`, or `value()`, which
+  returns `None` for both. No shim is possible: the change is in how the
+  wire is read. See [migrating](docs/migrating.md#unreleased).
 
 - **`FrameworkError` has `Conflict`, `NotFound` and `PermissionDenied`
   variants, and is `#[non_exhaustive]`.** A `match` over `FrameworkError`

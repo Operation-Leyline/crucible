@@ -403,7 +403,17 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
     }
 
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, E> {
-        visitor.visit_some(self)
+        match self.value {
+            // A JSON payload reads as the same member would in a JSON body:
+            // `null` is the member's explicit null (absent for a server
+            // `Option`, `Field::Null` for a client), not a value of its type
+            // made from null. Crucible JSON clients send an explicitly null
+            // structure, union or document payload as `null`. A document
+            // codec that keeps null reads the value without asking for an
+            // option, so it still sees `Value::Null`.
+            BoundValue::RawJson(json) => raw_json(json, |de| de.deserialize_option(visitor)),
+            _ => visitor.visit_some(self),
+        }
     }
 
     fn deserialize_enum<V: Visitor<'de>>(
@@ -757,6 +767,56 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_null_json_payload_is_the_members_null_as_in_a_body() {
+        #[derive(Debug, Deserialize)]
+        struct Payloads {
+            nested: Option<Nested>,
+            choice: Option<Sky>,
+            document: Option<serde_json::Value>,
+            #[serde(
+                default,
+                with = "crate::codec::Adapter::<crate::codec::OptionalDocument>"
+            )]
+            kept: Option<serde_json::Value>,
+            #[serde(default)]
+            field: crate::field::Field<Nested>,
+        }
+        for null in [&b"null"[..], b" \t\r\nnull \n"] {
+            let payloads: Payloads = read(
+                b"",
+                ["nested", "choice", "document", "kept", "field"]
+                    .into_iter()
+                    .map(|name| (name, BoundValue::RawJson(null)))
+                    .collect(),
+            )
+            .unwrap();
+            assert_eq!(payloads.nested, None);
+            assert_eq!(payloads.choice, None);
+            assert_eq!(payloads.document, None);
+            // A codec that keeps a document's null still reads it.
+            assert_eq!(payloads.kept, Some(serde_json::Value::Null));
+            assert!(payloads.field.is_null());
+        }
+        // A structure is still read, and a value after the null is trailing data.
+        let payloads: Payloads = read(
+            b"",
+            vec![
+                ("nested", BoundValue::RawJson(br#"{"x":1}"#)),
+                ("field", BoundValue::RawJson(br#"{"x":2}"#)),
+            ],
+        )
+        .unwrap();
+        assert_eq!(payloads.nested, Some(Nested { x: 1.0 }));
+        assert_eq!(payloads.field.value(), Some(&Nested { x: 2.0 }));
+        for json in [&b"null null"[..], b"nul", b"null{}"] {
+            assert!(
+                read::<Payloads>(b"", vec![("nested", BoundValue::RawJson(json))]).is_err(),
+                "{json:?}"
+            );
+        }
     }
 
     #[test]

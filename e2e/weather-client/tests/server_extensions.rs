@@ -1,7 +1,7 @@
 //! Payload bindings and effective authentication metadata in a native service.
 use std::sync::{Arc, Mutex};
 
-use crucible_client_runtime_rust::{Config, Error, Retry};
+use crucible_client_runtime_rust::{Config, Error, Field, Retry};
 use crucible_server_runtime_rust::{Hook, OperationAwareMiddleware, OperationJob, Prepare, Result};
 
 #[allow(dead_code)]
@@ -178,4 +178,61 @@ async fn text_document_error_payloads_and_media_headers_round_trip() {
     };
     let client::TextError::TextFault(error) = error.error;
     assert_eq!(error.details().map(String::as_str), Some("invalid text"));
+}
+
+/// An explicitly null structure payload: Crucible JSON clients (Rust, TS,
+/// Python, Go) send it as the body `null`, and the server reads it as the
+/// member's null, as it would `{"document": null}` in a body (#274).
+#[tokio::test]
+async fn an_explicitly_null_structure_payload_reaches_the_server_as_absent() {
+    let service =
+        crucible_server_runtime_rust::Crucible::builder(wire::operations(Arc::new(Service)))
+            .defaults()
+            .on_rejection(|rejection| {
+                Box::new(wire::TextError {
+                    details: Some(rejection.summary()),
+                })
+            })
+            .build()
+            .unwrap();
+    let endpoint = serve(service).await;
+    let client = client::WireClient::new(Config::new(&endpoint).retry(Retry::none()));
+    // The service echoes the payload it read: `None` sends no body back.
+    let output = client
+        .document(client::DocumentInput {
+            document: Field::Null,
+        })
+        .await
+        .unwrap();
+    assert!(output.document.is_absent());
+    let output = client
+        .document(client::DocumentInput::builder().build())
+        .await
+        .unwrap();
+    assert!(output.document.is_absent());
+
+    // The same bodies on the wire, as every Crucible JSON client sends them.
+    let http = reqwest::Client::new();
+    let post = |body: &'static str| {
+        http.post(format!("{endpoint}/document"))
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+    };
+    for body in ["null", " \tnull\r\n", ""] {
+        let response = post(body).await.unwrap();
+        assert_eq!(response.status(), 200, "{body:?}");
+        assert!(response.bytes().await.unwrap().is_empty(), "{body:?}");
+    }
+    let response = post(r#"{"name":"record"}"#).await.unwrap();
+    assert_eq!(response.status(), 200);
+    assert_eq!(
+        &response.bytes().await.unwrap()[..],
+        br#"{"name":"record"}"#
+    );
+    // Anything else that is not the structure is still malformed.
+    for body in ["nul", "null null", "\"record\""] {
+        let response = post(body).await.unwrap();
+        assert_eq!(response.status(), 422, "{body:?}");
+    }
 }

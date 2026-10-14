@@ -358,7 +358,8 @@ pub enum Location {
     TextPayload(&'static str),
     /// The whole HTTP body as one JSON value (`@httpPayload` on a structure,
     /// union or document). Model serialization decides omission; an explicitly
-    /// serialized null is the JSON value `null`.
+    /// serialized null is the JSON value `null`, which reads back as the
+    /// member's null, as it would in a JSON body.
     DocumentPayload(&'static str),
     StreamingPayload {
         media_type: &'static str,

@@ -110,6 +110,17 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
     assert!(seen.lock().unwrap().last().unwrap().body.is_empty());
     assert!(result.document.is_absent());
 
+    // An explicitly null structure payload is `null` on the wire and reads
+    // back as explicit null (#274).
+    let result = client
+        .document(wire::DocumentInput {
+            document: Field::Null,
+        })
+        .await
+        .unwrap();
+    assert_eq!(seen.lock().unwrap().last().unwrap().body, b"null");
+    assert!(result.document.is_null());
+
     // An empty string is a present, empty text payload.
     let mut empty = input.clone();
     empty.text = Field::Value(String::new());
@@ -206,7 +217,8 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
         .await
         .unwrap();
     assert_eq!(seen.lock().unwrap().last().unwrap().body, b"null");
-    assert_eq!(output.document(), Some(&serde_json::Value::Null));
+    // A `null` payload reads back as explicit null, as a body member does.
+    assert!(output.document.is_null());
     let output = client
         .put_free(kinds::FreeInput::builder().build())
         .await

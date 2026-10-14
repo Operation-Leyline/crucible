@@ -231,7 +231,12 @@ only space, tab, CR, or LF, follow the same rule with and without HTTP bindings;
 raw payload bytes remain unchanged. See [framework validation](framework.md#errors).
 
 Blob payloads preserve raw bytes. String payloads use UTF-8 text; structures,
-unions and documents use the selected protocol's document encoding. Error
+unions and documents use the selected protocol's document encoding. An empty
+body is an absent payload. An explicitly null structure, union or document
+payload follows the protocol's null-member policy: Crucible JSON sends the body
+`null`, AWS REST JSON omits a null structure or union. Readers take a `null`
+payload as the member's explicit null, exactly as a JSON body member, never as
+a structure built from null. Error
 payloads require a discriminator outside the body: `X-Crucible-Error` for
 Crucible or `X-Amzn-Errortype` for AWS restJson1. These are separate target
 capabilities, so lowering support does not imply client or server support.

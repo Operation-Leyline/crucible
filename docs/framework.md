@@ -1396,7 +1396,12 @@ matched literals take precedence over candidates whose relevant components
 are malformed. Path specificity and operation scopes still apply first.
 An ordinary JSON object input body containing zero bytes or only spaces, tabs,
 CR or LF is read as `{}` with or without HTTP bindings. An empty JSON payload
-is absent instead; required-member validation still applies. Other whitespace
+is absent instead; required-member validation still applies. A structure,
+union or document payload of JSON `null` is the member's explicit null, read
+as the same member would be from a JSON body: Crucible JSON clients send an
+explicitly null payload that way. An optional structure or union is then
+absent; a document is absent, or `Some(Value::Null)` where the protocol keeps
+document nulls (AWS REST JSON). Other whitespace
 bytes are invalid JSON. Raw text and blob payloads retain every byte.
 
 A buffered request body over the limit is refused during reading, as the

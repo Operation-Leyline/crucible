@@ -23,12 +23,13 @@ tag.
 ## Unreleased
 
 The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
-authority. Only four kinds of code have to change: code that constructs or
-exhaustively destructures `crucible_auth::Principal` or `OperationMetadata`,
-code that matches `FrameworkError` without a wildcard arm, and code that
-touches `Rejection`'s `violations` field. Reading the fields of the first
-two does not. Tests or clients that read a rejection's paths may need new
-expected values.
+authority. Code that has to change: code that constructs or exhaustively
+destructures `crucible_auth::Principal` or `OperationMetadata`, code that
+matches `FrameworkError` without a wildcard arm, and code that touches
+`Rejection`'s `violations` field. Reading the fields of `Principal` and
+`OperationMetadata` does not. Tests or clients that read a rejection's paths
+may need new expected values, and code that reads a `null` document payload
+as a value sees the member's null instead.
 
 ### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
 
@@ -107,6 +108,22 @@ field needs `..`. A tenant that was carried in `claims` belongs in `tenant`
 now. If the custom authenticator checks bearer API keys against a table,
 consider replacing it with [`ApiKeyAuthenticator`](auth.md#api-keys) and an
 `ApiKeyStore` over that table.
+
+### A `null` document payload is the member's null
+
+A document `@httpPayload` sent as the body `null` reads as the same member
+would from `{"member": null}` in a JSON body, as a structure or union payload
+now does too:
+
+| Reader | 0.7 | Now |
+|---|---|---|
+| Crucible JSON server, `Option<Value>` member | `Some(Value::Null)` | `None` |
+| AWS REST JSON server | `Some(Value::Null)` | `Some(Value::Null)` |
+| Rust client response, `Field<Value>` member | `Field::Value(Value::Null)` | `Field::Null` |
+
+Replace a client match on `Field::Value(Value::Null)` with `is_null()`. A
+Crucible JSON operation that needs an explicit null document distinct from
+absence cannot get it from this payload, as it cannot from a body member.
 
 ### Rejection paths do not name client text
 
