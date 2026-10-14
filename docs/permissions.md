@@ -1024,12 +1024,11 @@ pub enum Visibility { All, Only(BTreeSet<String>), Hidden }
   operation id and its full requirement metadata, including whether the
   operation is read-only or idempotent, so it can decide what to cache and
   what to read fresh without a model marker. Both consumers read grants
-  with strongly consistent reads. Pigeon's Authorizer drops the 30-second
-  decision cache: one strongly consistent `BatchGetItem` per request, which
-  it already pays, applies a revocation immediately. A cache added later
-  is keyed on (principal, permission, resource), never on the operation
-  alone, and the Authorizer decides from `OperationFacts` when to bypass
-  it.
+  with strongly consistent reads. Pigeon's Authorizer keeps its 30-second
+  decision cache, keyed on (principal, permission, resource), never on the
+  operation alone, so a revoked grant converges within 30 seconds, the same
+  trade its one-minute API-key cache makes. The Authorizer decides from
+  `OperationFacts` when to bypass it.
 - **The principal is the service's to read.** The Authorizer reads
   `context.attribute::<Principal>()` and maps it to its own `Caller`, as
   Pigeon's handlers already do.
@@ -1318,7 +1317,8 @@ Each step ships alone and changes no behaviour until the step that says so.
    - Add `@permissionTypes` to `ResourceType`.
 2. **Implement `Authorizer`** over `authorization::decide`,
    `guard::belongs` and `data::grants::readable`, with strongly consistent
-   reads and no decision cache. Answer `Hidden` for non-members. Install
+   reads behind the existing 30-second decision cache. Answer `Hidden` for
+   non-members. Install
    `Permissions::shadow` before `Idempotency`, alongside the existing
    guards. Nothing is refused by the interceptor yet.
 3. **Declare requirements, one resource folder at a time.** Each operation
@@ -1555,8 +1555,11 @@ service frameworks.
    the resource, not reused across methods ([API Gateway Lambda
    authorizers](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-use-lambda-authorizer.html)).
    *Changed from the draft:* `OperationFacts` is passed explicitly rather
-   than left to `context.operation_metadata()`, and Pigeon drops its
-   30-second decision cache.
+   than left to `context.operation_metadata()`. Pigeon keeps its 30-second
+   decision cache, keyed on the resource as above: revocation converges
+   within 30 seconds rather than applying immediately, a deliberate trade
+   of ASVS's "applied immediately" for one grants read per 30 seconds, as
+   its API keys already do.
 
 4. **Strict default.** Once a service declares any permission or installs
    an Authorizer, an authenticated operation without `requires`, `filters`
