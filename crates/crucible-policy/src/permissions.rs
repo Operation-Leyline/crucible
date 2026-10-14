@@ -174,20 +174,43 @@ impl Checker<'_> {
             let Some(new_op) = self.new.operations.iter().find(|op| op.id == old_op.id) else {
                 continue;
             };
-            let added: Vec<&Requirement> = match (&old_op.requirements, &new_op.requirements) {
-                // A projected IR is never compared; `Partial` reads as the
-                // list it is.
-                (
-                    Requirements::List(old) | Requirements::Partial(old),
-                    Requirements::List(new) | Requirements::Partial(new),
-                ) => new
-                    .iter()
-                    .filter(|clause| !old.iter().any(|before| self.same_clause(before, clause)))
-                    .collect(),
-                (_, Requirements::List(new) | Requirements::Partial(new)) => new.iter().collect(),
-                _ => Vec::new(),
-            };
-            if added.is_empty() {
+            // An SDK release plan compares the models its audience sees
+            // (docs/sdk-packaging.md, phase 2), where the client projection
+            // leaves out clauses on internal permissions: a list that became
+            // `Partial` while keeping every clause it had, or requirements
+            // that became `Internal` where there were none, gained a
+            // requirement this audience cannot name. A clause that left the
+            // view instead became internal: its visibility changed, not
+            // what a caller must hold.
+            let (added, hidden): (Vec<&Requirement>, bool) =
+                match (&old_op.requirements, &new_op.requirements) {
+                    (
+                        Requirements::List(old) | Requirements::Partial(old),
+                        Requirements::List(new) | Requirements::Partial(new),
+                    ) => (
+                        new.iter()
+                            .filter(|clause| {
+                                !old.iter().any(|before| self.same_clause(before, clause))
+                            })
+                            .collect(),
+                        matches!(new_op.requirements, Requirements::Partial(_))
+                            && !matches!(old_op.requirements, Requirements::Partial(_))
+                            && old.iter().all(|before| {
+                                new.iter().any(|clause| self.same_clause(before, clause))
+                            }),
+                    ),
+                    (_, Requirements::List(new)) => (new.iter().collect(), false),
+                    (old, Requirements::Partial(new)) => {
+                        (new.iter().collect(), !matches!(old, Requirements::Internal))
+                    }
+                    (
+                        Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal,
+                        Requirements::Internal,
+                    ) => (Vec::new(), false),
+                    (_, Requirements::Internal) => (Vec::new(), true),
+                    _ => (Vec::new(), false),
+                };
+            if added.is_empty() && !hidden {
                 continue;
             }
             let was = match &old_op.requirements {
@@ -196,16 +219,24 @@ impl Checker<'_> {
                 Requirements::Pending { .. } => " (it was `requires pending`)",
                 Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal => "",
             };
-            let clauses: Vec<String> = added
+            let mut clauses: Vec<String> = added
                 .iter()
                 .map(|clause| describe(clause, self.new.permissions.get(&clause.resource)))
                 .collect();
+            if hidden {
+                clauses.push("permissions internal to the service".to_owned());
+            }
+            let them = if clauses.len() == 1 && !hidden {
+                "it"
+            } else {
+                "them"
+            };
             self.report.push(
                 "compatibility.authorization",
                 &old_op.id,
                 Severity::Warning,
                 format!(
-                    "an authorization change: `{}` now requires {}{was}; callers without it are refused",
+                    "an authorization change: `{}` now requires {}{was}; callers without {them} are refused",
                     old_op.name(),
                     clauses.join(", ")
                 ),

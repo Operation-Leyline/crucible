@@ -2165,7 +2165,9 @@ impl<'a> Lowerer<'a> {
             }
             _ => {}
         }
-        resolve_enum_symbols(&self.shapes, target, value, &mut json);
+        for problem in resolve_enum_symbols(&self.shapes, target, value, &mut json) {
+            self.error(file, span, problem);
+        }
         for problem in crucible_smithy::validate::value(
             &self.shapes,
             "the default",

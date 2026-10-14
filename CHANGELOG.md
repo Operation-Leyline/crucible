@@ -420,6 +420,13 @@ version's section when it is prepared.
 
 ### Changed
 
+- The compatibility guard counts a migration's `rename` steps toward
+  `compatibility.pagination`: when renaming a paginated operation's input
+  or output token, items or page size member accounts for the whole
+  pagination change, the renames declare it, as they already convert the
+  member for older callers, and no policy exception is needed. A
+  pagination change the renames do not explain is still reported.
+
 - An idempotency token member is described, in OpenAPI and MCP schemas,
   `crucible.describe/1` member schemas and the API reference, as sent
   automatically by SDKs, and as one a caller of the API itself should send,
@@ -486,8 +493,17 @@ version's section when it is prepared.
   and `requirement_paragraph` in `crucible-codegen-common` take an
   `internal` flag, as `registry` does). A clause clients see may no longer
   bind or test an `internal` member, or compare with an `internal` enum
-  value (`permissions.internal-member`); the client projection drops
-  `@permissionTypes` exclusions of resources it removed. See
+  value (`permissions.internal-member`); for a permission other clauses
+  also require, the advice no longer suggests making it `internal`, which
+  would hide those too. The client projection drops `@permissionTypes`
+  exclusions of resources it removed, and drops the enum when a grantable
+  resource's value of it was internal. A `filters` clause on an internal
+  permission narrows a listing and refuses nothing, so leaving it out no
+  longer makes the list partial; a listing that only filters by internal
+  permissions requires none in the client view. `compatibility.authorization`
+  compares client-audience models too (an SDK release plan does): a list
+  that becomes partial, or requirements that become internal, is reported
+  as an added requirement on permissions internal to the service. See
   [docs/permissions.md](docs/permissions.md).
 
 - `AuthenticatorChain` checked a request at an older API version against
@@ -627,7 +643,13 @@ version's section when it is prepared.
   never repeats a name another clause spells, and a float `when` literal
   outside `f32` is a diagnostic. An older release's legacy operation is
   refused when the resource's identifiers changed in any way, not only in
-  number, since its bindings are positional.
+  number, since its bindings are positional, or when the resource moved to
+  other parents: releases now record each resource's parents (by
+  authorization name, or shape name for a parent without permissions; a
+  parent's shape rename that keeps its authorization name is no move), so
+  a move to a parent whose identifier has the same name, or a root moved
+  under a parent without identifiers, is caught too. A release frozen
+  before parents were recorded is compared by identifiers alone.
 
 - The Rust client's default HTTP transport no longer follows redirects,
   which could forward custom API-key and SigV4 session-token headers to
@@ -697,10 +719,20 @@ version's section when it is prepared.
   `[RED]` for a list of enums, or `{ color: RED }` in a structure, lowers
   to RED's wire value instead of the text `"RED"`, which was refused or,
   when another value's wire value spelled it, silently meant that value.
+  An unquoted key of a map keyed by an enum names a symbol too
+  (`{ RED: "x" }` is keyed by RED's wire value; `{ "RED": "x" }` by `RED`),
+  and two keys that name one wire value are refused rather than one of
+  them dropped. A migration's `require ... default null` is refused for a
+  `document` member as for any other: `require` makes the member required,
+  and a document's null is a value only where the member is optional.
 
-- Examples and defaults may set an optional `document` member to `null`,
-  as Smithy allows; the null is kept as the document's value. A required
-  member, or a member of any other type, still may not be null.
+- Examples and defaults may set a `document` member that is optional on
+  the server (neither required nor defaulted) to `null`; the null is kept
+  as the document's value. This is narrower than Smithy's example
+  validation, which reads nullability as a client does and so also accepts
+  null for a required member of an `@input` structure or a
+  `@clientOptional` one: the server requires those, and would refuse the
+  example's request. A member of any other type still may not be null.
 
 - The language server includes new unsaved buffers inside a package's
   source directories when checking diagnostics and resolving symbols.

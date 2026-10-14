@@ -988,7 +988,10 @@ requirement exists without naming it, where omitting it would read as
 `Requirements::Partial` (the clauses the client sees), shown as
 `{"kind": "list", "clauses": [..], "partial": true}`, and its sentence
 ends "; and further permissions internal to the service.", so holding
-every permission it names does not read as enough. A clause a client sees
+every permission it names does not read as enough. A `filters` clause
+refuses nothing, so an internal one left out does not make the list
+partial, and a listing that only filters by internal permissions requires
+none in the client view. A clause a client sees
 never reads an internal member: binding or testing one, or comparing with
 an internal enum value, is refused (`permissions.internal-member`), since
 the client contract would name what the projection removes and the clause
@@ -996,8 +999,9 @@ would not mean the same to a caller that never sends the member; an
 `internal permission`'s clause, removed with it, may. The projection also
 keeps `@permissionTypes` consistent: an excluded resource whose
 permissions were all internal is dropped from `excluded`, and an enum with
-a value naming no resource of the client view is no longer the view's
-permission types. A condition never compares a `bigInteger` or
+a value naming no resource of the client view, or without a value for a
+grantable resource of the view it does not exclude (one whose value was
+internal), is no longer the view's permission types. A condition never compares a `bigInteger` or
 `bigDecimal` member (test it with `has`), and a compared number must be a
 value of the member's type, so every generator states the comparison in
 that type (`float` as `f32`).

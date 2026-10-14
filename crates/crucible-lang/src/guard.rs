@@ -6,17 +6,17 @@
 
 use std::path::Path;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_policy::{Config, Finding, Severity};
 use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{ApiVersion, Hook, Operation, Service, Shape, VersionStep};
+use crucible_smithy::ir::{ApiVersion, Hook, Operation, Paginated, Service, Shape, VersionStep};
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
 use crate::compile::{Compiled, FileDiagnostic, Package, load_baseline};
 use crate::diagnostic::Diagnostic;
-use crate::literal::resolve_enum_symbols;
+use crate::literal::{duplicate_keys, resolve_enum_symbols};
 
 /// What the guard found for one package.
 #[derive(Debug, Clone)]
@@ -151,6 +151,7 @@ pub fn guard(
                 }
             }
         }
+        covers.extend(context.pagination_covers(migration));
         check_versions(migration, *file, &mut problems);
         if migration.version.value != service.version {
             problems.push(FileDiagnostic {
@@ -252,6 +253,7 @@ const REQUIRE: &[&str] = &[
     "compatibility.sdk",
 ];
 const ENUM_VALUE: &[&str] = &["compatibility.enum", "compatibility.sdk"];
+const PAGINATION: &[&str] = &["compatibility.pagination"];
 const ERROR: &[&str] = &["compatibility.error", "compatibility.sdk"];
 const ROUTE: &[&str] = &["compatibility.http"];
 const RETYPE: &[&str] = &[
@@ -383,7 +385,25 @@ impl Context<'_> {
             && let Some(Shape::Structure(owner)) = self.new.shapes.get(&target.shape)
             && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
         {
-            let default = self.require_default(&target, value);
+            let (default, collisions) = self.require_default(&target, value);
+            if !collisions.is_empty() {
+                return Err(collisions
+                    .into_iter()
+                    .map(|problem| error(value.span(), problem))
+                    .collect());
+            }
+            // `require` makes the member required, and a required member is
+            // never null: not even a document, whose null is a value only
+            // where the member is optional (as nested defaults are checked).
+            if default.is_null() {
+                return Err(vec![error(
+                    value.span(),
+                    format!(
+                        "the migration default for `{}` must not be null: `require` makes it required",
+                        member.name
+                    ),
+                )]);
+            }
             let problems: Vec<_> = crucible_smithy::validate::value(
                 &self.new.shapes,
                 &format!("the migration default for `{}`", member.name),
@@ -401,17 +421,26 @@ impl Context<'_> {
         Ok(covers)
     }
 
-    fn require_default(&self, target: &Target, value: &Value) -> Json {
+    fn require_default(&self, target: &Target, value: &Value) -> (Json, Vec<String>) {
         // Enum symbols, at any depth, become their wire values, as in a
         // member's default: validation and the runtime conversion must see
         // the same value.
         let mut default = json(value);
+        // The plain conversion keeps a key's last value, so a key given
+        // twice (`{ RED: "x", "RED": "y" }`) would drop one unseen; a
+        // member's default refuses it while converting.
+        let mut problems = duplicate_keys(value);
         if let Some(Shape::Structure(owner)) = self.new.shapes.get(&target.shape)
             && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
         {
-            resolve_enum_symbols(&self.new.shapes, &member.target, value, &mut default);
+            problems.extend(resolve_enum_symbols(
+                &self.new.shapes,
+                &member.target,
+                value,
+                &mut default,
+            ));
         }
-        default
+        (default, problems)
     }
 
     /// Checks one step against the two models and returns what it covers.
@@ -767,6 +796,59 @@ impl Context<'_> {
         }
     }
 
+    /// Renames that account for a paginated operation's whole pagination
+    /// change declare it: renaming the input token (or the output token,
+    /// items or page size) changes the contract, and the rename step is
+    /// what converts the member for older callers. A change the renames do
+    /// not explain stays undeclared.
+    fn pagination_covers(&self, migration: &Migration) -> Vec<Cover> {
+        let mut renames: BTreeMap<(ShapeId, String), String> = BTreeMap::new();
+        for step in &migration.steps {
+            if let StepKind::Rename { path, to } = &step.kind
+                && let Ok((old, _)) = self.both(path)
+                && let Some(from) = old.member
+            {
+                renames.insert((old.shape, from), to.name.clone());
+            }
+        }
+        if renames.is_empty() {
+            return Vec::new();
+        }
+        // A pagination path's first segment is a member of the operation's
+        // input or output; what follows is below it.
+        let renamed = |shape: &Option<ShapeId>, path: &str| -> String {
+            let (head, rest) = path
+                .split_once('.')
+                .map_or((path, None), |(h, r)| (h, Some(r)));
+            let head = shape
+                .as_ref()
+                .and_then(|shape| renames.get(&(shape.clone(), head.to_owned())))
+                .map_or(head, String::as_str);
+            rest.map_or_else(|| head.to_owned(), |rest| format!("{head}.{rest}"))
+        };
+        self.old
+            .operations
+            .iter()
+            .filter_map(|old| {
+                let before = old.paginated.as_ref()?;
+                let now = self
+                    .new
+                    .operations
+                    .iter()
+                    .find(|op| op.id == old.id)?
+                    .paginated
+                    .as_ref()?;
+                let mapped = Paginated {
+                    input_token: renamed(&old.input, &before.input_token),
+                    output_token: renamed(&old.output, &before.output_token),
+                    items: before.items.as_deref().map(|p| renamed(&old.output, p)),
+                    page_size: before.page_size.as_deref().map(|p| renamed(&old.input, p)),
+                };
+                (before != now && &mapped == now).then(|| Cover::exact(old.id.clone(), PAGINATION))
+            })
+            .collect()
+    }
+
     /// A path resolved in both releases.
     fn both(&self, path: &Dotted) -> Result<(Target, Target), Diagnostic> {
         let old = self
@@ -998,7 +1080,7 @@ impl Context<'_> {
                 let member = new.member.clone().unwrap_or_default();
                 match how {
                     RequireHow::Default(value) => {
-                        let default = self.require_default(&new, value);
+                        let (default, _) = self.require_default(&new, value);
                         let Some(Shape::Structure(owner)) = self.new.shapes.get(&new.shape) else {
                             unreachable!("a checked requirement targets a structure member")
                         };

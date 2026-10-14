@@ -6,6 +6,9 @@
 //! The serde names are part of the release snapshot format: every field is
 //! `#[serde(default)]`, so a release frozen before permissions existed still
 //! reads, and an empty value is not written, so its snapshot is unchanged.
+//! `ResourcePermissions::parents` is the exception: `None` (not written)
+//! marks a release frozen before parents were recorded, and `Some([])`, a
+//! root, is written.
 
 use serde_json::Value;
 
@@ -25,6 +28,14 @@ pub struct ResourcePermissions {
     /// The resource's identifiers, root to leaf: `["workspaceId", "inboxId"]`.
     #[serde(default)]
     pub identifiers: Vec<String>,
+    /// The resources it is nested in, root first, each by authorization name
+    /// when it declares permissions (a shape rename keeps it), else by shape
+    /// name: `["workspace"]`. With `identifiers`, what a binding's positions
+    /// mean: a resource moved to another parent whose identifier has the
+    /// same name keeps its identifiers but not its parents. `None` in a
+    /// release frozen before parents were recorded; `Some([])` for a root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parents: Option<Vec<String>>,
     /// Source order, aliases included.
     #[serde(default)]
     pub permissions: Vec<Permission>,

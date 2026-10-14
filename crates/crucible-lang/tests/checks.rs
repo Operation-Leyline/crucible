@@ -350,6 +350,7 @@ const COLOR: &str = r#"
 enum Color { RED = "r", SPECIAL = "RED" }
 list Colors: Color
 map Palette: string -> Color
+map Shades: Color -> string
 "#;
 
 #[test]
@@ -370,6 +371,7 @@ operation Paint {
 structure Note {
     colors: Colors = [RED, "RED"]
     palette: Palette = { a: RED, b: "RED" }
+    shades: Shades = { RED: "x", SPECIAL: "y" }
     symbol: Color = RED
     wire: Color = "RED"
 }
@@ -393,6 +395,8 @@ structure Note {
     let default = |name: &str| note.member(name).unwrap().default.clone();
     assert_eq!(default("colors"), Some(json!(["r", "RED"])));
     assert_eq!(default("palette"), Some(json!({"a": "r", "b": "RED"})));
+    // An unquoted key of an enum-keyed map is a symbol too.
+    assert_eq!(default("shades"), Some(json!({"r": "x", "RED": "y"})));
     assert_eq!(default("symbol"), Some(json!("r")));
     assert_eq!(default("wire"), Some(json!("RED")));
     // A quoted symbol name is no wire value.
@@ -401,6 +405,13 @@ structure Note {
             r#"{COLOR}structure Note {{ colors: Colors = ["SPECIAL"] }}"#
         )),
         "is not a value",
+    );
+    // A symbol key and a quoted key naming one wire value collide.
+    assert_mentions(
+        &messages(&format!(
+            r#"{COLOR}structure Note {{ shades: Shades = {{ RED: "x", "r": "y" }} }}"#
+        )),
+        "`r` is given twice",
     );
 }
 

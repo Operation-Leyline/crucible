@@ -511,3 +511,47 @@ error Missing {
     );
     none_of(&found, &["compatibility.error", "compatibility.sdk"]);
 }
+
+/// An SDK release plan compares the models its audience sees: a clause on
+/// an internal permission is left out of the client view, but adding one is
+/// still an authorization change there.
+#[test]
+fn an_internal_requirement_added_is_an_authorization_change_in_the_client_view() {
+    let new = edit(
+        BASE,
+        "    requires read\n    input {\n        $organizationId\n        $graphId\n    }",
+        "    requires read\n    requires read on Organization\n    input {\n        $organizationId\n        $graphId\n    }",
+    );
+    let external = |model: &str| {
+        crucible_smithy::project(&lower(model), crucible_smithy::Audience::External).unwrap()
+    };
+    let found = diff(&external(BASE), &external(&new), &Config::default()).findings;
+    expect(
+        &found,
+        "compatibility.authorization",
+        "GetGraph",
+        "`GetGraph` now requires permissions internal to the service; callers without them are refused",
+        Severity::Warning,
+    );
+    // GetOrganization's requirements were internal before and still are.
+    assert!(
+        !found.iter().any(
+            |f| f.rule == "compatibility.authorization" && f.shape.ends_with("GetOrganization")
+        ),
+        "{found:#?}"
+    );
+    // A permission that becomes internal changes what the client view
+    // shows, not what a caller must hold: no authorization change there.
+    let hidden = edit(
+        BASE,
+        "    permission write = \"graph:write\"",
+        "    internal permission write = \"graph:write\"",
+    );
+    let found = diff(&external(BASE), &external(&hidden), &Config::default()).findings;
+    assert!(
+        !found
+            .iter()
+            .any(|f| f.rule == "compatibility.authorization"),
+        "{found:#?}"
+    );
+}

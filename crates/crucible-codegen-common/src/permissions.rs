@@ -361,7 +361,9 @@ fn visible_clauses<'a>(
     for clause in clauses {
         match clause_target(service, clause) {
             Some((resource, permission)) if !internal && !client_visible(resource, permission) => {
-                hidden = true;
+                // A `filters` clause narrows a listing and refuses nothing:
+                // leaving it out hides no requirement.
+                hidden |= clause.mode != Mode::Filter;
             }
             _ => visible.push(clause),
         }
@@ -384,6 +386,11 @@ fn requirement_parts(
     let Some((clauses, hidden)) = visible_clauses(service, op, internal) else {
         return (Vec::new(), Vec::new());
     };
+    // Every clause an internal `filters` left out: nothing refuses the
+    // caller, as the client audience projection says (`requires none`).
+    if clauses.is_empty() && !hidden {
+        return (vec!["Requires no permission.".to_owned()], Vec::new());
+    }
     let mut sentences = Vec::new();
     let mut blocks = Vec::new();
     let mut required = Vec::new();
@@ -452,13 +459,7 @@ pub fn requirement_paragraph(service: &Service, op: &Operation, internal: bool) 
         parts.push(sentences.join(" "));
     }
     parts.extend(blocks);
-    (!parts.is_empty()).then(|| {
-        parts.join(
-            "
-
-",
-        )
-    })
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
 /// The registry as data: one entry per resource that declares permissions,

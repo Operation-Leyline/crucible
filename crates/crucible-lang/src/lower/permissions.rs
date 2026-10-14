@@ -198,15 +198,61 @@ impl<'a> Lowerer<'a> {
             });
         }
         let identifiers = inherited.into_iter().chain(own).collect();
+        let parents = Some(self.parents(&resource.name.name));
         self.declared_permissions.insert(
             id,
             ResourcePermissions {
                 name,
                 name_declared,
                 identifiers,
+                parents,
                 permissions,
             },
         );
+    }
+
+    /// The resources `resource` is nested in, root first, each by what
+    /// stays put when its shape is renamed: its authorization name when it
+    /// declares permissions (grants store it, so a rename keeps it), else
+    /// its shape name.
+    fn parents(&self, resource: &str) -> Vec<String> {
+        let mut chain = Vec::new();
+        let mut seen = BTreeSet::from([resource.to_owned()]);
+        let mut current = match self.decl(resource).map(|d| &d.item.decl) {
+            Some(Decl::Resource(r)) => r.parent.as_ref().map(|p| p.name.clone()),
+            _ => None,
+        };
+        while let Some(name) = current {
+            if !seen.insert(name.clone()) {
+                break;
+            }
+            let Some(decl) = self.decl(&name) else {
+                break;
+            };
+            let Decl::Resource(r) = &decl.item.decl else {
+                break;
+            };
+            chain.push(if r.permissions.is_empty() {
+                name
+            } else {
+                // Diagnosed where the resource's own permissions are lowered.
+                decl.item
+                    .annotations
+                    .iter()
+                    .find(|a| a.name.name == "authorizationName")
+                    .and_then(|a| match a.args.as_slice() {
+                        [arg] if arg.key.is_none() => match &arg.value {
+                            Value::Str(text) => Some(text.value.clone()),
+                            _ => None,
+                        },
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| derived_authorization_name(&r.name.name))
+            });
+            current = r.parent.as_ref().map(|p| p.name.clone());
+        }
+        chain.reverse();
+        chain
     }
 
     /// `@authorizationName("inbox")`, else the shape name in lowerCamelCase.
