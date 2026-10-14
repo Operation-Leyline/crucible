@@ -11,9 +11,9 @@ Effective schemes: <code>[&quot;smithy.api#httpBearerAuth&quot;]</code>. Optiona
 
 <p>Requires <code>graph:read</code> on the graph.</p>
 
-| Mode | Permission | Resource type | Bindings | When |
-|---|---|---|---|---|
-| check | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graph</code> |  |
+| Mode | Permission | Resource type | Bindings | When | Notes |
+|---|---|---|---|---|---|
+| check | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graph</code> |  |  |
 
 ## Request syntax
 

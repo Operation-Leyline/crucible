@@ -342,14 +342,6 @@
 
   const sectionId = (name) => `cx-${name}`;
 
-  // A generated sentence (`requirementSentences`): Markdown whose only
-  // markup is code spans.
-  function sentence(text) {
-    return String(text)
-      .split("`")
-      .map((part, i) => (i % 2 ? code(part) : part));
-  }
-
   // What the caller must hold (docs/permissions.md §6.3), as the Markdown
   // reference's Authorization section states it; nothing for an operation
   // that declares nothing.
@@ -361,15 +353,17 @@
     else if (r.kind === "pending") body.push(h("p", {}, "Requirements not declared yet; the service checks them itself: ", r.reason));
     else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
     else {
-      for (const s of list(op.requirementSentences)) body.push(h("p", {}, sentence(s)));
+      // Markdown holding model text, rendered and sanitised at build time.
+      for (const s of list(op.requirementDocumentation)) body.push(rich(s.html));
       const rows = list(r.clauses).map((c) => [
         c.mode,
         code(c.permission),
         code(c.resourceType),
         list(c.bindings).map((b, i) => [i ? ", " : "", code(b.identifier), " = ", code(b.value)]),
-        c.when ? code(c.when) : c.mode === "handler" && c.documentation ? c.documentation : "",
+        c.when ? code(c.when) : "",
+        c.documentation || "",
       ]);
-      body.push(table(["Mode", "Permission", "Resource type", "Bindings", "When"], rows, "Requirements"));
+      body.push(table(["Mode", "Permission", "Resource type", "Bindings", "When", "Notes"], rows, "Requirements"));
     }
     return h("section", { id: sectionId("authorization") }, sectionHeading(op, "authorization", "Authorization"), body);
   }

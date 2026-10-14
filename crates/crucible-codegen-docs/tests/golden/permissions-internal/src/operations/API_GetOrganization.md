@@ -11,9 +11,9 @@ Effective schemes: <code>[&quot;smithy.api#httpBearerAuth&quot;]</code>. Optiona
 
 <p>Requires <code>organization:read</code> on the org.</p>
 
-| Mode | Permission | Resource type | Bindings | When |
-|---|---|---|---|---|
-| check | <code>organization:read</code> | <code>org</code> | <code>organizationId</code> = <code>organizationId</code> |  |
+| Mode | Permission | Resource type | Bindings | When | Notes |
+|---|---|---|---|---|---|
+| check | <code>organization:read</code> | <code>org</code> | <code>organizationId</code> = <code>organizationId</code> |  |  |
 
 ## Request syntax
 

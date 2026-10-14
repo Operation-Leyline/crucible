@@ -12,9 +12,9 @@ Effective schemes: <code>[&quot;smithy.api#httpBearerAuth&quot;]</code>. Optiona
 
 <p>Returns only the graphs the caller holds <code>graph:read</code> on in the organization.</p>
 
-| Mode | Permission | Resource type | Bindings | When |
-|---|---|---|---|---|
-| filter | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>*</code> |  |
+| Mode | Permission | Resource type | Bindings | When | Notes |
+|---|---|---|---|---|---|
+| filter | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>*</code> |  |  |
 
 ## Request syntax
 

@@ -88,10 +88,32 @@ fn permission_constants_match_golden() {
     };
     let permissions = file("src/permissions.ts");
     assert!(!permissions.contains("organization:read"), "{permissions}");
-    assert!(file("src/index.ts").contains("export * from \"./permissions.js\";"));
-    assert!(file("src/client.ts").contains(
+    let index = file("src/index.ts");
+    assert!(
+        index.contains("export { PERMISSIONS, canonicalPermission, GraphPermission, HistoryPermission, OrganizationPermission } from \"./permissions.js\";"),
+        "{index}"
+    );
+    assert!(!index.contains("export * as permissions"), "{index}");
+    let client = file("src/client.ts");
+    assert!(client.contains(
         "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`."
     ));
+    // Hostile documentation: a backtick in a `when` literal gets a longer
+    // fence, a one-paragraph handler note keeps `HTTP`, and a longer one
+    // follows the sentence whole. Its model text is escaped: a bare `[ops]`
+    // is no link and a line-start `@see` no JSDoc tag swallowing the rest.
+    assert!(
+        client.contains("Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \\[ops] approve); `history:read` on the history, checked by the service (see below)."),
+        "{client}"
+    );
+    assert!(
+        client.contains("`history:read` on the history, checked by the service:\n   *\n   * GraphQL plans are checked twice:"),
+        "{client}"
+    );
+    assert!(
+        client.contains("\n   * \\@see the runbook; @param is no tag either.\n   *\n   * Input: RewriteGraphInput."),
+        "{client}"
+    );
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions.ts");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
         fs::write(&path, &permissions).unwrap();
@@ -112,6 +134,56 @@ fn permission_constants_match_golden() {
             .unwrap()
             .iter()
             .all(|file| file.path != "src/permissions.ts")
+    );
+}
+
+/// A permission export a model already names (`GraphPermission`) stays out
+/// of the package root, where the model keeps the name, and every export
+/// is reachable as `permissions.*`: no build failure.
+#[test]
+fn a_permission_export_named_like_a_model_is_namespaced() {
+    let service = leyline_with(|text| text.replace("HistoryRef", "GraphPermission"));
+    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let options = Options {
+        package_name: "@example/leyline".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+        metadata: Default::default(),
+    };
+    let files = emit(&external, &options).unwrap();
+    let index = &files
+        .iter()
+        .find(|file| file.path == "src/index.ts")
+        .unwrap()
+        .contents;
+    assert!(
+        index.contains("export { PERMISSIONS, canonicalPermission, HistoryPermission, OrganizationPermission } from \"./permissions.js\";"),
+        "{index}"
+    );
+    assert!(
+        index.contains("export type { PermissionDescription, ResourcePermissions, GraphPermissionValue, HistoryPermissionValue, OrganizationPermissionValue } from \"./permissions.js\";"),
+        "{index}"
+    );
+    assert!(
+        index.contains("export * as permissions from \"./permissions.js\";"),
+        "{index}"
+    );
+    // A model named `permissions` as well leaves no name for the namespace.
+    let service = leyline_with(|text| {
+        text.replace("HistoryRef", "GraphPermission")
+            .replace("list Names: string", "list permissions: string")
+            .replace("Names", "permissions")
+    });
+    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let diagnostics = emit(&external, &options).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("a model named `permissions`"),
+        "{diagnostics}"
     );
 }
 

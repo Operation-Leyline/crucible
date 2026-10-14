@@ -210,8 +210,13 @@ fn operation_kdoc(
     returns: &str,
     throws: bool,
 ) -> String {
-    // What the caller must hold, as the model states it (docs/permissions.md §6.3).
-    let mut notes = crucible_codegen_common::permissions::requirement_sentences(service, op);
+    // What the caller must hold, as the model states it (docs/permissions.md
+    // §6.3): Markdown holding model text, rendered like model documentation.
+    let mut notes: Vec<String> =
+        crucible_codegen_common::permissions::requirement_sentences(service, op)
+            .iter()
+            .flat_map(|sentence| docs::kdoc(sentence))
+            .collect();
     if op.docs.is_none() {
         notes.push(format!("Calls the {} operation.", code(op.name())));
     }

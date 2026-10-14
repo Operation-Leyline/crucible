@@ -37,3 +37,4 @@ Operations name what the caller must hold on which resource; [Permissions](permi
 - [Health](operations/API_Health.md)
 - [ListGraphs](operations/API_ListGraphs.md)
 - [RestoreBackup](operations/API_RestoreBackup.md)
+- [RewriteGraph](operations/API_RewriteGraph.md)

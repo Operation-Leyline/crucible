@@ -495,6 +495,41 @@ version's section when it is prepared.
   interceptor's settings are shared by one `Arc` per request, instead of
   cloned on every change.
 
+- Typed permissions in generated code (#259). A handler clause's
+  documentation keeps its case (`HTTP` no longer becomes `hTTP`); one
+  paragraph still reads inline, and anything longer follows the requirement
+  sentence whole instead of being flattened into parentheses. A backtick in
+  a permission value, a `when` literal or clause documentation gets a
+  longer code-span fence. Authorization names read as words in refusals and
+  prose, acronyms included (`No such HTTP request.`). Requirement sentences
+  are rendered by each target's documentation dialect (KDoc, Javadoc, C#
+  XML) like model documentation, and `describe.json` adds
+  `requirementDocumentation`, the sentences as `{markdown, html, text}`
+  objects, which the explorer renders instead of splitting
+  `requirementSentences` on backticks. The API reference's
+  Requirements table puts a clause's documentation in a new Notes column,
+  not under When. One rule decides `deprecated` (the model's note, or an
+  alias) and `grantable` (the primary's tier) for every registry, so
+  `describe.json`, OpenAPI and the bundled runtimes now mark an alias
+  deprecated as the Rust and TypeScript registries did; their `PERMISSIONS`
+  docs no longer claim non-grantable entries are left out. Rust client
+  alias variants say what they alias, and permission documentation is
+  escaped as model text in the Rust and TypeScript constants, as a handler
+  clause's documentation now is in every requirement sentence (a
+  line-start `@see` is no JSDoc tag, a bare `[ops]` no rustdoc link). The
+  shared model-text escape now ends a code span only on a backtick run as
+  long as the one that opened it, and plain-text documentation no longer
+  leaves two blank lines after a list. A TypeScript
+  permission export a model already names (`GraphPermission`) is left out
+  of the package root and reachable as `permissions.GraphPermission`,
+  instead of failing generation; a symbol with no letters (`_`) is the
+  constant `_`. In the Rust server bindings, a resource named `Self` is the
+  `Self_` variant of `Permission` and `Resource`, an obligation's ordinal
+  never repeats a name another clause spells, and a float `when` literal
+  outside `f32` is a diagnostic. An older release's legacy operation is
+  refused when the resource's identifiers changed in any way, not only in
+  number, since its bindings are positional.
+
 - The Rust client's default HTTP transport no longer follows redirects,
   which could forward custom API-key and SigV4 session-token headers to
   another origin. Applications can configure an explicit redirect policy

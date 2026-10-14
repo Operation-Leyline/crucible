@@ -11,11 +11,11 @@ Effective schemes: <code>[&quot;smithy.api#httpBearerAuth&quot;]</code>. Optiona
 
 <p>Requires <code>graph:read</code> on the graph; <code>graph:write</code> on the graph, checked by the service (only when the parsed query writes); <code>history:read</code> on the history, when <code>has target.history</code>.</p>
 
-| Mode | Permission | Resource type | Bindings | When |
-|---|---|---|---|---|
-| check | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graphId</code> |  |
-| handler | <code>graph:write</code> | <code>graph</code> |  | <p>Only when the parsed query writes.</p> |
-| check | <code>history:read</code> | <code>history</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graphId</code>, <code>historyId</code> = <code>target.history.historyId</code> | <code>has target.history</code> |
+| Mode | Permission | Resource type | Bindings | When | Notes |
+|---|---|---|---|---|---|
+| check | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graphId</code> |  |  |
+| handler | <code>graph:write</code> | <code>graph</code> |  |  | <p>Only when the parsed query writes.</p> |
+| check | <code>history:read</code> | <code>history</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graphId</code>, <code>historyId</code> = <code>target.history.historyId</code> | <code>has target.history</code> |  |
 
 ## Request syntax
 

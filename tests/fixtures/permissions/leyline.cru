@@ -30,6 +30,8 @@ resource Graph in Organization {
 
     /// Read a graph and its catalog.
     permission read = "graph:read"
+    /// Change a graph: */ ends no comment and [bare] links nowhere.
+    /// @param is not a tag.
     permission write = "graph:write"
     @permissionOnly
     permission audit = "graph:audit"
@@ -127,6 +129,29 @@ operation ExecuteQuery on Graph {
         target?: QueryTarget
     }
     output { rows: Names }
+}
+
+/// Hostile documentation: a backtick in a `when` literal, and handler
+/// clause documentation that must keep its case, its paragraphs and its
+/// code spans.
+operation RewriteGraph on Graph {
+    http POST "/orgs/{organizationId}/graphs/{graphId}/rewrite"
+    requires read when mode == "a`b"
+    /// HTTP rewrites only, when `mode` is ``a`b``, and [ops] approve.
+    requires write by handler
+    /// GraphQL plans are checked twice:
+    ///
+    /// - once when parsed, against */ text;
+    /// - once when run, see [bare] and [the guide](https://example.com/guide).
+    ///
+    /// @see the runbook; @param is no tag either.
+    requires read on History by handler
+    input {
+        $organizationId
+        $graphId
+        mode?: string
+    }
+    output { rewritten: boolean }
 }
 
 operation RestoreBackup on History {

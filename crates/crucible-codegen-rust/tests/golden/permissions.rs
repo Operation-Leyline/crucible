@@ -284,6 +284,40 @@ pub mod leyline {
             }
         }
 
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RewriteGraphInput {
+            #[serde(rename = "organizationId")]
+            pub organization_id: OrganizationId,
+            #[serde(rename = "graphId")]
+            pub graph_id: GraphId,
+            #[serde(rename = "mode", default, skip_serializing_if = "::std::option::Option::is_none")]
+            pub mode: ::std::option::Option<::std::string::String>,
+        }
+        impl ::std::fmt::Debug for RewriteGraphInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RewriteGraphInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("graphId", &self.graph_id);
+                debug.field("mode", &self.mode);
+                debug.finish()
+            }
+        }
+
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RewriteGraphOutput {
+            #[serde(rename = "rewritten")]
+            pub rewritten: bool,
+        }
+        impl ::std::fmt::Debug for RewriteGraphOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RewriteGraphOutput");
+                debug.field("rewritten", &self.rewritten);
+                debug.finish()
+            }
+        }
+
         /// A request field that failed validation.
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
@@ -458,6 +492,23 @@ pub mod leyline {
                 }
             }
         }
+
+        impl ::crucible_server_runtime_rust::__generated::validate::Validate for RewriteGraphInput {
+            fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
+                {
+                    let value = &self.organization_id;
+                    validator.at("organizationId", |validator| {
+                        validator.pattern(value, &PATTERN_0, "^org_[a-z0-9]+$");
+                    });
+                }
+                {
+                    let value = &self.graph_id;
+                    validator.at("graphId", |validator| {
+                        validator.pattern(value, &PATTERN_1, "^g_[a-z0-9]+$");
+                    });
+                }
+            }
+        }
     }
 
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
@@ -489,8 +540,8 @@ pub mod leyline {
             true,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_28, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("retryAfterSeconds", ::crucible_server_runtime_rust::__generated::operation::Location::Header("retry-after"), ::crucible_server_runtime_rust::__generated::operation::Scalar::Integer, &__redaction::R_30, &[]),
             ],
         );
 
@@ -551,8 +602,8 @@ pub mod leyline {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("resourceType", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("resourceType", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
             ],
         );
 
@@ -616,7 +667,7 @@ pub mod leyline {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
                 ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_5, &[]),
                 ::crucible_server_runtime_rust::__generated::member_info("fieldList", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_4, &[]),
             ],
@@ -657,7 +708,7 @@ pub mod leyline {
 
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
-    pub use model::{CreateGraphInput, CreateGraphOutput, ExecuteQueryInput, ExecuteQueryOutput, GetGraphInput, GetGraphOutput, GetOrganizationInput, GetOrganizationOutput, GetUserOutput, GraphId, HealthOutput, HistoryId, HistoryRef, ListGraphsInput, ListGraphsOutput, Names, OrganizationId, QueryTarget, ResourceKind, RestoreBackupInput, RestoreBackupOutput, ValidationExceptionField, ValidationExceptionFieldList, ValidationExceptionReason};
+    pub use model::{CreateGraphInput, CreateGraphOutput, ExecuteQueryInput, ExecuteQueryOutput, GetGraphInput, GetGraphOutput, GetOrganizationInput, GetOrganizationOutput, GetUserOutput, GraphId, HealthOutput, HistoryId, HistoryRef, ListGraphsInput, ListGraphsOutput, Names, OrganizationId, QueryTarget, ResourceKind, RestoreBackupInput, RestoreBackupOutput, RewriteGraphInput, RewriteGraphOutput, ValidationExceptionField, ValidationExceptionFieldList, ValidationExceptionReason};
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
     pub use errors::{InternalServerException, NotFoundException, ValidationException};
@@ -665,37 +716,39 @@ pub mod leyline {
     #[allow(dead_code, unused_imports)]
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_29), ("retryAfterSeconds", &R_28)]);
-        pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_29), ("resourceType", &R_29)]);
-        pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_29), ("reason", &R_5), ("fieldList", &R_4)]);
-        pub(super) static R_3: Redaction = Redaction::Structure(&[("name", &R_29), ("message", &R_29)]);
+        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_31), ("retryAfterSeconds", &R_30)]);
+        pub(super) static R_1: Redaction = Redaction::Structure(&[("message", &R_31), ("resourceType", &R_31)]);
+        pub(super) static R_2: Redaction = Redaction::Structure(&[("message", &R_31), ("reason", &R_5), ("fieldList", &R_4)]);
+        pub(super) static R_3: Redaction = Redaction::Structure(&[("name", &R_31), ("message", &R_31)]);
         pub(super) static R_4: Redaction = Redaction::List(&R_3);
         pub(super) static R_5: Redaction = Redaction::Public;
-        pub(super) static R_6: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("name", &R_29)]);
+        pub(super) static R_6: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("name", &R_31)]);
         pub(super) static R_7: Redaction = Redaction::Structure(&[("created", &R_15)]);
-        pub(super) static R_8: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("graphId", &R_15), ("query", &R_29), ("target", &R_23)]);
+        pub(super) static R_8: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("graphId", &R_15), ("query", &R_31), ("target", &R_23)]);
         pub(super) static R_9: Redaction = Redaction::Structure(&[("rows", &R_21)]);
         pub(super) static R_10: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("graph", &R_15)]);
-        pub(super) static R_11: Redaction = Redaction::Structure(&[("name", &R_29)]);
+        pub(super) static R_11: Redaction = Redaction::Structure(&[("name", &R_31)]);
         pub(super) static R_12: Redaction = Redaction::Structure(&[("organizationId", &R_22)]);
-        pub(super) static R_13: Redaction = Redaction::Structure(&[("name", &R_29)]);
-        pub(super) static R_14: Redaction = Redaction::Structure(&[("subject", &R_29)]);
+        pub(super) static R_13: Redaction = Redaction::Structure(&[("name", &R_31)]);
+        pub(super) static R_14: Redaction = Redaction::Structure(&[("subject", &R_31)]);
         pub(super) static R_15: Redaction = Redaction::Public;
-        pub(super) static R_16: Redaction = Redaction::Structure(&[("status", &R_29)]);
+        pub(super) static R_16: Redaction = Redaction::Structure(&[("status", &R_31)]);
         pub(super) static R_17: Redaction = Redaction::Public;
         pub(super) static R_18: Redaction = Redaction::Structure(&[("historyId", &R_17)]);
         pub(super) static R_19: Redaction = Redaction::Structure(&[("organizationId", &R_22)]);
         pub(super) static R_20: Redaction = Redaction::Structure(&[("names", &R_21)]);
-        pub(super) static R_21: Redaction = Redaction::List(&R_29);
+        pub(super) static R_21: Redaction = Redaction::List(&R_31);
         pub(super) static R_22: Redaction = Redaction::Public;
-        pub(super) static R_23: Redaction = Redaction::Structure(&[("current", &R_30), ("history", &R_18)]);
+        pub(super) static R_23: Redaction = Redaction::Structure(&[("current", &R_32), ("history", &R_18)]);
         pub(super) static R_24: Redaction = Redaction::Public;
         pub(super) static R_25: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("graphId", &R_15), ("historyId", &R_17)]);
-        pub(super) static R_26: Redaction = Redaction::Structure(&[("restored", &R_27)]);
-        pub(super) static R_27: Redaction = Redaction::Public;
-        pub(super) static R_28: Redaction = Redaction::Public;
+        pub(super) static R_26: Redaction = Redaction::Structure(&[("restored", &R_29)]);
+        pub(super) static R_27: Redaction = Redaction::Structure(&[("organizationId", &R_22), ("graphId", &R_15), ("mode", &R_31)]);
+        pub(super) static R_28: Redaction = Redaction::Structure(&[("rewritten", &R_29)]);
         pub(super) static R_29: Redaction = Redaction::Public;
         pub(super) static R_30: Redaction = Redaction::Public;
+        pub(super) static R_31: Redaction = Redaction::Public;
+        pub(super) static R_32: Redaction = Redaction::Public;
     }
 
 
@@ -711,7 +764,7 @@ pub mod leyline {
         200,
         &[
             ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_22, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
         ],
         &[
             ::crucible_server_runtime_rust::__generated::member_info("created", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
@@ -758,7 +811,7 @@ pub mod leyline {
         &[
             ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_22, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("graphId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("query", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("query", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
             ::crucible_server_runtime_rust::__generated::member_info("target", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_23, &[]),
         ],
         &[
@@ -802,7 +855,9 @@ pub mod leyline {
     /// Each is named `<PERMISSION>_ON_<RESOURCE>`; a later clause whose name
     /// an earlier one already spells gets `_2`, `_3`, in declaration order.
     impl ExecuteQuery {
-        /// `graph:write` on Graph, checked by the handler: Only when the parsed query writes.
+        /// `graph:write` on Graph, checked by the handler:
+        ///
+        /// Only when the parsed query writes.
         pub const WRITE_ON_GRAPH: ::crucible_server_runtime_rust::__generated::permissions::Obligation = ::crucible_server_runtime_rust::__generated::permissions::Obligation { operation: "example.leyline#ExecuteQuery", index: 1, permission: &permissions::GRAPH__WRITE };
     }
 
@@ -825,7 +880,7 @@ pub mod leyline {
             ::crucible_server_runtime_rust::__generated::member_info("graph", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
         ],
         &["NotFoundException", "ValidationException", "InternalServerException"],
         true,
@@ -870,7 +925,7 @@ pub mod leyline {
             ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_22, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
         ],
         &["NotFoundException", "ValidationException", "InternalServerException"],
         true,
@@ -914,7 +969,7 @@ pub mod leyline {
         200,
         &[],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("subject", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("subject", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
         ],
         &["ValidationException", "InternalServerException"],
         true,
@@ -954,7 +1009,7 @@ pub mod leyline {
         200,
         &[],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("status", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("status", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
         ],
         &["ValidationException", "InternalServerException"],
         true,
@@ -1044,7 +1099,7 @@ pub mod leyline {
             ::crucible_server_runtime_rust::__generated::member_info("historyId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_17, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("restored", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_27, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("restored", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
         ],
         &["ValidationException", "InternalServerException"],
         false,
@@ -1067,6 +1122,83 @@ pub mod leyline {
 
     pub trait RestoreBackupOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
         fn restore_backup(&self, input: RestoreBackupInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<RestoreBackupOutput>> + Send;
+    }
+
+    /// Hostile documentation: a backtick in a `when` literal, and handler
+    /// clause documentation that must keep its case, its paragraphs and its
+    /// code spans.
+    pub struct RewriteGraph;
+
+    static REWRITE_GRAPH_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
+        "example.leyline#RewriteGraph",
+        "RewriteGraph",
+        Some("Graph"),
+        "POST",
+        &[::crucible_server_runtime_rust::__generated::operation::Segment::Literal("orgs"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("organizationId"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("graphs"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("graphId"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("rewrite")],
+        &[],
+        200,
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("organizationId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_22, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("graphId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("mode", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_31, &[]),
+        ],
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("rewritten", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_29, &[]),
+        ],
+        &["NotFoundException", "ValidationException", "InternalServerException"],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    impl ::crucible_server_runtime_rust::__generated::Operation for RewriteGraph {
+        const AUTH_BEARER: bool = true;
+        const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const OPTIONAL_AUTH: bool = false;
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
+            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: true },
+            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
+            ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::HISTORY__READ, conditional: false },
+        ]);
+        #[allow(clippy::all, unreachable_patterns, unused_parens)]
+        const CHECKS: ::std::option::Option<::crucible_server_runtime_rust::__generated::permissions::Checks<Self::Input>> = ::std::option::Option::Some(|input, out| {
+            if input.mode.as_ref().is_some_and(|v| v.as_str() == "a`b") {
+                out.push(::crucible_server_runtime_rust::__generated::permissions::Check::declared(0, &permissions::GRAPH__READ, ::crucible_server_runtime_rust::__generated::permissions::ResourceRef::new(&permissions::GRAPH, [::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.organization_id), ::crucible_server_runtime_rust::__generated::permissions::Target::from(&input.graph_id)])));
+            }
+        });
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
+        const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &REWRITE_GRAPH_OPERATION;
+        type Input = model::RewriteGraphInput;
+        type Output = model::RewriteGraphOutput;
+    }
+
+    /// The obligations its `by handler` clauses open: discharge each with
+    /// `permissions::discharge`, or close it with `permissions::not_applicable`.
+    /// Each is named `<PERMISSION>_ON_<RESOURCE>`; a later clause whose name
+    /// an earlier one already spells gets `_2`, `_3`, in declaration order.
+    impl RewriteGraph {
+        /// `graph:write` on Graph, checked by the handler:
+        ///
+        /// HTTP rewrites only, when `mode` is ``a`b``, and \[ops] approve.
+        pub const WRITE_ON_GRAPH: ::crucible_server_runtime_rust::__generated::permissions::Obligation = ::crucible_server_runtime_rust::__generated::permissions::Obligation { operation: "example.leyline#RewriteGraph", index: 1, permission: &permissions::GRAPH__WRITE };
+        /// `history:read` on History, checked by the handler:
+        ///
+        /// GraphQL plans are checked twice:
+        ///
+        /// - once when parsed, against */ text;
+        /// - once when run, see \[bare] and [the guide](https://example.com/guide).
+        ///
+        /// \@see the runbook; @param is no tag either.
+        pub const READ_ON_HISTORY: ::crucible_server_runtime_rust::__generated::permissions::Obligation = ::crucible_server_runtime_rust::__generated::permissions::Obligation { operation: "example.leyline#RewriteGraph", index: 2, permission: &permissions::HISTORY__READ };
+    }
+
+    /// Hostile documentation: a backtick in a `when` literal, and handler
+    /// clause documentation that must keep its case, its paragraphs and its
+    /// code spans.
+    pub trait RewriteGraphOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
+        fn rewrite_graph(&self, input: RewriteGraphInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<RewriteGraphOutput>> + Send;
     }
 
     fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option::Option<&'a dyn ::crucible_server_runtime_rust::__generated::ModelledError> {
@@ -1120,6 +1252,7 @@ pub mod leyline {
             &HEALTH_OPERATION,
             &LIST_GRAPHS_OPERATION,
             &RESTORE_BACKUP_OPERATION,
+            &REWRITE_GRAPH_OPERATION,
         ],
         &[&errors::INTERNAL_SERVER_EXCEPTION_INFO, &errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO],
         classify,
@@ -1182,6 +1315,11 @@ pub mod leyline {
             Self(self.0.add::<RestoreBackup, S, _>(implementation, |implementation, input| async move { implementation.restore_backup(input).await }))
         }
 
+        /// Serves RewriteGraph with `implementation`.
+        pub fn rewrite_graph<S: RewriteGraphOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
+            Self(self.0.add::<RewriteGraph, S, _>(implementation, |implementation, input| async move { implementation.rewrite_graph(input).await }))
+        }
+
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {
             self.0.build()
         }
@@ -1194,7 +1332,7 @@ pub mod leyline {
     /// Every operation, served by one type: checked at compile time.
     pub fn operations<T>(implementation: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::__generated::Operations
     where
-        T: CreateGraphOperation + ExecuteQueryOperation + GetGraphOperation + GetOrganizationOperation + GetUserOperation + HealthOperation + ListGraphsOperation + RestoreBackupOperation,
+        T: CreateGraphOperation + ExecuteQueryOperation + GetGraphOperation + GetOrganizationOperation + GetUserOperation + HealthOperation + ListGraphsOperation + RestoreBackupOperation + RewriteGraphOperation,
     {
         builder()
             .create_graph(implementation.clone())
@@ -1205,6 +1343,7 @@ pub mod leyline {
             .health(implementation.clone())
             .list_graphs(implementation.clone())
             .restore_backup(implementation.clone())
+            .rewrite_graph(implementation.clone())
             .build()
             .expect("every operation is registered")
     }
@@ -1253,6 +1392,9 @@ pub mod leyline {
             ///
             /// `graph:read`.
             Read,
+            /// Change a graph: */ ends no comment and \[bare] links nowhere.
+            /// \@param is not a tag.
+            ///
             /// `graph:write`.
             Write,
             /// `graph:audit`.
@@ -1617,7 +1759,9 @@ pub mod leyline {
             }
         }
 
-        /// Any permission of the model, by resource.
+        /// Any permission of the model, by resource. Variants, and so the
+        /// derived order, follow the resources' shape ids; `SERVICE`'s registry
+        /// and the clients' `PERMISSIONS` sort by authorization name and value.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Permission {
             Graph(GraphPermission),
@@ -1626,7 +1770,8 @@ pub mod leyline {
         }
 
         impl Permission {
-            /// Every permission, aliases excluded.
+            /// Every permission, aliases excluded: by resource shape id, then in
+            /// declaration order.
             pub const ALL: &'static [Self] = &[Self::Graph(GraphPermission::Read), Self::Graph(GraphPermission::Write), Self::Graph(GraphPermission::Audit), Self::History(HistoryPermission::Read), Self::History(HistoryPermission::Restore), Self::Organization(OrganizationPermission::Read), Self::Organization(OrganizationPermission::Admin)];
             /// The permission `value` (or an alias of it) on the resource whose
             /// authorization name is `resource`: what a stored grant names.

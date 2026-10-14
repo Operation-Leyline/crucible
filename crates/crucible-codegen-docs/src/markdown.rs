@@ -633,12 +633,12 @@ fn authorization(op: &Value) -> String {
         )),
         "internal" => out.push_str("Requires permissions internal to the service.\n\n"),
         _ => {
-            for sentence in list(&op["requirementSentences"]) {
-                out.push_str(&documentation::html(string(sentence)));
+            for sentence in list(&op["requirementDocumentation"]) {
+                out.push_str(string(&sentence["html"]));
                 out.push('\n');
             }
             out.push_str(
-                "| Mode | Permission | Resource type | Bindings | When |\n|---|---|---|---|---|\n",
+                "| Mode | Permission | Resource type | Bindings | When | Notes |\n|---|---|---|---|---|---|\n",
             );
             for clause in list(&requirements["clauses"]) {
                 let bindings: Vec<String> = list(&clause["bindings"])
@@ -651,18 +651,21 @@ fn authorization(op: &Value) -> String {
                         )
                     })
                     .collect();
-                let when = match (clause["when"].as_str(), clause["documentation"].as_str()) {
-                    (Some(when), _) => code(when),
-                    (None, Some(docs)) if clause["mode"] == "handler" => cell(docs),
-                    _ => String::new(),
-                };
+                // `When` is the condition alone; a clause's own documentation
+                // (what a handler checks, and when) is a note beside it.
+                let when = clause["when"].as_str().map(code).unwrap_or_default();
+                let notes = clause["documentation"]
+                    .as_str()
+                    .map(cell)
+                    .unwrap_or_default();
                 out.push_str(&format!(
-                    "| {} | {} | {} | {} | {} |\n",
+                    "| {} | {} | {} | {} | {} | {} |\n",
                     string(&clause["mode"]),
                     code(string(&clause["permission"])),
                     code(string(&clause["resourceType"])),
                     bindings.join(", "),
-                    when
+                    when,
+                    notes
                 ));
             }
             out.push('\n');

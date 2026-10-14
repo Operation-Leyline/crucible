@@ -245,15 +245,14 @@ pub(crate) fn emit(
     out
 }
 
-/// The `Migrations` trait every hook adds up to, and the builder methods
-/// that register them.
 /// What an older release's module states about authorization
 /// (docs/permissions.md §7.3). A converted operation states nothing: its
 /// requests are authorized by the current requirements, which bind the
 /// current input they are converted to. An operation the next release
 /// removes is served by a legacy handler on this release's input, so it
 /// keeps its own requirements and `CHECKS`, naming the current
-/// `permissions` statics: whether the module then reads `super::permissions`.
+/// `permissions` statics. Returns whether the module then reads them, as
+/// `super::super::permissions`: the service module's, two levels up.
 fn older_requirements(
     current: &Service,
     module: &mut Service,
@@ -313,6 +312,17 @@ fn older_requirements(
     kept
 }
 
+fn identifier_list(identifiers: &[String]) -> String {
+    format!(
+        "`({})`",
+        identifiers
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
 /// The current model's resource and primary symbol for an older clause,
 /// matched by authorization name and stored value.
 fn current_permission(
@@ -348,17 +358,29 @@ fn current_permission(
                 .clone()
         })
         .ok_or_else(gone)?;
-    if clause.mode != crucible_smithy::ir::Mode::Handler
-        && now.identifiers.len() != resource.identifiers.len()
+    // A binding is positional: the old input's members bind the release's
+    // identifiers in order, and the check names the current description.
+    // Unless both list the same identifiers in the same order, a member would
+    // bind the wrong one (a resource moved from one parent to another keeps
+    // its count), so anything but an unchanged list is refused. Names are
+    // all a release snapshot keeps of a resource's identifiers (no target
+    // shapes, no parent chain), so a move to a parent whose identifier has
+    // the same name is not detected here.
+    if clause.mode != crucible_smithy::ir::Mode::Handler && now.identifiers != resource.identifiers
     {
         return Err(format!(
-            "`{}` on `{}`, whose identifiers have changed since",
-            permission.value, resource.name
+            "`{}` on `{}`, whose identifiers have changed since ({} then, {} now)",
+            permission.value,
+            resource.name,
+            identifier_list(&resource.identifiers),
+            identifier_list(&now.identifiers)
         ));
     }
     Ok((id.clone(), symbol))
 }
 
+/// The `Migrations` trait every hook adds up to, and the builder methods
+/// that register them.
 fn registration(service: &Service, methods: &Methods, diagnostics: &mut Diagnostics) -> String {
     let hooked: Vec<(usize, String)> = methods
         .iter()

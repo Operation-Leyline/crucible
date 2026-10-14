@@ -347,7 +347,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
         file("src/client.ts", client::emit(service, options, &client)),
-        file("src/index.ts", index(&client, permissions.is_some())),
+        file(
+            "src/index.ts",
+            index(&client, &permissions::index_exports(service)),
+        ),
         file("package.json", package_json(service, options)),
         file("tsconfig.json", TSCONFIG.to_owned()),
     ]
@@ -370,12 +373,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     .collect())
 }
 
-fn index(client: &str, permissions: bool) -> String {
-    let permissions = if permissions {
-        "export * from \"./permissions.js\";\n"
-    } else {
-        ""
-    };
+/// `permissions`: `index_exports`' re-exports of `permissions.ts`, empty
+/// when there is none.
+fn index(client: &str, permissions: &str) -> String {
     format!(
         "{HEADER}export {{ credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials }} from \"./credentials.js\";\nexport type {{ AwsCredentials }} from \"./credentials.js\";\nexport {{ WaiterError, WaiterTimeout }} from \"./waiters.js\";\nexport {{ ChecksumError }} from \"./checksums.js\";\nexport type {{ ChecksumPolicy }} from \"./checksums.js\";\nexport type {{ WaiterOptions, WaiterResult }} from \"./waiters.js\";\nexport * from \"./models.js\";\n\
          export * from \"./errors.js\";\n\

@@ -992,6 +992,8 @@ that type (`float` as `f32`).
   TypeScript gets
   `export const InboxPermission = { MAIL_SEND: "mail:send", .. } as const`
   with `type InboxPermissionValue = (typeof InboxPermission)[keyof typeof InboxPermission] | (string & {})`;
+  a name a model already takes (`GraphPermission`) stays out of the
+  package root and is reachable as `permissions.GraphPermission`;
   Rust clients get an `UnknownValue(String)` variant; the other languages
   follow their open-enum convention for string enums. Aliases are
   deprecated constants, and each type has `canonical()` that maps an alias
@@ -1013,7 +1015,9 @@ that type (`float` as `f32`).
 - **Docs.** Each resource page gets a permissions table, a "Permission-only"
   table when it has any, and a "Bundles" list for not-grantable ones. Each
   operation gets a "Requires" section (handler requirements with their
-  "only when" text), and a "Returns only…" note for `filters`. Pending
+  "only when" text: one paragraph inline, anything longer after the
+  sentence), and a "Returns only…" note for `filters`. Its table keeps a
+  clause's condition under "When" and its documentation under "Notes". Pending
   operations show nothing in the client-audience docs and their reason in
   the server-audience docs. Pigeon's hand-kept table
   (`docs/authorization.md:403-417`) is deleted in favour of it.

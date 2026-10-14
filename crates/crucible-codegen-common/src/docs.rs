@@ -247,11 +247,13 @@ fn escape_line(line: &str) -> String {
         out.push(BACKSLASH);
     }
     let chars: Vec<char> = rest.chars().collect();
-    let mut code = false;
+    // The open code span's fence length: CommonMark closes a span only with
+    // a backtick run as long as the one that opened it (``a`b``).
+    let mut code: Option<usize> = None;
     let mut index = 0;
     while index < chars.len() {
         let c = chars[index];
-        if c == BACKSLASH {
+        if c == BACKSLASH && code.is_none() {
             out.push(c);
             if let Some(next) = chars.get(index + 1) {
                 out.push(*next);
@@ -260,9 +262,17 @@ fn escape_line(line: &str) -> String {
             continue;
         }
         if c == '`' {
-            code = !code;
+            let run = chars[index..].iter().take_while(|c| **c == '`').count();
+            code = match code {
+                None => Some(run),
+                Some(open) if open == run => None,
+                open => open,
+            };
+            out.extend(std::iter::repeat_n('`', run));
+            index += run;
+            continue;
         }
-        if c == '[' && !code {
+        if c == '[' && code.is_none() {
             // `[text](url)`, `[text][ref]` and `[ref]: url` are Markdown links.
             // A bare `[name]` is a doc-tool symbol reference that cannot resolve.
             let close = chars[index..].iter().position(|c| *c == ']');
@@ -343,6 +353,11 @@ mod tests {
             "see \u{5c}[Foo] and [link](http://x) and `[Bar]`"
         );
         assert_eq!(escape("```\n[Foo]\n```"), "```\n[Foo]\n```");
+        // A span fenced by two backticks closes only on two.
+        assert_eq!(
+            escape("when ``a`b``, and [ops] approve; ``[Bar]``"),
+            "when ``a`b``, and \u{5c}[ops] approve; ``[Bar]``"
+        );
     }
 
     #[test]

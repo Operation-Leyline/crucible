@@ -93,9 +93,22 @@ fn permissions_match_reviewed_golden_per_audience() {
             generated,
             "{file}"
         );
-        let internal = generated.contains("organization:read");
+        // Every internal value (and an alias of one) appears only in the
+        // server-audience document, and nothing there carries the tier.
+        let document: serde_json::Value = serde_json::from_str(&generated).unwrap();
+        let mut strings = Vec::new();
+        strings_of(&document, &mut strings);
+        for value in internal_values(&service) {
+            let named = strings.iter().any(|s| s.contains(&value));
+            assert_eq!(
+                named,
+                audience == crucible_smithy::Audience::Internal,
+                "{file}: {value}"
+            );
+        }
+        let internal_tier = generated.contains("\"tier\": \"internal\"");
         assert_eq!(
-            internal,
+            internal_tier,
             audience == crucible_smithy::Audience::Internal,
             "{file}"
         );
@@ -143,6 +156,45 @@ fn permissions_match_reviewed_golden_per_audience() {
             audience == crucible_smithy::Audience::Internal,
             "{file}"
         );
+    }
+}
+
+/// The values of the model's internal permissions and of their aliases.
+fn internal_values(service: &crucible_smithy::ir::Service) -> Vec<String> {
+    let values: Vec<String> = service
+        .permissions
+        .values()
+        .flat_map(|resource| {
+            resource.permissions.iter().filter_map(move |permission| {
+                let primary = permission
+                    .alias_of
+                    .as_deref()
+                    .and_then(|symbol| resource.permission(symbol))
+                    .unwrap_or(permission);
+                (primary.tier == crucible_smithy::ir::Tier::Internal)
+                    .then(|| permission.value.clone())
+            })
+        })
+        .collect();
+    assert!(
+        !values.is_empty(),
+        "the fixture declares internal permissions"
+    );
+    values
+}
+
+/// Every string in `value`, keys included.
+fn strings_of(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => out.push(s.clone()),
+        serde_json::Value::Array(items) => items.iter().for_each(|v| strings_of(v, out)),
+        serde_json::Value::Object(map) => {
+            for (key, v) in map {
+                out.push(key.clone());
+                strings_of(v, out);
+            }
+        }
+        _ => {}
     }
 }
 

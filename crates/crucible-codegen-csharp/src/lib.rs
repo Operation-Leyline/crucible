@@ -119,18 +119,29 @@ fn xmldoc_for(
     tags: &[String],
     meta: &DocNotes,
 ) -> String {
-    let mut notes = notes.to_vec();
-    notes.extend(meta.lines());
+    xmldoc_with(indent, model, &[], notes, tags, meta)
+}
+
+/// [`xmldoc_for`] with `rendered`: XML documentation blocks already rendered
+/// from Markdown, after `notes` and before the model's own notes
+/// ("Unstable.", "Deprecated.").
+fn xmldoc_with(
+    indent: &str,
+    model: Option<&str>,
+    rendered: &[String],
+    notes: &[String],
+    tags: &[String],
+    meta: &DocNotes,
+) -> String {
+    let mut meta_notes = meta.lines();
     if let Some(deprecated) = &meta.deprecated {
-        notes.push(deprecated.sentence());
+        meta_notes.push(deprecated.sentence());
     }
-    let notes = &notes[..];
+    let para = |note: &String| format!("<para>{}</para>", docs::xmldoc_text(note));
     let mut blocks = model.map(docs::xmldoc).unwrap_or_default();
-    blocks.extend(
-        notes
-            .iter()
-            .map(|note| format!("<para>{}</para>", docs::xmldoc_text(note))),
-    );
+    blocks.extend(notes.iter().map(para));
+    blocks.extend(rendered.iter().cloned());
+    blocks.extend(meta_notes.iter().map(para));
     if blocks.is_empty() {
         blocks.push("<para>Documented by its members.</para>".into());
     }
@@ -193,12 +204,13 @@ fn operation_xmldoc(
     throws: bool,
 ) -> String {
     let mut notes = vec![];
-    // What the caller must hold, as the model states it (docs/permissions.md §6.3).
-    notes.extend(
+    // What the caller must hold, as the model states it (docs/permissions.md
+    // §6.3): Markdown holding model text, rendered like model documentation.
+    let requirements: Vec<String> =
         crucible_codegen_common::permissions::requirement_sentences(service, op)
             .iter()
-            .map(|sentence| docs::text(sentence)),
-    );
+            .flat_map(|sentence| docs::xmldoc(sentence))
+            .collect();
     if op.docs.is_none() {
         notes.push(format!("Calls the {} operation.", code(op.name())));
     }
@@ -243,7 +255,14 @@ fn operation_xmldoc(
             "The transport failed.",
         ));
     }
-    xmldoc_for("    ", op.docs.as_deref(), &notes, &tags, &op.notes)
+    xmldoc_with(
+        "    ",
+        op.docs.as_deref(),
+        &requirements,
+        &notes,
+        &tags,
+        &op.notes,
+    )
 }
 
 fn collection_cycle(service: &Service, id: &ShapeId, stack: &mut BTreeSet<ShapeId>) -> bool {
