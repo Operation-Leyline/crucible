@@ -198,7 +198,7 @@ impl<'a> Lowerer<'a> {
             });
         }
         let identifiers = inherited.into_iter().chain(own).collect();
-        let parents = self.parents(&resource.name.name);
+        let parents = Some(self.parents(&resource.name.name));
         self.declared_permissions.insert(
             id,
             ResourcePermissions {

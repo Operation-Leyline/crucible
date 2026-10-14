@@ -327,3 +327,60 @@ readonly operation ReadNote reads Note {
         "{diagnostics}"
     );
 }
+
+/// A root resource moved under a parent with no identifier keeps its
+/// identifier list; its recorded parents (none) tell it apart.
+#[test]
+fn a_legacy_check_on_a_root_resource_moved_under_a_parent_is_reported() {
+    let v1 = r#"service Board {
+    version "v1"
+    protocol json
+    auth bearer
+    resources [Note, Folder]
+    errors [ValidationException, InternalServerException]
+}
+
+string NoteId
+
+resource Folder {
+}
+
+resource Note {
+    id noteId: NoteId
+    permission read = "note:read"
+}
+
+readonly operation ReadNote reads Note {
+    http GET "/notes/{noteId}"
+    requires read
+    input { $noteId }
+    output { body: string }
+}
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-root-reparented");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("resources [Note, Folder]", "resources [Folder]")
+        .replace("resource Note {", "resource Note in Folder {");
+    let current = current[..current.find("readonly operation ReadNote").unwrap()].to_owned();
+    fs::write(
+        dir.join("shop.cru"),
+        format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
+    )
+    .unwrap();
+    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("whose parent resources have changed since (`()` then, `(Folder)` now)"),
+        "{diagnostics}"
+    );
+}

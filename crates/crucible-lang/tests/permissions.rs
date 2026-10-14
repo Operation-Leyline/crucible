@@ -531,6 +531,20 @@ fn a_requirement_clients_see_reads_no_internal_member() {
         &audited,
         "`audit` on `Store` is visible to clients, but its `when` reads `ticket`, an internal member; make the permission `internal`, or read only what clients send",
     );
+    // A listing that only filters by it refuses no caller, so it is not
+    // another requirement making it internal would hide.
+    let filtered = check_source(&format!(
+        "{}\n{}\nreadonly operation ListOrders lists Order {{\n    http GET \"/stores/{{storeId}}/orders\"\n    filters audit on Order\n    input {{ $storeId }}\n}}",
+        BASE.replace(
+            "permission read = \"order:read\"",
+            "permission read = \"order:read\"\n    permission audit = \"order:audit\"",
+        ),
+        op("requires audit on Order(ticket) when has ticket")
+    ));
+    expect(
+        &filtered,
+        "`audit` on `Order` is visible to clients, but it binds `ticket`, an internal member; make the permission `internal`, or read only what clients send",
+    );
     expect(
         &check(&op(
             "requires read on Order(hidden.orderId) when has hidden",

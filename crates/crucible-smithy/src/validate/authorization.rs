@@ -801,19 +801,27 @@ impl<'a> Checker<'a> {
     /// An `internal permission` may read either: its clause is removed too.
     fn client_contract(&mut self, op: &'a Operation, index: usize, clause: &'a Requirement) {
         // Making a permission internal removes every clause that names it
-        // from the client contract, not only this one.
-        let shared = self.service.operations.iter().any(|other| {
-            other
-                .requirements
-                .clauses()
-                .iter()
-                .enumerate()
-                .any(|(at, c)| {
-                    (other.id != op.id || at != index)
-                        && c.resource == clause.resource
-                        && c.permission == clause.permission
-                })
-        });
+        // from the client contract, not only this one; what matters is a
+        // requirement a client sees: a clause that refuses (not `filters`)
+        // on an operation clients have (not an internal one).
+        let shared = self
+            .service
+            .operations
+            .iter()
+            .filter(|other| !other.internal)
+            .any(|other| {
+                other
+                    .requirements
+                    .clauses()
+                    .iter()
+                    .enumerate()
+                    .any(|(at, c)| {
+                        (other.id != op.id || at != index)
+                            && c.mode != Mode::Filter
+                            && c.resource == clause.resource
+                            && c.permission == clause.permission
+                    })
+            });
         let advice = if shared {
             "read only what clients send; the permission is required elsewhere too, and making it `internal` would hide those requirements from clients as well"
         } else {

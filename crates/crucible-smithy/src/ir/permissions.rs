@@ -28,10 +28,10 @@ pub struct ResourcePermissions {
     /// The resources it is nested in, by shape name, root first:
     /// `["Workspace"]`. With `identifiers`, what a binding's positions mean:
     /// a resource moved to another parent whose identifier has the same
-    /// name keeps its identifiers but not its parents. Empty in a release
-    /// frozen before parents were recorded.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub parents: Vec<String>,
+    /// name keeps its identifiers but not its parents. `None` in a release
+    /// frozen before parents were recorded; `Some([])` for a root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parents: Option<Vec<String>>,
     /// Source order, aliases included.
     #[serde(default)]
     pub permissions: Vec<Permission>,

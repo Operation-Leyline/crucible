@@ -365,9 +365,10 @@ fn current_permission(
     // Unless both list the same identifiers in the same order, a member would
     // bind the wrong one (a resource moved from one parent to another keeps
     // its count), so anything but an unchanged list is refused. A move to a
-    // parent whose identifier has the same name keeps the list, so the
-    // parents are compared too, when the release recorded them (one frozen
-    // before they were has none, and is compared by identifiers alone).
+    // parent whose identifier has the same name (or none) keeps the list, so
+    // the parents are compared too, when the release recorded them (one
+    // frozen before they were has none, and is compared by identifiers
+    // alone).
     if clause.mode != crucible_smithy::ir::Mode::Handler && now.identifiers != resource.identifiers
     {
         return Err(format!(
@@ -379,15 +380,15 @@ fn current_permission(
         ));
     }
     if clause.mode != crucible_smithy::ir::Mode::Handler
-        && !resource.parents.is_empty()
-        && now.parents != resource.parents
+        && let Some(then) = &resource.parents
+        && now.parents.as_ref() != Some(then)
     {
         return Err(format!(
             "`{}` on `{}`, whose parent resources have changed since ({} then, {} now)",
             permission.value,
             resource.name,
-            identifier_list(&resource.parents),
-            identifier_list(&now.parents)
+            identifier_list(then),
+            identifier_list(now.parents.as_deref().unwrap_or_default())
         ));
     }
     Ok((id.clone(), symbol))
