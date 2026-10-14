@@ -4468,6 +4468,7 @@ impl<'a> Lowerer<'a> {
             checksum: None,
             id,
             auth,
+            public: modifiers.contains("public"),
             scopes: Vec::new(),
             optional_auth: false,
             endpoint: None,

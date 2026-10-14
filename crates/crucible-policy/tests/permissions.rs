@@ -210,3 +210,232 @@ fn the_new_rules_can_be_excepted() {
     );
     assert!(Config::parse("schema_version = 1\n[[exceptions]]\nrule = 'compatibility.authorization'\nshape = 'example.leyline#GetGraph'\nreason = 'closing a hole'\n").is_ok());
 }
+
+fn value(model: &mut Value, symbol: &str, value: &str) {
+    graph_members(model)[symbol]["traits"]["smithy.api#enumValue"] = json!(value);
+}
+
+#[test]
+fn swapping_two_values_breaks_stored_grants() {
+    // `READ` now names "graph:write" and `WRITE` "graph:read": every
+    // stored read grant would satisfy a write check.
+    let mut new = model();
+    value(&mut new, "READ", "graph:write");
+    value(&mut new, "WRITE", "graph:read");
+    let found = findings(&new);
+    expect(
+        &found,
+        "compatibility.permissions",
+        "Graph$READ",
+        "`READ` changed its value from \"graph:read\" to \"graph:write\"",
+        Severity::Error,
+    );
+    expect(
+        &found,
+        "compatibility.permissions",
+        "Graph$WRITE",
+        "`WRITE` changed its value from \"graph:write\" to \"graph:read\"",
+        Severity::Error,
+    );
+    expect(
+        &found,
+        "compatibility.permissions",
+        "Graph$READ",
+        "grants stored under \"graph:read\" satisfied `READ` and now satisfy `WRITE`",
+        Severity::Error,
+    );
+    // A Smithy requirement names the value, so `GetGraph` still checks
+    // "graph:read": no authorization change, only the broken grants.
+    assert!(
+        !found
+            .iter()
+            .any(|f| f.rule == "compatibility.authorization"),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn a_new_value_with_the_old_one_kept_as_its_alias_is_additive() {
+    // `AUDIT` now names "graph:inspect", and a deprecated alias of `AUDIT`
+    // keeps "graph:audit": every stored grant still satisfies `AUDIT`.
+    let mut new = model();
+    value(&mut new, "AUDIT", "graph:inspect");
+    graph_members(&mut new).insert(
+        "OLD_AUDIT".into(),
+        json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "graph:audit", "crucible.auth#aliasOf": "AUDIT", "crucible.auth#permissionOnly": {}, "smithy.api#deprecated": {}}}),
+    );
+    let found = findings(&new);
+    assert!(
+        !found
+            .iter()
+            .any(|f| f.rule == "compatibility.permissions"
+                || f.rule == "compatibility.authorization"),
+        "{found:#?}"
+    );
+    // The old value kept by an alias of another permission is still a
+    // reassignment.
+    let traits = &mut graph_members(&mut new)["OLD_AUDIT"]["traits"];
+    traits["crucible.auth#aliasOf"] = json!("READ");
+    traits
+        .as_object_mut()
+        .unwrap()
+        .remove("crucible.auth#permissionOnly");
+    expect(
+        &findings(&new),
+        "compatibility.permissions",
+        "Graph$AUDIT",
+        "`AUDIT` changed its value from \"graph:audit\" to \"graph:inspect\"",
+        Severity::Error,
+    );
+}
+
+#[test]
+fn reassigning_a_value_to_another_permission_breaks_stored_grants() {
+    // `AUDIT` is gone and its value is now an alias of `READ`.
+    let mut new = model();
+    let members = graph_members(&mut new);
+    members.remove("AUDIT");
+    members.insert(
+        "OLD_AUDIT".into(),
+        json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "graph:audit", "crucible.auth#aliasOf": "READ", "smithy.api#deprecated": {}}}),
+    );
+    let found = findings(&new);
+    expect(
+        &found,
+        "compatibility.permissions",
+        "Graph$AUDIT",
+        "grants stored under \"graph:audit\" satisfied `AUDIT` and now satisfy `READ`, another released permission",
+        Severity::Error,
+    );
+    // An alias that now satisfies another released permission.
+    let mut new = model();
+    graph_members(&mut new)["VIEW"]["traits"]["crucible.auth#aliasOf"] = json!("WRITE");
+    expect(
+        &findings(&new),
+        "compatibility.permissions",
+        "Graph$VIEW",
+        "grants stored under \"graph:view\" satisfied `READ` and now satisfy `WRITE`",
+        Severity::Error,
+    );
+}
+
+#[test]
+fn a_new_primary_takes_over_one_released_permission_only() {
+    let mut new = model();
+    let members = graph_members(&mut new);
+    members.insert(
+        "INSPECT".into(),
+        json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "graph:inspect", "crucible.auth#permissionOnly": {}}}),
+    );
+    // A renamed alias symbol is the same takeover.
+    let audit = members.remove("AUDIT").unwrap();
+    members.insert("OLD_AUDIT".into(), audit);
+    members["OLD_AUDIT"]["traits"]["crucible.auth#aliasOf"] = json!("INSPECT");
+    members["OLD_AUDIT"]["traits"]["smithy.api#deprecated"] = json!({});
+    let found = findings(&new);
+    assert!(
+        !found.iter().any(|f| f.rule == "compatibility.permissions"),
+        "{found:#?}"
+    );
+    // Folding a second released permission into it merges the two.
+    let export = json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "graph:export", "crucible.auth#permissionOnly": {}}});
+    let mut old = model();
+    graph_members(&mut old).insert("EXPORT".into(), export.clone());
+    let mut merged = new.clone();
+    let members = graph_members(&mut merged);
+    members.insert("EXPORT".into(), export);
+    members["EXPORT"]["traits"]["crucible.auth#aliasOf"] = json!("INSPECT");
+    members["EXPORT"]["traits"]["smithy.api#deprecated"] = json!({});
+    expect(
+        &diff(&lower(&old), &lower(&merged), &Config::default()).findings,
+        "compatibility.permissions",
+        "Graph$INSPECT",
+        "the new permission `INSPECT` takes over the values of `AUDIT`, `EXPORT`",
+        Severity::Error,
+    );
+}
+
+/// The fixture as released before the service declared any permission:
+/// no `crucible.auth` permission trait and no vocabulary enum.
+fn without_permissions() -> Value {
+    let mut old = model();
+    let shapes = old["shapes"].as_object_mut().unwrap();
+    shapes.retain(|_, shape| {
+        let traits = &shape["traits"];
+        traits.get("crucible.auth#permissionsOf").is_none()
+            && traits.get("crucible.auth#permissionTypes").is_none()
+    });
+    for shape in shapes.values_mut() {
+        if let Some(traits) = shape.get_mut("traits").and_then(Value::as_object_mut) {
+            traits.retain(|name, _| {
+                !matches!(
+                    name.as_str(),
+                    "crucible.auth#requires"
+                        | "crucible.auth#requiresNone"
+                        | "crucible.auth#requiresPending"
+                        | "crucible.auth#authorizationName"
+                )
+            });
+        }
+    }
+    old
+}
+
+#[test]
+fn declaring_requirements_on_a_released_operation_is_not_a_new_error() {
+    // Pending, then a requirement: NotFoundException comes with it.
+    let mut new = model();
+    let restore = new["shapes"]["example.leyline#RestoreBackup"]["traits"]
+        .as_object_mut()
+        .unwrap();
+    restore.remove("crucible.auth#requiresPending");
+    restore.insert(
+        "crucible.auth#requires".into(),
+        json!([{"permission": "history:read", "resource": "example.leyline#History"}]),
+    );
+    let found = findings(&new);
+    expect(
+        &found,
+        "compatibility.authorization",
+        "RestoreBackup",
+        "(it was `requires pending`)",
+        Severity::Warning,
+    );
+    let on_restore: Vec<&Finding> = found
+        .iter()
+        .filter(|f| f.shape == "example.leyline#RestoreBackup")
+        .collect();
+    assert_eq!(on_restore.len(), 1, "{on_restore:#?}");
+    // A release from before any permission: every operation that now has
+    // a requirement gains the framework NotFound, and none of that is a
+    // new error or a changed SDK signature.
+    let report = diff(
+        &lower(&without_permissions()),
+        &lower(&model()),
+        &Config::default(),
+    );
+    let broken: Vec<&Finding> = report
+        .findings
+        .iter()
+        .filter(|f| f.rule == "compatibility.error" || f.rule == "compatibility.sdk")
+        .collect();
+    assert!(broken.is_empty(), "{broken:#?}");
+    expect(
+        &report.findings,
+        "compatibility.authorization",
+        "GetGraph",
+        "`GetGraph` now requires \"graph:read\" on `Graph` (it declared none)",
+        Severity::Warning,
+    );
+    // A NotFound the model adds itself is still a new error.
+    let mut new = model();
+    new["shapes"]["example.leyline#GetUser"]["errors"] =
+        json!([{"target": "crucible.errors#NotFoundException"}]);
+    let found = findings(&new);
+    assert!(
+        found
+            .iter()
+            .any(|f| f.rule == "compatibility.error" && f.shape == "example.leyline#GetUser"),
+        "{found:#?}"
+    );
+}

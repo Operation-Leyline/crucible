@@ -80,9 +80,9 @@ example     = [ doc ] "example" string "{" { example_part } "}" ;
 example_part = ( "input" | "output" ) value | "error" ident value ;
 requirement = [ doc ] "requires" ( "none"
                                  | "pending" "because" string
-                                 | ident [ "on" target ] [ "when" condition ] [ "by" "handler" ] )
+                                 | ident [ "on" req_target ] [ "when" condition ] [ "by" "handler" ] )
             | [ doc ] "filters" ident "on" ident ;
-target      = ident [ "(" binding { "," binding } ")" ] ;
+req_target  = ident [ "(" binding { "," binding } ")" ] ;
 binding     = [ ident ":" ] ( "*" | "$" ident | dotted ) ;
                  (* an unnamed binding binds the resource's own identifier *)
 condition   = cond_and { "or" cond_and } ;
@@ -235,12 +235,14 @@ language's own checks include:
   declares no requirement, `requires none` and `requires pending` stand
   alone, and a pending reason is nonempty; every identifier of the target
   is bound once, by a member of the identifier's own type (a different
-  string type with the same constraints is a warning), `*` binds only the
-  resource's own identifier, and no binding passes through a list or map;
+  string type with the same constraints is a warning), `$x` names an
+  identifier the input binds, `*` binds only the resource's own
+  identifier, and no binding passes through a list or map;
   a path through an optional member or union arm is guarded by `when`,
   which reads input members and compares like with like; `filters`
   appears once, on a `lists` or `on .. collection` operation; `by handler`
-  takes no bindings or `when`; and once a service declares any permission,
+  takes no bindings or `when`; `@authorizationName` is on a resource
+  that declares permissions; and once a service declares any permission,
   every authenticated operation declares `requires`, `filters`, `requires
   none` or `requires pending` (`permissions.undeclared`).
 
@@ -248,8 +250,12 @@ Warnings never withhold the IR. Permissions add these: a public
 permission nothing requires (`permissions.unrequired`), each `requires
 pending` with its reason (`permissions.pending`), `when has x` on a member
 that is always present, a `filters` beside a `requires` on the same
-resource, and an operation that declares a 404 error besides the
-framework `NotFoundException` (`permissions.second-not-found`). An input
+resource, an operation that declares a 404 error besides the
+framework `NotFoundException` (`permissions.second-not-found`), and a
+clause on the operation's own resource or an ancestor that binds one of
+its identifiers from another member than the operation is bound by, with
+no clause checking the bound instance (`permissions.other-instance`): the
+check would authorize an instance the handler does not load. An input
 member that binds another permissioned resource's identifier that no
 requirement covers is *advice* (`permissions.unchecked-reference`). The
 compiler also warns about a plain member
@@ -307,6 +313,13 @@ operation SendMessage on Message collection {
   input member that binds it (`$name`); `R(*)` binds the resource's own
   identifier to every instance; `R(path)` binds it from an input member
   path; `R(id: $x)` names one. A path never crosses a list or map.
+- **`$x` in a binding** names an identifier the input binds: `x` is an
+  identifier of the operation's own resource (inherited ones included),
+  and the binding is the input member that binds it, `$x` or its `as`
+  spelling, else a member named `x`. An operation bound to no resource
+  binds no identifier, so there `$x` is an error; any other member is
+  bound by its path (`R(id: other)`). In a Smithy `@requires`, `"$x"`
+  means something else: the input member bound to the URI label `{x}`.
 - **`when`** holds the clause to the input: `has a.b` is true when the
   optional member is present or the union arm selected.
 - **`filters p on R`** answers a listing with only the instances the

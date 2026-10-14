@@ -53,6 +53,22 @@ impl<'a> Lowerer<'a> {
             },
         );
         if resource.permissions.is_empty() {
+            if let Some(annotation) = decl
+                .item
+                .annotations
+                .iter()
+                .find(|a| a.name.name == "authorizationName")
+                .filter(|_| name_declared)
+            {
+                self.error(
+                    file,
+                    annotation.span,
+                    format!(
+                        "permissions.name: `@authorizationName` names `{}` in grants, but it declares no permissions; remove it, or declare its permissions",
+                        resource.name.name
+                    ),
+                );
+            }
             return;
         }
         let mut permissions = Vec::new();
@@ -374,22 +390,53 @@ impl<'a> Lowerer<'a> {
             OpEntry::Body(body) if body.kind == BodyKind::Input => Some(body),
             _ => None,
         });
-        // The input member that binds each identifier: `$name` (or its
-        // `as` spelling), else a member of that name.
-        let mut bound: BTreeMap<&str, &str> = BTreeMap::new();
+        // The identifiers the input binds: those of the operation's own
+        // resource, inherited ones included, each by the member `$name` (or
+        // its `as` spelling), else by a member of that name. `$x` names one
+        // of these (check 10); any other member is bound by its path.
+        let own = operation
+            .attachment
+            .as_ref()
+            .map(|a| self.ref_id(&a.resource.name));
+        let chain: Vec<String> = match &own {
+            Some(own) => match self.permission_facts.resources.get(own) {
+                Some(ids) => ids.iter().map(|(n, _)| n.clone()).collect(),
+                None => {
+                    let (inherited, own) = self.identifiers(own.name());
+                    inherited.into_iter().chain(own).collect()
+                }
+            },
+            None => Vec::new(),
+        };
+        let mut bound: BTreeMap<String, String> = BTreeMap::new();
         for member in input.map(|b| b.members.as_slice()).unwrap_or_default() {
             match &member.kind {
-                MemberKind::Elided { name, alias, .. } => {
-                    bound.insert(&name.name, &alias.as_ref().unwrap_or(name).name);
+                MemberKind::Elided { name, alias, .. } if chain.contains(&name.name) => {
+                    bound.insert(
+                        name.name.clone(),
+                        alias.as_ref().unwrap_or(name).name.clone(),
+                    );
                 }
-                MemberKind::Field { name, .. } => {
-                    bound.entry(&name.name).or_insert(&name.name);
+                MemberKind::Field { name, .. } if chain.contains(&name.name) => {
+                    bound
+                        .entry(name.name.clone())
+                        .or_insert_with(|| name.name.clone());
                 }
                 _ => {}
             }
         }
+        if own.is_some() {
+            self.permission_facts
+                .identifier_members
+                .insert(id.clone(), bound.clone());
+        }
         let member_of = |identifier: &str| -> Vec<String> {
-            vec![bound.get(identifier).map_or(identifier, |m| *m).to_owned()]
+            vec![
+                bound
+                    .get(identifier)
+                    .map_or(identifier, String::as_str)
+                    .to_owned(),
+            ]
         };
         let mut lowered = Vec::new();
         for clause in clauses {
@@ -470,7 +517,31 @@ impl<'a> Lowerer<'a> {
             {
                 let binding = match &arg.value {
                     BindingValue::All(_) => Binding::All,
-                    BindingValue::Label(label) => Binding::Member(member_of(&label.name)),
+                    BindingValue::Label(label) => {
+                        if !bound.contains_key(&label.name) {
+                            let binds = if bound.is_empty() {
+                                "the input binds no identifier".to_owned()
+                            } else {
+                                format!(
+                                    "the input binds {}",
+                                    bound
+                                        .keys()
+                                        .map(|i| format!("`${i}`"))
+                                        .collect::<Vec<_>>()
+                                        .join(", ")
+                                )
+                            };
+                            self.error(
+                                file,
+                                label.span,
+                                format!(
+                                    "permissions.binding: `${}` names an identifier the input binds, and {binds}; bind any other member by its path: `{}`",
+                                    label.name, label.name
+                                ),
+                            );
+                        }
+                        Binding::Member(member_of(&label.name))
+                    }
                     BindingValue::Path(path) => {
                         Binding::Member(path.parts.iter().map(|p| p.name.clone()).collect())
                     }
@@ -543,6 +614,10 @@ impl<'a> Lowerer<'a> {
                 when,
                 docs: self.doc(file, clause.doc.as_ref()),
             });
+        }
+        if lowered.is_empty() {
+            // Every clause is reported already; none is left to check.
+            return Requirements::None;
         }
         Requirements::List(lowered)
     }
@@ -647,13 +722,15 @@ impl<'a> Lowerer<'a> {
                 (Some(Location { span, .. }), FindingSeverity::Advice) => {
                     Diagnostic::advice(span, message)
                 }
+                // A severity added later reads as a warning until it is mapped.
+                (Some(Location { span, .. }), _) => Diagnostic::warning(span, message),
                 (None, severity) => {
                     let message = format!("{}: {message}", finding.shape);
                     let span = crate::span::Span::default();
                     match severity {
                         FindingSeverity::Error => Diagnostic::new(span, message),
-                        FindingSeverity::Warning => Diagnostic::warning(span, message),
                         FindingSeverity::Advice => Diagnostic::advice(span, message),
+                        _ => Diagnostic::warning(span, message),
                     }
                 }
             };

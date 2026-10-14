@@ -1,13 +1,13 @@
 # Typed permissions
 
-**Status: accepted, ready for implementation** (decisions below). Nothing
-here is built. This document specifies how a model declares the
-permissions its resources accept and the permissions each operation
+**Status: accepted; phase A1 is implemented, A2 and B are pending.** A1
+(the language, the Smithy traits, the IR and the checks) is built: its
+syntax is in [idl/reference.md](idl/reference.md) and its decisions are
+37a-37k in [idl/decisions.md](idl/decisions.md). The A2 runtime and the B
+generators are not built yet. This document specifies how a model declares
+the permissions its resources accept and the permissions each operation
 requires, and how the Rust runtime enforces them through a
-service-supplied `Authorizer`. The implementation plan is §10. When phase
-A1 lands, the syntax moves into [idl/reference.md](idl/reference.md) and
-the decisions become numbered entries in [idl/decisions.md](idl/decisions.md)
-(next to decision 37, auth schemes and scopes).
+service-supplied `Authorizer`. The implementation plan is §10.
 
 Paths into the consumers are relative to their repositories: Pigeon
 (`sockeye`, `185d36d`), its console `pigeon-web`, and Leyline.
@@ -826,6 +826,31 @@ And two facts carried in existing fields:
 permissions, aliases of them, and requirements that name them, as it drops
 internal members. `Undeclared` survives lowering only for a service that
 declares no permission.
+
+Additions to the contract above, made in phase A1:
+
+```rust
+// ir::Operation
+#[serde(default, skip_serializing_if = "std::ops::Not::not")]
+pub public: bool,      // declared public: Smithy `@auth([])` on the operation, or on the
+                       // service when the operation has no `@auth`; `.cru` `public`.
+                       // `auth.is_empty()` alone is not: a service that declares no
+                       // scheme leaves every operation without one.
+
+// ir::Requirements
+Internal,              // client audience only: every clause named an internal permission,
+                       // and the projection removed them. A `List` is never empty.
+```
+
+The checks of §5 run once, in `crucible_smithy::validate::permissions`,
+with facts lowering knows and the IR does not keep (`PermissionFacts`:
+identifier types, collection operations, the input member that binds each
+identifier of an operation's resource). So the binding types of check 10,
+check 14's "`filters` is on a collection operation" and
+`permissions.other-instance` are front-end checks.
+`validate::permissions_from_ir` runs the rest on an IR alone, such as a
+release snapshot, and skips those rather than reporting them; generators
+read only the IR.
 
 ### 6.2 The Rust server
 

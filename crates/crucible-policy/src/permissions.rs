@@ -1,7 +1,10 @@
 //! Permission compatibility (docs/permissions.md §5): a permission's value
 //! and its resource's authorization name are stored data, in every grant and
-//! audit record, so changing either breaks them; adding a requirement is how
-//! holes get closed, so it is reported, never refused.
+//! audit record, so changing either breaks them; so does changing which
+//! permission a stored value satisfies. Adding a requirement is how holes
+//! get closed, so it is reported, never refused.
+
+use std::collections::BTreeMap;
 
 use crucible_smithy::ir::{Requirement, Requirements, ResourcePermissions, Tier};
 
@@ -49,11 +52,53 @@ impl Checker<'_> {
                     ),
                 );
             }
+            // A brand-new primary that took over the values of released ones,
+            // by the old primaries it took over.
+            let mut takeovers: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
             for permission in &old.permissions {
-                if new.by_value(&permission.value).is_some() {
+                let site = id.with_member(&permission.symbol);
+                // The symbol is kept and its value changed, even when the old
+                // value now belongs to another symbol (a swap). A deprecated
+                // alias that keeps the old value for the same primary keeps
+                // every stored grant.
+                if let Some(now) = new.permission(&permission.symbol)
+                    && now.value != permission.value
+                    && let Some(holder) = new.by_value(&permission.value)
+                    && primary(new, &holder.symbol) != primary(old, &permission.symbol)
+                {
+                    self.push(
+                        "compatibility.permissions",
+                        &site,
+                        format!(
+                            "`{}` changed its value from {:?} to {:?}; grants stored under the old value no longer match it: keep the value, and give the new one to a new primary with this one as its deprecated alias (`@aliasOf`)",
+                            permission.symbol, permission.value, now.value
+                        ),
+                    );
+                }
+                if let Some(holder) = new.by_value(&permission.value) {
+                    // Which permission a grant stored under the value satisfies.
+                    let before = primary(old, &permission.symbol);
+                    let after = primary(new, &holder.symbol);
+                    if before == after {
+                        continue;
+                    }
+                    if old.permission(after).is_some() {
+                        self.push(
+                            "compatibility.permissions",
+                            &site,
+                            format!(
+                                "grants stored under {:?} satisfied `{before}` and now satisfy `{after}`, another released permission: every holder of {:?} changes access without a new grant; keep the value on `{before}`",
+                                permission.value, permission.value
+                            ),
+                        );
+                    } else {
+                        let taken = takeovers.entry(after).or_default();
+                        if !taken.contains(&before) {
+                            taken.push(before);
+                        }
+                    }
                     continue;
                 }
-                let site = id.with_member(&permission.symbol);
                 let message = match (&permission.alias_of, new.permission(&permission.symbol)) {
                     (Some(_), _) => format!(
                         "the alias {:?} was removed; grants stored under it no longer satisfy any check",
@@ -69,6 +114,22 @@ impl Checker<'_> {
                     ),
                 };
                 self.push("compatibility.permissions", &site, message);
+            }
+            for (primary, before) in takeovers {
+                if before.len() > 1 {
+                    self.push(
+                        "compatibility.permissions",
+                        &id.with_member(primary),
+                        format!(
+                            "the new permission `{primary}` takes over the values of {}: grants of one now satisfy requirements of the others; a renamed permission replaces one",
+                            before
+                                .iter()
+                                .map(|p| format!("`{p}`"))
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        ),
+                    );
+                }
             }
         }
         self.authorization();
@@ -128,7 +189,7 @@ impl Checker<'_> {
                 Requirements::Undeclared => " (it declared none)",
                 Requirements::None => " (it was `requires none`)",
                 Requirements::Pending { .. } => " (it was `requires pending`)",
-                Requirements::List(_) => "",
+                Requirements::List(_) | Requirements::Internal => "",
             };
             let clauses: Vec<String> = added
                 .iter()
@@ -149,31 +210,41 @@ impl Checker<'_> {
 }
 
 impl Checker<'_> {
-    /// The same requirement, where naming the primary a requirement's old
-    /// permission became an alias of is no change: the alias's grants
-    /// satisfy it.
+    /// The same requirement: what a check compares is the stored pair
+    /// (authorization name, value), not the symbols naming it. Naming the
+    /// primary the old value became an alias of is no change: grants under
+    /// the alias satisfy it.
     fn same_clause(&self, old: &Requirement, new: &Requirement) -> bool {
-        let renamed = || {
-            self.new
-                .permissions
-                .get(&new.resource)
-                .and_then(|r| r.permission(&old.permission))
-                .is_some_and(|p| p.alias_of.as_deref() == Some(new.permission.as_str()))
+        if old.mode != new.mode || old.bindings != new.bindings || old.when != new.when {
+            return false;
+        }
+        let (Some(before), Some(after)) = (
+            self.old.permissions.get(&old.resource),
+            self.new.permissions.get(&new.resource),
+        ) else {
+            return old.resource == new.resource && old.permission == new.permission;
         };
-        // A resource renamed under its old authorization name is the same one.
-        let resource = old.resource == new.resource
-            || self
-                .old
-                .permissions
-                .get(&old.resource)
-                .zip(self.new.permissions.get(&new.resource))
-                .is_some_and(|(a, b)| a.name == b.name);
-        old.mode == new.mode
-            && resource
-            && old.bindings == new.bindings
-            && old.when == new.when
-            && (old.permission == new.permission || renamed())
+        let (Some(was), Some(now)) = (
+            before.permission(&old.permission),
+            after.permission(&new.permission),
+        ) else {
+            return false;
+        };
+        before.name == after.name
+            && (was.value == now.value
+                || after
+                    .by_value(&was.value)
+                    .is_some_and(|p| p.alias_of.as_deref() == Some(now.symbol.as_str())))
     }
+}
+
+/// The primary a permission's grants satisfy: itself, or the one it is an
+/// alias of.
+fn primary<'r>(resource: &'r ResourcePermissions, symbol: &'r str) -> &'r str {
+    resource
+        .permission(symbol)
+        .and_then(|p| p.alias_of.as_deref())
+        .unwrap_or(symbol)
 }
 
 fn describe(clause: &Requirement, resource: Option<&ResourcePermissions>) -> String {

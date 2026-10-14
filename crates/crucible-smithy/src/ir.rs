@@ -782,6 +782,13 @@ pub struct Operation {
     pub id: ShapeId,
     /// Effective authentication schemes, after service and operation overrides.
     pub auth: Vec<ShapeId>,
+    /// Declared public: Smithy `@auth([])` on the operation (or on the
+    /// service, which the operation does not override), or the `.cru`
+    /// `public` modifier. Empty `auth` alone does not say so: a service that
+    /// declares no scheme leaves every operation without one
+    /// (docs/permissions.md §6.1).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub public: bool,
     /// OAuth scopes a caller must hold, all of them: the operation's own
     /// `@crucible.auth#scopes`, else the service default. Empty when public.
     pub scopes: Vec<String>,

@@ -56,8 +56,11 @@ pub(crate) fn lower(
     if compiled.service.is_none() {
         return Err(format!("{} does not compile:\n{rendered}", path.display()));
     }
-    // Warnings do not fail the build; Cargo shows each one.
-    for line in rendered.lines().filter(|line| line.contains(": warning: ")) {
+    // Warnings and advice do not fail the build; Cargo shows each one.
+    for line in rendered
+        .lines()
+        .filter(|line| line.contains(": warning: ") || line.contains(": advice: "))
+    {
         println!("cargo::warning={line}");
     }
     check_baseline(path, &package, &compiled)?;

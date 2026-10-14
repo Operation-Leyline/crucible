@@ -28,12 +28,10 @@ fn smithy(name: &str) -> ShapeId {
 
 impl Lowerer<'_> {
     /// The service's resource tree (identifier types root to leaf, and
-    /// collection operations), every `@permissionsOf` enum for one of its
-    /// resources, and the `@permissionTypes` enum.
-    pub(crate) fn lower_permissions(
-        &mut self,
-        service: &crate::ast::Shape,
-    ) -> Option<PermissionTypes> {
+    /// collection operations) and every `@permissionsOf` enum for one of its
+    /// resources. The `@permissionTypes` enum waits for the operations:
+    /// [`Self::lower_permission_types`].
+    pub(crate) fn lower_permissions(&mut self, service: &crate::ast::Shape) {
         // The resource tree, parents first.
         let mut pending: Vec<(ShapeId, Vec<(String, ShapeId)>)> = service
             .resources
@@ -85,7 +83,17 @@ impl Lowerer<'_> {
             self.permissions_of(&enum_id, &value);
         }
 
-        let mut types: Option<PermissionTypes> = None;
+        self.stray_permission_traits();
+    }
+
+    /// The service's `@permissionTypes` enum, once its operations are
+    /// lowered. A model with one service has every one. A model may hold
+    /// several services, each with its own: an enum is this service's when
+    /// the service's shapes reach it, else when it names this service's
+    /// resources (a value is the authorization name of one with
+    /// permissions, or it excludes one). Applied to anything but an enum,
+    /// the trait is refused for every service.
+    pub(crate) fn lower_permission_types(&mut self) -> Option<PermissionTypes> {
         let declared: Vec<(ShapeId, Value)> = self
             .model
             .iter()
@@ -96,7 +104,56 @@ impl Lowerer<'_> {
                     .map(|value| (id.clone(), value.clone()))
             })
             .collect();
-        for (id, value) in declared {
+        let names: BTreeSet<&str> = self.permissions.values().map(|r| r.name.as_str()).collect();
+        let related = |id: &ShapeId, value: &Value| {
+            let shape = &self.model[id];
+            let named = shape.members.values().any(|member| {
+                member
+                    .traits
+                    .get(&smithy("enumValue"))
+                    .and_then(Value::as_str)
+                    .is_some_and(|v| names.contains(v))
+            });
+            let excludes = value
+                .get("exclude")
+                .and_then(Value::as_array)
+                .is_some_and(|items| {
+                    items.iter().any(|item| {
+                        item.as_str()
+                            .and_then(|s| s.parse::<ShapeId>().ok())
+                            .is_some_and(|r| self.permission_facts.resources.contains_key(&r))
+                    })
+                });
+            named || excludes
+        };
+        let services = self
+            .model
+            .values()
+            .filter(|shape| shape.kind == Kind::Service)
+            .count();
+        let enumerated = |id: &ShapeId| self.model[id].kind == Kind::Enum;
+        let reached: Vec<&(ShapeId, Value)> = declared
+            .iter()
+            .filter(|(id, _)| enumerated(id) && self.shapes.contains_key(id))
+            .collect();
+        let candidates: Vec<(ShapeId, Value)> = if services <= 1 {
+            declared.clone()
+        } else {
+            declared
+                .iter()
+                .filter(|(id, value)| {
+                    !enumerated(id)
+                        || if reached.is_empty() {
+                            related(id, value)
+                        } else {
+                            reached.iter().any(|(r, _)| r == id)
+                        }
+                })
+                .cloned()
+                .collect()
+        };
+        let mut types: Option<PermissionTypes> = None;
+        for (id, value) in candidates {
             if self.model[&id].kind != Kind::Enum {
                 self.diagnostics.push(
                     &id,
@@ -138,6 +195,61 @@ impl Lowerer<'_> {
             });
         }
         types
+    }
+
+    /// Permission traits where they mean nothing, which Smithy's selectors
+    /// refuse in a built model and a hand-written one may still hold: a
+    /// tier or `@aliasOf` on a member of an enum without `@permissionsOf`,
+    /// and `@authorizationName` on a resource of this service that no
+    /// `@permissionsOf` enum names.
+    fn stray_permission_traits(&mut self) {
+        let member_traits = ["permissionOnly", "notGrantable", "aliasOf"];
+        let mut stray = Vec::new();
+        for (id, shape) in self.model {
+            let vocabulary =
+                shape.kind == Kind::Enum && shape.traits.contains_key(&auth("permissionsOf"));
+            for name in member_traits {
+                if shape.traits.contains_key(&auth(name)) {
+                    stray.push((id.clone(), name));
+                }
+                if !vocabulary {
+                    for (member, definition) in &shape.members {
+                        if definition.traits.contains_key(&auth(name)) {
+                            stray.push((id.with_member(member), name));
+                        }
+                    }
+                }
+            }
+        }
+        for (site, name) in stray {
+            self.diagnostics.push(
+                &site,
+                format!(
+                    "permissions.vocabulary: @crucible.auth#{name} applies to a member of a @crucible.auth#permissionsOf enum: a permission"
+                ),
+            );
+        }
+        let named: Vec<ShapeId> = self
+            .permission_facts
+            .resources
+            .keys()
+            .filter(|id| {
+                !self.permissions.contains_key(*id)
+                    && self
+                        .model
+                        .get(*id)
+                        .is_some_and(|r| r.traits.contains_key(&auth("authorizationName")))
+            })
+            .cloned()
+            .collect();
+        for id in named {
+            self.diagnostics.push(
+                &id,
+                format!(
+                    "permissions.name: {id} has @crucible.auth#authorizationName but declares no permissions: no @crucible.auth#permissionsOf enum names it; remove the trait, or declare its permissions"
+                ),
+            );
+        }
     }
 
     fn permissions_of(&mut self, enum_id: &ShapeId, value: &Value) {
@@ -332,19 +444,19 @@ impl Lowerer<'_> {
                 id,
                 "permissions.requires: @crucible.auth#requires is a list of requirements",
             );
-            return Requirements::List(Vec::new());
+            // Reported; no clause to check.
+            return Requirements::None;
         };
-        if entries.is_empty() {
-            self.diagnostics.push(
-                id,
-                "permissions.requires: @crucible.auth#requires lists no requirement; an operation that needs no permission says @requiresNone(\"why\")",
-            );
-        }
+        // An empty list is refused by the shared check.
         let mut clauses = Vec::new();
         for (index, entry) in entries.iter().enumerate() {
             if let Some(clause) = self.requirement(id, index, entry, input, request) {
                 clauses.push(clause);
             }
+        }
+        if clauses.is_empty() && !entries.is_empty() {
+            // Every entry is reported already; no clause is left to check.
+            return Requirements::None;
         }
         Requirements::List(clauses)
     }
@@ -525,6 +637,33 @@ impl Lowerer<'_> {
             when,
             docs: text("documentation").map(str::to_owned),
         })
+    }
+
+    /// For an operation bound to `resource`, the input member that binds
+    /// each of its identifiers, for `permissions.other-instance`.
+    pub(crate) fn record_identifier_members(
+        &mut self,
+        id: &ShapeId,
+        resource: Option<&ShapeId>,
+        input: Option<&ShapeId>,
+    ) {
+        let Some(identifiers) = resource.and_then(|r| self.permission_facts.resources.get(r))
+        else {
+            return;
+        };
+        let members = input.and_then(|i| self.model.get(i)).map(|i| &i.members);
+        let bound: BTreeMap<String, String> = identifiers
+            .iter()
+            .filter_map(|(identifier, _)| {
+                let member = self.identifier_member(input, identifier);
+                members
+                    .is_some_and(|m| m.contains_key(&member))
+                    .then(|| (identifier.clone(), member))
+            })
+            .collect();
+        self.permission_facts
+            .identifier_members
+            .insert(id.clone(), bound);
     }
 
     /// The input member that carries `identifier`: the one marked
