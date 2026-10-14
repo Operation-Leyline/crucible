@@ -1027,8 +1027,12 @@ pub enum Visibility { All, Only(BTreeSet<String>), Hidden }
   with strongly consistent reads. Pigeon's Authorizer keeps its 30-second
   decision cache, keyed on (principal, permission, resource), never on the
   operation alone, so a revoked grant converges within 30 seconds, the same
-  trade its one-minute API-key cache makes. The Authorizer decides from
-  `OperationFacts` when to bypass it.
+  trade its one-minute API-key cache makes. The cache is never trusted for
+  the operations that read fresh today (deletes and access-changing
+  operations, which `guard` calls with `fresh = true`): the Authorizer
+  bypasses it for them, identified from `OperationFacts`, so a revoked
+  principal can't delete or change access on a cached decision. Other
+  checks may reuse the (principal, permission, resource) entry.
 - **The principal is the service's to read.** The Authorizer reads
   `context.attribute::<Principal>()` and maps it to its own `Caller`, as
   Pigeon's handlers already do.
@@ -1317,7 +1321,8 @@ Each step ships alone and changes no behaviour until the step that says so.
    - Add `@permissionTypes` to `ResourceType`.
 2. **Implement `Authorizer`** over `authorization::decide`,
    `guard::belongs` and `data::grants::readable`, with strongly consistent
-   reads behind the existing 30-second decision cache. Answer `Hidden` for
+   reads behind the existing 30-second decision cache, bypassed for the
+   operations `guard` checks with `fresh = true`. Answer `Hidden` for
    non-members. Install
    `Permissions::shadow` before `Idempotency`, alongside the existing
    guards. Nothing is refused by the interceptor yet.
