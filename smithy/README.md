@@ -42,16 +42,5 @@ generated clients retain the server's actual error contract.
 `AUTH` supplies `crucible.auth#scopes`, the OAuth scopes an operation requires
 (or, on the service, the default for operations that declare none). It is
 imported with the other definitions; enforcement is opt-in at runtime, see
-[docs/auth.md](../docs/auth.md).
-
-`AUTH` also supplies the typed permission traits
-([docs/permissions.md](../docs/permissions.md) §4.11): `@permissionsOf(Resource)`
-on an enum lists the permissions a resource accepts (member names are
-symbols, values are the stored identity; `@internal`, `@permissionOnly`,
-`@notGrantable` and `@aliasOf` per member), `@authorizationName` names a
-resource in grants, `@permissionTypes` checks a resource-type enum,
-`@requires([{ permission, resource, bind?, when?, mode?, documentation? }])`
-declares what an operation requires, and `@requiresNone` and
-`@requiresPending` say it needs nothing or is not converted yet. An
-operation with a requirement gets `crucible.errors#NotFoundException` from
-`ERRORS` in its error contract, so a model that uses `@requires` imports both.
+[docs/auth.md](../docs/auth.md). Typed permissions are not Smithy traits:
+they are declared in `.cru` models ([docs/permissions.md](../docs/permissions.md)).

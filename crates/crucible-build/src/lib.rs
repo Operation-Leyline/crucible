@@ -731,14 +731,13 @@ impl ServerOutput {
             let model = SmithyModel::from_json(&json).map_err(|error| error.to_string())?;
             let capabilities_all =
                 crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
-            let (service, warnings) = model
-                .lower_with_warnings(self.service.as_ref(), &capabilities_all, self.protocol)
-                .map_err(|error| error.to_string())?;
-            // The permission checks' warnings and advice: Cargo shows each.
-            for warning in &warnings {
-                println!("cargo::warning={warning}");
+            match self.protocol {
+                Some(protocol) => {
+                    model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
+                }
+                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
             }
-            service
+            .map_err(|error| error.to_string())?
         };
         if let Some(policy) = &self.policy {
             check_policy(&service, policy)?;

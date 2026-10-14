@@ -809,24 +809,18 @@ fn lower_with_capabilities(
         return Ok(service);
     }
     let model = load_model(source)?;
-    let protocol = match &source.protocol {
-        Some(id) => Some(
-            crucible_smithy::Protocol::ALL
+    match &source.protocol {
+        Some(id) => {
+            let protocol = crucible_smithy::Protocol::ALL
                 .iter()
                 .copied()
                 .find(|protocol| protocol.trait_id() == *id)
-                .ok_or_else(|| format!("unsupported protocol {id}"))?,
-        ),
-        None => None,
-    };
-    let (service, warnings) = model
-        .lower_with_warnings(source.service.as_ref(), capabilities, protocol)
-        .map_err(|error| error.to_string())?;
-    // The permission checks' warnings and advice (docs/permissions.md §5).
-    for warning in &warnings {
-        eprintln!("{warning}");
+                .ok_or_else(|| format!("unsupported protocol {id}"))?;
+            model.lower_with_protocol(source.service.as_ref(), capabilities, protocol)
+        }
+        None => model.lower_with_capabilities(source.service.as_ref(), capabilities),
     }
-    Ok(service)
+    .map_err(|error| error.to_string())
 }
 
 fn lower_for_audience(
@@ -1765,16 +1759,53 @@ fn custom_traits(service: &Service) -> BTreeMap<&ShapeId, usize> {
 mod summary_tests {
     #[test]
     fn the_summary_counts_permissions_and_lists_pending_operations() {
-        let service = crucible_smithy::Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/permissions.json"
-        ))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+        let source = r#"
+service Shop {
+    version "1"
+    protocol json
+    auth bearer
+    operations [Ping]
+    resources [Store]
+}
+readonly operation Ping {
+    http GET "/ping"
+    requires none
+}
+string StoreId { pattern "^s_" }
+resource Store {
+    id storeId: StoreId
+    permission read = "store:read"
+    @permissionOnly
+    permission audit = "store:audit"
+}
+readonly operation GetStore on Store {
+    http GET "/stores/{storeId}"
+    requires read
+    input { $storeId }
+}
+operation Restore on Store {
+    http POST "/stores/{storeId}/restore"
+    requires pending because "the handler checks"
+    input { $storeId }
+}
+"#;
+        let mut package = crucible_lang::Package::new(
+            "example.shop",
+            vec![crucible_lang::SourceFile {
+                path: "shop.cru".into(),
+                text: source.into(),
+            }],
+        );
+        package.imports = vec!["crucible.errors".to_owned()];
+        let compiled = crucible_lang::compile(&package, None);
+        let service = compiled
+            .service
+            .clone()
+            .unwrap_or_else(|| panic!("{}", compiled.render()));
         let summary = super::summary(&service);
         assert!(
             summary.contains(
-                "  8 permissions on 3 resources; 5 operations require some, 1 none, 1 pending\n  pending example.leyline#RestoreBackup: guard::allow in the handler until the history module moves.\n"
+                "  2 permissions on 1 resources; 1 operations require some, 1 none, 1 pending\n  pending example.shop#Restore: the handler checks\n"
             ),
             "{summary}"
         );

@@ -34,24 +34,12 @@ pub struct PermissionFacts {
     /// identifiers and their types, root to leaf.
     pub resources: BTreeMap<ShapeId, Vec<(String, ShapeId)>>,
     /// Operations bound to a resource's collection: `creates`, `lists`,
-    /// `on .. collection`; Smithy `create`, `list` and `collectionOperations`.
+    /// `on .. collection`.
     pub collection_operations: BTreeSet<ShapeId>,
-    /// Where a permission was declared, when that is not `resource$symbol`:
-    /// a Smithy `@permissionsOf` enum's member.
-    pub declared_at: BTreeMap<(ShapeId, String), ShapeId>,
     /// For an operation bound to a resource: the input member that binds
     /// each of the resource's identifiers (inherited ones included), by
     /// identifier. The handler loads the instance these name.
     pub identifier_members: BTreeMap<ShapeId, BTreeMap<String, String>>,
-}
-
-impl PermissionFacts {
-    fn site(&self, resource: &ShapeId, symbol: &str) -> ShapeId {
-        self.declared_at
-            .get(&(resource.clone(), symbol.to_owned()))
-            .cloned()
-            .unwrap_or_else(|| resource.with_member(symbol))
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -84,15 +72,6 @@ impl PermissionFinding {
     pub fn text(&self) -> String {
         format!("{}: {}", self.code, self.message)
     }
-
-    /// `code: @requires[i]: message`: the text with the clause a Smithy
-    /// model's `@requires` list holds it at.
-    pub fn smithy_text(&self) -> String {
-        match self.requirement {
-            Some(index) => format!("{}: @requires[{index}]: {}", self.code, self.message),
-            None => self.text(),
-        }
-    }
 }
 
 impl FindingSeverity {
@@ -106,8 +85,7 @@ impl FindingSeverity {
     }
 }
 
-/// `shape: severity: code: [@requires[i]: ]message`, the line a Smithy
-/// build prints.
+/// `shape: severity: code: message`.
 impl fmt::Display for PermissionFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -115,7 +93,7 @@ impl fmt::Display for PermissionFinding {
             "{}: {}: {}",
             self.shape,
             self.severity.label(),
-            self.smithy_text()
+            self.text()
         )
     }
 }
@@ -309,7 +287,7 @@ impl<'a> Checker<'a> {
             let mut symbols = BTreeSet::new();
             let mut values: BTreeMap<String, &str> = BTreeMap::new();
             for permission in &resource.permissions {
-                let site = self.facts.site(id, &permission.symbol);
+                let site = id.with_member(&permission.symbol);
                 if !symbols.insert(permission.symbol.as_str()) {
                     self.error(
                         "permissions.duplicate",
@@ -564,7 +542,7 @@ impl<'a> Checker<'a> {
                     id,
                     None,
                     format!(
-                        "`{}` lists no requirement; an operation that needs no permission says `requires none` (Smithy `@requiresNone(\"why\")`)",
+                        "`{}` lists no requirement; an operation that needs no permission says `requires none`",
                         op.name()
                     ),
                 );
@@ -1132,7 +1110,7 @@ impl<'a> Checker<'a> {
                 "permissions.not-found",
                 &op.id,
                 None,
-                "a requirement attaches `crucible.errors#NotFoundException`, which the model does not contain: import the `crucible.errors` package (Smithy: `errors.smithy` from crucible-traits)",
+                "a requirement attaches `crucible.errors#NotFoundException`, which the model does not contain: import the `crucible.errors` package",
             );
             return;
         }

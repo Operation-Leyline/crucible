@@ -5,7 +5,7 @@
 //! This module checks what only the syntax can get wrong (tiers written
 //! twice, a binding name that is no identifier, `requires none` beside
 //! another clause) and resolves implicit bindings; everything that holds of
-//! the IR is `crucible_smithy::validate::permissions`, shared with Smithy.
+//! the IR is `crucible_smithy::validate::permissions`.
 
 use std::collections::{BTreeMap, BTreeSet};
 
