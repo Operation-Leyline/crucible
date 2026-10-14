@@ -9,7 +9,6 @@ use serde_json::{Value, json};
 const WEATHER: &str =
     include_str!("../../crucible-smithy/tests/fixtures/service-docs-weather.json");
 const CATALOG: &str = include_str!("../../crucible-smithy/tests/fixtures/service-docs.json");
-const PERMISSIONS: &str = include_str!("../../crucible-smithy/tests/fixtures/permissions.json");
 
 fn files(source: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
     let service = Model::from_json(source)
@@ -24,7 +23,11 @@ fn files(source: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
 const SITE_RUNTIME: [&str; 3] = ["index.html", "explorer.js", "explorer.css"];
 
 fn golden(name: &str, source: &str, audience: Audience) {
-    let files: Vec<_> = files(source, audience)
+    golden_files(name, files(source, audience));
+}
+
+fn golden_files(name: &str, files: Vec<crucible_codegen_docs::File>) {
+    let files: Vec<_> = files
         .into_iter()
         // describe.js repeats describe.json; the site test pins that.
         .filter(|f| f.path != "describe.js" && !SITE_RUNTIME.contains(&f.path.as_str()))
@@ -78,15 +81,45 @@ fn rpc_metadata_examples_and_shapes_match_reviewed_goldens() {
     golden("catalog-internal", CATALOG, Audience::Internal);
 }
 
+/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
+/// source first.
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
+}
+
+/// The fixture as the reference describes it. A `.cru` package carries no
+/// resource metadata for the reference yet (only Smithy's
+/// `lower_documentation` fills `Service::resources`), so its operations are
+/// listed as the service's own.
+fn leyline() -> crucible_smithy::ir::Service {
+    let mut service = leyline_with(|text| text);
+    for operation in &mut service.operations {
+        operation.resource = None;
+    }
+    service
+}
+
 /// Typed permissions (docs/permissions.md §6.3): a Permissions page with a
 /// table per tier, an Authorization section per operation, and the
 /// registry and requirements in `describe.json`. Internal permissions and
 /// pending reasons only in the server audience.
 #[test]
 fn permissions_match_reviewed_goldens() {
-    golden("permissions-external", PERMISSIONS, Audience::External);
-    golden("permissions-internal", PERMISSIONS, Audience::Internal);
-    let external = files(PERMISSIONS, Audience::External);
+    let service = leyline();
+    let generated = |audience| generate(&project(&service, audience).unwrap()).unwrap();
+    golden_files("permissions-external", generated(Audience::External));
+    golden_files("permissions-internal", generated(Audience::Internal));
+    let external = generated(Audience::External);
     for file in &external {
         assert!(
             !file.contents.contains("organization:read"),
@@ -99,7 +132,7 @@ fn permissions_match_reviewed_goldens() {
             file.path
         );
     }
-    let internal = files(PERMISSIONS, Audience::Internal);
+    let internal = generated(Audience::Internal);
     let page = internal
         .iter()
         .find(|f| f.path == "src/permissions.md")
@@ -238,8 +271,12 @@ fn audience_filters_values_and_badges_are_visible_at_every_level() {
 
 #[test]
 fn all_links_point_to_generated_pages() {
-    for source in [WEATHER, CATALOG, PERMISSIONS] {
-        let files = files(source, Audience::Internal);
+    let leyline = generate(&project(&leyline(), Audience::Internal).unwrap()).unwrap();
+    for files in [
+        files(WEATHER, Audience::Internal),
+        files(CATALOG, Audience::Internal),
+        leyline,
+    ] {
         let paths: BTreeSet<_> = files.iter().map(|f| f.path.as_str()).collect();
         for file in files.iter().filter(|f| f.path.ends_with(".md")) {
             for segment in file.contents.split("](").skip(1) {

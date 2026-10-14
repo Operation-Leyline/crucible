@@ -14,3 +14,7 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The typed permissions fixture is a `.cru` package (tests/fixtures/permissions).
+crucible-lang.workspace = true

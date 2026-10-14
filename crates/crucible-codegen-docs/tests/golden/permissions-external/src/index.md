@@ -1,5 +1,6 @@
 # Leyline
 
+<p>Organizations, their graphs and the graphs' histories.</p>
 
 Service version: <code>2026-10-01</code>.
 
@@ -19,41 +20,20 @@ Operations name what the caller must hold on which resource; [Permissions](permi
 
 ## Service errors
 
-No modeled errors.
+| Error | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|
+| [ValidationException](shapes/ValidationException.md) | 400 | client | No | <p>A request cannot be parsed or does not satisfy the service's input model.</p>  |
+| [InternalServerException](shapes/InternalServerException.md) | 500 | server | Yes | <p>An unexpected server failure. Its message never exposes the underlying cause.</p>  |
 
 ## Operations
 
-### Graph
-
-
-| Lifecycle | Operation |
-|---|---|
-| create | [CreateGraph](operations/API_CreateGraph.md) |
-| read | [GetGraph](operations/API_GetGraph.md) |
-| list | [ListGraphs](operations/API_ListGraphs.md) |
+### Service operations
 
 - [CreateGraph](operations/API_CreateGraph.md)
 - [ExecuteQuery](operations/API_ExecuteQuery.md)
 - [GetGraph](operations/API_GetGraph.md)
-- [ListGraphs](operations/API_ListGraphs.md)
-
-### History
-
-
-| Lifecycle | Operation |
-|---|---|
-
-- [RestoreBackup](operations/API_RestoreBackup.md)
-
-### Organization
-
-
-| Lifecycle | Operation |
-|---|---|
-| read | [GetOrganization](operations/API_GetOrganization.md) |
-
 - [GetOrganization](operations/API_GetOrganization.md)
-
-### Service operations
-
 - [GetUser](operations/API_GetUser.md)
+- [Health](operations/API_Health.md)
+- [ListGraphs](operations/API_ListGraphs.md)
+- [RestoreBackup](operations/API_RestoreBackup.md)

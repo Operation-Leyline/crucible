@@ -10,21 +10,21 @@ mod client {
     include!(concat!(env!("OUT_DIR"), "/permissions_client.rs"));
 }
 
-/// The Smithy permissions fixture's server bindings, for their `CHECKS`.
+/// The generators' shared permissions fixture (`tests/fixtures/permissions`),
+/// for its `CHECKS`.
 #[allow(dead_code)]
-mod smithy {
+mod leyline_fixture {
     include!(concat!(env!("OUT_DIR"), "/leyline_permissions.rs"));
 }
 
 use client::permissions::{InboxPermission, PERMISSIONS, WorkspacePermission};
 use crucible_client_runtime_rust::permissions::Tier;
 
-/// A Smithy model binds through a union arm: the check applies only when
-/// the arm is selected.
+/// A binding through a union arm applies only when the arm is selected.
 #[test]
-fn smithy_bindings_read_union_arms() {
+fn bindings_read_union_arms() {
     use crucible_server_runtime_rust::Operation;
-    use smithy::leyline::{ExecuteQuery, ExecuteQueryInput, HistoryRef, QueryTarget};
+    use leyline_fixture::leyline::{ExecuteQuery, ExecuteQueryInput, HistoryRef, QueryTarget};
     let checks = |target: Option<QueryTarget>| {
         let mut out = Vec::new();
         (<ExecuteQuery as Operation>::CHECKS.unwrap())(
@@ -51,7 +51,7 @@ fn smithy_bindings_read_union_arms() {
         ]
     );
     assert_eq!(
-        smithy::leyline::ExecuteQuery::WRITE_ON_GRAPH
+        leyline_fixture::leyline::ExecuteQuery::WRITE_ON_GRAPH
             .permission
             .value,
         "graph:write"

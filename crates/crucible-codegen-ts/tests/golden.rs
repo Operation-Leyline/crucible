@@ -41,18 +41,33 @@ fn legacy_enum_models_match_golden() {
     );
 }
 
+/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
+/// source first.
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
+}
+
+fn leyline() -> crucible_smithy::ir::Service {
+    leyline_with(|text| text)
+}
+
 /// Typed permissions (docs/permissions.md §6.3): open constants per
 /// resource, deprecated aliases, the registry, and each method's
 /// requirements in its documentation; nothing of the internal tier.
 #[test]
 fn permission_constants_match_golden() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/permissions.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
-    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let external =
+        crucible_smithy::project(&leyline(), crucible_smithy::Audience::External).unwrap();
     let options = Options {
         package_name: "@example/leyline".into(),
         package_version: "0.0.0-dev".into(),

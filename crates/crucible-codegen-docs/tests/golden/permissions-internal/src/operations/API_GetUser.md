@@ -1,5 +1,6 @@
 # GetUser
 
+<p>Answers about the caller's own credential.</p>
 
 Protocol: <code>crucibleJson</code>.
 
@@ -40,7 +41,10 @@ Content-Type: application/json
 
 ## Errors
 
-No modeled errors.
+| Error | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|
+| [ValidationException](../shapes/ValidationException.md) | 400 | client | No | <p>A request cannot be parsed or does not satisfy the service's input model.</p>  |
+| [InternalServerException](../shapes/InternalServerException.md) | 500 | server | Yes | <p>An unexpected server failure. Its message never exposes the underlying cause.</p>  |
 
 ## Idempotency and retries
 

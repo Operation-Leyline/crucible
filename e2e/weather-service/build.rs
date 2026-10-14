@@ -71,9 +71,9 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
-    // A Smithy model's (`@crucible.auth#requires`): a binding through a
-    // union arm, a filter, a handler clause and an internal permission.
-    let leyline = "../../crates/crucible-smithy/tests/fixtures/permissions.json";
+    // The generators' shared fixture: a binding through a union arm, a
+    // filter, a handler clause and an internal permission.
+    let leyline = "../../tests/fixtures/permissions";
     println!("cargo::rerun-if-changed={leyline}");
     std::fs::write(
         out.join("leyline_permissions.rs"),

@@ -41,17 +41,33 @@ fn weather_matches_reviewed_golden() {
     );
 }
 
+/// The typed permissions fixture, a `.cru` package; `edit` rewrites its
+/// source first.
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
+}
+
+fn leyline() -> crucible_smithy::ir::Service {
+    leyline_with(|text| text)
+}
+
 /// Typed permissions (docs/permissions.md §6.3): `x-crucible-requires` per
 /// operation, `x-crucible-permissions` for the registry, a requirement
 /// sentence in each description, and the framework's 404 among the
 /// responses. Internal permissions only in the server-audience document.
 #[test]
 fn permissions_match_reviewed_golden_per_audience() {
-    // The fixture's listing names its label differently from its siblings,
-    // which one OpenAPI path tree cannot hold.
-    let model = include_str!("../../crucible-smithy/tests/fixtures/permissions.json")
-        .replace("/orgs/{org}/graphs", "/orgs/{org}/graph-listing");
-    let service = Model::from_json(&model).unwrap().lower(None).unwrap();
+    let service = leyline();
     for (audience, file) in [
         (
             crucible_smithy::Audience::Internal,

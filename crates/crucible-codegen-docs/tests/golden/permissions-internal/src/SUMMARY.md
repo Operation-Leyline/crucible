@@ -1,30 +1,41 @@
 # Summary
 
 - [Service overview](index.md)
-- Graph
+- Service operations
   - [CreateGraph](operations/API_CreateGraph.md)
   - [ExecuteQuery](operations/API_ExecuteQuery.md)
   - [GetGraph](operations/API_GetGraph.md)
-  - [ListGraphs](operations/API_ListGraphs.md)
-- History
-  - [RestoreBackup](operations/API_RestoreBackup.md)
-- Organization
   - [GetOrganization](operations/API_GetOrganization.md)
-- Service operations
   - [GetUser](operations/API_GetUser.md)
+  - [Health](operations/API_Health.md)
+  - [ListGraphs](operations/API_ListGraphs.md)
+  - [RestoreBackup](operations/API_RestoreBackup.md)
 - [Permissions](permissions.md)
 - Data types
+  - [InternalServerException](shapes/InternalServerException.md)
   - [NotFoundException](shapes/NotFoundException.md)
+  - [ValidationException](shapes/ValidationException.md)
+  - [ValidationExceptionField](shapes/ValidationExceptionField.md)
+  - [ValidationExceptionFieldList](shapes/ValidationExceptionFieldList.md)
+  - [ValidationExceptionReason](shapes/ValidationExceptionReason.md)
   - [CreateGraphInput](shapes/CreateGraphInput.md)
+  - [CreateGraphOutput](shapes/CreateGraphOutput.md)
   - [ExecuteQueryInput](shapes/ExecuteQueryInput.md)
+  - [ExecuteQueryOutput](shapes/ExecuteQueryOutput.md)
   - [GetGraphInput](shapes/GetGraphInput.md)
+  - [GetGraphOutput](shapes/GetGraphOutput.md)
   - [GetOrganizationInput](shapes/GetOrganizationInput.md)
+  - [GetOrganizationOutput](shapes/GetOrganizationOutput.md)
   - [GetUserOutput](shapes/GetUserOutput.md)
   - [GraphId](shapes/GraphId.md)
+  - [HealthOutput](shapes/HealthOutput.md)
   - [HistoryId](shapes/HistoryId.md)
   - [HistoryRef](shapes/HistoryRef.md)
   - [ListGraphsInput](shapes/ListGraphsInput.md)
+  - [ListGraphsOutput](shapes/ListGraphsOutput.md)
+  - [Names](shapes/Names.md)
   - [OrganizationId](shapes/OrganizationId.md)
   - [QueryTarget](shapes/QueryTarget.md)
   - [ResourceKind](shapes/ResourceKind.md)
   - [RestoreBackupInput](shapes/RestoreBackupInput.md)
+  - [RestoreBackupOutput](shapes/RestoreBackupOutput.md)

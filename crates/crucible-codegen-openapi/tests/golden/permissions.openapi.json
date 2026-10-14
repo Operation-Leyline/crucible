@@ -2,15 +2,80 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Leyline",
-    "version": "2026-10-01"
+    "version": "2026-10-01",
+    "description": "Organizations, their graphs and the graphs' histories."
   },
   "paths": {
     "/orgs/{organizationId}/graphs": {
       "post": {
         "operationId": "CreateGraph",
         "responses": {
-          "201": {
-            "description": "Successful response"
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created": {
+                      "type": "string",
+                      "pattern": "^g_[a-z0-9]+$"
+                    }
+                  },
+                  "required": [
+                    "created"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
           },
           "404": {
             "description": "NotFoundException",
@@ -20,16 +85,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -55,6 +114,50 @@
             "x-smithy-errors": [
               "crucible.errors#NotFoundException"
             ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
         },
         "security": [
@@ -63,13 +166,7 @@
           }
         ],
         "x-smithy-shape": "example.leyline#CreateGraph",
-        "x-smithy-traits": {
-          "smithy.api#http": {
-            "method": "POST",
-            "uri": "/orgs/{organizationId}/graphs",
-            "code": 201
-          }
-        },
+        "x-smithy-traits": {},
         "description": "Requires `graph:write` on every graph in the organization.",
         "x-crucible-requires": {
           "kind": "list",
@@ -102,10 +199,7 @@
                 "type": "object",
                 "properties": {
                   "name": {
-                    "$ref": "#/components/schemas/smithy.api.String",
-                    "x-smithy-traits": {
-                      "smithy.api#required": {}
-                    }
+                    "$ref": "#/components/schemas/smithy.api.String"
                   }
                 },
                 "required": [
@@ -123,24 +217,81 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^org_[a-z0-9]+$"
             },
             "style": "simple",
             "explode": false
           }
         ]
-      }
-    },
-    "/orgs/{organizationId}/graphs/{graphId}/query": {
-      "post": {
-        "operationId": "ExecuteQuery",
+      },
+      "get": {
+        "operationId": "ListGraphs",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "names": {
+                      "$ref": "#/components/schemas/example.leyline.Names"
+                    }
+                  },
+                  "required": [
+                    "names"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
           },
           "404": {
             "description": "NotFoundException",
@@ -150,16 +301,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -185,6 +330,251 @@
             "x-smithy-errors": [
               "crucible.errors#NotFoundException"
             ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#ListGraphs",
+        "x-smithy-traits": {},
+        "description": "Returns only the graphs the caller may read.\n\nReturns only the graphs the caller holds `graph:read` on in the organization.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "filter",
+              "permission": "graph:read",
+              "resourceType": "graph",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "organizationId"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "*"
+                }
+              ]
+            }
+          ]
+        },
+        "tags": [
+          "Graph"
+        ],
+        "x-smithy-readonly": true,
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/orgs/{organizationId}/graphs/{graphId}/query": {
+      "post": {
+        "operationId": "ExecuteQuery",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "$ref": "#/components/schemas/example.leyline.Names"
+                    }
+                  },
+                  "required": [
+                    "rows"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
         },
         "security": [
@@ -193,13 +583,7 @@
           }
         ],
         "x-smithy-shape": "example.leyline#ExecuteQuery",
-        "x-smithy-traits": {
-          "smithy.api#http": {
-            "method": "POST",
-            "uri": "/orgs/{organizationId}/graphs/{graphId}/query",
-            "code": 200
-          }
-        },
+        "x-smithy-traits": {},
         "description": "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`.",
         "x-crucible-requires": {
           "kind": "list",
@@ -260,10 +644,7 @@
                 "type": "object",
                 "properties": {
                   "query": {
-                    "$ref": "#/components/schemas/smithy.api.String",
-                    "x-smithy-traits": {
-                      "smithy.api#required": {}
-                    }
+                    "$ref": "#/components/schemas/smithy.api.String"
                   },
                   "target": {
                     "anyOf": [
@@ -291,10 +672,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^org_[a-z0-9]+$"
             },
             "style": "simple",
@@ -306,10 +683,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^g_[a-z0-9]+$"
             },
             "style": "simple",
@@ -323,7 +696,70 @@
         "operationId": "GetGraph",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
           },
           "404": {
             "description": "NotFoundException",
@@ -333,16 +769,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -368,6 +798,50 @@
             "x-smithy-errors": [
               "crucible.errors#NotFoundException"
             ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
         },
         "security": [
@@ -376,14 +850,7 @@
           }
         ],
         "x-smithy-shape": "example.leyline#GetGraph",
-        "x-smithy-traits": {
-          "smithy.api#readonly": {},
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/orgs/{organizationId}/graphs/{graph}",
-            "code": 200
-          }
-        },
+        "x-smithy-traits": {},
         "description": "Requires `graph:read` on the graph.",
         "x-crucible-requires": {
           "kind": "list",
@@ -417,10 +884,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^org_[a-z0-9]+$"
             },
             "style": "simple",
@@ -432,10 +895,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^g_[a-z0-9]+$"
             },
             "style": "simple",
@@ -449,7 +908,70 @@
         "operationId": "GetOrganization",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
           },
           "404": {
             "description": "NotFoundException",
@@ -459,16 +981,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -494,6 +1010,50 @@
             "x-smithy-errors": [
               "crucible.errors#NotFoundException"
             ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
         },
         "security": [
@@ -502,14 +1062,7 @@
           }
         ],
         "x-smithy-shape": "example.leyline#GetOrganization",
-        "x-smithy-traits": {
-          "smithy.api#readonly": {},
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/orgs/{organizationId}",
-            "code": 200
-          }
-        },
+        "x-smithy-traits": {},
         "description": "Requires `organization:read` on the org.",
         "x-crucible-requires": {
           "kind": "list",
@@ -539,10 +1092,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^org_[a-z0-9]+$"
             },
             "style": "simple",
@@ -563,10 +1112,7 @@
                   "type": "object",
                   "properties": {
                     "subject": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     }
                   },
                   "required": [
@@ -575,63 +1121,38 @@
                 }
               }
             }
-          }
-        },
-        "security": [
-          {
-            "smithy.api.httpBearerAuth": []
-          }
-        ],
-        "x-smithy-shape": "example.leyline#GetUser",
-        "x-smithy-traits": {
-          "smithy.api#readonly": {},
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/user",
-            "code": 200
-          }
-        },
-        "description": "Requires no permission.",
-        "x-crucible-requires": {
-          "kind": "none"
-        },
-        "x-smithy-readonly": true
-      }
-    },
-    "/orgs/{org}/graph-listing": {
-      "get": {
-        "operationId": "ListGraphs",
-        "responses": {
-          "200": {
-            "description": "Successful response"
           },
-          "404": {
-            "description": "NotFoundException",
+          "400": {
+            "description": "ValidationException",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
-                    "resourceType": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "__type": {
                       "type": "string",
-                      "const": "NotFoundException"
+                      "const": "ValidationException"
                     }
                   },
                   "required": [
                     "message",
-                    "resourceType",
+                    "reason",
                     "__type"
                   ]
                 }
@@ -641,13 +1162,57 @@
               "X-Crucible-Error": {
                 "schema": {
                   "type": "string",
-                  "const": "NotFoundException"
+                  "const": "ValidationException"
                 }
               }
             },
             "x-smithy-errors": [
-              "crucible.errors#NotFoundException"
+              "crucible.errors#ValidationException"
             ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
         },
         "security": [
@@ -655,60 +1220,135 @@
             "smithy.api.httpBearerAuth": []
           }
         ],
-        "x-smithy-shape": "example.leyline#ListGraphs",
-        "x-smithy-traits": {
-          "smithy.api#readonly": {},
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/orgs/{org}/graph-listing",
-            "code": 200
-          }
-        },
-        "description": "Returns only the graphs the caller holds `graph:read` on in the organization.",
+        "x-smithy-shape": "example.leyline#GetUser",
+        "x-smithy-traits": {},
+        "description": "Answers about the caller's own credential.\n\nRequires no permission.",
         "x-crucible-requires": {
-          "kind": "list",
-          "clauses": [
-            {
-              "mode": "filter",
-              "permission": "graph:read",
-              "resourceType": "graph",
-              "tier": "public",
-              "bindings": [
-                {
-                  "identifier": "organizationId",
-                  "value": "org"
-                },
-                {
-                  "identifier": "graphId",
-                  "value": "*"
-                }
-              ],
-              "documentation": "Returns only the graphs the caller may read."
-            }
-          ]
+          "kind": "none"
         },
-        "tags": [
-          "Graph"
-        ],
-        "x-smithy-readonly": true,
-        "parameters": [
-          {
-            "name": "org",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {},
-                "smithy.api#resourceIdentifier": "organizationId"
-              },
-              "pattern": "^org_[a-z0-9]+$"
+        "x-smithy-readonly": true
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
             },
-            "style": "simple",
-            "explode": false
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
-        ]
+        },
+        "security": [],
+        "x-smithy-shape": "example.leyline#Health",
+        "x-smithy-traits": {},
+        "description": "No authentication: nothing to authorize.",
+        "x-smithy-readonly": true
       }
     },
     "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore": {
@@ -716,7 +1356,114 @@
         "operationId": "RestoreBackup",
         "responses": {
           "200": {
-            "description": "Successful response"
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "restored": {
+                      "$ref": "#/components/schemas/smithy.api.Boolean"
+                    }
+                  },
+                  "required": [
+                    "restored"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
           }
         },
         "security": [
@@ -725,13 +1472,7 @@
           }
         ],
         "x-smithy-shape": "example.leyline#RestoreBackup",
-        "x-smithy-traits": {
-          "smithy.api#http": {
-            "method": "POST",
-            "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore",
-            "code": 200
-          }
-        },
+        "x-smithy-traits": {},
         "x-crucible-requires": {
           "kind": "pending",
           "reason": "guard::allow in the handler until the history module moves."
@@ -746,10 +1487,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^org_[a-z0-9]+$"
             },
             "style": "simple",
@@ -761,10 +1498,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^g_[a-z0-9]+$"
             },
             "style": "simple",
@@ -776,10 +1509,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^h_[a-z0-9]+$"
             },
             "style": "simple",
@@ -791,49 +1520,112 @@
   },
   "components": {
     "schemas": {
+      "crucible.errors.InternalServerException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          },
+          "retryAfterSeconds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/smithy.api.Integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "description": "An unexpected server failure. Its message never exposes the underlying cause."
+      },
       "crucible.errors.NotFoundException": {
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           },
           "resourceType": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           }
         },
         "required": [
           "message",
           "resourceType"
         ],
-        "description": "The resource does not exist, or the caller may not know that it does.",
-        "x-smithy-traits": {
-          "smithy.api#documentation": "The resource does not exist, or the caller may not know that it does.",
-          "smithy.api#error": "client",
-          "smithy.api#httpError": 404
-        }
+        "description": "The resource does not exist, or the caller may not know that it does."
+      },
+      "crucible.errors.ValidationException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+          },
+          "fieldList": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message",
+          "reason"
+        ],
+        "description": "A request cannot be parsed or does not satisfy the service's input model."
+      },
+      "crucible.errors.ValidationExceptionField": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          },
+          "message": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          }
+        },
+        "required": [
+          "name",
+          "message"
+        ],
+        "description": "A request field that failed validation."
+      },
+      "crucible.errors.ValidationExceptionFieldList": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionField"
+        },
+        "uniqueItems": false
+      },
+      "crucible.errors.ValidationExceptionReason": {
+        "type": "string",
+        "enum": [
+          "unknownOperation",
+          "cannotParse",
+          "fieldValidationFailed",
+          "other"
+        ],
+        "description": "A machine-readable reason; clients never need to parse message text."
       },
       "example.leyline.CreateGraphInput": {
         "type": "object",
         "properties": {
           "organizationId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^org_[a-z0-9]+$"
           },
           "name": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           }
         },
         "required": [
@@ -841,30 +1633,31 @@
           "name"
         ]
       },
+      "example.leyline.CreateGraphOutput": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "string",
+            "pattern": "^g_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "created"
+        ]
+      },
       "example.leyline.ExecuteQueryInput": {
         "type": "object",
         "properties": {
           "organizationId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^org_[a-z0-9]+$"
           },
           "graphId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^g_[a-z0-9]+$"
           },
           "query": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           },
           "target": {
             "anyOf": [
@@ -883,23 +1676,26 @@
           "query"
         ]
       },
+      "example.leyline.ExecuteQueryOutput": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "$ref": "#/components/schemas/example.leyline.Names"
+          }
+        },
+        "required": [
+          "rows"
+        ]
+      },
       "example.leyline.GetGraphInput": {
         "type": "object",
         "properties": {
           "organizationId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^org_[a-z0-9]+$"
           },
           "graph": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^g_[a-z0-9]+$"
           }
         },
@@ -908,15 +1704,22 @@
           "graph"
         ]
       },
+      "example.leyline.GetGraphOutput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "example.leyline.GetOrganizationInput": {
         "type": "object",
         "properties": {
           "organizationId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^org_[a-z0-9]+$"
           }
         },
@@ -924,14 +1727,22 @@
           "organizationId"
         ]
       },
+      "example.leyline.GetOrganizationOutput": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "example.leyline.GetUserOutput": {
         "type": "object",
         "properties": {
           "subject": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           }
         },
         "required": [
@@ -940,16 +1751,21 @@
       },
       "example.leyline.GraphId": {
         "type": "string",
-        "x-smithy-traits": {
-          "smithy.api#pattern": "^g_[a-z0-9]+$"
-        },
         "pattern": "^g_[a-z0-9]+$"
+      },
+      "example.leyline.HealthOutput": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/smithy.api.String"
+          }
+        },
+        "required": [
+          "status"
+        ]
       },
       "example.leyline.HistoryId": {
         "type": "string",
-        "x-smithy-traits": {
-          "smithy.api#pattern": "^h_[a-z0-9]+$"
-        },
         "pattern": "^h_[a-z0-9]+$"
       },
       "example.leyline.HistoryRef": {
@@ -957,9 +1773,6 @@
         "properties": {
           "historyId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            },
             "pattern": "^h_[a-z0-9]+$"
           }
         },
@@ -970,25 +1783,35 @@
       "example.leyline.ListGraphsInput": {
         "type": "object",
         "properties": {
-          "org": {
+          "organizationId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {},
-              "smithy.api#resourceIdentifier": "organizationId"
-            },
             "pattern": "^org_[a-z0-9]+$"
           }
         },
         "required": [
-          "org"
+          "organizationId"
         ]
+      },
+      "example.leyline.ListGraphsOutput": {
+        "type": "object",
+        "properties": {
+          "names": {
+            "$ref": "#/components/schemas/example.leyline.Names"
+          }
+        },
+        "required": [
+          "names"
+        ]
+      },
+      "example.leyline.Names": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/smithy.api.String"
+        },
+        "uniqueItems": false
       },
       "example.leyline.OrganizationId": {
         "type": "string",
-        "x-smithy-traits": {
-          "smithy.api#pattern": "^org_[a-z0-9]+$"
-        },
         "pattern": "^org_[a-z0-9]+$"
       },
       "example.leyline.QueryTarget": {
@@ -1017,7 +1840,8 @@
             ],
             "additionalProperties": false
           }
-        ]
+        ],
+        "description": "Where a query reads: the current state, or a saved history."
       },
       "example.leyline.ResourceKind": {
         "type": "string",
@@ -1025,39 +1849,21 @@
           "org",
           "graph"
         ],
-        "x-smithy-traits": {
-          "crucible.auth#permissionTypes": {
-            "exclude": [
-              "example.leyline#History"
-            ]
-          }
-        }
+        "description": "The resource types grants name; histories are granted through graphs."
       },
       "example.leyline.RestoreBackupInput": {
         "type": "object",
         "properties": {
           "organizationId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^org_[a-z0-9]+$"
           },
           "graphId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^g_[a-z0-9]+$"
           },
           "historyId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^h_[a-z0-9]+$"
           }
         },
@@ -1066,6 +1872,26 @@
           "graphId",
           "historyId"
         ]
+      },
+      "example.leyline.RestoreBackupOutput": {
+        "type": "object",
+        "properties": {
+          "restored": {
+            "$ref": "#/components/schemas/smithy.api.Boolean"
+          }
+        },
+        "required": [
+          "restored"
+        ]
+      },
+      "smithy.api.Boolean": {
+        "type": "boolean"
+      },
+      "smithy.api.Integer": {
+        "type": "integer",
+        "format": "int32",
+        "minimum": -2147483648,
+        "maximum": 2147483647
       },
       "smithy.api.String": {
         "type": "string"
@@ -1084,10 +1910,7 @@
   },
   "x-smithy-service": "example.leyline#Leyline",
   "x-smithy-protocol": "crucible.protocols#json",
-  "x-smithy-traits": {
-    "crucible.protocols#json": {},
-    "smithy.api#httpBearerAuth": {}
-  },
+  "x-smithy-traits": {},
   "x-crucible-permissions": [
     {
       "resourceType": "graph",
@@ -1097,7 +1920,7 @@
       ],
       "permissions": [
         {
-          "symbol": "AUDIT",
+          "symbol": "audit",
           "value": "graph:audit",
           "description": "",
           "tier": "permissionOnly",
@@ -1105,7 +1928,7 @@
           "deprecated": false
         },
         {
-          "symbol": "READ",
+          "symbol": "read",
           "value": "graph:read",
           "description": "Read a graph and its catalog.",
           "tier": "public",
@@ -1113,7 +1936,7 @@
           "deprecated": false
         },
         {
-          "symbol": "VIEW",
+          "symbol": "view",
           "value": "graph:view",
           "description": "",
           "tier": "public",
@@ -1122,7 +1945,7 @@
           "aliasOf": "graph:read"
         },
         {
-          "symbol": "WRITE",
+          "symbol": "write",
           "value": "graph:write",
           "description": "",
           "tier": "public",
@@ -1140,7 +1963,7 @@
       ],
       "permissions": [
         {
-          "symbol": "READ",
+          "symbol": "read",
           "value": "history:read",
           "description": "",
           "tier": "public",
@@ -1148,7 +1971,7 @@
           "deprecated": false
         },
         {
-          "symbol": "RESTORE",
+          "symbol": "restore",
           "value": "history:restore",
           "description": "",
           "tier": "permissionOnly",
@@ -1164,7 +1987,7 @@
       ],
       "permissions": [
         {
-          "symbol": "ADMIN",
+          "symbol": "admin",
           "value": "organization:admin",
           "description": "Everything in the organization.",
           "tier": "notGrantable",
@@ -1172,7 +1995,7 @@
           "deprecated": false
         },
         {
-          "symbol": "READ",
+          "symbol": "read",
           "value": "organization:read",
           "description": "",
           "tier": "internal",

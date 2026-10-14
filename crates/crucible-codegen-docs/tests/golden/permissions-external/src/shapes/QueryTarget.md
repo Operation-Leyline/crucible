@@ -1,5 +1,6 @@
 # QueryTarget
 
+<p>Where a query reads: the current state, or a saved history.</p>
 
 Type: <code>union</code>.
 

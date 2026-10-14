@@ -1,5 +1,6 @@
 # ResourceKind
 
+<p>The resource types grants name; histories are granted through graphs.</p>
 
 Type: <code>enum</code>.
 

@@ -1,0 +1,141 @@
+/// Organizations, their graphs and the graphs' histories.
+service Leyline {
+    version "2026-10-01"
+    protocol json
+    auth bearer
+
+    operations [GetUser, Health]
+    resources [Organization]
+    errors [ValidationException, InternalServerException]
+}
+
+string OrganizationId { pattern "^org_[a-z0-9]+$" }
+string GraphId { pattern "^g_[a-z0-9]+$" }
+string HistoryId { pattern "^h_[a-z0-9]+$" }
+
+/// A tenant.
+@authorizationName("org")
+resource Organization {
+    id organizationId: OrganizationId
+
+    internal permission read = "organization:read"
+    /// Everything in the organization.
+    @notGrantable
+    permission admin = "organization:admin"
+}
+
+/// A graph database.
+resource Graph in Organization {
+    id graphId: GraphId
+
+    /// Read a graph and its catalog.
+    permission read = "graph:read"
+    permission write = "graph:write"
+    @permissionOnly
+    permission audit = "graph:audit"
+    @deprecated(message: "Renamed to graph:read.")
+    @aliasOf(read)
+    permission view = "graph:view"
+}
+
+/// A graph's saved state.
+resource History in Graph {
+    id historyId: HistoryId
+
+    permission read = "history:read"
+    @permissionOnly
+    permission restore = "history:restore"
+}
+
+/// The resource types grants name; histories are granted through graphs.
+@permissionTypes(exclude: [History])
+enum ResourceKind {
+    ORG = "org"
+    GRAPH = "graph"
+}
+
+/// Answers about the caller's own credential.
+readonly operation GetUser {
+    http GET "/user"
+    requires none
+    output { subject: string }
+}
+
+/// No authentication: nothing to authorize.
+public readonly operation Health {
+    http GET "/health"
+    output { status: string }
+}
+
+readonly operation GetOrganization on Organization {
+    http GET "/orgs/{organizationId}"
+    requires read
+    input { $organizationId }
+    output { name: string }
+}
+
+operation CreateGraph on Graph collection {
+    http POST "/orgs/{organizationId}/graphs"
+    requires write on Graph(*)
+    input {
+        $organizationId
+        name: string
+    }
+    output { created: GraphId }
+}
+
+readonly operation GetGraph on Graph {
+    http GET "/orgs/{organizationId}/graphs/{graph}"
+    requires read
+    input {
+        $organizationId
+        $graphId as graph
+    }
+    output { name: string }
+}
+
+/// Returns only the graphs the caller may read.
+readonly operation ListGraphs on Graph collection {
+    http GET "/orgs/{organizationId}/graphs"
+    filters read on Graph
+    input { $organizationId }
+    output { names: Names }
+}
+
+list Names: string
+
+/// Where a query reads: the current state, or a saved history.
+union QueryTarget {
+    current
+    history: HistoryRef
+}
+
+structure HistoryRef {
+    historyId: HistoryId
+}
+
+operation ExecuteQuery on Graph {
+    http POST "/orgs/{organizationId}/graphs/{graphId}/query"
+    requires read
+    /// Only when the parsed query writes.
+    requires write by handler
+    requires read on History(target.history.historyId) when has target.history
+    input {
+        $organizationId
+        $graphId
+        query: string
+        target?: QueryTarget
+    }
+    output { rows: Names }
+}
+
+operation RestoreBackup on History {
+    http POST "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
+    requires pending because "guard::allow in the handler until the history module moves."
+    input {
+        $organizationId
+        $graphId
+        $historyId
+    }
+    output { restored: boolean }
+}

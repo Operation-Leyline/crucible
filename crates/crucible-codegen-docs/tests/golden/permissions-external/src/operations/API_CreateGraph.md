@@ -43,16 +43,29 @@ Content-Type: application/json
 ## Response syntax
 
 ```http
-HTTP/1.1 201
+HTTP/1.1 200
+Content-Type: application/json
 ```
 
-No modeled body.
+### Response body
+
+```json
+{
+  "created": "<string>"
+}
+```
+
+| Member | Wire location | Type | Required | Default | Constraints | Description |
+|---|---|---|---|---|---|---|
+| <code>created</code> | <code>body: created</code> | [GraphId](../shapes/GraphId.md) | Yes | — | pattern: <code>&quot;^g_[a-z0-9]+$&quot;</code> |  |
 
 ## Errors
 
 | Error | HTTP status | Fault | Retryable | Description |
 |---|---|---|---|---|
 | [NotFoundException](../shapes/NotFoundException.md) | 404 | client | No | <p>The resource does not exist, or the caller may not know that it does.</p>  |
+| [ValidationException](../shapes/ValidationException.md) | 400 | client | No | <p>A request cannot be parsed or does not satisfy the service's input model.</p>  |
+| [InternalServerException](../shapes/InternalServerException.md) | 500 | server | Yes | <p>An unexpected server failure. Its message never exposes the underlying cause.</p>  |
 
 ## Idempotency and retries
 

@@ -49,15 +49,28 @@ Content-Type: application/json
 
 ```http
 HTTP/1.1 200
+Content-Type: application/json
 ```
 
-No modeled body.
+### Response body
+
+```json
+{
+  "rows": "<list>"
+}
+```
+
+| Member | Wire location | Type | Required | Default | Constraints | Description |
+|---|---|---|---|---|---|---|
+| <code>rows</code> | <code>body: rows</code> | [Names](../shapes/Names.md) | Yes | — | — |  |
 
 ## Errors
 
 | Error | HTTP status | Fault | Retryable | Description |
 |---|---|---|---|---|
 | [NotFoundException](../shapes/NotFoundException.md) | 404 | client | No | <p>The resource does not exist, or the caller may not know that it does.</p>  |
+| [ValidationException](../shapes/ValidationException.md) | 400 | client | No | <p>A request cannot be parsed or does not satisfy the service's input model.</p>  |
+| [InternalServerException](../shapes/InternalServerException.md) | 500 | server | Yes | <p>An unexpected server failure. Its message never exposes the underlying cause.</p>  |
 
 ## Idempotency and retries
 
