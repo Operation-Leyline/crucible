@@ -443,10 +443,6 @@ readonly operation ReadNote reads Note {
         format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
     )
     .unwrap();
-    if let Err(diagnostics) = generate(&lower(&dir), &Options::default()) {
-        assert!(
-            !diagnostics.to_string().contains("parent resources"),
-            "{diagnostics}"
-        );
-    }
+    generate(&lower(&dir), &Options::default())
+        .expect("a parent shape rename is not a resource move");
 }
