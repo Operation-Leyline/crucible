@@ -175,11 +175,16 @@ impl Checker<'_> {
                 continue;
             };
             let added: Vec<&Requirement> = match (&old_op.requirements, &new_op.requirements) {
-                (Requirements::List(old), Requirements::List(new)) => new
+                // A projected IR is never compared; `Partial` reads as the
+                // list it is.
+                (
+                    Requirements::List(old) | Requirements::Partial(old),
+                    Requirements::List(new) | Requirements::Partial(new),
+                ) => new
                     .iter()
                     .filter(|clause| !old.iter().any(|before| self.same_clause(before, clause)))
                     .collect(),
-                (_, Requirements::List(new)) => new.iter().collect(),
+                (_, Requirements::List(new) | Requirements::Partial(new)) => new.iter().collect(),
                 _ => Vec::new(),
             };
             if added.is_empty() {
@@ -189,7 +194,7 @@ impl Checker<'_> {
                 Requirements::Undeclared => " (it declared none)",
                 Requirements::None => " (it was `requires none`)",
                 Requirements::Pending { .. } => " (it was `requires pending`)",
-                Requirements::List(_) | Requirements::Internal => "",
+                Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal => "",
             };
             let clauses: Vec<String> = added
                 .iter()

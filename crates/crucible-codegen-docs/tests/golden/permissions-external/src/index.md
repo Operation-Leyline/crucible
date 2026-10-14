@@ -29,6 +29,7 @@ Operations name what the caller must hold on which resource; [Permissions](permi
 
 ### Service operations
 
+- [ArchiveGraph](operations/API_ArchiveGraph.md)
 - [CreateGraph](operations/API_CreateGraph.md)
 - [ExecuteQuery](operations/API_ExecuteQuery.md)
 - [GetGraph](operations/API_GetGraph.md)

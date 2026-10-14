@@ -279,7 +279,9 @@ fn older_requirements(
             continue;
         }
         let (id, name) = (operation.id.clone(), operation.name().to_owned());
-        if let crucible_smithy::ir::Requirements::List(clauses) = &mut operation.requirements {
+        if let crucible_smithy::ir::Requirements::List(clauses)
+        | crucible_smithy::ir::Requirements::Partial(clauses) = &mut operation.requirements
+        {
             for clause in clauses.iter_mut() {
                 match current_permission(current, &old, clause) {
                     Ok((resource, symbol)) => {

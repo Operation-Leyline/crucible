@@ -385,14 +385,103 @@ fn the_client_audience_drops_internal_permissions_and_their_requirements() {
         .iter()
         .find(|op| op.id.name() == "ManageStore")
         .unwrap();
-    // `requires manage` is dropped; `requires read` stays.
-    let Requirements::List(clauses) = &manage.requirements else {
-        panic!()
+    // `requires manage` is dropped; `requires read` stays, marked partial
+    // so a client does not read it as all the caller needs.
+    let Requirements::Partial(clauses) = &manage.requirements else {
+        panic!("{:?}", manage.requirements)
     };
     let kept: Vec<&str> = clauses.iter().map(|c| c.permission.as_str()).collect();
     assert_eq!(kept, ["read"]);
     let internal = crucible_smithy::project(&service, crucible_smithy::Audience::Internal).unwrap();
     assert_eq!(internal.permissions[&store].permissions.len(), 3);
+}
+
+#[test]
+fn the_client_audience_keeps_permission_types_consistent() {
+    // Order's permissions are all internal, so the client view has no
+    // Order: it is no longer excluded, and an enum naming it is no longer
+    // this view's permission types.
+    let source = BASE.replace(
+        "permission read = \"order:read\"",
+        "internal permission read = \"order:read\"",
+    );
+    // The enum is in the client view only when an operation reaches it.
+    let uses = "operation Classify on Store {\n    http POST \"/classify/{storeId}\"\n    requires manage\n    input {\n        $storeId\n        kind?: Kinds\n    }\n}";
+    let project = |types: &str| {
+        let compiled = compile(&small(&format!("{source}\n{types}\n{uses}")), None);
+        assert!(!compiled.has_errors(), "{}", compiled.render());
+        let service = compiled.service.unwrap();
+        assert!(service.permission_types.is_some());
+        let external =
+            crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+        let findings = crucible_smithy::validate::permissions_from_ir(&external);
+        assert!(
+            findings.iter().all(|f| f.code != "permissions.types"),
+            "{findings:#?}"
+        );
+        external.permission_types
+    };
+    let excluded =
+        project("@permissionTypes(exclude: [Order])\nenum Kinds {\n    store = \"store\"\n}")
+            .expect("store is still a permission type");
+    assert!(excluded.excluded.is_empty(), "{excluded:?}");
+    assert_eq!(
+        project("@permissionTypes\nenum Kinds {\n    store = \"store\"\n    order = \"order\"\n}"),
+        None
+    );
+}
+
+#[test]
+fn a_requirement_clients_see_reads_no_internal_member() {
+    let op = |clauses: &str| {
+        format!(
+            "enum Kind {{\n    open = \"open\"\n    internal secret = \"secret\"\n}}\nstructure Hidden {{ orderId: OrderId }}\noperation X on Store {{\n    http POST \"/x/{{storeId}}\"\n    {clauses}\n    input {{\n        $storeId\n        internal ticket?: OrderId\n        internal hidden?: Hidden\n        kind?: Kind\n    }}\n}}"
+        )
+    };
+    expect(
+        &check(&op("requires read on Order(ticket) when has ticket")),
+        "error: permissions.internal-member: `read` on `Order` is visible to clients, but it binds `ticket`, an internal member; make the permission `internal`, or read only what clients send",
+    );
+    expect(
+        &check(&op(
+            "requires read on Order(hidden.orderId) when has hidden",
+        )),
+        "binds `hidden.orderId`, which passes through the internal member `hidden`",
+    );
+    expect(
+        &check(&op("requires manage when has ticket")),
+        "`manage` on `Store` is visible to clients, but its `when` reads `ticket`, an internal member",
+    );
+    expect(
+        &check(&op("requires manage when kind == \"secret\"")),
+        "its `when` compares `kind` with \"secret\", an internal value of `Kind`",
+    );
+    expect(
+        &check(&op(
+            "requires manage when not kind in [\"open\", \"secret\"]",
+        )),
+        "an internal value of `Kind`",
+    );
+    assert!(check(&op("requires manage when kind == \"open\"")).is_empty());
+    // An internal permission's clause is removed with it, so it may read
+    // what clients never see; so may an internal operation's.
+    let internal = BASE.replace(
+        "permission read = \"order:read\"",
+        "internal permission read = \"order:read\"",
+    );
+    let found = check_source(&format!(
+        "{internal}\n{}",
+        op("requires manage\n    requires read on Order(ticket) when has ticket")
+    ));
+    assert!(found.is_empty(), "{found:#?}");
+    let found = check(
+        &op("requires read on Order(ticket) when has ticket")
+            .replace("operation X", "internal operation X"),
+    );
+    assert!(
+        found.iter().all(|m| !m.contains("internal-member")),
+        "{found:#?}"
+    );
 }
 
 #[test]

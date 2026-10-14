@@ -113,8 +113,9 @@ pub fn operation(service: &Service, op: &Operation) -> String {
         .clone()
         .unwrap_or_else(|| format!("Call {}.", op.name()));
     // What the caller must hold (docs/permissions.md §6.3): a contract the
-    // client cannot check, so prose rather than data.
-    if let Some(requirements) = crate::permissions::requirement_paragraph(service, op) {
+    // client cannot check, so prose rather than data. An SDK's: no internal
+    // permission whatever the audience, as its registry has none.
+    if let Some(requirements) = crate::permissions::requirement_paragraph(service, op, false) {
         docs.push_str(&format!("\n\n{requirements}"));
     }
     docs.push_str(&format!(

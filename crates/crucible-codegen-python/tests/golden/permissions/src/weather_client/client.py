@@ -10,6 +10,10 @@ class LeylineClient(SyncClient):
         super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
     __init__.__doc__ = SyncClient.__init__.__doc__
 
+    def archive_graph(self, input: m.ArchiveGraphInput, **options: Any) -> m.ArchiveGraphOutput:
+        "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its when reads.\n\nRequires graph:write on the graph; and further permissions internal to the service.\n\nInput: ArchiveGraphInput.\n\nReturns: ArchiveGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
+        return self._call("ArchiveGraph", input, **options)
+
     def create_graph(self, input: m.CreateGraphInput, **options: Any) -> m.CreateGraphOutput:
         "Call CreateGraph.\n\nRequires graph:write on every graph in the organization.\n\nInput: CreateGraphInput.\n\nReturns: CreateGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
         return self._call("CreateGraph", input, **options)
@@ -23,7 +27,7 @@ class LeylineClient(SyncClient):
         return self._call("GetGraph", input, **options)
 
     def get_organization(self, input: m.GetOrganizationInput, **options: Any) -> m.GetOrganizationOutput:
-        "Call GetOrganization.\n\nInput: GetOrganizationInput.\n\nReturns: GetOrganizationOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
+        "Call GetOrganization.\n\nRequires permissions internal to the service.\n\nInput: GetOrganizationInput.\n\nReturns: GetOrganizationOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return self._call("GetOrganization", input, **options)
 
     def get_user(self, **options: Any) -> m.GetUserOutput:
@@ -52,6 +56,10 @@ class AsyncLeylineClient(AsyncClientBase):
         super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
     __init__.__doc__ = AsyncClientBase.__init__.__doc__
 
+    async def archive_graph(self, input: m.ArchiveGraphInput, **options: Any) -> m.ArchiveGraphOutput:
+        "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its when reads.\n\nRequires graph:write on the graph; and further permissions internal to the service.\n\nInput: ArchiveGraphInput.\n\nReturns: ArchiveGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
+        return await self._call("ArchiveGraph", input, **options)
+
     async def create_graph(self, input: m.CreateGraphInput, **options: Any) -> m.CreateGraphOutput:
         "Call CreateGraph.\n\nRequires graph:write on every graph in the organization.\n\nInput: CreateGraphInput.\n\nReturns: CreateGraphOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur."
         return await self._call("CreateGraph", input, **options)
@@ -65,7 +73,7 @@ class AsyncLeylineClient(AsyncClientBase):
         return await self._call("GetGraph", input, **options)
 
     async def get_organization(self, input: m.GetOrganizationInput, **options: Any) -> m.GetOrganizationOutput:
-        "Call GetOrganization.\n\nInput: GetOrganizationInput.\n\nReturns: GetOrganizationOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
+        "Call GetOrganization.\n\nRequires permissions internal to the service.\n\nInput: GetOrganizationInput.\n\nReturns: GetOrganizationOutput.\n\nModeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.\n\nThis operation is safe to retry under the configured retry policy."
         return await self._call("GetOrganization", input, **options)
 
     async def get_user(self, **options: Any) -> m.GetUserOutput:

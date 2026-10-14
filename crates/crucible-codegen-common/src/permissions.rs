@@ -334,43 +334,88 @@ pub fn clause_text(service: &Service, clause: &Requirement) -> Option<String> {
     clause_prose(service, clause).map(|(text, _)| text)
 }
 
-/// The requirement sentences, and the Markdown blocks that follow them (a
-/// handler clause's documentation of more than one paragraph).
-fn requirement_parts(service: &Service, op: &Operation) -> (Vec<String>, Vec<String>) {
-    match &op.requirements {
-        Requirements::None => (vec!["Requires no permission.".to_owned()], Vec::new()),
-        Requirements::List(clauses) => {
-            let mut sentences = Vec::new();
-            let mut blocks = Vec::new();
-            let mut required = Vec::new();
-            for clause in clauses.iter().filter(|clause| clause.mode != Mode::Filter) {
-                if let Some((text, below)) = clause_prose(service, clause) {
-                    required.push(text);
-                    blocks.extend(below);
-                }
-            }
-            if !required.is_empty() {
-                sentences.push(format!("Requires {}.", required.join("; ")));
-            }
-            for clause in clauses.iter().filter(|clause| clause.mode == Mode::Filter) {
-                if let Some(text) = clause_text(service, clause) {
-                    let mut chars = text.chars();
-                    let first = chars.next().map(|c| c.to_ascii_uppercase());
-                    sentences.push(format!(
-                        "{}{}.",
-                        first.into_iter().collect::<String>(),
-                        chars.as_str()
-                    ));
-                }
-            }
-            (sentences, blocks)
+/// The sentence an operation's documentation gets when every requirement
+/// it has names a permission the reader does not see.
+pub const INTERNAL_REQUIREMENTS: &str = "Requires permissions internal to the service.";
+
+/// The clauses `reader` may see, and whether others were left out: by the
+/// client audience projection (`Internal`, `Partial`), or here, for a
+/// client output generated from the server audience's IR, which still has
+/// its internal clauses. `None` for an operation that says nothing a reader
+/// should see (undeclared, pending) or `requires none`.
+fn visible_clauses<'a>(
+    service: &Service,
+    op: &'a Operation,
+    internal: bool,
+) -> Option<(Vec<&'a Requirement>, bool)> {
+    let (clauses, mut hidden) = match &op.requirements {
+        Requirements::List(clauses) => (clauses.as_slice(), false),
+        Requirements::Partial(clauses) => (clauses.as_slice(), true),
+        Requirements::Internal => (&[][..], true),
+        Requirements::Undeclared | Requirements::None | Requirements::Pending { .. } => {
+            return None;
         }
-        // `Internal`: every clause names a permission this audience never
-        // sees, so there is nothing it could hold or name.
-        Requirements::Undeclared | Requirements::Pending { .. } | Requirements::Internal => {
-            (Vec::new(), Vec::new())
+    };
+    let mut visible = Vec::new();
+    for clause in clauses {
+        match clause_target(service, clause) {
+            Some((resource, permission)) if !internal && !client_visible(resource, permission) => {
+                hidden = true;
+            }
+            _ => visible.push(clause),
         }
     }
+    Some((visible, hidden))
+}
+
+/// The requirement sentences, and the Markdown blocks that follow them (a
+/// handler clause's documentation of more than one paragraph).
+fn requirement_parts(
+    service: &Service,
+    op: &Operation,
+    internal: bool,
+) -> (Vec<String>, Vec<String>) {
+    if matches!(op.requirements, Requirements::None) {
+        return (vec!["Requires no permission.".to_owned()], Vec::new());
+    }
+    // Undeclared, or pending: the server-audience docs state a pending
+    // reason themselves.
+    let Some((clauses, hidden)) = visible_clauses(service, op, internal) else {
+        return (Vec::new(), Vec::new());
+    };
+    let mut sentences = Vec::new();
+    let mut blocks = Vec::new();
+    let mut required = Vec::new();
+    for clause in clauses.iter().filter(|clause| clause.mode != Mode::Filter) {
+        if let Some((text, below)) = clause_prose(service, clause) {
+            required.push(text);
+            blocks.extend(below);
+        }
+    }
+    // Requirements the reader may not see are still requirements: a shorter
+    // list would read as everything the caller must hold, and none as an
+    // operation that needs nothing.
+    match (required.is_empty(), hidden) {
+        (false, false) => sentences.push(format!("Requires {}.", required.join("; "))),
+        (false, true) => sentences.push(format!(
+            "Requires {}; and further permissions internal to the service.",
+            required.join("; ")
+        )),
+        (true, true) => sentences.push(INTERNAL_REQUIREMENTS.to_owned()),
+        (true, false) => {}
+    }
+    for clause in clauses.iter().filter(|clause| clause.mode == Mode::Filter) {
+        if let Some(text) = clause_text(service, clause) {
+            let mut chars = text.chars();
+            let first = chars.next().map(|c| c.to_ascii_uppercase());
+            sentences.push(format!(
+                "{}{}.",
+                first.into_iter().collect::<String>(),
+                chars.as_str()
+            ));
+        }
+    }
+    (sentences, blocks)
 }
 
 /// What an operation's documentation says about its requirements, or
@@ -382,24 +427,37 @@ fn requirement_parts(service: &Service, op: &Operation) -> (Vec<String>, Vec<Str
 /// documentation, a `when` literal), so a target renders it the way it
 /// renders model documentation, never as plain text. `requires none` says
 /// so; a pending operation says nothing (the server-audience docs state its
-/// reason themselves), and neither does one whose every clause names an
-/// internal permission.
-pub fn requirement_sentences(service: &Service, op: &Operation) -> Vec<String> {
-    let (mut sentences, blocks) = requirement_parts(service, op);
+/// reason themselves).
+///
+/// `internal` names internal permissions, for server-audience docs,
+/// OpenAPI and descriptions only, as [`registry`] lists them; a client
+/// SDK passes `false` whatever its audience, so its doc comments name only
+/// what its registry has. A clause left out, here or by the client
+/// audience projection, is still a requirement: the sentence ends "and
+/// further permissions internal to the service", and an operation with no
+/// clause left says [`INTERNAL_REQUIREMENTS`].
+pub fn requirement_sentences(service: &Service, op: &Operation, internal: bool) -> Vec<String> {
+    let (mut sentences, blocks) = requirement_parts(service, op, internal);
     sentences.extend(blocks);
     sentences
 }
 
 /// [`requirement_sentences`] as Markdown: the sentences as one paragraph,
 /// then the blocks that follow them; `None` when there are none.
-pub fn requirement_paragraph(service: &Service, op: &Operation) -> Option<String> {
-    let (sentences, blocks) = requirement_parts(service, op);
+pub fn requirement_paragraph(service: &Service, op: &Operation, internal: bool) -> Option<String> {
+    let (sentences, blocks) = requirement_parts(service, op, internal);
     let mut parts: Vec<String> = Vec::new();
     if !sentences.is_empty() {
         parts.push(sentences.join(" "));
     }
     parts.extend(blocks);
-    (!parts.is_empty()).then(|| parts.join("\n\n"))
+    (!parts.is_empty()).then(|| {
+        parts.join(
+            "
+
+",
+        )
+    })
 }
 
 /// The registry as data: one entry per resource that declares permissions,
@@ -459,7 +517,7 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
         // exist, but none is named.
         Requirements::Internal => json!({"kind": "internal"}),
         Requirements::Pending { reason } => json!({"kind": "pending", "reason": reason}),
-        Requirements::List(clauses) => {
+        Requirements::List(clauses) | Requirements::Partial(clauses) => {
             let clauses: Vec<Value> = clauses
                 .iter()
                 .filter_map(|clause| {
@@ -502,7 +560,13 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
                     Some(value)
                 })
                 .collect();
-            json!({"kind": "list", "clauses": clauses})
+            let mut value = json!({"kind": "list", "clauses": clauses});
+            // Further clauses name internal permissions, which this
+            // audience does not see: the list is not all the caller needs.
+            if matches!(op.requirements, Requirements::Partial(_)) {
+                value["partial"] = json!(true);
+            }
+            value
         }
     })
 }

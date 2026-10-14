@@ -700,6 +700,13 @@ compile checks it.
     `requires`. `filters` with a `requires` on the same resource is a
     warning.
 15. `by handler` takes no bindings and no `when`.
+    `permissions.internal-member` (#258): a clause clients see (its
+    permission, operation and service are not `internal`) binds and tests
+    no `internal` member, and compares with no `internal` enum value. Its
+    bindings and condition are client contract (docs, OpenAPI, MCP), and a
+    caller that never sends the member could not read them. Make the
+    permission `internal`, whose clause the client projection removes, or
+    read only what clients send.
 16. `permissions.undeclared`: once the service declares any permission, an
     authenticated operation without `requires`, `filters`, `requires none`
     or `requires pending` (§4.7). *Warning*, `permissions.pending`: one per
@@ -838,6 +845,8 @@ pub public: bool,      // declared public: Smithy `@auth([])` on the operation, 
 // ir::Requirements
 Internal,              // client audience only: every clause named an internal permission,
                        // and the projection removed them. A `List` is never empty.
+Partial(Vec<Requirement>), // client audience only: the clauses left when some, not all,
+                       // named an internal permission (#258). Never empty.
 ```
 
 And one made while adopting in Pigeon (the addendum to decision 5):
@@ -975,7 +984,20 @@ resource's `identifiers` to the fields above. An operation whose
 requirements are all internal shows as `{"kind": "internal"}` in a
 client-audience `requirements` and `x-crucible-requires`: it says a
 requirement exists without naming it, where omitting it would read as
-`requires none`. A condition never compares a `bigInteger` or
+`requires none`. A list that mixes public and internal clauses projects to
+`Requirements::Partial` (the clauses the client sees), shown as
+`{"kind": "list", "clauses": [..], "partial": true}`, and its sentence
+ends "; and further permissions internal to the service.", so holding
+every permission it names does not read as enough. A clause a client sees
+never reads an internal member: binding or testing one, or comparing with
+an internal enum value, is refused (`permissions.internal-member`), since
+the client contract would name what the projection removes and the clause
+would not mean the same to a caller that never sends the member; an
+`internal permission`'s clause, removed with it, may. The projection also
+keeps `@permissionTypes` consistent: an excluded resource whose
+permissions were all internal is dropped from `excluded`, and an enum with
+a value naming no resource of the client view is no longer the view's
+permission types. A condition never compares a `bigInteger` or
 `bigDecimal` member (test it with `has`), and a compared number must be a
 value of the member's type, so every generator states the comparison in
 that type (`float` as `f32`).
@@ -1048,8 +1070,13 @@ an "Authorization" section with the requirement sentences ("Requires …",
 type, bindings, `when` or the handler clause's documentation). A
 `requires none` operation says "Requires no permission." An operation
 whose requirements are all internal says "Requires permissions internal to
-the service." A pending operation's reason appears in the server audience
-only.
+the service.", in the reference and in every SDK's doc comments alike. A
+pending operation's reason appears in the server audience only. SDK doc
+comments name only what the SDK's registry has: an internal-audience SDK
+keeps internal members and operations but, like its registry, no internal
+permission, so its requirement sentences leave internal clauses out the
+way the client projection does. The server-audience reference, OpenAPI
+document and `describe.json` name them.
 
 ## 7. Runtime
 

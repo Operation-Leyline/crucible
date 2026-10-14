@@ -120,6 +120,12 @@ pub enum Requirements {
     /// permission, which the projection removed. A front end never produces
     /// it; the server contract keeps the clauses.
     Internal,
+    /// Only in a client-audience projection: the clauses this audience
+    /// sees, in source order, never empty; at least one other clause named
+    /// an internal permission and was removed. A client must not read the
+    /// list as complete: holding every permission it names may still be
+    /// refused.
+    Partial(Vec<Requirement>),
 }
 
 impl Requirements {
@@ -127,10 +133,10 @@ impl Requirements {
         matches!(self, Self::Undeclared)
     }
 
-    /// The clauses, empty unless this is a list.
+    /// The clauses, empty unless this is a list (complete or partial).
     pub fn clauses(&self) -> &[Requirement] {
         match self {
-            Self::List(list) => list,
+            Self::List(list) | Self::Partial(list) => list,
             _ => &[],
         }
     }

@@ -6,6 +6,218 @@
     "description": "Organizations, their graphs and the graphs' histories."
   },
   "paths": {
+    "/orgs/{organizationId}/graphs/{graphId}/archive": {
+      "post": {
+        "operationId": "ArchiveGraph",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "archived": {
+                      "$ref": "#/components/schemas/smithy.api.Boolean"
+                    }
+                  },
+                  "required": [
+                    "archived"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "ValidationException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "reason": {
+                      "$ref": "#/components/schemas/crucible.errors.ValidationExceptionReason"
+                    },
+                    "fieldList": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/crucible.errors.ValidationExceptionFieldList"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "ValidationException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "reason",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "ValidationException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#ValidationException"
+            ]
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          },
+          "500": {
+            "description": "InternalServerException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "InternalServerException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "$ref": "#/components/schemas/smithy.api.Integer"
+                },
+                "style": "simple",
+                "explode": false
+              },
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "InternalServerException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#InternalServerException"
+            ],
+            "x-smithy-retryable": {
+              "throttling": false
+            }
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#ArchiveGraph",
+        "x-smithy-traits": {},
+        "description": "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its `when` reads.\n\nRequires `graph:write` on the graph; and further permissions internal to the service.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "graph:write",
+              "resourceType": "graph",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "organizationId"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "graphId"
+                }
+              ]
+            }
+          ],
+          "partial": true
+        },
+        "tags": [
+          "Graph"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "graphId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^g_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
     "/orgs/{organizationId}/graphs": {
       "post": {
         "operationId": "CreateGraph",
@@ -1063,6 +1275,7 @@
         ],
         "x-smithy-shape": "example.leyline#GetOrganization",
         "x-smithy-traits": {},
+        "description": "Requires permissions internal to the service.",
         "x-crucible-requires": {
           "kind": "internal"
         },
@@ -1845,6 +2058,34 @@
           "other"
         ],
         "description": "A machine-readable reason; clients never need to parse message text."
+      },
+      "example.leyline.ArchiveGraphInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "pattern": "^org_[a-z0-9]+$"
+          },
+          "graphId": {
+            "type": "string",
+            "pattern": "^g_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId"
+        ]
+      },
+      "example.leyline.ArchiveGraphOutput": {
+        "type": "object",
+        "properties": {
+          "archived": {
+            "$ref": "#/components/schemas/smithy.api.Boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
       },
       "example.leyline.CreateGraphInput": {
         "type": "object",

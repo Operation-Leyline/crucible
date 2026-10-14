@@ -23,6 +23,38 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// </summary>
     public void Dispose() => runtime.Dispose();
     /// <summary>
+    /// A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <c>when</c> reads.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asynchronous form.</para>
+    /// <para>Requires <c>graph:write</c> on the graph; and further permissions internal to the service.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundException">The service returned crucible.errors#NotFoundException.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationException">The service returned crucible.errors#ValidationException.</exception>
+    /// <exception cref="global::Example.Weather.Models.InternalServerException">The service returned crucible.errors#InternalServerException.</exception>
+    /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    public global::System.Threading.Tasks.Task<global::Example.Weather.Models.@ArchiveGraphOutput> @ArchiveGraphAsync(global::Example.Weather.Models.@ArchiveGraphInput input, global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<global::Example.Weather.Models.@ArchiveGraphOutput>("ArchiveGraph", input, cancellationToken);
+    /// <summary>
+    /// A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <c>when</c> reads.
+    /// </summary>
+    /// <remarks>
+    /// <para>Blocking form, run on the thread pool.</para>
+    /// <para>Requires <c>graph:write</c> on the graph; and further permissions internal to the service.</para>
+    /// </remarks>
+    /// <param name="input">The request.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The decoded response.</returns>
+    /// <exception cref="global::Example.Weather.Models.NotFoundException">The service returned crucible.errors#NotFoundException.</exception>
+    /// <exception cref="global::Example.Weather.Models.ValidationException">The service returned crucible.errors#ValidationException.</exception>
+    /// <exception cref="global::Example.Weather.Models.InternalServerException">The service returned crucible.errors#InternalServerException.</exception>
+    /// <exception cref="global::Example.Weather.LeylineException">Any other error response.</exception>
+    /// <exception cref="global::Example.Weather.NetworkError">The transport failed.</exception>
+    public global::Example.Weather.Models.@ArchiveGraphOutput @ArchiveGraph(global::Example.Weather.Models.@ArchiveGraphInput input, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @ArchiveGraphAsync(input, cancellationToken), cancellationToken).GetAwaiter().GetResult();
+    /// <summary>
     /// Calls the CreateGraph operation.
     /// </summary>
     /// <remarks>
@@ -126,6 +158,7 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// <remarks>
     /// <para>Asynchronous form.</para>
     /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Requires permissions internal to the service.</para>
     /// </remarks>
     /// <param name="input">The request.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
@@ -142,6 +175,7 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// <remarks>
     /// <para>Blocking form, run on the thread pool.</para>
     /// <para>This operation is read-only; the client may retry it.</para>
+    /// <para>Requires permissions internal to the service.</para>
     /// </remarks>
     /// <param name="input">The request.</param>
     /// <param name="cancellationToken">Cancels the call.</param>

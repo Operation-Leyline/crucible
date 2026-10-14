@@ -2,6 +2,7 @@
 
 - [Service overview](index.md)
 - Service operations
+  - [ArchiveGraph](operations/API_ArchiveGraph.md)
   - [CreateGraph](operations/API_CreateGraph.md)
   - [ExecuteQuery](operations/API_ExecuteQuery.md)
   - [GetGraph](operations/API_GetGraph.md)
@@ -19,6 +20,8 @@
   - [ValidationExceptionField](shapes/ValidationExceptionField.md)
   - [ValidationExceptionFieldList](shapes/ValidationExceptionFieldList.md)
   - [ValidationExceptionReason](shapes/ValidationExceptionReason.md)
+  - [ArchiveGraphInput](shapes/ArchiveGraphInput.md)
+  - [ArchiveGraphOutput](shapes/ArchiveGraphOutput.md)
   - [CreateGraphInput](shapes/CreateGraphInput.md)
   - [CreateGraphOutput](shapes/CreateGraphOutput.md)
   - [ExecuteQueryInput](shapes/ExecuteQueryInput.md)
