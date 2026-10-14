@@ -8,6 +8,10 @@ export const GraphPermission = {
    * Read a graph and its catalog.
    */
   READ: "graph:read",
+  /**
+   * Change a graph: *\/ ends no comment and \[bare] links nowhere.
+   * \@param is not a tag.
+   */
   WRITE: "graph:write",
   AUDIT: "graph:audit",
   /**
@@ -72,7 +76,7 @@ export interface ResourcePermissions {
 }
 
 /**
- * Every permission this client knows, by resource type: what a grant picker offers, leaving out `grantable: false`.
+ * Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.
  */
 export const PERMISSIONS: readonly ResourcePermissions[] = [
   {
@@ -81,7 +85,7 @@ export const PERMISSIONS: readonly ResourcePermissions[] = [
       { value: "graph:audit", description: "", tier: "permissionOnly", grantable: true, deprecated: false },
       { value: "graph:read", description: "Read a graph and its catalog.", tier: "public", grantable: true, deprecated: false },
       { value: "graph:view", description: "", tier: "public", grantable: true, deprecated: true, aliasOf: "graph:read" },
-      { value: "graph:write", description: "", tier: "public", grantable: true, deprecated: false },
+      { value: "graph:write", description: "Change a graph: */ ends no comment and [bare] links nowhere.\n@param is not a tag.", tier: "public", grantable: true, deprecated: false },
     ],
   },
   {

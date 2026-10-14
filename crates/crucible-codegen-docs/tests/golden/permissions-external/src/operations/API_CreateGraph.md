@@ -11,9 +11,9 @@ Effective schemes: <code>[&quot;smithy.api#httpBearerAuth&quot;]</code>. Optiona
 
 <p>Requires <code>graph:write</code> on every graph in the organization.</p>
 
-| Mode | Permission | Resource type | Bindings | When |
-|---|---|---|---|---|
-| check | <code>graph:write</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>*</code> |  |
+| Mode | Permission | Resource type | Bindings | When | Notes |
+|---|---|---|---|---|---|
+| check | <code>graph:write</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>*</code> |  |  |
 
 ## Request syntax
 

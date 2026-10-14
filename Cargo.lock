@@ -775,6 +775,7 @@ name = "crucible-codegen-csharp"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
  "sha2",
@@ -805,6 +806,7 @@ name = "crucible-codegen-go"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
  "sha2",
@@ -824,6 +826,7 @@ name = "crucible-codegen-java"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
  "sha2",
@@ -834,6 +837,7 @@ name = "crucible-codegen-kotlin"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
  "sha2",
@@ -864,6 +868,7 @@ name = "crucible-codegen-python"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-lang",
  "crucible-smithy",
  "serde_json",
  "sha2",

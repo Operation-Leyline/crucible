@@ -328,7 +328,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         operations,
         shapes,
     };
-    // The permission registry (docs/permissions.md §8): internal entries
+    // The permission registry (docs/permissions.md §6.3): internal entries
     // only when the caller described the server audience, whose IR keeps
     // them. Absent for a service that declares none.
     let registry = crate::permissions::registry(service, true);
@@ -408,8 +408,13 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
     // every generated client's documentation carries.
     if let Some(requirements) = crate::permissions::requirements(service, op) {
         value["requirements"] = requirements;
-        value["requirementSentences"] =
-            json!(crate::permissions::requirement_sentences(service, op));
+        // Markdown holding model text, so rendered like documentation.
+        value["requirementSentences"] = json!(
+            crate::permissions::requirement_sentences(service, op)
+                .iter()
+                .map(|sentence| documentation(Some(sentence)))
+                .collect::<Vec<_>>()
+        );
     }
     if explorer {
         for (example, source) in value["examples"]

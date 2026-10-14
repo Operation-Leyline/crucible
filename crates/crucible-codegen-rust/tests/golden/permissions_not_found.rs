@@ -1091,7 +1091,9 @@ pub mod desk {
             }
         }
 
-        /// Any permission of the model, by resource.
+        /// Any permission of the model, by resource. Variants, and so the
+        /// derived order, follow the resources' shape ids; `SERVICE`'s registry
+        /// and the clients' `PERMISSIONS` sort by authorization name and value.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Permission {
             Room(RoomPermission),
@@ -1099,7 +1101,8 @@ pub mod desk {
         }
 
         impl Permission {
-            /// Every permission, aliases excluded.
+            /// Every permission, aliases excluded: by resource shape id, then in
+            /// declaration order.
             pub const ALL: &'static [Self] = &[Self::Room(RoomPermission::Read), Self::Workspace(WorkspacePermission::Read)];
             /// The permission `value` (or an alias of it) on the resource whose
             /// authorization name is `resource`: what a stored grant names.

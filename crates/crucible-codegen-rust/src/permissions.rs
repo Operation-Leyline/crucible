@@ -8,7 +8,9 @@
 
 use std::collections::BTreeMap;
 
-use crucible_codegen_common::permissions::{aliases, denied_message, not_found_message};
+use crucible_codegen_common::permissions::{
+    aliases, code_span, denied_message, not_found_message, notes,
+};
 use crucible_smithy::ir::permissions::Binding;
 use crucible_smithy::ir::{
     Condition, Member, Mode, Operation, Permission, Requirements, ResourcePermissions, Service,
@@ -43,6 +45,16 @@ impl<'a> Names<'a> {
 
     fn permission_enum(&self) -> String {
         format!("{}Permission", self.shape)
+    }
+
+    /// Its variant of the `Permission` and `Resource` unions: the shape's
+    /// name, except `Self`, which no variant may be called.
+    fn union_variant(&self) -> String {
+        if self.shape == "Self" {
+            "Self_".to_owned()
+        } else {
+            self.shape.clone()
+        }
     }
 
     fn reference(&self) -> String {
@@ -101,6 +113,12 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
     }
     let mut out = String::new();
     for (id, names) in &resources {
+        // The unions' variants share no namespace with the module's items.
+        take(
+            format!("Permission::{}", names.union_variant()),
+            id,
+            diagnostics,
+        );
         take(names.info.clone(), id, diagnostics);
         take(names.permission_enum(), id, diagnostics);
         take(names.reference(), id, diagnostics);
@@ -199,11 +217,8 @@ fn permission_enum(names: &Names<'_>) -> String {
         resource.name
     );
     for permission in names.primaries() {
-        let mut docs = permission.docs.clone().unwrap_or_default();
-        if !docs.is_empty() {
-            docs.push_str("\n\n");
-        }
-        docs.push_str(&format!("`{}`.", permission.value));
+        let mut docs = model_docs(permission);
+        docs.push_str(&format!("{}.", code_span(&permission.value)));
         documented(&mut out, "    ", Some(&docs), &permission.notes);
         out.push_str(&format!("    {},\n", variant(&permission.symbol)));
     }
@@ -220,21 +235,14 @@ fn permission_enum(names: &Names<'_>) -> String {
     ));
     for alias in resource.permissions.iter().filter(|p| p.alias_of.is_some()) {
         let primary = crucible_codegen_common::permissions::primary(resource, alias);
-        let mut docs = alias.docs.clone().unwrap_or_default();
-        if !docs.is_empty() {
-            docs.push_str("\n\n");
-        }
+        let mut docs = model_docs(alias);
         docs.push_str(&format!(
-            "`{}`, an alias of `{}`: parsing it yields [`Self::{}`].",
-            alias.value,
-            primary.value,
+            "{}, an alias of {}: parsing it yields [`Self::{}`].",
+            code_span(&alias.value),
+            code_span(&primary.value),
             variant(&primary.symbol)
         ));
-        let mut notes = alias.notes.clone();
-        if notes.deprecated.is_none() {
-            notes.deprecated = Some(Default::default());
-        }
-        documented(&mut out, "    ", Some(&docs), &notes);
+        documented(&mut out, "    ", Some(&docs), &notes(alias));
         out.push_str(&format!(
             "    pub const {}: Self = Self::{};\n",
             constant(&alias.symbol),
@@ -269,6 +277,20 @@ fn permission_enum(names: &Names<'_>) -> String {
         "impl ::std::convert::From<{name}> for &'static {P}::PermissionInfo {{\n    fn from(permission: {name}) -> Self {{\n        permission.info()\n    }}\n}}\n\nimpl ::std::fmt::Display for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        f.write_str(self.value())\n    }}\n}}\n"
     ));
     out
+}
+
+/// A permission's own documentation, escaped as model text, followed by a
+/// blank line when there is any.
+fn model_docs(permission: &Permission) -> String {
+    let mut docs = permission
+        .docs
+        .as_deref()
+        .map(crucible_codegen_common::docs::escape)
+        .unwrap_or_default();
+    if !docs.trim().is_empty() {
+        docs.push_str("\n\n");
+    }
+    docs
 }
 
 fn article(noun: &str) -> &'static str {
@@ -384,12 +406,12 @@ fn reference(names: &Names<'_>, designated: bool) -> String {
 /// an Authorizer's exhaustive match.
 fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
     let mut out = String::from(
-        "\n/// Any permission of the model, by resource.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum Permission {\n",
+        "\n/// Any permission of the model, by resource. Variants, and so the\n/// derived order, follow the resources' shape ids; `SERVICE`'s registry\n/// and the clients' `PERMISSIONS` sort by authorization name and value.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\npub enum Permission {\n",
     );
     for (_, names) in resources {
         out.push_str(&format!(
             "    {}({}),\n",
-            names.shape,
+            names.union_variant(),
             names.permission_enum()
         ));
     }
@@ -400,7 +422,7 @@ fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
             names.primaries().map(move |p| {
                 format!(
                     "Self::{}({}::{})",
-                    names.shape,
+                    names.union_variant(),
                     names.permission_enum(),
                     variant(&p.symbol)
                 )
@@ -408,7 +430,7 @@ fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
         })
         .collect();
     out.push_str(&format!(
-        "    /// Every permission, aliases excluded.\n    pub const ALL: &'static [Self] = &[{}];\n",
+        "    /// Every permission, aliases excluded: by resource shape id, then in\n    /// declaration order.\n    pub const ALL: &'static [Self] = &[{}];\n",
         all.join(", ")
     ));
     out.push_str("    /// The permission `value` (or an alias of it) on the resource whose\n    /// authorization name is `resource`: what a stored grant names.\n    pub fn parse(resource: &str, value: &str) -> ::std::option::Option<Self> {\n        match resource {\n");
@@ -417,7 +439,7 @@ fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
             "            {} => {}::parse(value).map(Self::{}),\n",
             literal(&names.resource.name),
             names.permission_enum(),
-            names.shape
+            names.union_variant()
         ));
     }
     out.push_str("            _ => ::std::option::Option::None,\n        }\n    }\n");
@@ -428,7 +450,7 @@ fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
             .map(|p| {
                 format!(
                     "Self::{}({}::{})",
-                    names.shape,
+                    names.union_variant(),
                     names.permission_enum(),
                     variant(&p.symbol)
                 )
@@ -447,7 +469,7 @@ fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
     for (_, names) in resources {
         out.push_str(&format!(
             "            Self::{}(permission) => permission.info(),\n",
-            names.shape
+            names.union_variant()
         ));
     }
     out.push_str(&format!(
@@ -457,7 +479,7 @@ fn union(resources: &[(&ShapeId, Names<'_>)]) -> String {
         out.push_str(&format!(
             "\nimpl ::std::convert::From<{enum_}> for Permission {{\n    fn from(permission: {enum_}) -> Self {{\n        Self::{shape}(permission)\n    }}\n}}\n",
             enum_ = names.permission_enum(),
-            shape = names.shape
+            shape = names.union_variant()
         ));
     }
     out
@@ -469,7 +491,11 @@ fn resource_union(resources: &[(&ShapeId, Names<'_>)]) -> String {
         "\n/// The instance a check names, typed by resource.\n#[derive(Debug, Clone, PartialEq, Eq, Hash)]\npub enum Resource {\n",
     );
     for (_, names) in resources {
-        out.push_str(&format!("    {}({}),\n", names.shape, names.reference()));
+        out.push_str(&format!(
+            "    {}({}),\n",
+            names.union_variant(),
+            names.reference()
+        ));
     }
     out.push_str(&format!(
         "}}\n\n/// The check's resource, typed; an internal error for one this model does\n/// not declare.\nimpl ::std::convert::TryFrom<&{P}::ResourceRef> for Resource {{\n    type Error = {ERROR};\n    fn try_from(reference: &{P}::ResourceRef) -> ::std::result::Result<Self, Self::Error> {{\n        match reference.resource().name {{\n"
@@ -479,7 +505,7 @@ fn resource_union(resources: &[(&ShapeId, Names<'_>)]) -> String {
             "            {} => {}::try_from(reference).map(Self::{}),\n",
             literal(&names.resource.name),
             names.reference(),
-            names.shape
+            names.union_variant()
         ));
     }
     out.push_str(&format!(
@@ -596,12 +622,14 @@ fn mode(mode: Mode) -> &'static str {
 /// `impl ExecuteQuery { pub const WRITE_ON_GRAPH: Obligation = .. }`: a
 /// constant per `by handler` clause, for `permissions::discharge`, named
 /// `<PERMISSION>_ON_<RESOURCE>`. Two clauses can spell the same name
-/// (`lockOn` on `Room` and `lock` on `OnRoom`): the first keeps it and each
-/// later one gets its ordinal among them, `_2`, `_3`, in declaration order,
-/// so adding a clause never renames one a handler already uses.
+/// (`lockOn` on `Room` and `lock` on `OnRoom`, or `read` on `Doc` twice):
+/// the first keeps it and a later one gets the first free ordinal, `_2`,
+/// `_3`, in declaration order, never a name an earlier clause holds (`read`
+/// on `Doc_2` after a second `read` on `Doc`). Names depend only on earlier
+/// clauses, so adding a clause never renames one a handler already uses.
 pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
     let mut body = String::new();
-    let mut spelled: BTreeMap<String, usize> = BTreeMap::new();
+    let mut taken: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
     for (index, clause) in op.requirements.clauses().iter().enumerate() {
         if clause.mode != Mode::Handler {
             continue;
@@ -615,26 +643,32 @@ pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
             .get(&clause.resource)
             .and_then(|r| r.permission(&clause.permission))
             .map_or(clause.permission.as_str(), |p| p.value.as_str());
-        let mut text = format!("`{value}` on {resource}, checked by the handler");
+        let mut text = format!("{} on {resource}, checked by the handler", code_span(value));
         if let Some(docs) = clause
             .docs
             .as_deref()
             .map(str::trim)
             .filter(|d| !d.is_empty())
         {
-            text.push_str(&format!(": {docs}"));
+            text.push_str(&format!(
+                ":\n\n{}",
+                crucible_codegen_common::docs::escape(docs)
+            ));
         }
         let base = format!("{}_ON_{}", constant(&clause.permission), constant(resource));
-        let ordinal = spelled.entry(base.clone()).or_default();
-        *ordinal += 1;
-        let name = if *ordinal == 1 {
-            base
-        } else {
+        let name = if taken.contains(&base) {
+            let (ordinal, name) = (2..)
+                .map(|ordinal| (ordinal, format!("{base}_{ordinal}")))
+                .find(|(_, name)| !taken.contains(name))
+                .expect("an unbounded range");
             text.push_str(&format!(
                 "\n\nNamed `_{ordinal}`: an earlier clause of this operation is `{base}`."
             ));
-            format!("{base}_{ordinal}")
+            name
+        } else {
+            base
         };
+        taken.insert(name.clone());
         doc(&mut body, "    ", Some(&text));
         body.push_str(&format!(
             "    pub const {name}: {P}::Obligation = {P}::Obligation {{ operation: {}, index: {index}, permission: &{path} }};\n",
@@ -937,6 +971,19 @@ impl<'a> Reader<'a> {
                     // the nearest value of it, as the decoded input is.
                     (SimpleKind::Float, Value::Number(n)) => {
                         let n = n.as_f64().unwrap_or_default();
+                        // Beyond `f32`'s range the literal has no nearest
+                        // value: `1e300_f32` does not compile.
+                        #[allow(clippy::cast_possible_truncation)]
+                        if !(n as f32).is_finite() {
+                            diagnostics.push(
+                                op,
+                                format!(
+                                    "`when` compares the float `{}` with {n:?}, outside the range of a float",
+                                    path.join(".")
+                                ),
+                            );
+                            return None;
+                        }
                         format!("*v == {n:?}_f32")
                     }
                     (SimpleKind::Double, Value::Number(n)) => {

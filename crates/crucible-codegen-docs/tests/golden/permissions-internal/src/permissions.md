@@ -12,7 +12,7 @@ Identifiers: <code>organizationId</code>, <code>graphId</code>.
 |---|---|
 | <code>graph:read</code> | <p>Read a graph and its catalog.</p> |
 | <code>graph:view</code> | <strong>Deprecated</strong> alias of <code>graph:read</code>. |
-| <code>graph:write</code> |  |
+| <code>graph:write</code> | <p>Change a graph: */ ends no comment and [bare] links nowhere. @param is not a tag.</p> |
 
 ### Permission-only
 

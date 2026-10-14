@@ -7,16 +7,15 @@
 
 use std::collections::BTreeSet;
 
-use crucible_codegen_common::permissions::{primary, tier_name};
+use crucible_codegen_common::permissions::{
+    client_visible as visible, code_span, deprecated, effective_tier, grantable, notes, primary,
+    tier_name,
+};
 use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{Permission, ResourcePermissions, Service, Tier};
+use crucible_smithy::ir::{Permission, ResourcePermissions, Service};
 
 use crate::HEADER;
 use crate::names::{doc, documented, literal};
-
-fn visible(resource: &ResourcePermissions, permission: &Permission) -> bool {
-    primary(resource, permission).tier != Tier::Internal
-}
 
 /// `mailSend`, `READ` and `api-key` are `MAIL_SEND`, `READ` and `API_KEY`.
 pub(crate) fn constant(symbol: &str) -> String {
@@ -42,7 +41,9 @@ pub(crate) fn constant(symbol: &str) -> String {
         }
         out.push(c.to_ascii_uppercase());
     }
-    if out.starts_with(|c: char| c.is_ascii_digit()) {
+    // `_` and `-` have no letter to keep: still a property name, and two
+    // such symbols are diagnosed as sharing it.
+    if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit()) {
         out.insert(0, '_');
     }
     out
@@ -65,18 +66,8 @@ pub(crate) fn present(service: &Service) -> bool {
     !resources(service).is_empty()
 }
 
-/// The names `permissions.ts` exports, which `index.ts` re-exports beside
-/// the models: a model with the same name is a diagnostic.
-pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
-    if !present(service) {
-        return;
-    }
-    let models: BTreeSet<&str> = service
-        .shapes
-        .keys()
-        .filter(|id| !id.is_prelude())
-        .map(|id| service.name_of(id))
-        .collect();
+/// The names `permissions.ts` exports, in a fixed order.
+fn exports(service: &Service) -> Vec<String> {
     let mut names = vec![
         "PERMISSIONS".to_owned(),
         "PermissionDescription".to_owned(),
@@ -87,15 +78,85 @@ pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
         names.push(format!("{shape}Permission"));
         names.push(format!("{shape}PermissionValue"));
     }
-    for name in names {
-        if models.contains(name.as_str()) {
-            diagnostics.push(
-                &service.id,
-                format!(
-                    "`{name}` is a model name and a permission export of the TypeScript client"
-                ),
-            );
-        }
+    names
+}
+
+/// The names a model declares, which `index.ts` exports from `models.js`.
+fn model_names(service: &Service) -> BTreeSet<&str> {
+    service
+        .shapes
+        .keys()
+        .filter(|id| !id.is_prelude())
+        .map(|id| service.name_of(id))
+        .collect()
+}
+
+/// `index.ts`'s re-export of `permissions.ts`. A permission export that a
+/// model already names (`GraphPermission`) cannot also be exported from the
+/// package root, where the model keeps the name; every export, that one
+/// included, stays reachable as `permissions.GraphPermission`.
+pub(crate) fn index_exports(service: &Service) -> String {
+    if !present(service) {
+        return String::new();
+    }
+    let models = model_names(service);
+    let (clashing, free): (Vec<String>, Vec<String>) = exports(service)
+        .into_iter()
+        .partition(|name| models.contains(name.as_str()));
+    let types = |name: &str| {
+        name == "PermissionDescription"
+            || name == "ResourcePermissions"
+            || name.ends_with("PermissionValue")
+    };
+    let (types, values): (Vec<&String>, Vec<&String>) = free.iter().partition(|n| types(n));
+    let mut out = String::new();
+    if !values.is_empty() {
+        out.push_str(&format!(
+            "export {{ {} }} from \"./permissions.js\";\n",
+            values
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !types.is_empty() {
+        out.push_str(&format!(
+            "export type {{ {} }} from \"./permissions.js\";\n",
+            types
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    if !clashing.is_empty() {
+        out.push_str(&format!(
+            "/** Every permission export, including {}, which a model names at the package root. */\nexport * as permissions from \"./permissions.js\";\n",
+            clashing
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    out
+}
+
+/// A model named `permissions` takes the namespace a clash needs.
+pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
+    if !present(service) {
+        return;
+    }
+    let models = model_names(service);
+    let clashes = exports(service)
+        .iter()
+        .any(|name| models.contains(name.as_str()));
+    if clashes && models.contains("permissions") {
+        diagnostics.push(
+            &service.id,
+            "a model named `permissions` takes the namespace the TypeScript client exports its permissions under, since some of them share a model's name",
+        );
     }
 }
 
@@ -132,24 +193,26 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         );
         out.push_str(&format!("export const {shape}Permission = {{\n"));
         for permission in &permissions {
-            let mut docs = permission.docs.clone().unwrap_or_default();
-            let mut notes = permission.notes.clone();
-            if let Some(alias_of) = &permission.alias_of {
-                if !docs.is_empty() {
+            // Model text: neutralised like other doc-comment targets' (a
+            // leading `@` is a JSDoc tag otherwise).
+            let mut docs = permission
+                .docs
+                .as_deref()
+                .map(crucible_codegen_common::docs::escape)
+                .unwrap_or_default();
+            if permission.alias_of.is_some() {
+                if !docs.trim().is_empty() {
                     docs.push_str("\n\n");
                 }
-                let primary = resource.permission(alias_of).map_or(alias_of, |p| &p.value);
-                docs.push_str(&format!("An alias of `{primary}`."));
-                if notes.deprecated.is_none() {
-                    notes.deprecated = Some(Default::default());
-                }
+                let primary = &primary(resource, permission).value;
+                docs.push_str(&format!("An alias of {}.", code_span(primary)));
                 aliases.push((resource.name.as_str(), &permission.value, primary.clone()));
             }
             documented(
                 &mut out,
                 "  ",
-                Some(docs.as_str()).filter(|d| !d.is_empty()),
-                &notes,
+                Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
+                &notes(permission),
             );
             out.push_str(&format!(
                 "  {}: {},\n",
@@ -183,9 +246,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                     "      {{ value: {}, description: {}, tier: {}, grantable: {}, deprecated: {}{alias} }},\n",
                     literal(&p.value),
                     literal(p.docs.as_deref().map(str::trim).unwrap_or_default()),
-                    literal(tier_name(primary.tier)),
-                    primary.tier != Tier::NotGrantable,
-                    p.notes.deprecated.is_some() || p.alias_of.is_some(),
+                    literal(tier_name(effective_tier(resource, p))),
+                    grantable(resource, p),
+                    deprecated(p),
                 )
             })
             .collect();
@@ -200,7 +263,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         &mut out,
         "",
         Some(
-            "Every permission this client knows, by resource type: what a grant picker offers, leaving out `grantable: false`.",
+            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.",
         ),
     );
     out.push_str(&format!(
@@ -236,5 +299,8 @@ mod tests {
         assert_eq!(constant("READ"), "READ");
         assert_eq!(constant("apiKeyManage"), "API_KEY_MANAGE");
         assert_eq!(constant("api-key"), "API_KEY");
+        assert_eq!(constant("HTTPRequest"), "HTTP_REQUEST");
+        assert_eq!(constant("_"), "_");
+        assert_eq!(constant("2fa"), "_2FA");
     }
 }

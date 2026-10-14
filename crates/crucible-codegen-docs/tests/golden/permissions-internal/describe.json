@@ -126,7 +126,11 @@
         "timestampFormats": {}
       },
       "requirementSentences": [
-        "Requires `graph:write` on every graph in the organization."
+        {
+          "html": "<p>Requires <code>graph:write</code> on every graph in the organization.</p>\n",
+          "markdown": "Requires `graph:write` on every graph in the organization.",
+          "text": "Requires graph:write on every graph in the organization."
+        }
       ],
       "requirements": {
         "clauses": [
@@ -386,7 +390,11 @@
         "timestampFormats": {}
       },
       "requirementSentences": [
-        "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`."
+        {
+          "html": "<p>Requires <code>graph:read</code> on the graph; <code>graph:write</code> on the graph, checked by the service (only when the parsed query writes); <code>history:read</code> on the history, when <code>has target.history</code>.</p>\n",
+          "markdown": "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`.",
+          "text": "Requires graph:read on the graph; graph:write on the graph, checked by the service (only when the parsed query writes); history:read on the history, when has target.history."
+        }
       ],
       "requirements": {
         "clauses": [
@@ -582,7 +590,11 @@
         "timestampFormats": {}
       },
       "requirementSentences": [
-        "Requires `graph:read` on the graph."
+        {
+          "html": "<p>Requires <code>graph:read</code> on the graph.</p>\n",
+          "markdown": "Requires `graph:read` on the graph.",
+          "text": "Requires graph:read on the graph."
+        }
       ],
       "requirements": {
         "clauses": [
@@ -735,7 +747,11 @@
         "timestampFormats": {}
       },
       "requirementSentences": [
-        "Requires `organization:read` on the org."
+        {
+          "html": "<p>Requires <code>organization:read</code> on the org.</p>\n",
+          "markdown": "Requires `organization:read` on the org.",
+          "text": "Requires organization:read on the org."
+        }
       ],
       "requirements": {
         "clauses": [
@@ -856,7 +872,11 @@
         "timestampFormats": {}
       },
       "requirementSentences": [
-        "Requires no permission."
+        {
+          "html": "<p>Requires no permission.</p>\n",
+          "markdown": "Requires no permission.",
+          "text": "Requires no permission."
+        }
       ],
       "requirements": {
         "kind": "none"
@@ -1097,7 +1117,11 @@
         "timestampFormats": {}
       },
       "requirementSentences": [
-        "Returns only the graphs the caller holds `graph:read` on in the organization."
+        {
+          "html": "<p>Returns only the graphs the caller holds <code>graph:read</code> on in the organization.</p>\n",
+          "markdown": "Returns only the graphs the caller holds `graph:read` on in the organization.",
+          "text": "Returns only the graphs the caller holds graph:read on in the organization."
+        }
       ],
       "requirements": {
         "clauses": [
@@ -1305,6 +1329,225 @@
       "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
+    },
+    "example.leyline#RewriteGraph": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Hostile documentation: a backtick in a <code>when</code> literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans.</p>\n",
+        "markdown": "Hostile documentation: a backtick in a `when` literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans.",
+        "text": "Hostile documentation: a backtick in a when literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans."
+      },
+      "errors": [
+        "crucible.errors#NotFoundException",
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "id": "example.leyline#RewriteGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#RewriteGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GraphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string"
+          },
+          "example.leyline.RewriteGraphInput": {
+            "properties": {
+              "graphId": {
+                "pattern": "^g_[a-z0-9]+$",
+                "type": "string"
+              },
+              "mode": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "RewriteGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": "example.leyline#RewriteGraphOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.leyline.RewriteGraphOutput": {
+            "properties": {
+              "rewritten": {
+                "$ref": "#/$defs/smithy.api.Boolean"
+              }
+            },
+            "required": [
+              "rewritten"
+            ],
+            "type": "object"
+          },
+          "smithy.api.Boolean": {
+            "type": "boolean"
+          }
+        },
+        "properties": {
+          "rewritten": {
+            "$ref": "#/$defs/smithy.api.Boolean"
+          }
+        },
+        "required": [
+          "rewritten"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "mode"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [
+        {
+          "html": "<p>Requires <code>graph:read</code> on the graph, when <code>mode == \"a`b\"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>\n",
+          "markdown": "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).",
+          "text": "Requires graph:read on the graph, when mode == \"a`b\"; graph:write on the graph, checked by the service (HTTP rewrites only, when mode is a`b); history:read on the history, checked by the service (see below)."
+        },
+        {
+          "html": "<p><code>history:read</code> on the history, checked by the service:</p>\n<p>GraphQL plans are checked twice:</p>\n<ul>\n<li>once when parsed, against */ and @param text;</li>\n<li>once when run, see [bare] and <a href=\"https://example.com/guide\">the guide</a>.</li>\n</ul>\n",
+          "markdown": "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide).",
+          "text": "history:read on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and the guide (https://example.com/guide)."
+        }
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              }
+            ],
+            "mode": "check",
+            "permission": "graph:read",
+            "resourceType": "graph",
+            "tier": "public",
+            "when": "mode == \"a`b\""
+          },
+          {
+            "documentation": "HTTP rewrites only, when `mode` is ``a`b``.",
+            "mode": "handler",
+            "permission": "graph:write",
+            "resourceType": "graph",
+            "tier": "public"
+          },
+          {
+            "documentation": "GraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide).",
+            "mode": "handler",
+            "permission": "history:read",
+            "resourceType": "history",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "rewritten"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{organizationId}/graphs/{graphId}/rewrite"
     }
   },
   "resources": {},
@@ -1369,7 +1612,7 @@
           },
           {
             "deprecated": false,
-            "description": "",
+            "description": "Change a graph: */ ends no comment and [bare] links nowhere.\n@param is not a tag.",
             "grantable": true,
             "symbol": "write",
             "tier": "public",
@@ -3400,6 +3643,182 @@
         }
       ],
       "name": "RestoreBackupOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#RewriteGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#RewriteGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "mode",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "mode"
+        }
+      ],
+      "name": "RewriteGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#RewriteGraphOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#RewriteGraphOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "rewritten",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "rewritten"
+        }
+      ],
+      "name": "RewriteGraphOutput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

@@ -285,3 +285,47 @@ fn backslash_u_in_documentation_cannot_reach_javacs_unicode_pass() {
         );
     }
 }
+
+/// The typed permissions fixture (`tests/fixtures/permissions`) as a client
+/// sees it (docs/permissions.md §6.3), hostile documentation included: every
+/// generated file that names a permission, checked in under
+/// `tests/golden/permissions/`. Nothing of the internal tier appears.
+#[test]
+fn permissions_match_goldens() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let rendered = compiled.render();
+    let service = compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
+    let service = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let mut checked = 0;
+    for file in emit(&service, &options()).unwrap() {
+        if !file.contents.contains("graph:read") {
+            continue;
+        }
+        checked += 1;
+        assert!(
+            !file.contents.contains("organization:read"),
+            "{}",
+            file.path
+        );
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden/permissions")
+            .join(&file.path);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &file.contents).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap_or_default()
+                .replace("\r\n", "\n"),
+            file.contents,
+            "{}; rerun with CRUCIBLE_BLESS=1 and read the diff",
+            file.path
+        );
+    }
+    assert!(checked > 0, "no generated file names a permission");
+}

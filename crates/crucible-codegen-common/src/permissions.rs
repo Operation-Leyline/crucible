@@ -8,23 +8,53 @@
 
 use crucible_smithy::ir::permissions::Binding;
 use crucible_smithy::ir::{
-    Mode, Operation, Permission, Requirement, Requirements, ResourcePermissions, Service, Tier,
+    DocNotes, Mode, Operation, Permission, Requirement, Requirements, ResourcePermissions, Service,
+    Tier,
 };
+use pulldown_cmark::{Event, Parser, Tag};
 use serde_json::{Value, json};
 
 /// A 403's message for an internal permission, which a refusal never names.
 pub const GENERIC_DENIED: &str = "This principal may not perform this operation.";
 
-/// The words of an authorization name: `apiKey` is `api key`.
+/// The words of an authorization name: `apiKey` is `api key`, and an
+/// acronym stays one word in its own case: `HTTPRequest` is `HTTP request`.
 pub fn noun(name: &str) -> String {
-    let mut out = String::new();
-    for (index, c) in name.chars().enumerate() {
-        if c.is_ascii_uppercase() && index > 0 {
-            out.push(' ');
+    let chars: Vec<char> = name.chars().collect();
+    let mut words: Vec<String> = Vec::new();
+    let mut word = String::new();
+    for (index, &c) in chars.iter().enumerate() {
+        let previous = index.checked_sub(1).map(|p| chars[p]);
+        let next = chars.get(index + 1).copied();
+        // A new word at `aB`, `1B`, and `AB` followed by `c` (the `R` of
+        // `HTTPRequest`); never inside a run of capitals.
+        let boundary = c.is_ascii_uppercase()
+            && previous.is_some_and(|p| {
+                p.is_ascii_lowercase()
+                    || p.is_ascii_digit()
+                    || (p.is_ascii_uppercase() && next.is_some_and(|n| n.is_ascii_lowercase()))
+            });
+        if boundary && !word.is_empty() {
+            words.push(std::mem::take(&mut word));
         }
-        out.push(c.to_ascii_lowercase());
+        word.push(c);
     }
-    out
+    if !word.is_empty() {
+        words.push(word);
+    }
+    words
+        .into_iter()
+        .map(|word| {
+            let acronym = word.chars().filter(char::is_ascii_alphabetic).count() > 1
+                && !word.chars().any(|c| c.is_ascii_lowercase());
+            if acronym {
+                word
+            } else {
+                word.to_ascii_lowercase()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// The English plural of [`noun`]'s output, for "returns only the inboxes".
@@ -77,10 +107,38 @@ pub fn tier_name(tier: Tier) -> &'static str {
     }
 }
 
+/// The tier a permission has: an alias has its primary's. Every registry
+/// and every visibility rule reads it through here.
+pub fn effective_tier(resource: &ResourcePermissions, permission: &Permission) -> Tier {
+    primary(resource, permission).tier
+}
+
 /// Whether consoles may offer the permission for a grant: not a bundle the
-/// service's policy confers whole.
-pub fn grantable(permission: &Permission) -> bool {
-    permission.tier != Tier::NotGrantable
+/// service's policy confers whole, judged by the primary for an alias.
+pub fn grantable(resource: &ResourcePermissions, permission: &Permission) -> bool {
+    effective_tier(resource, permission) != Tier::NotGrantable
+}
+
+/// Whether a client may see the permission: neither it nor the primary it
+/// aliases is internal.
+pub fn client_visible(resource: &ResourcePermissions, permission: &Permission) -> bool {
+    effective_tier(resource, permission) != Tier::Internal
+}
+
+/// Whether the permission is deprecated: the model says so, or it is an
+/// alias, which exists only for old grants (docs/permissions.md §4.1).
+pub fn deprecated(permission: &Permission) -> bool {
+    permission.notes.deprecated.is_some() || permission.alias_of.is_some()
+}
+
+/// The permission's documentation notes with [`deprecated`]'s rule
+/// applied, for a target's native deprecation attribute.
+pub fn notes(permission: &Permission) -> DocNotes {
+    let mut notes = permission.notes.clone();
+    if permission.alias_of.is_some() && notes.deprecated.is_none() {
+        notes.deprecated = Some(Default::default());
+    }
+    notes
 }
 
 /// The primary a permission stands for: itself, or the one it aliases.
@@ -117,20 +175,108 @@ pub fn clause_target<'a>(
 
 /// `workspaceId` is the workspace: what an identifier names, for prose.
 fn identified(identifier: &str) -> String {
-    noun(identifier.strip_suffix("Id").unwrap_or(identifier))
+    noun(
+        identifier
+            .strip_suffix("Id")
+            .or_else(|| identifier.strip_suffix("ID"))
+            .filter(|rest| !rest.is_empty())
+            .unwrap_or(identifier),
+    )
+}
+
+/// A handler clause's documentation, as its requirement sentence carries
+/// it.
+enum HandlerDocs {
+    None,
+    /// One paragraph, read inline: `(only when the parsed query writes)`.
+    Inline(String),
+    /// Anything longer, carried whole after the sentences.
+    Below(String),
+}
+
+/// One paragraph reads inline, its first word lowercased only when that
+/// word is an ordinary capitalised one (never `HTTP`, `GraphQL` or `I`);
+/// anything else (several paragraphs, a list, a code block) is kept whole.
+fn handler_docs(docs: Option<&str>) -> HandlerDocs {
+    let Some(docs) = docs
+        .map(crate::docs::comment_text)
+        .map(|d| d.trim().to_owned())
+        .filter(|d| !d.is_empty())
+    else {
+        return HandlerDocs::None;
+    };
+    let mut depth = 0usize;
+    let mut blocks = 0usize;
+    let mut paragraph = true;
+    for event in Parser::new(&docs) {
+        match event {
+            Event::Start(tag) => {
+                if depth == 0 {
+                    blocks += 1;
+                    paragraph &= matches!(tag, Tag::Paragraph);
+                }
+                depth += 1;
+            }
+            Event::End(_) => depth = depth.saturating_sub(1),
+            Event::Rule if depth == 0 => {
+                blocks += 1;
+                paragraph = false;
+            }
+            Event::HardBreak => paragraph = false,
+            _ => {}
+        }
+    }
+    if blocks != 1 || !paragraph {
+        return HandlerDocs::Below(docs);
+    }
+    // One paragraph: its soft line breaks read as spaces already.
+    let text = docs.lines().map(str::trim).collect::<Vec<_>>().join(" ");
+    let text = text.trim_end_matches('.');
+    let first_word = text
+        .split(|c: char| !c.is_alphanumeric())
+        .next()
+        .unwrap_or_default();
+    let mut chars = first_word.chars();
+    let ordinary = chars.next().is_some_and(char::is_uppercase)
+        && first_word != "I"
+        && !chars.any(char::is_uppercase);
+    HandlerDocs::Inline(if ordinary {
+        let mut chars = text.chars();
+        let first = chars.next().map(|c| c.to_lowercase().collect::<String>());
+        format!("{}{}", first.unwrap_or_default(), chars.as_str())
+    } else {
+        text.to_owned()
+    })
+}
+
+/// A Markdown code span for `text`, which may itself hold backticks: the
+/// fence is one longer than its longest backtick run, padded with a space
+/// where CommonMark would otherwise strip one or merge the fences.
+pub fn code_span(text: &str) -> String {
+    let text = crate::docs::comment_text(text).replace('\n', " ");
+    let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let fence = "`".repeat(longest + 1);
+    let pad = text.starts_with('`')
+        || text.ends_with('`')
+        || (text.starts_with(' ') && text.ends_with(' ') && !text.trim().is_empty());
+    let pad = if pad { " " } else { "" };
+    format!("{fence}{pad}{text}{pad}{fence}")
 }
 
 /// One clause as prose, without its leading "Requires": "`mail:send` on
 /// the inbox", "`inbox:manage` on every inbox in the workspace",
-/// "`template:read` on the template, when `has content.template`".
-pub fn clause_text(service: &Service, clause: &Requirement) -> Option<String> {
+/// "`template:read` on the template, when `has content.template`". A
+/// handler clause's documentation of more than one paragraph comes back
+/// beside it, to follow the sentences.
+fn clause_prose(service: &Service, clause: &Requirement) -> Option<(String, Option<String>)> {
     let (resource, permission) = clause_target(service, clause)?;
     let noun = noun(&resource.name);
-    let value = &permission.value;
-    Some(match clause.mode {
+    let value = code_span(&permission.value);
+    let mut below = None;
+    let text = match clause.mode {
         Mode::Filter => {
             let mut text = format!(
-                "returns only the {} the caller holds `{value}` on",
+                "returns only the {} the caller holds {value} on",
                 plural(&noun)
             );
             if let Some(parent) = resource.identifiers.iter().rev().nth(1) {
@@ -139,60 +285,61 @@ pub fn clause_text(service: &Service, clause: &Requirement) -> Option<String> {
             text
         }
         Mode::Handler => {
-            let mut text = format!("`{value}` on the {noun}, checked by the service");
-            if let Some(docs) = clause
-                .docs
-                .as_deref()
-                .map(str::trim)
-                .filter(|d| !d.is_empty())
-            {
+            let mut text = format!("{value} on the {noun}, checked by the service");
+            match handler_docs(clause.docs.as_deref()) {
+                HandlerDocs::None => {}
                 // "(only when the parsed query writes)": a clause inside a sentence.
-                let docs = docs.trim_end_matches('.');
-                let mut chars = docs.chars();
-                let first = chars.next().map(|c| c.to_lowercase().collect::<String>());
-                text.push_str(&format!(
-                    " ({}{})",
-                    first.unwrap_or_default(),
-                    chars.as_str()
-                ));
+                HandlerDocs::Inline(docs) => text.push_str(&format!(" ({docs})")),
+                HandlerDocs::Below(docs) => {
+                    text.push_str(" (see below)");
+                    below = Some(format!(
+                        "{value} on the {noun}, checked by the service:\n\n{docs}"
+                    ));
+                }
             }
             text
         }
         Mode::Check => {
             let mut text = if clause.bindings.last() == Some(&Binding::All) {
-                let mut text = format!("`{value}` on every {noun}");
+                let mut text = format!("{value} on every {noun}");
                 if let Some(parent) = resource.identifiers.iter().rev().nth(1) {
                     text.push_str(&format!(" in the {}", identified(parent)));
                 }
                 text
             } else {
-                format!("`{value}` on the {noun}")
+                format!("{value} on the {noun}")
             };
             if let Some(when) = &clause.when {
-                text.push_str(&format!(", when `{}`", when.text()));
+                text.push_str(&format!(", when {}", code_span(&when.text())));
             }
             text
         }
-    })
+    };
+    Some((text, below))
 }
 
-/// The sentences an operation's documentation gets for its requirements,
-/// or nothing: "Requires `mail:send` on the inbox; `template:read` on the
-/// template, when `has content.template`." and "Returns only the
-/// inboxes the caller holds `inbox:read` on in the workspace." `requires
-/// none` says so; a pending operation says nothing (the server-audience
-/// docs state its reason themselves), and neither does one whose every
-/// clause names an internal permission.
-pub fn requirement_sentences(service: &Service, op: &Operation) -> Vec<String> {
+/// One clause as prose, without its leading "Requires"; a handler clause's
+/// documentation reads inline only when it is one paragraph (see
+/// [`requirement_sentences`]).
+pub fn clause_text(service: &Service, clause: &Requirement) -> Option<String> {
+    clause_prose(service, clause).map(|(text, _)| text)
+}
+
+/// The requirement sentences, and the Markdown blocks that follow them (a
+/// handler clause's documentation of more than one paragraph).
+fn requirement_parts(service: &Service, op: &Operation) -> (Vec<String>, Vec<String>) {
     match &op.requirements {
-        Requirements::None => vec!["Requires no permission.".to_owned()],
+        Requirements::None => (vec!["Requires no permission.".to_owned()], Vec::new()),
         Requirements::List(clauses) => {
             let mut sentences = Vec::new();
-            let required: Vec<String> = clauses
-                .iter()
-                .filter(|clause| clause.mode != Mode::Filter)
-                .filter_map(|clause| clause_text(service, clause))
-                .collect();
+            let mut blocks = Vec::new();
+            let mut required = Vec::new();
+            for clause in clauses.iter().filter(|clause| clause.mode != Mode::Filter) {
+                if let Some((text, below)) = clause_prose(service, clause) {
+                    required.push(text);
+                    blocks.extend(below);
+                }
+            }
             if !required.is_empty() {
                 sentences.push(format!("Requires {}.", required.join("; ")));
             }
@@ -207,20 +354,43 @@ pub fn requirement_sentences(service: &Service, op: &Operation) -> Vec<String> {
                     ));
                 }
             }
-            sentences
+            (sentences, blocks)
         }
         // `Internal`: every clause names a permission this audience never
         // sees, so there is nothing it could hold or name.
         Requirements::Undeclared | Requirements::Pending { .. } | Requirements::Internal => {
-            Vec::new()
+            (Vec::new(), Vec::new())
         }
     }
 }
 
-/// [`requirement_sentences`] as one paragraph, or `None`.
+/// What an operation's documentation says about its requirements, or
+/// nothing: "Requires `mail:send` on the inbox; `template:read` on the
+/// template, when `has content.template`." and "Returns only the
+/// inboxes the caller holds `inbox:read` on in the workspace.", then any
+/// handler clause's documentation too long to read inline, as its own
+/// entry. Each entry is Markdown holding model text (a clause's
+/// documentation, a `when` literal), so a target renders it the way it
+/// renders model documentation, never as plain text. `requires none` says
+/// so; a pending operation says nothing (the server-audience docs state its
+/// reason themselves), and neither does one whose every clause names an
+/// internal permission.
+pub fn requirement_sentences(service: &Service, op: &Operation) -> Vec<String> {
+    let (mut sentences, blocks) = requirement_parts(service, op);
+    sentences.extend(blocks);
+    sentences
+}
+
+/// [`requirement_sentences`] as Markdown: the sentences as one paragraph,
+/// then the blocks that follow them; `None` when there are none.
 pub fn requirement_paragraph(service: &Service, op: &Operation) -> Option<String> {
-    let sentences = requirement_sentences(service, op);
-    (!sentences.is_empty()).then(|| sentences.join(" "))
+    let (sentences, blocks) = requirement_parts(service, op);
+    let mut parts: Vec<String> = Vec::new();
+    if !sentences.is_empty() {
+        parts.push(sentences.join(" "));
+    }
+    parts.extend(blocks);
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
 /// The registry as data: one entry per resource that declares permissions,
@@ -236,7 +406,7 @@ pub fn registry(service: &Service, internal: bool) -> Value {
             let mut permissions: Vec<&Permission> = resource
                 .permissions
                 .iter()
-                .filter(|p| internal || primary(resource, p).tier != Tier::Internal)
+                .filter(|p| internal || client_visible(resource, p))
                 .collect();
             if permissions.is_empty() {
                 return None;
@@ -245,14 +415,13 @@ pub fn registry(service: &Service, internal: bool) -> Value {
             let permissions: Vec<Value> = permissions
                 .into_iter()
                 .map(|p| {
-                    let tier = primary(resource, p).tier;
                     let mut entry = json!({
                         "symbol": p.symbol,
                         "value": p.value,
                         "description": p.docs.as_deref().map(str::trim).unwrap_or_default(),
-                        "tier": tier_name(tier),
-                        "grantable": tier != Tier::NotGrantable,
-                        "deprecated": p.notes.deprecated.is_some(),
+                        "tier": tier_name(effective_tier(resource, p)),
+                        "grantable": grantable(resource, p),
+                        "deprecated": deprecated(p),
                     });
                     if let Some(alias_of) = &p.alias_of {
                         entry["aliasOf"] =
@@ -337,10 +506,62 @@ mod tests {
     fn nouns_and_plurals_read_as_english() {
         assert_eq!(noun("inbox"), "inbox");
         assert_eq!(noun("apiKey"), "api key");
+        assert_eq!(noun("HTTPRequest"), "HTTP request");
+        assert_eq!(noun("httpRequest"), "http request");
+        assert_eq!(noun("graphAPI"), "graph API");
+        assert_eq!(noun("v2Graph"), "v2 graph");
+        assert_eq!(noun("X"), "x");
+        assert_eq!(plural(&noun("HTTPRequest")), "HTTP requests");
         assert_eq!(plural("inbox"), "inboxes");
         assert_eq!(plural("graph"), "graphs");
         assert_eq!(plural("policy"), "policies");
         assert_eq!(plural("key"), "keys");
         assert_eq!(plural("api key"), "api keys");
+    }
+}
+
+#[cfg(test)]
+mod prose {
+    use super::{HandlerDocs, code_span, handler_docs};
+
+    #[test]
+    fn code_spans_survive_backticks() {
+        assert_eq!(code_span("graph:read"), "`graph:read`");
+        assert_eq!(code_span("mode == \"a`b\""), "``mode == \"a`b\"``");
+        assert_eq!(code_span("`x"), "`` `x ``");
+        assert_eq!(code_span("a``b"), "```a``b```");
+        assert_eq!(code_span(" a "), "`  a  `");
+    }
+
+    fn inline(docs: &str) -> String {
+        match handler_docs(Some(docs)) {
+            HandlerDocs::Inline(text) => text,
+            HandlerDocs::Below(_) => panic!("{docs} reads inline"),
+            HandlerDocs::None => panic!("{docs} is documentation"),
+        }
+    }
+
+    #[test]
+    fn handler_docs_keep_their_case_and_paragraphs() {
+        assert_eq!(
+            inline("Only when the parsed query writes."),
+            "only when the parsed query writes"
+        );
+        assert_eq!(inline("HTTP writes only."), "HTTP writes only");
+        assert_eq!(inline("GraphQL plans only."), "GraphQL plans only");
+        assert_eq!(inline("I check it."), "I check it");
+        assert_eq!(inline("Only when\nit writes."), "only when it writes");
+        for docs in [
+            "One.\n\nTwo.",
+            "- a\n- b",
+            "```\ncode\n```",
+            "Line one  \nline two",
+        ] {
+            assert!(
+                matches!(handler_docs(Some(docs)), HandlerDocs::Below(_)),
+                "{docs}"
+            );
+        }
+        assert!(matches!(handler_docs(Some("  ")), HandlerDocs::None));
     }
 }

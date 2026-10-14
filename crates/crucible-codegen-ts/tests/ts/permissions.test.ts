@@ -5,6 +5,8 @@ import {
   type GraphPermissionValue,
   OrganizationPermission,
   PERMISSIONS,
+  type PermissionDescription,
+  type ResourcePermissions,
   canonicalPermission,
 } from "./generated-permissions/src/index.js";
 
@@ -34,6 +36,9 @@ test("the registry offers grantable public permissions and no internal one", () 
   const alias = PERMISSIONS[0].permissions.find(p => p.value === "graph:view");
   assert.equal(alias?.aliasOf, "graph:read");
   assert.equal(alias?.deprecated, true);
-  const picker = PERMISSIONS.flatMap(resource => resource.permissions.filter(p => p.grantable && !p.deprecated));
+  // The registry's types are exported by name from the package root.
+  const graph: ResourcePermissions = PERMISSIONS[0];
+  const picker: PermissionDescription[] = PERMISSIONS.flatMap(resource => resource.permissions.filter(p => p.grantable && !p.deprecated));
+  assert.equal(graph.resourceType, "graph");
   assert.deepEqual(picker.map(p => p.value), ["graph:audit", "graph:read", "graph:write", "history:read", "history:restore"]);
 });

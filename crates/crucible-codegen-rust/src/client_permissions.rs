@@ -5,17 +5,15 @@
 //! and `PERMISSIONS`, the registry a console's grant picker reads.
 //! Internal permissions never appear, whatever the audience.
 
-use crucible_codegen_common::permissions::primary;
+use crucible_codegen_common::permissions::{
+    client_visible as visible, code_span, deprecated, effective_tier, grantable, notes, primary,
+};
 use crucible_smithy::ir::{Permission, ResourcePermissions, Service, Tier};
 use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::names::{documented, literal, variant};
 
 const RT: &str = "::crucible_server_runtime_rust::__generated";
-
-fn visible(resource: &ResourcePermissions, permission: &Permission) -> bool {
-    primary(resource, permission).tier != Tier::Internal
-}
 
 fn tier(tier: Tier) -> &'static str {
     match tier {
@@ -55,7 +53,7 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
         registry.push(entry(resource, &permissions));
     }
     out.push_str(&format!(
-        "\n/// Every permission this client knows, by resource type and value: what\n/// a grant picker offers, leaving out `grantable: false`.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
+        "\n/// Every permission this client knows, by resource type and value,\n/// deprecated aliases included. A grant picker offers only the\n/// `grantable` ones.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
         registry.join(",\n    ")
     ));
     format!(
@@ -68,21 +66,31 @@ fn enumeration(shape: &str, resource: &ResourcePermissions, permissions: &[&Perm
     let name = format!("{shape}Permission");
     let unknown = crate::open::unknown_variant(permissions.iter().map(|p| p.symbol.as_str()));
     let mut out = format!(
-        "\n/// The permissions `{shape}` accepts (`{}`). Open: a value this client\n/// does not know is kept as `{unknown}` and written back unchanged.\n#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
+        "\n/// The permissions `{shape}` accepts (`{}`). Open: a value this client\n/// does not know is kept as `{unknown}` and written back unchanged.\n/// Ordered by declaration (`{unknown}` last), not by value.\n#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
         resource.name,
         crate::NON_EXHAUSTIVE,
     );
     for permission in permissions {
-        let mut docs = permission.docs.clone().unwrap_or_default();
+        let mut docs = permission
+            .docs
+            .as_deref()
+            .map(crucible_codegen_common::docs::escape)
+            .unwrap_or_default();
         if !docs.is_empty() {
             docs.push_str("\n\n");
         }
-        docs.push_str(&format!("`{}`.", permission.value));
-        let mut notes = permission.notes.clone();
-        if permission.alias_of.is_some() && notes.deprecated.is_none() {
-            notes.deprecated = Some(Default::default());
+        let value = code_span(&permission.value);
+        if permission.alias_of.is_some() {
+            let primary = primary(resource, permission);
+            docs.push_str(&format!(
+                "{value}, an alias of {}: [`canonical()`](Self::canonical) maps it to [`Self::{}`].",
+                code_span(&primary.value),
+                variant(&primary.symbol)
+            ));
+        } else {
+            docs.push_str(&format!("{value}."));
         }
-        documented(&mut out, "    ", Some(&docs), &notes);
+        documented(&mut out, "    ", Some(&docs), &notes(permission));
         out.push_str(&format!("    {},\n", variant(&permission.symbol)));
     }
     let all = permissions
@@ -153,9 +161,9 @@ fn entry(resource: &ResourcePermissions, permissions: &[&Permission]) -> String 
                 "{RT}::permissions::PermissionDescription {{ value: {}, description: {}, tier: {RT}::permissions::Tier::{}, grantable: {}, deprecated: {}, alias_of: {alias_of} }}",
                 literal(&p.value),
                 literal(p.docs.as_deref().map(str::trim).unwrap_or_default()),
-                tier(primary.tier),
-                primary.tier != Tier::NotGrantable,
-                p.notes.deprecated.is_some() || p.alias_of.is_some(),
+                tier(effective_tier(resource, p)),
+                grantable(resource, p),
+                deprecated(p),
             )
         })
         .collect();

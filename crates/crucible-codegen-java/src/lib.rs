@@ -193,8 +193,24 @@ fn javadoc_for(
     tags: &[String],
     meta: &DocNotes,
 ) -> String {
-    let mut notes = notes.to_vec();
-    notes.extend(meta.lines().iter().map(|line| docs::javadoc_text(line)));
+    javadoc_with(indent, model, &[], notes, tags, meta)
+}
+
+/// [`javadoc_for`] with `rendered`: Javadoc blocks already rendered from
+/// Markdown, after `notes` and before the model's own notes ("Unstable.").
+fn javadoc_with(
+    indent: &str,
+    model: Option<&str>,
+    rendered: &[String],
+    notes: &[String],
+    tags: &[String],
+    meta: &DocNotes,
+) -> String {
+    let meta_notes: Vec<String> = meta
+        .lines()
+        .iter()
+        .map(|line| docs::javadoc_text(line))
+        .collect();
     let mut tags = tags.to_vec();
     if let Some(deprecated) = &meta.deprecated {
         tags.push(format!(
@@ -202,9 +218,11 @@ fn javadoc_for(
             docs::javadoc_text(&deprecated.note())
         ));
     }
-    let (notes, tags) = (&notes[..], &tags[..]);
+    let tags = &tags[..];
     let mut blocks = model.map(docs::javadoc).unwrap_or_default();
     blocks.extend(notes.iter().map(|note| format!("<p>{note}</p>")));
+    blocks.extend(rendered.iter().cloned());
+    blocks.extend(meta_notes.iter().map(|note| format!("<p>{note}</p>")));
     // A comment that only tags a value still needs a main description.
     if blocks.is_empty()
         && let Some(tag) = tags.first()
@@ -244,12 +262,13 @@ fn operation_javadoc(
     throws: bool,
 ) -> String {
     let mut notes = vec![variant.to_string()];
-    // What the caller must hold, as the model states it (docs/permissions.md §6.3).
-    notes.extend(
+    // What the caller must hold, as the model states it (docs/permissions.md
+    // §6.3): Markdown holding model text, rendered like model documentation.
+    let requirements: Vec<String> =
         crucible_codegen_common::permissions::requirement_sentences(service, op)
             .iter()
-            .map(|sentence| docs::javadoc_text(&docs::text(sentence))),
-    );
+            .flat_map(|sentence| docs::javadoc(sentence))
+            .collect();
     if let Some(token) = &op.idempotency_token {
         notes.push(format!(
             "The {} member is filled with a fresh idempotency token when omitted, so retries are safe.",
@@ -294,7 +313,14 @@ fn operation_javadoc(
             "@throws {package}.NetworkError if the transport fails"
         ));
     }
-    javadoc_for("    ", op.docs.as_deref(), &notes, &tags, &op.notes)
+    javadoc_with(
+        "    ",
+        op.docs.as_deref(),
+        &requirements,
+        &notes,
+        &tags,
+        &op.notes,
+    )
 }
 
 // Defaults are already resolved by lowering. Initialize each model instance with

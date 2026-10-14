@@ -10,6 +10,7 @@
   - [Health](operations/API_Health.md)
   - [ListGraphs](operations/API_ListGraphs.md)
   - [RestoreBackup](operations/API_RestoreBackup.md)
+  - [RewriteGraph](operations/API_RewriteGraph.md)
 - [Permissions](permissions.md)
 - Data types
   - [InternalServerException](shapes/InternalServerException.md)
@@ -38,3 +39,5 @@
   - [QueryTarget](shapes/QueryTarget.md)
   - [RestoreBackupInput](shapes/RestoreBackupInput.md)
   - [RestoreBackupOutput](shapes/RestoreBackupOutput.md)
+  - [RewriteGraphInput](shapes/RewriteGraphInput.md)
+  - [RewriteGraphOutput](shapes/RewriteGraphOutput.md)
