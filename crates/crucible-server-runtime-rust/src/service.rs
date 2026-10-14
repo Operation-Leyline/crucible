@@ -461,6 +461,19 @@ impl Crucible {
                     },
                 ));
         }
+        // The service's own not-found error is answered as the framework's
+        // NotFound is: never cached, whether a hidden resource's (built by
+        // the not-found factory) or a genuinely missing one's (the handler's),
+        // so the two cannot be told apart, and visibility changes with
+        // grants.
+        if let Some(crate::Resolution::Modelled(error)) = job.resolution()
+            && job.service().not_found == Some(error.shape_id())
+        {
+            response.headers_mut().insert(
+                axum::http::header::CACHE_CONTROL,
+                HeaderValue::from_static("no-store"),
+            );
+        }
         if !response.headers().contains_key("x-request-id") {
             response
                 .headers_mut()

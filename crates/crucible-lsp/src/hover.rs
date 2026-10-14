@@ -390,6 +390,14 @@ const KEYWORDS: &[Row] = &[
         "service Weather {\n    operations [Ping, Status]\n}",
     ),
     (
+        "notFound",
+        SERVICE,
+        "The error the service answers a missing resource with, which every operation with a permission requirement gets instead of `crucible.errors#NotFoundException`: one of the package's own errors, with status 404. A hidden resource is answered with it too, built by the service's `not_found_factory`, so the two read alike.",
+        "service Weather {
+    notFound CityNotFound
+}",
+    ),
+    (
         "resources",
         SERVICE,
         "The root resources the service serves. The operations attached to them, and to their child resources, are part of the service.",

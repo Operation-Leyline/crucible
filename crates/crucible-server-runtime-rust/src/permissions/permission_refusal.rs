@@ -1,10 +1,13 @@
 use super::{Check, Origin, PermissionInfo, ResourceRef};
 use crate::{Error, FrameworkError};
 
-/// A Denied verdict, for a service that answers it with its own error
+/// A Denied verdict, or a `filters` listing the Authorizer answered
+/// [`Visibility::Denied`](super::Visibility::Denied), for a service that
+/// answers it with its own error
 /// ([`Permissions::refusal_factory`](super::Permissions::refusal_factory)).
 /// It is also left on the request context as a typed attribute. A Hidden
-/// verdict never becomes one: it is always the framework's 404.
+/// verdict never becomes one: it is the not-found error, which never names
+/// a permission.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PermissionRefusal {
     check: Check,

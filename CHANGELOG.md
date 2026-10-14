@@ -178,6 +178,35 @@ version's section when it is prepared.
   migration note. See
   [docs/framework.md](docs/framework.md#typed-permissions).
 
+- A service's own not-found error for typed permissions. A `.cru` service
+  whose errors are its own (and so cannot import `crucible.errors`) names
+  its 404 with `notFound ResourceNotFoundException` in the service block:
+  an error of its package with status 404 (`permissions.not-found-error`
+  otherwise). Check 17 attaches it, instead of
+  `crucible.errors#NotFoundException`, to every operation with something to
+  hide; without a designation nothing changes. The IR carries it as
+  `Service::not_found` (`#[serde(default)]`; `Service::not_found_error()`
+  answers whichever applies) and the server bindings as
+  `ServiceInfo::not_found` (`service_info(..).with_not_found(..)`).
+  `Permissions::not_found_factory(|resource: &ResourceRef| ..)` builds it
+  for a Hidden verdict or a hidden listing, from the resource type and the
+  identifiers the request named, so a service gives it the constructor its
+  handlers answer a genuine miss with and the two stay byte-identical;
+  `permissions::not_found` and a generated reference's `not_found()` call
+  it too. A designation without a factory, or a factory without one, fails
+  the build, and a factory that builds another error is an internal error.
+  Every response carrying the designated error is sent with
+  `Cache-Control: no-store`. The release guard reports an operation that
+  switches to a newly designated 404 as a new error. `crucible-lsp`
+  completes and explains `notFound`. See
+  [docs/framework.md](docs/framework.md#typed-permissions).
+
+- `Visibility::Denied`: an Authorizer refuses a `filters` listing with a
+  403 (a suspended workspace or user), answered as a Denied verdict on the
+  clause is, through `refusal_factory` with the clause's permission, in
+  declaration order with the other clauses. `Visibility::shows` is false
+  for it.
+
 - `FrameworkError::NotFound { resource }`: HTTP 404, the modelled
   `crucible.errors#NotFoundException` with the resource's `message` (`No
   such inbox.`) and `resourceType`, sent with `Cache-Control: no-store` (a

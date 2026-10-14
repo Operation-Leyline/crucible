@@ -22,8 +22,8 @@ use serde_json::Value as Json;
 
 use super::{DeclRef, Lowerer, Position};
 use crate::ast::{
-    Annotation, BindingValue, BodyKind, Condition as Cond, ConditionKind, Decl, Key, MemberKind,
-    OpEntry, Operation, RequirementKind, Resource, Value,
+    Annotation, BindingValue, BodyKind, Condition as Cond, ConditionKind, Decl, Ident, Key,
+    MemberKind, OpEntry, Operation, RequirementKind, Resource, Value,
 };
 use crate::compile::FileDiagnostic;
 use crate::compile::Location;
@@ -679,7 +679,31 @@ impl<'a> Lowerer<'a> {
         }
     }
 
-    /// Check 17: the framework NotFound joins the operation's own errors.
+    /// `notFound X` in the service: the service's own 404, which check 17
+    /// attaches instead of the framework's. An error of the service's own
+    /// package; its status is the shared check's.
+    pub(super) fn designate_not_found(&mut self, file: usize, name: &Ident) {
+        let problem = match self.decl(&name.name) {
+            Some(decl) if matches!(decl.item.decl, Decl::Error(_)) && decl.ns == self.ns => {
+                let id = self.ref_id(&name.name);
+                self.visit(&id);
+                self.not_found = Some(id);
+                return;
+            }
+            Some(decl) if matches!(decl.item.decl, Decl::Error(_)) => format!(
+                "permissions.not-found-error: `{}` is declared in `{}`; the service's not-found error is an error of its own package",
+                name.name, decl.ns
+            ),
+            _ => format!(
+                "permissions.not-found-error: `{}` is not an error; `notFound` names the error the service answers a missing resource with",
+                name.name
+            ),
+        };
+        self.error(file, name.span, problem);
+    }
+
+    /// Check 17: the service's not-found error (its own, or the framework
+    /// NotFound) joins the operation's own errors.
     pub(super) fn attach_not_found(
         &mut self,
         requirements: &Requirements,
@@ -689,12 +713,21 @@ impl<'a> Lowerer<'a> {
         if !needs_not_found(requirements, &self.permissions) {
             return;
         }
-        let id = not_found_id();
-        let bundled = self.decl(id.name()).is_some_and(|decl| {
-            decl.ns == id.namespace() && matches!(decl.item.decl, Decl::Error(_))
-        });
-        // Without it the shared check reports the missing import.
-        if bundled && !errors.contains(&id) {
+        let id = match &self.not_found {
+            Some(id) => id.clone(),
+            None => {
+                let id = not_found_id();
+                let bundled = self.decl(id.name()).is_some_and(|decl| {
+                    decl.ns == id.namespace() && matches!(decl.item.decl, Decl::Error(_))
+                });
+                // Without it the shared check reports the missing import.
+                if !bundled {
+                    return;
+                }
+                id
+            }
+        };
+        if !errors.contains(&id) {
             self.visit(&id);
             errors.insert(own.min(errors.len()), id);
         }

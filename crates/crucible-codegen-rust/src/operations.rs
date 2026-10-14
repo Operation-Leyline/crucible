@@ -469,7 +469,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     };
     let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {cors},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {cors},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){}{};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
@@ -479,6 +479,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
         option(functions.internal.is_some(), "internal"),
         option(functions.unknown.is_some(), "unknown"),
         crate::permissions::registry(service),
+        crate::permissions::not_found(service),
     )
 }
 

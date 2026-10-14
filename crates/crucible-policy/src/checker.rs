@@ -1,7 +1,7 @@
 use crate::direction::Direction;
 use crate::{Report, Severity};
 use crucible_smithy::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
-use crucible_smithy::validate::{needs_not_found, not_found_id};
+use crucible_smithy::validate::needs_not_found;
 use crucible_smithy::{Feature, Protocol, ShapeId};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -181,14 +181,14 @@ impl Checker<'_> {
                 .iter()
                 .filter_map(|id| error_code(self.old, id))
                 .collect();
-            let attached = attached_not_found(old_op, new_op, self.new);
+            let attached = attached_not_found(old_op, new_op, self.old, self.new);
             for new_error in &new_op.errors {
                 let Some(code) = error_code(self.new, new_error) else {
                     continue;
                 };
                 // The framework NotFound a new requirement brings is part of
                 // the authorization change, reported as such.
-                if attached && *new_error == not_found_id() {
+                if attached && *new_error == self.new.not_found_error() {
                     continue;
                 }
                 if !old_codes.contains(&code) {
@@ -593,8 +593,9 @@ impl Checker<'_> {
                 continue;
             };
             let mut errors = new_op.errors.clone();
-            if attached_not_found(old_op, new_op, self.new) {
-                errors.retain(|e| *e != not_found_id());
+            if attached_not_found(old_op, new_op, self.old, self.new) {
+                let not_found = self.new.not_found_error();
+                errors.retain(|e| *e != not_found);
             }
             if old_op.input != new_op.input
                 || old_op.output != new_op.output
@@ -789,14 +790,23 @@ fn error_info<'a>(
     }
 }
 
-/// The released operation gained `crucible.errors#NotFoundException`
+/// The released operation gained the service's not-found error
+/// (`crucible.errors#NotFoundException`, or the one the service designates)
 /// because a requirement now attaches it (docs/permissions.md check 17):
-/// that is the `compatibility.authorization` change, not a new error.
-fn attached_not_found(old: &Operation, new: &Operation, service: &Service) -> bool {
-    let id = not_found_id();
+/// that is the `compatibility.authorization` change, not a new error. An
+/// operation that already had something to hide and now answers another
+/// not-found error (the service designated its own) has a new error.
+fn attached_not_found(
+    old: &Operation,
+    new: &Operation,
+    old_service: &Service,
+    service: &Service,
+) -> bool {
+    let id = service.not_found_error();
     !old.errors.contains(&id)
         && new.errors.contains(&id)
         && needs_not_found(&new.requirements, &service.permissions)
+        && !needs_not_found(&old.requirements, &old_service.permissions)
 }
 
 fn error_code<'a>(service: &'a Service, id: &ShapeId) -> Option<&'a str> {

@@ -101,6 +101,13 @@ pub struct Service {
     /// The `@permissionTypes` enum, if the service has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permission_types: Option<PermissionTypes>,
+    /// The error the service answers a hidden or missing resource with,
+    /// when it designates its own (`.cru` `notFound ResourceNotFoundException`
+    /// in the service block): what check 17 attaches to every operation with
+    /// something to hide, instead of `crucible.errors#NotFoundException`.
+    /// `None` is the framework's. Read it through [`Service::not_found_error`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub not_found: Option<ShapeId>,
 }
 
 /// An older API version: its release's model, and how a request or a
@@ -251,6 +258,14 @@ pub struct ResourceReference {
 }
 
 impl Service {
+    /// The error a hidden resource is refused with (docs/permissions.md
+    /// check 17): the service's designated [`not_found`](Self::not_found),
+    /// or `crucible.errors#NotFoundException`.
+    pub fn not_found_error(&self) -> ShapeId {
+        self.not_found
+            .clone()
+            .unwrap_or_else(crate::validate::not_found_id)
+    }
     /// Every scope the service declares, service default and operations, sorted
     /// and unique: what an authorization server or discovery document advertises.
     pub fn all_scopes(&self) -> Vec<&str> {

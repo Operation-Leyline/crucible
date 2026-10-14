@@ -1,10 +1,12 @@
 use std::sync::{Arc, Mutex};
 
-use super::session::{RefusalFactory, Registry, Session, Settings, TARGET};
+use super::session::{
+    NotFound, NotFoundFactory, RefusalFactory, Registry, Session, Settings, TARGET,
+};
 use super::{
     Authorizer, Check, ErasedChecks, Listing, Mode, Obligation, ObligationOutcome,
     ObligationRecord, OperationFacts, Origin, PermissionInfo, PermissionRefusal, RequirementInfo,
-    Requirements, Target, Verdict, Visibility,
+    Requirements, ResourceRef, Target, Verdict, Visibility,
 };
 use crate::operation::{Input, OperationInfo};
 use crate::{
@@ -27,9 +29,12 @@ use crate::{
 /// - **Requirements**: the operation's `CHECKS` bind each applicable clause
 ///   to the input, the Authorizer answers them in one batch, and the first
 ///   verdict in declaration order that is not Allowed refuses the request.
-///   Hidden is always the framework's 404; Denied is a 403, or what
+///   Hidden is the framework's 404, or the service's own when the model
+///   designates one (what [`not_found_factory`](Self::not_found_factory)
+///   builds); Denied is a 403, or what
 ///   [`refusal_factory`](Self::refusal_factory) builds. A `filters` clause
-///   asks [`Authorizer::visible`] for [`visible`](super::visible), and each
+///   asks [`Authorizer::visible`] for [`visible`](super::visible) (a Hidden
+///   or Denied answer refuses like a verdict on that clause), and each
 ///   `by handler` clause opens an obligation the handler must close.
 ///
 /// Every request it covers gets an [`AuthorizationRecord`](super::AuthorizationRecord)
@@ -40,6 +45,10 @@ use crate::{
 pub struct Permissions {
     authorizer: Arc<dyn Authorizer>,
     refusal: RefusalFactory,
+    not_found_factory: Option<NotFoundFactory>,
+    /// The model's not-found error with the factory, once the service is
+    /// built.
+    not_found: Option<NotFound>,
     registry: Registry,
     allow_undeclared: bool,
     shadow: bool,
@@ -70,6 +79,8 @@ impl Permissions {
         Self {
             authorizer: Arc::new(authorizer),
             refusal: Arc::new(PermissionRefusal::default_error),
+            not_found_factory: None,
+            not_found: None,
             registry: Arc::default(),
             allow_undeclared: false,
             shadow: false,
@@ -93,13 +104,36 @@ impl Permissions {
     /// by the operation or the service. Named like
     /// `AuthenticatorChain::refusal_factory`, `ScopeEnforcer::refusal_factory`
     /// and `Idempotency::refusal_factory`. A Hidden verdict never reaches it:
-    /// a 404 of the service's own would tell a hidden resource from a missing
-    /// one.
+    /// it is the not-found error ([`not_found_factory`](Self::not_found_factory)).
+    /// A `filters` listing the Authorizer answers [`Visibility::Denied`]
+    /// does, as a refusal of the clause's permission.
     pub fn refusal_factory(
         mut self,
         factory: impl Fn(&PermissionRefusal) -> Error + Send + Sync + 'static,
     ) -> Self {
         self.refusal = Arc::new(factory);
+        self
+    }
+
+    /// How a Hidden verdict (and a hidden `filters` listing) is answered
+    /// when the model designates the service's own not-found error
+    /// (`notFound ResourceNotFoundException` in the `.cru` service): the
+    /// factory builds that error from the hidden resource, its type and the
+    /// identifiers the request named, never the permission. Build it with
+    /// the same function the handlers use for a genuinely missing resource,
+    /// so the two cannot be told apart; [`permissions::not_found`](super::not_found)
+    /// (and a generated reference's `not_found()`) calls it for them.
+    ///
+    /// Required when the model designates one, and refused when it does
+    /// not (the framework's `NotFoundException` is then the 404): either
+    /// mismatch fails the build. An error the factory builds that is not the
+    /// designated one is answered as an internal error and logged as a
+    /// wiring error.
+    pub fn not_found_factory(
+        mut self,
+        factory: impl Fn(&ResourceRef) -> Error + Send + Sync + 'static,
+    ) -> Self {
+        self.not_found_factory = Some(Arc::new(factory));
         self
     }
 
@@ -143,6 +177,7 @@ impl Permissions {
         Settings {
             authorizer: self.authorizer.clone(),
             refusal: self.refusal.clone(),
+            not_found: self.not_found.clone(),
             registry: self.registry.clone(),
             shadow: self.shadow,
             assert_obligations: self.assert_obligations,
@@ -224,7 +259,8 @@ impl Permissions {
         // The listing's own refusal competes by its clause position, so
         // batched and sequential checking refuse a request alike: a Hidden
         // listing declared first is a 404 even when a later clause is
-        // Denied. It is not asked when an earlier clause already refused
+        // Denied, and a Denied one a 403 even when a later clause is
+        // Hidden. It is not asked when an earlier clause already refused
         // (unless shadowing, which records everything).
         if let Some((index, listing)) = listing {
             let earlier = refusal
@@ -236,6 +272,10 @@ impl Permissions {
                         let verdict = session.something_to_hide(&listing.resource, Verdict::Hidden);
                         let check = Check::declared(index, listing.permission, listing.resource);
                         refusal = Some((check, verdict));
+                    }
+                    Ok(Visibility::Denied) if !earlier => {
+                        let check = Check::declared(index, listing.permission, listing.resource);
+                        refusal = Some((check, Verdict::Denied));
                     }
                     Ok(_) => {}
                     Err(error) if self.shadow => shadow_failure(operation, &error),
@@ -513,6 +553,28 @@ impl Interceptor for Permissions {
                 "Permissions is registered after Idempotency, so a refused request would claim its idempotency token and a replay would be answered without authorization; register Permissions first".to_owned(),
             );
         }
+        // A designated not-found error and its factory come together: one
+        // without the other would answer a hidden resource unlike a missing
+        // one.
+        let service = prepare.service();
+        self.not_found = match (service.not_found, &self.not_found_factory) {
+            (Some(shape), Some(factory)) => Some(NotFound {
+                shape,
+                factory: factory.clone(),
+                classify: service.classify,
+            }),
+            (None, None) => None,
+            (Some(shape), None) => {
+                return Err(format!(
+                    "Permissions: the model answers a missing resource with `{shape}` (`notFound` in the service), so a hidden one must be too: give Permissions a not_found_factory that builds it, with the same function the handlers use"
+                ));
+            }
+            (None, Some(_)) => {
+                return Err(
+                    "Permissions: a not_found_factory needs the model to designate the service's own not-found error (`notFound <Error>` in the service); without one, a hidden resource is the framework's NotFoundException".to_owned(),
+                );
+            }
+        };
         // What a stored authorization may name: the service's registry and
         // every permission its operations require.
         let mut registry: Vec<&'static PermissionInfo> = prepare.service().permissions.to_vec();

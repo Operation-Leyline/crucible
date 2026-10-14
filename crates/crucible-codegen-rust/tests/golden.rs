@@ -116,6 +116,32 @@ fn permissions_server_bindings_match_golden() {
     assert!(!tools.contains("organization:read"), "{tools}");
 }
 
+/// A service with errors of its own that designates its 404
+/// (`notFound ResourceNotFoundException`): the service description names
+/// it, and a typed reference's `not_found()` asks the service's factory,
+/// the one that answers a hidden resource.
+#[test]
+fn a_designated_not_found_error_matches_golden() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/permissions-not-found");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let rendered = compiled.render();
+    assert!(compiled.diagnostics.is_empty(), "\n{rendered}");
+    let service = compiled.service.expect("the fixture compiles");
+    let code = generate(&service, &Options::default()).unwrap();
+    assert!(
+        code.contains(".with_not_found(\"example.desk#ResourceNotFoundException\")"),
+        "{code}"
+    );
+    assert!(!code.contains("crucible.errors"), "{code}");
+    matches_golden(&code, "permissions_not_found.rs");
+    // Without the designation nothing changes: the references answer the
+    // framework's 404 themselves.
+    let leyline = generate(&leyline(), &Options::default()).unwrap();
+    assert!(!leyline.contains("with_not_found"), "{leyline}");
+    assert!(!leyline.contains("permission_not_found"), "{leyline}");
+}
+
 #[test]
 fn cors_server_description_matches_golden() {
     let service = Model::from_json(include_str!(

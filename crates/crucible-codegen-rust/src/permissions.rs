@@ -143,7 +143,7 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
             ));
         }
         out.push_str(&permission_enum(names));
-        out.push_str(&reference(names));
+        out.push_str(&reference(names, service.not_found.is_some()));
     }
     out.push_str(&union(&resources));
     out.push_str(&resource_union(&resources));
@@ -281,7 +281,9 @@ fn article(noun: &str) -> &'static str {
 
 /// `InboxRef`: one instance, or every instance under its parents, with the
 /// conversions to and from the runtime's `ResourceRef`.
-fn reference(names: &Names<'_>) -> String {
+/// `designated`: the model designates its own not-found error, which only
+/// the runtime (through the service's factory) can build.
+fn reference(names: &Names<'_>, designated: bool) -> String {
     let name = names.reference();
     let identifiers = &names.resource.identifiers;
     let Some((leaf, parents)) = identifiers.split_last() else {
@@ -341,8 +343,15 @@ fn reference(names: &Names<'_>) -> String {
         .collect();
     let resource = &names.resource.name;
     let info = &names.info;
+    let not_found = if designated {
+        "    /// The service's not-found error for it, built by the\n    /// `not_found_factory` that answers a hidden instance, so a genuinely\n    /// missing one reads alike.\n    pub fn not_found(&self) -> ::crucible_server_runtime_rust::__generated::error::Error {\n        ::crucible_server_runtime_rust::__generated::permission_not_found(&self.to_ref())\n    }\n".to_owned()
+    } else {
+        format!(
+            "    /// The framework's 404 for it: what a hidden instance answers, so a\n    /// genuinely missing one reads alike.\n    pub fn not_found(&self) -> {ERROR} {{\n        {info}.not_found_error()\n    }}\n"
+        )
+    };
     out.push_str(&format!(
-        "impl {name} {{\n    /// The resource's description.\n    pub const INFO: &'static {P}::ResourceInfo = &{info};\n    /// One instance.\n    pub fn new({}) -> Self {{\n        Self {{ {} }}\n    }}\n    /// Every instance under the parents, including ones created later.\n    pub fn all({}) -> Self {{\n        Self {{ {} }}\n    }}\n    /// The framework's 404 for it: what a hidden instance answers, so a\n    /// genuinely missing one reads alike.\n    pub fn not_found(&self) -> {ERROR} {{\n        {info}.not_found_error()\n    }}\n    fn to_ref(&self) -> {P}::ResourceRef {{\n        {P}::ResourceRef::new(&{info}, [{}])\n    }}\n}}\n\n",
+        "impl {name} {{\n    /// The resource's description.\n    pub const INFO: &'static {P}::ResourceInfo = &{info};\n    /// One instance.\n    pub fn new({}) -> Self {{\n        Self {{ {} }}\n    }}\n    /// Every instance under the parents, including ones created later.\n    pub fn all({}) -> Self {{\n        Self {{ {} }}\n    }}\n{not_found}    fn to_ref(&self) -> {P}::ResourceRef {{\n        {P}::ResourceRef::new(&{info}, [{}])\n    }}\n}}\n\n",
         one.join(", "),
         one_fields.join(", "),
         parameters.join(", "),
@@ -506,6 +515,14 @@ pub(crate) fn registry(service: &Service) -> String {
             .collect::<Vec<_>>()
             .join(",\n    ")
     )
+}
+
+/// The service's own not-found error, when the model designates one: what
+/// `Permissions` asks its `not_found_factory` for, and what is never cached.
+pub(crate) fn not_found(service: &Service) -> String {
+    service.not_found.as_ref().map_or_else(String::new, |id| {
+        format!("\n.with_not_found({})", literal(&id.to_string()))
+    })
 }
 
 /// `REQUIREMENTS`, `CHECKS` and `PUBLIC` for a server marker.

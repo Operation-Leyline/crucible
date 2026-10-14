@@ -1,0 +1,100 @@
+/// Workspaces and their rooms. Its errors are its own, so it answers a
+/// missing room, and a hidden one, with its own `ResourceNotFoundException`.
+service Desk {
+    version "2026-10-01"
+    protocol json
+    auth bearer
+    notFound ResourceNotFoundException
+
+    resources [Workspace]
+    errors [AccessDeniedException, InternalServerException, ValidationException]
+}
+
+string WorkspaceId
+string RoomId
+list RoomIds: RoomId
+
+/// A tenant.
+resource Workspace {
+    id workspaceId: WorkspaceId
+
+    /// Read the workspace.
+    permission read = "workspace:read"
+}
+
+/// A room in a workspace.
+resource Room in Workspace {
+    id roomId: RoomId
+
+    /// Read a room.
+    permission read = "room:read"
+}
+
+/// What kind of thing an error is about.
+enum ErrorResourceType {
+    WORKSPACE = "workspace"
+    ROOM = "room"
+}
+
+/// Why a request was refused for its caller.
+enum AccessDeniedReason {
+    /// The caller holds no grant for this.
+    PERMISSION_MISSING = "permission_missing"
+
+    /// The workspace is suspended.
+    WORKSPACE_SUSPENDED = "workspace_suspended"
+}
+
+/// Something about the request itself is wrong.
+error ValidationException {
+    status 400
+    message: string
+}
+
+/// The caller may not do this.
+error AccessDeniedException {
+    status 403
+    message: string
+    reason: AccessDeniedReason
+}
+
+/// Something failed on our side.
+error InternalServerException {
+    status 500
+    retryable
+    message: string
+}
+
+/// The request names something that does not exist, or does not exist for
+/// this caller: a hidden room reads as a missing one.
+error ResourceNotFoundException {
+    status 404
+    message: string
+    resourceType: ErrorResourceType
+    resourceId: string
+}
+
+readonly operation GetWorkspace on Workspace {
+    http GET "/w/{workspaceId}"
+    requires read
+    input { $workspaceId }
+    output { name: string }
+}
+
+readonly operation GetRoom on Room {
+    http GET "/w/{workspaceId}/rooms/{roomId}"
+    requires read
+    input {
+        $workspaceId
+        $roomId
+    }
+    output { name: string }
+}
+
+/// Only the rooms the caller holds `room:read` on.
+readonly operation ListRooms on Room collection {
+    http GET "/w/{workspaceId}/rooms"
+    filters read on Room
+    input { $workspaceId }
+    output { rooms: RoomIds }
+}

@@ -80,6 +80,15 @@ fn main() {
         crucible_build::model(leyline).server().render().unwrap(),
     )
     .unwrap();
+    // A service with errors of its own that designates its 404: Hidden is
+    // built by the service's not-found factory (tests/permissions_not_found.rs).
+    let desk = "../../tests/fixtures/permissions-not-found";
+    println!("cargo::rerun-if-changed={desk}");
+    std::fs::write(
+        out.join("permissions_not_found.rs"),
+        crucible_build::model(desk).server().render().unwrap(),
+    )
+    .unwrap();
     // And its client: open permission constants without the internal ones.
     std::fs::write(
         out.join("permissions_client.rs"),

@@ -15,6 +15,19 @@ use crate::{Context, Error, OperationJob, Outcome, Result};
 
 pub(crate) type RefusalFactory = Arc<dyn Fn(&PermissionRefusal) -> Error + Send + Sync>;
 
+pub(crate) type NotFoundFactory = Arc<dyn Fn(&ResourceRef) -> Error + Send + Sync>;
+
+/// The service's own not-found error, when the model designates one: what
+/// a hidden resource is answered with, built by the service.
+#[derive(Clone)]
+pub(crate) struct NotFound {
+    /// The designated error's shape id.
+    pub shape: &'static str,
+    pub factory: NotFoundFactory,
+    /// The service's: tells whether the factory built the designated error.
+    pub classify: crate::operation::Classify,
+}
+
 /// Every permission a stored authorization may name: the service's
 /// registry and every permission its operations require.
 pub(crate) type Registry = Arc<Vec<&'static PermissionInfo>>;
@@ -31,6 +44,7 @@ pub(crate) struct Session(Arc<State>);
 struct State {
     authorizer: Arc<dyn Authorizer>,
     refusal: RefusalFactory,
+    not_found: Option<NotFound>,
     /// What a replay's stored checks are read back against.
     #[cfg_attr(not(feature = "idempotency"), allow(dead_code))]
     registry: Registry,
@@ -54,6 +68,7 @@ struct Inner {
 pub(crate) struct Settings {
     pub authorizer: Arc<dyn Authorizer>,
     pub refusal: RefusalFactory,
+    pub not_found: Option<NotFound>,
     pub registry: Registry,
     pub shadow: bool,
     pub assert_obligations: bool,
@@ -64,6 +79,7 @@ impl Session {
         Self(Arc::new(State {
             authorizer: settings.authorizer.clone(),
             refusal: settings.refusal.clone(),
+            not_found: settings.not_found.clone(),
             registry: settings.registry.clone(),
             facts,
             shadow: settings.shadow,
@@ -199,16 +215,46 @@ impl Session {
     }
 
     /// The error a verdict that is not Allowed is answered with: the
-    /// framework's 404 for Hidden, the service's refusal for Denied.
+    /// not-found error for Hidden, the service's refusal for Denied.
     pub fn refuse(&self, context: &Context, check: &Check, verdict: Verdict) -> Error {
         match verdict {
-            Verdict::Hidden => check.resource.not_found(),
+            Verdict::Hidden => self.not_found(&check.resource),
             Verdict::Allowed | Verdict::Denied => {
                 let refusal = PermissionRefusal::new(check.clone());
                 context.set_attribute(refusal.clone());
                 (self.0.refusal)(&refusal)
             }
         }
+    }
+
+    /// The 404 for `resource`, hidden or missing alike: the framework's
+    /// NotFound, or the service's own error when the model designates one,
+    /// built by its factory. A factory that builds anything else would make
+    /// a hidden resource tell itself apart, so that is a wiring error,
+    /// answered with the service's internal error.
+    pub fn not_found(&self, resource: &ResourceRef) -> Error {
+        let Some(not_found) = &self.0.not_found else {
+            return resource.not_found();
+        };
+        let error = (not_found.factory)(resource);
+        let built = (not_found.classify)(error.get_ref()).map(|modelled| modelled.shape_id());
+        if built == Some(not_found.shape) {
+            return error;
+        }
+        tracing::error!(
+            target: TARGET,
+            operation = self.0.facts.id,
+            resource = %resource,
+            built = built.unwrap_or("an unmodelled error"),
+            expected = not_found.shape,
+            "a wiring error: the not_found_factory built another error than the model's not-found error, so a hidden resource would read unlike a missing one"
+        );
+        Error::internal(format!(
+            "{}: the not_found_factory built {}, not {}",
+            self.0.facts.id,
+            built.unwrap_or("an unmodelled error"),
+            not_found.shape
+        ))
     }
 
     /// What `listing` may show, recorded.
@@ -620,6 +666,7 @@ mod tests {
             &Settings {
                 authorizer: Arc::new(Answering(verdict)),
                 refusal: Arc::new(|refusal| refusal.default_error()),
+                not_found: None,
                 registry: Arc::new(vec![&ADMIN]),
                 shadow,
                 assert_obligations: true,

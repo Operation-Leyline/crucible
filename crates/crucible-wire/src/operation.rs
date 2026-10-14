@@ -129,6 +129,13 @@ pub struct ServiceInfo {
     /// decision is read back against, and where a modelled
     /// `NotFoundException` finds its resource.
     pub permissions: &'static [&'static crate::permissions::PermissionInfo],
+    /// The shape id of the error the service answers a hidden or missing
+    /// resource with, when the model designates its own (`notFound` in the
+    /// `.cru` service, [`ServiceInfo::with_not_found`]); `None` is the
+    /// framework's `crucible.errors#NotFoundException`. The server never
+    /// builds it: the service's `not_found_factory` does, and every
+    /// response that carries it is sent with `Cache-Control: no-store`.
+    pub not_found: Option<&'static str>,
 }
 
 pub type Classify =
@@ -148,6 +155,14 @@ impl ServiceInfo {
         permissions: &'static [&'static crate::permissions::PermissionInfo],
     ) -> Self {
         self.permissions = permissions;
+        self
+    }
+
+    /// The same service with its own not-found error, by shape id:
+    /// generated as `.with_not_found("pigeon.api#ResourceNotFoundException")`
+    /// for a model that designates one.
+    pub const fn with_not_found(mut self, shape_id: &'static str) -> Self {
+        self.not_found = Some(shape_id);
         self
     }
 

@@ -10,8 +10,14 @@ pub enum Visibility {
     /// handler filters to them.
     Only(BTreeSet<String>),
     /// The parent is outside the caller's visibility boundary: the
-    /// framework's 404.
+    /// not-found error (the framework's 404, or the service's own), as a
+    /// Hidden verdict is answered.
     Hidden,
+    /// The caller can see the parent but may not list it at all (a
+    /// suspended workspace, a suspended user): a 403, answered as a Denied
+    /// verdict on the `filters` clause is, through the refusal factory with
+    /// the clause's permission.
+    Denied,
 }
 
 impl Visibility {
@@ -20,7 +26,7 @@ impl Visibility {
         match self {
             Self::All => true,
             Self::Only(ids) => ids.contains(id),
-            Self::Hidden => false,
+            Self::Hidden | Self::Denied => false,
         }
     }
 }

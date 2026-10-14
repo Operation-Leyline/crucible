@@ -468,3 +468,46 @@ fn declaring_requirements_on_a_released_operation_is_not_a_new_error() {
             .any(|f| f.rule == "compatibility.error" && f.shape == "example.leyline#GetUser"),
     );
 }
+
+#[test]
+fn designating_the_services_own_not_found_error_after_a_release_is_a_new_error() {
+    let designated = edit(
+        BASE,
+        "    auth bearer
+",
+        "    auth bearer
+    notFound Missing
+",
+    ) + "
+error Missing {
+    status 404
+    message: string
+}
+";
+    // An operation that already hid something now answers another 404.
+    let found = findings(&designated);
+    assert!(
+        found.iter().any(|f| f.rule == "compatibility.error"
+            && f.shape == "example.leyline#GetGraph"
+            && f.message == "new modelled error \"Missing\" can reach old clients"),
+        "{found:#?}"
+    );
+    // A requirement declared on a pending operation brings the designated
+    // 404 with it, as it brings the framework's: an authorization change.
+    let pending = edit(
+        &designated,
+        "    requires read
+    input { $organizationId }",
+        "    requires pending because \"later\"
+    input { $organizationId }",
+    );
+    let found = findings_from(&pending, &designated);
+    expect(
+        &found,
+        "compatibility.authorization",
+        "GetOrganization",
+        "(it was `requires pending`)",
+        Severity::Warning,
+    );
+    none_of(&found, &["compatibility.error", "compatibility.sdk"]);
+}

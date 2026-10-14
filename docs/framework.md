@@ -856,15 +856,20 @@ For each operation it covers, `Permissions`:
   not an allow.
 - **Answers a `filters` listing.** It asks `visible` and the handler reads
   the answer with `permissions::visible()`: `All`, `Only(ids)` to filter
-  to, or `Hidden`, a 404. The listing's refusal takes its clause's place in
-  declaration order: a Hidden listing declared before a Denied check is a
-  404, and a listing declared after a refused check is not asked.
+  to, `Hidden`, a 404, or `Denied`, a 403 refusing the clause's permission
+  (a caller who may see the workspace but may list nothing in it, such as a
+  suspended account), answered as a Denied verdict is, through the refusal
+  factory. The listing's refusal takes its clause's place in declaration
+  order: a Hidden listing declared before a Denied check is a 404, a Denied
+  listing declared before a Hidden check a 403, and a listing declared
+  after a refused check is not asked.
 - **Opens obligations** for `requires p on R by handler` clauses (below).
 - **Records everything** in an `AuthorizationRecord` on the request
   context, for audit middleware that runs later: each check with its origin
   and verdict, the listing, a pending reason, each obligation's outcome.
 
-**Hidden and Denied.** Hidden is always `FrameworkError::NotFound`, encoded
+**Hidden and Denied.** Hidden is `FrameworkError::NotFound` (unless the
+model designates the service's own not-found error, below), encoded
 as the modelled `crucible.errors#NotFoundException` (404, `Cache-Control:
 no-store`, members `message`, the resource's fixed `ResourceInfo::not_found`
 such as `No such inbox.`, and `resourceType`, the authorization name), named
@@ -888,8 +893,56 @@ no token would carry a grant. `Permissions::refusal_factory` builds a
 service's own error from the `PermissionRefusal` instead, from
 `public_permission()` (`None` for an internal permission);
 `permission_for_logging()` names an internal one too, for logs only. The
-error must be declared by the operation or the service. The factory never sees Hidden, since a 404 of the service's own
-would tell the two apart again.
+error must be declared by the operation or the service. The factory never
+sees Hidden: a 404 that is not the one handlers answer a missing resource
+with would tell the two apart again.
+
+**A service's own not-found error.** A service whose errors are its own
+cannot import `crucible.errors` (its `ValidationException` would collide,
+and renaming it changes `__type` on the wire), and it already answers a
+missing resource with its own 404. It designates that error in the model:
+
+```
+service Pigeon {
+    notFound ResourceNotFoundException   // a 404 client error of this package
+    errors [AccessDeniedException, InternalServerException, ValidationException]
+}
+```
+
+Check 17 then attaches it, not `crucible.errors#NotFoundException`, to
+every operation with something to hide, and nothing of `crucible.errors` is
+needed. The bindings name it (`SERVICE.not_found`, from
+`.with_not_found("pigeon.api#ResourceNotFoundException")`). Its members are
+the service's (an enum resource type, the id the caller named), so the
+runtime never builds it: `Permissions::not_found_factory` does, from the
+hidden resource's `ResourceRef` (its `ResourceInfo` and the identifiers the
+request named, never the permission). Give it the same constructor the
+handlers use for a genuine miss, and the two are byte-identical:
+
+```rust
+/// Pigeon's one 404: its handlers' and the not-found factory's.
+fn not_found(resource: &ResourceRef) -> Error {
+    let (resource_type, resource_id) = match pigeon::permissions::Resource::try_from(resource) {
+        Ok(Resource::Inbox(InboxRef { inbox_id: Target::One(id), .. })) => (ErrorResourceType::Inbox, id),
+        // `Inbox(*)`, a listing or a creation: what is hidden is the workspace.
+        Ok(Resource::Inbox(inbox)) => (ErrorResourceType::Workspace, inbox.workspace_id),
+        // ..
+    };
+    ResourceNotFoundException { message: resource.resource().not_found.into(), resource_type, resource_id, request_id: None }.into()
+}
+
+Permissions::new(authorizer)
+    .not_found_factory(not_found)
+    .refusal_factory(denied)
+```
+
+A model that designates one needs the factory, and a factory needs the
+designation: either alone fails the build. A factory that builds another
+error is a wiring error, answered with the internal error.
+`permissions::not_found(&resource)` and a generated reference's
+`not_found()` call the factory too, inside a request `Permissions` covers.
+Every response carrying the designated error, hidden or missing, is sent
+with `Cache-Control: no-store`, as the framework's NotFound is.
 
 **Handler checks.** What the model cannot bind is checked from the handler
 through the same Authorizer, with task-local functions like

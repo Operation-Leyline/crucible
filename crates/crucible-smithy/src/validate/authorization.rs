@@ -98,8 +98,9 @@ impl fmt::Display for PermissionFinding {
     }
 }
 
-/// Whether lowering attaches `crucible.errors#NotFoundException` to an
-/// operation with these requirements (check 17): any clause that is not on
+/// Whether lowering attaches the service's not-found error
+/// ([`Service::not_found_error`]) to an operation with these requirements
+/// (check 17): any clause that is not on
 /// a root resource with `*` has something to hide.
 pub fn needs_not_found(
     requirements: &Requirements,
@@ -174,6 +175,7 @@ fn check(service: &Service, facts: Option<&PermissionFacts>) -> Vec<PermissionFi
     };
     check.vocabulary();
     check.permission_types();
+    check.designated_not_found();
     for operation in &service.operations {
         check.operation(operation);
     }
@@ -1099,19 +1101,70 @@ impl<'a> Checker<'a> {
         }
     }
 
+    /// The service's own not-found error, when it designates one (check
+    /// 17): a client error with HTTP status 404, declared in the service's
+    /// own namespace. Its members are the service's to fill; the runtime
+    /// asks the service to build it.
+    fn designated_not_found(&mut self) {
+        let model = self.service;
+        let Some(id) = &model.not_found else {
+            return;
+        };
+        let service = &model.id;
+        let problem = match model.shape(id) {
+            _ if id.namespace() != service.namespace() => Some(format!(
+                "`{id}` is not declared in the service's namespace `{}`; the service's not-found error is its own",
+                service.namespace()
+            )),
+            Some(Shape::Structure(s)) => match &s.error {
+                Some(error) if error.status == 404 && error.fault == crate::ir::Fault::Client => {
+                    None
+                }
+                Some(error) => Some(format!(
+                    "`{}` answers {}; the service's not-found error is a client error with status 404",
+                    id.name(),
+                    error.status
+                )),
+                None => Some(format!("`{}` is not an error", id.name())),
+            },
+            Some(_) => Some(format!("`{}` is not an error", id.name())),
+            None => Some(format!(
+                "`{id}`, the service's not-found error, is not in the model"
+            )),
+        };
+        if let Some(problem) = problem {
+            self.error("permissions.not-found-error", service, None, problem);
+        }
+    }
+
     /// Check 17.
     fn not_found(&mut self, op: &'a Operation) {
         if !needs_not_found(&op.requirements, &self.service.permissions) {
             return;
         }
-        let not_found = not_found_id();
+        let not_found = self.service.not_found_error();
+        let designated = self.service.not_found.is_some();
         if !op.errors.contains(&not_found) || self.service.shape(&not_found).is_none() {
-            self.error(
-                "permissions.not-found",
-                &op.id,
-                None,
-                "a requirement attaches `crucible.errors#NotFoundException`, which the model does not contain: import the `crucible.errors` package",
-            );
+            // A designated error that is not in the model is reported once,
+            // against the service.
+            if !designated {
+                self.error(
+                    "permissions.not-found",
+                    &op.id,
+                    None,
+                    "a requirement attaches `crucible.errors#NotFoundException`, which the model does not contain: import the `crucible.errors` package, or designate the service's own 404 with `notFound` in the service",
+                );
+            } else if self.service.shape(&not_found).is_some() {
+                self.error(
+                    "permissions.not-found",
+                    &op.id,
+                    None,
+                    format!(
+                        "a requirement attaches `{not_found}`, the service's not-found error, which `{}` does not declare",
+                        op.name()
+                    ),
+                );
+            }
             return;
         }
         for error in &op.errors {
@@ -1121,12 +1174,17 @@ impl<'a> Checker<'a> {
             if let Some(Shape::Structure(s)) = self.service.shape(error)
                 && s.error.as_ref().is_some_and(|e| e.status == 404)
             {
+                let framework = if designated {
+                    format!("the service's not-found error `{}`", not_found.name())
+                } else {
+                    "the framework NotFoundException".to_owned()
+                };
                 self.warning(
                     "permissions.second-not-found",
                     &op.id,
                     None,
                     format!(
-                        "`{}` also declares `{}`, another 404; report genuine absence with the framework NotFoundException, so a hidden resource and a missing one answer alike",
+                        "`{}` also declares `{}`, another 404; report genuine absence with {framework}, so a hidden resource and a missing one answer alike",
                         op.name(),
                         error.name()
                     ),

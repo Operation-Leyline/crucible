@@ -12,11 +12,14 @@
 //! - **Declared checks** run before the operation, in one batched
 //!   `Authorizer::decide` call, and the first verdict in declaration order
 //!   that is not `Verdict::Allowed` refuses the request: `Verdict::Hidden`
-//!   is the framework's 404 (`FrameworkError::NotFound`),
+//!   is the framework's 404 (`FrameworkError::NotFound`), or the service's
+//!   own not-found error when the model designates one (`notFound` in the
+//!   service; `Permissions::not_found_factory` builds it), and
 //!   `Verdict::Denied` a 403 that may name the missing permission (never an
 //!   internal one), or what `Permissions::refusal_factory` builds.
 //! - **Listings that filter** ask `Authorizer::visible`, and the handler
-//!   reads the answer with `visible`.
+//!   reads the answer with `visible`; a hidden or denied listing is refused
+//!   as a Hidden or Denied verdict on its clause would be.
 //! - **Handler obligations** (`requires p on R by handler`) are opened before
 //!   the operation and must be closed by the handler, with `discharge` or
 //!   `not_applicable`, before `idempotency::commit()`
@@ -108,11 +111,18 @@ use crate::Result;
 #[cfg(feature = "permissions")]
 use session::Session;
 
-/// The framework's 404 for `resource`: what a handler returns when the
-/// resource is genuinely missing, so the answer is byte-identical to the one
-/// an authorization that hides it gets. It names the resource's type and
-/// nothing else.
+/// The 404 for `resource`: what a handler returns when the resource is
+/// genuinely missing, so the answer is byte-identical to the one an
+/// authorization that hides it gets. The framework's `NotFoundException`,
+/// naming the resource's type and nothing else; or, when the model
+/// designates the service's own not-found error, what the
+/// `Permissions::not_found_factory` builds from `resource`, which needs the
+/// request to be one `Permissions` covers (elsewhere it is the framework's).
 pub fn not_found(resource: &ResourceRef) -> Error {
+    #[cfg(feature = "permissions")]
+    if let Ok((_, session)) = Session::current() {
+        return session.not_found(resource);
+    }
     resource.not_found()
 }
 
@@ -184,8 +194,9 @@ pub fn not_applicable(obligation: Obligation, reason: impl Into<String>) -> Resu
 
 /// What a `filters` listing may show, as the Authorizer answered it before
 /// the operation ran: [`Visibility::All`], or [`Visibility::Only`] the ids
-/// the handler filters to. An internal error for an operation without a
-/// `filters` clause.
+/// the handler filters to. (A Hidden or Denied listing was refused before
+/// the handler ran, except under `Permissions::shadow`, where it shows
+/// nothing.) An internal error for an operation without a `filters` clause.
 #[cfg(feature = "permissions")]
 pub fn visible() -> Result<Visibility> {
     let (_, session) = Session::current()?;

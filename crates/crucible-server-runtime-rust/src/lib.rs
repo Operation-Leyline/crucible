@@ -126,6 +126,7 @@ pub mod __generated {
     #[cfg(feature = "explorer")]
     pub use crate::explorer::description::description as explorer_description;
     pub use crate::generated_operations_builder::OperationsBuilder;
+    pub use crate::permissions::not_found as permission_not_found;
     pub use crate::{
         Context, Crucible, MissingOperations, ModelledError, Operation, OperationInfo, Operations,
         Result, ServiceInfo, WithContext, mcp, operations, versioning,

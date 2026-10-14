@@ -7,7 +7,9 @@ its decisions are 37a-37k in [idl/decisions.md](idl/decisions.md). The A2
 runtime (#246) and the B generators (#248: server bindings, client
 constants, the API reference and OpenAPI) are in
 [framework.md](framework.md#typed-permissions); the "As built" notes in
-§6.2 say where they differ from this document. Phase C, the consumers'
+§6.2 and §7.4 say where they differ from this document. Adopting in Pigeon
+added a service's own not-found error and a Denied listing (the addendum
+to decision 5). Phase C, the consumers'
 adoption (Pigeon first, then Leyline; §10), has not started.
 
 **Permissions are declared in `.cru` models only.** A Smithy model cannot
@@ -398,6 +400,9 @@ the interceptor asks the Authorizer what is visible under the bound parent
 - **Hidden**: refused with the framework 404, for example a non-member.
 - **All**: no filtering needed.
 - **Only(ids)**: the handler filters to these ids.
+- **Denied**: refused with a 403 for the clause's permission, for a caller
+  who may see the parent but list nothing in it (a suspended workspace or
+  user). *Added while adopting in Pigeon* (see the addendum to decision 5).
 
 The handler reads the answer with `permissions::visible()`, the way a
 paginated operation reads `page_tokens::resume()`. The docs say "returns
@@ -683,10 +688,14 @@ All of these are errors unless marked. Everything that holds of the IR
 17. Lowering adds `crucible.errors#NotFoundException` to the error list of
     every operation with a `requires` or `filters` clause, unless every
     clause targets a root resource with `*`, which leaves nothing to hide
-    (decision 5). *Warning*, `permissions.second-not-found`: such an
+    (decision 5). A service that designates its own not-found error
+    (`notFound E` in the service, the addendum to decision 5) gets `E`
+    instead, and needs nothing of `crucible.errors`; `E` is an error of the
+    service's own package, a client error with status 404
+    (`permissions.not-found-error`). *Warning*, `permissions.second-not-found`: such an
     operation also declares another error with HTTP status 404. The handler
     could return it for genuine absence, and a 404 that differs from the
-    framework's tells the caller which one it got.
+    service's not-found error tells the caller which one it got.
 18. *Advice*, `permissions.unchecked-reference`: an input binds an
     identifier of another resource that declares permissions, and no
     requirement covers it. Pigeon's `CreateInbox` takes `$domainId` and
@@ -799,6 +808,21 @@ pub public: bool,      // declared public: Smithy `@auth([])` on the operation, 
 Internal,              // client audience only: every clause named an internal permission,
                        // and the projection removed them. A `List` is never empty.
 ```
+
+And one made while adopting in Pigeon (the addendum to decision 5):
+
+```rust
+// ir::Service
+#[serde(default, skip_serializing_if = "Option::is_none")]
+pub not_found: Option<ShapeId>,   // `notFound E`: the service's own 404, which check 17
+                                  // attaches instead of crucible.errors#NotFoundException;
+                                  // None is the framework's. `Service::not_found_error()`
+                                  // answers whichever applies.
+```
+
+Generated server bindings carry it as `ServiceInfo::not_found`
+(`service_info(..).with_not_found("pigeon.api#ResourceNotFoundException")`),
+the shape id the runtime checks the service's factory against.
 
 The checks of §5 run once, in `crucible_smithy::validate::permissions`,
 with facts lowering knows and the IR does not keep (`PermissionFacts`:
@@ -1017,7 +1041,7 @@ pub struct Check {
     pub origin: Origin,                       // Declared(index) | Obligation(index) | Handler
 }
 pub enum Verdict { Allowed, Denied, Hidden }
-pub enum Visibility { All, Only(BTreeSet<String>), Hidden }
+pub enum Visibility { All, Only(BTreeSet<String>), Hidden, Denied }   // Denied: as built, below
 ```
 
 - **Freshness is the Authorizer's** (decision 3). It receives the
@@ -1193,6 +1217,23 @@ so a hidden inbox and a missing one produce byte-identical responses. Check
 17's warning catches an operation that still declares its own 404. Hidden
 is not customizable: `refusal_factory` sees only Denied, because a service
 mapping Hidden to its own error would make the two distinguishable again.
+
+*As built (the addendum to decision 5).* A service whose model designates
+its own not-found error (`notFound ResourceNotFoundException`) answers
+Hidden with that error, built by `Permissions::not_found_factory` from the
+hidden `ResourceRef` (its `ResourceInfo` and the identifiers the request
+named; the factory never sees the permission). The guarantee is kept by
+construction rather than by a fixed shape: the service gives the factory
+the same constructor its handlers answer a genuine miss with, and
+`permissions::not_found` and the generated references' `not_found()` call
+it too. The runtime refuses to build a service that designates an error
+without a factory, or gives a factory without a designation, answers a
+factory that builds any other error as an internal error, and sends every
+response carrying the designated error, hidden or missing, with
+`Cache-Control: no-store`. `refusal_factory` still never sees Hidden.
+A `filters` listing the Authorizer answers `Visibility::Denied` is refused
+like a Denied verdict on its clause: through `refusal_factory`, with the
+clause's permission, in declaration order with the other clauses.
 
 **Denied may name the permission.** `refusal_factory` builds a service's
 own error from a `PermissionRefusal`:
@@ -1625,6 +1666,26 @@ service frameworks.
    cacheable. *Changed from the draft:* the error is a modelled shape
    attached to every resource-bound operation, the factory can no longer
    customize Hidden, and handlers must use the same constructor.
+
+   *Addendum (adopting in Pigeon).* Pigeon declares its own
+   `ValidationException`, `InternalServerException` and their reason and
+   field shapes, so importing `crucible.errors` collides, and renaming its
+   errors would change `__type` on the wire; it already answers genuine
+   absence with its own `ResourceNotFoundException` (`resourceType`, an
+   enum, and `resourceId`). Under the decision as written it could declare
+   no requirement at all. So a service may designate its own 404 in the
+   model, `notFound ResourceNotFoundException` in the service block: an
+   error of its own package with status 404, which check 17 attaches
+   instead of the framework's. Since the runtime cannot fill a service's
+   members, the service builds the error, with `not_found_factory`, from
+   the hidden resource and the identifiers the request named, never the
+   permission. What the decision protects is that a hidden and a missing
+   resource are indistinguishable; with a designation that holds because
+   both are the one error built by the one constructor, and both are sent
+   `no-store`. The default (no designation) is unchanged. In the same
+   change, `Visibility` gains `Denied`, so a listing can be refused with a
+   403 (Pigeon refuses a suspended workspace or user that way) rather than
+   only hidden.
 
 6. **`by handler` ships in v1, declared in the model.** It generates an
    obligation the handler must discharge through the Authorizer before any
