@@ -303,9 +303,10 @@ version's section when it is prepared.
   an operation was declared public (`.cru` `public`, or Smithy
   `@auth([])`).
   `crucible check` counts permissions and lists pending operations.
-  An operation with a requirement has `NotFoundException` in its `errors`,
-  so its generated error types gain the 404. The phase B entry covers the
-  generators reading the rest.
+  An operation that gets `NotFoundException` in its `errors` this way
+  (or, since the not-found-error entry above, the service's designated
+  404) has the 404 in its generated error types too. The phase B entry
+  covers the generators reading the rest.
 
 - `crucible-build` and `crucible` print a `.cru` package's advice beside
   its warnings. `crucible_smithy::validate::permissions_from_ir` runs the
