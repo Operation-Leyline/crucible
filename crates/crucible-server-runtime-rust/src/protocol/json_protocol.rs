@@ -389,7 +389,7 @@ pub(super) fn bound_members<'a>(
                     let name = match percent_decode(name, true) {
                         Ok(name) => name.into_owned(),
                         Err(message) => {
-                            violations.push_with(|| malformed(member.name, &message));
+                            violations.push_with(|| malformed(&map_key(member), &message));
                             continue;
                         }
                     };

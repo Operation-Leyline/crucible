@@ -570,8 +570,9 @@ version's section when it is prepared.
 - **Rejections no longer name client text in a violation's path.** Since
   0.7.0, a strict structure's unknown member is reported at `[key]`, not at
   the member's name; a malformed value of a query parameter the operation
-  does not declare at `query`, not at the parameter's name; a malformed key
-  of an `@httpQueryParams` or `@httpPrefixHeaders` map at `<member>/[key]`;
+  does not declare at `query`, not at the parameter's name; a malformed
+  entry of an `@httpQueryParams` or `@httpPrefixHeaders` map at
+  `<member>/[key]`, not at its query key or header name;
   and a CBOR input missing a required member as a broken constraint
   (`fieldValidationFailed`, `is required` at the member's name) instead of
   an unreadable request (`cannotParse`), as JSON already was. An unsupported
