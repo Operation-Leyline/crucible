@@ -401,29 +401,23 @@ impl Context<'_> {
     }
 
     fn require_default(&self, target: &Target, value: &Value) -> Json {
-        // An enum literal names its symbol; validation and the runtime
-        // conversion must see the same corresponding wire value.
+        // An unquoted enum literal names its symbol; validation and the
+        // runtime conversion must see the same corresponding wire value. A
+        // quoted string is already a wire value, as in a member's default:
+        // with `SPECIAL = "RED"`, `default "RED"` means SPECIAL, not RED.
         let default = json(value);
-        if let (Json::String(symbol), Some(Shape::Structure(owner))) =
-            (&default, self.new.shapes.get(&target.shape))
+        if let Value::Ident(symbol) = value
+            && let Some(Shape::Structure(owner)) = self.new.shapes.get(&target.shape)
             && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
         {
             match self.new.shapes.get(&member.target) {
                 Some(Shape::Enum(enumeration)) => {
-                    if let Some(found) = enumeration
-                        .values
-                        .iter()
-                        .find(|value| &value.name == symbol)
-                    {
+                    if let Some(found) = enumeration.values.iter().find(|v| v.name == symbol.name) {
                         return Json::String(found.value.clone());
                     }
                 }
-                Some(Shape::IntEnum(enumeration)) if matches!(value, Value::Ident(_)) => {
-                    if let Some(found) = enumeration
-                        .values
-                        .iter()
-                        .find(|value| &value.name == symbol)
-                    {
+                Some(Shape::IntEnum(enumeration)) => {
+                    if let Some(found) = enumeration.values.iter().find(|v| v.name == symbol.name) {
                         return Json::Number(found.value.into());
                     }
                 }

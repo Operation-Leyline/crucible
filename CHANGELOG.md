@@ -347,7 +347,9 @@ version's section when it is prepared.
   type and effective constraints before a migration can be generated.
   An invalid default can no longer pass the guard and break older requests.
   Valid timestamp and integer-enum defaults use the destination wire
-  representation.
+  representation. As in a member's default, an unquoted enum literal names
+  a symbol and a quoted string is the wire value itself, even when it
+  spells another symbol's name.
 
 - The language server includes new unsaved buffers inside a package's
   source directories when checking diagnostics and resolving symbols.
