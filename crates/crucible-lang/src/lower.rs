@@ -62,6 +62,8 @@ pub(crate) fn lower(
         declared_permissions: BTreeMap::new(),
         permissions: BTreeMap::new(),
         permission_facts: crucible_smithy::validate::PermissionFacts::default(),
+        service_findings: Vec::new(),
+        unlowered_requirements: BTreeSet::new(),
         not_found: None,
         permission_sites: BTreeMap::new(),
         requirement_sites: BTreeMap::new(),
@@ -386,6 +388,12 @@ struct Lowerer<'a> {
     /// The service's: its reachable resources' `declared_permissions`.
     permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
     permission_facts: crucible_smithy::validate::PermissionFacts,
+    /// What the shared check found in the service, so the check of what it
+    /// does not reach repeats none of it.
+    service_findings: Vec<crucible_smithy::validate::PermissionFinding>,
+    /// Operations whose every requirement clause failed to lower: they are
+    /// `Undeclared` in the IR, and not reported as declaring nothing.
+    unlowered_requirements: BTreeSet<ShapeId>,
     /// The service's own not-found error (`notFound X`), which check 17
     /// attaches instead of `crucible.errors#NotFoundException`.
     not_found: Option<ShapeId>,
@@ -4878,7 +4886,7 @@ impl<'a> Lowerer<'a> {
         let mut probe = service.clone();
         probe.operations = unreached;
         probe.shapes = std::mem::take(&mut self.shapes);
-        self.check_unreached_permissions(&mut probe);
+        self.check_unreached_permissions(&probe);
         let mut issues = crucible_smithy::Diagnostics::default();
         for operation in &probe.operations {
             crucible_smithy::validate::operation(&probe, operation, &mut issues);

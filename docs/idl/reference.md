@@ -229,8 +229,9 @@ language's own checks include:
 - permissions ([permissions.md](../permissions.md) §5, checks 1-18): they
   run on the IR in `crucible_smithy::validate::permissions`, and each
   diagnostic starts with its code
-  (`permissions.undeclared` and the like), for the operations the service
-  does not reach too. A resource that declares permissions declares an
+  (`permissions.undeclared` and the like), for the operations and
+  resources the service does not reach too, unless another service of the
+  package reaches them. A resource that declares permissions declares an
   identifier of its own (`permissions.identifier`), so `*` never binds a
   parent's. A resource's permission symbols
   and values are unique, `none` and `pending` are no symbol, values follow `permission_value` and do not

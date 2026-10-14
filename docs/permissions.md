@@ -634,8 +634,10 @@ the bundled `crucible.errors` package: it is the shared error vocabulary.
 
 All of these are errors unless marked. Everything that holds of the IR
 (all but the grammar) runs in `crucible_smithy::validate`, over the IR that
-`.cru` lowering produces. Operations the service does not reach are
-checked too, in its context, as the other rules check them.
+`.cru` lowering produces. Operations and resources the service does not
+reach are checked too, in its context, as the other rules check them,
+except what another service of the package reaches: that service's
+compile checks it.
 
 **Vocabulary**
 

@@ -384,8 +384,9 @@ version's section when it is prepared.
   package, a permission named `none` or `pending` (`permissions.symbol`),
   `requires none` with a target, `when` or `by handler`, `requires
   pending` without `because`, and `filters p on R` on a listing of another
-  resource than `R` are errors. Operations the service does not reach get
-  the permission checks too. A permission annotation on another target
+  resource than `R` are errors. Operations and resources the service
+  does not reach get the permission checks too, unless another service of
+  the package reaches them. A permission annotation on another target
   says where it applies, rather than suggesting a metadata key that cannot
   take a built-in's name. `when has tags` may test a list or map member; a
   member named `has` or `not` reads as one in a `when`; a binding type is

@@ -23,8 +23,8 @@ use serde_json::Value as Json;
 
 use super::{DeclRef, Lowerer, Position};
 use crate::ast::{
-    Annotation, BindingValue, BodyKind, Condition as Cond, ConditionKind, Decl, Ident, Key,
-    MemberKind, OpEntry, Operation, RequirementKind, Resource, Value,
+    Annotation, BindingValue, BodyKind, ClauseValue, Condition as Cond, ConditionKind, Decl, Ident,
+    Key, MemberKind, OpEntry, Operation, RequirementKind, Resource, Value,
 };
 use crate::compile::FileDiagnostic;
 use crate::compile::Location;
@@ -687,8 +687,11 @@ impl<'a> Lowerer<'a> {
             });
         }
         if lowered.is_empty() {
-            // Every clause is reported already; none is left to check.
-            return Requirements::None;
+            // Every clause is reported already. `Undeclared` keeps the
+            // editor's best-effort IR from reading as "needs no permission",
+            // and the operation is not also told it says nothing.
+            self.unlowered_requirements.insert(id.clone());
+            return Requirements::Undeclared;
         }
         Requirements::List(lowered)
     }
@@ -835,34 +838,38 @@ impl<'a> Lowerer<'a> {
             }
             crucible_smithy::validate::permissions(&probe, &self.permission_facts)
         };
+        self.service_findings.clone_from(&findings);
         self.report_permission_findings(findings);
     }
 
-    /// The shared checks of the operations the service does not reach,
-    /// which are checked in its context (`check_unreached`). `probe` holds
-    /// just those operations and every shape. A resource the service does
-    /// not reach is still the one such an operation names, so every
-    /// declared resource takes part; only the findings about the
-    /// operations are reported, since the rest were reported with the
-    /// service.
-    pub(super) fn check_unreached_permissions(&mut self, probe: &mut Service) {
-        if probe.operations.is_empty() {
-            return;
-        }
-        let operations: BTreeSet<ShapeId> =
-            probe.operations.iter().map(|op| op.id.clone()).collect();
+    /// The shared checks of what the service does not reach: operations
+    /// and resources checked in its context (`check_unreached`), as drafts
+    /// of it. `probe` holds just those operations and every shape. What
+    /// another service of the package reaches is not a draft of this one:
+    /// it is checked when that service compiles. A resource no service
+    /// reaches still takes part, both as what a draft operation names and
+    /// for its own vocabulary. Findings already reported with the service
+    /// are not repeated, and `permissions.unrequired` is not reported: the
+    /// probe holds none of the service's requirements.
+    pub(super) fn check_unreached_permissions(&mut self, probe: &Service) {
+        let others = self.reached_by_other_services(probe.id.name());
+        let mut drafts = probe.clone();
+        drafts.operations.retain(|op| !others.contains(&op.id));
+        // The enum names the service's resources; a draft is not one yet.
+        drafts.permission_types = None;
         for (id, permissions) in &self.declared_permissions {
-            probe
-                .permissions
-                .entry(id.clone())
-                .or_insert_with(|| permissions.clone());
+            if !others.contains(id) {
+                drafts
+                    .permissions
+                    .entry(id.clone())
+                    .or_insert_with(|| permissions.clone());
+            }
         }
         let mut facts = self.permission_facts.clone();
         let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
+        // Imported resources too: an unreached operation may name one.
         for decl in decls {
-            if let Decl::Resource(resource) = &decl.item.decl
-                && decl.ns == self.ns
-            {
+            if let Decl::Resource(resource) = &decl.item.decl {
                 let id = self.ref_id(&resource.name.name);
                 facts
                     .resources
@@ -873,18 +880,84 @@ impl<'a> Lowerer<'a> {
         // Whether every operation must say something is the service's
         // question: a resource it does not reach does not make it ask.
         let declares = !self.permissions.is_empty();
-        let findings = crucible_smithy::validate::permissions(probe, &facts)
+        let findings = crucible_smithy::validate::permissions(&drafts, &facts)
             .into_iter()
             .filter(|finding| {
-                operations.contains(&finding.shape)
+                !self.service_findings.contains(finding)
+                    && !others.contains(&finding.shape.root())
+                    && finding.code != "permissions.unrequired"
                     && (declares || finding.code != "permissions.undeclared")
             })
             .collect();
         self.report_permission_findings(findings);
     }
 
+    /// The operations and resources other services of the package reach:
+    /// the operations they list, the resources under the roots they list,
+    /// and the operations attached to those.
+    fn reached_by_other_services(&self, chosen: &str) -> BTreeSet<ShapeId> {
+        let mut operations: BTreeSet<&str> = BTreeSet::new();
+        let mut roots: BTreeSet<&str> = BTreeSet::new();
+        for decl in self.decls.values() {
+            let Decl::Service(block) = &decl.item.decl else {
+                continue;
+            };
+            if decl.ns != self.ns || block.name.name == chosen {
+                continue;
+            }
+            for clause in &block.clauses {
+                let into = match clause.name.name.as_str() {
+                    "operations" => &mut operations,
+                    "resources" => &mut roots,
+                    _ => continue,
+                };
+                if let ClauseValue::Value(Value::List(values, _)) = &clause.value {
+                    into.extend(values.iter().filter_map(|value| match value {
+                        Value::Ident(name) => Some(name.name.as_str()),
+                        _ => None,
+                    }));
+                }
+            }
+        }
+        let mut reached = BTreeSet::new();
+        if operations.is_empty() && roots.is_empty() {
+            return reached;
+        }
+        let under_root = |resource: &str| {
+            self.chain(resource)
+                .iter()
+                .any(|(_, r)| roots.contains(r.name.name.as_str()))
+        };
+        for decl in self.decls.values() {
+            if decl.ns != self.ns {
+                continue;
+            }
+            match &decl.item.decl {
+                Decl::Resource(resource) if under_root(&resource.name.name) => {
+                    reached.insert(self.ref_id(&resource.name.name));
+                }
+                Decl::Operation(operation)
+                    if operations.contains(operation.name.name.as_str())
+                        || operation
+                            .attachment
+                            .as_ref()
+                            .is_some_and(|a| under_root(&a.resource.name)) =>
+                {
+                    reached.insert(self.ref_id(&operation.name.name));
+                }
+                _ => {}
+            }
+        }
+        reached
+    }
+
     fn report_permission_findings(&mut self, findings: Vec<PermissionFinding>) {
         for finding in findings {
+            if finding.code == "permissions.undeclared"
+                && self.unlowered_requirements.contains(&finding.shape)
+            {
+                continue;
+            }
             let location = finding
                 .requirement
                 .and_then(|index| self.requirement_sites.get(&(finding.shape.clone(), index)))

@@ -2184,6 +2184,88 @@ fn a_condition_that_does_not_lower_leaves_its_clause_out() {
     // Not an unconditional `manage`.
     assert_eq!(clauses.len(), 1, "{clauses:?}");
     assert_eq!(clauses[0].permission, "read");
+    // With no clause left, it is not "needs no permission" either, and is
+    // not also told it says nothing.
+    let compiled = compile(
+        &small(&BASE.replace(
+            "    requires manage\n    requires read\n",
+            "    requires manage when storeId == [1]\n",
+        )),
+        None,
+    );
+    let service = compiled.best_effort.as_ref().expect("best effort");
+    assert_eq!(
+        requirements(service, "ManageStore"),
+        &Requirements::Undeclared
+    );
+    let messages: Vec<&str> = compiled
+        .diagnostics
+        .iter()
+        .map(|d| d.diagnostic.message.as_str())
+        .collect();
+    assert!(
+        messages
+            .iter()
+            .all(|m| !m.starts_with("permissions.undeclared")),
+        "{messages:#?}"
+    );
+}
+
+#[test]
+fn another_services_operations_are_not_drafts_of_this_one() {
+    // Two services in one package: compiling `Shop` does not check
+    // `Admin`'s operations, which say nothing, as drafts of `Shop`.
+    let source = format!(
+        "{BASE}\nservice Admin {{\n    version \"1\"\n    protocol json\n    auth bearer\n    operations [Audit]\n    resources [Board]\n}}\nreadonly operation Audit {{\n    http GET \"/audit\"\n}}\nstring BoardId {{ pattern \"^b_\" }}\nresource Board {{\n    id boardId: BoardId\n    permission read = \"board:read\"\n}}\nreadonly operation GetBoard reads Board {{\n    http GET \"/boards/{{boardId}}\"\n    input {{ $boardId }}\n}}\n"
+    );
+    let compiled = compile(&small(&source), Some("Shop"));
+    let messages: Vec<&str> = compiled
+        .diagnostics
+        .iter()
+        .map(|d| d.diagnostic.message.as_str())
+        .collect();
+    assert!(
+        messages.iter().all(|m| !m.starts_with("permissions.")),
+        "{messages:#?}"
+    );
+    // A draft listed by no service still is one.
+    let compiled = compile(
+        &small(&format!(
+            "{source}\nreadonly operation Draft {{\n    http GET \"/draft\"\n}}\n"
+        )),
+        Some("Shop"),
+    );
+    let messages: Vec<&str> = compiled
+        .diagnostics
+        .iter()
+        .map(|d| d.diagnostic.message.as_str())
+        .filter(|m| m.starts_with("permissions."))
+        .collect();
+    assert_eq!(messages.len(), 1, "{messages:#?}");
+    assert!(
+        messages[0].starts_with("permissions.undeclared: `Draft` says nothing about authorization"),
+        "{messages:#?}"
+    );
+}
+
+#[test]
+fn a_resource_no_service_reaches_has_its_vocabulary_checked() {
+    let found = check_source(&format!(
+        "{BASE}\nstring DraftId {{ pattern \"^d_\" }}\nresource Draft {{\n    id draftId: DraftId\n    permission read = \"Draft:Read\"\n    permission write = \"draft:write\"\n    permission write = \"draft:write2\"\n}}\n"
+    ));
+    expect(
+        &found,
+        "error: permissions.value: \"Draft:Read\" is not a permission value",
+    );
+    expect(
+        &found,
+        "error: permissions.duplicate: `Draft` declares the permission `write` twice",
+    );
+    // Nothing requires a draft's permissions yet, and that is not news.
+    assert!(
+        found.iter().all(|m| !m.contains("permissions.unrequired")),
+        "{found:#?}"
+    );
 }
 
 #[test]
