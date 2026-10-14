@@ -1503,7 +1503,12 @@ authentication, audience selection and browser limits.
   converts the event, since the conversion panics on them and a
   `panic = "abort"` build cannot recover a panic; a path or query with
   characters a URI does not carry raw is percent-encoded instead, which
-  decoding undoes.
+  decoding undoes. An HTTP API passes the path decoded, so a `%` in it is
+  the client's `%25` and is encoded too; a REST API, an ALB and a
+  Function URL pass it as the client sent it, and a `%` there stays the
+  escape it is. A Function URL's event has the HTTP API's shape and is
+  told apart by its `*.lambda-url.<region>.on.aws` domain name, so an
+  event built by hand with another domain name is read as an HTTP API's.
 - **Elsewhere** (ECS, a VM, a laptop): it serves HTTP on `CRUCIBLE_ADDR`,
   else `0.0.0.0:$PORT`, else `0.0.0.0:8080`. On SIGTERM or Ctrl-C it stops
   accepting and finishes the requests in flight.

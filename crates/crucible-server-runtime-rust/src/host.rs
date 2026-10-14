@@ -334,13 +334,17 @@ mod lambda_event {
         }
     }
 
-    /// How large a replaced answer was: exactly, or only that it passed the
-    /// limit, for a body read up to the limit whose length was not known
-    /// ahead (a stream is not read to its end just to measure it).
+    /// How large a replaced answer was, and of what: the response body
+    /// (`body_size`), when it alone passed the limit; the whole answer in
+    /// the event's shape (`answer_size`), when the body fit but the
+    /// answer around it, its headers and base64, did not; or only that the
+    /// body passed the limit, for a body whose length was not known ahead
+    /// (a stream is not read to its end just to measure it).
     #[derive(Clone, Copy)]
     enum Size {
-        Exactly(usize),
-        Over,
+        Body(usize),
+        Answer(usize),
+        BodyOver,
     }
 
     /// Says why an answer was replaced, in the function's logs: the service
@@ -348,8 +352,13 @@ mod lambda_event {
     fn too_large(request_id: &str, size: Size, limit: usize) {
         const MESSAGE: &str = "the response is larger than its event source takes back from Lambda; answered 500 instead";
         match size {
-            Size::Exactly(size) => tracing::error!(request_id, size, limit, "{MESSAGE}"),
-            Size::Over => tracing::error!(request_id, at_least = limit + 1, limit, "{MESSAGE}"),
+            Size::Body(body_size) => tracing::error!(request_id, body_size, limit, "{MESSAGE}"),
+            Size::Answer(answer_size) => {
+                tracing::error!(request_id, answer_size, limit, "{MESSAGE}");
+            }
+            Size::BodyOver => {
+                tracing::error!(request_id, body_at_least = limit + 1, limit, "{MESSAGE}");
+            }
         }
     }
 
@@ -367,6 +376,10 @@ mod lambda_event {
         request_context: Option<IgnoredAny>,
         #[serde(rename = "httpMethod", default)]
         http_method: Option<IgnoredAny>,
+        /// `"1.0"` on an HTTP API's payload format 1.0 event, which REST
+        /// API events (the same shape) leave out. Raw, like `operation`.
+        #[serde(borrow, default)]
+        version: Option<&'a RawValue>,
     }
 
     /// The request id an API Gateway event carries in its request context.
@@ -399,7 +412,7 @@ mod lambda_event {
             if answer.len() > RESPONSE_LIMIT {
                 too_large(
                     &request_id(meta_id.as_ref()),
-                    Size::Exactly(answer.len()),
+                    Size::Answer(answer.len()),
                     RESPONSE_LIMIT,
                 );
                 return Ok(
@@ -416,6 +429,9 @@ mod lambda_event {
                     .expect("the failure envelope is JSON")
             }));
         }
+        let version = envelope
+            .version
+            .and_then(|raw| serde_json::from_str::<Cow<'_, str>>(raw.get()).ok());
         let mut request: LambdaRequest = serde_json::from_str(payload)?;
         // A Function URL or HTTP API passes the query as the client sent it;
         // lambda_http appends it to the URI and panics if the URI then fails
@@ -425,12 +441,16 @@ mod lambda_event {
         {
             *query = uri_query(query);
         }
-        // The path is as the source passed it, which may hold what a URI
-        // does not carry raw: a space, `<`, non-ASCII, or a `?` or `#` API
-        // Gateway decoded, which lambda_http would read as the start of a
-        // query or fragment. Encoded the same way, before the conversion
-        // reads it: the request's URI and its raw path both carry it
-        // encoded, and decoding gives it back.
+        // The path is as the source passed it. An HTTP API passes it
+        // decoded, so it may hold what a URI does not carry raw (a space,
+        // `<`, non-ASCII, a `?` or `#` lambda_http would read as the start
+        // of a query or fragment) and a `%` is one the client sent as
+        // `%25`. A REST API, an ALB and a Function URL pass it as the
+        // client sent it, escapes and all. Encoded before the conversion
+        // reads it, `%` too where the source decoded: the request's URI
+        // and its raw path both carry it encoded, and decoding once gives
+        // back what the client sent.
+        let decoded = path_decoded(&request, version.as_deref());
         let path = match &mut request {
             LambdaRequest::ApiGatewayV1(event) => event.path.as_mut(),
             LambdaRequest::ApiGatewayV2(event) => event.raw_path.as_mut(),
@@ -439,7 +459,7 @@ mod lambda_event {
             _ => None,
         };
         if let Some(path) = path {
-            *path = uri_path(path);
+            *path = uri_path(path, decoded);
         }
         let origin = request.request_origin();
         // The event's own request id, as `event_request_id` reads it after
@@ -518,7 +538,7 @@ mod lambda_event {
                 if std::error::Error::source(&error)
                     .is_some_and(|cause| cause.is::<http_body_util::LengthLimitError>()) =>
             {
-                let size = known.map_or(Size::Over, Size::Exactly);
+                let size = known.map_or(Size::BodyOver, Size::Body);
                 return oversized(origin, id, size, limit);
             }
             Err(error) => return Err(error.into()),
@@ -540,7 +560,7 @@ mod lambda_event {
         if answer.get().len() <= limit {
             return Ok(answer);
         }
-        oversized(origin, id, Size::Exactly(answer.get().len()), limit)
+        oversized(origin, id, Size::Answer(answer.get().len()), limit)
     }
 
     /// The framework's internal failure with the request id to quote, in the
@@ -581,11 +601,39 @@ mod lambda_event {
         encode(query, b"-._~!$&'()*+,;=:@/?%")
     }
 
-    /// `path` as [`uri_query`] treats a query: every byte a URI path does
-    /// not carry raw percent-encoded, `?` and `#` included (in a path they
-    /// would start a query or a fragment), existing `%` escapes kept.
-    fn uri_path(path: &str) -> String {
-        encode(path, b"-._~!$&'()*+,;=:@/%")
+    /// `path` with every byte a URI path does not carry raw
+    /// percent-encoded, `?` and `#` included (in a path they would start a
+    /// query or a fragment). A `%` is kept as the escape it is in a path
+    /// the source passed as sent, and encoded in one it `decoded`, where it
+    /// is a literal.
+    fn uri_path(path: &str, decoded: bool) -> String {
+        if decoded {
+            encode(path, b"-._~!$&'()*+,;=:@/")
+        } else {
+            encode(path, b"-._~!$&'()*+,;=:@/%")
+        }
+    }
+
+    /// Whether the event's source decoded the path before passing it on:
+    /// an HTTP API does, at payload format 2.0 (`rawPath`) and 1.0 (`path`,
+    /// marked by its `version`), while a REST API, an ALB and a Function URL
+    /// pass it as the client sent it. A Function URL's event has the HTTP
+    /// API's 2.0 shape; its request context names the function URL's own
+    /// domain, `<url-id>.lambda-url.<region>.on.aws`. AWS does not document
+    /// the decoding; this follows captured events (API Gateway HTTP APIs
+    /// deliver `space%20value` as `space value`, Function URLs keep it).
+    fn path_decoded(request: &LambdaRequest, version: Option<&str>) -> bool {
+        match request {
+            LambdaRequest::ApiGatewayV1(_) => version == Some("1.0"),
+            LambdaRequest::ApiGatewayV2(event) => !event
+                .request_context
+                .domain_name
+                .as_deref()
+                .is_some_and(|domain| {
+                    domain.contains(".lambda-url.") && domain.ends_with(".on.aws")
+                }),
+            _ => false,
+        }
     }
 
     /// `text` with every byte but ASCII letters, digits and `keep`

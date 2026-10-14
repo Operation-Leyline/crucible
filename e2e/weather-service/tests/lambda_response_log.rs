@@ -1,6 +1,7 @@
-//! The log line for an answer too large for Lambda says how large it was:
-//! the body's own length when that is known ahead, never the limit plus
-//! one it stopped reading at. Its own test binary, since it installs the
+//! The log line for an answer too large for Lambda says how large it was,
+//! and of what: the body's own length when that is known ahead (never the
+//! limit plus one it stopped reading at), or the whole answer's when the
+//! body fit and the answer around it did not. Its own test binary, since it installs the
 //! global tracing subscriber.
 
 use std::sync::{Arc, Mutex};
@@ -73,6 +74,9 @@ async fn the_log_reports_the_size_of_the_replaced_answer() {
     }))
     .await;
     assert_eq!(streamed["statusCode"], 500, "{streamed}");
+    // A body that fits, in an answer that does not.
+    let fits = answer(&service(|| Body::from(vec![b'x'; 6 * 1024 * 1024 - 16]))).await;
+    assert_eq!(fits["statusCode"], 500, "{fits}");
 
     let logs = String::from_utf8(logs.0.lock().unwrap().clone()).unwrap();
     let records: Vec<Value> = logs
@@ -84,14 +88,15 @@ async fn the_log_reports_the_size_of_the_replaced_answer() {
                 .is_some_and(|message| message.contains("answered 500 instead"))
         })
         .collect();
-    assert_eq!(records.len(), 2, "{logs}");
-    assert_eq!(records[0]["fields"]["size"], 7 * 1024 * 1024, "{logs}");
-    assert_eq!(records[0]["fields"]["limit"], 6 * 1024 * 1024, "{logs}");
-    assert_eq!(records[0]["fields"]["request_id"], "big-request", "{logs}");
-    assert!(records[1]["fields"].get("size").is_none(), "{logs}");
-    assert_eq!(
-        records[1]["fields"]["at_least"],
-        6 * 1024 * 1024 + 1,
-        "{logs}"
-    );
+    assert_eq!(records.len(), 3, "{logs}");
+    let fields = |index: usize| &records[index]["fields"];
+    assert_eq!(fields(0)["body_size"], 7 * 1024 * 1024, "{logs}");
+    assert_eq!(fields(0)["limit"], 6 * 1024 * 1024, "{logs}");
+    assert_eq!(fields(0)["request_id"], "big-request", "{logs}");
+    assert!(fields(1).get("body_size").is_none(), "{logs}");
+    assert_eq!(fields(1)["body_at_least"], 6 * 1024 * 1024 + 1, "{logs}");
+    // The whole answer, which is what passed the limit.
+    let answer_size = fields(2)["answer_size"].as_u64().unwrap();
+    assert!(answer_size > 6 * 1024 * 1024, "{logs}");
+    assert!(fields(2).get("body_size").is_none(), "{logs}");
 }

@@ -127,9 +127,26 @@ impl Operations {
         self.entries.get(operation).map(|entry| &entry.metadata)
     }
 
-    /// The metadata `operation` is served with: the current version's
-    /// entry, else the newest older version that serves it.
+    /// The metadata `operation` is served with: the entry whose own
+    /// description it is, at whichever version; else, for a description no
+    /// entry carries, the current version's entry by name and id, else the
+    /// newest older version's. An id is shared across versions, but an
+    /// older version's entry keeps its own facts (its authentication
+    /// schemes), so a description finds its own entry first.
     pub(crate) fn served_metadata(&self, operation: &OperationInfo) -> Option<&OperationMetadata> {
+        let tables = std::iter::once(self).chain(
+            self.versions
+                .older
+                .iter()
+                .rev()
+                .map(|older| &older.operations),
+        );
+        let exact = tables
+            .filter_map(|operations| operations.entries.get(operation.name))
+            .find(|entry| std::ptr::eq(entry.info, operation));
+        if let Some(entry) = exact {
+            return Some(&entry.metadata);
+        }
         fn own<'a>(
             operations: &'a Operations,
             operation: &OperationInfo,

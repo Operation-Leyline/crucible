@@ -56,10 +56,10 @@ async fn lambda_http_v2_default_and_named_stages_preserve_query_bindings() {
     }
 }
 
-/// API Gateway (and an ALB) passes the path as it has it, which may hold
-/// what a URI does not carry raw: a space, `<`, a `?` or `#` decoded from
-/// `%3F` or `%23`, non-ASCII. The event is answered as the same request over
-/// HTTP with each of those percent-encoded, never as a failed invocation.
+/// An event's path may hold what a URI does not carry raw: a space, `<`,
+/// non-ASCII, or (an HTTP API decodes the path) a `?` or `#` decoded from
+/// `%3F` or `%23`. The event is answered as the same request over HTTP with
+/// each of those percent-encoded, never as a failed invocation.
 #[tokio::test]
 async fn a_path_with_characters_a_uri_does_not_carry_is_routed_as_sent() {
     use axum::body::Body;
@@ -133,5 +133,69 @@ async fn a_path_with_characters_a_uri_does_not_carry_is_routed_as_sent() {
             let answer = host::lambda_event(&echo, event).await.unwrap();
             assert_eq!(answer["body"], encoded, "{raw}: {answer}");
         }
+    }
+}
+
+/// A `%` in the path: a literal where the source decoded the path (an HTTP
+/// API, at payload format 2.0 or 1.0), so the service reads it once as the
+/// client sent it (`%25`); an escape where the source passed the path as
+/// sent (a Function URL, a REST API, an ALB), kept as it is.
+#[tokio::test]
+async fn a_percent_in_the_path_is_read_as_its_source_meant_it() {
+    use axum::body::Body;
+
+    // Answers with the request's path as the service received it.
+    let echo = weather_service::builder(Arc::new(MemoryCities::default()))
+        .middleware(crucible_server_runtime_rust::raw_before_fn(|job| {
+            let path = job.request().uri.path().to_owned();
+            job.respond(axum::response::Response::new(Body::from(path)));
+            Ok(())
+        }))
+        .build()
+        .unwrap();
+    let http_api = |path: &str| v2_event("$default", path, "");
+    let function_url = |path: &str| {
+        let mut event = v2_event("$default", path, "");
+        event["requestContext"]["domainName"] = json!("abc123.lambda-url.us-east-1.on.aws");
+        event
+    };
+    let rest = |path: &str| {
+        json!({
+            "httpMethod": "GET",
+            "path": path,
+            "headers": {},
+            "requestContext": { "stage": "prod", "requestId": "path-request", "httpMethod": "GET" },
+            "isBase64Encoded": false
+        })
+    };
+    let http_api_v1 = |path: &str| {
+        let mut event = rest(path);
+        event["version"] = json!("1.0");
+        event
+    };
+    let alb = |path: &str| {
+        json!({
+            "requestContext": { "elb": { "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/weather/0123456789abcdef" } },
+            "httpMethod": "GET",
+            "path": path,
+            "queryStringParameters": {},
+            "headers": {},
+            "isBase64Encoded": false
+        })
+    };
+    let cases = [
+        // Decoded by the source: `%` is the client's `%25`.
+        (http_api("/cities/50%"), "/cities/50%25"),
+        (http_api("/cities/%41"), "/cities/%2541"),
+        (http_api_v1("/cities/50%"), "/cities/50%25"),
+        // As the client sent it: `%` starts an escape.
+        (function_url("/cities/50%25"), "/cities/50%25"),
+        (function_url("/cities/%41"), "/cities/%41"),
+        (rest("/cities/50%25"), "/cities/50%25"),
+        (alb("/cities/50%25"), "/cities/50%25"),
+    ];
+    for (event, seen) in cases {
+        let answer = host::lambda_event(&echo, event.clone()).await.unwrap();
+        assert_eq!(answer["body"], seen, "{event}: {answer}");
     }
 }
