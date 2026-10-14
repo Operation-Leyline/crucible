@@ -22,6 +22,7 @@ pub struct OpaqueError {
 }
 
 impl OpaqueError {
+    /// Wraps `error`; its message and sources stay as they are in the log.
     pub fn new(error: impl std::error::Error + Send + Sync + 'static) -> Self {
         Self {
             inner: Box::new(error),
