@@ -484,7 +484,8 @@ fn bind(
                 operation,
                 format!(
                     "clause {index} binds {}, which does not name one instance of {}",
-                    check.resource, check.permission.resource.name
+                    loggable(&check.resource),
+                    check.permission.resource.name
                 ),
             ));
         }

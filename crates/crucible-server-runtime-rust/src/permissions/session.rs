@@ -593,7 +593,9 @@ impl Shown {
     }
 
     /// Whether a replay that shows `self` may be served a success that
-    /// showed `stored`: everything the stored response shows is shown now.
+    /// showed `stored`: the replay shows everything, the stored success
+    /// showed nothing, or both show exactly the same ids. Only a digest is
+    /// kept, so a current listing that is a strict superset is refused too.
     fn covers(&self, stored: &Self) -> bool {
         *self == Self::All || *stored == Self::Nothing || self == stored
     }
@@ -1253,6 +1255,8 @@ mod tests {
                 Some(only(&["i-2", "i-1"])),
                 true,
             ),
+            // Only a digest is kept: a set that grew is refused as well.
+            (Some(only(&["i-1"])), Some(only(&["i-1", "i-2"])), false),
             (Some(only(&["i-1"])), Some(Visibility::All), true),
             (Some(only(&[])), Some(only(&["i-1"])), true),
             // A record that does not say what its listing showed.
