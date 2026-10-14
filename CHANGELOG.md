@@ -17,6 +17,10 @@ version's section when it is prepared.
 
 ### Added
 
+- Generated server string enums carry `VALUES: &'static [&'static str]`, every wire
+  value in declaration order, beside `as_str`, so a service can enumerate
+  them (a quota code list, say) without parsing the model.
+
 - `crucible_auth::ApiKeyAuthenticator`: bearer API keys checked against a
   service-owned `ApiKeyStore` (`lookup(digest)` returning an `ApiKeyRecord`
   of key ID, tenant, `ApiKeyState`, optional expiry and attributes). It
