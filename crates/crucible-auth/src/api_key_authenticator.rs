@@ -150,9 +150,25 @@ impl ApiKeyAuthenticator {
         self.configure(|policy| policy.refused_capacity = capacity)
     }
 
-    /// Store reads in flight at once, across all digests. Defaults to 32; at least 1.
+    /// Store reads for cache misses in flight at once, across all digests.
+    /// Defaults to 32; at least 1. Refresh-ahead reads have their own slots
+    /// on top, a quarter as many (at least one), so a flood of misses cannot
+    /// stop cached valid keys from refreshing.
     pub fn lookup_concurrency(self, limit: usize) -> Self {
         self.configure(|policy| policy.lookup_concurrency = limit)
+    }
+
+    /// The longest one store read may take, including its wait for a read
+    /// slot. A read past it is an outage (a sanitized 5xx, nothing cached)
+    /// and its future is dropped, so `ApiKeyStore::lookup` must be safe to
+    /// cancel. Defaults to 5 s; zero is a configuration error.
+    pub fn lookup_timeout(self, timeout: Duration) -> std::result::Result<Self, AuthError> {
+        if timeout.is_zero() {
+            return Err(AuthError::Configuration(
+                "the API key lookup timeout must be positive".into(),
+            ));
+        }
+        Ok(self.configure(|policy| policy.lookup_timeout = timeout))
     }
 
     /// While `fenced` returns true every key gets a sanitized 5xx
@@ -165,7 +181,8 @@ impl ApiKeyAuthenticator {
     }
 
     /// Called with each authenticated key at most once per
-    /// [`last_used_resolution`](Self::last_used_resolution), awaited inline.
+    /// [`last_used_resolution`](Self::last_used_resolution), awaited inline
+    /// for at most [`last_used_timeout`](Self::last_used_timeout).
     pub fn last_used(self, recorder: impl ApiKeyUsageRecorder) -> Self {
         self.configure(|policy| policy.usage = Some(Arc::new(recorder)))
     }
@@ -173,6 +190,19 @@ impl ApiKeyAuthenticator {
     /// Defaults to one hour. Zero records every use.
     pub fn last_used_resolution(self, resolution: Duration) -> Self {
         self.configure(|policy| policy.last_used_resolution = resolution)
+    }
+
+    /// The longest the request waits for a [`last_used`](Self::last_used)
+    /// call. One cut short is dropped (so the recorder must be safe to
+    /// cancel) and counts as a failed write: not retried within the window.
+    /// Defaults to 1 s; zero is a configuration error.
+    pub fn last_used_timeout(self, timeout: Duration) -> std::result::Result<Self, AuthError> {
+        if timeout.is_zero() {
+            return Err(AuthError::Configuration(
+                "the API key last-used timeout must be positive".into(),
+            ));
+        }
+        Ok(self.configure(|policy| policy.last_used_timeout = timeout))
     }
 
     /// The clock for cache ages and key expiry, for deterministic tests or host integration.

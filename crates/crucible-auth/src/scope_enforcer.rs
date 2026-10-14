@@ -27,13 +27,18 @@ impl ScopeEnforcer {
         }
     }
 
-    /// Every principal, ID tokens included, must hold the required scopes.
+    /// Every principal, ID tokens and API keys included, must hold the
+    /// required scopes. Neither carries any, so both are refused (403) on
+    /// every operation that declares scopes.
     pub fn strict() -> Self {
         Self::new(ScopelessPolicy::Refuse)
     }
 
-    /// Exempt ID-token principals (web sessions); access tokens and API keys are
-    /// checked.
+    /// Exempt ID-token principals (web sessions); access tokens are checked.
+    /// An API key carries no scopes, so under this policy an API key caller
+    /// is refused (403) on every operation that declares scopes. To admit API
+    /// keys there, exempt them too and authorize them another way:
+    /// `ScopeEnforcer::new(ScopelessPolicy::Exempt(vec![TokenKind::Id, TokenKind::ApiKey]))`.
     pub fn exempt_id_tokens() -> Self {
         Self::new(ScopelessPolicy::Exempt(vec![crate::TokenKind::Id]))
     }

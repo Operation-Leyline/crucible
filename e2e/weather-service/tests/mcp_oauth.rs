@@ -157,7 +157,11 @@ async fn access_token_boundary_and_explicit_cognito_compatibility() {
         good["scope"] = json!(SCOPE);
         for (name, value) in [
             ("aud", json!("https://other.example/mcp")),
-            ("aud", json!([RESOURCE])),
+            // Several audiences: any of the others could replay the token here.
+            ("aud", json!([RESOURCE, "https://other.example/api"])),
+            ("aud", json!([])),
+            ("aud", json!([1])),
+            ("aud", json!(null)),
             ("client_id", json!("other-client")),
             ("token_use", json!("id")),
             ("exp", json!(0)),
@@ -178,6 +182,21 @@ async fn access_token_boundary_and_explicit_cognito_compatibility() {
                 "{name}, compatibility={compatibility}"
             );
         }
+        // RFC 7519 4.1.3: one audience may be sent as a one-member array.
+        let mut single = good.clone();
+        single["aud"] = json!([RESOURCE]);
+        assert_eq!(
+            request(
+                &service,
+                "/mcp",
+                Some(&issuer.mint(&single).unwrap()),
+                message("ping")
+            )
+            .await
+            .0,
+            StatusCode::OK,
+            "compatibility={compatibility}"
+        );
         let mut unbound = good.clone();
         unbound.as_object_mut().unwrap().remove("aud");
         assert_eq!(

@@ -627,6 +627,56 @@ async fn unknown_kid_refetch_is_single_flight_rate_limited_and_accepts_rotation(
 }
 
 #[tokio::test]
+async fn a_forged_kid_cannot_hold_a_rotated_key_off_for_the_refresh_interval() {
+    let server = JwksServer::start().await;
+    let first = TestTokenIssuer::es256(&server.url, "first").unwrap();
+    let next = TestTokenIssuer::es256(&server.url, "next").unwrap();
+    let mut forger = TestTokenIssuer::es256(&server.url, "forged").unwrap();
+    *server.keys.write().unwrap() = first.jwks();
+    // The default 30 s interval: the floor, not the interval, must decide.
+    let auth = JwtAuthenticator::new(first.config(vec!["client".into()])).unwrap();
+    auth.verify(&first.mint(&first.id_claims("person", "client")).unwrap())
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    // An unverified token with a kid the provider never published fetches once...
+    let forged = forger.mint(&forger.id_claims("person", "client")).unwrap();
+    assert!(matches!(
+        auth.verify(&forged).await,
+        Err(AuthError::Refused)
+    ));
+    assert_eq!(server.requests.load(Ordering::SeqCst), 2);
+    // ...and the same kid again fetches nothing for the whole interval.
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    assert!(matches!(
+        auth.verify(&forged).await,
+        Err(AuthError::Refused)
+    ));
+    assert_eq!(server.requests.load(Ordering::SeqCst), 2);
+    // Another unseen kid may fetch once the floor has passed: about one
+    // fetch a second is all random kids can cause.
+    forger.kid = "forged-again".into();
+    let forged = forger.mint(&forger.id_claims("person", "client")).unwrap();
+    assert!(matches!(
+        auth.verify(&forged).await,
+        Err(AuthError::Refused)
+    ));
+    assert_eq!(server.requests.load(Ordering::SeqCst), 3);
+    // The provider rotates well inside the 30 s interval the forged token
+    // used to start: the new key is fetched once the one-second floor passes.
+    *server.keys.write().unwrap() = next.jwks();
+    let rotated = next.mint(&next.id_claims("person", "client")).unwrap();
+    assert!(
+        auth.verify(&rotated).await.is_err(),
+        "inside the floor of the last fetch: refused without one"
+    );
+    assert_eq!(server.requests.load(Ordering::SeqCst), 3);
+    tokio::time::sleep(Duration::from_millis(1100)).await;
+    auth.verify(&rotated).await.unwrap();
+    assert_eq!(server.requests.load(Ordering::SeqCst), 4);
+}
+
+#[tokio::test]
 async fn jwks_outage_is_5xx_without_cache_and_uses_bounded_stale_keys() {
     let server = JwksServer::start().await;
     let issuer = TestTokenIssuer::es256(&server.url, "first").unwrap();

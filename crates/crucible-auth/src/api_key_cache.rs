@@ -29,7 +29,11 @@ pub(crate) struct ApiKeyCache {
     pub inflight: Mutex<HashMap<String, ReadCell>>,
     /// Digests with a refresh-ahead read in flight, so a hit starts at most one.
     pub refreshing: Mutex<HashSet<String>>,
+    /// Read slots for requests that missed the cache.
     pub lookups: Semaphore,
+    /// Read slots for refresh-ahead, kept apart from `lookups` so misses
+    /// (a flood of forged keys among them) cannot starve refreshes.
+    pub refreshes: Semaphore,
     /// Bumped (under `valid`) by every `forget`, so a read that started before
     /// a revocation cannot cache what it read. Global, not per digest: a
     /// forget stops every read in flight from caching, which costs at most one
@@ -46,6 +50,7 @@ impl ApiKeyCache {
             inflight: Mutex::new(HashMap::new()),
             refreshing: Mutex::new(HashSet::new()),
             lookups: Semaphore::new(policy.lookup_concurrency.max(1)),
+            refreshes: Semaphore::new(policy.refresh_concurrency()),
             epoch: AtomicU64::new(0),
         }
     }

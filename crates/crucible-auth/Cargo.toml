@@ -25,6 +25,8 @@ serde.workspace = true
 sha2 = "0.10"
 serde_json.workspace = true
 thiserror.workspace = true
+# A JWKS key that does not parse is skipped with a warning, not fatal to the set.
+tracing = "0.1"
 # rt: refresh-ahead re-reads API keys on a background task.
 tokio = { version = "1", features = ["rt", "sync", "time"] }
 rsa = { version = "0.9", optional = true }
@@ -33,7 +35,8 @@ base64 = { version = "0.22", optional = true }
 p256 = { version = "0.13", features = ["pkcs8"], optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+# test-util: paused time, so deadline tests do not wait in real time.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "test-util"] }
 
 [lints]
 workspace = true
