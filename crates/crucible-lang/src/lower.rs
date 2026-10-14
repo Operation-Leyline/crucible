@@ -568,6 +568,28 @@ impl<'a> Lowerer<'a> {
     }
 
     /// The identifiers of `resource`: its parents' first, then its own.
+    /// The resources `resource` is nested in, by name, root first.
+    fn parents(&self, resource: &str) -> Vec<String> {
+        let mut chain = Vec::new();
+        let mut seen = BTreeSet::from([resource.to_owned()]);
+        let mut current = match self.decl(resource).map(|d| &d.item.decl) {
+            Some(Decl::Resource(r)) => r.parent.as_ref().map(|p| p.name.clone()),
+            _ => None,
+        };
+        while let Some(name) = current {
+            if !seen.insert(name.clone()) {
+                break;
+            }
+            let Some(Decl::Resource(r)) = self.decl(&name).map(|d| &d.item.decl) else {
+                break;
+            };
+            chain.push(name);
+            current = r.parent.as_ref().map(|p| p.name.clone());
+        }
+        chain.reverse();
+        chain
+    }
+
     fn identifiers(&self, resource: &str) -> (Vec<String>, Vec<String>) {
         let mut chain = Vec::new();
         let mut current = Some(resource.to_owned());
@@ -2165,7 +2187,9 @@ impl<'a> Lowerer<'a> {
             }
             _ => {}
         }
-        resolve_enum_symbols(&self.shapes, target, value, &mut json);
+        for problem in resolve_enum_symbols(&self.shapes, target, value, &mut json) {
+            self.error(file, span, problem);
+        }
         for problem in crucible_smithy::validate::value(
             &self.shapes,
             "the default",

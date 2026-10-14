@@ -174,20 +174,34 @@ impl Checker<'_> {
             let Some(new_op) = self.new.operations.iter().find(|op| op.id == old_op.id) else {
                 continue;
             };
-            let added: Vec<&Requirement> = match (&old_op.requirements, &new_op.requirements) {
-                // A projected IR is never compared; `Partial` reads as the
-                // list it is.
-                (
-                    Requirements::List(old) | Requirements::Partial(old),
-                    Requirements::List(new) | Requirements::Partial(new),
-                ) => new
-                    .iter()
-                    .filter(|clause| !old.iter().any(|before| self.same_clause(before, clause)))
-                    .collect(),
-                (_, Requirements::List(new) | Requirements::Partial(new)) => new.iter().collect(),
-                _ => Vec::new(),
-            };
-            if added.is_empty() {
+            // An SDK release plan compares the models its audience sees
+            // (docs/sdk-packaging.md, phase 2), where the client projection
+            // leaves out clauses on internal permissions: a list that became
+            // `Partial`, or requirements that became `Internal`, gained a
+            // requirement this audience cannot name.
+            let (added, hidden): (Vec<&Requirement>, bool) =
+                match (&old_op.requirements, &new_op.requirements) {
+                    (
+                        Requirements::List(old) | Requirements::Partial(old),
+                        Requirements::List(new) | Requirements::Partial(new),
+                    ) => (
+                        new.iter()
+                            .filter(|clause| {
+                                !old.iter().any(|before| self.same_clause(before, clause))
+                            })
+                            .collect(),
+                        matches!(new_op.requirements, Requirements::Partial(_))
+                            && !matches!(old_op.requirements, Requirements::Partial(_)),
+                    ),
+                    (_, Requirements::List(new)) => (new.iter().collect(), false),
+                    (old, Requirements::Partial(new)) => {
+                        (new.iter().collect(), !matches!(old, Requirements::Internal))
+                    }
+                    (Requirements::Internal, Requirements::Internal) => (Vec::new(), false),
+                    (_, Requirements::Internal) => (Vec::new(), true),
+                    _ => (Vec::new(), false),
+                };
+            if added.is_empty() && !hidden {
                 continue;
             }
             let was = match &old_op.requirements {
@@ -196,10 +210,13 @@ impl Checker<'_> {
                 Requirements::Pending { .. } => " (it was `requires pending`)",
                 Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal => "",
             };
-            let clauses: Vec<String> = added
+            let mut clauses: Vec<String> = added
                 .iter()
                 .map(|clause| describe(clause, self.new.permissions.get(&clause.resource)))
                 .collect();
+            if hidden {
+                clauses.push("permissions internal to the service".to_owned());
+            }
             self.report.push(
                 "compatibility.authorization",
                 &old_op.id,

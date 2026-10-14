@@ -396,6 +396,53 @@ fn the_client_audience_drops_internal_permissions_and_their_requirements() {
     assert_eq!(internal.permissions[&store].permissions.len(), 3);
 }
 
+/// A `filters` clause narrows a listing and refuses nothing, so an internal
+/// one left out of the client view hides no requirement: the list is not
+/// partial, and a listing that only filters says nothing.
+#[test]
+fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
+    let source = BASE.replace(
+        "permission read = \"order:read\"",
+        "internal permission read = \"order:read\"",
+    );
+    let requirements = |clauses: &str, name: &str| {
+        let list = format!(
+            "readonly operation ListOrders lists Order {{\n    http GET \"/stores/{{storeId}}/orders\"\n    {clauses}\n    input {{ $storeId }}\n}}"
+        );
+        let compiled = compile(&small(&format!("{source}\n{list}")), None);
+        assert!(!compiled.has_errors(), "{}", compiled.render());
+        let external = crucible_smithy::project(
+            &compiled.service.unwrap(),
+            crucible_smithy::Audience::External,
+        )
+        .unwrap();
+        external
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap()
+            .requirements
+            .clone()
+    };
+    let Requirements::List(clauses) = requirements(
+        "requires read on Store\n    filters read on Order",
+        "ListOrders",
+    ) else {
+        panic!("a list, not a partial one")
+    };
+    assert_eq!(clauses.len(), 1);
+    assert_eq!(
+        requirements("filters read on Order", "ListOrders"),
+        Requirements::Undeclared
+    );
+    // A refusing clause left out still counts: GetOrder requires only the
+    // internal `read`.
+    assert_eq!(
+        requirements("filters read on Order", "GetOrder"),
+        Requirements::Internal
+    );
+}
+
 #[test]
 fn the_client_audience_keeps_permission_types_consistent() {
     // Order's permissions are all internal, so the client view has no
@@ -431,6 +478,33 @@ fn the_client_audience_keeps_permission_types_consistent() {
     );
 }
 
+/// The other half of check 6: Order keeps a grantable permission in the
+/// client view, but its value of the enum is internal, so the projected enum
+/// would leave a grantable resource without a value. It is no longer this
+/// view's permission types.
+#[test]
+fn the_client_audience_drops_permission_types_missing_a_grantable_resource() {
+    let uses = "operation Classify on Store {\n    http POST \"/classify/{storeId}\"\n    requires manage\n    input {\n        $storeId\n        kind?: Kinds\n    }\n}";
+    let types =
+        "@permissionTypes\nenum Kinds {\n    store = \"store\"\n    internal order = \"order\"\n}";
+    let compiled = compile(&small(&format!("{BASE}\n{types}\n{uses}")), None);
+    assert!(!compiled.has_errors(), "{}", compiled.render());
+    let service = compiled.service.unwrap();
+    assert!(service.permission_types.is_some());
+    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    assert!(
+        external
+            .permissions
+            .contains_key(&ShapeId::new("example.shop", "Order"))
+    );
+    assert_eq!(external.permission_types, None);
+    let findings = crucible_smithy::validate::permissions_from_ir(&external);
+    assert!(
+        findings.iter().all(|f| f.code != "permissions.types"),
+        "{findings:#?}"
+    );
+}
+
 #[test]
 fn a_requirement_clients_see_reads_no_internal_member() {
     let op = |clauses: &str| {
@@ -438,9 +512,24 @@ fn a_requirement_clients_see_reads_no_internal_member() {
             "enum Kind {{\n    open = \"open\"\n    internal secret = \"secret\"\n}}\nstructure Hidden {{ orderId: OrderId }}\noperation X on Store {{\n    http POST \"/x/{{storeId}}\"\n    {clauses}\n    input {{\n        $storeId\n        internal ticket?: OrderId\n        internal hidden?: Hidden\n        kind?: Kind\n    }}\n}}"
         )
     };
+    // GetOrder requires `read` on Order too, so making it internal is no
+    // fix for this clause alone.
     expect(
         &check(&op("requires read on Order(ticket) when has ticket")),
-        "error: permissions.internal-member: `read` on `Order` is visible to clients, but it binds `ticket`, an internal member; make the permission `internal`, or read only what clients send",
+        "error: permissions.internal-member: `read` on `Order` is visible to clients, but it binds `ticket`, an internal member; read only what clients send; the permission is required elsewhere too, and making it `internal` would hide those requirements from clients as well",
+    );
+    // A permission only this clause requires may be made internal.
+    let audited = check_source(&format!(
+        "{}\n{}",
+        BASE.replace(
+            "permission manage = \"store:manage\"",
+            "permission manage = \"store:manage\"\n    permission audit = \"store:audit\"",
+        ),
+        op("requires audit when has ticket")
+    ));
+    expect(
+        &audited,
+        "`audit` on `Store` is visible to clients, but its `when` reads `ticket`, an internal member; make the permission `internal`, or read only what clients send",
     );
     expect(
         &check(&op(

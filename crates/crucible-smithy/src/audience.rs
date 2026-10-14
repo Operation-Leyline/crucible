@@ -842,7 +842,7 @@ fn expression_targets(
 /// check refuses a client-visible clause that binds or tests one
 /// (`permissions.internal-member`), so nothing here redacts paths.
 fn project_permissions(result: &mut Service) {
-    use crate::ir::{Requirements, Tier};
+    use crate::ir::{Mode, Requirement, Requirements, Tier};
     for resource in result.permissions.values_mut() {
         let internal: BTreeSet<String> = resource
             .permissions
@@ -866,28 +866,41 @@ fn project_permissions(result: &mut Service) {
             op.requirements = Requirements::Undeclared;
         }
         if let Requirements::List(clauses) = &mut op.requirements {
-            let before = clauses.len();
-            clauses.retain(|clause| {
+            let visible = |clause: &Requirement| {
                 permissions
                     .get(&clause.resource)
                     .is_some_and(|r| r.permission(&clause.permission).is_some())
-            });
+            };
+            // A `filters` clause narrows what a listing answers; it refuses
+            // nothing, so leaving one out hides no requirement.
+            let refusing = clauses
+                .iter()
+                .any(|clause| !visible(clause) && clause.mode != Mode::Filter);
+            clauses.retain(visible);
             // Requirements the client may not see are still requirements:
             // an empty list would read as a model that lists none, and a
             // shorter one as everything the caller must hold.
-            if clauses.is_empty() {
-                op.requirements = Requirements::Internal;
-            } else if clauses.len() < before {
-                op.requirements = Requirements::Partial(std::mem::take(clauses));
+            if refusing {
+                op.requirements = if clauses.is_empty() {
+                    Requirements::Internal
+                } else {
+                    Requirements::Partial(std::mem::take(clauses))
+                };
+            } else if clauses.is_empty() {
+                // Only internal filters: nothing the client can state, as
+                // for an operation whose requirements are still pending.
+                op.requirements = Requirements::Undeclared;
             }
         }
     }
     result.permissions.retain(|_, r| !r.permissions.is_empty());
     // `@permissionTypes` names its enum and the resources it excludes. A
     // resource whose permissions were all internal is gone from this view,
-    // so it is no longer excluded either; and an enum (still a wire enum
-    // here) with a value that names no resource of this view, or that the
-    // projection removed, is no longer this view's permission types.
+    // so it is no longer excluded either. The enum (still a wire enum here)
+    // is this view's permission types only if both halves of check 6 still
+    // hold: every value names a resource of the view, and every grantable
+    // resource of the view that is not excluded has a value (one whose
+    // value the projection removed as internal would have none).
     if let Some(types) = &mut result.permission_types {
         types
             .excluded
@@ -899,10 +912,17 @@ fn project_permissions(result: &mut Service) {
         .map(|r| r.name.as_str())
         .collect();
     let consistent = result.permission_types.as_ref().is_some_and(|types| {
-        match result.shapes.get(&types.shape) {
-            Some(Shape::Enum(e)) => e.values.iter().all(|v| names.contains(v.value.as_str())),
-            _ => false,
-        }
+        let Some(Shape::Enum(e)) = result.shapes.get(&types.shape) else {
+            return false;
+        };
+        let values: BTreeSet<&str> = e.values.iter().map(|v| v.value.as_str()).collect();
+        values.iter().all(|value| names.contains(value))
+            && result.permissions.iter().all(|(id, r)| {
+                let grantable = r.permissions.iter().any(|p| {
+                    p.alias_of.is_none() && matches!(p.tier, Tier::Public | Tier::PermissionOnly)
+                });
+                !grantable || types.excluded.contains(id) || values.contains(r.name.as_str())
+            })
     });
     if !consistent {
         result.permission_types = None;

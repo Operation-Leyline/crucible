@@ -25,6 +25,13 @@ pub struct ResourcePermissions {
     /// The resource's identifiers, root to leaf: `["workspaceId", "inboxId"]`.
     #[serde(default)]
     pub identifiers: Vec<String>,
+    /// The resources it is nested in, by shape name, root first:
+    /// `["Workspace"]`. With `identifiers`, what a binding's positions mean:
+    /// a resource moved to another parent whose identifier has the same
+    /// name keeps its identifiers but not its parents. Empty in a release
+    /// frozen before parents were recorded.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parents: Vec<String>,
     /// Source order, aliases included.
     #[serde(default)]
     pub permissions: Vec<Permission>,

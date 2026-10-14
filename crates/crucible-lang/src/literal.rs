@@ -13,12 +13,29 @@ use crate::ast::{Key, Value};
 /// its wire value, following `target` through structures, unions, lists and
 /// maps. A quoted string is already a wire value and is left alone, even when
 /// it spells another symbol's name, so `default "RED"` and `default RED`
-/// differ when `SPECIAL = "RED"`. Map keys are text, never symbols.
+/// differ when `SPECIAL = "RED"`. A map key is text, except an unquoted key
+/// of a map keyed by an enum, which names a symbol as a value would:
+/// `{ RED: "x" }` is keyed by RED's wire value, `{ "RED": "x" }` by `RED`.
+///
+/// Returns a problem for each map whose keys collide once resolved
+/// (`{ RED: "x", "r": "y" }`), which would otherwise drop a value unseen.
 pub(crate) fn resolve_enum_symbols(
     shapes: &BTreeMap<ShapeId, Shape>,
     target: &ShapeId,
     value: &Value,
     json: &mut Json,
+) -> Vec<String> {
+    let mut problems = Vec::new();
+    resolve(shapes, target, value, json, &mut problems);
+    problems
+}
+
+fn resolve(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    target: &ShapeId,
+    value: &Value,
+    json: &mut Json,
+    problems: &mut Vec<String>,
 ) {
     let Some(shape) = shapes.get(target) else {
         return;
@@ -36,34 +53,67 @@ pub(crate) fn resolve_enum_symbols(
         }
         (Shape::List(list), Value::List(items, _), Json::Array(array)) => {
             for (item, json) in items.iter().zip(array.iter_mut()) {
-                resolve_enum_symbols(shapes, &list.member.target, item, json);
+                resolve(shapes, &list.member.target, item, json, problems);
             }
         }
-        (
-            Shape::Map(_) | Shape::Structure(_) | Shape::Union(_),
-            Value::Object(fields, _),
-            Json::Object(object),
-        ) => {
+        (Shape::Map(map), Value::Object(fields, _), Json::Object(object)) => {
+            let symbols = match shapes.get(&map.key.target) {
+                Some(Shape::Enum(enumeration)) => Some(enumeration),
+                _ => None,
+            };
+            // The conversion keeps a key's last value; its last field says
+            // whether the key was a symbol.
+            let mut entries = Vec::new();
+            for (key, mut json) in std::mem::take(object) {
+                let Some(index) = fields.iter().rposition(|f| key_text(&f.key) == key) else {
+                    entries.push((0, key, json));
+                    continue;
+                };
+                let field = &fields[index];
+                resolve(shapes, &map.value.target, &field.value, &mut json, problems);
+                let key = match (&field.key, symbols) {
+                    (Key::Name(name), Some(symbols)) => symbols
+                        .values
+                        .iter()
+                        .find(|v| v.name == name.name)
+                        .map_or(key, |v| v.value.clone()),
+                    _ => key,
+                };
+                entries.push((index, key, json));
+            }
+            entries.sort_by_key(|(index, _, _)| *index);
+            for (_, key, json) in entries {
+                // A symbol and another key may name one wire value.
+                if object.insert(key.clone(), json).is_some() {
+                    problems.push(format!("`{key}` is given twice"));
+                }
+            }
+        }
+        (Shape::Structure(_) | Shape::Union(_), Value::Object(fields, _), Json::Object(object)) => {
             // A key given twice keeps its last value, as the conversion does.
             let mut seen = BTreeSet::new();
             for field in fields.iter().rev() {
-                let key = match &field.key {
-                    Key::Name(name) => name.name.as_str(),
-                    Key::Text(text) => text.value.as_str(),
-                };
+                let key = key_text(&field.key);
                 if !seen.insert(key) {
                     continue;
                 }
                 let target = match shape {
-                    Shape::Map(map) => Some(&map.value.target),
                     Shape::Structure(s) | Shape::Union(s) => s.member(key).map(|m| &m.target),
                     _ => None,
                 };
                 if let (Some(target), Some(json)) = (target, object.get_mut(key)) {
-                    resolve_enum_symbols(shapes, target, &field.value, json);
+                    resolve(shapes, target, &field.value, json, problems);
                 }
             }
         }
         _ => {}
+    }
+}
+
+/// A key as the plain conversion writes it.
+fn key_text(key: &Key) -> &str {
+    match key {
+        Key::Name(name) => name.name.as_str(),
+        Key::Text(text) => text.value.as_str(),
     }
 }

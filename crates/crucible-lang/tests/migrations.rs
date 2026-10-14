@@ -127,7 +127,20 @@ fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
             "\"not an integer\"",
             "must be a integer",
         ),
-        ("null", "integer", "", "null", "must be a integer"),
+        ("null", "integer", "", "null", "must not be null"),
+        // `require` makes the member required, so even a document's null,
+        // a value where the member is optional, is refused at the top level
+        // as it is nested.
+        ("null-document", "document", "", "null", "must not be null"),
+        // A symbol key and a quoted key that name one wire value would
+        // drop a value unseen.
+        (
+            "enum-map-key-collision",
+            "Shades",
+            "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\nmap Shades: Color -> string\n",
+            r#"{ RED: "x", "r": "y" }"#,
+            "`r` is given twice",
+        ),
         (
             "range",
             "integer { range 1..100 }",
@@ -305,6 +318,46 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
             PAINT,
             r#"{ color: "RED" }"#,
             serde_json::json!({"color": "RED"}),
+        ),
+        // Integer enum symbols resolve at depth too, to their numbers.
+        (
+            "nested-int-enum",
+            "Gauge",
+            "\nenum Level: integer { LOW = 1, HIGH = 2 }\nlist Levels: Level\nstructure Gauge {\n    level: Level\n    levels?: Levels\n}\n",
+            "{ level: HIGH, levels: [LOW, 2] }",
+            serde_json::json!({"level": 2, "levels": [1, 2]}),
+        ),
+        // A union's member is resolved against its target.
+        (
+            "union-enum",
+            "Choice",
+            "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\nstructure Paint { color: Color }\nunion Choice {\n    color: Color\n    paint: Paint\n}\n",
+            "{ color: RED }",
+            serde_json::json!({"color": "r"}),
+        ),
+        // Each structure in a list is resolved against the list's member.
+        (
+            "list-of-structures",
+            "Paints",
+            "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\nstructure Paint { color: Color }\nlist Paints: Paint\n",
+            r#"[{ color: RED }, { color: "RED" }]"#,
+            serde_json::json!([{"color": "r"}, {"color": "RED"}]),
+        ),
+        // An unquoted key of a map keyed by an enum names a symbol; a quoted
+        // key is the wire value itself.
+        (
+            "enum-map-key",
+            "Shades",
+            "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\nmap Shades: Color -> string\n",
+            r#"{ RED: "x", SPECIAL: "y" }"#,
+            serde_json::json!({"r": "x", "RED": "y"}),
+        ),
+        (
+            "enum-map-key-quoted",
+            "Shades",
+            "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\nmap Shades: Color -> string\n",
+            r#"{ "RED": "y" }"#,
+            serde_json::json!({"RED": "y"}),
         ),
         (
             "list",
@@ -1006,4 +1059,62 @@ fn a_release_checked_out_with_crlf_line_endings_is_not_an_edit() {
     let guarded =
         guard(&loaded, &compiled, loaded.files.len(), &Config::default()).expect("a baseline");
     assert!(guarded.is_ok(), "{:?}", guarded.err());
+}
+
+/// V1's `ListItems`, paged by `nextToken`.
+const PAGED: &str = r#"readonly operation ListItems {
+    http GET "/items"
+    paginated(inputToken: nextToken, outputToken: nextToken, pageSize: limit)
+    input {
+        @query
+        limit?: integer
+        @query
+        nextToken?: string
+    }
+    output {
+        names: Names
+        nextToken?: string
+    }
+}"#;
+
+const LIST_ITEMS: &str = r#"readonly operation ListItems {
+    http GET "/items"
+    input {
+        @query
+        limit?: integer
+    }
+    output { names: Names }
+}"#;
+
+/// Renaming the page token changes the pagination contract, and the rename
+/// steps are what declare and convert it: no policy exception is needed.
+/// A change the renames do not explain is still reported.
+#[test]
+fn renaming_a_page_token_declares_the_pagination_change() {
+    let baseline = V1.replace(LIST_ITEMS, PAGED);
+    assert_ne!(baseline, V1);
+    let renamed = baseline.replace("nextToken", "pageToken");
+    let steps = "migration \"v2\" from \"v1\" {\n    rename ListItems.input.nextToken -> pageToken\n    rename ListItems.output.nextToken -> pageToken\n}\n";
+    for (name, current, expected) in [
+        ("page-token-renamed", renamed.clone(), Vec::<String>::new()),
+        (
+            "page-token-renamed-and-items-added",
+            renamed.replace("pageSize: limit)", "pageSize: limit, items: names)"),
+            vec!["compatibility.pagination example.shop#ListItems".to_owned()],
+        ),
+    ] {
+        let dir = package_from(name, &baseline, &current, steps);
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+        let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap();
+        assert!(
+            checked.problems.is_empty(),
+            "{name}: {:?}",
+            problems(&checked)
+        );
+        assert_eq!(rules(&checked), expected, "{name}");
+    }
 }

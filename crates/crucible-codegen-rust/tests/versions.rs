@@ -260,3 +260,70 @@ readonly operation ReadNote reads Note {
         "{diagnostics}"
     );
 }
+
+/// The same move to a parent whose identifier has the same name keeps the
+/// identifier list, so the release's recorded parents tell it apart.
+#[test]
+fn a_legacy_check_on_a_resource_moved_to_a_same_named_parent_is_reported() {
+    let v1 = r#"service Board {
+    version "v1"
+    protocol json
+    auth bearer
+    resources [Shelf, Folder]
+    errors [ValidationException, InternalServerException]
+}
+
+string ShelfId
+string NoteId
+
+resource Shelf {
+    id shelfId: ShelfId
+    permission count = "shelf:count"
+}
+
+resource Folder {
+    id shelfId: ShelfId
+    permission count = "folder:count"
+}
+
+resource Note in Shelf {
+    id noteId: NoteId
+    permission read = "note:read"
+}
+
+readonly operation ReadNote reads Note {
+    http GET "/shelves/{shelfId}/notes/{noteId}"
+    requires read
+    input {
+        $shelfId
+        $noteId
+    }
+    output { body: string }
+}
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-reparented-same-name");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("resource Note in Shelf", "resource Note in Folder");
+    let current = current[..current.find("readonly operation ReadNote").unwrap()].to_owned();
+    fs::write(
+        dir.join("shop.cru"),
+        format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
+    )
+    .unwrap();
+    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
+    assert!(
+        diagnostics
+            .to_string()
+            .contains("whose parent resources have changed since (`(Shelf)` then, `(Folder)` now)"),
+        "{diagnostics}"
+    );
+}

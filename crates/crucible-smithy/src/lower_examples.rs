@@ -135,8 +135,11 @@ impl Check<'_> {
         for (name, value) in members {
             match shape.member(name) {
                 // A document's null is a value of its own, distinct on the
-                // wire from leaving the member out, and Smithy accepts null
-                // for a nullable member. A required one stays refused.
+                // wire from leaving the member out. Nullability is the
+                // server's, not the client's view Smithy's own validation
+                // takes (where an `@input` or `@clientOptional` member is
+                // nullable): an example is a request the server must accept,
+                // and it refuses null for a member it requires.
                 Some(member)
                     if value.is_null()
                         && member.optional_on_server()
