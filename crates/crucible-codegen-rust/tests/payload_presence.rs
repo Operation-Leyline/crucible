@@ -125,5 +125,35 @@ mod tests {
         };
         assert_eq!(body, expected);
     }
+
+    // A JSON payload of `null` reads as the member's explicit null, as it
+    // would in a JSON body (#274): what Crucible JSON clients send for an
+    // explicitly null structure payload.
+    #[test]
+    fn null_json_payloads_read_as_the_members_null() {
+        use crucible_wire::bound::{BoundValue, read_http};
+        let aws = sdk::Structure::PROTOCOL == crucible_wire::operation::Protocol::AwsRestJson1;
+        let null = || vec![("payload", BoundValue::RawJson(b"null"))];
+        let input: payloads::StructureInput =
+            read_http(b"", null(), payloads::Structure::INFO.input).unwrap();
+        assert!(input.payload.is_none());
+        let output: sdk::StructureOutput =
+            read_http(b"", null(), sdk::Structure::INFO.output).unwrap();
+        // AWS REST JSON reads a null structure as absence.
+        assert_eq!(output.payload.is_null(), !aws);
+        assert!(output.payload.is_unset());
+        // Documents follow the same body rule: Crucible JSON servers read a
+        // null document member as absent, AWS REST JSON servers keep it.
+        let input: payloads::DocumentInput =
+            read_http(b"", null(), payloads::Document::INFO.input).unwrap();
+        assert_eq!(input.payload, aws.then_some(Value::Null));
+        let output: sdk::DocumentOutput =
+            read_http(b"", null(), sdk::Document::INFO.output).unwrap();
+        assert!(output.payload.is_null());
+        let record = vec![("payload", BoundValue::RawJson(br#"{"name":"present"}"#))];
+        let input: payloads::StructureInput =
+            read_http(b"", record, payloads::Structure::INFO.input).unwrap();
+        assert_eq!(input.payload.unwrap().name.as_deref(), Some("present"));
+    }
 }
 "##;

@@ -244,6 +244,9 @@ This includes every member of an `@input` structure and members marked
 member, `Field::Null` writes JSON null, and `Field::Value(value)` writes a value.
 Defaults apply only when decoding an absent member; explicit null stays null
 for an optional member. Query and header bindings omit absent and null values.
+A structure, union or document `@httpPayload` follows the protocol: Crucible
+JSON sends `Field::Null` as the body `null`, and a `null` payload reads back as
+`Field::Null` (a document too, as it would in a JSON body).
 Supply all required labels and the values the operation needs before sending.
 
 Timestamps are `chrono::DateTime<Utc>`. RFC 3339 date-time preserves supported

@@ -431,6 +431,18 @@ version's section when it is prepared.
   [API versions](docs/api-versions.md#limits) promise. A construction error
   for an older version's entry names its API version.
 
+- A Crucible service accepts an explicitly null structure or union
+  `@httpPayload`. Rust, TypeScript, Python and Go clients send one under
+  Crucible JSON as the body `null`, which the server refused with a 400
+  (`invalid type: null, expected struct`). A JSON payload of `null` now reads
+  as the member's explicit null, exactly as `{"member": null}` would in a
+  body: an optional structure or union is absent on the server and
+  `Field::Null` in a Rust client, which also reads a `null` response
+  payload. A document payload follows the same body rule: a Crucible JSON
+  server reads `null` as absent (an AWS REST JSON server still keeps
+  `Some(Value::Null)`), and a Rust client reads it as `Field::Null` rather
+  than `Field::Value(Value::Null)`.
+
 - Typed permissions in `.cru` (unreleased) check what they let through
   before. A resource that declares permissions declares an identifier of
   its own (`permissions.identifier`): without one, `R(*)` bound the
