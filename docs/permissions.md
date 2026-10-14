@@ -990,8 +990,8 @@ requirement exists without naming it, where omitting it would read as
 ends "; and further permissions internal to the service.", so holding
 every permission it names does not read as enough. A `filters` clause
 refuses nothing, so an internal one left out does not make the list
-partial, and a listing that only filters by internal permissions says
-nothing in the client view. A clause a client sees
+partial, and a listing that only filters by internal permissions requires
+none in the client view. A clause a client sees
 never reads an internal member: binding or testing one, or comparing with
 an internal enum value, is refused (`permissions.internal-member`), since
 the client contract would name what the projection removes and the clause

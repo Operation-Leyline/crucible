@@ -117,3 +117,26 @@ fn key_text(key: &Key) -> &str {
         Key::Text(text) => text.value.as_str(),
     }
 }
+
+/// Each key `value` gives twice in one object, at any depth, as written.
+pub(crate) fn duplicate_keys(value: &Value) -> Vec<String> {
+    let mut problems = Vec::new();
+    let mut walk = vec![value];
+    while let Some(value) = walk.pop() {
+        match value {
+            Value::List(items, _) => walk.extend(items),
+            Value::Object(fields, _) => {
+                let mut seen = BTreeSet::new();
+                for field in fields {
+                    let key = key_text(&field.key);
+                    if !seen.insert(key) {
+                        problems.push(format!("`{key}` is given twice"));
+                    }
+                    walk.push(&field.value);
+                }
+            }
+            _ => {}
+        }
+    }
+    problems
+}

@@ -323,7 +323,7 @@ readonly operation ReadNote reads Note {
     assert!(
         diagnostics
             .to_string()
-            .contains("whose parent resources have changed since (`(Shelf)` then, `(Folder)` now)"),
+            .contains("whose parent resources have changed since (`(shelf)` then, `(folder)` now)"),
         "{diagnostics}"
     );
 }
@@ -383,4 +383,70 @@ readonly operation ReadNote reads Note {
             .contains("whose parent resources have changed since (`()` then, `(Folder)` now)"),
         "{diagnostics}"
     );
+}
+
+/// Parents are recorded by authorization name, which grants store and a
+/// shape rename keeps: renaming the parent's shape is no move.
+#[test]
+fn a_legacy_check_survives_its_parent_shape_being_renamed() {
+    let v1 = r#"service Board {
+    version "v1"
+    protocol json
+    auth bearer
+    resources [Shelf]
+    errors [ValidationException, InternalServerException]
+}
+
+string ShelfId
+string NoteId
+
+resource Shelf {
+    id shelfId: ShelfId
+    permission count = "shelf:count"
+}
+
+resource Note in Shelf {
+    id noteId: NoteId
+    permission read = "note:read"
+}
+
+readonly operation ReadNote reads Note {
+    http GET "/shelves/{shelfId}/notes/{noteId}"
+    requires read
+    input {
+        $shelfId
+        $noteId
+    }
+    output { body: string }
+}
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-parent-renamed");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("resources [Shelf]", "resources [Bookshelf]")
+        .replace(
+            "resource Shelf {",
+            "@authorizationName(\"shelf\")\nresource Bookshelf {",
+        )
+        .replace("resource Note in Shelf", "resource Note in Bookshelf");
+    let current = current[..current.find("readonly operation ReadNote").unwrap()].to_owned();
+    fs::write(
+        dir.join("shop.cru"),
+        format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
+    )
+    .unwrap();
+    if let Err(diagnostics) = generate(&lower(&dir), &Options::default()) {
+        assert!(
+            !diagnostics.to_string().contains("parent resources"),
+            "{diagnostics}"
+        );
+    }
 }

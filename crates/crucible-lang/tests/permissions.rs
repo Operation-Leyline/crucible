@@ -398,7 +398,8 @@ fn the_client_audience_drops_internal_permissions_and_their_requirements() {
 
 /// A `filters` clause narrows a listing and refuses nothing, so an internal
 /// one left out of the client view hides no requirement: the list is not
-/// partial, and a listing that only filters says nothing.
+/// partial, and a listing that only filters requires none. The projected
+/// model still passes the shared check.
 #[test]
 fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
     let source = BASE.replace(
@@ -416,6 +417,11 @@ fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
             crucible_smithy::Audience::External,
         )
         .unwrap();
+        let errors: Vec<_> = crucible_smithy::validate::permissions_from_ir(&external)
+            .into_iter()
+            .filter(|f| f.severity == crucible_smithy::validate::FindingSeverity::Error)
+            .collect();
+        assert!(errors.is_empty(), "{clauses}: {errors:#?}");
         external
             .operations
             .iter()
@@ -433,7 +439,7 @@ fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
     assert_eq!(clauses.len(), 1);
     assert_eq!(
         requirements("filters read on Order", "ListOrders"),
-        Requirements::Undeclared
+        Requirements::None
     );
     // A refusing clause left out still counts: GetOrder requires only the
     // internal `read`.

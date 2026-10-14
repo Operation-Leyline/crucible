@@ -141,6 +141,14 @@ fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
             r#"{ RED: "x", "r": "y" }"#,
             "`r` is given twice",
         ),
+        // So are two that spell the same key, symbol or not.
+        (
+            "enum-map-key-repeated",
+            "Shades",
+            "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\nmap Shades: Color -> string\n",
+            r#"{ RED: "x", "RED": "y" }"#,
+            "`RED` is given twice",
+        ),
         (
             "range",
             "integer { range 1..100 }",

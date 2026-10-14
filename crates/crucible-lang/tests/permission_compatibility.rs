@@ -530,7 +530,7 @@ fn an_internal_requirement_added_is_an_authorization_change_in_the_client_view()
         &found,
         "compatibility.authorization",
         "GetGraph",
-        "`GetGraph` now requires permissions internal to the service; callers without it are refused",
+        "`GetGraph` now requires permissions internal to the service; callers without them are refused",
         Severity::Warning,
     );
     // GetOrganization's requirements were internal before and still are.
@@ -538,6 +538,20 @@ fn an_internal_requirement_added_is_an_authorization_change_in_the_client_view()
         !found.iter().any(
             |f| f.rule == "compatibility.authorization" && f.shape.ends_with("GetOrganization")
         ),
+        "{found:#?}"
+    );
+    // A permission that becomes internal changes what the client view
+    // shows, not what a caller must hold: no authorization change there.
+    let hidden = edit(
+        BASE,
+        "    permission write = \"graph:write\"",
+        "    internal permission write = \"graph:write\"",
+    );
+    let found = diff(&external(BASE), &external(&hidden), &Config::default()).findings;
+    assert!(
+        !found
+            .iter()
+            .any(|f| f.rule == "compatibility.authorization"),
         "{found:#?}"
     );
 }

@@ -887,9 +887,11 @@ fn project_permissions(result: &mut Service) {
                     Requirements::Partial(std::mem::take(clauses))
                 };
             } else if clauses.is_empty() {
-                // Only internal filters: nothing the client can state, as
-                // for an operation whose requirements are still pending.
-                op.requirements = Requirements::Undeclared;
+                // Only internal filters: no caller is refused for lacking a
+                // permission, so to the client it requires none (what it
+                // answers is narrowed, as any listing's may be). Not
+                // `Undeclared`, which the shared check refuses.
+                op.requirements = Requirements::None;
             }
         }
     }

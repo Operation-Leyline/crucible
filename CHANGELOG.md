@@ -500,7 +500,7 @@ version's section when it is prepared.
   resource's value of it was internal. A `filters` clause on an internal
   permission narrows a listing and refuses nothing, so leaving it out no
   longer makes the list partial; a listing that only filters by internal
-  permissions says nothing in the client view. `compatibility.authorization`
+  permissions requires none in the client view. `compatibility.authorization`
   compares client-audience models too (an SDK release plan does): a list
   that becomes partial, or requirements that become internal, is reported
   as an added requirement on permissions internal to the service. See
@@ -640,7 +640,13 @@ version's section when it is prepared.
   never repeats a name another clause spells, and a float `when` literal
   outside `f32` is a diagnostic. An older release's legacy operation is
   refused when the resource's identifiers changed in any way, not only in
-  number, since its bindings are positional.
+  number, since its bindings are positional, or when the resource moved to
+  other parents: releases now record each resource's parents (by
+  authorization name, or shape name for a parent without permissions; a
+  parent's shape rename that keeps its authorization name is no move), so
+  a move to a parent whose identifier has the same name, or a root moved
+  under a parent without identifiers, is caught too. A release frozen
+  before parents were recorded is compared by identifiers alone.
 
 - The Rust client's default HTTP transport no longer follows redirects,
   which could forward custom API-key and SigV4 session-token headers to

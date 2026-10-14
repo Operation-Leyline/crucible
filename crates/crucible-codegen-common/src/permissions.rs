@@ -386,6 +386,11 @@ fn requirement_parts(
     let Some((clauses, hidden)) = visible_clauses(service, op, internal) else {
         return (Vec::new(), Vec::new());
     };
+    // Every clause an internal `filters` left out: nothing refuses the
+    // caller, as the client audience projection says (`requires none`).
+    if clauses.is_empty() && !hidden {
+        return (vec!["Requires no permission.".to_owned()], Vec::new());
+    }
     let mut sentences = Vec::new();
     let mut blocks = Vec::new();
     let mut required = Vec::new();

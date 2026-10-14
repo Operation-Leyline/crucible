@@ -177,8 +177,11 @@ impl Checker<'_> {
             // An SDK release plan compares the models its audience sees
             // (docs/sdk-packaging.md, phase 2), where the client projection
             // leaves out clauses on internal permissions: a list that became
-            // `Partial`, or requirements that became `Internal`, gained a
-            // requirement this audience cannot name.
+            // `Partial` while keeping every clause it had, or requirements
+            // that became `Internal` where there were none, gained a
+            // requirement this audience cannot name. A clause that left the
+            // view instead became internal: its visibility changed, not
+            // what a caller must hold.
             let (added, hidden): (Vec<&Requirement>, bool) =
                 match (&old_op.requirements, &new_op.requirements) {
                     (
@@ -191,13 +194,19 @@ impl Checker<'_> {
                             })
                             .collect(),
                         matches!(new_op.requirements, Requirements::Partial(_))
-                            && !matches!(old_op.requirements, Requirements::Partial(_)),
+                            && !matches!(old_op.requirements, Requirements::Partial(_))
+                            && old.iter().all(|before| {
+                                new.iter().any(|clause| self.same_clause(before, clause))
+                            }),
                     ),
                     (_, Requirements::List(new)) => (new.iter().collect(), false),
                     (old, Requirements::Partial(new)) => {
                         (new.iter().collect(), !matches!(old, Requirements::Internal))
                     }
-                    (Requirements::Internal, Requirements::Internal) => (Vec::new(), false),
+                    (
+                        Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal,
+                        Requirements::Internal,
+                    ) => (Vec::new(), false),
                     (_, Requirements::Internal) => (Vec::new(), true),
                     _ => (Vec::new(), false),
                 };
@@ -217,12 +226,17 @@ impl Checker<'_> {
             if hidden {
                 clauses.push("permissions internal to the service".to_owned());
             }
+            let them = if clauses.len() == 1 && !hidden {
+                "it"
+            } else {
+                "them"
+            };
             self.report.push(
                 "compatibility.authorization",
                 &old_op.id,
                 Severity::Warning,
                 format!(
-                    "an authorization change: `{}` now requires {}{was}; callers without it are refused",
+                    "an authorization change: `{}` now requires {}{was}; callers without {them} are refused",
                     old_op.name(),
                     clauses.join(", ")
                 ),
