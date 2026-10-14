@@ -294,11 +294,17 @@ fn error_response(error: &dyn ModelledError, format: Format) -> Response {
 }
 
 fn framework_response(error: &FrameworkError, format: Format) -> Response {
+    if let FrameworkError::NotFound { resource } = error {
+        return not_found(error, resource.name, format);
+    }
     let type_name = if format.rpc_v2() {
         match error {
             FrameworkError::Unauthenticated => "smithy.framework#UnauthenticatedException",
-            FrameworkError::Forbidden => "smithy.framework#ForbiddenException",
+            FrameworkError::Forbidden | FrameworkError::PermissionDenied { .. } => {
+                "smithy.framework#ForbiddenException"
+            }
             FrameworkError::Conflict { .. } => "smithy.framework#ConflictException",
+            FrameworkError::NotFound { .. } => NOT_FOUND_SHAPE,
             FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
             FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
             FrameworkError::UnsupportedMediaType => {
@@ -317,6 +323,46 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
     };
     if let FrameworkError::MethodNotAllowed { allowed } = error {
         headers.push(("allow".to_owned(), allowed.join(", ")));
+    }
+    let mut bytes = Vec::new();
+    if matches!(format, Format::RpcV2Cbor) {
+        crate::cbor::write(&body, &mut bytes).expect("framework error is CBOR serializable");
+    } else {
+        bytes = to_bytes(&body);
+    }
+    respond(
+        format,
+        error.status(),
+        headers,
+        Some((format.content_type(), bytes)),
+    )
+}
+
+/// The modelled error a hidden or missing resource is answered with.
+const NOT_FOUND_SHAPE: &str = "crucible.errors#NotFoundException";
+
+/// [`FrameworkError::NotFound`], encoded as the modelled
+/// `crucible.errors#NotFoundException` the compiler attaches to every
+/// resource-bound operation, so an SDK reads it as that typed error: named
+/// as each protocol names a modelled error, with its `resourceType` member,
+/// and never cached, since whether a resource is visible changes with
+/// grants.
+fn not_found(error: &FrameworkError, resource_type: &str, format: Format) -> Response {
+    let type_name = match format {
+        Format::AwsJson10 | Format::RpcV2Json | Format::RpcV2Cbor => NOT_FOUND_SHAPE,
+        Format::Crucible | Format::RestJson | Format::AwsJson11 => error.name(),
+    };
+    let body = serde_json::json!({
+        "__type": type_name,
+        "message": error.message(),
+        "resourceType": resource_type,
+    });
+    let mut headers = vec![("cache-control".to_owned(), "no-store".to_owned())];
+    if matches!(format, Format::Crucible) {
+        headers.push(("x-crucible-error".to_owned(), error.name().to_owned()));
+    }
+    if format.aws() {
+        headers.push(("x-amzn-errortype".to_owned(), error.name().to_owned()));
     }
     let mut bytes = Vec::new();
     if matches!(format, Format::RpcV2Cbor) {
@@ -407,6 +453,21 @@ fn respond(
 mod tests {
     use super::{Format, framework_response};
     use crate::error::FrameworkError;
+    use crate::permissions::{PermissionInfo, ResourceInfo, Tier};
+
+    static INBOX: ResourceInfo = ResourceInfo {
+        name: "inbox",
+        identifiers: &["workspaceId", "inboxId"],
+        not_found: "No such inbox.",
+    };
+    static SEND: PermissionInfo = PermissionInfo {
+        resource: &INBOX,
+        symbol: "mailSend",
+        value: "mail:send",
+        aliases: &[],
+        tier: Tier::Public,
+        denied: "This principal does not hold mail:send on that inbox.",
+    };
 
     #[tokio::test]
     async fn a_conflict_is_a_409_named_for_each_protocol() {
@@ -426,6 +487,92 @@ mod tests {
             let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["__type"], name);
             assert_eq!(body["message"], conflict.message());
+        }
+    }
+
+    async fn body(response: axum::response::Response, cbor: bool) -> serde_json::Value {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        if cbor {
+            crate::cbor::read(&bytes).unwrap()
+        } else {
+            serde_json::from_slice(&bytes).unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn not_found_is_the_modelled_404_in_every_protocol_and_never_cached() {
+        let missing = FrameworkError::NotFound { resource: &INBOX };
+        for (format, name, error_header) in [
+            (
+                Format::Crucible,
+                "NotFoundException",
+                Some("x-crucible-error"),
+            ),
+            (
+                Format::RestJson,
+                "NotFoundException",
+                Some("x-amzn-errortype"),
+            ),
+            (
+                Format::AwsJson10,
+                "crucible.errors#NotFoundException",
+                Some("x-amzn-errortype"),
+            ),
+            (
+                Format::AwsJson11,
+                "NotFoundException",
+                Some("x-amzn-errortype"),
+            ),
+            (Format::RpcV2Json, "crucible.errors#NotFoundException", None),
+            (Format::RpcV2Cbor, "crucible.errors#NotFoundException", None),
+        ] {
+            let response = framework_response(&missing, format);
+            assert_eq!(response.status().as_u16(), 404, "{format:?}");
+            assert_eq!(
+                response.headers()["cache-control"],
+                "no-store",
+                "{format:?}"
+            );
+            if let Some(header) = error_header {
+                assert_eq!(
+                    response.headers()[header],
+                    "NotFoundException",
+                    "{format:?}"
+                );
+            }
+            let body = body(response, matches!(format, Format::RpcV2Cbor)).await;
+            assert_eq!(
+                body,
+                serde_json::json!({
+                    "__type": name,
+                    "message": "No such inbox.",
+                    "resourceType": "inbox",
+                }),
+                "{format:?}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_permission_refusal_is_a_403_forbidden_exception() {
+        let denied = FrameworkError::PermissionDenied { permission: &SEND };
+        for (format, name) in [
+            (Format::Crucible, "ForbiddenException"),
+            (Format::RestJson, "ForbiddenException"),
+            (Format::AwsJson11, "ForbiddenException"),
+            (Format::RpcV2Json, "smithy.framework#ForbiddenException"),
+        ] {
+            let response = framework_response(&denied, format);
+            assert_eq!(response.status().as_u16(), 403);
+            assert!(!response.headers().contains_key("www-authenticate"));
+            let body = body(response, false).await;
+            assert_eq!(body["__type"], name);
+            assert_eq!(
+                body["message"],
+                "This principal does not hold mail:send on that inbox."
+            );
         }
     }
 }

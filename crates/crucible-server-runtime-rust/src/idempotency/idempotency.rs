@@ -190,12 +190,24 @@ impl Idempotency {
                 // A response written before a deploy that changed the
                 // operation's response cannot be replayed faithfully; the
                 // caller is told so rather than given a 500.
-                let replayed = response
-                    .unwrap(api_version)
-                    .map(|output| job.replay_output(output));
-                match replayed {
-                    Some(Ok(())) => Ok(()),
-                    _ => Err((self.refusal)(IdempotencyRefusal::Unreplayable)),
+                let Some((output, authorization)) = response.unwrap(api_version) else {
+                    return Err((self.refusal)(IdempotencyRefusal::Unreplayable));
+                };
+                // The declared checks were made again by `Permissions`,
+                // which runs first; the handler checks the first success
+                // was allowed are asked again here. A caller who lost
+                // access is refused rather than served the stored success.
+                #[cfg(feature = "permissions")]
+                if let Some(authorization) = authorization
+                    && !crate::permissions::reauthorize(job.context(), &authorization).await?
+                {
+                    return Err((self.refusal)(IdempotencyRefusal::Unreplayable));
+                }
+                #[cfg(not(feature = "permissions"))]
+                let _ = authorization;
+                match job.replay_output(output) {
+                    Ok(()) => Ok(()),
+                    Err(_) => Err((self.refusal)(IdempotencyRefusal::Unreplayable)),
                 }
             }
             Claim::Replay { .. } => Err((self.refusal)(IdempotencyRefusal::Mismatch)),
@@ -269,6 +281,15 @@ impl Interceptor for Idempotency {
     }
 
     fn after<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, ()> {
+        // A success with a permission obligation unsatisfied fails here,
+        // before it could be stored for replay (`Permissions` is registered
+        // first, so it unwinds after this).
+        #[cfg(feature = "permissions")]
+        crate::permissions::settle(job);
+        #[cfg(feature = "permissions")]
+        let authorization = crate::permissions::stored_checks(job.context());
+        #[cfg(not(feature = "permissions"))]
+        let authorization = None;
         let Some(claim) = job
             .context()
             .attribute::<Attempt>()
@@ -282,10 +303,13 @@ impl Interceptor for Idempotency {
             Some(Outcome::Output(output)) => Some(output.to_json()),
             _ => None,
         };
-        Hook::wait(async move { claim.finish(output).await })
+        Hook::wait(async move { claim.finish(output, authorization).await })
     }
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        // Records the registration order for `Permissions`, which refuses
+        // to follow.
+        prepare.builtin("idempotency", "permissions");
         if self.retention.is_zero() || self.lease.is_zero() {
             return Err("an idempotency retention and lease must be positive".to_owned());
         }

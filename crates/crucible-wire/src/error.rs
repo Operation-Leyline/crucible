@@ -7,6 +7,7 @@ use std::fmt;
 use serde_json::Value;
 
 use crate::operation::ErrorInfo;
+use crate::permissions::{PermissionInfo, ResourceInfo};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -152,6 +153,25 @@ pub enum FrameworkError {
     Conflict {
         message: &'static str,
     },
+    /// The resource does not exist, or the caller may not know that it
+    /// does: the modelled `crucible.errors#NotFoundException` (404), whose
+    /// members are the resource's fixed message ([`ResourceInfo::not_found`])
+    /// and `resourceType`, its authorization name. An authorization that
+    /// hides a resource and a handler reporting genuine absence both answer
+    /// it, so the two are indistinguishable. It never names a permission or
+    /// an identifier.
+    NotFound {
+        resource: &'static ResourceInfo,
+    },
+    /// An authenticated caller can see the resource but lacks `permission`
+    /// on it: a 403 `ForbiddenException`, like `Forbidden`, whose message is
+    /// the permission's [`PermissionInfo::denied`], naming its value and
+    /// resource type, unless the permission is internal: then the message
+    /// names neither. Unlike `Forbidden` it sends no `insufficient_scope`
+    /// challenge: no token would carry a grant.
+    PermissionDenied {
+        permission: &'static PermissionInfo,
+    },
     UnknownOperation,
     MethodNotAllowed {
         allowed: Vec<&'static str>,
@@ -166,6 +186,8 @@ impl FrameworkError {
             Self::Unauthenticated => "UnauthenticatedException",
             Self::Forbidden => "ForbiddenException",
             Self::Conflict { .. } => "ConflictException",
+            Self::NotFound { .. } => "NotFoundException",
+            Self::PermissionDenied { .. } => "ForbiddenException",
             Self::UnknownOperation => "UnknownOperation",
             Self::MethodNotAllowed { .. } => "MethodNotAllowed",
             Self::UnsupportedMediaType => "UnsupportedMediaTypeException",
@@ -178,6 +200,8 @@ impl FrameworkError {
             Self::Unauthenticated => 401,
             Self::Forbidden => 403,
             Self::Conflict { .. } => 409,
+            Self::NotFound { .. } => 404,
+            Self::PermissionDenied { .. } => 403,
             Self::UnknownOperation => 404,
             Self::MethodNotAllowed { .. } => 405,
             Self::UnsupportedMediaType => 415,
@@ -190,6 +214,9 @@ impl FrameworkError {
             Self::Unauthenticated => "authentication is required",
             Self::Forbidden => "access is forbidden",
             Self::Conflict { message } => message,
+            Self::NotFound { resource } => resource.not_found,
+            Self::PermissionDenied { permission } if permission.is_public() => permission.denied,
+            Self::PermissionDenied { .. } => "This principal may not perform this operation.",
             Self::UnknownOperation => "no operation serves this request",
             Self::MethodNotAllowed { .. } => "the request method is not allowed for this target",
             Self::UnsupportedMediaType => "the request content-type is not supported",
@@ -305,6 +332,51 @@ mod tests {
         fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
             Some(&CYCLE_A)
         }
+    }
+
+    #[test]
+    fn not_found_and_permission_denied_name_only_what_they_may() {
+        use crate::permissions::Tier;
+
+        static INBOX: ResourceInfo = ResourceInfo {
+            name: "inbox",
+            identifiers: &["workspaceId", "inboxId"],
+            not_found: "No such inbox.",
+        };
+        static SEND: PermissionInfo = PermissionInfo {
+            resource: &INBOX,
+            symbol: "mailSend",
+            value: "mail:send",
+            aliases: &[],
+            tier: Tier::Public,
+            denied: "This principal does not hold mail:send on that inbox.",
+        };
+        static WATCH: PermissionInfo = PermissionInfo {
+            resource: &INBOX,
+            symbol: "watch",
+            value: "inbox:watch",
+            aliases: &[],
+            tier: Tier::Internal,
+            denied: "This principal does not hold inbox:watch on that inbox.",
+        };
+        let missing = FrameworkError::NotFound { resource: &INBOX };
+        assert_eq!(missing.status(), 404);
+        assert_eq!(missing.name(), "NotFoundException");
+        assert_eq!(missing.message(), "No such inbox.");
+
+        let denied = FrameworkError::PermissionDenied { permission: &SEND };
+        assert_eq!(denied.status(), 403);
+        assert_eq!(denied.name(), "ForbiddenException");
+        assert_eq!(
+            denied.message(),
+            "This principal does not hold mail:send on that inbox."
+        );
+        // An internal permission's own message is never used.
+        let internal = FrameworkError::PermissionDenied { permission: &WATCH };
+        assert_eq!(
+            internal.message(),
+            "This principal may not perform this operation."
+        );
     }
 
     #[test]

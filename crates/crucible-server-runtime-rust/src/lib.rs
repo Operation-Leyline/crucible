@@ -67,6 +67,7 @@ pub mod operations;
 mod outcome;
 #[cfg(feature = "page-tokens")]
 pub mod page_tokens;
+pub mod permissions;
 mod prepare;
 pub mod protocol;
 mod resolution;
@@ -136,7 +137,8 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, field, number, open, operation, time, validate,
+        cbor, codec, error, event_stream, field, number, open, operation, permissions, time,
+        validate,
     };
 
     pub use chrono;

@@ -25,6 +25,11 @@ page-tokens = ["dep:chacha20poly1305", "dep:hkdf", "dep:sha2", "dep:base64"]
 # the service supplies, retries answered with the first success. SHA-256
 # fingerprints the request, so a service without it carries no digest.
 idempotency = ["dep:sha2"]
+# Typed permissions (`permissions`): the `Permissions` interceptor enforcing
+# the model's requirements through a service-supplied `Authorizer`, and the
+# handler checks beside it. The requirement descriptions themselves are
+# always present, since generated code states them.
+permissions = []
 # The conformance harness that generated `smithy.test` vector tests call. Enable it
 # from [dev-dependencies]: nothing in a production build needs it. (This crate's
 # own tests always include it.)
