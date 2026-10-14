@@ -463,7 +463,8 @@ version's section when it is prepared.
   read. A reader that is not an `io.Closer` still holds a cancelled call
   until its pending `Read` returns. Every return, including an early error
   response, also closes the attempt's body, so the transport stops reading
-  the caller's stream once the call has ended.
+  the caller's stream once the call has ended. The exception is a streamed
+  response: there the body stays open until the response ends or is closed.
 
 - An idempotency store outage, or an Authorizer outage, can no longer
   become a modelled 4xx through the service's exception rules. Both are
