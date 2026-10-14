@@ -4,7 +4,7 @@ use crate::{
 };
 use axum::http::header;
 use crucible_server_runtime_rust::{
-    AsyncOperationAwareMiddleware, FrameworkError, OperationJob, Prepare, Result,
+    AsyncOperationAwareMiddleware, FrameworkError, OpaqueError, OperationJob, Prepare, Result,
     operation::AuthScheme,
 };
 use std::{collections::HashMap, sync::Arc};
@@ -96,9 +96,12 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
             {
                 AuthenticateResult::Refused => refused = true,
                 AuthenticateResult::Unavailable(error) => {
-                    return Err(
-                        crate::authentication_unavailable::AuthenticationUnavailable(error).into(),
-                    );
+                    // Opaque: a service rule for its own store client's errors
+                    // must not turn a provider outage into a modelled 4xx.
+                    return Err(OpaqueError::new(
+                        crate::authentication_unavailable::AuthenticationUnavailable(error),
+                    )
+                    .into());
                 }
                 AuthenticateResult::Authenticated(principal) => {
                     job.context().set_attribute(principal);

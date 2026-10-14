@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 /// The service's key table, read by digest. Implementations own the row
 /// mapping (status field, expiry format, attributes) and must not put the
-/// digest into an error: errors reach the service log.
+/// digest into an error: errors reach the service log. A read that outlives
+/// `ApiKeyAuthenticator::lookup_timeout` is dropped, so `lookup` must be safe
+/// to cancel (a plain read is).
 #[async_trait::async_trait]
 pub trait ApiKeyStore: Send + Sync + 'static {
     /// `Ok(None)` when no key has this digest: the credential is refused.

@@ -3,6 +3,7 @@ use axum::response::IntoResponse;
 use crucible_server_runtime_rust::endpoint::{EndpointAdmission, EndpointGuard};
 use crucible_server_runtime_rust::mcp::McpAuthorization;
 use crucible_server_runtime_rust::{Context, Hook, operation::AuthScheme};
+use serde_json::Value;
 
 use crate::{AuthError, AuthenticateResult, Authenticator, JwtAuthenticator, TokenKind};
 
@@ -74,7 +75,15 @@ impl EndpointGuard for McpAuthenticator {
                     AuthenticateResult::Authenticated(principal) => {
                         let audience_matches = match principal.claims.get("aud") {
                             None => self.allow_unbound,
-                            Some(audience) => audience.as_str() == Some(self.resource.as_str()),
+                            Some(Value::String(audience)) => *audience == self.resource,
+                            // RFC 7519 4.1.3: a single audience may also be a
+                            // one-member array. A token for several audiences
+                            // is refused: any of them could replay it here.
+                            Some(Value::Array(audiences)) => matches!(
+                                audiences.as_slice(),
+                                [Value::String(audience)] if *audience == self.resource
+                            ),
+                            Some(_) => false,
                         };
                         if principal.token_kind != TokenKind::Access || !audience_matches {
                             continue;

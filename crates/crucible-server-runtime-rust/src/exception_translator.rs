@@ -3,7 +3,7 @@
 //! failure, answered with no detail.
 
 use crate::error::{Error, MAX_SOURCE_DEPTH};
-use crate::{Job, Resolution};
+use crate::{Job, OpaqueError, Resolution};
 
 type Rule = Box<dyn Fn(&(dyn std::error::Error + 'static)) -> Option<Error> + Send + Sync>;
 
@@ -17,7 +17,8 @@ impl ExceptionTranslator {
         Self::default()
     }
 
-    /// Translates an `E` found anywhere in a failure's source chain.
+    /// Translates an `E` found anywhere in a failure's source chain, short of
+    /// an [`OpaqueError`]'s causes.
     pub fn translate<E: std::error::Error + 'static>(
         self,
         rule: impl Fn(&E) -> Error + Send + Sync + 'static,
@@ -40,6 +41,10 @@ impl ExceptionTranslator {
             let Some(candidate) = current else { break };
             if let Some(translated) = self.rules.iter().find_map(|rule| rule(candidate)) {
                 return Some(translated);
+            }
+            // Rules may match the wrapper, never what it wraps.
+            if candidate.is::<OpaqueError>() {
+                break;
             }
             current = candidate.source();
         }
@@ -152,6 +157,53 @@ mod tests {
         let error = Error::new(CyclicError);
         let translated = translator.translation(&error).expect("should translate");
         assert_eq!(translated.to_string(), "recovered from cyclic");
+    }
+
+    #[test]
+    fn rules_never_see_inside_an_opaque_error() {
+        let translator = ExceptionTranslator::new()
+            .translate(|e: &CustomError| Error::internal(format!("translated: {}", e.0)));
+        // Directly wrapped, and with the matching type further down its chain.
+        let direct = Error::new(OpaqueError::new(CustomError("inner")));
+        assert!(translator.translation(&direct).is_none());
+        let nested = Error::new(OpaqueError::new(NestedError {
+            msg: "provider down",
+            source: Some(Box::new(CustomError("inner"))),
+        }));
+        assert!(translator.translation(&nested).is_none());
+        // Transparent to the log.
+        assert_eq!(nested.to_string(), "provider down");
+        assert_eq!(nested.chain(), "provider down: inner");
+        // A crucible Error wraps as it is, with the same opacity.
+        let held = Error::new(NestedError {
+            msg: "provider down",
+            source: Some(Box::new(CustomError("inner"))),
+        });
+        let wrapped = Error::new(OpaqueError::from(held));
+        assert!(translator.translation(&wrapped).is_none());
+        assert_eq!(wrapped.chain(), "provider down: inner");
+    }
+
+    #[test]
+    fn rules_may_match_an_opaque_error_itself_and_errors_around_it() {
+        let translator =
+            ExceptionTranslator::new().translate(|_: &OpaqueError| Error::internal("opaque"));
+        let error = Error::new(OpaqueError::new(CustomError("inner")));
+        assert_eq!(
+            translator.translation(&error).unwrap().to_string(),
+            "opaque"
+        );
+
+        let translator = ExceptionTranslator::new()
+            .translate(|e: &NestedError| Error::internal(format!("outer: {}", e.msg)));
+        let wrapped = Error::new(NestedError {
+            msg: "service",
+            source: Some(Box::new(OpaqueError::new(CustomError("inner")))),
+        });
+        assert_eq!(
+            translator.translation(&wrapped).unwrap().to_string(),
+            "outer: service"
+        );
     }
 
     #[test]

@@ -142,7 +142,9 @@ identity provider without either, see
 obtain tokens from the advertised issuer and send them in `Authorization` on
 each request. Query tokens are ignored; duplicate credential headers are refused.
 Tokens must be access tokens, with an allowed `client_id`, and by default their
-`aud` string must exactly equal the configured resource URL.
+`aud` must exactly equal the configured resource URL, as a string or a
+one-member array (RFC 7519 allows either for one audience). A token for several
+audiences is refused: any of them could replay it here.
 
 ### Configuring Cognito
 
@@ -192,7 +194,7 @@ For pools or token flows without resource binding, explicitly opt into
 `authorization.allow_unbound_cognito_tokens()`. This compatibility mode accepts
 absent `aud` only with all three substitute controls: access-token verification
 on the MCP endpoint, an allowed `client_id`, and the required service-owned
-resource-server scope. A present `aud` must still equal the MCP URL. This mode
+resource-server scope. A present `aud` must still be the MCP URL alone. This mode
 is not RFC 8707 audience binding and does not claim full MCP authorization
 conformance. Prefer bound tokens where the deployment supports them.
 

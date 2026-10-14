@@ -84,10 +84,11 @@ registration, and services read its fields. `ApiVersion` and
 See [the framework pipeline](framework.md#the-request-pipeline) for phase and
 unwind guarantees.
 
-`Result`, `Error`, `ModelledError`, `FrameworkError`, and `ExceptionTranslator`
-are the error contract. `FrameworkError` is non-exhaustive: a `match` on it
-needs a wildcard arm, and `name`, `status`, `message` and `shape_id` cover
-every variant. Modeled exceptions come from the generated service API.
+`Result`, `Error`, `ModelledError`, `FrameworkError`, `ExceptionTranslator`,
+and `OpaqueError` are the error contract. `FrameworkError` is non-exhaustive: a
+`match` on it needs a wildcard arm, and `name`, `status`, `message` and
+`shape_id` cover every variant. Modeled exceptions come from the generated
+service API.
 Applications can inspect errors and translate application failures without
 calling generated serialization helpers.
 

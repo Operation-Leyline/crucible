@@ -95,6 +95,10 @@ fn inconsistent_configuration_is_an_error() {
             .refusal_backoff(Duration::ZERO, Duration::ZERO)
             .is_ok()
     );
+    assert!(auth().lookup_timeout(Duration::ZERO).is_err());
+    assert!(auth().lookup_timeout(second).is_ok());
+    assert!(auth().last_used_timeout(Duration::ZERO).is_err());
+    assert!(auth().last_used_timeout(second).is_ok());
 }
 
 #[test]
@@ -773,4 +777,165 @@ async fn a_failed_refresh_keeps_the_entry_until_its_ttl() {
         unavailable(&check(&auth, KEY).await),
         "past its TTL the outage shows, as a 5xx and not a refusal"
     );
+}
+
+#[tokio::test]
+async fn an_active_record_without_a_key_id_or_tenant_is_an_outage() {
+    let (store, _, auth) = setup();
+    for (n, (key_id, tenant)) in [("key-1", ""), ("", "workspace-1"), ("key-1", " ")]
+        .into_iter()
+        .enumerate()
+    {
+        let key = format!("pgn_blank_{n}");
+        store.insert(&key, ApiKeyRecord::new(key_id, tenant, ApiKeyState::Active));
+        // Never a principal with `tenant: Some("")`, and nothing cached.
+        assert!(
+            unavailable(&check(&auth, &key).await),
+            "{key_id:?}/{tenant:?}"
+        );
+        assert!(unavailable(&check(&auth, &key).await));
+    }
+    assert_eq!(store.lookups(), 6);
+    // A dead row is refused as usual, tenant or not.
+    store.insert(
+        "pgn_blank_revoked",
+        ApiKeyRecord::new("key-2", "", ApiKeyState::Revoked),
+    );
+    assert!(refused(&check(&auth, "pgn_blank_revoked").await));
+}
+
+/// Never answers for the digests in `hangs`, like a store whose connection
+/// to them hangs; reads everything else from `inner`. Counts the reads that
+/// began.
+#[derive(Clone)]
+struct HangingStore {
+    inner: InMemoryApiKeyStore,
+    hangs: Arc<Mutex<Vec<String>>>,
+    entered: Arc<AtomicUsize>,
+}
+
+impl HangingStore {
+    fn new(inner: &InMemoryApiKeyStore, hangs: &[&str]) -> Self {
+        Self {
+            inner: inner.clone(),
+            hangs: Arc::new(Mutex::new(
+                hangs.iter().map(|key| api_key_digest(key)).collect(),
+            )),
+            entered: Arc::new(AtomicUsize::new(0)),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl ApiKeyStore for HangingStore {
+    async fn lookup(
+        &self,
+        digest: &str,
+    ) -> Result<Option<ApiKeyRecord>, crucible_server_runtime_rust::Error> {
+        self.entered.fetch_add(1, Ordering::SeqCst);
+        if self.hangs.lock().unwrap().iter().any(|hung| hung == digest) {
+            std::future::pending::<()>().await;
+        }
+        self.inner.lookup(digest).await
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_hung_store_read_is_an_outage_at_its_deadline_and_frees_its_slot() {
+    let store = InMemoryApiKeyStore::new();
+    store.insert(KEY, active("key-1"));
+    let hanging = HangingStore::new(&store, &["pgn_hangs"]);
+    let auth = Arc::new(
+        ApiKeyAuthenticator::new("pgn_", hanging.clone())
+            .unwrap()
+            .lookup_concurrency(1),
+    );
+    let started = tokio::time::Instant::now();
+    let reader = Arc::clone(&auth);
+    let hung = tokio::spawn(async move { check(&reader, "pgn_hangs").await });
+    while hanging.entered.load(Ordering::SeqCst) == 0 {
+        tokio::task::yield_now().await;
+    }
+    // Queued behind the hung read for the only slot: it fails at the same
+    // deadline rather than waiting for the slot without bound, and never reads.
+    let queued = check(&auth, KEY).await;
+    assert!(unavailable(&queued), "{queued:?}");
+    assert_eq!(hanging.entered.load(Ordering::SeqCst), 1);
+    assert!(
+        unavailable(&hung.await.unwrap()),
+        "an outage, not a refusal"
+    );
+    assert_eq!(started.elapsed(), Duration::from_secs(5));
+    // The hung read gave its slot back, and its outage was not cached.
+    assert!(admitted(&check(&auth, KEY).await));
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_lookup_deadline_is_configurable() {
+    let store = InMemoryApiKeyStore::new();
+    let auth = ApiKeyAuthenticator::new("pgn_", HangingStore::new(&store, &["pgn_hangs"]))
+        .unwrap()
+        .lookup_timeout(Duration::from_millis(250))
+        .unwrap();
+    let started = tokio::time::Instant::now();
+    assert!(unavailable(&check(&auth, "pgn_hangs").await));
+    assert_eq!(started.elapsed(), Duration::from_millis(250));
+}
+
+#[tokio::test]
+async fn refresh_ahead_has_its_own_slots_so_a_flood_of_misses_cannot_starve_it() {
+    let store = InMemoryApiKeyStore::new();
+    store.insert(KEY, active("key-1"));
+    let clock = TestClock::new();
+    let now = clock.clone();
+    let hanging = HangingStore::new(&store, &["pgn_forged"]);
+    let auth = Arc::new(
+        ApiKeyAuthenticator::new("pgn_", hanging.clone())
+            .unwrap()
+            .lookup_concurrency(1)
+            .clock(move || now.now()),
+    );
+    assert!(admitted(&check(&auth, KEY).await));
+    // A forged key's read holds the only slot for misses.
+    let reader = Arc::clone(&auth);
+    let flood = tokio::spawn(async move { check(&reader, "pgn_forged").await });
+    while hanging.entered.load(Ordering::SeqCst) < 2 {
+        tokio::task::yield_now().await;
+    }
+    clock.advance(240);
+    assert!(admitted(&check(&auth, KEY).await), "answered from cache");
+    // The refresh-ahead read still runs.
+    until_lookups(&store, 2).await;
+    flood.abort();
+}
+
+/// Never returns, like a last-used write to a hung table.
+struct HangingRecorder(Arc<AtomicUsize>);
+
+#[async_trait::async_trait]
+impl ApiKeyUsageRecorder for HangingRecorder {
+    async fn record_use(&self, _: &str, _: &ApiKeyRecord) {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        std::future::pending::<()>().await;
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_hung_last_used_write_holds_the_request_only_until_its_deadline() {
+    let (store, clock, auth) = setup();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let auth = auth
+        .last_used(HangingRecorder(Arc::clone(&calls)))
+        .last_used_timeout(Duration::from_millis(300))
+        .unwrap();
+    store.insert(KEY, active("key-1"));
+    let started = tokio::time::Instant::now();
+    assert!(admitted(&check(&auth, KEY).await));
+    assert_eq!(started.elapsed(), Duration::from_millis(300));
+    // Cut short counts as a failed write: not retried within the window.
+    assert!(admitted(&check(&auth, KEY).await));
+    assert_eq!(started.elapsed(), Duration::from_millis(300));
+    clock.advance(3600);
+    assert!(admitted(&check(&auth, KEY).await));
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
 }

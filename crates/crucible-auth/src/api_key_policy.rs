@@ -29,9 +29,11 @@ pub(crate) struct ApiKeyPolicy {
     pub refusal_ceiling: Duration,
     pub refused_capacity: usize,
     pub lookup_concurrency: usize,
+    pub lookup_timeout: Duration,
     pub fence: Option<Fence>,
     pub usage: Option<Arc<dyn ApiKeyUsageRecorder>>,
     pub last_used_resolution: Duration,
+    pub last_used_timeout: Duration,
     pub clock: Clock,
 }
 
@@ -50,9 +52,11 @@ impl ApiKeyPolicy {
             refusal_ceiling: Duration::from_secs(60),
             refused_capacity: 20_000,
             lookup_concurrency: 32,
+            lookup_timeout: Duration::from_secs(5),
             fence: None,
             usage: None,
             last_used_resolution: Duration::from_secs(3600),
+            last_used_timeout: Duration::from_secs(1),
             clock: Arc::new(SystemTime::now),
         }
     }
@@ -100,6 +104,13 @@ impl ApiKeyPolicy {
             && !key.contains(char::is_whitespace)
             && self.well_formed.as_ref().is_none_or(|check| check(key));
         recognized.then_some(key)
+    }
+
+    /// Store reads in flight at once for refresh-ahead, beside
+    /// `lookup_concurrency`: a quarter of it, at least one. Separate so a
+    /// flood of misses cannot stop cached valid keys from refreshing.
+    pub fn refresh_concurrency(&self) -> usize {
+        (self.lookup_concurrency / 4).max(1)
     }
 
     /// A valid entry read at `read_at` is refreshed in the background once it

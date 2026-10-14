@@ -16,6 +16,7 @@ use std::{
     sync::{Arc, atomic::Ordering},
     time::{Duration, SystemTime},
 };
+use tokio::sync::Semaphore;
 
 const LOCK: &str = "API key cache lock";
 
@@ -41,7 +42,7 @@ impl ApiKeyCore {
         let digest = api_key_digest(credential);
         let outcome = match self.cached(&digest, self.now()) {
             Some(outcome) => outcome,
-            None => self.lookup(&digest).await,
+            None => self.lookup(&digest, &self.cache.lookups).await,
         };
         match outcome {
             LookupOutcome::Valid(record) => self.admit(&digest, record).await,
@@ -117,14 +118,17 @@ impl ApiKeyCore {
     /// than the valid TTL when it arrives (a slow store, or a refresh paused by
     /// a Lambda freeze that a later request joined) is not served: the read is
     /// repeated once, and a second stale answer is an outage.
-    async fn lookup(&self, digest: &str) -> LookupOutcome {
+    ///
+    /// `slots` bounds the reads this one competes with: request misses and
+    /// refresh-ahead each have their own.
+    async fn lookup(&self, digest: &str, slots: &Semaphore) -> LookupOutcome {
         for _ in 0..2 {
             let waiter = InflightWaiter::join(&self.cache.inflight, digest);
             // A cancelled reader leaves the cell empty; the next waiter reads instead.
             let (read_at, outcome) = waiter
                 .cell
                 .get_or_init(|| async {
-                    let read = self.read(digest).await;
+                    let read = self.read(digest, slots).await;
                     waiter.finish();
                     read
                 })
@@ -146,17 +150,30 @@ impl ApiKeyCore {
         !ttl.is_zero() && now.duration_since(read_at).is_ok_and(|age| age >= ttl)
     }
 
-    async fn read(&self, digest: &str) -> (SystemTime, LookupOutcome) {
+    async fn read(&self, digest: &str, slots: &Semaphore) -> (SystemTime, LookupOutcome) {
         let epoch = self.cache.epoch.load(Ordering::SeqCst);
-        let (read_at, result) = {
-            let Ok(_permit) = self.cache.lookups.acquire().await else {
-                let error = Arc::new(Error::internal("API key lookups closed"));
-                return (self.now(), LookupOutcome::Unavailable(error));
-            };
+        let started = self.now();
+        // One deadline covers the wait for a slot and the read itself: a hung
+        // store gives its slot back, and a request queued behind a flood of
+        // misses fails as an outage instead of waiting without bound.
+        let read = tokio::time::timeout(self.policy.lookup_timeout, async {
+            let _permit = slots.acquire().await.ok()?;
             // Stamped before the read, not when the reply arrives: the reply
             // may describe the row as it was at any point since.
             let read_at = self.now();
-            (read_at, self.store.lookup(digest).await)
+            Some((read_at, self.store.lookup(digest).await))
+        })
+        .await;
+        let (read_at, result) = match read {
+            Ok(Some(read)) => read,
+            Ok(None) => {
+                let error = Arc::new(Error::internal("API key lookups closed"));
+                return (started, LookupOutcome::Unavailable(error));
+            }
+            Err(_) => {
+                let error = Arc::new(Error::internal("API key store read exceeded its deadline"));
+                return (started, LookupOutcome::Unavailable(error));
+            }
         };
         let now = self.now();
         (read_at, self.settle(digest, epoch, read_at, now, result))
@@ -181,6 +198,14 @@ impl ApiKeyCore {
             // Nothing is cached: an outage is not evidence about the key, and a
             // valid entry keeps serving until its TTL runs out.
             Err(error) => LookupOutcome::Unavailable(Arc::new(error)),
+            // A row that would admit a caller with no identity or no tenant is
+            // a store mapping fault, not a verdict on the key: an outage, so it
+            // shows in the log, and nothing is cached.
+            Ok(Some(record)) if record.admits(now) && !record.identifies() => {
+                LookupOutcome::Unavailable(Arc::new(Error::internal(
+                    "API key store returned an active record with an empty key ID or tenant",
+                )))
+            }
             Ok(Some(record)) if record.admits(now) => {
                 let record = Arc::new(record);
                 if current {
@@ -242,7 +267,7 @@ impl ApiKeyCore {
         };
         let core = self.clone();
         runtime.spawn(async move {
-            core.lookup(&claim.digest).await;
+            core.lookup(&claim.digest, &core.cache.refreshes).await;
             drop(claim);
         });
     }
@@ -261,8 +286,14 @@ impl ApiKeyCore {
                 }
                 !recent
             };
+            // Bounded so a hung recorder cannot hold the request; a write cut
+            // short is a failed write, not retried within the window.
             if due {
-                usage.record_use(digest, &record).await;
+                let _ = tokio::time::timeout(
+                    self.policy.last_used_timeout,
+                    usage.record_use(digest, &record),
+                )
+                .await;
             }
         }
         AuthenticateResult::Authenticated(

@@ -96,10 +96,27 @@ signature verification and validation of the signed issuer and all other claims.
 | `token_rules` | One complete rule must match its client claim, string claim requirements, and optional JOSE `typ`. Distinct token kinds require separate instances. |
 | `leeway` | 30 seconds for `exp` and `nbf`. `exp`, `iss`, and a nonempty `sub` are required. Numeric dates must be unsigned integers. |
 | `cache_ttl` | One hour. Public keys and verification configuration are prepared before use. |
-| `min_refresh_interval` | 30 seconds between fetch attempts, including failures and unknown `kid` misses. Concurrent refreshes share one fetch. |
+| `min_refresh_interval` | 30 seconds. After a failed fetch, no fetch is attempted for this long. A `kid` that a successful fetch did not contain causes no new fetch for this long either. A `kid` not looked up yet may cause a fetch one second after the last one (or this interval, if shorter). Concurrent refreshes share one fetch. |
 | `max_stale` | 24 hours beyond TTL during refresh failures or refresh cooldown. Set to zero to disable outage fallback. Token expiry and claims are always checked. |
 
-A successful refresh replaces the key set, removing retired keys. During an
+A token's `kid` is unverified until its signature checks out, so a token
+with a forged `kid` can make the authenticator fetch the key set. Each forged
+`kid` is remembered as missing and fetches nothing again for
+`min_refresh_interval`, and new ones together cause at most about one fetch a
+second. A forged `kid` therefore no longer holds the key set fixed for the
+whole interval: a key the provider rotates in is picked up at most one second
+after the last fetch, not 30. The exception is a `kid` that was looked up
+before the provider published it (a token signed with a key not yet in the
+JWKS): that lookup found it missing, so it waits the full
+`min_refresh_interval` like a forged one. The floor has a cost: forged key IDs
+can cause about one fetch a second instead of one per interval, which makes it
+more likely that the identity provider throttles the JWKS endpoint, and a
+failed fetch (throttled or not) holds every fetch off for the interval.
+
+A successful refresh replaces the key set, removing retired keys. A key in a
+fetched set that does not parse (a corrupt entry, or a key type this crate
+cannot read) is skipped with a warning in the log, and the other keys stay in
+use. `with_jwks` refuses such a key as a configuration error instead. During an
 outage, only a matching cached key within the stale limit can verify a token.
 A missing usable key or a store outage produces a sanitized 5xx response.
 Malformed, expired, incorrectly scoped, or incorrectly signed credentials
@@ -155,7 +172,12 @@ storage policy. See the compiled
 
 The chain follows effective model scheme order, then configured authenticator
 order for each scheme. A refusal permits another authenticator to succeed;
-an unavailable provider stops the chain with a 5xx. Optional auth permits
+an unavailable provider stops the chain with a 5xx. The chain wraps that
+failure in the runtime's `OpaqueError`, so `ExceptionTranslator` rules never
+look into its cause: a rule that turns the service's database-client errors
+into a modelled 4xx for its operations cannot turn a key store outage on the
+same client into one. A rule may still match `OpaqueError` itself (to answer
+every such outage with a modelled 503, say). Optional auth permits
 absence, but refuses credentials that were presented and failed verification.
 Scheme matching and operation plans are computed in `prepare`, never from raw
 traits on each request.
@@ -211,6 +233,13 @@ it has no client ID, scopes or groups. Row mapping stays in the store.
   nothing is cached. Keep the digest out of the error: it reaches the log.
 - A record admits a request only when its state is `Active` and, if it has an
   expiry, the expiry is still in the future (fail closed).
+- An `Active` record with an empty or blank key ID or tenant is a mapping fault
+  in the store, not a key: it is a sanitized 5xx with the cause in the log, and
+  nothing is cached. A principal never carries an empty tenant.
+
+A read that takes longer than `lookup_timeout` (5 s, counting the wait for a
+read slot) is an outage too, and its future is dropped: `lookup` must be safe
+to cancel, which a plain read is.
 
 `api_key_digest(credential)` is the lookup key: lowercase hex SHA-256 of the
 whole credential, prefix included. Call it when minting a key and store the
@@ -225,6 +254,13 @@ it, contain no whitespace, be at most 1 KiB, and pass the optional
 included: Leyline's Crockford base32 payload and CRC-32 checksum).
 `has_credentials` is true only for a credential that passes, so anything else
 falls through to the next authenticator.
+
+Mint keys with a checksum and check it in `well_formed`. Without one, every
+made-up `PREFIX_<random>` costs a store read: refusal backoff only helps
+against a key that is repeated, and a flood of distinct forged keys fills the
+`lookup_concurrency` read slots, so a valid key that misses the cache waits
+for a slot and, past `lookup_timeout`, gets a 5xx. A checksum turns such a
+flood away before any read.
 
 The credential comes from `Authorization: Bearer KEY` (scheme
 case-insensitive) by default. `credential_headers([..])` sets an ordered list
@@ -242,12 +278,19 @@ refused, never treated as absent.
 | `refresh_ahead` | The last fifth of the TTL. A hit in it is answered from cache and starts one background re-read (one per digest) that refreshes the entry, or evicts it if the key is gone or no longer valid. Zero disables it. |
 | `refusal_backoff(initial, ceiling)` | 2 s and 60 s. An unknown digest is refused without a read for 2 s, then 4, 8, 16, 32 and 60 s while it stays unknown. A revoked, disabled or expired row goes straight to 60 s. Both zero turn refusal caching off; otherwise `initial` must be nonzero and at most `ceiling`, or the setter returns a configuration error. |
 | `refused_capacity` | 20,000 refused digests, in their own LRU, so a flood of forged keys never evicts a valid one. |
-| `lookup_concurrency` | 32 store reads at once. Concurrent misses for one digest share one read (single flight) regardless. |
+| `lookup_concurrency` | 32 store reads at once for cache misses. Concurrent misses for one digest share one read (single flight) regardless. Refresh-ahead reads have their own slots on top, a quarter as many (at least one), so misses (a flood of forged keys among them) cannot stop cached valid keys from refreshing. |
+| `lookup_timeout` | 5 s for one store read, including its wait for a read slot. Past it the read is an outage (a 5xx, nothing cached) and gives its slot back, so a hung store cannot hold every slot or a request. Zero is a configuration error. |
 
 The refusal ceiling stays below the valid TTL by default: a correct answer is
 cached longer than an incorrect one. A valid read clears a digest's refusal,
 and a refusal clears its valid entry. A store outage caches nothing, and a
 valid entry keeps serving through one until its TTL runs out.
+
+Refusals are cached per instance, like valid keys. A key that was revoked,
+disabled or expired and is then made `Active` again (or a key minted with a
+digest an instance recently refused) stays refused on each instance that saw
+it refused, for up to the refusal ceiling (60 s by default). `forget` on the
+reactivation path clears it at once, on the calling instance only.
 
 An answer is as old as the moment its read started, not when it arrived. A
 cached entry's TTL runs from that moment, and an answer already older than
@@ -304,7 +347,10 @@ and a burst of concurrent requests with one key costs one read. Setting
   of an authenticated key at most once per key per `last_used_resolution`
   (one hour; zero records every use). The throttle is marked before the call,
   so a failed write is not retried within the window. The call is awaited
-  inline and returns nothing: it cannot fail the request.
+  inline and returns nothing: it cannot fail the request. It is awaited for
+  at most `last_used_timeout` (1 s; zero is a configuration error): a call
+  still running then is dropped, so it must be safe to cancel, and counts as
+  a failed write.
 - `clock(..)` injects time for cache ages and expiry, for deterministic tests.
 
 The authenticator never logs a credential or digest and never puts one in an
@@ -410,7 +456,10 @@ builder
 ```
 
 A Cognito ID token (what Leyline and Pigeon web clients send) has no `scope`
-claim, so `strict()` would refuse every such caller. `Exempt` skips the check
+claim, so `strict()` would refuse every such caller. An API key carries no
+scopes either, so under `strict()` and `exempt_id_tokens()` an API key caller
+is refused (403) on every operation that declares scopes; list
+`TokenKind::ApiKey` in `Exempt` to admit it. `Exempt` skips the check
 for the listed token kinds only, whatever scopes they carry; the service must
 authorize those callers another way (groups, tenant membership). An access token
 with no scope claim is refused. Exemption is never the default: `new` takes the

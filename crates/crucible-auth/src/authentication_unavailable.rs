@@ -2,6 +2,7 @@ use crucible_server_runtime_rust::Error;
 use std::fmt;
 
 /// Preserve the provider cause while ensuring it cannot be classified as a client refusal.
+/// The chain wraps it in an `OpaqueError`, so exception rules never reach the cause.
 #[derive(Debug)]
 pub(crate) struct AuthenticationUnavailable(pub Error);
 

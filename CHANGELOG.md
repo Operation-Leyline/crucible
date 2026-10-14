@@ -30,15 +30,27 @@ version's section when it is prepared.
   the end, and an answer older than the TTL when it arrives is read again;
   refused keys go in a separate LRU with backoff from 2 s to a 60 s ceiling
   (`refusal_backoff`), a dead row straight to the ceiling. Concurrent misses
-  share one read and reads are bounded (`lookup_concurrency`). `forget`
-  drops a revoked key on this instance; `fence` answers every key with a
-  5xx while a replica is unhealthy; `last_used` hands
+  share one read and reads are bounded (`lookup_concurrency`, with separate
+  slots for refresh-ahead so a flood of misses cannot starve it). One read,
+  including its wait for a slot, is an outage after `lookup_timeout` (5 s).
+  `forget` drops a revoked key on this instance; `fence` answers every key
+  with a 5xx while a replica is unhealthy; `last_used` hands
   an `ApiKeyUsageRecorder` each key's use at most once per
-  `last_used_resolution`. A store error is a sanitized 5xx, never a refusal.
+  `last_used_resolution`, awaited for at most `last_used_timeout` (1 s). A
+  store error, or an active record with an empty key ID or tenant, is a
+  sanitized 5xx, never a refusal.
   It serves the bearer scheme only, not `@httpApiKeyAuth`.
   `api_key_digest(credential)` is the lowercase hex SHA-256 lookup key, for
   minting. `test_support::InMemoryApiKeyStore` stands in for the table in
   service tests. See [docs/auth.md](docs/auth.md#api-keys).
+
+- `OpaqueError`: a failure whose causes `ExceptionTranslator` rules never
+  see. A rule may match the wrapper itself, but the translator does not walk
+  into what it wraps; the service log still shows the whole chain.
+  `OpaqueError::new` wraps any error and `OpaqueError::from` a crucible
+  `Error`. `AuthenticatorChain` wraps an authentication provider's outage
+  in it. See
+  [docs/framework.md](docs/framework.md#errors).
 
 - `Principal::tenant`: the workspace or organization a credential is bound
   to. API keys fill it from their record; ID and access tokens leave it
@@ -374,6 +386,10 @@ version's section when it is prepared.
   Registering `PageTokens` before `Permissions` now fails the build too, as
   the documentation already said.
 
+- `McpAuthenticator` accepts an `aud` sent as a one-member array holding the
+  MCP resource, which RFC 7519 makes equivalent to the string. A token for
+  several audiences is still refused.
+
 ### Fixed
 
 - Typed permissions in `.cru` (unreleased) check what they let through
@@ -397,6 +413,18 @@ version's section when it is prepared.
   from the editor's best-effort IR instead of keeping it unconditional.
   The formatter indents a requirement's `on` and `when` continued on the
   next line.
+
+- A JWKS fetch whose key set holds one key that does not parse (a corrupt
+  entry, or a key type `crucible-auth` cannot read) skips that key with a
+  warning and keeps the others. It used to refuse the whole set, which was
+  an outage for every token. A `kid` named twice is still refused, even when
+  one of the two entries does not parse. `JwtAuthenticator::with_jwks`
+  refuses a key that does not parse as a configuration error.
+
+- The `ScopeEnforcer::exempt_id_tokens` and `strict` docs said API keys are
+  "checked": an API key carries no scopes, so both refuse it on every
+  operation that declares scopes. `docs/auth.md` says so and shows the
+  `ScopelessPolicy::Exempt` that admits API keys.
 
 - The Rust client's default HTTP transport no longer follows redirects,
   which could forward custom API-key and SigV4 session-token headers to
@@ -580,6 +608,25 @@ version's section when it is prepared.
   models derived `Debug` and printed every value. The `Debug` output now names fields by
   their model member name (`cityId`), as the client's does, instead of the
   Rust field name (`city_id`); `Debug` output is not a stable format.
+
+- An authentication provider's outage can no longer become a modelled 4xx
+  through the service's exception rules. `AuthenticatorChain` wraps it in
+  `OpaqueError`, so a rule written for the service's own database-client
+  errors no longer matches the key store's error on the same client inside
+  the outage.
+
+- A token with a forged `kid` for `JwtAuthenticator`'s issuer no longer starts
+  the 30-second `min_refresh_interval` cooldown for every key ID. A `kid` a
+  successful fetch did not contain waits the interval before fetching again;
+  one not looked up yet may fetch one second after the last fetch. A key the
+  provider rotates in is accepted within a second of the last fetch, where it
+  used to be refused for up to the interval after any forged token, unless
+  its `kid` was looked up before the provider published it: that `kid` is
+  remembered as missing and waits the full interval. Forged key IDs can now
+  cause about one fetch a second rather than one per interval, which raises
+  the chance of the identity provider throttling the JWKS endpoint, and a
+  failed fetch still holds every fetch off for the interval.
+
 - A rejection lists at most 100 violations
   (`validate::MAX_VIOLATIONS`), then one more counting the rest. One
   broken constraint on a list's items used to fail once per item, and the

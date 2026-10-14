@@ -10,7 +10,13 @@ pub struct IssuerConfig {
     pub token_rules: Vec<TokenRule>,
     pub leeway: u64,
     pub cache_ttl: Duration,
-    /// Applies to misses, expiry and failed fetches, preventing request-driven fetch storms.
+    /// No fetch for this long after a failed one, nor for a `kid` that a successful fetch
+    /// did not contain, preventing request-driven fetch storms. A `kid` not looked up yet
+    /// may fetch one second after the last fetch (or after this, if shorter), so a token
+    /// with a forged `kid` cannot hold a newly rotated key off for the whole interval,
+    /// unless that key's `kid` was looked up before the provider published it: it then
+    /// waits this interval too. Forged key IDs can cause about one fetch a second, which
+    /// raises the chance of provider throttling; a failed fetch holds all fetches off.
     pub min_refresh_interval: Duration,
     /// Bounded outage fallback beyond cache_ttl. Signature, expiry and claims remain validated.
     pub max_stale: Duration,

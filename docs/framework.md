@@ -1233,9 +1233,14 @@ in the pipeline are classified:
 
 The orchestrator-owned `ExceptionTranslator` maps internal failures to modelled errors
 with registered translations (`|e: &ThrottledByDependency| ThrottlingException
-{..}`). What nothing translates is answered as the service's internal error
-(its one 500 server error, filled by the generator) or the protocol's own
-`InternalFailure`. Either way the response has a fixed message, never the
+{..}`). A rule matches its type anywhere in the failure's source chain, except
+inside an `OpaqueError`: an extension wraps a failure in one when its meaning
+is fixed whatever its cause, and rules may match the wrapper but never what it
+wraps. `crucible-auth`'s chain does this with a provider outage, so a rule that
+turns the service's own database-client errors into a 4xx cannot turn a key
+store outage on the same client into one. What nothing translates is answered
+as the service's internal error (its one 500 server error, filled by the
+generator) or the protocol's own `InternalFailure`. Either way the response has a fixed message, never the
 error's text. An applicable `ServiceLog` with failure logging enabled records
 the cause with the request id, provided it ran before any transport middleware whose
 `before` hook failed (see [The service log](#the-service-log)). **Decision:** typed

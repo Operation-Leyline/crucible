@@ -9,9 +9,16 @@ use serde_json::Value;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, RwLock},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::Mutex;
+
+/// The shortest gap between fetches that a key ID no fetch has yet been
+/// found to lack may cause (capped by `min_refresh_interval`). Such a `kid`
+/// is unverified (a rotated key, or a forged one), so this is what an
+/// attacker minting random key IDs can make the authenticator fetch: about
+/// one document a second, whatever the request rate.
+const UNKNOWN_KID_FLOOR: Duration = Duration::from_secs(1);
 
 /// One issuer's isolated trust store. Neither `iss` nor `jku` from a token selects a URL.
 pub struct JwtAuthenticator {
@@ -128,19 +135,42 @@ impl JwtAuthenticator {
     /// Cache TTL and stale limits do not apply; unknown keys are refused without network access.
     /// Replace the authenticator to rotate or revoke keys. Key material must come from trusted
     /// configuration, never a token. Token expiry and all claim checks still apply.
+    /// A key that does not parse is a configuration error here, unlike in a
+    /// fetched set, where it is skipped.
     pub fn with_jwks(config: IssuerConfig, jwks: Value) -> std::result::Result<Self, AuthError> {
         let authenticator = Self::new(config)?;
-        authenticator.install(jwks)?;
+        let (keys, malformed) = parse_keys(&jwks)?;
+        if let Some((kid, error)) = malformed.first() {
+            return Err(AuthError::Configuration(format!(
+                "JWKS key {kid:?} does not parse: {error}"
+            )));
+        }
+        authenticator.store(keys);
         authenticator.cache.write().expect("JWKS cache lock").pinned = true;
         Ok(authenticator)
     }
 
+    /// Installs a fetched key set. One key that does not parse (a provider
+    /// publishing a key type this crate cannot read, or a corrupt entry) is
+    /// skipped with a warning rather than costing every other key.
     fn install(&self, jwks: Value) -> std::result::Result<(), AuthError> {
-        let keys = parse_keys(&jwks)?;
+        let (keys, malformed) = parse_keys(&jwks)?;
+        for (kid, error) in malformed {
+            tracing::warn!(
+                issuer = %self.config.issuer,
+                kid,
+                error,
+                "skipping a JWKS key that does not parse"
+            );
+        }
+        self.store(keys);
+        Ok(())
+    }
+
+    fn store(&self, keys: BTreeMap<String, SigningKey>) {
         let mut cache = self.cache.write().expect("JWKS cache lock");
         cache.keys = keys;
         cache.fetched = Some(Instant::now());
-        Ok(())
     }
 
     fn cached_key(&self, kid: &str, algorithm: Algorithm) -> Option<Arc<DecodingKey>> {
@@ -209,10 +239,7 @@ impl JwtAuthenticator {
         }
         {
             let mut cache = self.cache.write().expect("JWKS cache lock");
-            if cache
-                .last_attempt
-                .is_some_and(|time| time.elapsed() < self.config.min_refresh_interval)
-            {
+            if self.cooling_down(&cache, kid) {
                 let stale = cache.fetched.is_some_and(|time| {
                     time.elapsed() < self.config.cache_ttl.saturating_add(self.config.max_stale)
                 });
@@ -240,10 +267,43 @@ impl JwtAuthenticator {
             Ok(jwks) => self.install(jwks),
             Err(error) => Err(error),
         };
+        self.cache.write().expect("JWKS cache lock").failed = refreshed.is_err();
         if let Err(error) = refreshed {
             return self.stale_key(kid, algorithm).ok_or(error);
         }
-        self.cached_key(kid, algorithm).ok_or(AuthError::Refused)
+        self.cached_key(kid, algorithm).ok_or_else(|| {
+            self.cache
+                .write()
+                .expect("JWKS cache lock")
+                .absent
+                .insert(kid, Instant::now());
+            AuthError::Refused
+        })
+    }
+
+    /// Whether a lookup for `kid` must not fetch yet. A failed fetch holds
+    /// every fetch off for `min_refresh_interval`, so an outage cannot
+    /// amplify traffic; so does a `kid` the last fetches did not contain.
+    /// A `kid` not looked up yet waits only for [`UNKNOWN_KID_FLOOR`]: an
+    /// unverified token with a random `kid` cannot then hold a newly rotated
+    /// key off for the whole interval.
+    fn cooling_down(&self, cache: &JwksCache, kid: &str) -> bool {
+        let Some(last) = cache.last_attempt else {
+            return false;
+        };
+        let interval = self.config.min_refresh_interval;
+        let since = last.elapsed();
+        if cache.failed {
+            return since < interval;
+        }
+        if cache
+            .absent
+            .peek(kid)
+            .is_some_and(|at| at.elapsed() < interval)
+        {
+            return true;
+        }
+        since < interval.min(UNKNOWN_KID_FLOOR)
     }
 
     async fn fetch(&self, url: &str) -> std::result::Result<Value, AuthError> {
@@ -465,12 +525,20 @@ fn validate_url(config: &IssuerConfig, value: &str) -> std::result::Result<(), A
     Ok(())
 }
 
-fn parse_keys(value: &Value) -> std::result::Result<BTreeMap<String, SigningKey>, AuthError> {
+/// The signing keys, and each key that does not parse (its `kid` and why).
+type ParsedKeys = (BTreeMap<String, SigningKey>, Vec<(String, String)>);
+
+fn parse_keys(value: &Value) -> std::result::Result<ParsedKeys, AuthError> {
     let values = value
         .get("keys")
         .and_then(Value::as_array)
         .ok_or_else(|| AuthError::Unavailable("JWKS keys must be an array".into()))?;
     let mut keys = BTreeMap::new();
+    let mut malformed = Vec::new();
+    // Every kid a signing entry names, parsed or not: a duplicate is refused
+    // even when one of the two would be skipped as malformed, so which entry
+    // the set means is never decided by which one happens to parse.
+    let mut named = BTreeSet::new();
     for value in values {
         if value
             .get("use")
@@ -510,29 +578,33 @@ fn parse_keys(value: &Value) -> std::result::Result<BTreeMap<String, SigningKey>
         else {
             continue;
         };
-        let jwk: Jwk = serde_json::from_value(value.clone())
-            .map_err(|error| AuthError::Unavailable(error.to_string()))?;
-        let decoding = DecodingKey::from_jwk(&jwk)
-            .map_err(|error| AuthError::Unavailable(error.to_string()))?;
-        if keys
-            .insert(
-                kid.to_owned(),
-                SigningKey {
-                    algorithm,
-                    decoding: Arc::new(decoding),
-                },
-            )
-            .is_some()
-        {
+        if !named.insert(kid.to_owned()) {
             return Err(AuthError::Unavailable("JWKS contains duplicate kid".into()));
         }
+        let decoding = match serde_json::from_value::<Jwk>(value.clone())
+            .map_err(|error| error.to_string())
+            .and_then(|jwk| DecodingKey::from_jwk(&jwk).map_err(|error| error.to_string()))
+        {
+            Ok(decoding) => decoding,
+            Err(error) => {
+                malformed.push((kid.to_owned(), error));
+                continue;
+            }
+        };
+        keys.insert(
+            kid.to_owned(),
+            SigningKey {
+                algorithm,
+                decoding: Arc::new(decoding),
+            },
+        );
     }
     if keys.is_empty() {
         return Err(AuthError::Unavailable(
             "JWKS contains no supported signing keys".into(),
         ));
     }
-    Ok(keys)
+    Ok((keys, malformed))
 }
 
 #[cfg(all(test, feature = "test-support"))]
@@ -568,6 +640,65 @@ mod tests {
             Err(AuthError::Refused)
         ));
         assert!(auth.cache.read().unwrap().last_attempt.is_none());
+    }
+
+    #[test]
+    fn an_unseen_kid_waits_only_for_the_floor_but_a_missing_one_or_an_outage_waits_the_interval() {
+        let issuer = TestTokenIssuer::es256("https://issuer.example", "known").unwrap();
+        let config = issuer.config(vec!["client".into()]);
+        let interval = config.min_refresh_interval;
+        let auth = JwtAuthenticator::new(config).unwrap();
+        let mut cache = auth.cache.write().unwrap();
+        assert!(!auth.cooling_down(&cache, "new"), "never fetched");
+        // A successful fetch just now, which a forged `kid` caused.
+        cache.last_attempt = Some(Instant::now());
+        cache.absent.insert("forged", Instant::now());
+        assert!(auth.cooling_down(&cache, "new"), "inside the floor");
+        cache.last_attempt = Some(Instant::now() - super::UNKNOWN_KID_FLOOR);
+        assert!(
+            !auth.cooling_down(&cache, "new"),
+            "a rotated key is fetched once the floor has passed"
+        );
+        assert!(
+            auth.cooling_down(&cache, "forged"),
+            "a kid the last fetch lacked waits the whole interval"
+        );
+        cache.absent.insert("forged", Instant::now() - interval);
+        assert!(!auth.cooling_down(&cache, "forged"));
+        // An outage holds every fetch off for the whole interval.
+        cache.failed = true;
+        assert!(auth.cooling_down(&cache, "new"));
+        cache.last_attempt = Some(Instant::now() - interval);
+        assert!(!auth.cooling_down(&cache, "new"));
+    }
+
+    #[test]
+    fn a_key_that_does_not_parse_is_skipped_in_a_fetched_set_and_refused_in_configuration() {
+        let issuer = TestTokenIssuer::es256("https://issuer.example", "known").unwrap();
+        let config = issuer.config(vec!["client".into()]);
+        let mut jwks = issuer.jwks();
+        let keys = jwks["keys"].as_array_mut().unwrap();
+        // A missing modulus does not deserialize; a modulus that is not
+        // base64url does not decode.
+        keys.insert(0, serde_json::json!({"kty":"RSA","kid":"no-n","e":"AQAB"}));
+        keys.push(serde_json::json!({"kty":"RSA","kid":"bad-n","n":"***","e":"AQAB"}));
+        let auth = JwtAuthenticator::new(config.clone()).unwrap();
+        auth.install(jwks.clone()).unwrap();
+        let cache = auth.cache.read().unwrap();
+        assert_eq!(cache.keys.keys().collect::<Vec<_>>(), ["known"]);
+        drop(cache);
+        assert!(matches!(
+            JwtAuthenticator::with_jwks(config, jwks.clone()),
+            Err(AuthError::Configuration(_))
+        ));
+        // A malformed entry sharing a good key's kid still makes the set
+        // ambiguous, whichever comes first.
+        let good = issuer.jwks()["keys"][0].clone();
+        let twin = serde_json::json!({"kty":"EC","crv":"P-256","kid":"known","x":"***","y":"***"});
+        for keys in [vec![good.clone(), twin.clone()], vec![twin, good]] {
+            let jwks = serde_json::json!({ "keys": keys });
+            assert!(matches!(auth.install(jwks), Err(AuthError::Unavailable(_))));
+        }
     }
 
     #[test]
