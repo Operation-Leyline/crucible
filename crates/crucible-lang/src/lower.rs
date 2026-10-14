@@ -1522,6 +1522,24 @@ impl<'a> Lowerer<'a> {
                         );
                     }
                 }
+                // Read where they apply (`lower::permissions`); anywhere
+                // else they are misplaced, never metadata, which cannot
+                // take a built-in's name.
+                "authorizationName" | "permissionOnly" | "notGrantable" | "aliasOf" => {
+                    let target = if name == "authorizationName" {
+                        "a resource that declares permissions"
+                    } else {
+                        "a `permission` entry of a resource"
+                    };
+                    self.error(
+                        file,
+                        annotation.span,
+                        format!(
+                            "`@{name}` applies to {target}, not to a {}",
+                            position.target()
+                        ),
+                    );
+                }
                 "mutability" => {
                     let value = match annotation.args.as_slice() {
                         [arg] if arg.key.is_none() => match &arg.value {
@@ -4860,6 +4878,7 @@ impl<'a> Lowerer<'a> {
         let mut probe = service.clone();
         probe.operations = unreached;
         probe.shapes = std::mem::take(&mut self.shapes);
+        self.check_unreached_permissions(&mut probe);
         let mut issues = crucible_smithy::Diagnostics::default();
         for operation in &probe.operations {
             crucible_smithy::validate::operation(&probe, operation, &mut issues);

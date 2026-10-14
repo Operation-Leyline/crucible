@@ -1921,3 +1921,304 @@ fn an_empty_requirement_list_in_the_ir_is_refused() {
         )]
     );
 }
+
+// ---- review follow-ups (#257) -------------------------------------------------
+
+#[test]
+fn a_resource_with_permissions_declares_its_own_identifier() {
+    // Without one, `Settings(*)` would bind `storeId`: every store.
+    let found = check(
+        "resource Settings in Store {\n    readonly property theme?: string\n    permission read = \"settings:read\"\n}\nreadonly operation Look on Store {\n    http GET \"/look/{storeId}\"\n    requires read on Settings(*)\n    input { $storeId }\n}",
+    );
+    expect(
+        &found,
+        "error: permissions.identifier: `Settings` declares permissions but no identifier of its own, so a check on it could name only its parent `Store`, and `Settings(*)` every one of them",
+    );
+    // A root resource with no identifier at all, reached or not.
+    let found = check(
+        "resource Everything {\n    readonly property theme?: string\n    permission read = \"everything:read\"\n}",
+    );
+    expect(
+        &found,
+        "error: permissions.identifier: `Everything` declares permissions but no identifier;",
+    );
+    // An IR alone, such as a release snapshot, is checked too.
+    let (mut service, _) = pigeon();
+    service
+        .permissions
+        .get_mut(&id("Workspace"))
+        .unwrap()
+        .identifiers
+        .clear();
+    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+        .iter()
+        .map(|f| f.text())
+        .collect();
+    assert!(
+        found.iter().any(|m| m
+            == "permissions.identifier: `Workspace` declares permissions but has no identifier; a permission is held on an instance, named by its identifiers"),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn an_alias_and_an_authorization_name_are_given_once() {
+    let found = check_source(&BASE.replace(
+        "    permission manage = \"store:manage\"\n",
+        "    permission manage = \"store:manage\"\n    @deprecated @aliasOf(read) @aliasOf(manage)\n    permission old = \"store:old\"\n",
+    ));
+    expect(
+        &found,
+        "error: `@aliasOf` is given twice; an alias has one primary",
+    );
+    let found = check_source(&BASE.replace(
+        "resource Store {",
+        "@authorizationName(\"shop\") @authorizationName(\"store\")\nresource Store {",
+    ));
+    expect(
+        &found,
+        "error: `@authorizationName` is given twice; a resource has one authorization name",
+    );
+}
+
+#[test]
+fn an_operation_the_service_does_not_reach_is_checked_too() {
+    // `Stray` is listed nowhere: the shared checks still read its clauses.
+    let found = check_source(&format!(
+        "{BASE}\nreadonly operation Stray {{\n    http GET \"/stray\"\n    requires nope on Store\n}}\n"
+    ));
+    expect(
+        &found,
+        "error: permissions.unknown: `Store` declares no permission `nope`",
+    );
+    expect(
+        &check_source(&format!(
+            "{BASE}\nreadonly operation Quiet {{\n    http GET \"/quiet\"\n}}\n"
+        )),
+        "error: permissions.undeclared: `Quiet` says nothing about authorization",
+    );
+    // Its clause may name a resource the service does not reach either.
+    let draft = |clause: &str| {
+        format!(
+            "{BASE}\nstring DraftId {{ pattern \"^d_\" }}\nresource Draft {{\n    id draftId: DraftId\n    permission read = \"draft:read\"\n}}\nreadonly operation ReadDraft reads Draft {{\n    http GET \"/drafts/{{draftId}}\"\n    {clause}\n    input {{ $draftId }}\n}}\n"
+        )
+    };
+    let found = check_source(&draft("requires read"));
+    assert!(found.iter().all(|m| !m.starts_with("error")), "{found:#?}");
+    expect(
+        &check_source(&draft("requires write")),
+        "error: permissions.unknown: `Draft` declares no permission `write`",
+    );
+    // A service without permissions does not ask a draft to say anything.
+    let quiet = "service Quiet {\n    version \"1\"\n    protocol json\n    auth bearer\n    operations [Ping]\n}\nreadonly operation Ping {\n    http GET \"/ping\"\n}\nstring DraftId { pattern \"^d_\" }\nresource Draft {\n    id draftId: DraftId\n    permission read = \"draft:read\"\n}\nreadonly operation ReadDraft reads Draft {\n    http GET \"/drafts/{draftId}\"\n    input { $draftId }\n}\n";
+    let found = check_source(quiet);
+    assert!(
+        found.iter().all(|m| !m.contains("permissions.undeclared")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn a_condition_tests_a_list_or_map_for_presence() {
+    let op = |when: &str| {
+        format!(
+            "map Notes: string -> string\noperation Tag on Store {{\n    http POST \"/tag/{{storeId}}\"\n    requires manage when {when}\n    input {{\n        $storeId\n        tags?: OrderIds\n        notes?: Notes\n    }}\n}}"
+        )
+    };
+    assert_eq!(check(&op("has tags or has notes")), Vec::<String>::new());
+    // It still reads no element, and compares no list.
+    expect(
+        &check(&op("tags.x == \"a\"")),
+        "permissions.list-binding: `when` reads `tags.x`, which passes through the list `tags`",
+    );
+    expect(
+        &check(&op("tags == \"a\"")),
+        "`tags` is not a scalar or enum",
+    );
+}
+
+#[test]
+fn a_binding_type_is_checked_when_nothing_else_uses_the_identifier_type() {
+    // `ShelfId` reaches the IR through no member, and `ShelfRef` repeats
+    // its constraints: a warning, as with any other identifier type.
+    let source = |member: &str| {
+        format!(
+            "{}\nstring ShelfId {{ pattern \"^sh_\" }}\nstring ShelfRef {{ pattern \"^sh_\" }}\nresource Shelf in Store {{\n    id shelfId: ShelfId\n    permission read = \"shelf:read\"\n}}\nreadonly operation Peek {{\n    http GET \"/peek/{{storeId}}\"\n    requires read on Shelf(storeId: storeId, shelfId: ref)\n    input {{\n        storeId: StoreId\n        @query ref: {member}\n    }}\n}}\n",
+            BASE.replace("operations [Ping]", "operations [Ping, Peek]")
+        )
+    };
+    let found = check_source(&source("ShelfRef"));
+    assert_eq!(found.len(), 1, "{found:#?}");
+    expect(
+        &found,
+        "warning: permissions.binding-type: `shelfId` of `Shelf` is bound to `ref`, a `ShelfRef`; the identifier is a `ShelfId` with the same constraints",
+    );
+    // The identifier type stays out of the IR.
+    let compiled = compile(&small(&source("ShelfRef")), None);
+    let service = compiled.service.expect("service");
+    assert!(
+        service
+            .shape(&ShapeId::new("example.shop", "ShelfId"))
+            .is_none()
+    );
+}
+
+#[test]
+fn a_constrained_string_does_not_bind_a_plain_string_identifier() {
+    let source = |member: &str| {
+        format!(
+            "{}\nresource Tag in Store {{\n    id tagId: string\n    permission read = \"tag:read\"\n}}\nreadonly operation Peek {{\n    http GET \"/peek/{{storeId}}\"\n    requires read on Tag(storeId: storeId, tagId: ref)\n    input {{\n        storeId: StoreId\n        @query ref: {member}\n    }}\n}}\n",
+            BASE.replace("operations [Ping]", "operations [Ping, Peek]")
+        )
+    };
+    assert_eq!(check_source(&source("string")), Vec::<String>::new());
+    expect(
+        &check_source(&source("OrderRef")),
+        "error: permissions.binding: `tagId` of `Tag` is bound to `ref`, a `OrderRef`; the identifier is a `String`; bind a member of that type",
+    );
+    expect(
+        &check_source(&format!("{}\nstring Loose\n", source("Loose"))),
+        "warning: permissions.binding-type",
+    );
+}
+
+#[test]
+fn a_listing_filters_the_resource_it_lists() {
+    let found = check(
+        "readonly operation ListOrders lists Order {\n    http GET \"/stores/{storeId}/orders\"\n    filters read on Store\n    input { $storeId }\n}",
+    );
+    expect(
+        &found,
+        "error: permissions.filters: `ListOrders` is bound to `Order`, so `filters` names a permission of `Order`, the resource the listing returns; a permission on `Store` is a `requires`",
+    );
+}
+
+#[test]
+fn none_and_pending_are_not_permission_symbols() {
+    let found = check_source(&BASE.replace(
+        "    permission manage = \"store:manage\"\n",
+        "    permission manage = \"store:manage\"\n    permission none = \"store:none\"\n    permission pending = \"store:pending\"\n",
+    ));
+    expect(
+        &found,
+        "error: permissions.symbol: `none` cannot name a permission: `requires none` is the clause that says an operation needs no permission",
+    );
+    expect(
+        &found,
+        "error: permissions.symbol: `pending` cannot name a permission",
+    );
+    // `requires none` takes no target, condition or handler.
+    for clause in [
+        "requires none on Store",
+        "requires none when has storeId",
+        "requires none by handler",
+    ] {
+        let parsed = parse(&format!(
+            "operation Op on Store {{\n    {clause}\n    input {{ $storeId }}\n}}\n"
+        ));
+        assert!(
+            parsed.diagnostics.iter().any(|d| d.message
+                == "`requires none` stands alone: it says the operation needs no permission, on any resource"),
+            "{clause}: {:?}",
+            parsed.diagnostics
+        );
+        let Decl::Operation(op) = &parsed.file.items[0].decl else {
+            panic!()
+        };
+        assert!(matches!(
+            &op.entries[0],
+            OpEntry::Requirement(r) if matches!(r.kind, RequirementKind::None(_))
+        ));
+        assert!(
+            matches!(op.entries[1], OpEntry::Body(_)),
+            "{:?}",
+            op.entries
+        );
+    }
+    // `requires pending` needs its `because`.
+    let parsed = parse("operation Op {\n    requires pending\n}\n");
+    assert!(
+        parsed
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("expected `because`")),
+        "{:?}",
+        parsed.diagnostics
+    );
+}
+
+#[test]
+fn a_permission_annotation_elsewhere_says_where_it_applies() {
+    let found = check("@aliasOf(read)\nstructure Loose { a: string }");
+    expect(
+        &found,
+        "error: `@aliasOf` applies to a `permission` entry of a resource, not to a structure",
+    );
+    let found = check("@authorizationName(\"x\")\nstructure Loose { a: string }");
+    expect(
+        &found,
+        "error: `@authorizationName` applies to a resource that declares permissions, not to a structure",
+    );
+    assert!(
+        found
+            .iter()
+            .all(|m| !m.contains("declare it with `metadata")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn a_condition_that_does_not_lower_leaves_its_clause_out() {
+    let compiled = compile(
+        &small(&BASE.replace(
+            "    requires manage\n    requires read\n",
+            "    requires manage when storeId == [1]\n    requires read\n",
+        )),
+        None,
+    );
+    assert!(compiled.has_errors());
+    let service = compiled.best_effort.expect("best effort");
+    let Requirements::List(clauses) = requirements(&service, "ManageStore") else {
+        panic!()
+    };
+    // Not an unconditional `manage`.
+    assert_eq!(clauses.len(), 1, "{clauses:?}");
+    assert_eq!(clauses[0].permission, "read");
+}
+
+#[test]
+fn members_named_has_and_not_are_read_in_a_condition() {
+    let op = |when: &str| {
+        format!(
+            "operation X on Store {{\n    http POST \"/x/{{storeId}}\"\n    requires manage when {when}\n    input {{\n        $storeId\n        has?: boolean\n        not?: string\n    }}\n}}"
+        )
+    };
+    for when in [
+        "has == true",
+        "not == \"a\"",
+        "not in [\"a\", \"b\"]",
+        "has has",
+        "not has not",
+        "has has and not not == \"a\"",
+    ] {
+        assert_eq!(check(&op(when)), Vec::<String>::new(), "{when}");
+    }
+    let parsed = parse("operation X {\n    requires r when not has == true\n}\n");
+    assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+    let Decl::Operation(op) = &parsed.file.items[0].decl else {
+        panic!()
+    };
+    let OpEntry::Requirement(r) = &op.entries[0] else {
+        panic!()
+    };
+    let RequirementKind::Requires {
+        when: Some(when), ..
+    } = &r.kind
+    else {
+        panic!()
+    };
+    let ConditionKind::Not(inner) = &when.kind else {
+        panic!("{when:?}")
+    };
+    assert!(matches!(&inner.kind, ConditionKind::Equals(p, _) if p.parts[0].name == "has"));
+}

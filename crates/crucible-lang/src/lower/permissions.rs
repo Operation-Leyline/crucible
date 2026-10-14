@@ -16,7 +16,8 @@ use crucible_smithy::ir::{
     Service, Tier,
 };
 use crucible_smithy::validate::{
-    FindingSeverity, attaches_not_found, derived_authorization_name, not_found_id,
+    FindingSeverity, PermissionFinding, attaches_not_found, derived_authorization_name,
+    not_found_id,
 };
 use serde_json::Value as Json;
 
@@ -71,8 +72,41 @@ impl<'a> Lowerer<'a> {
             }
             return;
         }
+        let (inherited, own) = self.identifiers(&resource.name.name);
+        if own.is_empty() {
+            // A check names one instance by its identifiers, and `*` binds
+            // the last one. Without an identifier of its own, the last is
+            // the parent's, so `R(*)` would reach every parent: a
+            // cross-tenant wildcard (check 11).
+            let message = match resource.parent.as_ref().filter(|_| !inherited.is_empty()) {
+                Some(parent) => format!(
+                    "permissions.identifier: `{}` declares permissions but no identifier of its own, so a check on it could name only its parent `{}`, and `{}(*)` every one of them; declare its identifier (`id ..`), or declare the permissions on `{}`",
+                    resource.name.name, parent.name, resource.name.name, parent.name
+                ),
+                None => format!(
+                    "permissions.identifier: `{}` declares permissions but no identifier; a permission is held on an instance, named by its identifier: declare one (`id ..`)",
+                    resource.name.name
+                ),
+            };
+            self.error(file, resource.name.span, message);
+        }
         let mut permissions = Vec::new();
         for entry in &resource.permissions {
+            if matches!(entry.name.name.as_str(), "none" | "pending") {
+                self.error(
+                    file,
+                    entry.name.span,
+                    format!(
+                        "permissions.symbol: `{0}` cannot name a permission: `requires {0}` is the clause that says {1}",
+                        entry.name.name,
+                        if entry.name.name == "none" {
+                            "an operation needs no permission"
+                        } else {
+                            "an operation's requirements are not declared yet"
+                        }
+                    ),
+                );
+            }
             self.permission_sites.insert(
                 id.with_member(&entry.name.name),
                 Location {
@@ -105,6 +139,11 @@ impl<'a> Lowerer<'a> {
                         }
                     }
                     "aliasOf" => match annotation.args.as_slice() {
+                        _ if alias_of.is_some() => self.error(
+                            file,
+                            annotation.span,
+                            "`@aliasOf` is given twice; an alias has one primary",
+                        ),
                         [arg] if arg.key.is_none() && matches!(arg.value, Value::Ident(_)) => {
                             let Value::Ident(primary) = &arg.value else {
                                 unreachable!("matched")
@@ -158,10 +197,7 @@ impl<'a> Lowerer<'a> {
                 notes,
             });
         }
-        let identifiers = {
-            let (inherited, own) = self.identifiers(&resource.name.name);
-            inherited.into_iter().chain(own).collect()
-        };
+        let identifiers = inherited.into_iter().chain(own).collect();
         self.declared_permissions.insert(
             id,
             ResourcePermissions {
@@ -181,14 +217,21 @@ impl<'a> Lowerer<'a> {
         resource: &Resource,
     ) -> (String, bool) {
         let derived = derived_authorization_name(&resource.name.name);
-        let Some(annotation) = decl
+        let mut given = decl
             .item
             .annotations
             .iter()
-            .find(|a| a.name.name == "authorizationName")
-        else {
+            .filter(|a| a.name.name == "authorizationName");
+        let Some(annotation) = given.next() else {
             return (derived, false);
         };
+        for again in given {
+            self.error(
+                file,
+                again.span,
+                "`@authorizationName` is given twice; a resource has one authorization name",
+            );
+        }
         match annotation.args.as_slice() {
             [arg] if arg.key.is_none() => match &arg.value {
                 Value::Str(name) => (name.value.clone(), true),
@@ -223,17 +266,7 @@ impl<'a> Lowerer<'a> {
             match &decl.item.decl {
                 Decl::Resource(resource) if reachable.contains(&resource.name.name) => {
                     let id = self.ref_id(&resource.name.name);
-                    let mut identifiers = Vec::new();
-                    for (_, r) in self.chain(&resource.name.name).into_iter().rev() {
-                        for entry in &r.entries {
-                            if entry.kind == crate::ast::ResourceEntryKind::Id {
-                                let ty = self
-                                    .type_id(&entry.ty.name.name)
-                                    .unwrap_or_else(|| self.ref_id(&entry.ty.name.name));
-                                identifiers.push((entry.name.name.clone(), ty));
-                            }
-                        }
-                    }
+                    let identifiers = self.identifier_types(&resource.name.name);
                     self.permission_facts
                         .resources
                         .insert(id.clone(), identifiers);
@@ -266,10 +299,20 @@ impl<'a> Lowerer<'a> {
             else {
                 continue;
             };
+            let file = decl.file;
             if decl.ns != self.ns {
+                // The enum is a wire contract of the service's own: one
+                // from an imported package says nothing about this one.
+                self.error(
+                    file,
+                    annotation.span,
+                    format!(
+                        "permissions.types: `{}` is declared in `{}`; `@permissionTypes` marks an enum of the service's own package",
+                        e.name.name, decl.ns
+                    ),
+                );
                 continue;
             }
-            let file = decl.file;
             if let Some(first) = &types {
                 self.error(
                     file,
@@ -326,6 +369,22 @@ impl<'a> Lowerer<'a> {
             });
         }
         types
+    }
+
+    /// A resource's identifiers and their types, root to leaf.
+    pub(super) fn identifier_types(&self, resource: &str) -> Vec<(String, ShapeId)> {
+        let mut identifiers = Vec::new();
+        for (_, r) in self.chain(resource).into_iter().rev() {
+            for entry in &r.entries {
+                if entry.kind == crate::ast::ResourceEntryKind::Id {
+                    let ty = self
+                        .type_id(&entry.ty.name.name)
+                        .unwrap_or_else(|| self.ref_id(&entry.ty.name.name));
+                    identifiers.push((entry.name.name.clone(), ty));
+                }
+            }
+        }
+        identifiers
     }
 
     /// An operation's `requires` and `filters` clauses, lowered.
@@ -573,6 +632,9 @@ impl<'a> Lowerer<'a> {
                             );
                             continue;
                         }
+                        // No identifier at all: the resource is unknown or
+                        // declares none, which the declaration's own
+                        // diagnostic or the shared check reports.
                         match identifiers.last() {
                             Some(last) => last.clone(),
                             None => continue,
@@ -598,7 +660,16 @@ impl<'a> Lowerer<'a> {
                 };
                 bindings.push(binding);
             }
-            let when = when.and_then(|c| self.condition(file, c));
+            let when = match when {
+                Some(condition) => match self.condition(file, condition) {
+                    Some(lowered) => Some(lowered),
+                    // Reported already. The clause is left out rather than
+                    // kept without its condition, which would require the
+                    // permission on every request.
+                    None => continue,
+                },
+                None => None,
+            };
             self.requirement_sites.insert(
                 (id.clone(), index),
                 Location {
@@ -739,7 +810,80 @@ impl<'a> Lowerer<'a> {
     /// The shared checks, each finding reported at the clause, permission or
     /// resource it is about.
     pub(super) fn check_permissions(&mut self, service: &Service) {
-        let findings = crucible_smithy::validate::permissions(service, &self.permission_facts);
+        // Check 10 compares a binding's type with the identifier's, which
+        // the IR holds only when some member uses it: lower the missing
+        // ones for the check alone, so they do not enter the IR.
+        let missing: Vec<ShapeId> = self
+            .permission_facts
+            .resources
+            .iter()
+            .filter(|(id, _)| service.permissions.contains_key(id))
+            .flat_map(|(_, identifiers)| identifiers.iter().map(|(_, ty)| ty.clone()))
+            .filter(|ty| service.shape(ty).is_none())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        let findings = if missing.is_empty() {
+            crucible_smithy::validate::permissions(service, &self.permission_facts)
+        } else {
+            let mut probe = service.clone();
+            for ty in missing {
+                self.visit(&ty);
+                if let Some(shape) = self.shapes.get(&ty) {
+                    probe.shapes.insert(ty, shape.clone());
+                }
+            }
+            crucible_smithy::validate::permissions(&probe, &self.permission_facts)
+        };
+        self.report_permission_findings(findings);
+    }
+
+    /// The shared checks of the operations the service does not reach,
+    /// which are checked in its context (`check_unreached`). `probe` holds
+    /// just those operations and every shape. A resource the service does
+    /// not reach is still the one such an operation names, so every
+    /// declared resource takes part; only the findings about the
+    /// operations are reported, since the rest were reported with the
+    /// service.
+    pub(super) fn check_unreached_permissions(&mut self, probe: &mut Service) {
+        if probe.operations.is_empty() {
+            return;
+        }
+        let operations: BTreeSet<ShapeId> =
+            probe.operations.iter().map(|op| op.id.clone()).collect();
+        for (id, permissions) in &self.declared_permissions {
+            probe
+                .permissions
+                .entry(id.clone())
+                .or_insert_with(|| permissions.clone());
+        }
+        let mut facts = self.permission_facts.clone();
+        let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
+        for decl in decls {
+            if let Decl::Resource(resource) = &decl.item.decl
+                && decl.ns == self.ns
+            {
+                let id = self.ref_id(&resource.name.name);
+                facts
+                    .resources
+                    .entry(id)
+                    .or_insert_with(|| self.identifier_types(&resource.name.name));
+            }
+        }
+        // Whether every operation must say something is the service's
+        // question: a resource it does not reach does not make it ask.
+        let declares = !self.permissions.is_empty();
+        let findings = crucible_smithy::validate::permissions(probe, &facts)
+            .into_iter()
+            .filter(|finding| {
+                operations.contains(&finding.shape)
+                    && (declares || finding.code != "permissions.undeclared")
+            })
+            .collect();
+        self.report_permission_findings(findings);
+    }
+
+    fn report_permission_findings(&mut self, findings: Vec<PermissionFinding>) {
         for finding in findings {
             let location = finding
                 .requirement
@@ -781,4 +925,32 @@ impl<'a> Lowerer<'a> {
 /// Whether an annotation on a resource is one the compiler supports there.
 pub(super) fn resource_annotation(annotation: &Annotation) -> bool {
     annotation.name.name == "authorizationName"
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::compile::Package;
+    use crate::parse;
+
+    /// Only bundled packages are imported today, and none marks an enum,
+    /// so a `.cru` package cannot reach this; lowering is driven directly.
+    #[test]
+    fn a_permission_types_enum_of_another_package_is_refused() {
+        let own = "service Shop {\n    version \"1\"\n    protocol json\n    auth bearer\n    operations []\n}\n";
+        let other = "@permissionTypes\nenum Kinds {\n    store = \"store\"\n}\n";
+        let package = Package::new("example.shop", Vec::new());
+        let parsed = vec![parse(own), parse(other)];
+        let namespaces = vec!["example.shop".to_owned(), "example.other".to_owned()];
+        let (_, _, diagnostics) = super::super::lower(&package, &parsed, &namespaces, None);
+        let messages: Vec<&str> = diagnostics
+            .iter()
+            .map(|d| d.diagnostic.message.as_str())
+            .collect();
+        assert!(
+            messages.contains(
+                &"permissions.types: `Kinds` is declared in `example.other`; `@permissionTypes` marks an enum of the service's own package"
+            ),
+            "{messages:#?}"
+        );
+    }
 }

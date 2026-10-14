@@ -22,8 +22,9 @@ impl Default for FormatOptions {
 }
 
 /// Words that continue the previous line's clause: `every operation` then
-/// `where ...` on the next line.
-const CONTINUES: &[&str] = &["where", "and", "or", "because", "by"];
+/// `where ...` on the next line, or `requires read` then `on Inbox` and
+/// `when has x`.
+const CONTINUES: &[&str] = &["where", "and", "or", "because", "by", "on", "when"];
 
 /// The formatted source.
 pub fn format(source: &str, options: &FormatOptions) -> String {
@@ -178,14 +179,23 @@ fn ends_clause(source: &str, token: &Token) -> bool {
 }
 
 /// A line starting with one of these continues the previous clause, unless
-/// the word is a member's name: `by: string` is a member called `by`.
+/// the word is a member's or an enum value's name: `by: string` is a member
+/// called `by`, and `on = "on"`, or `on` alone, an enum value.
 fn starts_continuation(source: &str, token: &Token, next: Option<&&Token>) -> bool {
     match token.kind {
         TokenKind::Arrow | TokenKind::Eq | TokenKind::Dot => true,
         TokenKind::Ident => {
             CONTINUES.contains(&token.span.text(source))
-                && !next
-                    .is_some_and(|next| matches!(next.kind, TokenKind::Colon | TokenKind::Question))
+                && next.is_some_and(|next| {
+                    !matches!(
+                        next.kind,
+                        TokenKind::Colon
+                            | TokenKind::Question
+                            | TokenKind::Eq
+                            | TokenKind::Comma
+                            | TokenKind::RBrace
+                    )
+                })
         }
         _ => false,
     }
@@ -292,6 +302,17 @@ mod tests {
         assert_eq!(
             fmt(source),
             "structure S {\n    by: string\n    where?: string\n}\n"
+        );
+        let source = "enum E {\non = \"on\"\nwhen\n}\n";
+        assert_eq!(fmt(source), "enum E {\n    on = \"on\"\n    when\n}\n");
+    }
+
+    #[test]
+    fn a_requirement_continues_on_its_target_and_condition() {
+        let source = "operation Op {\nrequires read\non Template(templateId)\nwhen has template\nrequires write on Graph\nby handler\n}\n";
+        assert_eq!(
+            fmt(source),
+            "operation Op {\n    requires read\n        on Template(templateId)\n        when has template\n    requires write on Graph\n        by handler\n}\n"
         );
     }
 

@@ -18,8 +18,8 @@ use serde_json::Value;
 
 use crate::ir::permissions::Binding;
 use crate::ir::{
-    Condition, Member, Mode, Operation, Requirement, Requirements, ResourcePermissions, Service,
-    Shape, SimpleKind, Tier,
+    Condition, Constraints, Member, Mode, Operation, Requirement, Requirements,
+    ResourcePermissions, Service, Shape, SimpleKind, Tier,
 };
 use crate::shape_id::ShapeId;
 
@@ -301,6 +301,19 @@ impl<'a> Checker<'a> {
                         other.name(),
                         id.name(),
                         resource.name
+                    ),
+                );
+            }
+            // Lowering reports it at the declaration, reached or not, and
+            // knows which identifiers are the resource's own.
+            if !self.complete && resource.identifiers.is_empty() {
+                self.error(
+                    "permissions.identifier",
+                    id,
+                    None,
+                    format!(
+                        "`{}` declares permissions but has no identifier; a permission is held on an instance, named by its identifiers",
+                        id.name()
                     ),
                 );
             }
@@ -737,6 +750,24 @@ impl<'a> Checker<'a> {
                     "`filters` answers a listing: it belongs on a `lists` or `on .. collection` operation",
                 );
             }
+            // What the listing returns is what it filters: the docs say
+            // "returns only the <resources> the caller holds .. on".
+            if let Some(listed) = &op.resource
+                && listed != &clause.resource
+            {
+                self.error(
+                    "permissions.filters",
+                    id,
+                    at,
+                    format!(
+                        "`{}` is bound to `{}`, so `filters` names a permission of `{}`, the resource the listing returns; a permission on `{}` is a `requires`",
+                        op.name(),
+                        listed.name(),
+                        listed.name(),
+                        clause.resource.name()
+                    ),
+                );
+            }
             if clause.when.is_some() {
                 self.error("permissions.filters", id, at, "`filters` takes no `when`");
             }
@@ -766,7 +797,15 @@ impl<'a> Checker<'a> {
             .collect()
     }
 
-    fn resolve(&self, op: &Operation, path: &[String]) -> Result<Vec<Step<'a>>, PathProblem> {
+    /// The members `path` passes through, from the operation's input. A
+    /// list or map is refused anywhere on a binding's path; a condition
+    /// may end on one (`has tags`), since it reads presence, not an element.
+    fn resolve(
+        &self,
+        op: &Operation,
+        path: &[String],
+        ends_on_collection: bool,
+    ) -> Result<Vec<Step<'a>>, PathProblem> {
         let mut current = op.input.clone().ok_or(PathProblem::NoInput)?;
         let mut steps = Vec::new();
         for (index, segment) in path.iter().enumerate() {
@@ -779,7 +818,9 @@ impl<'a> Checker<'a> {
                 .iter()
                 .find(|m| &m.name == segment)
                 .ok_or(PathProblem::Missing(index))?;
+            let last = index + 1 == path.len();
             match self.service.shape(&member.target) {
+                Some(Shape::List(_) | Shape::Map(_)) if last && ends_on_collection => {}
                 Some(Shape::List(_)) => return Err(PathProblem::Collection(index, "list")),
                 Some(Shape::Map(_)) => return Err(PathProblem::Collection(index, "map")),
                 _ => {}
@@ -880,7 +921,7 @@ impl<'a> Checker<'a> {
                 Binding::Member(path) => path,
             };
             let what = format!("`{identifier}` of `{}` is bound to", clause.resource.name());
-            let steps = match self.resolve(op, path) {
+            let steps = match self.resolve(op, path, false) {
                 Ok(steps) => steps,
                 Err(problem) => {
                     let (code, mut message) = self.path_problem(op, path, &problem, &what);
@@ -931,8 +972,11 @@ impl<'a> Checker<'a> {
                             && b.kind == SimpleKind::String
                             && a.constraints == b.constraints
                     }
+                    // The prelude `String`, when the model holds no copy:
+                    // it has no constraints.
                     (Some(Shape::Simple(a)), None) => {
                         a.kind == SimpleKind::String
+                            && a.constraints == Constraints::default()
                             && expected == &ShapeId::new("smithy.api", "String")
                     }
                     _ => false,
@@ -1021,7 +1065,7 @@ impl<'a> Checker<'a> {
         index: usize,
         path: &[String],
     ) -> Option<Vec<Step<'a>>> {
-        match self.resolve(op, path) {
+        match self.resolve(op, path, true) {
             Ok(steps) => Some(steps),
             Err(problem) => {
                 let (code, message) = self.path_problem(op, path, &problem, "`when` reads");
