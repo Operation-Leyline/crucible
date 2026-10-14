@@ -394,12 +394,17 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *sche
     TRY(prepare_path(storage, op, input, endpoint, &request.url, issue));
     const yyjson_val *bindings = get(op, "request");
     size_t index, count; yyjson_val *pair;
+    /* A Content-Type bound to an input member outranks the payload's media type,
+     * which outranks endpoint and client header defaults (header_set replaces any case). */
+    bool modelled_content_type = false;
     yyjson_arr_foreach((yyjson_val *)get(bindings, "headers"), index, count, pair) {
         string member = text(yyjson_arr_get(pair, 0));
         const yyjson_val *value = yyjson_obj_getn((yyjson_val *)input, member.data, member.length);
         if (!value || yyjson_is_null(value)) continue;
         string header; TRY(media_bound(storage, bindings, member, value, &header, issue));
-        TRY(crucible_generated_header_set(storage, &request.headers, text(yyjson_arr_get(pair, 1)), header, issue));
+        crucible_generated_header bound = {text(yyjson_arr_get(pair, 1)), header};
+        TRY(crucible_generated_header_set(storage, &request.headers, bound.name, header, issue));
+        if (crucible_generated_header_get((crucible_generated_headers){&bound, 1}, VIEW("content-type"), NULL)) modelled_content_type = true;
     }
     yyjson_arr_foreach((yyjson_val *)get(bindings, "prefixHeaders"), index, count, pair) {
         string member = text(yyjson_arr_get(pair, 0)), prefix = text(yyjson_arr_get(pair, 1));
@@ -443,7 +448,7 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *sche
                 request.body = (crucible_generated_blob){(const unsigned char *)raw.data, raw.length};
             } else { const void *decoded; TRY(crucible_generated_model_decode(storage, &blob_shape, value, &decoded, issue)); request.body = *(const crucible_generated_blob *)decoded; }
             request.has_body = true;
-            TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), text(yyjson_arr_get((yyjson_val *)payload, 1)), issue));
+            if (!modelled_content_type) TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), text(yyjson_arr_get((yyjson_val *)payload, 1)), issue));
         }
     }
     if (aws_json(schema)) {

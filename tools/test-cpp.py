@@ -316,6 +316,16 @@ def feature_cmake(output, tests):
     return "\n".join(lines) + "\n"
 
 
+def payload_cmake(output, tests):
+    lines = []
+    for name in ["payload", "payload_rest"]:
+        lines.append(f'add_subdirectory("{(output / name).as_posix()}" {name}-sdk)')
+        lines.append(f'add_executable({name}_content_type "{tests.as_posix()}/payload_content_type.cpp")')
+        lines.append(f'target_link_libraries({name}_content_type PRIVATE {name}_client)')
+        lines.append(f'target_compile_definitions({name}_content_type PRIVATE PAYLOAD_HEADER="{name}_client/client.hpp" PAYLOAD_NAMESPACE={name}_sdk _CRT_SECURE_NO_WARNINGS)')
+    return "\n".join(lines) + "\n"
+
+
 def check_docs(package):
     if not shutil.which("doxygen"):
         print("Doxygen unavailable; documentation markup covered by generator regression tests")
@@ -331,6 +341,11 @@ def qualify(output):
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
             str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
             "--package-name", {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client"}[name], "--namespace", namespace)
+    # Payload Content-Type precedence, buffered and streaming, under both protocols.
+    for directory, protocol in [("payload", "crucible.protocols#json"), ("payload_rest", "aws.protocols#restJson1")]:
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
+            str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--protocol", protocol,
+            "--out", str(output / directory), "--package-name", directory + "_client", "--namespace", directory + "_sdk")
     edge_packages(output)
     for directory, model, package_name, namespace, extra in FEATURES:
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp", str(ROOT / model),
@@ -357,7 +372,7 @@ add_subdirectory("{(output / 'extended').as_posix()}" extended)
 add_subdirectory("{(output / 'wire').as_posix()}" wire-sdk)
 {feature_cmake(output, tests)}add_executable(wire_test "{tests.as_posix()}/wire.cpp")
 target_link_libraries(wire_test PRIVATE wire_client)
-add_executable(extensions "{tests.as_posix()}/extensions.cpp")
+{payload_cmake(output, tests)}add_executable(extensions "{tests.as_posix()}/extensions.cpp")
 target_link_libraries(extensions PRIVATE dynamic_client types_client)
 add_executable(edge_models "{tests.as_posix()}/edge_models.cpp")
 target_link_libraries(edge_models PRIVATE edge_client empty_client)
@@ -383,6 +398,8 @@ endforeach()
     run(str(executable(consumer_build, "edge_models")), env=runtime_env)
     run(str(executable(consumer_build, "extensions")), env=runtime_env)
     run(str(executable(consumer_build, "wire_test")), env=runtime_env)
+    run(str(executable(consumer_build, "payload_content_type")), env=runtime_env)
+    run(str(executable(consumer_build, "payload_rest_content_type")), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     run(str(executable(consumer_build, "behavior_test")), env=runtime_env)

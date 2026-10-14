@@ -401,6 +401,18 @@ version's section when it is prepared.
   another media type, model a Content-Type member or set the header in a
   middleware or interceptor.
 
+- Java, C#, Kotlin, Swift, Dart, PHP, Ruby, C++, C and R clients now send a
+  modeled Content-Type header member on a payload request instead of
+  replacing it with the payload's media type (a Kotlin upload with
+  `contentType = "image/png"` was sent as `application/octet-stream`). They
+  follow the same order as the Rust, Python, Go and TypeScript clients: the
+  modeled member, then the payload's media type, then default headers, with
+  exactly one Content-Type sent whatever case the default was given in.
+  Kotlin and C++ streaming uploads, which sent no Content-Type unless a
+  default supplied one, now carry the payload's media type. A Java header
+  member replaces a default of the same name in any case, and PHP and Swift
+  lowercase endpoint-rule header names, so neither sends a duplicate.
+
 - Rust clients ignore response JSON fields for members bound to HTTP
   headers, even when the corresponding header is absent. This also applies
   to modeled errors and the initial response of an event stream.

@@ -91,6 +91,14 @@ $client->close();
         str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
         "--package-name", "example/wire", "--namespace", "WireSdk")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/wire.php"), env=dict(os.environ, PHP_WIRE_PACKAGE=str(output / "wire")))
+    # Payload Content-Type precedence under both payload-capable JSON protocols.
+    for protocol in ("crucible.protocols#json", "aws.protocols#restJson1"):
+        payload_package = output / ("payload-" + protocol.split("#")[1])
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+            str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--protocol", protocol,
+            "--out", str(payload_package), "--package-name", "example/payload", "--namespace", "PayloadSdk")
+        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/payload_bindings.php"),
+            env=dict(os.environ, PHP_PAYLOAD_PACKAGE=str(payload_package)))
     # String representations must hide sensitive members from every inspection path.
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json"), "--out", str(output / "describe"),

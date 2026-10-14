@@ -18,9 +18,9 @@ R = os.environ.get("R", "R")
 RSCRIPT = os.environ.get("RSCRIPT", "Rscript")
 
 
-def generate(model, output, package="weather.client"):
+def generate(model, output, package="weather.client", *extra):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "r",
-        str(model), "--out", str(output), "--package-name", package, "--content-sha256")
+        str(model), "--out", str(output), "--package-name", package, "--content-sha256", *extra)
 
 
 @contextmanager
@@ -160,6 +160,20 @@ def qualify(output):
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", output / "wire", "wire.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "wire"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/wire.R"), str(library))
+    # Payload Content-Type precedence under both protocols. R has no streaming
+    # input, so the streaming operation is dropped from the shared fixture.
+    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text(encoding="utf-8"))
+    service = bindings["shapes"]["example.payload#PayloadBindings"]
+    service["operations"] = [item for item in service["operations"] if item["target"] != "example.payload#UploadStream"]
+    for name in ["UploadStream", "StreamInput", "Stream"]:
+        del bindings["shapes"]["example.payload#" + name]
+    bindings_path = output / "payload-bindings.json"
+    bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
+    for name, package_name, protocol in [("payload", "payload.client", "crucible.protocols#json"),
+                                         ("payload-rest", "payload.rest.client", "aws.protocols#restJson1")]:
+        generate(bindings_path, output / name, package_name, "--protocol", protocol)
+        run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / name))
+        run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/payload_content_type.R"), str(library), package_name)
     qualify_features(output, library)
     print("R native package build/install and consumer qualification passed")
 

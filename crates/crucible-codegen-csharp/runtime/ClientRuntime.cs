@@ -446,12 +446,17 @@ internal sealed partial class ClientRuntime : IDisposable
                 if (!reservedHeaders.Contains(header) && value is not null) headers[header] = Bound(Text(request["headerEncodings"]?[Text(binding[0])!]) == "base64" ? MediaValue(value,false)! : value);
             }
         }
+        // A Content-Type bound to an input member outranks the payload's media
+        // type, which outranks endpoint and client header defaults.
+        var modelledContentType = false;
         foreach (var binding in request["headers"]!.AsArray())
         {
             var key = Text(binding![0])!;
             if (Sensitive(key)) sensitiveHeaders.Add(Text(binding[1])!);
             var value = boundValues[Wire(key)];
-            if (value is not null) headers[Text(binding[1])!] = Bound(Text(request["headerEncodings"]?[key]) == "base64" ? MediaValue(value, false)! : value);
+            if (value is null) continue;
+            headers[Text(binding[1])!] = Bound(Text(request["headerEncodings"]?[key]) == "base64" ? MediaValue(value, false)! : value);
+            modelledContentType |= string.Equals(Text(binding[1]), "Content-Type", StringComparison.OrdinalIgnoreCase);
         }
         byte[]? body = null;
         if (request["body"]!.AsArray().Count != 0)
@@ -468,7 +473,7 @@ internal sealed partial class ClientRuntime : IDisposable
                 "document" => Encoding.UTF8.GetBytes(encoded.ToJsonString(JsonOptions)),
                 _ => Convert.FromBase64String(encoded.GetValue<string>())
             };
-            headers["Content-Type"] = Text(payload[1])!;
+            if (!modelledContentType) headers["Content-Type"] = Text(payload[1])!;
         }
         long? minimum = null, maximum = null;
         if (stream is not null)
@@ -477,7 +482,7 @@ internal sealed partial class ClientRuntime : IDisposable
             minimum = LengthBound(payloadMember, "min"); maximum = LengthBound(payloadMember, "max");
             if (Flag(request["requiresLength"]) && stream.Length is null) throw new ArgumentException(name + ": streaming payload requires a known length");
             if (stream.Length < minimum || stream.Length > maximum) throw new ArgumentException(name + ": streaming payload length is outside its modeled bounds");
-            headers["Content-Type"] = Text(request["payload"]![1]) ?? "application/octet-stream";
+            if (!modelledContentType) headers["Content-Type"] = Text(request["payload"]![1]) ?? "application/octet-stream";
             if (stream.Sha256 is not null) headers["x-amz-content-sha256"] = stream.Sha256;
         }
         if (Text(schema["protocol"]) is "awsJson1_0" or "awsJson1_1")

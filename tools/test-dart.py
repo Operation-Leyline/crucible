@@ -157,8 +157,35 @@ void main() {
             docs = subprocess.run([DART, "doc", "."], cwd=generated, check=True, capture_output=True, text=True)
             if re.search(r"\b(warning|error)\b", docs.stdout + docs.stderr, re.I) and "no issues found" not in docs.stdout:
                 raise RuntimeError("dart doc reported problems:\n" + docs.stdout + docs.stderr)
+    qualify_payload_bindings(output)
     print("Dart fresh consumer, native and JS compilation, empty and renamed packages passed")
     qualify_features(output)
+
+
+def qualify_payload_bindings(output):
+    """Payload Content-Type precedence under both JSON protocols. Dart has no streaming input."""
+    model = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text())
+    shapes = model["shapes"]
+    service = shapes["example.payload#PayloadBindings"]
+    service["operations"] = [item for item in service["operations"] if item["target"] != "example.payload#UploadStream"]
+    for name in ("example.payload#UploadStream", "example.payload#StreamInput", "example.payload#Stream"):
+        del shapes[name]
+    path = output / "payload-bindings.json"
+    path.write_text(json.dumps(model), encoding="utf-8")
+    for protocol, name in (("crucible.protocols#json", "payload_bindings"), ("aws.protocols#restJson1", "rest_payload_bindings")):
+        generated = output / name
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart", str(path),
+            "--protocol", protocol, "--out", str(generated), "--package-name", "payload_bindings_client")
+        manifest = json.loads((generated / "pubspec.yaml").read_text())
+        manifest["dev_dependencies"] = {"test": "^1.25.15"}
+        (generated / "pubspec.yaml").write_text(json.dumps(manifest), encoding="utf-8")
+        (generated / "test").mkdir(exist_ok=True)
+        shutil.copyfile(ROOT / "crates/crucible-codegen-dart/tests/payload_bindings_test.dart.template",
+                        generated / "test/payload_bindings_test.dart")
+        dart("pub", "get", cwd=generated)
+        dart("analyze", cwd=generated)
+        dart("test", cwd=generated)
+        dart("test", "--platform", "chrome", cwd=generated)
 
 
 def qualify_features(output):

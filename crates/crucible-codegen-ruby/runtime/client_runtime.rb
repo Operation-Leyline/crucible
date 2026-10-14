@@ -206,7 +206,14 @@ module CrucibleGenerated
         path += (path.include?('?') ? '&' : '?') + query.join('&') unless query.empty?
         headers = @config.headers.to_h { |key, value| [key.downcase, value] }
         endpoint.headers.each { |key, items| headers[key.downcase] = items.join(', ') }
-        bindings.fetch('headers').each { |member, wire| headers[wire.downcase] = bound_member(op, bindings, member, values[member], header: true) unless values[member].nil? }
+        # A Content-Type bound to an input member outranks the payload's media
+        # type, which outranks endpoint and client header defaults.
+        modelled_content_type = false
+        bindings.fetch('headers').each do |member, wire|
+          next if values[member].nil?
+          headers[wire.downcase] = bound_member(op, bindings, member, values[member], header: true)
+          modelled_content_type = true if wire.downcase == 'content-type'
+        end
         explicit = bindings.fetch('headers').map { |_, wire| wire.downcase }
         bindings.fetch('prefixHeaders', []).each do |member, prefix|
           next if values[member].nil?
@@ -234,7 +241,7 @@ module CrucibleGenerated
             @xml ? @xml.payload(op.fetch('input'), payload[0], value) : ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
           else bindings['streaming'] ? stream_payload(op, bindings, payload, value) : ::Base64.strict_decode64(value)
           end
-          headers['content-type'] = payload[1]
+          headers['content-type'] = payload[1] unless modelled_content_type
         end
         if %w[awsJson1_0 awsJson1_1].include?(protocol)
           # AWS JSON RPC always sends an object and names the operation in X-Amz-Target.

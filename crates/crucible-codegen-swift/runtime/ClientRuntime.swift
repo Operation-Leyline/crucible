@@ -123,10 +123,17 @@ internal final class ClientRuntime: Sendable {
         }
         if !query.isEmpty { path += (path.contains("?") ? "&" : "?") + query.joined(separator: "&") }
         var headers = Self.headers(config.headers)
-        for (name, items) in resolved?.headers ?? [:] { headers[name] = items.joined(separator: ",") }
+        for (name, items) in resolved?.headers ?? [:] { headers[name.lowercased()] = items.joined(separator: ",") }
+        // A Content-Type bound to an input member outranks the payload's media
+        // type, which outranks endpoint and client header defaults.
+        var modelledContentType = false
         for binding in try bindings["headers"]!.array {
             let pair = try binding.array
-            if let value = bound[try pair[0].string], value != .null { headers[try pair[1].string.lowercased()] = try codec.bound(Self.media(value, bindings: bindings, member: pair[0].string, encode: true)) }
+            if let value = bound[try pair[0].string], value != .null {
+                let header = try pair[1].string.lowercased()
+                headers[header] = try codec.bound(Self.media(value, bindings: bindings, member: pair[0].string, encode: true))
+                if header == "content-type" { modelledContentType = true }
+            }
         }
         let explicitHeaders = Set(try bindings["headers"]!.array.map { try $0.array[1].string.lowercased() })
         for binding in (try? bindings["prefixHeaders"]?.array) ?? [] {
@@ -154,7 +161,7 @@ internal final class ClientRuntime: Sendable {
                 body = raw
             }
             // An empty payload sends no body, so its media type does not apply.
-            if body?.isEmpty == true { body = nil } else { headers["content-type"] = payload.1 }
+            if body?.isEmpty == true { body = nil } else if !modelledContentType { headers["content-type"] = payload.1 }
         }
         if let version = ["awsJson1_0": "1.0", "awsJson1_1": "1.1"][codec.schema["protocol"]?.text ?? ""] {
             if body == nil { body = Data("{}".utf8) }

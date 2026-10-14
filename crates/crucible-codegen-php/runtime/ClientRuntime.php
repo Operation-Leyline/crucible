@@ -176,9 +176,14 @@ final class ClientRuntime
         }
         if ($query !== []) $path .= (str_contains($path,'?') ? '&' : '?') . implode('&',$query);
         $headers = self::headers($this->config->headers);
-        foreach ($resolved['headers'] ?? [] as $header => $items) $headers[$header] = implode(', ', $items);
+        foreach ($resolved['headers'] ?? [] as $header => $items) $headers[strtolower((string)$header)] = implode(', ', $items);
+        // A Content-Type bound to an input member outranks the payload's media
+        // type, which outranks endpoint and client header defaults.
+        $modelledContentType = false;
         foreach (WireCodec::items($bindings->get('headers')) as [$member,$header]) {
-            if (isset($values[$member])) $headers[strtolower($header)] = $this->codec->bound(self::media($bound($member),$bindings,$member,true));
+            if (!isset($values[$member])) continue;
+            $headers[strtolower($header)] = $this->codec->bound(self::media($bound($member),$bindings,$member,true));
+            if (strtolower($header) === 'content-type') $modelledContentType = true;
         }
         $body = null;
         $explicit = array_map('strtolower', array_column($bindings->get('headers'), 1));
@@ -209,7 +214,7 @@ final class ClientRuntime
             if ($stream->length === null && $bindings->get('requiresLength') === true) throw new \InvalidArgumentException('Stream ' . $payload[0] . ' requires a known length');
             if ($stream->length !== null && (($min !== null && $stream->length < $min) || ($max !== null && $stream->length > $max))) throw new \InvalidArgumentException('Stream ' . $payload[0] . ' length is outside its modeled bounds');
             $stream = $stream->withBounds($min, $max);
-            $headers['content-type'] = $payload[1];
+            if (!$modelledContentType) $headers['content-type'] = $payload[1];
         } elseif (is_array($payload) && isset($values[$payload[0]])) {
             $value = $values[$payload[0]];
             $kind = $bindings->get('payloadKind') ?? 'blob';
@@ -218,7 +223,7 @@ final class ClientRuntime
             else { $body = base64_decode(WireCodec::string($value),true); if ($body === false) throw new \UnexpectedValueException('Invalid payload base64'); }
             // An empty raw payload is no body at all, so it carries no content type.
             if ($body === '') $body = null;
-            else $headers['content-type'] = $payload[1];
+            elseif (!$modelledContentType) $headers['content-type'] = $payload[1];
         }
         $protocol = $this->codec->schema->get('protocol');
         if ($protocol === 'awsJson1_0' || $protocol === 'awsJson1_1') {

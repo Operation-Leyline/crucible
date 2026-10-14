@@ -161,9 +161,13 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
                 if (name !in reservedHeaders) headers[name] = codec.bound(headerEncoding(binding, pair[0].jsonPrimitive.content, value, true))
             }
         }
+        // A Content-Type bound to an input member outranks the payload's media
+        // type, which outranks endpoint and client header defaults.
+        var modelledContentType = false
         binding.array("headers").forEach {
             val pair = it.jsonArray; val value = values[pair[0].jsonPrimitive.content]
             if (sensitive(pair[0].jsonPrimitive.content)) sensitiveHeaders.add(pair[1].jsonPrimitive.content.lowercase())
+            if (value != null && value != JsonNull && pair[1].jsonPrimitive.content.lowercase() == "content-type") modelledContentType = true
             if (value != null && value != JsonNull) headers[pair[1].jsonPrimitive.content.lowercase()] = codec.headerText(codec.shape(op.text("input")!!).obj("members").obj(pair[0].jsonPrimitive.content),headerEncoding(binding, pair[0].jsonPrimitive.content, value, true),formats.text(pair[0].jsonPrimitive.content))
         }
         var bytes: ByteArray? = null
@@ -180,8 +184,9 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
                     "document" -> codec.stringify(value).encodeToByteArray()
                     else -> Base64.decode(value.jsonPrimitive.content)
                 }
-                if (raw.isNotEmpty() || binding.text("payloadKind") == "string") { bytes = raw; headers["content-type"] = payload[1].jsonPrimitive.content }
+                if (raw.isNotEmpty() || binding.text("payloadKind") == "string") { bytes = raw; if (!modelledContentType) headers["content-type"] = payload[1].jsonPrimitive.content }
             }
+            if (stream != null && !modelledContentType) headers["content-type"] = payload[1].jsonPrimitive.content
         }
         val protocol=schema.text("protocol")
         if(protocol=="awsJson1_0" || protocol=="awsJson1_1") {

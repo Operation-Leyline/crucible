@@ -234,10 +234,16 @@ ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Js
         for (const auto& item : items) { if (!joined.empty()) joined += ", "; joined += item; }
         request.headers.insert_or_assign(lower(key), joined);
     }
+    // A Content-Type bound to an input member outranks the payload's media
+    // type, which outranks endpoint and client header defaults.
+    bool modelled_content_type = false;
     for (const auto& binding : bindings.at("headers").array()) {
         const auto& pair = binding.array();
         const auto found = values.find(pair[0].string());
-        if (found != values.end() && !found->second.is_null()) request.headers.insert_or_assign(lower(pair[1].string()), bound(media(retime(found->second, binding_format(bindings, pair[0].string())), bindings, pair[0].string(), true)));
+        if (found == values.end() || found->second.is_null()) continue;
+        const auto header_name = lower(pair[1].string());
+        request.headers.insert_or_assign(header_name, bound(media(retime(found->second, binding_format(bindings, pair[0].string())), bindings, pair[0].string(), true)));
+        if (header_name == "content-type") modelled_content_type = true;
     }
     std::set<std::string, std::less<>> explicit_headers;
     for (const auto& binding : bindings.at("headers").array()) explicit_headers.insert(lower(binding.array()[1].string()));
@@ -257,14 +263,17 @@ ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Js
     }
     const auto& payload = bindings.at("payload");
     if (!payload.is_null()) {
+        // A stream member encodes as null: exchange attaches the body, but its media type is set here.
+        bool sent = streaming;
         const auto found = values.find(payload.array()[0].string());
-        if (found != values.end() && !found->second.is_null()) {
+        if (!streaming && found != values.end() && !found->second.is_null()) {
             const auto* kind = bindings.find("payloadKind");
             if (kind && kind->string() == "string") request.body = found->second.string();
             else if (kind && kind->string() == "document") request.body = document(*schema_, payload_target(*schema_, operation.at("input").string(), bindings), found->second, true).dump();
             else request.body = bytes(unbase64(found->second.string()));
-            request.headers.insert_or_assign("content-type", payload.array()[1].string());
+            sent = true;
         }
+        if (sent && !modelled_content_type) request.headers.insert_or_assign("content-type", payload.array()[1].string());
     }
     const auto wire = protocol(*schema_);
     if (wire == "awsJson1_0" || wire == "awsJson1_1") {

@@ -690,11 +690,18 @@ final class ClientRuntime {
         }
       }
     }
+    // A Content-Type bound to an input member outranks the payload's media
+    // type, which outranks endpoint and client header defaults.
+    boolean modelledContentType = false;
     for (JsonElement item : request.getAsJsonArray("headers")) {
       var binding = item.getAsJsonArray();
       JsonElement value = values.get(binding.get(0).getAsString());
-      if (value != null && !value.isJsonNull())
-        headers.put(binding.get(1).getAsString(), headerText(shape(text(op,"input")).getAsJsonObject("members").getAsJsonObject(binding.get(0).getAsString()),headerEncoding(request, binding.get(0).getAsString(), value, true),text(formats,binding.get(0).getAsString())));
+      if (value == null || value.isJsonNull()) continue;
+      String wire = binding.get(1).getAsString();
+      // Replaces a default of the same name in any case, so only one is sent.
+      headers.keySet().removeIf(key -> key.equalsIgnoreCase(wire));
+      if (wire.equalsIgnoreCase("content-type")) modelledContentType = true;
+      headers.put(wire, headerText(shape(text(op,"input")).getAsJsonObject("members").getAsJsonObject(binding.get(0).getAsString()),headerEncoding(request, binding.get(0).getAsString(), value, true),text(formats,binding.get(0).getAsString())));
     }
     byte[] body = null;
     String protocol=text(schema,"protocol");
@@ -728,14 +735,20 @@ final class ClientRuntime {
             : Base64.getDecoder().decode(value.getAsString());
         if (bytes.length > 0 || "string".equals(kind)) {
           body = bytes;
-          headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
+          if (!modelledContentType) {
+            headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
+            headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
+          }
         }
       }
     }
     if (stream != null) {
       if (flag(request, "requiresLength") && stream.length().isEmpty())
         throw new IllegalArgumentException(name + ": streaming payload requires a known length");
-      headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
+      if (!modelledContentType) {
+        headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
+        headers.put("content-type", payload.getAsJsonArray().get(1).getAsString());
+      }
       stream.sha256().ifPresent(digest -> headers.put("x-amz-content-sha256", digest));
     }
     if("awsJson1_0".equals(protocol) || "awsJson1_1".equals(protocol)) {

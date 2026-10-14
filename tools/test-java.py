@@ -80,6 +80,19 @@ def qualify(output):
     run("javac", "--release", "17", "-d", str(classes), "-cp", payload_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/PayloadTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), payload_classpath]), "example.wire.PayloadTest")
+    # Content-Type precedence on payload uploads, under each declared protocol.
+    for protocol in ("crucible.protocols#json", "aws.protocols#restJson1"):
+        bindings = output / ("payload-bindings-" + protocol.split("#")[1])
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+            str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--out", str(bindings),
+            "--protocol", protocol, "--group-id", "example", "--artifact-id", "payload-bindings",
+            "--package-name", "example.payload")
+        run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=bindings)
+        bindings_classpath = os.pathsep.join([str(bindings / "target/classes"), str(bindings / "target/dependency/*")])
+        bindings_classes = bindings / "test-classes"
+        run("javac", "--release", "17", "-d", str(bindings_classes), "-cp", bindings_classpath,
+            str(ROOT / "crates/crucible-codegen-java/tests/PayloadContentTypeTest.java"))
+        run("java", "-cp", os.pathsep.join([str(bindings_classes), bindings_classpath]), "example.payload.PayloadContentTypeTest")
     streaming = output / "streaming"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-codegen-java/tests/streaming.json"), "--out", str(streaming),
