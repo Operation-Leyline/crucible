@@ -284,7 +284,7 @@ pub mod leyline {
             }
         }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct RewriteGraphInput {
             #[serde(rename = "organizationId")]
@@ -294,12 +294,28 @@ pub mod leyline {
             #[serde(rename = "mode", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub mode: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for RewriteGraphInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RewriteGraphInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("graphId", &self.graph_id);
+                debug.field("mode", &self.mode);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct RewriteGraphOutput {
             #[serde(rename = "rewritten")]
             pub rewritten: bool,
+        }
+        impl ::std::fmt::Debug for RewriteGraphOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RewriteGraphOutput");
+                debug.field("rewritten", &self.rewritten);
+                debug.finish()
+            }
         }
 
         /// A request field that failed validation.
@@ -1165,14 +1181,16 @@ pub mod leyline {
     impl RewriteGraph {
         /// `graph:write` on Graph, checked by the handler:
         ///
-        /// HTTP rewrites only, when `mode` is ``a`b``.
+        /// HTTP rewrites only, when `mode` is ``a`b``, and \[ops] approve.
         pub const WRITE_ON_GRAPH: ::crucible_server_runtime_rust::__generated::permissions::Obligation = ::crucible_server_runtime_rust::__generated::permissions::Obligation { operation: "example.leyline#RewriteGraph", index: 1, permission: &permissions::GRAPH__WRITE };
         /// `history:read` on History, checked by the handler:
         ///
         /// GraphQL plans are checked twice:
         ///
-        /// - once when parsed, against */ and @param text;
+        /// - once when parsed, against */ text;
         /// - once when run, see \[bare] and [the guide](https://example.com/guide).
+        ///
+        /// \@see the runbook; @param is no tag either.
         pub const READ_ON_HISTORY: ::crucible_server_runtime_rust::__generated::permissions::Obligation = ::crucible_server_runtime_rust::__generated::permissions::Obligation { operation: "example.leyline#RewriteGraph", index: 2, permission: &permissions::HISTORY__READ };
     }
 

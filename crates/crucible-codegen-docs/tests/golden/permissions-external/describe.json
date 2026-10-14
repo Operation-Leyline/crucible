@@ -1471,19 +1471,19 @@
       },
       "requirementDocumentation": [
         {
-          "html": "<p>Requires <code>graph:read</code> on the graph, when <code>mode == \"a`b\"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>\n",
-          "markdown": "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).",
-          "text": "Requires graph:read on the graph, when mode == \"a`b\"; graph:write on the graph, checked by the service (HTTP rewrites only, when mode is a`b); history:read on the history, checked by the service (see below)."
+          "html": "<p>Requires <code>graph:read</code> on the graph, when <code>mode == \"a`b\"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve); <code>history:read</code> on the history, checked by the service (see below).</p>\n",
+          "markdown": "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \\[ops] approve); `history:read` on the history, checked by the service (see below).",
+          "text": "Requires graph:read on the graph, when mode == \"a`b\"; graph:write on the graph, checked by the service (HTTP rewrites only, when mode is a`b, and [ops] approve); history:read on the history, checked by the service (see below)."
         },
         {
-          "html": "<p><code>history:read</code> on the history, checked by the service:</p>\n<p>GraphQL plans are checked twice:</p>\n<ul>\n<li>once when parsed, against */ and @param text;</li>\n<li>once when run, see [bare] and <a href=\"https://example.com/guide\">the guide</a>.</li>\n</ul>\n",
-          "markdown": "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide).",
-          "text": "history:read on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and the guide (https://example.com/guide)."
+          "html": "<p><code>history:read</code> on the history, checked by the service:</p>\n<p>GraphQL plans are checked twice:</p>\n<ul>\n<li>once when parsed, against */ text;</li>\n<li>once when run, see [bare] and <a href=\"https://example.com/guide\">the guide</a>.</li>\n</ul>\n<p>@see the runbook; @param is no tag either.</p>\n",
+          "markdown": "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see \\[bare] and [the guide](https://example.com/guide).\n\n\\@see the runbook; @param is no tag either.",
+          "text": "history:read on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see [bare] and the guide (https://example.com/guide).\n\n@see the runbook; @param is no tag either."
         }
       ],
       "requirementSentences": [
-        "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).",
-        "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide)."
+        "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \\[ops] approve); `history:read` on the history, checked by the service (see below).",
+        "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see \\[bare] and [the guide](https://example.com/guide).\n\n\\@see the runbook; @param is no tag either."
       ],
       "requirements": {
         "clauses": [
@@ -1505,14 +1505,14 @@
             "when": "mode == \"a`b\""
           },
           {
-            "documentation": "HTTP rewrites only, when `mode` is ``a`b``.",
+            "documentation": "HTTP rewrites only, when `mode` is ``a`b``, and [ops] approve.",
             "mode": "handler",
             "permission": "graph:write",
             "resourceType": "graph",
             "tier": "public"
           },
           {
-            "documentation": "GraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide).",
+            "documentation": "GraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see [bare] and [the guide](https://example.com/guide).\n\n@see the runbook; @param is no tag either.",
             "mode": "handler",
             "permission": "history:read",
             "resourceType": "history",

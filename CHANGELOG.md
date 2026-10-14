@@ -497,7 +497,12 @@ version's section when it is prepared.
   deprecated as the Rust and TypeScript registries did; their `PERMISSIONS`
   docs no longer claim non-grantable entries are left out. Rust client
   alias variants say what they alias, and permission documentation is
-  escaped as model text in the Rust and TypeScript constants. A TypeScript
+  escaped as model text in the Rust and TypeScript constants, as a handler
+  clause's documentation now is in every requirement sentence (a
+  line-start `@see` is no JSDoc tag, a bare `[ops]` no rustdoc link). The
+  shared model-text escape now ends a code span only on a backtick run as
+  long as the one that opened it, and plain-text documentation no longer
+  leaves two blank lines after a list. A TypeScript
   permission export a model already names (`GraphPermission`) is left out
   of the package root and reachable as `permissions.GraphPermission`,
   instead of failing generation; a symbol with no letters (`_`) is the

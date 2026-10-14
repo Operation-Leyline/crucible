@@ -198,8 +198,11 @@ enum HandlerDocs {
 /// word is an ordinary capitalised one (never `HTTP`, `GraphQL` or `I`);
 /// anything else (several paragraphs, a list, a code block) is kept whole.
 fn handler_docs(docs: Option<&str>) -> HandlerDocs {
+    // Model text inside generated prose: escaped once here, as every
+    // target's model documentation is, so a line-start `@see` is no JSDoc
+    // tag and a bare `[ops]` no rustdoc link, in every client at once.
     let Some(docs) = docs
-        .map(crate::docs::comment_text)
+        .map(crate::docs::escape)
         .map(|d| d.trim().to_owned())
         .filter(|d| !d.is_empty())
     else {
@@ -557,6 +560,13 @@ mod prose {
         assert_eq!(inline("Only when\nit writes."), "only when it writes");
         assert_eq!(inline("Only for the U.S."), "only for the U.S");
         assert_eq!(inline("Only sometimes..."), "only sometimes...");
+        assert_eq!(inline("Ask [ops] first."), "ask \\[ops] first");
+        match handler_docs(Some("Checked twice:\n\n@see the runbook")) {
+            HandlerDocs::Below(text) => {
+                assert!(text.ends_with("\n\\@see the runbook"), "{text}");
+            }
+            _ => panic!("two paragraphs follow the sentence"),
+        }
         for docs in [
             "One.\n\nTwo.",
             "- a\n- b",

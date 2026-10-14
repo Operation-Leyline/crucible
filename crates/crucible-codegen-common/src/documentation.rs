@@ -192,6 +192,12 @@ pub fn text(markdown: &str) -> String {
             _ => {}
         }
     }
+    // A block's end after an item's (a list, a loose item's paragraph) would
+    // leave two blank lines; a code block's blank lines are indented, so
+    // collapsing runs of line breaks never touches one.
+    while out.contains("\n\n\n") {
+        out = out.replace("\n\n\n", "\n\n");
+    }
     out.trim_end().trim_start_matches('\n').to_owned()
 }
 
@@ -607,6 +613,15 @@ mod tests {
         assert!(rendered.contains("    x = '*/'"));
         assert!(!rendered.contains("```"));
         assert!(rendered.contains("- One"));
+    }
+
+    #[test]
+    fn a_list_is_followed_by_one_blank_line() {
+        assert_eq!(
+            super::text("Intro:\n\n- a\n- b\n\nAfter."),
+            "Intro:\n\n- a\n- b\n\nAfter."
+        );
+        assert_eq!(super::text("- a\n\n- b\n\nAfter."), "- a\n\n- b\n\nAfter.");
     }
 
     use super::*;

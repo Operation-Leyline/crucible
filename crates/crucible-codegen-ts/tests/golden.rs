@@ -100,13 +100,18 @@ fn permission_constants_match_golden() {
     ));
     // Hostile documentation: a backtick in a `when` literal gets a longer
     // fence, a one-paragraph handler note keeps `HTTP`, and a longer one
-    // follows the sentence whole.
+    // follows the sentence whole. Its model text is escaped: a bare `[ops]`
+    // is no link and a line-start `@see` no JSDoc tag swallowing the rest.
     assert!(
-        client.contains("Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below)."),
+        client.contains("Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \\[ops] approve); `history:read` on the history, checked by the service (see below)."),
         "{client}"
     );
     assert!(
         client.contains("`history:read` on the history, checked by the service:\n   *\n   * GraphQL plans are checked twice:"),
+        "{client}"
+    );
+    assert!(
+        client.contains("\n   * \\@see the runbook; @param is no tag either.\n   *\n   * Input: RewriteGraphInput."),
         "{client}"
     );
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions.ts");

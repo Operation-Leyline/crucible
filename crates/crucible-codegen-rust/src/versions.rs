@@ -312,8 +312,6 @@ fn older_requirements(
     kept
 }
 
-/// The current model's resource and primary symbol for an older clause,
-/// matched by authorization name and stored value.
 fn identifier_list(identifiers: &[String]) -> String {
     format!(
         "`({})`",
@@ -325,6 +323,8 @@ fn identifier_list(identifiers: &[String]) -> String {
     )
 }
 
+/// The current model's resource and primary symbol for an older clause,
+/// matched by authorization name and stored value.
 fn current_permission(
     current: &Service,
     old: &BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
@@ -362,7 +362,10 @@ fn current_permission(
     // identifiers in order, and the check names the current description.
     // Unless both list the same identifiers in the same order, a member would
     // bind the wrong one (a resource moved from one parent to another keeps
-    // its count), so anything but an unchanged list is refused.
+    // its count), so anything but an unchanged list is refused. Names are
+    // all a release snapshot keeps of a resource's identifiers (no target
+    // shapes, no parent chain), so a move to a parent whose identifier has
+    // the same name is not detected here.
     if clause.mode != crucible_smithy::ir::Mode::Handler && now.identifiers != resource.identifiers
     {
         return Err(format!(

@@ -277,13 +277,14 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// </summary>
     /// <remarks>
     /// <para>Asynchronous form.</para>
-    /// <para>Requires <c>graph:read</c> on the graph, when <c>mode == "a`b"</c>; <c>graph:write</c> on the graph, checked by the service (HTTP rewrites only, when <c>mode</c> is <c>a`b</c>); <c>history:read</c> on the history, checked by the service (see below).</para>
+    /// <para>Requires <c>graph:read</c> on the graph, when <c>mode == "a`b"</c>; <c>graph:write</c> on the graph, checked by the service (HTTP rewrites only, when <c>mode</c> is <c>a`b</c>, and [ops] approve); <c>history:read</c> on the history, checked by the service (see below).</para>
     /// <para><c>history:read</c> on the history, checked by the service:</para>
     /// <para>GraphQL plans are checked twice:</para>
     /// <list type="bullet">
-    /// <item><description>once when parsed, against */ and @param text;</description></item>
+    /// <item><description>once when parsed, against */ text;</description></item>
     /// <item><description>once when run, see [bare] and <see href="https://example.com/guide">the guide</see>.</description></item>
     /// </list>
+    /// <para>@see the runbook; @param is no tag either.</para>
     /// </remarks>
     /// <param name="input">The request.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
@@ -299,13 +300,14 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// </summary>
     /// <remarks>
     /// <para>Blocking form, run on the thread pool.</para>
-    /// <para>Requires <c>graph:read</c> on the graph, when <c>mode == "a`b"</c>; <c>graph:write</c> on the graph, checked by the service (HTTP rewrites only, when <c>mode</c> is <c>a`b</c>); <c>history:read</c> on the history, checked by the service (see below).</para>
+    /// <para>Requires <c>graph:read</c> on the graph, when <c>mode == "a`b"</c>; <c>graph:write</c> on the graph, checked by the service (HTTP rewrites only, when <c>mode</c> is <c>a`b</c>, and [ops] approve); <c>history:read</c> on the history, checked by the service (see below).</para>
     /// <para><c>history:read</c> on the history, checked by the service:</para>
     /// <para>GraphQL plans are checked twice:</para>
     /// <list type="bullet">
-    /// <item><description>once when parsed, against */ and @param text;</description></item>
+    /// <item><description>once when parsed, against */ text;</description></item>
     /// <item><description>once when run, see [bare] and <see href="https://example.com/guide">the guide</see>.</description></item>
     /// </list>
+    /// <para>@see the runbook; @param is no tag either.</para>
     /// </remarks>
     /// <param name="input">The request.</param>
     /// <param name="cancellationToken">Cancels the call.</param>

@@ -12,20 +12,21 @@ Effective schemes: <code>[&quot;smithy.api#httpBearerAuth&quot;]</code>. Optiona
 
 ## Authorization
 
-<p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>
+<p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve); <code>history:read</code> on the history, checked by the service (see below).</p>
 
 <p><code>history:read</code> on the history, checked by the service:</p>
 <p>GraphQL plans are checked twice:</p>
 <ul>
-<li>once when parsed, against */ and @param text;</li>
+<li>once when parsed, against */ text;</li>
 <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li>
 </ul>
+<p>@see the runbook; @param is no tag either.</p>
 
 | Mode | Permission | Resource type | Bindings | When | Notes |
 |---|---|---|---|---|---|
 | check | <code>graph:read</code> | <code>graph</code> | <code>organizationId</code> = <code>organizationId</code>, <code>graphId</code> = <code>graphId</code> | <code>mode == &quot;a`b&quot;</code> |  |
-| handler | <code>graph:write</code> | <code>graph</code> |  |  | <p>HTTP rewrites only, when <code>mode</code> is <code>a`b</code>.</p> |
-| handler | <code>history:read</code> | <code>history</code> |  |  | <p>GraphQL plans are checked twice:</p> <ul> <li>once when parsed, against */ and @param text;</li> <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li> </ul> |
+| handler | <code>graph:write</code> | <code>graph</code> |  |  | <p>HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve.</p> |
+| handler | <code>history:read</code> | <code>history</code> |  |  | <p>GraphQL plans are checked twice:</p> <ul> <li>once when parsed, against */ text;</li> <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li> </ul> <p>@see the runbook; @param is no tag either.</p> |
 
 ## Request syntax
 

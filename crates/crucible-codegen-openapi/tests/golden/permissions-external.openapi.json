@@ -1658,7 +1658,7 @@
         ],
         "x-smithy-shape": "example.leyline#RewriteGraph",
         "x-smithy-traits": {},
-        "description": "Hostile documentation: a backtick in a `when` literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans.\n\nRequires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).\n\n`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide).",
+        "description": "Hostile documentation: a backtick in a `when` literal, and handler\nclause documentation that must keep its case, its paragraphs and its\ncode spans.\n\nRequires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \\[ops] approve); `history:read` on the history, checked by the service (see below).\n\n`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see \\[bare] and [the guide](https://example.com/guide).\n\n\\@see the runbook; @param is no tag either.",
         "x-crucible-requires": {
           "kind": "list",
           "clauses": [
@@ -1684,14 +1684,14 @@
               "permission": "graph:write",
               "resourceType": "graph",
               "tier": "public",
-              "documentation": "HTTP rewrites only, when `mode` is ``a`b``."
+              "documentation": "HTTP rewrites only, when `mode` is ``a`b``, and [ops] approve."
             },
             {
               "mode": "handler",
               "permission": "history:read",
               "resourceType": "history",
               "tier": "public",
-              "documentation": "GraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide)."
+              "documentation": "GraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see [bare] and [the guide](https://example.com/guide).\n\n@see the runbook; @param is no tag either."
             }
           ]
         },

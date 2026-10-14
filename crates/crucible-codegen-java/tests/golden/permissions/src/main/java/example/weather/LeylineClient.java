@@ -397,13 +397,14 @@ public final class LeylineClient {
     /**
      * <p>Hostile documentation: a backtick in a <code>when</code> literal, and handler clause documentation that must keep its case, its paragraphs and its code spans.</p>
      * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
-     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>
+     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve); <code>history:read</code> on the history, checked by the service (see below).</p>
      * <p><code>history:read</code> on the history, checked by the service:</p>
      * <p>GraphQL plans are checked twice:</p>
      * <ul>
-     * <li>once when parsed, against *&#47; and &#64;param text;</li>
+     * <li>once when parsed, against *&#47; text;</li>
      * <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li>
      * </ul>
+     * <p>&#64;see the runbook; &#64;param is no tag either.</p>
      *
      * @param input the request
      * @return a future of the response
@@ -414,13 +415,14 @@ public final class LeylineClient {
     /**
      * <p>Hostile documentation: a backtick in a <code>when</code> literal, and handler clause documentation that must keep its case, its paragraphs and its code spans.</p>
      * <p>Blocking form: returns when the response has been decoded.</p>
-     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>
+     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve); <code>history:read</code> on the history, checked by the service (see below).</p>
      * <p><code>history:read</code> on the history, checked by the service:</p>
      * <p>GraphQL plans are checked twice:</p>
      * <ul>
-     * <li>once when parsed, against *&#47; and &#64;param text;</li>
+     * <li>once when parsed, against *&#47; text;</li>
      * <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li>
      * </ul>
+     * <p>&#64;see the runbook; &#64;param is no tag either.</p>
      *
      * @param input the request
      * @return the response
@@ -436,13 +438,14 @@ public final class LeylineClient {
     /**
      * <p>Hostile documentation: a backtick in a <code>when</code> literal, and handler clause documentation that must keep its case, its paragraphs and its code spans.</p>
      * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
-     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>
+     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve); <code>history:read</code> on the history, checked by the service (see below).</p>
      * <p><code>history:read</code> on the history, checked by the service:</p>
      * <p>GraphQL plans are checked twice:</p>
      * <ul>
-     * <li>once when parsed, against *&#47; and &#64;param text;</li>
+     * <li>once when parsed, against *&#47; text;</li>
      * <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li>
      * </ul>
+     * <p>&#64;see the runbook; &#64;param is no tag either.</p>
      *
      * @param configure fills the request builder
      * @return the response
@@ -458,13 +461,14 @@ public final class LeylineClient {
     /**
      * <p>Hostile documentation: a backtick in a <code>when</code> literal, and handler clause documentation that must keep its case, its paragraphs and its code spans.</p>
      * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
-     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>
+     * <p>Requires <code>graph:read</code> on the graph, when <code>mode == "a`b"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve); <code>history:read</code> on the history, checked by the service (see below).</p>
      * <p><code>history:read</code> on the history, checked by the service:</p>
      * <p>GraphQL plans are checked twice:</p>
      * <ul>
-     * <li>once when parsed, against *&#47; and &#64;param text;</li>
+     * <li>once when parsed, against *&#47; text;</li>
      * <li>once when run, see [bare] and <a href="https://example.com/guide">the guide</a>.</li>
      * </ul>
+     * <p>&#64;see the runbook; &#64;param is no tag either.</p>
      *
      * @param configure fills the request builder
      * @return a future of the response

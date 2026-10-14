@@ -2565,14 +2565,16 @@ impl LeylineClient {
     /// clause documentation that must keep its case, its paragraphs and its
     /// code spans.
     ///
-    /// Requires `graph:read` on the graph, when ``mode == "a`b"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).
+    /// Requires `graph:read` on the graph, when ``mode == "a`b"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \[ops] approve); `history:read` on the history, checked by the service (see below).
     ///
     /// `history:read` on the history, checked by the service:
     ///
     /// GraphQL plans are checked twice:
     ///
-    /// - once when parsed, against */ and @param text;
-    /// - once when run, see [bare] and [the guide](https://example.com/guide).
+    /// - once when parsed, against */ text;
+    /// - once when run, see \[bare] and [the guide](https://example.com/guide).
+    ///
+    /// \@see the runbook; @param is no tag either.
     ///
     /// Input: RewriteGraphInput.
     ///
@@ -2587,14 +2589,16 @@ impl LeylineClient {
     /// clause documentation that must keep its case, its paragraphs and its
     /// code spans.
     ///
-    /// Requires `graph:read` on the graph, when ``mode == "a`b"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).
+    /// Requires `graph:read` on the graph, when ``mode == "a`b"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``, and \[ops] approve); `history:read` on the history, checked by the service (see below).
     ///
     /// `history:read` on the history, checked by the service:
     ///
     /// GraphQL plans are checked twice:
     ///
-    /// - once when parsed, against */ and @param text;
-    /// - once when run, see [bare] and [the guide](https://example.com/guide).
+    /// - once when parsed, against */ text;
+    /// - once when run, see \[bare] and [the guide](https://example.com/guide).
+    ///
+    /// \@see the runbook; @param is no tag either.
     ///
     /// Input: RewriteGraphInput.
     ///
