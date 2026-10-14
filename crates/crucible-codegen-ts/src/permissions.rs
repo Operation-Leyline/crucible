@@ -193,13 +193,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         );
         out.push_str(&format!("export const {shape}Permission = {{\n"));
         for permission in &permissions {
-            // Model text: neutralised like other doc-comment targets' (a
-            // leading `@` is a JSDoc tag otherwise).
-            let mut docs = permission
-                .docs
-                .as_deref()
-                .map(crucible_codegen_common::docs::escape)
-                .unwrap_or_default();
+            // Model text: `documented` escapes it (`escape_block`) like every
+            // other JSDoc comment's, so a leading `@` is no tag.
+            let mut docs = permission.docs.clone().unwrap_or_default();
             if permission.alias_of.is_some() {
                 if !docs.trim().is_empty() {
                     docs.push_str("\n\n");

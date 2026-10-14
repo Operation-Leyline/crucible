@@ -200,9 +200,11 @@ enum HandlerDocs {
 fn handler_docs(docs: Option<&str>) -> HandlerDocs {
     // Model text inside generated prose: escaped once here, as every
     // target's model documentation is, so a line-start `@see` is no JSDoc
-    // tag and a bare `[ops]` no rustdoc link, in every client at once.
+    // tag and a bare `[ops]` no rustdoc link, in every client at once. The
+    // block form also guards an `@` line inside a code fence, which JSDoc,
+    // PHPDoc and YARD would still read as a tag.
     let Some(docs) = docs
-        .map(crate::docs::escape)
+        .map(crate::docs::escape_block)
         .map(|d| d.trim().to_owned())
         .filter(|d| !d.is_empty())
     else {
@@ -566,6 +568,10 @@ mod prose {
                 assert!(text.ends_with("\n\\@see the runbook"), "{text}");
             }
             _ => panic!("two paragraphs follow the sentence"),
+        }
+        match handler_docs(Some("Run:\n\n```\n@retry\n```")) {
+            HandlerDocs::Below(text) => assert!(text.contains("\n\\@retry\n"), "{text}"),
+            _ => panic!("a code block follows the sentence"),
         }
         for docs in [
             "One.\n\nTwo.",
