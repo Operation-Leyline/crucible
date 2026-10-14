@@ -19,8 +19,8 @@ use crucible_server_runtime_rust::operation::{
 };
 use crucible_server_runtime_rust::permissions::{
     self, AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Checks, Listing, Mode,
-    Obligation, ObligationOutcome, OperationFacts, PermissionInfo, Permissions, RequirementInfo,
-    Requirements, ResourceInfo, ResourceRef, Target, Tier, Verdict, Visibility,
+    Obligation, ObligationOutcome, ObligationRecord, OperationFacts, PermissionInfo, Permissions,
+    RequirementInfo, Requirements, ResourceInfo, ResourceRef, Target, Tier, Verdict, Visibility,
 };
 use crucible_server_runtime_rust::validate::{Validate, Validator};
 use crucible_server_runtime_rust::{
@@ -583,6 +583,11 @@ impl Operation for DeleteGrant {
     type Input = GrantInput;
     type Output = Out;
 }
+const MISWIRED_ADMIN: Obligation = Obligation {
+    operation: "test.permissions#Miswired",
+    index: 1,
+    permission: &WORKSPACE_ADMIN,
+};
 const ADMIN_ON_WORKSPACE: Obligation = Obligation {
     operation: "test.permissions#DeleteGrant",
     index: 1,
@@ -655,12 +660,20 @@ impl Operation for SearchInboxes {
 }
 
 /// Declares `requires read on Inbox` but binds nothing: a generator bug,
-/// which must fail closed.
+/// which must fail closed. Its `requires admin on Workspace by handler`
+/// obligation the handler closes, as it would in enforcing mode.
 struct Miswired;
 impl Operation for Miswired {
     const INFO: &'static OperationInfo = &MISWIRED;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
-    const REQUIREMENTS: Requirements = Requirements::List(&[check(&INBOX_READ, false)]);
+    const REQUIREMENTS: Requirements = Requirements::List(&[
+        check(&INBOX_READ, false),
+        RequirementInfo {
+            mode: Mode::Handler,
+            permission: &WORKSPACE_ADMIN,
+            conditional: false,
+        },
+    ]);
     const CHECKS: Option<Checks<InboxInput>> = Some(|_, _| {});
     type Input = InboxInput;
     type Output = Out;
@@ -841,6 +854,7 @@ fn operations(state: Arc<State>) -> Operations {
             out(json!(shown))
         })
         .add::<Miswired, _, _>(state.clone(), |_, _: InboxInput| async move {
+            permissions::not_applicable(MISWIRED_ADMIN, "not an admin request")?;
             out(json!("ran"))
         })
         .add::<GetMe, _, _>(state.clone(), |_, _: Unit| async move { out(json!("me")) })
@@ -1919,11 +1933,19 @@ async fn shadow_mode_records_and_logs_but_refuses_nothing() {
     let hidden = harness.get("/w/w1/inboxes", "carol").await;
     assert_eq!(hidden.status, 200);
     assert_eq!(hidden.json()["value"], json!([]));
-    // or a wiring error in its own descriptions.
+    // or a wiring error in its own descriptions, whose obligations still
+    // open for the handler to close.
     assert_eq!(
         harness.get("/w/w1/inboxes/i1/miswired", "bob").await.status,
         200
     );
+    assert!(matches!(
+        &harness.audit.last().obligations[..],
+        [ObligationRecord {
+            outcome: ObligationOutcome::NotApplicable(_),
+            ..
+        }]
+    ));
 }
 
 #[tokio::test]

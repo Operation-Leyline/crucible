@@ -169,9 +169,12 @@ impl Permissions {
         let (checks, listing) =
             match bind(operation, requirements, job.metadata().checks, job.input()) {
                 Ok(bound) => bound,
-                // Shadow mode refuses nothing, its own wiring errors included.
+                // Shadow mode refuses nothing, its own wiring errors included:
+                // the obligations still open, so a handler written for
+                // enforcing mode closes them unchanged.
                 Err(error) if self.shadow => {
                     shadow_failure(operation, &error);
+                    open_obligations(&context, &session, operation, requirements);
                     return Ok(());
                 }
                 Err(error) => return Err(error),
@@ -217,20 +220,7 @@ impl Permissions {
             self.refuse(&context, &session, &check, verdict)?;
         }
 
-        let obligations: Vec<ObligationRecord> = requirements
-            .iter()
-            .enumerate()
-            .filter(|(_, requirement)| requirement.mode == Mode::Handler)
-            .map(|(index, requirement)| ObligationRecord {
-                obligation: Obligation {
-                    operation: operation.id,
-                    index: u16::try_from(index).unwrap_or(u16::MAX),
-                    permission: requirement.permission,
-                },
-                outcome: ObligationOutcome::Open,
-            })
-            .collect();
-        session.update(&context, |record| record.obligations = obligations);
+        open_obligations(&context, &session, operation, requirements);
         Ok(())
     }
 
@@ -255,6 +245,29 @@ impl Permissions {
         }
         Err(session.refuse(context, check, verdict))
     }
+}
+
+/// Opens the operation's `by handler` obligations on its record.
+fn open_obligations(
+    context: &Context,
+    session: &Session,
+    operation: &OperationInfo,
+    requirements: &'static [RequirementInfo],
+) {
+    let obligations: Vec<ObligationRecord> = requirements
+        .iter()
+        .enumerate()
+        .filter(|(_, requirement)| requirement.mode == Mode::Handler)
+        .map(|(index, requirement)| ObligationRecord {
+            obligation: Obligation {
+                operation: operation.id,
+                index: u16::try_from(index).unwrap_or(u16::MAX),
+                permission: requirement.permission,
+            },
+            outcome: ObligationOutcome::Open,
+        })
+        .collect();
+    session.update(context, |record| record.obligations = obligations);
 }
 
 /// Whether the model marks the operation public: it has no authentication,
