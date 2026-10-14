@@ -363,8 +363,10 @@ finished, so the reader is safe to reuse once the call returns. When the
 operation also streams its response, a factory's
 reader or a seekable reader stays open after the call returns, so the transport
 can keep sending while the response arrives. It is closed or stops being read
-when that response is read to the end or closed, and only then is a seekable
-reader safe to reuse. Cancelling the context, or reaching the call's
+when that response is read to the end or closed. That request-body shutdown
+is asynchronous, so do not reuse a seekable reader immediately after a
+streamed response ends or is closed: wait until its read has stopped (for
+example, by not sharing the reader between concurrent or back-to-back calls). Cancelling the context, or reaching the call's
 deadline, closes the body straight away: a one-shot `io.Closer`, or the reader a
 `NewByteStream` factory opened. That ends a read blocked in it, so the call
 returns the context's error without waiting for more bytes. A reader that is
