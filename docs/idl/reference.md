@@ -84,6 +84,9 @@ requirement = [ doc ] "requires" ( "none"
                                  | "pending" "because" string
                                  | ident [ "on" req_target ] [ "when" condition ] [ "by" "handler" ] )
             | [ doc ] "filters" ident "on" ident ;
+                 (* `none` and `pending` are never a permission's symbol. The
+                    `///` of `requires none` or `pending` documents the model
+                    only: the IR keeps a pending reason, not this text *)
 req_target  = ident [ "(" binding { "," binding } ")" ] ;
 binding     = [ ident ":" ] ( "*" | "$" ident | dotted ) ;
                  (* an unnamed binding binds the resource's own identifier *)
@@ -91,7 +94,9 @@ condition   = cond_and { "or" cond_and } ;
 cond_and    = cond_not { "and" cond_not } ;
 cond_not    = "not" cond_not | cond_atom ;
 cond_atom   = "(" condition ")" | "has" dotted | dotted "==" value | dotted "in" value ;
-                 (* values: strings, numbers, true, false; `in` takes a list *)
+                 (* values: strings, numbers, true, false; `in` takes a list.
+                    `has` or `not` before `.`, `==` or `in [` starts a member
+                    path: a member may be named `has` *)
 permission_value = segment { ":" segment } ;   (* the string of a permission entry *)
 segment     = lower { lower | upper | digit } { "-" ( lower | digit ) { lower | upper | digit } } ;
 
@@ -224,13 +229,18 @@ language's own checks include:
 - permissions ([permissions.md](../permissions.md) §5, checks 1-18): they
   run on the IR in `crucible_smithy::validate::permissions`, and each
   diagnostic starts with its code
-  (`permissions.undeclared` and the like). A resource's permission symbols
-  and values are unique, values follow `permission_value` and do not
+  (`permissions.undeclared` and the like), for the operations and
+  resources the service does not reach too, unless another service of the
+  package reaches them. A resource that declares permissions declares an
+  identifier of its own (`permissions.identifier`), so `*` never binds a
+  parent's. A resource's permission symbols
+  and values are unique, `none` and `pending` are no symbol, values follow `permission_value` and do not
   differ only in case, and authorization names are lowerCamelCase and
   unique; a permission is in one tier (`internal`, `@permissionOnly`,
   `@notGrantable`), and a `@permissionOnly` one is required by nothing;
-  an alias is `@deprecated`, names a primary of its resource and tier, and
-  is never required; a `@permissionTypes` enum is unique, every value is
+  an alias is `@deprecated`, names one primary of its resource and tier, and
+  is never required; a `@permissionTypes` enum is unique and of the
+  service's own package, every value is
   the authorization name of a resource with permissions, and every
   resource with grantable permissions is a value or excluded;
   `requires p on R` names a permission `R` declares; a public operation
@@ -241,11 +251,14 @@ language's own checks include:
   identifier the input binds, `*` binds only the resource's own
   identifier, and no binding passes through a list or map;
   a path through an optional member or union arm is guarded by `when`,
-  which reads input members and compares like with like (a number of the
+  which reads input members (`has` may test a list or map member, nothing
+  reads into one) and compares like with like (a number of the
   member's own type; never a `bigInteger` or `bigDecimal`); `filters`
-  appears once, on a `lists` or `on .. collection` operation; `by handler`
-  takes no bindings or `when`; `@authorizationName` is on a resource
-  that declares permissions; the service's `notFound` error is an error of
+  appears once, on a `lists` or `on .. collection` operation, and names a
+  permission of the resource the operation is bound to, the one the
+  listing returns; `by handler`
+  takes no bindings or `when`; `@authorizationName` is given once, on a
+  resource that declares permissions; the service's `notFound` error is an error of
   its own package, a client error with status 404
   (`permissions.not-found-error`), and without one a requirement needs
   `crucible.errors` imported (`permissions.not-found`); and once a service declares any permission,

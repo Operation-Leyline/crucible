@@ -376,6 +376,28 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Typed permissions in `.cru` (unreleased) check what they let through
+  before. A resource that declares permissions declares an identifier of
+  its own (`permissions.identifier`): without one, `R(*)` bound the
+  parent's identifier, a wildcard over every tenant. `@aliasOf` and
+  `@authorizationName` given twice, a `@permissionTypes` enum of another
+  package, a permission named `none` or `pending` (`permissions.symbol`),
+  `requires none` with a target, `when` or `by handler`, `requires
+  pending` without `because`, and `filters p on R` on a listing of another
+  resource than `R` are errors. Operations and resources the service
+  does not reach get the permission checks too, unless another service of
+  the package reaches them. A permission annotation on another target
+  says where it applies, rather than suggesting a metadata key that cannot
+  take a built-in's name. `when has tags` may test a list or map member; a
+  member named `has` or `not` reads as one in a `when`; a binding type is
+  checked against an identifier type nothing else uses (a warning when the
+  constraints match, as for any other); a constrained string binding an
+  unconstrained `string` identifier is an error, where a warning claimed
+  the same constraints; and a `when` that fails to lower drops its clause
+  from the editor's best-effort IR instead of keeping it unconditional.
+  The formatter indents a requirement's `on` and `when` continued on the
+  next line.
+
 - The Rust client's default HTTP transport no longer follows redirects,
   which could forward custom API-key and SigV4 session-token headers to
   another origin. Applications can configure an explicit redirect policy

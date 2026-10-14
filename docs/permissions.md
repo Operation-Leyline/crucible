@@ -462,7 +462,8 @@ operation with none of them is a compile error, `permissions.undeclared`
 
 - `requires none` says an authenticated operation needs no permission:
   `GetMe`, `ListMyWorkspaces`, and Leyline's user-self operations. Its `///`
-  says why. It plays the role of `[AllowAnonymous]` or `skip_authorization`
+  says why, to readers of the model: `Requirements::None` carries no text,
+  so it reaches no generated output. It plays the role of `[AllowAnonymous]` or `skip_authorization`
   in the frameworks, at the cost of one line.
 - `requires pending because "<reason>"` is the migration suppression. It
   compiles with a warning that repeats the reason, lowers to
@@ -633,13 +634,20 @@ the bundled `crucible.errors` package: it is the shared error vocabulary.
 
 All of these are errors unless marked. Everything that holds of the IR
 (all but the grammar) runs in `crucible_smithy::validate`, over the IR that
-`.cru` lowering produces.
+`.cru` lowering produces. Operations and resources the service does not
+reach are checked too, in its context, as the other rules check them,
+except what another service of the package reaches: that service's
+compile checks it.
 
 **Vocabulary**
 
-1. Permission symbols are unique within a resource. Values match the value
+1. Permission symbols are unique within a resource, and neither is `none`
+   or `pending`, the words of §4.7's clauses. Values match the value
    grammar (§4.1) and are unique within a resource, and no two values on a
-   resource differ only in case.
+   resource differ only in case. A resource that declares permissions
+   declares an identifier of its own (`permissions.identifier`): a check
+   names one instance, and without one `R(*)` would bind the parent's
+   identifier, the cross-tenant wildcard check 11 forbids.
 2. The same value on two resources is allowed: the pair is the key. Pigeon
    does not do it. Leyline's `graph:read` lives on one resource.
 3. Authorization names (derived or `@authorizationName`) are lowerCamel and
@@ -649,10 +657,11 @@ All of these are errors unless marked. Everything that holds of the IR
    named by no requirement. *Warning*, `permissions.unrequired`: a public
    permission that no requirement names; declare it `@permissionOnly` or
    require it.
-5. `@aliasOf(p)` names a non-alias permission of the same resource and
+5. `@aliasOf(p)`, given once, names a non-alias permission of the same resource and
    tier. An alias is `@deprecated`. No requirement names an alias ("did you
    mean `p`").
-6. `@permissionTypes` (§4.9): at most one per service, on a string enum;
+6. `@permissionTypes` (§4.9): at most one per service, on a string enum
+   of the service's own package;
    every value is the authorization name of a resource with permissions;
    every grantable resource is a value or excluded; an excluded resource
    declares permissions and is not a value.
@@ -679,9 +688,12 @@ All of these are errors unless marked. Everything that holds of the IR
     handler`.
 13. A path through an optional member or union arm is guarded by `when`.
     `when has x` on a required member is a warning that it is always true.
-    `when` reads input members only.
+    `when` reads input members only; `has` may test a list or map member,
+    and nothing reads into one.
 14. `filters` appears only on a collection operation (`lists` or `on ..
-    collection`), at most once, and binds the parent like a collection
+    collection`), at most once, names a permission of the resource the
+    operation is bound to (what the listing returns, and what its docs say
+    it returns), and binds the parent like a collection
     `requires`. `filters` with a `requires` on the same resource is a
     warning.
 15. `by handler` takes no bindings and no `when`.

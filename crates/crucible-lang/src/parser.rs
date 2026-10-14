@@ -1102,11 +1102,35 @@ impl<'s> Parser<'s> {
             }
         } else {
             self.expect_word("requires");
-            if self.at_word("none") && !self.at_word_ahead(1, "on") {
+            // `none` and `pending` are the clauses' own words, never a
+            // permission's symbol (lowering refuses one so named).
+            if self.at_word("none") {
                 let span = self.bump().expect("checked").span;
+                if self.at_word("on") || self.at_word("when") || self.at_word("by") {
+                    let start = self.here();
+                    let word = self.text(0).to_owned();
+                    // Read the rest as a clause would, so recovery resumes
+                    // after it.
+                    self.pos += 1;
+                    match word.as_str() {
+                        "on" => {
+                            self.target();
+                        }
+                        "when" => {
+                            self.condition();
+                        }
+                        _ => {
+                            self.eat_word("handler");
+                        }
+                    }
+                    self.error(
+                        start.to(self.last_end()),
+                        "`requires none` stands alone: it says the operation needs no permission, on any resource",
+                    );
+                }
                 RequirementKind::None(span)
-            } else if self.at_word("pending") && self.at_word_ahead(1, "because") {
-                self.pos += 2;
+            } else if self.eat_word("pending") {
+                self.expect_word("because");
                 RequirementKind::Pending(self.string("the reason, as a string"))
             } else {
                 let permission =
@@ -1246,9 +1270,18 @@ impl<'s> Parser<'s> {
         }
     }
 
+    /// Whether `word` (`has`, `not`) is the condition's keyword here
+    /// rather than the first segment of a member path: a member named `has`
+    /// is followed by `.`, `==` or `in [`, the keyword by what it applies to.
+    fn condition_keyword(&self, word: &str) -> bool {
+        self.at_word(word)
+            && !matches!(self.kind(1), Some(TokenKind::Dot | TokenKind::EqEq))
+            && !(self.at_word_ahead(1, "in") && self.kind(2) == Some(TokenKind::LBracket))
+    }
+
     fn condition_not(&mut self) -> Condition {
         let mut starts = Vec::new();
-        while self.at_word("not") {
+        while self.condition_keyword("not") {
             if starts.len() == MAX_DEPTH {
                 self.error(
                     self.here(),
@@ -1290,7 +1323,8 @@ impl<'s> Parser<'s> {
                 span: start.to(self.last_end()),
             };
         }
-        if self.eat_word("has") {
+        if self.condition_keyword("has") {
+            self.pos += 1;
             let path = self.dotted("the member that must be present");
             return Condition {
                 kind: ConditionKind::Has(path),

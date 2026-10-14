@@ -62,6 +62,8 @@ pub(crate) fn lower(
         declared_permissions: BTreeMap::new(),
         permissions: BTreeMap::new(),
         permission_facts: crucible_smithy::validate::PermissionFacts::default(),
+        service_findings: Vec::new(),
+        unlowered_requirements: BTreeSet::new(),
         not_found: None,
         permission_sites: BTreeMap::new(),
         requirement_sites: BTreeMap::new(),
@@ -386,6 +388,12 @@ struct Lowerer<'a> {
     /// The service's: its reachable resources' `declared_permissions`.
     permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
     permission_facts: crucible_smithy::validate::PermissionFacts,
+    /// What the shared check found in the service, so the check of what it
+    /// does not reach repeats none of it.
+    service_findings: Vec<crucible_smithy::validate::PermissionFinding>,
+    /// Operations whose every requirement clause failed to lower: they are
+    /// `Undeclared` in the IR, and not reported as declaring nothing.
+    unlowered_requirements: BTreeSet<ShapeId>,
     /// The service's own not-found error (`notFound X`), which check 17
     /// attaches instead of `crucible.errors#NotFoundException`.
     not_found: Option<ShapeId>,
@@ -1521,6 +1529,24 @@ impl<'a> Lowerer<'a> {
                             "`@permissionTypes` applies to an enum: the wire enum of resource types a grant names",
                         );
                     }
+                }
+                // Read where they apply (`lower::permissions`); anywhere
+                // else they are misplaced, never metadata, which cannot
+                // take a built-in's name.
+                "authorizationName" | "permissionOnly" | "notGrantable" | "aliasOf" => {
+                    let target = if name == "authorizationName" {
+                        "a resource that declares permissions"
+                    } else {
+                        "a `permission` entry of a resource"
+                    };
+                    self.error(
+                        file,
+                        annotation.span,
+                        format!(
+                            "`@{name}` applies to {target}, not to a {}",
+                            position.target()
+                        ),
+                    );
                 }
                 "mutability" => {
                     let value = match annotation.args.as_slice() {
@@ -4327,6 +4353,19 @@ impl<'a> Lowerer<'a> {
             }
         }
         let requirements = self.requirements(file, &id, operation);
+        // Its clauses failed to lower, so the IR says `Undeclared` and the
+        // shared check, which reads a public operation without
+        // requirements as correct, cannot tell it declared some.
+        if modifiers.contains("public") && self.unlowered_requirements.contains(&id) {
+            self.error(
+                file,
+                operation.name.span,
+                format!(
+                    "permissions.public: `{}` is public, so there is no caller to authorize; remove its requirement declarations",
+                    operation.name.name
+                ),
+            );
+        }
         self.attach_not_found(&requirements, errors.len(), &mut errors);
         for error in service_errors {
             if !errors.contains(error) {
@@ -4860,6 +4899,7 @@ impl<'a> Lowerer<'a> {
         let mut probe = service.clone();
         probe.operations = unreached;
         probe.shapes = std::mem::take(&mut self.shapes);
+        self.check_unreached_permissions(&probe);
         let mut issues = crucible_smithy::Diagnostics::default();
         for operation in &probe.operations {
             crucible_smithy::validate::operation(&probe, operation, &mut issues);
