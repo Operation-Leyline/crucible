@@ -1,10 +1,14 @@
 # Typed permissions
 
-**Status: accepted; phase A1 is implemented, A2 and B are pending.** A1
-(the language, the Smithy traits, the IR and the checks) is built: its
-syntax is in [idl/reference.md](idl/reference.md) and its decisions are
-37a-37k in [idl/decisions.md](idl/decisions.md). The A2 runtime and the B
-generators are not built yet. This document specifies how a model declares
+**Status: accepted; phases A1 and A2 are implemented, B is pending.** A1
+(the `.cru` language, the IR and the checks) is built: its syntax is in
+[idl/reference.md](idl/reference.md) and its decisions are 37a-37k in
+[idl/decisions.md](idl/decisions.md). The A2 runtime is in
+[framework.md](framework.md). The B generators are not built yet.
+
+**Permissions are declared in `.cru` models only.** A Smithy model cannot
+declare them: a consumer whose model is Smithy, such as Leyline, migrates
+it to `.cru` first (§4.11). This document specifies how a model declares
 the permissions its resources accept and the permissions each operation
 requires, and how the Rust runtime enforces them through a
 service-supplied `Authorizer`. The implementation plan is §10.
@@ -594,76 +598,26 @@ readonly operation GetUsage {
 
 `fresh` does not appear (decision 3).
 
-### 4.11 The Smithy equivalent
+### 4.11 Smithy models
 
-Leyline is Smithy, and `crucible-smithy` lowers to the same IR, so
-`smithy/auth.smithy` gains these traits next to `crucible.auth#scopes`.
-They ship in `crucible-traits` the same way. Permissions are an enum, which
-already carries per-value docs, `@internal` and `@deprecated`:
+Typed permissions are a `.cru` feature. `crucible-smithy` lowers no
+permissions and no requirements, and it refuses a model that uses a
+`crucible.auth` permission trait (`permissionsOf`, `requires`,
+`requiresNone`, `requiresPending` and the like) with a diagnostic that
+says permissions are declared in `.cru` models, rather than lowering it as
+if it declared none. Leyline, the one Smithy consumer, migrates its model
+to `.cru` before it adopts them (§8.2).
 
-| Trait | On | `.cru` equivalent |
-|---|---|---|
-| `permissionsOf(Resource)` | enum | the resource's `permission` entries |
-| `authorizationName("graph")` | resource | `@authorizationName` |
-| `permissionOnly`, `notGrantable` | enum member | the same annotations |
-| `aliasOf("READ")` | enum member (names the primary member) | `@aliasOf` |
-| `permissionTypes(exclude: [..])` | enum | `@permissionTypes` |
-| `requires([..])` | operation | `requires` and `filters` clauses |
-| `requiresNone("why")` | operation | `requires none` with its `///` |
-| `requiresPending("reason")` | operation | `requires pending because` |
-
-```smithy
-use crucible.auth#permissionsOf
-use crucible.auth#requires
-use crucible.auth#requiresNone
-use crucible.auth#requiresPending
-
-@permissionsOf(Graph)
-enum GraphPermission {
-    /// Read a graph and its catalog.
-    @internal
-    READ = "graph:read"
-    @internal
-    WRITE = "graph:write"
-}
-
-@requires([{ permission: "graph:read", resource: Graph }])
-operation GetGraph { ... }
-
-@requires([
-    { permission: "mail:send", resource: Inbox }
-    { permission: "template:read", resource: Template,
-      bind: { templateId: "content.template.templateId" }, when: "has content.template" }
-])
-operation SendMessage { ... }
-
-@requires([
-    { permission: "graph:read", resource: Graph }
-    { permission: "graph:write", resource: Graph, mode: "handler",
-      documentation: "Only when the parsed query writes." }
-])
-operation ExecuteQuery { ... }
-
-@requiresNone("Answers about the caller's own credential.")
-operation GetUser { ... }
-
-@requiresPending("guard::allow in the handler until the history module moves.")
-operation RestoreBackup { ... }
-```
-
-`requires` is a list of `{ permission, resource, bind?, when?, mode?,
-documentation? }`, where `permission` is the value, `mode` is one of
-`check` (the default), `filter` or `handler`, and `bind` maps an
-identifier to `"*"`, `"$label"` or a member path. Binding and `when`
-strings are parsed by `crucible-smithy` with the `.cru` grammar, so the two
-front ends share one checker. A `permissionsOf` enum need not be used by
-any member; it counts as referenced for decision 47f's warning.
+Two pieces are shared all the same. `@auth([])` still marks an operation
+`public` in the IR (§6.1): that is authentication, not permissions. And
+`crucible.errors#NotFoundException` is in `smithy/errors.smithy` as well as
+the bundled `crucible.errors` package: it is the shared error vocabulary.
 
 ## 5. Compiler checks
 
 All of these are errors unless marked. Everything that holds of the IR
-(all but the grammar) runs in `crucible_smithy::validate`, so both front
-ends refuse the same models.
+(all but the grammar) runs in `crucible_smithy::validate`, over the IR that
+`.cru` lowering produces.
 
 **Vocabulary**
 
@@ -1350,19 +1304,20 @@ Each step ships alone and changes no behaviour until the step that says so.
 
 ### 8.2 Leyline
 
-Leyline needs the Smithy traits (§4.11). Its steps are the same in
-outline, after Pigeon:
+Leyline's model is Smithy, which cannot declare permissions (§4.11): it
+migrates to `.cru` first. Its steps are then the same in outline, after
+Pigeon:
 
-1. Add `@permissionsOf` enums for Organization, Graph and History, with
-   `@internal` values, and `@requiresPending` on every authenticated
+1. Declare `internal` `permission` entries on Organization, Graph and
+   History, and `requires pending because` on every authenticated
    operation that is not yet converted. Replace `enum Action` with `From`
    between the generated `Permission` and Leyline's `Action`, or retire
    `Action` entirely, so `Role::allows` becomes an exhaustive `match`.
 2. Implement `Authorizer` over `Authorization::decide`. `Role::allows`
    stays where it is.
-3. Annotate operations with `@requires` as their handlers' `guard::allow`
-   calls are deleted. The domain modules that authorize internally move
-   last. `ExecuteQuery` declares its write as `mode: "handler"`.
+3. Declare operations' `requires` clauses as their handlers'
+   `guard::allow` calls are deleted. The domain modules that authorize
+   internally move last. `ExecuteQuery` declares its write `by handler`.
 4. Point the audit middleware at `AuthorizationRecord` and delete its path
    table.
 
@@ -1424,9 +1379,7 @@ streams.
   / `by handler` clauses, through lexer, parser, syntax tree, name
   resolution and lowering; `crucible-lsp` completion, semantic tokens and
   diagnostics for them.
-- Smithy: the traits of §4.11 in `smithy/auth.smithy` (`crucible-traits`)
-  and their lowering in `crucible-smithy`, parsing binding and `when`
-  strings with the `.cru` grammar.
+- Smithy: no permission traits; `crucible-smithy` refuses them (§4.11).
 - `crucible.errors#NotFoundException` in `smithy/errors.smithy`, attached
   by lowering (check 17).
 - The IR fields of §6.1, all `#[serde(default)]`, and the client audience
@@ -1487,9 +1440,9 @@ log agreeing, enforce, then delete `guard.rs` and `pigeon-web`'s
 
 The base design in §§4-7 is accepted: permissions are declared on
 resources, operations declare `requires`, `filters`, `requires none` or
-`requires pending`, Smithy models use the `crucible.auth` traits of §4.11
-with the same checker, the runtime enforces through a `Permissions`
-interceptor over a service `Authorizer` that answers `Allowed`, `Denied` or
+`requires pending` in `.cru` (Smithy models declare none, §4.11), the
+runtime enforces through a `Permissions` interceptor over a service
+`Authorizer` that answers `Allowed`, `Denied` or
 `Hidden` per check in one batch, and handlers check what the model cannot
 bind through `permissions::*` with the same types and record. The decisions
 below settle the questions the draft left open. Each is backed by a survey

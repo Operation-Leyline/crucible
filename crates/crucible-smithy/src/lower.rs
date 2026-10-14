@@ -29,6 +29,20 @@ fn explicitly_public(traits: &Traits) -> bool {
         .is_some_and(Vec::is_empty)
 }
 
+/// The typed permission traits, which only `.cru` models declare
+/// (docs/permissions.md).
+const PERMISSION_TRAITS: &[&str] = &[
+    "permissionsOf",
+    "authorizationName",
+    "permissionOnly",
+    "notGrantable",
+    "aliasOf",
+    "permissionTypes",
+    "requires",
+    "requiresNone",
+    "requiresPending",
+];
+
 const PRELUDE_AUTH: &[&str] = &[
     "httpBasicAuth",
     "httpDigestAuth",
@@ -43,7 +57,7 @@ pub(crate) fn lower(
     selected_protocol: Option<Protocol>,
     infrastructure: bool,
     documentation: bool,
-) -> Result<(Service, Vec<crate::validate::PermissionFinding>), Diagnostics> {
+) -> Result<Service, Diagnostics> {
     let mut lowerer = Lowerer {
         model: shapes,
         protocol: Protocol::CrucibleJson,
@@ -57,14 +71,11 @@ pub(crate) fn lower(
         requirements: BTreeSet::new(),
         http_inputs: BTreeSet::new(),
         http_outputs: BTreeSet::new(),
-        permissions: BTreeMap::new(),
-        permission_facts: crate::validate::PermissionFacts::default(),
         service_public: false,
-        warnings: Vec::new(),
     };
     let service = lowerer.service(service_id, infrastructure, documentation);
     if lowerer.diagnostics.is_empty() {
-        Ok((service, lowerer.warnings))
+        Ok(service)
     } else {
         Err(lowerer.diagnostics)
     }
@@ -87,16 +98,9 @@ pub(crate) struct Lowerer<'m> {
     requirements: BTreeSet<FeatureUse>,
     http_inputs: BTreeSet<ShapeId>,
     http_outputs: BTreeSet<ShapeId>,
-    /// `@permissionsOf` enums, lowered before any operation, which binds
-    /// against them.
-    pub(crate) permissions: BTreeMap<ShapeId, crate::ir::ResourcePermissions>,
-    pub(crate) permission_facts: crate::validate::PermissionFacts,
     /// The service's own `@auth([])`, which operations without an `@auth`
     /// inherit as an explicit public declaration.
     service_public: bool,
-    /// What the shared permission checks warn about or advise: the model
-    /// still lowers.
-    pub(crate) warnings: Vec<crate::validate::PermissionFinding>,
 }
 
 impl<'m> Lowerer<'m> {
@@ -144,6 +148,7 @@ impl<'m> Lowerer<'m> {
         let endpoint_rules = self.endpoint_rules(id, &shape.traits);
         let default_auth = self.effective_auth(id, &shape.traits, &auth);
         self.service_public = explicitly_public(&shape.traits);
+        self.refuse_permission_traits();
         let scopes = crate::scopes::lower(id, &shape.traits, &mut self.diagnostics);
         if scopes.as_ref().is_some_and(|scopes| !scopes.is_empty()) && default_auth.is_empty() {
             self.diagnostics.push(
@@ -168,7 +173,6 @@ impl<'m> Lowerer<'m> {
             }
         }
         self.http_outputs.extend(service_errors.iter().cloned());
-        self.lower_permissions(shape);
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
@@ -198,7 +202,6 @@ impl<'m> Lowerer<'m> {
             }
         }
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
-        let permission_types = self.lower_permission_types();
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)
         } else if documentation {
@@ -319,20 +322,12 @@ impl<'m> Lowerer<'m> {
                 })
                 .map(|(id, _)| id.clone())
                 .collect(),
-            permissions: std::mem::take(&mut self.permissions),
-            permission_types,
+            // Typed permissions are declared in .cru only.
+            permissions: BTreeMap::new(),
+            permission_types: None,
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);
-        // Errors stop lowering; warnings and advice are returned beside the
-        // service (`Model::lower_with_warnings`).
-        for finding in crate::validate::permissions(&service, &self.permission_facts) {
-            if finding.severity == crate::validate::FindingSeverity::Error {
-                self.diagnostics.push(&finding.shape, finding.smithy_text());
-            } else {
-                self.warnings.push(finding);
-            }
-        }
         service
     }
 
@@ -646,9 +641,6 @@ impl<'m> Lowerer<'m> {
         }
 
         let mut errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
-        let requirements = self.requirements_of(id, &shape.traits, input.as_ref(), &request);
-        self.record_identifier_members(id, resource.as_ref(), input.as_ref());
-        self.attach_not_found(&requirements, shape.errors.len(), &mut errors);
         for error in service_errors {
             if !errors.contains(error) {
                 errors.push(error.clone());
@@ -739,7 +731,7 @@ impl<'m> Lowerer<'m> {
             request,
             response,
             traits: shape.traits.clone(),
-            requirements,
+            requirements: Default::default(),
         })
     }
 
@@ -1230,6 +1222,28 @@ impl<'m> Lowerer<'m> {
         }
     }
 
+    /// Typed permissions are a `.cru` feature: a Smithy model that uses one
+    /// of their traits is refused rather than lowered as if it had none.
+    fn refuse_permission_traits(&mut self) {
+        let model = self.model;
+        for (id, shape) in model {
+            let members = shape
+                .members
+                .iter()
+                .map(|(name, member)| (id.with_member(name), &member.traits));
+            for (at, traits) in std::iter::once((id.clone(), &shape.traits)).chain(members) {
+                for name in PERMISSION_TRAITS {
+                    if traits.contains_key(&ShapeId::new("crucible.auth", name)) {
+                        self.diagnostics.push(
+                            &at,
+                            format!("@crucible.auth#{name} is not supported: typed permissions are declared in .cru models (docs/permissions.md); migrate the model to .cru to declare them"),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn check_traits(&mut self, id: &ShapeId, traits: &Traits) {
         if traits.contains_key(&smithy("cors"))
             && !self
@@ -1390,7 +1404,7 @@ impl<'m> Lowerer<'m> {
             .collect()
     }
 
-    pub(crate) fn visit(&mut self, id: &ShapeId) {
+    fn visit(&mut self, id: &ShapeId) {
         if self.shapes.contains_key(id) || self.visiting.contains(id) {
             return;
         }

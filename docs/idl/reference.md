@@ -220,8 +220,8 @@ language's own checks include:
 - service, operation, error and example clauses, list entries, object
   keys and annotations are given once; a service declares its version.
 - permissions ([permissions.md](../permissions.md) §5, checks 1-18): they
-  run on the IR in `crucible_smithy::validate::permissions`, shared with
-  the Smithy traits, and each diagnostic starts with its code
+  run on the IR in `crucible_smithy::validate::permissions`, and each
+  diagnostic starts with its code
   (`permissions.undeclared` and the like). A resource's permission symbols
   and values are unique, values follow `permission_value` and do not
   differ only in case, and authorization names are lowerCamelCase and
@@ -277,7 +277,10 @@ documents nothing.
 
 A resource lists the permissions it accepts; an operation says what it
 requires and on which resource. Crucible never decides: the service's
-`Authorizer` does ([permissions.md](../permissions.md)).
+`Authorizer` does ([permissions.md](../permissions.md)). Permissions are
+declared in `.cru` only: a Smithy model cannot declare them, and lowering
+one that uses a `crucible.auth` permission trait is refused, so a Smithy
+consumer migrates its model to `.cru` first.
 
 ```
 resource Inbox in Workspace {
@@ -318,8 +321,7 @@ operation SendMessage on Message collection {
   and the binding is the input member that binds it, `$x` or its `as`
   spelling, else a member named `x`. An operation bound to no resource
   binds no identifier, so there `$x` is an error; any other member is
-  bound by its path (`R(id: other)`). In a Smithy `@requires`, `"$x"`
-  means something else: the input member bound to the URI label `{x}`.
+  bound by its path (`R(id: other)`).
 - **`when`** holds the clause to the input: `has a.b` is true when the
   optional member is present or the union arm selected.
 - **`filters p on R`** answers a listing with only the instances the
