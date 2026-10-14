@@ -1085,6 +1085,13 @@ fn filters_belongs_on_a_listing_once() {
         &check(&list("filters read on Order\n    filters read on Order")),
         "permissions.duplicate-clause",
     );
+    // Documentation does not make a clause another one.
+    expect(
+        &check(&list(
+            "/// Seen by anyone.\n    filters read on Order\n    /// Seen twice.\n    filters read on Order",
+        )),
+        "permissions.duplicate-clause",
+    );
     expect(
         &check(&list(
             "requires read on Order(*)\n    filters read on Order",

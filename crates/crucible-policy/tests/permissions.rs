@@ -255,6 +255,41 @@ fn swapping_two_values_breaks_stored_grants() {
 }
 
 #[test]
+fn a_new_value_with_the_old_one_kept_as_its_alias_is_additive() {
+    // `AUDIT` now names "graph:inspect", and a deprecated alias of `AUDIT`
+    // keeps "graph:audit": every stored grant still satisfies `AUDIT`.
+    let mut new = model();
+    value(&mut new, "AUDIT", "graph:inspect");
+    graph_members(&mut new).insert(
+        "OLD_AUDIT".into(),
+        json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "graph:audit", "crucible.auth#aliasOf": "AUDIT", "crucible.auth#permissionOnly": {}, "smithy.api#deprecated": {}}}),
+    );
+    let found = findings(&new);
+    assert!(
+        !found
+            .iter()
+            .any(|f| f.rule == "compatibility.permissions"
+                || f.rule == "compatibility.authorization"),
+        "{found:#?}"
+    );
+    // The old value kept by an alias of another permission is still a
+    // reassignment.
+    let traits = &mut graph_members(&mut new)["OLD_AUDIT"]["traits"];
+    traits["crucible.auth#aliasOf"] = json!("READ");
+    traits
+        .as_object_mut()
+        .unwrap()
+        .remove("crucible.auth#permissionOnly");
+    expect(
+        &findings(&new),
+        "compatibility.permissions",
+        "Graph$AUDIT",
+        "`AUDIT` changed its value from \"graph:audit\" to \"graph:inspect\"",
+        Severity::Error,
+    );
+}
+
+#[test]
 fn reassigning_a_value_to_another_permission_breaks_stored_grants() {
     // `AUDIT` is gone and its value is now an alias of `READ`.
     let mut new = model();

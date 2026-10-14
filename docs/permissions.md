@@ -1,13 +1,13 @@
 # Typed permissions
 
-**Status: accepted, ready for implementation** (decisions below). Nothing
-here is built. This document specifies how a model declares the
-permissions its resources accept and the permissions each operation
+**Status: accepted; phase A1 is implemented, A2 and B are pending.** A1
+(the language, the Smithy traits, the IR and the checks) is built: its
+syntax is in [idl/reference.md](idl/reference.md) and its decisions are
+37a-37k in [idl/decisions.md](idl/decisions.md). The A2 runtime and the B
+generators are not built yet. This document specifies how a model declares
+the permissions its resources accept and the permissions each operation
 requires, and how the Rust runtime enforces them through a
-service-supplied `Authorizer`. The implementation plan is §10. When phase
-A1 lands, the syntax moves into [idl/reference.md](idl/reference.md) and
-the decisions become numbered entries in [idl/decisions.md](idl/decisions.md)
-(next to decision 37, auth schemes and scopes).
+service-supplied `Authorizer`. The implementation plan is §10.
 
 Paths into the consumers are relative to their repositories: Pigeon
 (`sockeye`, `185d36d`), its console `pigeon-web`, and Leyline.

@@ -80,9 +80,9 @@ example     = [ doc ] "example" string "{" { example_part } "}" ;
 example_part = ( "input" | "output" ) value | "error" ident value ;
 requirement = [ doc ] "requires" ( "none"
                                  | "pending" "because" string
-                                 | ident [ "on" target ] [ "when" condition ] [ "by" "handler" ] )
+                                 | ident [ "on" req_target ] [ "when" condition ] [ "by" "handler" ] )
             | [ doc ] "filters" ident "on" ident ;
-target      = ident [ "(" binding { "," binding } ")" ] ;
+req_target  = ident [ "(" binding { "," binding } ")" ] ;
 binding     = [ ident ":" ] ( "*" | "$" ident | dotted ) ;
                  (* an unnamed binding binds the resource's own identifier *)
 condition   = cond_and { "or" cond_and } ;

@@ -58,10 +58,13 @@ impl Checker<'_> {
             for permission in &old.permissions {
                 let site = id.with_member(&permission.symbol);
                 // The symbol is kept and its value changed, even when the old
-                // value now belongs to another symbol (a swap).
+                // value now belongs to another symbol (a swap). A deprecated
+                // alias that keeps the old value for the same primary keeps
+                // every stored grant.
                 if let Some(now) = new.permission(&permission.symbol)
                     && now.value != permission.value
-                    && new.by_value(&permission.value).is_some()
+                    && let Some(holder) = new.by_value(&permission.value)
+                    && primary(new, &holder.symbol) != primary(old, &permission.symbol)
                 {
                     self.push(
                         "compatibility.permissions",

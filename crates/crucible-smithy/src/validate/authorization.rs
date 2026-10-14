@@ -576,7 +576,15 @@ impl<'a> Checker<'a> {
         let mut seen: Vec<&Requirement> = Vec::new();
         let mut filters = 0;
         for (index, clause) in clauses.iter().enumerate() {
-            if seen.contains(&clause) {
+            // The same clause twice, whatever its documentation says.
+            let same = |seen: &&Requirement| {
+                seen.mode == clause.mode
+                    && seen.resource == clause.resource
+                    && seen.permission == clause.permission
+                    && seen.bindings == clause.bindings
+                    && seen.when == clause.when
+            };
+            if seen.iter().any(same) {
                 self.error(
                     "permissions.duplicate-clause",
                     id,
