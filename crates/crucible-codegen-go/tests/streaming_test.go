@@ -34,6 +34,7 @@ type observed struct {
 	size          int64
 	release       chan struct{}
 	aborted       chan struct{}
+	arrived       chan struct{}
 }
 
 func (o *observed) set(mode string) {
@@ -42,7 +43,15 @@ func (o *observed) set(mode string) {
 	o.mode = mode
 	o.release = make(chan struct{})
 	o.aborted = make(chan struct{}, 1)
+	o.arrived = make(chan struct{}, 1)
 	o.attempts.Store(0)
+}
+
+// arrival is signalled when an upload's first body bytes reach the server.
+func (o *observed) arrival() chan struct{} {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.arrived
 }
 
 func (o *observed) snapshot() (string, chan struct{}, chan struct{}) {
@@ -58,11 +67,18 @@ func (o *observed) last() (http.Header, int64, bool, string, int64) {
 }
 
 type prefix struct {
-	data  []byte
-	count int64
+	data    []byte
+	count   int64
+	arrived chan struct{}
 }
 
 func (p *prefix) Write(b []byte) (int, error) {
+	if p.count == 0 && len(b) > 0 {
+		select {
+		case p.arrived <- struct{}{}:
+		default:
+		}
+	}
 	if len(p.data) < 1024 {
 		p.data = append(p.data, b[:min(len(b), 1024-len(p.data))]...)
 	}
@@ -99,7 +115,7 @@ func handler(o *observed) http.HandlerFunc {
 		switch r.URL.Path {
 		case "/upload", "/sized", "/store":
 			attempt := o.attempts.Add(1)
-			sink := &prefix{}
+			sink := &prefix{arrived: o.arrival()}
 			if _, err := io.Copy(sink, r.Body); err != nil {
 				signal()
 			}
@@ -316,28 +332,43 @@ type failing struct{ err error }
 func (f *failing) Read([]byte) (int, error) { return 0, f.err }
 
 func TestStreamingUploadCancellation(t *testing.T) {
-	_, client, _ := setup(t)
-	reader, writer := io.Pipe()
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan error, 1)
-	go func() {
-		_, err := client.Upload(ctx, &UploadInput{Body: reader})
-		done <- err
-	}()
-	if _, err := writer.Write([]byte("started")); err != nil {
-		t.Fatal(err)
-	}
-	cancel()
-	select {
-	case err := <-done:
-		if !errors.Is(err, context.Canceled) {
-			t.Fatal("cancelled upload", err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("cancellation did not stop the upload")
-	}
-	if _, err := writer.Write([]byte("more")); !errors.Is(err, io.ErrClosedPipe) {
-		t.Fatal("cancelled upload left the caller's stream open", err)
+	// One-shot pipes, and a replayable stream whose opened reader is a pipe.
+	for _, name := range []string{"one-shot", "replayable"} {
+		t.Run(name, func(t *testing.T) {
+			o, client, _ := setup(t)
+			reader, writer := io.Pipe()
+			var body io.Reader = reader
+			if name == "replayable" {
+				body = NewByteStream(func() (io.ReadCloser, error) { return reader, nil }, -1)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan error, 1)
+			go func() {
+				_, err := client.Upload(ctx, &UploadInput{Body: body})
+				done <- err
+			}()
+			if _, err := writer.Write([]byte("started")); err != nil {
+				t.Fatal(err)
+			}
+			// Once the first chunk reaches the server the transport has flushed it,
+			// and its next read of the pipe blocks until the pipe is closed. The
+			// caller never writes again, so only cancellation can end that read:
+			// net/http waits for it before Do returns.
+			waitFor(t, o.arrival(), "the first chunk never reached the server")
+			cancel()
+			select {
+			case err := <-done:
+				if !errors.Is(err, context.Canceled) {
+					t.Fatal("cancelled upload", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("cancellation did not end a read blocked in the request stream")
+			}
+			if _, err := writer.Write([]byte("more")); !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatal("cancelled upload left the caller's stream open", err)
+			}
+		})
 	}
 }
 

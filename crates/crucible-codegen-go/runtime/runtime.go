@@ -1294,9 +1294,14 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			return nil, err
 		}
 		var stream *streamBody
+		stopClosing := func() bool { return false }
 		if source != nil {
 			stream = newStreamBody(source, streamMember)
 			stream.install(request)
+			// On cancellation net/http closes the connection but then waits for its
+			// write loop, which may be blocked reading the caller's stream, so Do
+			// would never return: closing the body ends that read.
+			stopClosing = context.AfterFunc(ctx, func() { stream.Close() })
 		}
 		request.Header = headers.Clone()
 		credentials, sign, err := c.authenticate(ctx, request, op)
@@ -1345,6 +1350,7 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		if err := ctx.Err(); err != nil { return nil, err }
 		trace.attemptStarted(request, attemptEndpoint, attemptSource, display, sensitiveHeaders, sensitiveQuery)
 		response, transportErr := c.config.HTTPClient.Do(request)
+		stopClosing()
 		// interrupted ends an attempt with a failure that is never retried; a
 		// response that arrived still counts toward the measured rate.
 		interrupted := func(size int64, err error) (map[string]any, error) {
