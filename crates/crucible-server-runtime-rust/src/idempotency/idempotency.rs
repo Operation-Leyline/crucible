@@ -178,7 +178,8 @@ impl Idempotency {
     ) -> Result<()> {
         let now = (self.clock)();
         let api_version = job.service().version;
-        let expires = after(now, self.lease_for(job.context()));
+        let lease = self.lease_for(job.context());
+        let expires = after(now, lease);
         // Made before the store is asked, so a claim whose call fails, times
         // out or is dropped with the request is released by its drop guard:
         // the write may have landed.
@@ -188,6 +189,7 @@ impl Idempotency {
                 retention: self.retention,
                 max_stored: self.max_stored,
                 timeout: self.store_timeout,
+                lease,
                 refusal: self.refusal.clone(),
                 clock: self.clock.clone(),
             },
@@ -355,8 +357,10 @@ impl Interceptor for Idempotency {
         // Records the registration order for `Permissions`, which refuses
         // to follow.
         prepare.builtin("idempotency", "permissions");
-        if self.retention.is_zero() || self.lease.is_zero() {
-            return Err("an idempotency retention and lease must be positive".to_owned());
+        if self.retention.is_zero() || self.lease.is_zero() || self.store_timeout.is_zero() {
+            return Err(
+                "an idempotency retention, lease and store timeout must be positive".to_owned(),
+            );
         }
         let tokened = |operation: &&'static OperationInfo| {
             prepare

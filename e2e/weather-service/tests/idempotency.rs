@@ -63,6 +63,12 @@ enum Step {
         entered: Arc<Notify>,
         release: Arc<Notify>,
     },
+    /// Commits and takes a step, waits like `SendThenWait`, then commits
+    /// again for a second step.
+    SendWaitSendAgain {
+        entered: Arc<Notify>,
+        release: Arc<Notify>,
+    },
 }
 
 /// The cities, counting the creates that reach the store: each is one run of
@@ -157,6 +163,14 @@ impl CityStore for Counted {
                 self.sends.fetch_add(1, Ordering::SeqCst);
                 entered.notify_one();
                 release.notified().await;
+            }
+            Some(Step::SendWaitSendAgain { entered, release }) => {
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
+                entered.notify_one();
+                release.notified().await;
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
             }
             Some(Step::WaitThenSend { entered, release }) => {
                 entered.notify_one();
@@ -731,6 +745,9 @@ struct Faulty {
     held: AtomicUsize,
     /// A claim is written, and answered only after a long while.
     slow_claims: AtomicBool,
+    /// A completion says it started, and lands only after a while.
+    slow_completions: AtomicBool,
+    completing: Notify,
     stale: AtomicBool,
 }
 
@@ -770,12 +787,10 @@ impl IdempotencyStore for Faulty {
         attempt: &str,
         expires: SystemTime,
     ) -> crucible_server_runtime_rust::Result<Ownership> {
-        let failing = self
-            .fail_holds
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
-                left.checked_sub(1)
-            });
-        if failing.is_ok() {
+        // Set before the request, and holds are never concurrent here, so a
+        // plain decrement is enough.
+        if self.fail_holds.load(Ordering::SeqCst) > 0 {
+            self.fail_holds.fetch_sub(1, Ordering::SeqCst);
             return Err(Error::internal("the hold timed out"));
         }
         let held = self.inner.hold(key, attempt, expires).await?;
@@ -790,6 +805,10 @@ impl IdempotencyStore for Faulty {
         response: &StoredResponse,
         expires: SystemTime,
     ) -> crucible_server_runtime_rust::Result<Ownership> {
+        if self.slow_completions.load(Ordering::SeqCst) {
+            self.completing.notify_one();
+            tokio::time::sleep(Duration::from_millis(300)).await;
+        }
         let output = response.as_str().contains(r#""output""#);
         if self.fail_completions.load(Ordering::SeqCst)
             || (output && self.fail_outputs.load(Ordering::SeqCst))
@@ -866,6 +885,34 @@ async fn a_success_neither_completed_nor_held_is_held_in_the_background() {
     let retry = harness.create(Some("alice"), oslo("t-1")).await;
     assert_eq!(retry.status, 409, "past the lease, still not run again");
     assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_request_dropped_while_its_success_is_stored_still_stores_it() {
+    let store = Arc::new(Faulty::default());
+    store.slow_completions.store(true, Ordering::SeqCst);
+    let harness = serve(Idempotency::new(store.clone(), caller)).await;
+    let invocation = tokio::spawn({
+        let service = harness.service.clone();
+        async move {
+            service
+                .invoke(
+                    "CreateCity",
+                    json!({ "name": "Oslo", "clientToken": "t-1", "expectedRevision": 7 }),
+                )
+                .await
+        }
+    });
+    // The operation succeeded; its record is being written when the
+    // request is dropped.
+    store.completing.notified().await;
+    invocation.abort();
+    assert!(invocation.await.unwrap_err().is_cancelled());
+    eventually("the stored success", async || {
+        harness.create(None, oslo("t-1")).await.status == 201
+    })
+    .await;
+    assert_eq!(harness.cities.creates(), 1, "replayed, not run again");
 }
 
 #[tokio::test]
@@ -975,6 +1022,36 @@ async fn an_attempt_that_outlived_its_claim_is_stopped_at_commit() {
     // The retry's success is what replays.
     let again = harness.create(Some("alice"), oslo("t-1")).await;
     assert_eq!(again.body, retry.body);
+}
+
+#[tokio::test]
+async fn every_commit_checks_the_claim_is_still_held() {
+    let clock = Clock::new();
+    let idempotency = Idempotency::new(store(), caller)
+        .retention(Duration::from_secs(120))
+        .lease(Duration::from_secs(60))
+        .clock(clock.reader());
+    let harness = Arc::new(serve(idempotency).await);
+    let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    harness.cities.next(Step::SendWaitSendAgain {
+        entered: entered.clone(),
+        release: release.clone(),
+    });
+    let slow = tokio::spawn({
+        let harness = harness.clone();
+        async move { harness.create(Some("alice"), oslo("t-1")).await }
+    });
+    entered.notified().await;
+    // Past even the retention its first commit held the claim for: a retry
+    // takes the token over.
+    clock.advance(Duration::from_secs(200));
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201);
+    release.notify_one();
+    let slow = slow.await.unwrap();
+    // Its second commit finds the claim gone, and stops before that step.
+    assert!(refusal(&slow).contains("took longer"), "{}", slow.json());
+    assert_eq!(harness.cities.sends(), 1);
 }
 
 #[tokio::test]

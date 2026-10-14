@@ -23,10 +23,10 @@
 //!   [`Idempotency::refusal_factory`] builds a service's own errors instead).
 //! - **Released on failure.** A failed attempt removes its claim, so a retry
 //!   runs the operation again, unless a [`commit`] still stands (one not
-//!   taken back by [`abandon`]). So does a request that ends without
-//!   finishing, such as one dropped when its client disconnects: its claim
-//!   is released in the background, or recorded as failed when a commit
-//!   stands.
+//!   taken back by [`abandon`]). A request that ends without finishing,
+//!   such as one dropped when its client disconnects, settles its claim the
+//!   same way in the background: released, or recorded as failed when a
+//!   commit stands.
 //!
 //! An operation calls [`commit`] right before any step that is not safe to
 //! repeat: an external side effect (sending mail, charging a card), or a

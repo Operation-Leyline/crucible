@@ -3,19 +3,21 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::{Duration, SystemTime};
 
 use serde_json::Value;
+use tracing::Instrument;
+use tracing::instrument::WithSubscriber;
 
 use super::store_unavailable::StoreUnavailable;
 use super::{IdempotencyKey, IdempotencyRefusal, IdempotencyStore, Ownership, StoredResponse};
-use crate::{Error, Result};
+use crate::{Context, Error, Result};
 
 pub(crate) type Clock = Arc<dyn Fn() -> SystemTime + Send + Sync>;
 pub(crate) type RefusalFactory = Arc<dyn Fn(IdempotencyRefusal) -> Error + Send + Sync>;
 
 const TARGET: &str = "crucible_server_runtime_rust::idempotency";
 
-/// When a succeeded request's settlement could not be written at all, it is
-/// tried again in the background after each of these: inside the default
-/// lease, so it lands before a retry could take the token over.
+/// When a settlement could not be written, it is tried again in the
+/// background after each of these, as long as they add up to less than the
+/// claim's lease: so it lands before a retry could take the token over.
 const SETTLE_RETRIES: [Duration; 3] = [
     Duration::from_secs(1),
     Duration::from_secs(5),
@@ -40,6 +42,8 @@ pub(crate) struct ClaimConfig {
     pub max_stored: usize,
     /// How long any one store call may take.
     pub timeout: Duration,
+    /// How long this request's claim stays in flight unsettled.
+    pub lease: Duration,
     pub refusal: RefusalFactory,
     pub clock: Clock,
 }
@@ -68,9 +72,24 @@ pub(crate) struct HeldClaim {
     /// Set once [`finish`](Self::finish) took the claim over, or the claim
     /// turned out not to be this attempt's: the drop guard does nothing then.
     settled: AtomicBool,
+    /// The request's span and subscriber, captured when it claimed: work in
+    /// the background (the drop guard's settlement, retries) logs as the
+    /// request's, without keeping its context alive.
+    span: tracing::Span,
+    dispatch: tracing::Dispatch,
+}
+
+/// What a background retry writes.
+#[derive(Clone, Copy)]
+enum Retry {
+    /// A success whose response is not kept: the note, or else a hold.
+    Unkept,
+    /// A failure past a commit: the note (the commit held the claim).
+    Failed,
 }
 
 impl HeldClaim {
+    /// Made on the request's task, whose span and subscriber it keeps.
     pub fn new(
         config: ClaimConfig,
         key: IdempotencyKey,
@@ -84,6 +103,8 @@ impl HeldClaim {
             api_version,
             commits: AtomicUsize::new(0),
             settled: AtomicBool::new(false),
+            span: tracing::Span::current(),
+            dispatch: tracing::dispatcher::get_default(Clone::clone),
         }
     }
 
@@ -136,11 +157,20 @@ impl HeldClaim {
     /// a retry is still refused as in flight until [`finish`](Self::finish)
     /// settles it.
     pub fn abandon(&self) {
-        let _ = self
-            .commits
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |commits| {
-                commits.checked_sub(1)
-            });
+        // A decrement that stops at zero (`fetch_update` is deprecated on
+        // newer toolchains, and its replacement is missing on older ones).
+        let mut commits = self.commits.load(Ordering::SeqCst);
+        while commits > 0 {
+            match self.commits.compare_exchange_weak(
+                commits,
+                commits - 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return,
+                Err(actual) => commits = actual,
+            }
+        }
     }
 
     fn committed(&self) -> bool {
@@ -154,27 +184,38 @@ impl HeldClaim {
     /// request's answer, so problems here are logged.
     ///
     /// The settlement runs as a task of its own, so a request dropped while
-    /// it waits on the store still settles.
+    /// it waits on the store still settles; the task runs with the request's
+    /// context current, so the store and the log see the request.
     pub async fn finish(self: Arc<Self>, output: Option<Value>, authorization: Option<Value>) {
         self.settled.store(true, Ordering::SeqCst);
-        match tokio::runtime::Handle::try_current() {
-            Ok(runtime) => {
-                let claim = self.clone();
-                let settled = runtime
-                    .spawn(async move { claim.settle(output, authorization).await })
-                    .await;
-                if let Err(error) = settled
-                    && error.is_panic()
-                {
-                    tracing::error!(
-                        target: TARGET,
-                        operation = self.key.operation(),
-                        "settling the idempotency claim panicked; retries are refused as in flight until its lease ends"
-                    );
-                }
-            }
-            Err(_) => self.settle(output, authorization).await,
+        let claim = self.clone();
+        let settle = async move { claim.settle(output, authorization).await };
+        let task = match Context::try_current() {
+            Some(context) => tokio::spawn(context.scope(settle)),
+            None => tokio::spawn(self.in_request(settle)),
+        };
+        if let Err(error) = task.await
+            && error.is_panic()
+        {
+            tracing::error!(
+                target: TARGET,
+                operation = self.key.operation(),
+                "settling the idempotency claim panicked; retries are refused as in flight until its lease ends"
+            );
         }
+    }
+
+    /// `future`, logging as the request's: in its span, to its subscriber.
+    fn in_request<F: Future>(&self, future: F) -> impl Future<Output = F::Output> + use<F> {
+        future
+            .instrument(self.span.clone())
+            .with_subscriber(self.dispatch.clone())
+    }
+
+    /// The delays of background retries: [`SETTLE_RETRIES`] that fit in the
+    /// lease.
+    fn retry_delays(&self) -> Vec<Duration> {
+        retry_delays(self.config.lease)
     }
 
     async fn settle(self: &Arc<Self>, output: Option<Value>, authorization: Option<Value>) {
@@ -221,13 +262,15 @@ impl HeldClaim {
                     Ok(Ownership::Lost) => self.lost("failed after its point of no return"),
                     Err(error) => {
                         // `commit` held the claim for the retention already:
-                        // retries are still refused, as in flight.
+                        // retries are refused, as in flight, until the note
+                        // lands.
                         tracing::warn!(
                             target: TARGET,
                             operation,
                             cause = %error.chain(),
-                            "the failure was not recorded on the idempotency claim; retries are refused as in flight until the retention ends"
+                            "the failure was not recorded on the idempotency claim; retries are refused as in flight until it is"
                         );
+                        self.retry(Retry::Failed);
                     }
                 }
             }
@@ -278,23 +321,44 @@ impl HeldClaim {
     /// claim otherwise lapses with its lease and a retry runs the succeeded
     /// operation again.
     async fn keep_unkept(self: &Arc<Self>) {
-        if self.try_keep_unkept().await {
-            return;
+        if !self.try_keep_unkept().await {
+            self.retry(Retry::Unkept);
         }
-        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
-            self.unsettled();
-            return;
-        };
+    }
+
+    /// Writes `what` again in the background, after each of the retry
+    /// delays until it lands. Outside the request's context: a store must
+    /// not need it.
+    fn retry(self: &Arc<Self>, what: Retry) {
         let claim = self.clone();
-        runtime.spawn(async move {
-            for delay in SETTLE_RETRIES {
+        tokio::spawn(self.in_request(async move {
+            for delay in claim.retry_delays() {
                 tokio::time::sleep(delay).await;
-                if claim.try_keep_unkept().await {
+                let landed = match what {
+                    Retry::Unkept => claim.try_keep_unkept().await,
+                    Retry::Failed => claim.try_record_failed().await,
+                };
+                if landed {
                     return;
                 }
             }
-            claim.unsettled();
-        });
+            match what {
+                Retry::Unkept => claim.unsettled(),
+                Retry::Failed => tracing::warn!(
+                    target: TARGET,
+                    operation = claim.key.operation(),
+                    "the failure was never recorded on the idempotency claim; retries are refused as in flight until the retention ends"
+                ),
+            }
+        }));
+    }
+
+    /// Whether the failure is now recorded, or is no longer this attempt's
+    /// to record.
+    async fn try_record_failed(&self) -> bool {
+        self.complete(&StoredResponse::failed(self.api_version))
+            .await
+            .is_ok()
     }
 
     /// Whether the success is now recorded or held, or is no longer this
@@ -381,30 +445,65 @@ impl Drop for HeldClaim {
                 after((self.config.clock)(), self.config.retention),
             )
         });
-        runtime.spawn(async move {
+        // A failure past a commit is retried, as `finish` retries it; a
+        // release is not: the claim lapses with its lease anyway, and during
+        // an outage every failed claim would multiply the store's load.
+        let mut delays = if committed {
+            self.retry_delays()
+        } else {
+            Vec::new()
+        }
+        .into_iter();
+        let settle = async move {
             let operation = key.operation();
-            let settled = match &failed {
-                Some((response, expires)) => {
-                    bounded(timeout, store.complete(&key, &attempt, response, *expires)).await
+            loop {
+                let settled = match &failed {
+                    Some((response, expires)) => {
+                        bounded(timeout, store.complete(&key, &attempt, response, *expires)).await
+                    }
+                    None => bounded(timeout, store.release(&key, &attempt)).await,
+                };
+                let error = match settled {
+                    Ok(_) => {
+                        tracing::debug!(
+                            target: TARGET,
+                            operation,
+                            committed,
+                            "a request ended without settling its idempotency claim; released it, or recorded it as failed past its point of no return"
+                        );
+                        return;
+                    }
+                    Err(error) => error,
+                };
+                match delays.next() {
+                    Some(delay) => tokio::time::sleep(delay).await,
+                    None => {
+                        tracing::warn!(
+                            target: TARGET,
+                            operation,
+                            cause = %error.chain(),
+                            "a request ended without settling its idempotency claim, and settling it failed; retries are refused as in flight until it expires"
+                        );
+                        return;
+                    }
                 }
-                None => bounded(timeout, store.release(&key, &attempt)).await,
-            };
-            match settled {
-                Ok(_) => tracing::debug!(
-                    target: TARGET,
-                    operation,
-                    committed,
-                    "a request ended without settling its idempotency claim; released it, or recorded it as failed past its point of no return"
-                ),
-                Err(error) => tracing::warn!(
-                    target: TARGET,
-                    operation,
-                    cause = %error.chain(),
-                    "a request ended without settling its idempotency claim, and settling it failed; retries are refused as in flight until it expires"
-                ),
             }
-        });
+        };
+        runtime.spawn(self.in_request(settle));
     }
+}
+
+/// The [`SETTLE_RETRIES`] that add up to less than `lease`: a retry later
+/// than that could find the token taken over, and could not help.
+fn retry_delays(lease: Duration) -> Vec<Duration> {
+    let mut waited = Duration::ZERO;
+    SETTLE_RETRIES
+        .into_iter()
+        .take_while(|delay| {
+            waited += *delay;
+            waited < lease
+        })
+        .collect()
 }
 
 /// `call`, failing once it has taken longer than `timeout`: a store that
@@ -429,4 +528,21 @@ pub(crate) fn after(now: SystemTime, length: Duration) -> SystemTime {
     now.checked_add(length)
         .or_else(|| now.checked_add(CENTURY))
         .unwrap_or(now)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::retry_delays;
+
+    #[test]
+    fn background_retries_end_inside_the_lease() {
+        assert_eq!(retry_delays(Duration::from_secs(15 * 60)).len(), 3);
+        assert_eq!(
+            retry_delays(Duration::from_secs(10)),
+            [Duration::from_secs(1), Duration::from_secs(5)]
+        );
+        assert!(retry_delays(Duration::from_millis(500)).is_empty());
+    }
 }

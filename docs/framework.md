@@ -656,7 +656,11 @@ recorded as failed. So is a claim whose own store call failed or timed out:
 the write may have landed, so it is released (each settlement is
 conditional on the attempt, so a claim another attempt holds is never
 touched). A panic in the operation, or the request's deadline, is a failure
-like any other: the after phases settle the claim.
+like any other: the after phases settle the claim. The guard knows only the
+commits, not the outcome: a request dropped after its operation returned a
+success but before `Idempotency`'s after hook stored it settles as a failure
+would, so an operation that never committed runs again on the retry. One
+more reason to `commit` before every write that must not happen twice.
 
 **Leases and the window.** A claim that is never settled stays in flight
 until its lease lapses: 15 minutes (`Idempotency::lease`), and never past
@@ -689,9 +693,11 @@ still stands), or when the response's JSON form is larger than
 `Idempotency::max_stored_response` (256 KiB by default; DynamoDB items stop at
 400 KB). When that record cannot be written either, the claim is held in
 flight for the retention, and when even that fails, both are tried again in
-the background for half a minute, best effort (a Lambda environment frozen
-after its response does not run them); only then can a retry after the lease
-run the succeeded operation again. Any other store error is an outage: the
+the background for up to half a minute inside the claim's lease, best effort
+(a Lambda environment frozen after its response does not run them); only
+then can a retry after the lease run the succeeded operation again. A
+failure past a commit whose note cannot be written is retried the same way
+(the commit already holds the claim). Any other store error is an outage: the
 service's sanitized internal error, never a duplicate run and never a
 refusal.
 
@@ -755,7 +761,10 @@ settles a later one's. On DynamoDB, `claim` is a single conditional
 record in the same call; reading it afterwards with `GetItem` is not atomic.
 The other three are conditional on the attempt, and a failed condition is
 `Lost`, not an error. `IdempotencyKey::digest` is a fixed-length partition
-key; `Fingerprint::to_hex` and `from_hex` store the fingerprint as text. The
+key; `Fingerprint::to_hex` and `from_hex` store the fingerprint as text. A store
+method may run outside the request's task (a dropped request's settlement,
+and retries of a failed one, run on tasks of their own, logging in the
+request's span), so a store must not depend on `Context::current()`. The
 `test-support` feature adds `MemoryIdempotencyStore` for tests.
 
 **What it covers.** Operations without a token pass through untouched. An

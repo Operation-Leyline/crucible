@@ -88,7 +88,9 @@ version's section when it is prepared.
   without its response, and a retry is refused as `Unreplayable`; when that
   write fails too the claim is held for the retention, retried in the
   background when even that fails. Each store call is bounded by
-  `store_timeout` (5 seconds). `refusal_factory` maps an `IdempotencyRefusal`
+  `store_timeout` (5 seconds). Store methods may run outside the request's
+  task (a dropped request's settlement, background retries), logging in the
+  request's span, so a store must not depend on `Context::current()`. `refusal_factory` maps an `IdempotencyRefusal`
   (`Missing`, `Invalid`, `Mismatch`, `InFlight`, `Lapsed`, `Unreplayable`,
   `Failed`) to the service's own errors. Store errors are sanitized 5xx
   answers; a failed completion write never turns a success into an error.
