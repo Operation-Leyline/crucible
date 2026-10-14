@@ -76,8 +76,7 @@ impl CallerBinding {
             return Ok(());
         }
         let open: Vec<String> = prepare
-            .served()
-            .filter(|served| prepare.applies(served.info))
+            .served_operations()
             .filter(|served| covers(served.metadata))
             .filter(|served| !served.metadata.requires_authentication())
             .map(|served| served.label())

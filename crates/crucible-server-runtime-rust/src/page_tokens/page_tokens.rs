@@ -177,8 +177,7 @@ impl Interceptor for PageTokens {
         // served entry: an older API version served by a handler of its own
         // has that handler's token.
         let mut problems: Vec<String> = prepare
-            .served()
-            .filter(|served| prepare.applies(served.info))
+            .served_operations()
             .filter_map(|served| {
                 let pagination = served
                     .metadata
@@ -555,10 +554,8 @@ mod tests {
     // The caller binding reads authentication from the entry a request's
     // API version serves, as `job.metadata()` gives it, not from the current
     // entry: a migration that changes an operation's authentication is
-    // judged by the version the request names. (Until #288, the
-    // AuthenticatorChain plans per operation from the current entry, so the
-    // two can disagree for such a migration; #288 makes the chain per
-    // version too.)
+    // judged by the version the request names. The
+    // AuthenticatorChain plans per served entry the same way.
     #[test]
     fn anonymous_callers_are_judged_by_each_api_versions_authentication() {
         // v1 was public, v2 requires authentication: only v1's anonymous
