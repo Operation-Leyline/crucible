@@ -650,17 +650,28 @@ error, never a duplicate run and never a refusal.
 members included: a secret shown once (an API key at creation, say) sits in
 the store for the retention and is shown again to a retry. Protect the store
 accordingly, or leave such an operation without a token (or out of
-`Idempotency` with `.except(&[..])`).
+`Idempotency` with `.except(&[..])`). When `Permissions` covers the
+operation, the record also keeps (as `authorization`) the handler checks
+the Authorizer allowed: each check's permission, resource and identifiers,
+no grants or principals.
 
 **Ordering.** The claim is taken in the interceptor phase. Authentication
 middleware runs before it, and so does any authorization interceptor
 registered before `Idempotency` (register `ScopeEnforcer` and `Permissions`
-first). Then a refused request never claims its token, so the client can
-retry the same token once it is granted access, and every replay is
-authorized against the caller's current grants: a caller who lost access
-inside the retention is refused rather than served the stored success.
-Building a service that registers `Permissions` after `Idempotency` logs a
-warning. Checks an operation makes itself, such as authorization against the
+first; building a service that registers `Permissions` after `Idempotency`
+fails). Then a refused request never claims its token, so the client can
+retry the same token once it is granted access, and a replay is authorized
+against the caller's current grants before it is served: the operation's
+declared checks are made again, and so are the handler checks the first
+success was allowed (`permissions::require`, `decide`, `discharge`), which
+the record keeps. A caller who lost access inside the retention is refused,
+403 or 404 as for the request itself, rather than served the stored
+success. What a handler checked without those functions is not asked again,
+so a `requires pending` operation's replay is authorized only as far as its
+handler recorded through them; and a record written before this was stored
+replays with the declared checks alone. A recorded permission the service no
+longer declares cannot be asked again: the replay is refused as
+`Unreplayable`. Checks an operation makes itself, such as authorization against the
 resource it loads, run after the claim: the 403 or 404 it returns is a
 failure before the point of no return, so the claim is released and the
 token is not spent.
@@ -738,19 +749,24 @@ For each operation it covers, `Permissions`:
   requirement metadata (bindings generated before the model declared any
   permission) is answered with the internal error and logged as a wiring
   error; the build logs every such operation. `allow_undeclared()` lets
-  them through, each pass logged. A public operation (no authentication)
-  has nothing to authorize and passes.
+  them through, each pass logged. An operation the model explicitly makes
+  public (`Operation::PUBLIC`, from `@auth([])` or a `.cru` public
+  operation) has nothing to authorize and passes. An empty list of
+  authentication schemes is not public: a service may authenticate outside
+  the model.
 - **Passes `requires none`, and `requires pending`** with its reason
   recorded, since the handler still does its own checking.
 - **Checks the rest.** `CHECKS` produces one check per clause that applies
   (a `when` clause only when its condition holds), the Authorizer answers
-  them in one call, and the first verdict in declaration order that is not
-  `Allowed` refuses the request. An unconditional clause that binds nothing,
-  or a check that does not name one instance of its permission's resource,
-  is a wiring error, not an allow.
+  them in one call, and the first refusal in declaration order refuses the
+  request. An unconditional clause that binds nothing, or a check that does
+  not name one instance of its permission's resource, is a wiring error,
+  not an allow.
 - **Answers a `filters` listing.** It asks `visible` and the handler reads
   the answer with `permissions::visible()`: `All`, `Only(ids)` to filter
-  to, or `Hidden`, a 404.
+  to, or `Hidden`, a 404. The listing's refusal takes its clause's place in
+  declaration order: a Hidden listing declared before a Denied check is a
+  404, and a listing declared after a refused check is not asked.
 - **Opens obligations** for `requires p on R by handler` clauses (below).
 - **Records everything** in an `AuthorizationRecord` on the request
   context, for audit middleware that runs later: each check with its origin
@@ -758,23 +774,29 @@ For each operation it covers, `Permissions`:
 
 **Hidden and Denied.** Hidden is always `FrameworkError::NotFound`, encoded
 as the modelled `crucible.errors#NotFoundException` (404, `Cache-Control:
-no-store`, members `message`, fixed per resource type as `No such inbox.`,
-and `resourceType`, the authorization name), named in each protocol as a
-modelled error is (`crucible.errors#NotFoundException` in RPC v2 and AWS
-JSON 1.0) and a tool error in MCP. It never names a permission or an
-identifier, and a handler reports genuine absence with the same constructor
-(`permissions::not_found(&resource)`, or `ResourceRef::not_found`), so a
-hidden resource and a missing one are byte-identical. A Hidden verdict on a
+no-store`, members `message`, the resource's fixed `ResourceInfo::not_found`
+such as `No such inbox.`, and `resourceType`, the authorization name), named
+in each protocol as a modelled error is (`crucible.errors#NotFoundException`
+in RPC v2 and AWS JSON 1.0) and a tool error in MCP. It never names a
+permission or an identifier. A handler reports genuine absence with
+`permissions::not_found(&resource)` (or `ResourceRef::not_found`); a
+modelled `NotFoundException` it returns instead is answered the same way,
+its own message replaced by the resource's (the resource is found by its
+`resourceType` in the service's permission registry,
+`ServiceInfo::with_permissions`). So a hidden resource and a missing one are
+byte-identical, request id aside, in every protocol. A Hidden verdict on a
 check that binds nothing of the request (a root resource with `*`) has
 nothing to hide and is answered as Denied. Denied is by default
 `FrameworkError::PermissionDenied`: a 403 `ForbiddenException` whose message
-names the missing permission and resource type (`This principal does not
-hold mail:send on that inbox.`), or neither for an internal permission. It
-sends no `WWW-Authenticate: insufficient_scope`: no token would carry a
-grant. `Permissions::refusal_factory` builds a service's own error from the
-`PermissionRefusal` instead (`public_permission()` is `None` for an
-internal permission); the error must be declared by the operation or the
-service. The factory never sees Hidden, since a 404 of the service's own
+is the permission's generated `PermissionInfo::denied` (`This principal does
+not hold mail:send on that inbox.`), or a generic one for an internal
+permission. Both messages are `'static` data of the descriptions: nothing is
+formatted per request. It sends no `WWW-Authenticate: insufficient_scope`:
+no token would carry a grant. `Permissions::refusal_factory` builds a
+service's own error from the `PermissionRefusal` instead, from
+`public_permission()` (`None` for an internal permission);
+`permission_for_logging()` names an internal one too, for logs only. The
+error must be declared by the operation or the service. The factory never sees Hidden, since a 404 of the service's own
 would tell the two apart again.
 
 **Handler checks.** What the model cannot bind is checked from the handler
@@ -796,24 +818,31 @@ idempotency::commit().await?;   // no obligation may be open here
 
 `discharge` checks the obligation's permission on a resource of its type
 and refuses exactly as a declared check does; `not_applicable` closes it
-without a check, with a reason for the record. An obligation still open at
-`idempotency::commit()`, or when the operation succeeds, is a handler bug:
-in debug builds and with `test-support` (`Permissions::assert_obligations`)
-`commit` refuses, so the step is not taken, and a success becomes the
-internal error before `Idempotency` could store it; release builds log it
-and record `Undischarged`, keeping the response. `permissions::require`
-refuses like a declared check for a permission the model cannot declare,
-and `permissions::decide(&checks)` returns one verdict per
-`Check::handler` for a handler that maps refusals itself (delegation
-refusing with its own error). Every handler check runs before any write: a
-refusal before `commit` releases the idempotency claim, and a `discharge`
-refused after it abandons the commit so the claim is released anyway. All
-of them are an internal error when `Permissions` is not installed.
+without a check, with a reason for the record. An obligation is closed once:
+closing it again (a `not_applicable` after a refused `discharge`) is an
+internal error, so the record keeps what happened. An obligation not
+satisfied (still open, or discharged with a refusal the handler went on
+past) is a handler bug. `idempotency::commit()` refuses it in every build,
+so the step after it is not taken, and the claim is released with the
+failure; since nothing can commit with an obligation unsatisfied, a refused
+`discharge` is always before the point of no return. A success with one is
+the internal error in debug builds and with `test-support`
+(`Permissions::assert_obligations`), before `Idempotency` could store it;
+release builds log it and record it, keeping the response, since what the
+handler did has happened. `permissions::require` refuses like a declared
+check for a permission the model cannot declare, and
+`permissions::decide(&checks)` returns one verdict per `Check::handler` for
+a handler that maps refusals itself (delegation refusing with its own
+error). Every handler check runs before any write, so its refusal releases
+the idempotency claim. All of them are an internal error when `Permissions`
+is not installed.
 
 `Permissions::shadow()` evaluates and records everything but refuses
-nothing, logging `would_deny`, `would_hide` and `would_refuse_undeclared`:
-for moving a service's own checks onto the model with the log showing that
-both agree. Handler checks still refuse, since the handler asked for them.
+nothing, logging `would_deny`, `would_hide`, `would_refuse_undeclared`, and
+`would_fail` for an Authorizer error or a wiring error in the descriptions;
+`commit` logs an unsatisfied obligation rather than refusing it. For moving
+a service's own checks onto the model with the log showing that both agree.
+Handler checks still refuse, since the handler asked for them.
 
 ## Protocols
 

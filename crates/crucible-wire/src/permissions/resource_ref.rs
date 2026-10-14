@@ -76,7 +76,7 @@ impl ResourceRef {
     /// The framework's 404 for this resource, identical whether the
     /// instance is hidden or genuinely missing.
     pub fn not_found(&self) -> Error {
-        self.resource.not_found()
+        self.resource.not_found_error()
     }
 }
 
@@ -102,10 +102,12 @@ mod tests {
     static INBOX: ResourceInfo = ResourceInfo {
         name: "inbox",
         identifiers: &["workspaceId", "inboxId"],
+        not_found: "No such inbox.",
     };
     static WORKSPACE: ResourceInfo = ResourceInfo {
         name: "workspace",
         identifiers: &["workspaceId"],
+        not_found: "No such workspace.",
     };
 
     #[test]
@@ -132,12 +134,7 @@ mod tests {
     fn not_found_names_only_the_resource_type() {
         let error = ResourceRef::new(&INBOX, ["w-1", "secret-id"]).not_found();
         let framework = error.downcast_ref::<FrameworkError>().unwrap();
-        assert_eq!(
-            *framework,
-            FrameworkError::NotFound {
-                resource_type: "inbox"
-            }
-        );
+        assert_eq!(*framework, FrameworkError::NotFound { resource: &INBOX });
         assert!(!framework.message().contains("secret-id"));
     }
 }

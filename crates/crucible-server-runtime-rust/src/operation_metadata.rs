@@ -44,6 +44,9 @@ pub struct OperationMetadata {
     /// Evaluates the requirements' bindings and conditions against the
     /// decoded input ([`Operation::CHECKS`]).
     pub checks: Option<ErasedChecks>,
+    /// Whether the model explicitly makes the operation public
+    /// ([`Operation::PUBLIC`]), so there is nothing to authorize.
+    pub public: bool,
 }
 
 impl OperationMetadata {
@@ -73,6 +76,7 @@ impl OperationMetadata {
                 Some(_) => Some(erased_checks::<O>),
                 None => None,
             },
+            public: O::PUBLIC,
         }
     }
 }

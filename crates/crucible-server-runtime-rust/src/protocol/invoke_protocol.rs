@@ -159,10 +159,10 @@ fn framework_body(error: &FrameworkError) -> (u16, Value) {
     let body = match error {
         // The modelled `crucible.errors#NotFoundException`, written as an
         // invoke writes a modelled error: its members, named by its name.
-        FrameworkError::NotFound { resource_type } => json!({ "error": {
+        FrameworkError::NotFound { resource } => json!({ "error": {
             "__type": error.name(),
             "message": error.message(),
-            "resourceType": resource_type,
+            "resourceType": resource.name,
         } }),
         _ => json!({ "error": { "__type": error.name(), "message": error.message() } }),
     };

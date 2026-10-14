@@ -294,8 +294,8 @@ fn error_response(error: &dyn ModelledError, format: Format) -> Response {
 }
 
 fn framework_response(error: &FrameworkError, format: Format) -> Response {
-    if let FrameworkError::NotFound { resource_type } = error {
-        return not_found(error, resource_type, format);
+    if let FrameworkError::NotFound { resource } = error {
+        return not_found(error, resource.name, format);
     }
     let type_name = if format.rpc_v2() {
         match error {
@@ -453,6 +453,21 @@ fn respond(
 mod tests {
     use super::{Format, framework_response};
     use crate::error::FrameworkError;
+    use crate::permissions::{PermissionInfo, ResourceInfo, Tier};
+
+    static INBOX: ResourceInfo = ResourceInfo {
+        name: "inbox",
+        identifiers: &["workspaceId", "inboxId"],
+        not_found: "No such inbox.",
+    };
+    static SEND: PermissionInfo = PermissionInfo {
+        resource: &INBOX,
+        symbol: "mailSend",
+        value: "mail:send",
+        aliases: &[],
+        tier: Tier::Public,
+        denied: "This principal does not hold mail:send on that inbox.",
+    };
 
     #[tokio::test]
     async fn a_conflict_is_a_409_named_for_each_protocol() {
@@ -488,9 +503,7 @@ mod tests {
 
     #[tokio::test]
     async fn not_found_is_the_modelled_404_in_every_protocol_and_never_cached() {
-        let missing = FrameworkError::NotFound {
-            resource_type: "inbox",
-        };
+        let missing = FrameworkError::NotFound { resource: &INBOX };
         for (format, name, error_header) in [
             (
                 Format::Crucible,
@@ -544,10 +557,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_permission_refusal_is_a_403_forbidden_exception() {
-        let denied = FrameworkError::PermissionDenied {
-            resource_type: "inbox",
-            permission: Some("mail:send"),
-        };
+        let denied = FrameworkError::PermissionDenied { permission: &SEND };
         for (format, name) in [
             (Format::Crucible, "ForbiddenException"),
             (Format::RestJson, "ForbiddenException"),

@@ -98,7 +98,7 @@ pub use verdict::Verdict;
 pub use visibility::Visibility;
 
 #[cfg(all(feature = "permissions", feature = "idempotency"))]
-pub(crate) use session::before_commit;
+pub(crate) use session::{before_commit, reauthorize, stored_checks};
 #[cfg(feature = "permissions")]
 pub(crate) use session::{replayed, settle};
 
@@ -132,7 +132,7 @@ pub async fn require(
     let (context, session) = Session::current()?;
     let check = Check::handler(permission, resource);
     let verdicts = session
-        .decide(&context, std::slice::from_ref(&check))
+        .decide_for_handler(&context, std::slice::from_ref(&check))
         .await?;
     match verdicts[0] {
         Verdict::Allowed => Ok(()),
@@ -154,17 +154,19 @@ pub async fn decide(checks: &[Check]) -> Result<Vec<Verdict>> {
             check.permission.value, check.resource, check.origin
         )));
     }
-    session.decide(&context, checks).await
+    session.decide_for_handler(&context, checks).await
 }
 
 /// Discharges a `by handler` obligation: checks its permission on
 /// `resource`, which must be an instance of the obligation's resource,
 /// through the Authorizer, and refuses a verdict that is not
 /// [`Verdict::Allowed`] exactly as a declared check is refused. Call it
-/// before any write and before `idempotency::commit()`: then a refusal
-/// releases the idempotency claim. Called after `commit` (the mistake the
-/// commit-time assertion catches), a refusal abandons the commit, so the
-/// claim is released anyway.
+/// before any write: `idempotency::commit()` refuses while the obligation
+/// is open, so a refusal here always releases the idempotency claim. The
+/// obligation is closed once: discharging it again, or calling
+/// [`not_applicable`] after a refusal, is an internal error. Allowed, the
+/// check is kept with the request's idempotency record and asked again
+/// before a replay is served.
 #[cfg(feature = "permissions")]
 pub async fn discharge(obligation: Obligation, resource: ResourceRef) -> Result<()> {
     let (context, session) = Session::current()?;

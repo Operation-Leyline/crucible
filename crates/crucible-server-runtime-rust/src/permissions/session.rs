@@ -1,35 +1,52 @@
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
+#[cfg(feature = "idempotency")]
+use serde_json::{Value, json};
+
 use super::authorizer_unavailable::AuthorizerUnavailable;
 use super::{
     AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Decision, Listing, Obligation,
-    ObligationOutcome, OperationFacts, PermissionRefusal, ResourceRef, Verdict, Visibility,
+    ObligationOutcome, OperationFacts, PermissionInfo, PermissionRefusal, ResourceRef, Verdict,
+    Visibility,
 };
+#[cfg(feature = "idempotency")]
+use super::{Origin, Target};
 use crate::{Context, Error, OperationJob, Outcome, Result};
 
 pub(crate) type RefusalFactory = Arc<dyn Fn(&PermissionRefusal) -> Error + Send + Sync>;
+
+/// Every permission a stored authorization may name: the service's
+/// registry and every permission its operations require.
+pub(crate) type Registry = Arc<Vec<&'static PermissionInfo>>;
 
 pub(crate) const TARGET: &str = "crucible_server_runtime_rust::permissions";
 
 /// One request's authorization, which [`Permissions`](super::Permissions)
 /// leaves on the request context for the handler functions, the
-/// `idempotency::commit` assertion and its own `after` hook.
+/// `idempotency::commit` check, a replay's re-authorization and its own
+/// `after` hook.
 #[derive(Clone)]
 pub(crate) struct Session(Arc<State>);
 
 struct State {
     authorizer: Arc<dyn Authorizer>,
     refusal: RefusalFactory,
+    /// What a replay's stored checks are read back against.
+    #[cfg_attr(not(feature = "idempotency"), allow(dead_code))]
+    registry: Registry,
     facts: OperationFacts,
     shadow: bool,
-    /// Whether an open obligation fails the request (tests and debug
-    /// builds) rather than only being logged.
+    /// Whether an obligation left unsatisfied by a success fails the
+    /// request (tests and debug builds) rather than only being logged.
     assert_obligations: bool,
     inner: Mutex<Inner>,
 }
 
 struct Inner {
     record: AuthorizationRecord,
+    /// The handler-side checks the Authorizer allowed: what a replay of
+    /// this request's success must be allowed again.
+    handled: Vec<Check>,
     /// Whether the obligations were settled after the operation.
     settled: bool,
 }
@@ -37,6 +54,7 @@ struct Inner {
 pub(crate) struct Settings {
     pub authorizer: Arc<dyn Authorizer>,
     pub refusal: RefusalFactory,
+    pub registry: Registry,
     pub shadow: bool,
     pub assert_obligations: bool,
 }
@@ -46,6 +64,7 @@ impl Session {
         Self(Arc::new(State {
             authorizer: settings.authorizer.clone(),
             refusal: settings.refusal.clone(),
+            registry: settings.registry.clone(),
             facts,
             shadow: settings.shadow,
             assert_obligations: settings.assert_obligations,
@@ -60,6 +79,7 @@ impl Session {
                     obligations: Vec::new(),
                     shadow: settings.shadow,
                 },
+                handled: Vec::new(),
                 settled: false,
             }),
         }))
@@ -74,11 +94,6 @@ impl Session {
 
     pub fn facts(&self) -> OperationFacts {
         self.0.facts
-    }
-
-    /// Whether an open obligation fails the request.
-    fn enforces_obligations(&self) -> bool {
-        self.0.assert_obligations && !self.0.shadow
     }
 
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -150,6 +165,25 @@ impl Session {
         Ok(verdicts)
     }
 
+    /// [`decide`](Self::decide) for checks a handler makes, remembering
+    /// the allowed ones so a replay of this request's success asks for them
+    /// again.
+    pub async fn decide_for_handler(
+        &self,
+        context: &Context,
+        checks: &[Check],
+    ) -> Result<Vec<Verdict>> {
+        let verdicts = self.decide(context, checks).await?;
+        self.lock().handled.extend(
+            checks
+                .iter()
+                .zip(&verdicts)
+                .filter(|(_, verdict)| **verdict == Verdict::Allowed)
+                .map(|(check, _)| check.clone()),
+        );
+        Ok(verdicts)
+    }
+
     /// `verdict`, unless it hides a resource the request binds nothing of.
     pub fn something_to_hide(&self, resource: &ResourceRef, verdict: Verdict) -> Verdict {
         if verdict == Verdict::Hidden && resource.binds_nothing() {
@@ -212,7 +246,7 @@ impl Session {
         obligation: Obligation,
         resource: ResourceRef,
     ) -> Result<()> {
-        self.known(&obligation)?;
+        self.still_open(&obligation)?;
         if resource.resource() != obligation.permission.resource {
             return Err(Error::internal(format!(
                 "{}: obligation {} ({} on {}) was discharged against {resource}",
@@ -223,17 +257,16 @@ impl Session {
             )));
         }
         let check = Check::obligation(&obligation, resource);
-        let verdict = self.decide(context, std::slice::from_ref(&check)).await?[0];
+        let verdict = self
+            .decide_for_handler(context, std::slice::from_ref(&check))
+            .await?[0];
         self.close(context, &obligation, ObligationOutcome::Discharged(verdict));
         if verdict == Verdict::Allowed {
             return Ok(());
         }
-        // Normally the request has not committed, and failing releases the
-        // claim. If it has (the mistake the commit-time assertion reports),
-        // the commit is taken back so the claim is released anyway and the
-        // caller can retry once it holds the permission.
-        #[cfg(feature = "idempotency")]
-        let _ = crate::idempotency::abandon();
+        // `idempotency::commit()` refuses while an obligation is open, so a
+        // refusal here always comes before the point of no return: failing
+        // releases the claim, and nothing is abandoned.
         Err(self.refuse(context, &check, verdict))
     }
 
@@ -243,7 +276,7 @@ impl Session {
         obligation: Obligation,
         reason: String,
     ) -> Result<()> {
-        self.known(&obligation)?;
+        self.still_open(&obligation)?;
         self.close(
             context,
             &obligation,
@@ -252,18 +285,24 @@ impl Session {
         Ok(())
     }
 
-    fn known(&self, obligation: &Obligation) -> Result<()> {
-        let known = self
+    /// An obligation is closed once: a second close (a `not_applicable`
+    /// after a refused `discharge`, say) would overwrite what the record
+    /// says happened.
+    fn still_open(&self, obligation: &Obligation) -> Result<()> {
+        let outcome = self
             .lock()
             .record
             .obligations
             .iter()
-            .any(|record| record.obligation == *obligation);
-        if known {
-            return Ok(());
-        }
+            .find(|record| record.obligation == *obligation)
+            .map(|record| record.outcome.clone());
+        let problem = match outcome {
+            Some(ObligationOutcome::Open) => return Ok(()),
+            Some(outcome) => format!("is already closed ({outcome:?})"),
+            None => "is not an obligation of this operation".to_owned(),
+        };
         Err(Error::internal(format!(
-            "{}: clause {} of {} ({} on {}) is not an obligation of this operation",
+            "{}: clause {} of {} ({} on {}) {problem}",
             self.0.facts.id,
             obligation.index,
             obligation.operation,
@@ -282,40 +321,102 @@ impl Session {
         });
     }
 
-    /// The obligations still open, described for a log line.
-    fn open(&self) -> Option<String> {
-        let open: Vec<String> = self
+    /// The obligations not satisfied, described for a log line: still open,
+    /// or discharged with a refusal the handler went on past.
+    fn unsatisfied(&self) -> Option<String> {
+        let unsatisfied: Vec<String> = self
             .lock()
             .record
             .obligations
             .iter()
-            .filter(|record| record.outcome == ObligationOutcome::Open)
+            .filter(|record| unsatisfied(&record.outcome))
             .map(|record| {
                 format!(
-                    "{} on {} (clause {})",
+                    "{} on {} (clause {}, {:?})",
                     record.obligation.permission.value,
                     record.obligation.permission.resource.name,
-                    record.obligation.index
+                    record.obligation.index,
+                    record.outcome
                 )
             })
             .collect();
-        (!open.is_empty()).then(|| open.join(", "))
+        (!unsatisfied.is_empty()).then(|| unsatisfied.join(", "))
     }
 
-    /// Closes what a replay leaves open: the operation did not run, so its
-    /// handler could not discharge anything, and the declared checks were
-    /// made again.
-    pub fn replayed(&self, context: &Context) {
-        self.lock().settled = true;
-        self.update(context, |record| {
-            for record in &mut record.obligations {
-                if record.outcome == ObligationOutcome::Open {
-                    record.outcome = ObligationOutcome::NotApplicable(
-                        "a replay: the operation did not run".to_owned(),
-                    );
-                }
-            }
-        });
+    /// What a replay of this request's success must be allowed again, for
+    /// the idempotency record.
+    #[cfg(feature = "idempotency")]
+    fn stored(&self) -> Value {
+        Value::Array(
+            self.lock()
+                .handled
+                .iter()
+                .map(|check| {
+                    json!({
+                        "resource": check.permission.resource.name,
+                        "permission": check.permission.value,
+                        "identifiers": check
+                            .resource
+                            .identifiers()
+                            .iter()
+                            .map(|target| target.as_one().map_or(Value::Null, Value::from))
+                            .collect::<Vec<_>>(),
+                        "obligation": match check.origin {
+                            Origin::Obligation(index) => Value::from(index),
+                            _ => Value::Null,
+                        },
+                    })
+                })
+                .collect(),
+        )
+    }
+
+    /// The checks a stored success recorded, read back against the
+    /// registry; `None` when one no longer reads (a permission the model
+    /// dropped), so it cannot be asked again.
+    #[cfg(feature = "idempotency")]
+    fn read_stored(&self, stored: &Value) -> Option<Vec<Check>> {
+        stored
+            .as_array()?
+            .iter()
+            .map(|item| {
+                let resource = item.get("resource")?.as_str()?;
+                let value = item.get("permission")?.as_str()?;
+                let permission = self.0.registry.iter().copied().find(|permission| {
+                    permission.resource.name == resource && permission.accepts(value)
+                })?;
+                let identifiers = item
+                    .get("identifiers")?
+                    .as_array()?
+                    .iter()
+                    .map(|target| match target {
+                        Value::Null => Some(Target::All),
+                        Value::String(id) => Some(Target::One(id.clone())),
+                        _ => None,
+                    })
+                    .collect::<Option<Vec<Target>>>()?;
+                let origin = match item.get("obligation") {
+                    Some(Value::Number(index)) => {
+                        Origin::Obligation(u16::try_from(index.as_u64()?).ok()?)
+                    }
+                    _ => Origin::Handler,
+                };
+                Some(Check {
+                    permission,
+                    resource: ResourceRef::new(permission.resource, identifiers),
+                    origin,
+                })
+            })
+            .collect()
+    }
+}
+
+/// Whether an obligation in this state leaves a success unauthorized.
+fn unsatisfied(outcome: &ObligationOutcome) -> bool {
+    match outcome {
+        ObligationOutcome::Open => true,
+        ObligationOutcome::Discharged(verdict) => *verdict != Verdict::Allowed,
+        _ => false,
     }
 }
 
@@ -330,39 +431,40 @@ fn not_installed() -> Error {
     )
 }
 
-/// `idempotency::commit()`'s check: the point of no return must not be
-/// passed with an obligation open. An error in tests and debug builds, so
-/// the step is not taken; a logged error in release builds.
+/// `idempotency::commit()`'s check, in every build: the point of no return
+/// must not be passed while an obligation is unsatisfied, so the step is not
+/// taken. Shadow mode only logs it, since it refuses nothing.
 #[cfg(feature = "idempotency")]
 pub(crate) fn before_commit() -> Result<()> {
     let Some(session) = Context::try_current().and_then(|context| context.attribute::<Session>())
     else {
         return Ok(());
     };
-    let Some(open) = session.open() else {
+    let Some(unsatisfied) = session.unsatisfied() else {
         return Ok(());
     };
     tracing::error!(
         target: TARGET,
         operation = session.0.facts.id,
-        obligations = %open,
-        "idempotency::commit() was called with a permission obligation open; discharge it, or say it does not apply, before the point of no return"
+        obligations = %unsatisfied,
+        "idempotency::commit() was called with a permission obligation unsatisfied; discharge it, or say it does not apply, before the point of no return"
     );
-    if session.enforces_obligations() {
-        return Err(Error::internal(format!(
-            "{}: idempotency::commit() with a permission obligation open: {open}",
-            session.0.facts.id
-        )));
+    if session.0.shadow {
+        return Ok(());
     }
-    Ok(())
+    Err(Error::internal(format!(
+        "{}: idempotency::commit() with a permission obligation unsatisfied: {unsatisfied}",
+        session.0.facts.id
+    )))
 }
 
-/// After the operation: a success with an obligation still open is a
-/// handler bug. Tests and debug builds fail the request; release builds
-/// record it and log it, but keep the response, since whatever the handler
-/// did has happened. Runs once, from whichever of `Permissions` and
-/// `Idempotency` unwinds first, so a claim is never completed with a
-/// success the assertion then turns into a failure.
+/// After the operation: a success with an obligation unsatisfied (open, or
+/// discharged with a refusal the handler swallowed) is a handler bug. Tests
+/// and debug builds fail the request; release builds record it and log it,
+/// but keep the response, since whatever the handler did has happened. Runs
+/// once, from whichever of `Permissions` and `Idempotency` unwinds first,
+/// so a claim is never completed with a success the assertion then turns
+/// into a failure.
 pub(crate) fn settle(job: &mut OperationJob<'_>) {
     let context = job.context().clone();
     let Some(session) = context.attribute::<Session>() else {
@@ -378,7 +480,7 @@ pub(crate) fn settle(job: &mut OperationJob<'_>) {
     if !matches!(job.outcome(), Some(Outcome::Output(_))) {
         return;
     }
-    let Some(open) = session.open() else {
+    let Some(unsatisfied) = session.unsatisfied() else {
         return;
     };
     session.update(&context, |record| {
@@ -391,23 +493,81 @@ pub(crate) fn settle(job: &mut OperationJob<'_>) {
     tracing::error!(
         target: TARGET,
         operation = session.0.facts.id,
-        obligations = %open,
-        "the operation succeeded with a permission obligation open; its handler must discharge it, or say it does not apply"
+        obligations = %unsatisfied,
+        "the operation succeeded with a permission obligation unsatisfied; its handler must discharge it (and stop when refused), or say it does not apply"
     );
-    if session.enforces_obligations() {
+    if session.0.assert_obligations && !session.0.shadow {
         job.fail(Error::internal(format!(
-            "{}: succeeded with a permission obligation open: {open}",
+            "{}: succeeded with a permission obligation unsatisfied: {unsatisfied}",
             session.0.facts.id
         )));
     }
 }
 
 /// A replayed output ([`DecodedJob::replay_output`](crate::DecodedJob::replay_output))
-/// settles the obligations: the handler does not run.
+/// settles the obligations: the handler does not run, and what it was
+/// allowed was asked again ([`reauthorize`]).
 pub(crate) fn replayed(context: &Context) {
     if let Some(session) = context.attribute::<Session>() {
-        session.replayed(context);
+        session.lock().settled = true;
+        session.update(context, |record| {
+            for record in &mut record.obligations {
+                if record.outcome == ObligationOutcome::Open {
+                    record.outcome = ObligationOutcome::Replayed;
+                }
+            }
+        });
     }
+}
+
+/// The handler-side checks this request was allowed, for the idempotency
+/// record of its success; `None` when `Permissions` does not cover it.
+#[cfg(feature = "idempotency")]
+pub(crate) fn stored_checks(context: &Context) -> Option<Value> {
+    context
+        .attribute::<Session>()
+        .map(|session| session.stored())
+}
+
+/// Asks the Authorizer again for the handler-side checks a stored success
+/// recorded, before the success is replayed: the first that is not Allowed
+/// refuses the replay as it would have refused the request. `Ok(false)`
+/// when a recorded check no longer reads, so the replay cannot be
+/// authorized; `Ok(true)` when it may be served (also when `Permissions`
+/// does not cover the operation now).
+#[cfg(feature = "idempotency")]
+pub(crate) async fn reauthorize(context: &Context, stored: &Value) -> Result<bool> {
+    let Some(session) = context.attribute::<Session>() else {
+        return Ok(true);
+    };
+    let Some(checks) = session.read_stored(stored) else {
+        tracing::warn!(
+            target: TARGET,
+            operation = session.0.facts.id,
+            "a stored success names a permission the service no longer declares, so its replay cannot be authorized"
+        );
+        return Ok(false);
+    };
+    let verdicts = session.decide(context, &checks).await?;
+    if let Some((check, verdict)) = checks
+        .iter()
+        .zip(verdicts)
+        .find(|(_, verdict)| *verdict != Verdict::Allowed)
+    {
+        if session.0.shadow {
+            tracing::warn!(
+                target: TARGET,
+                operation = session.0.facts.id,
+                permission = check.permission.value,
+                resource = %check.resource,
+                outcome = if verdict == Verdict::Hidden { "would_hide" } else { "would_deny" },
+                "a replay would be refused"
+            );
+            return Ok(true);
+        }
+        return Err(session.refuse(context, check, verdict));
+    }
+    Ok(true)
 }
 
 #[cfg(test)]
@@ -426,6 +586,7 @@ mod tests {
     static WORKSPACE: ResourceInfo = ResourceInfo {
         name: "workspace",
         identifiers: &["workspaceId"],
+        not_found: "No such workspace.",
     };
     static ADMIN: PermissionInfo = PermissionInfo {
         resource: &WORKSPACE,
@@ -433,28 +594,35 @@ mod tests {
         value: "workspace:admin",
         aliases: &[],
         tier: Tier::NotGrantable,
+        denied: "This principal does not hold workspace:admin on that workspace.",
     };
     static REQUIREMENTS: Requirements = Requirements::None;
+    const OBLIGATION: Obligation = Obligation {
+        operation: "t#Op",
+        index: 0,
+        permission: &ADMIN,
+    };
 
-    struct Hiding;
+    struct Answering(Verdict);
     #[async_trait::async_trait]
-    impl Authorizer for Hiding {
+    impl Authorizer for Answering {
         async fn decide(
             &self,
             _: &AuthorizationRequest<'_>,
             checks: &[Check],
         ) -> crate::Result<Vec<Verdict>> {
-            Ok(vec![Verdict::Hidden; checks.len()])
+            Ok(vec![self.0; checks.len()])
         }
     }
 
-    fn session(assert_obligations: bool) -> Session {
+    fn session(verdict: Verdict, shadow: bool) -> Session {
         Session::new(
             &Settings {
-                authorizer: Arc::new(Hiding),
+                authorizer: Arc::new(Answering(verdict)),
                 refusal: Arc::new(|refusal| refusal.default_error()),
-                shadow: false,
-                assert_obligations,
+                registry: Arc::new(vec![&ADMIN]),
+                shadow,
+                assert_obligations: true,
             },
             OperationFacts {
                 id: "t#Op",
@@ -470,9 +638,19 @@ mod tests {
         Arc::new(Context::new(HeaderValue::from_static("r-1"), None, parts))
     }
 
+    fn with_obligation(session: &Session, context: &Context) {
+        context.set_attribute(session.clone());
+        session.update(context, |record| {
+            record.obligations.push(ObligationRecord {
+                obligation: OBLIGATION,
+                outcome: ObligationOutcome::Open,
+            });
+        });
+    }
+
     #[tokio::test]
     async fn hiding_a_resource_the_request_binds_nothing_of_is_denied() {
-        let session = session(true);
+        let session = session(Verdict::Hidden, false);
         let context = context();
         let bound = Check::handler(&ADMIN, ResourceRef::new(&WORKSPACE, ["w-1"]));
         let unbound = Check::handler(&ADMIN, ResourceRef::all(&WORKSPACE, Vec::<String>::new()));
@@ -486,33 +664,93 @@ mod tests {
 
     #[tokio::test]
     async fn a_check_that_does_not_name_one_instance_is_a_wiring_error() {
-        let session = session(true);
+        let session = session(Verdict::Allowed, false);
         let incomplete = Check::handler(&ADMIN, ResourceRef::new(&WORKSPACE, ["a", "b"]));
         assert!(session.decide(&context(), &[incomplete]).await.is_err());
     }
 
+    #[tokio::test]
+    async fn an_obligation_is_closed_once() {
+        let session = session(Verdict::Denied, false);
+        let context = context();
+        with_obligation(&session, &context);
+        let workspace = ResourceRef::new(&WORKSPACE, ["w-1"]);
+        assert!(
+            session
+                .discharge(&context, OBLIGATION, workspace.clone())
+                .await
+                .is_err()
+        );
+        // Neither a second discharge nor not_applicable rewrites the refusal.
+        assert!(
+            session
+                .discharge(&context, OBLIGATION, workspace)
+                .await
+                .is_err()
+        );
+        assert!(
+            session
+                .not_applicable(&context, OBLIGATION, "never mind".to_owned())
+                .is_err()
+        );
+        let record = context
+            .attribute::<crate::permissions::AuthorizationRecord>()
+            .unwrap();
+        assert_eq!(
+            record.obligations[0].outcome,
+            ObligationOutcome::Discharged(Verdict::Denied)
+        );
+        assert!(session.unsatisfied().is_some());
+    }
+
     #[cfg(feature = "idempotency")]
     #[tokio::test]
-    async fn commit_with_an_open_obligation_is_refused_when_asserting_and_logged_otherwise() {
-        for assert_obligations in [true, false] {
-            let session = session(assert_obligations);
+    async fn allowed_handler_checks_are_stored_and_read_back() {
+        let session = session(Verdict::Allowed, false);
+        let context = context();
+        with_obligation(&session, &context);
+        session
+            .discharge(&context, OBLIGATION, ResourceRef::new(&WORKSPACE, ["w-1"]))
+            .await
+            .unwrap();
+        let stored = session.stored();
+        assert_eq!(
+            stored,
+            serde_json::json!([{
+                "resource": "workspace",
+                "permission": "workspace:admin",
+                "identifiers": ["w-1"],
+                "obligation": 0,
+            }])
+        );
+        let read = session.read_stored(&stored).unwrap();
+        assert_eq!(
+            read,
+            [Check::obligation(
+                &OBLIGATION,
+                ResourceRef::new(&WORKSPACE, ["w-1"])
+            )]
+        );
+        // A permission the registry no longer has cannot be asked again.
+        let dropped = serde_json::json!([{
+            "resource": "workspace", "permission": "workspace:gone",
+            "identifiers": ["w-1"], "obligation": null,
+        }]);
+        assert!(session.read_stored(&dropped).is_none());
+    }
+
+    #[cfg(feature = "idempotency")]
+    #[tokio::test]
+    async fn commit_with_an_obligation_open_is_refused_in_every_build_but_shadow() {
+        for (shadow, refused) in [(false, true), (true, false)] {
+            let session = session(Verdict::Allowed, shadow);
             let context = context();
-            context.set_attribute(session.clone());
-            session.update(&context, |record| {
-                record.obligations.push(ObligationRecord {
-                    obligation: Obligation {
-                        operation: "t#Op",
-                        index: 0,
-                        permission: &ADMIN,
-                    },
-                    outcome: ObligationOutcome::Open,
-                });
-            });
+            with_obligation(&session, &context);
             let commit = context
                 .clone()
                 .scope(async { super::before_commit() })
                 .await;
-            assert_eq!(commit.is_err(), assert_obligations);
+            assert_eq!(commit.is_err(), refused, "shadow {shadow}");
         }
     }
 }

@@ -366,6 +366,7 @@ where
             replays_output: serving.metadata.replays_output,
             requirements: serving.metadata.requirements,
             checks: serving.metadata.checks,
+            public: serving.metadata.public,
             ..OperationMetadata::of::<Old>()
         },
         decode: decode::<Old>,
@@ -394,6 +395,7 @@ mod tests {
     use crate::operation::{
         Operation, OperationInfo, OutputFromJson, PaginationMember, ServiceInfo, Unit,
     };
+    use crate::permissions::{Checks, Requirements};
 
     static INFO: OperationInfo = operation_info(
         "t#Create",
@@ -435,10 +437,14 @@ mod tests {
         wire_name: "token",
     };
 
-    /// The current version, which has the token.
+    /// The current version, which has the token and declares its
+    /// requirements.
     struct Current;
     impl Operation for Current {
         const INFO: &'static OperationInfo = &INFO;
+        const REQUIREMENTS: Requirements = Requirements::None;
+        const PUBLIC: bool = true;
+        const CHECKS: Option<Checks<Unit>> = Some(|_, _| {});
         const IDEMPOTENCY_TOKEN: Option<PaginationMember> = Some(TOKEN);
         const OUTPUT_FROM_JSON: Option<OutputFromJson<Unit>> = Some(serde_json::from_value::<Unit>);
         type Input = Unit;
@@ -481,5 +487,20 @@ mod tests {
         // operation's own would.
         assert!(since.metadata.replays_output);
         assert!(since.output_from_json.is_some());
+    }
+
+    #[test]
+    fn an_older_version_is_authorized_by_the_current_requirements() {
+        let current = entry::<Current, (), _>(Arc::new(()), |_, _| std::future::ready(Ok(Unit {})));
+        let before = versioned_entry::<Untokened, Current>(&current, &SERVICE, &[], Arc::default());
+        // The interceptors see the current input, so the current version's
+        // requirements and bindings authorize it, though the older version
+        // declared none.
+        assert_eq!(*before.metadata.requirements, Requirements::None);
+        assert!(before.metadata.checks.is_some());
+        assert!(before.metadata.public);
+        // The operation facts an Authorizer sees (readonly, idempotent) are
+        // read from the served version's own description.
+        assert!(std::ptr::eq(before.info, Untokened::INFO));
     }
 }

@@ -341,6 +341,23 @@ impl Job {
         })
     }
 
+    /// A handler's modelled `crucible.errors#NotFoundException`, as the
+    /// framework's own: the 404 an authorization that hides the resource
+    /// answers, with the resource's fixed message, so a genuinely missing
+    /// resource and a hidden one read alike in every protocol. Only for a
+    /// resource the service's permission registry names; any other has no
+    /// hidden twin to match.
+    fn not_found(&self, modelled: &dyn crate::ModelledError) -> Option<FrameworkError> {
+        if modelled.shape_id() != "crucible.errors#NotFoundException" {
+            return None;
+        }
+        let members = modelled.to_json();
+        let resource = self
+            .service
+            .resource(members.get("resourceType")?.as_str()?)?;
+        Some(FrameworkError::NotFound { resource })
+    }
+
     fn resolve_error<'a>(&self, error: &'a Error) -> Resolution<'a> {
         if let Some(rejection) = error.downcast_ref::<Rejection>() {
             return Resolution::Rejected(rejection);
@@ -361,7 +378,10 @@ impl Job {
                     .operation()
                     .is_none_or(|op| op.declares(modelled.info().name)) =>
             {
-                Resolution::Modelled(modelled)
+                match self.not_found(modelled) {
+                    Some(not_found) => Resolution::Framework(not_found),
+                    None => Resolution::Modelled(modelled),
+                }
             }
             _ => Resolution::Internal(error),
         }

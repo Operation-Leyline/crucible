@@ -15,17 +15,17 @@ impl PermissionRefusal {
         Self { check }
     }
 
-    /// The missing permission, whatever its tier: for logs and audit, never
-    /// for the response. Use [`public_permission`](Self::public_permission)
-    /// for what the caller may be told.
-    pub fn permission(&self) -> &'static PermissionInfo {
-        self.check.permission
-    }
-
-    /// The missing permission when a refusal may name it; `None` for an
-    /// internal permission, which no response names.
+    /// The missing permission when a response may name it; `None` for an
+    /// internal permission, which no response names. What a refusal factory
+    /// builds its error from.
     pub fn public_permission(&self) -> Option<&'static PermissionInfo> {
         Some(self.check.permission).filter(|permission| permission.is_public())
+    }
+
+    /// The missing permission whatever its tier, internal ones included:
+    /// for logs and audit only, never for a response.
+    pub fn permission_for_logging(&self) -> &'static PermissionInfo {
+        self.check.permission
     }
 
     /// The instance the caller lacks it on. Its identifiers came from the
@@ -45,8 +45,7 @@ impl PermissionRefusal {
     /// permission is internal.
     pub fn default_error(&self) -> Error {
         FrameworkError::PermissionDenied {
-            resource_type: self.check.permission.resource.name,
-            permission: self.public_permission().map(|permission| permission.value),
+            permission: self.check.permission,
         }
         .into()
     }

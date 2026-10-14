@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use super::session::{RefusalFactory, Session, Settings, TARGET};
+use super::session::{RefusalFactory, Registry, Session, Settings, TARGET};
 use super::{
     Authorizer, Check, ErasedChecks, Listing, Mode, Obligation, ObligationOutcome,
-    ObligationRecord, OperationFacts, Origin, PermissionRefusal, RequirementInfo, Requirements,
-    Target, Verdict, Visibility,
+    ObligationRecord, OperationFacts, Origin, PermissionInfo, PermissionRefusal, RequirementInfo,
+    Requirements, Target, Verdict, Visibility,
 };
 use crate::operation::{Input, OperationInfo};
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
 /// - **Undeclared** (no requirement metadata, which the compiler allows
 ///   only before a service declares any permission): refused with the
 ///   service's internal error and logged as a wiring error, unless the
-///   operation is public (it has no authentication) or
+///   model marks the operation public (`Operation::PUBLIC`) or
 ///   [`allow_undeclared`](Self::allow_undeclared) opts out.
 /// - **`requires none`** passes; **`requires pending`** passes with its
 ///   reason recorded, since the handler still does the checking.
@@ -33,12 +33,14 @@ use crate::{
 ///   `by handler` clause opens an obligation the handler must close.
 ///
 /// Every request it covers gets an [`AuthorizationRecord`](super::AuthorizationRecord)
-/// on its context. Register it before `PageTokens` and `Idempotency`: a
-/// refused request then never claims a token, and every replay is
-/// authorized against the caller's current grants.
+/// on its context. Register it before `PageTokens` and `Idempotency` (the
+/// other order fails the build): a refused request then never claims a
+/// token, and a replay is authorized again, its declared checks and the
+/// handler checks its success was allowed.
 pub struct Permissions {
     authorizer: Arc<dyn Authorizer>,
     refusal: RefusalFactory,
+    registry: Registry,
     allow_undeclared: bool,
     shadow: bool,
     assert_obligations: bool,
@@ -49,6 +51,7 @@ impl Permissions {
         Self {
             authorizer: Arc::new(authorizer),
             refusal: Arc::new(PermissionRefusal::default_error),
+            registry: Arc::default(),
             allow_undeclared: false,
             shadow: false,
             assert_obligations: cfg!(any(debug_assertions, feature = "test-support")),
@@ -84,9 +87,11 @@ impl Permissions {
 
     /// Evaluates and records everything, and refuses nothing: what would
     /// have been refused is logged (`would_deny`, `would_hide`,
-    /// `would_refuse_undeclared`) and the record says `shadow`. For moving
-    /// a service's own checks onto the model one operation at a time, with
-    /// the log showing that both agree. Handler checks
+    /// `would_refuse_undeclared`, and `would_fail` for an Authorizer error
+    /// or a wiring error) and the record says `shadow`. An unsatisfied
+    /// obligation at `idempotency::commit()` is logged, not refused. For
+    /// moving a service's own checks onto the model one operation at a
+    /// time, with the log showing that both agree. Handler checks
     /// ([`require`](super::require), [`discharge`](super::discharge)) still
     /// refuse: the handler asked for them.
     pub fn shadow(mut self) -> Self {
@@ -94,11 +99,14 @@ impl Permissions {
         self
     }
 
-    /// Whether an obligation left open fails the request: at
-    /// `idempotency::commit()` (the step is not taken) and on a success
-    /// (answered as an internal failure). On in debug builds and with the
+    /// Whether a success with an obligation unsatisfied (left open, or
+    /// discharged with a refusal the handler went on past) fails the
+    /// request, as an internal failure. On in debug builds and with the
     /// `test-support` feature, so tests catch a handler that forgets one;
-    /// off in release builds, which log it and record it as `Undischarged`.
+    /// off in release builds, which log it and record it as `Undischarged`
+    /// but keep the response, since what the handler did has happened.
+    /// `idempotency::commit()` refuses an unsatisfied obligation in every
+    /// build, whatever this says: the step after it has not happened yet.
     pub fn assert_obligations(mut self, assert: bool) -> Self {
         self.assert_obligations = assert;
         self
@@ -108,6 +116,7 @@ impl Permissions {
         Settings {
             authorizer: self.authorizer.clone(),
             refusal: self.refusal.clone(),
+            registry: self.registry.clone(),
             shadow: self.shadow,
             assert_obligations: self.assert_obligations,
         }
@@ -157,35 +166,55 @@ impl Permissions {
     ) -> Result<()> {
         let operation = job.operation();
         let context = job.context().clone();
-        let (checks, listing) = bind(operation, requirements, job.metadata().checks, job.input())?;
-
-        match session.decide(&context, &checks).await {
-            Ok(verdicts) => {
-                // The first refusal in declaration order, so batched and
-                // sequential checking refuse a request alike.
-                if let Some((check, verdict)) = checks
-                    .iter()
-                    .zip(verdicts)
-                    .find(|(_, verdict)| *verdict != Verdict::Allowed)
-                {
-                    self.refuse(&context, &session, check, verdict)?;
+        let (checks, listing) =
+            match bind(operation, requirements, job.metadata().checks, job.input()) {
+                Ok(bound) => bound,
+                // Shadow mode refuses nothing, its own wiring errors included.
+                Err(error) if self.shadow => {
+                    shadow_failure(operation, &error);
+                    return Ok(());
                 }
-            }
-            Err(error) if self.shadow => shadow_failure(operation, &error),
-            Err(error) => return Err(error),
-        }
-
-        if let Some((index, listing)) = listing {
-            match session.visible(&context, &listing).await {
-                Ok(Visibility::Hidden) => {
-                    let verdict = session.something_to_hide(&listing.resource, Verdict::Hidden);
-                    let check = Check::declared(index, listing.permission, listing.resource);
-                    self.refuse(&context, &session, &check, verdict)?;
-                }
-                Ok(_) => {}
-                Err(error) if self.shadow => shadow_failure(operation, &error),
                 Err(error) => return Err(error),
+            };
+
+        // The first refusal of a `Check` clause, by clause position.
+        let mut refusal = match session.decide(&context, &checks).await {
+            Ok(verdicts) => checks
+                .iter()
+                .zip(verdicts)
+                .find(|(_, verdict)| *verdict != Verdict::Allowed)
+                .map(|(check, verdict)| (check.clone(), verdict)),
+            Err(error) if self.shadow => {
+                shadow_failure(operation, &error);
+                None
             }
+            Err(error) => return Err(error),
+        };
+
+        // The listing's own refusal competes by its clause position, so
+        // batched and sequential checking refuse a request alike: a Hidden
+        // listing declared first is a 404 even when a later clause is
+        // Denied. It is not asked when an earlier clause already refused
+        // (unless shadowing, which records everything).
+        if let Some((index, listing)) = listing {
+            let earlier = refusal
+                .as_ref()
+                .is_some_and(|(check, _)| clause(check) < index);
+            if self.shadow || !earlier {
+                match session.visible(&context, &listing).await {
+                    Ok(Visibility::Hidden) if !earlier => {
+                        let verdict = session.something_to_hide(&listing.resource, Verdict::Hidden);
+                        let check = Check::declared(index, listing.permission, listing.resource);
+                        refusal = Some((check, verdict));
+                    }
+                    Ok(_) => {}
+                    Err(error) if self.shadow => shadow_failure(operation, &error),
+                    Err(error) => return Err(error),
+                }
+            }
+        }
+        if let Some((check, verdict)) = refusal {
+            self.refuse(&context, &session, &check, verdict)?;
         }
 
         let obligations: Vec<ObligationRecord> = requirements
@@ -228,10 +257,20 @@ impl Permissions {
     }
 }
 
-/// Whether the operation is public: it has no authentication, so it carries
-/// no requirements and there is no principal to authorize.
+/// Whether the model marks the operation public: it has no authentication,
+/// so it carries no requirements and there is no principal to authorize.
+/// Never inferred from an empty list of schemes, which also describes a
+/// service authenticated outside the model.
 fn public(metadata: &OperationMetadata) -> bool {
-    metadata.auth_schemes.is_some_and(<[_]>::is_empty)
+    metadata.public
+}
+
+/// A declared check's clause position.
+fn clause(check: &Check) -> u16 {
+    match check.origin {
+        Origin::Declared(index) => index,
+        _ => u16::MAX,
+    }
 }
 
 fn shadow_failure(operation: &OperationInfo, error: &Error) {
@@ -240,7 +279,7 @@ fn shadow_failure(operation: &OperationInfo, error: &Error) {
         operation = operation.id,
         cause = %error.chain(),
         outcome = "would_fail",
-        "the Authorizer could not decide the declared requirements"
+        "the declared requirements could not be decided"
     );
 }
 
@@ -356,10 +395,7 @@ fn bind(
             ),
         ));
     }
-    bound.sort_by_key(|check| match check.origin {
-        Origin::Declared(index) => index,
-        _ => u16::MAX,
-    });
+    bound.sort_by_key(clause);
     let mut listing = None;
     let mut checks = Vec::with_capacity(bound.len());
     for check in bound {
@@ -433,11 +469,13 @@ impl Interceptor for Permissions {
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         if prepare.builtin("permissions", "idempotency") {
-            tracing::warn!(
-                target: TARGET,
-                "Permissions is registered after Idempotency, so a refused request claims its idempotency token and a replay is answered without authorization; register Permissions first"
+            return Err(
+                "Permissions is registered after Idempotency, so a refused request would claim its idempotency token and a replay would be answered without authorization; register Permissions first".to_owned(),
             );
         }
+        // What a stored authorization may name: the service's registry and
+        // every permission its operations require.
+        let mut registry: Vec<&'static PermissionInfo> = prepare.service().permissions.to_vec();
         let mut problems = Vec::new();
         let mut undeclared = Vec::new();
         for operation in prepare.operations() {
@@ -450,6 +488,11 @@ impl Interceptor for Permissions {
                     problems.push(format!("{}: a pending reason is empty", operation.name));
                 }
                 Requirements::List(requirements) => {
+                    for requirement in requirements.iter() {
+                        if !registry.contains(&requirement.permission) {
+                            registry.push(requirement.permission);
+                        }
+                    }
                     if metadata.checks.is_none()
                         && requirements
                             .iter()
@@ -482,9 +525,40 @@ impl Interceptor for Permissions {
                 "these operations have no requirement metadata, and Permissions refuses them with an internal error; declare their requirements (or `requires pending`), or opt out with allow_undeclared()"
             );
         }
+        self.registry = Arc::new(registry);
         if problems.is_empty() {
             return Ok(());
         }
         Err(format!("Permissions: {}", problems.join("; ")))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Authorizer, Permissions};
+    use crate::permissions::{AuthorizationRequest, Check, Verdict};
+
+    struct Nobody;
+    #[async_trait::async_trait]
+    impl Authorizer for Nobody {
+        async fn decide(
+            &self,
+            _: &AuthorizationRequest<'_>,
+            checks: &[Check],
+        ) -> crate::Result<Vec<Verdict>> {
+            Ok(vec![Verdict::Denied; checks.len()])
+        }
+    }
+
+    #[test]
+    fn obligations_are_asserted_by_default_in_debug_builds_and_tests() {
+        let permissions = Permissions::new(Nobody);
+        assert_eq!(
+            permissions.assert_obligations,
+            cfg!(any(debug_assertions, feature = "test-support"))
+        );
+        // This crate's own tests are debug builds.
+        assert!(permissions.assert_obligations);
+        assert!(!permissions.assert_obligations(false).assert_obligations);
     }
 }

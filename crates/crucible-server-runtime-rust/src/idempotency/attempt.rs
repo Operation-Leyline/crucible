@@ -96,11 +96,11 @@ impl HeldClaim {
     /// A success that cannot be stored (too large, or the write failed) is
     /// held in flight for the retention instead, so a retry is refused
     /// rather than running a succeeded operation again.
-    pub async fn finish(&self, output: Option<Value>) {
+    pub async fn finish(&self, output: Option<Value>, authorization: Option<Value>) {
         let operation = self.key.operation();
         match output {
             Some(output) => {
-                let response = StoredResponse::wrap(self.api_version, output);
+                let response = StoredResponse::wrap(self.api_version, output, authorization);
                 if response.as_str().len() > self.max_stored {
                     tracing::warn!(
                         target: TARGET,

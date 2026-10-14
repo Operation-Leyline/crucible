@@ -30,9 +30,8 @@ arm, has to change; reading `Principal`'s fields does not.
 ### `FrameworkError::Conflict`, `NotFound` and `PermissionDenied`
 
 `FrameworkError` gained `Conflict { message }`, the 409 that idempotency
-answers by default, and `NotFound { resource_type }` (404) and
-`PermissionDenied { resource_type, permission }` (403), which typed
-permissions answer. A `match` naming every variant needs an arm for each (or
+answers by default, and `NotFound { resource }` (404) and
+`PermissionDenied { permission }` (403), which typed permissions answer. A `match` naming every variant needs an arm for each (or
 `_`), in server code and in client code that names it through
 `crucible_client_runtime_rust`, which re-exports it; `name()`, `status()` and
 `message()` cover it, so code that only calls those is unaffected.

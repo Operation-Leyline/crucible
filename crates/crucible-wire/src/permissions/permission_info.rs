@@ -15,6 +15,10 @@ pub struct PermissionInfo {
     /// stored under one still satisfies a check of this one.
     pub aliases: &'static [&'static str],
     pub tier: Tier,
+    /// The message of a 403 for it (`This principal does not hold mail:send
+    /// on that inbox.`), generated with the description. Never sent for an
+    /// internal permission.
+    pub denied: &'static str,
 }
 
 impl PermissionInfo {

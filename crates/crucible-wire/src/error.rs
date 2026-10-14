@@ -2,13 +2,12 @@
 //! anything: a modelled error, or any other error through `?`. The framework
 //! decides afterwards what reaches the caller (see `docs/framework.md`).
 
-use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Mutex, OnceLock, PoisonError};
 
 use serde_json::Value;
 
 use crate::operation::ErrorInfo;
+use crate::permissions::{PermissionInfo, ResourceInfo};
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -156,22 +155,22 @@ pub enum FrameworkError {
     },
     /// The resource does not exist, or the caller may not know that it
     /// does: the modelled `crucible.errors#NotFoundException` (404), whose
-    /// members are a fixed message per resource type and `resourceType`,
-    /// the authorization name. An authorization that hides a resource and a
-    /// handler reporting genuine absence both answer it, so the two are
-    /// indistinguishable. It never names a permission or an identifier.
+    /// members are the resource's fixed message ([`ResourceInfo::not_found`])
+    /// and `resourceType`, its authorization name. An authorization that
+    /// hides a resource and a handler reporting genuine absence both answer
+    /// it, so the two are indistinguishable. It never names a permission or
+    /// an identifier.
     NotFound {
-        resource_type: &'static str,
+        resource: &'static ResourceInfo,
     },
-    /// An authenticated caller can see the resource but lacks a permission
-    /// on it: a 403 `ForbiddenException`, like `Forbidden`, whose message
-    /// names the missing permission's value and resource type. `permission`
-    /// is `None` for a permission a refusal may not name (an internal one),
-    /// and the message then names neither. Unlike `Forbidden` it sends no
-    /// `insufficient_scope` challenge: no token would carry a grant.
+    /// An authenticated caller can see the resource but lacks `permission`
+    /// on it: a 403 `ForbiddenException`, like `Forbidden`, whose message is
+    /// the permission's [`PermissionInfo::denied`], naming its value and
+    /// resource type, unless the permission is internal: then the message
+    /// names neither. Unlike `Forbidden` it sends no `insufficient_scope`
+    /// challenge: no token would carry a grant.
     PermissionDenied {
-        resource_type: &'static str,
-        permission: Option<&'static str>,
+        permission: &'static PermissionInfo,
     },
     UnknownOperation,
     MethodNotAllowed {
@@ -215,18 +214,9 @@ impl FrameworkError {
             Self::Unauthenticated => "authentication is required",
             Self::Forbidden => "access is forbidden",
             Self::Conflict { message } => message,
-            Self::NotFound { resource_type } => {
-                interned([*resource_type, ""], || format!("No such {resource_type}."))
-            }
-            Self::PermissionDenied {
-                resource_type,
-                permission: Some(permission),
-            } => interned([*resource_type, *permission], || {
-                format!("This principal does not hold {permission} on that {resource_type}.")
-            }),
-            Self::PermissionDenied {
-                permission: None, ..
-            } => "This principal may not perform this operation.",
+            Self::NotFound { resource } => resource.not_found,
+            Self::PermissionDenied { permission } if permission.is_public() => permission.denied,
+            Self::PermissionDenied { .. } => "This principal may not perform this operation.",
             Self::UnknownOperation => "no operation serves this request",
             Self::MethodNotAllowed { .. } => "the request method is not allowed for this target",
             Self::UnsupportedMediaType => "the request content-type is not supported",
@@ -242,21 +232,6 @@ impl fmt::Display for FrameworkError {
 }
 
 impl std::error::Error for FrameworkError {}
-
-/// A message built from `'static` names, kept for the life of the process
-/// so [`FrameworkError::message`] stays `&'static str`. Keys are the names'
-/// text, and the names come from generated descriptions, so the table holds
-/// at most one entry per resource type and permission the model declares.
-fn interned(key: [&'static str; 2], text: impl FnOnce() -> String) -> &'static str {
-    static TEXTS: OnceLock<Mutex<HashMap<[&'static str; 2], &'static str>>> = OnceLock::new();
-    let mut texts = TEXTS
-        .get_or_init(Mutex::default)
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    texts
-        .entry(key)
-        .or_insert_with(|| Box::leak(text().into_boxed_str()))
-}
 
 /// Serializes a generated error's body and dynamic HTTP bindings in one pass.
 #[doc(hidden)]
@@ -361,33 +336,47 @@ mod tests {
 
     #[test]
     fn not_found_and_permission_denied_name_only_what_they_may() {
-        let missing = FrameworkError::NotFound {
-            resource_type: "inbox",
+        use crate::permissions::Tier;
+
+        static INBOX: ResourceInfo = ResourceInfo {
+            name: "inbox",
+            identifiers: &["workspaceId", "inboxId"],
+            not_found: "No such inbox.",
         };
+        static SEND: PermissionInfo = PermissionInfo {
+            resource: &INBOX,
+            symbol: "mailSend",
+            value: "mail:send",
+            aliases: &[],
+            tier: Tier::Public,
+            denied: "This principal does not hold mail:send on that inbox.",
+        };
+        static WATCH: PermissionInfo = PermissionInfo {
+            resource: &INBOX,
+            symbol: "watch",
+            value: "inbox:watch",
+            aliases: &[],
+            tier: Tier::Internal,
+            denied: "This principal does not hold inbox:watch on that inbox.",
+        };
+        let missing = FrameworkError::NotFound { resource: &INBOX };
         assert_eq!(missing.status(), 404);
         assert_eq!(missing.name(), "NotFoundException");
         assert_eq!(missing.message(), "No such inbox.");
-        // A message is built once per resource type.
-        let again = FrameworkError::NotFound {
-            resource_type: "inbox",
-        };
-        assert!(std::ptr::eq(missing.message(), again.message()));
 
-        let denied = FrameworkError::PermissionDenied {
-            resource_type: "inbox",
-            permission: Some("mail:send"),
-        };
+        let denied = FrameworkError::PermissionDenied { permission: &SEND };
         assert_eq!(denied.status(), 403);
         assert_eq!(denied.name(), "ForbiddenException");
         assert_eq!(
             denied.message(),
             "This principal does not hold mail:send on that inbox."
         );
-        let internal = FrameworkError::PermissionDenied {
-            resource_type: "graph",
-            permission: None,
-        };
-        assert!(!internal.message().contains("graph"));
+        // An internal permission's own message is never used.
+        let internal = FrameworkError::PermissionDenied { permission: &WATCH };
+        assert_eq!(
+            internal.message(),
+            "This principal may not perform this operation."
+        );
     }
 
     #[test]

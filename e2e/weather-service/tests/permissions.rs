@@ -37,25 +37,31 @@ use weather_service::weather;
 static WORKSPACE: ResourceInfo = ResourceInfo {
     name: "workspace",
     identifiers: &["workspaceId"],
+    not_found: "No such workspace.",
 };
 static INBOX: ResourceInfo = ResourceInfo {
     name: "inbox",
     identifiers: &["workspaceId", "inboxId"],
+    not_found: "No such inbox.",
 };
 static TEMPLATE: ResourceInfo = ResourceInfo {
     name: "template",
     identifiers: &["workspaceId", "templateId"],
+    not_found: "No such template.",
 };
 static GRAPH: ResourceInfo = ResourceInfo {
     name: "graph",
     identifiers: &["graphId"],
+    not_found: "No such graph.",
 };
 
+/// A permission as generated code describes it, its 403 message included.
 const fn permission(
     resource: &'static ResourceInfo,
     symbol: &'static str,
     value: &'static str,
     tier: Tier,
+    denied: &'static str,
 ) -> PermissionInfo {
     PermissionInfo {
         resource,
@@ -63,24 +69,60 @@ const fn permission(
         value,
         aliases: &[],
         tier,
+        denied,
     }
 }
 
-static WORKSPACE_ADMIN: PermissionInfo =
-    permission(&WORKSPACE, "admin", "workspace:admin", Tier::NotGrantable);
-static GRANT_MANAGE: PermissionInfo =
-    permission(&WORKSPACE, "grantManage", "grant:manage", Tier::Public);
-static INBOX_READ: PermissionInfo = permission(&INBOX, "read", "inbox:read", Tier::Public);
-static INBOX_MANAGE: PermissionInfo = permission(&INBOX, "manage", "inbox:manage", Tier::Public);
+static WORKSPACE_ADMIN: PermissionInfo = permission(
+    &WORKSPACE,
+    "admin",
+    "workspace:admin",
+    Tier::NotGrantable,
+    "This principal does not hold workspace:admin on that workspace.",
+);
+static GRANT_MANAGE: PermissionInfo = permission(
+    &WORKSPACE,
+    "grantManage",
+    "grant:manage",
+    Tier::Public,
+    "This principal does not hold grant:manage on that workspace.",
+);
+static INBOX_READ: PermissionInfo = permission(
+    &INBOX,
+    "read",
+    "inbox:read",
+    Tier::Public,
+    "This principal does not hold inbox:read on that inbox.",
+);
+static INBOX_MANAGE: PermissionInfo = permission(
+    &INBOX,
+    "manage",
+    "inbox:manage",
+    Tier::Public,
+    "This principal does not hold inbox:manage on that inbox.",
+);
 static MAIL_SEND: PermissionInfo = PermissionInfo {
     resource: &INBOX,
     symbol: "mailSend",
     value: "mail:send",
     aliases: &["email:send"],
     tier: Tier::Public,
+    denied: "This principal does not hold mail:send on that inbox.",
 };
-static TEMPLATE_READ: PermissionInfo = permission(&TEMPLATE, "read", "template:read", Tier::Public);
-static GRAPH_READ: PermissionInfo = permission(&GRAPH, "read", "graph:read", Tier::Internal);
+static TEMPLATE_READ: PermissionInfo = permission(
+    &TEMPLATE,
+    "read",
+    "template:read",
+    Tier::Public,
+    "This principal does not hold template:read on that template.",
+);
+static GRAPH_READ: PermissionInfo = permission(
+    &GRAPH,
+    "read",
+    "graph:read",
+    Tier::Internal,
+    "This principal does not hold graph:read on that graph.",
+);
 
 const fn check(permission: &'static PermissionInfo, conditional: bool) -> RequirementInfo {
     RequirementInfo {
@@ -245,6 +287,16 @@ static GET_GRAPH: OperationInfo = info(
     true,
     None,
 );
+static SEARCH_INBOXES: OperationInfo = info(
+    "SearchInboxes",
+    "test.permissions#SearchInboxes",
+    "GET",
+    &[W, WS, Segment::Literal("search")],
+    &[label("workspaceId")],
+    &[],
+    true,
+    None,
+);
 static MISWIRED: OperationInfo = info(
     "Miswired",
     "test.permissions#Miswired",
@@ -303,6 +355,7 @@ static SERVICE: ServiceInfo = {
             &DELETE_GRANT,
             &DELEGATE,
             &GET_GRAPH,
+            &SEARCH_INBOXES,
             &MISWIRED,
             &GET_ME,
             &LEGACY,
@@ -314,6 +367,16 @@ static SERVICE: ServiceInfo = {
         base.internal,
         base.unknown,
     )
+    // The registry generated code states: every permission the model declares.
+    .with_permissions(&[
+        &WORKSPACE_ADMIN,
+        &GRANT_MANAGE,
+        &INBOX_READ,
+        &INBOX_MANAGE,
+        &MAIL_SEND,
+        &TEMPLATE_READ,
+        &GRAPH_READ,
+    ])
 };
 
 // Inputs and the one output shape.
@@ -561,6 +624,36 @@ impl Operation for GetGraph {
     type Output = Out;
 }
 
+/// `filters read on Inbox` first, then `requires grantManage on Workspace`:
+/// a refusal of the listing comes before one of the check.
+struct SearchInboxes;
+impl Operation for SearchInboxes {
+    const INFO: &'static OperationInfo = &SEARCH_INBOXES;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
+    const REQUIREMENTS: Requirements = Requirements::List(&[
+        RequirementInfo {
+            mode: Mode::Filter,
+            permission: &INBOX_READ,
+            conditional: false,
+        },
+        check(&GRANT_MANAGE, false),
+    ]);
+    const CHECKS: Option<Checks<WorkspaceInput>> = Some(|input, out| {
+        out.push(Check::declared(
+            0,
+            &INBOX_READ,
+            ResourceRef::all(&INBOX, [&input.workspace_id]),
+        ));
+        out.push(Check::declared(
+            1,
+            &GRANT_MANAGE,
+            ResourceRef::new(&WORKSPACE, [&input.workspace_id]),
+        ));
+    });
+    type Input = WorkspaceInput;
+    type Output = Out;
+}
+
 /// Declares `requires read on Inbox` but binds nothing: a generator bug,
 /// which must fail closed.
 struct Miswired;
@@ -584,11 +677,12 @@ impl Operation for GetMe {
     type Output = Out;
 }
 
-/// Authenticated, with no requirement metadata.
+/// Authenticated, with no requirement metadata. Its service could as well
+/// authenticate outside the model (no schemes): only `PUBLIC` exempts it.
 struct Legacy;
 impl Operation for Legacy {
     const INFO: &'static OperationInfo = &LEGACY;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = BEARER;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
     const HAS_INPUT: bool = false;
     type Input = Unit;
     type Output = Out;
@@ -599,6 +693,7 @@ struct Health;
 impl Operation for Health {
     const INFO: &'static OperationInfo = &HEALTH;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
+    const PUBLIC: bool = true;
     const HAS_INPUT: bool = false;
     type Input = Unit;
     type Output = Out;
@@ -682,11 +777,25 @@ fn operations(state: Arc<State>) -> Operations {
                 "plain" => {
                     permissions::not_applicable(ADMIN_ON_WORKSPACE, "the grant is not admin")?
                 }
-                // Commits first, then checks: the mistake the commit-time
-                // assertion catches.
+                // Commits first, then checks: commit refuses, so the step
+                // after it is never taken.
                 "commit-first" => {
                     idempotency::commit().await?;
                     permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await?;
+                }
+                // Swallows a refused discharge and goes on to commit.
+                "swallow" => {
+                    let _ = permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await;
+                }
+                // Swallows a refused discharge and succeeds without a commit.
+                "swallow-quietly" => {
+                    let _ = permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await;
+                    return out(json!(state.deletes.fetch_add(1, Ordering::SeqCst) + 1));
+                }
+                // Tries to overwrite a refused discharge.
+                "overwrite" => {
+                    let _ = permissions::discharge(ADMIN_ON_WORKSPACE, workspace).await;
+                    permissions::not_applicable(ADMIN_ON_WORKSPACE, "never mind")?;
                 }
                 // Forgets the obligation and succeeds without a commit.
                 "forget" => return out(json!(state.deletes.fetch_add(1, Ordering::SeqCst) + 1)),
@@ -720,6 +829,17 @@ fn operations(state: Arc<State>) -> Operations {
         .add::<GetGraph, _, _>(state.clone(), |_, input: GraphInput| async move {
             out(json!(input.graph_id))
         })
+        .add::<SearchInboxes, _, _>(state.clone(), |state, input: WorkspaceInput| async move {
+            let visible = permissions::visible()?;
+            let shown: Vec<&String> = state
+                .inboxes
+                .get(&input.workspace_id)
+                .into_iter()
+                .flatten()
+                .filter(|inbox| visible.shows(inbox))
+                .collect();
+            out(json!(shown))
+        })
         .add::<Miswired, _, _>(state.clone(), |_, _: InboxInput| async move {
             out(json!("ran"))
         })
@@ -742,6 +862,10 @@ struct Grants {
     /// (caller, permission value, resource, identifiers joined by `/`)
     grants: Mutex<BTreeSet<(String, String, String, String)>>,
     fail: AtomicBool,
+    /// Answers one verdict too few.
+    short: AtomicBool,
+    /// Callers whose listings are hidden although they are members.
+    hidden_listings: Mutex<BTreeSet<String>>,
     /// Every `decide` call: the operation's facts and its checks.
     calls: Mutex<Vec<(OperationFacts, Vec<String>)>>,
 }
@@ -854,10 +978,14 @@ impl Authorizer for Shared {
             return Err(Error::internal("the grants table is unreachable"));
         }
         let caller = caller(request);
-        Ok(checks
+        let mut verdicts: Vec<Verdict> = checks
             .iter()
             .map(|check| self.0.verdict(&caller, check))
-            .collect())
+            .collect();
+        if self.0.short.load(Ordering::SeqCst) {
+            verdicts.pop();
+        }
+        Ok(verdicts)
     }
 
     async fn visible(
@@ -869,6 +997,9 @@ impl Authorizer for Shared {
             return Err(Error::internal("the grants table is unreachable"));
         }
         let caller = caller(request);
+        if self.0.hidden_listings.lock().unwrap().contains(&caller) {
+            return Ok(Visibility::Hidden);
+        }
         let workspace = listing.resource.identifiers()[0].to_string();
         if !self
             .0
@@ -1434,28 +1565,72 @@ async fn a_handler_obligation_is_discharged_or_declared_not_applicable() {
 }
 
 #[tokio::test]
-async fn an_obligation_left_open_fails_the_request_in_tests_and_releases_the_claim() {
+async fn commit_refuses_an_unsatisfied_obligation_in_every_build() {
+    for assert_obligations in [true, false] {
+        let harness =
+            serve(move |permissions| permissions.assert_obligations(assert_obligations)).await;
+        harness
+            .grants
+            .member("alice", "w1")
+            .grant("alice", &GRANT_MANAGE, "w1");
+        let delete = |mode: &'static str, token: &'static str| {
+            harness.post(
+                "/w/w1/grants/g1",
+                "alice",
+                json!({ "mode": mode, "clientToken": token }),
+            )
+        };
+        // Forgotten: commit refuses, so the step after it is not taken.
+        assert_internal(&delete("forget-then-commit", "x-1").await);
+        // A refused discharge swallowed by the handler is no better.
+        assert_internal(&delete("swallow", "x-2").await);
+        // Committing first, before checking: refused at the commit.
+        assert_internal(&delete("commit-first", "x-3").await);
+        assert_eq!(harness.state.deletes.load(Ordering::SeqCst), 0);
+        // Nothing was committed, so each claim was released: a retry runs
+        // the operation again, and once the caller holds the permission the
+        // same token succeeds.
+        harness.grants.grant("alice", &WORKSPACE_ADMIN, "w1");
+        // (A claim kept by a commit would answer this retry 409.)
+        assert_internal(&delete("commit-first", "x-3").await);
+        assert_eq!(delete("admin", "x-4").await.status, 200);
+    }
+}
+
+#[tokio::test]
+async fn an_obligation_is_closed_once_and_a_swallowed_refusal_stays_on_record() {
     let harness = serve(|permissions| permissions).await;
     harness
         .grants
         .member("alice", "w1")
         .grant("alice", &GRANT_MANAGE, "w1");
-    let forget = || {
-        harness.post(
+    // Overwriting a refused discharge with not_applicable is refused.
+    let overwrite = harness
+        .post(
             "/w/w1/grants/g1",
             "alice",
-            json!({ "mode": "forget-then-commit", "clientToken": "x-1" }),
+            json!({ "mode": "overwrite", "clientToken": "w-1" }),
         )
-    };
-    // The handler reaches commit with the obligation open: commit refuses,
-    // so the step after it is not taken.
-    let forgot = forget().await;
-    assert_internal(&forgot);
-    assert_eq!(harness.state.deletes.load(Ordering::SeqCst), 0);
-    // The claim was released with the failure, so a retry runs (and fails)
-    // again rather than replaying anything.
-    assert_internal(&forget().await);
-    assert_eq!(harness.store.claims.load(Ordering::SeqCst), 2);
+        .await;
+    assert_internal(&overwrite);
+    assert_eq!(
+        harness.audit.last().obligations[0].outcome,
+        ObligationOutcome::Discharged(Verdict::Denied)
+    );
+    // A swallowed refusal and a success: the assertion after the handler
+    // fails it, and the record keeps the refusal.
+    let quietly = harness
+        .post(
+            "/w/w1/grants/g1",
+            "alice",
+            json!({ "mode": "swallow-quietly", "clientToken": "w-2" }),
+        )
+        .await;
+    assert_internal(&quietly);
+    assert_eq!(
+        harness.audit.last().obligations[0].outcome,
+        ObligationOutcome::Discharged(Verdict::Denied)
+    );
 }
 
 #[tokio::test]
@@ -1506,34 +1681,95 @@ async fn a_success_with_an_obligation_open_fails_before_it_is_stored() {
     let replay = forget().await;
     assert_eq!(replay.body, kept.body);
     assert_eq!(release.state.deletes.load(Ordering::SeqCst), 1);
-    assert!(matches!(
-        &release.audit.last().obligations[0].outcome,
-        ObligationOutcome::NotApplicable(reason) if reason.contains("replay")
-    ));
+    assert_eq!(
+        release.audit.last().obligations[0].outcome,
+        ObligationOutcome::Replayed
+    );
 }
 
 #[tokio::test]
-async fn a_refused_obligation_after_commit_abandons_it_so_the_claim_is_released() {
-    // Release behaviour, so the commit with the obligation open goes ahead
-    // (logged) and the discharge after it is what refuses.
-    let harness = serve(|permissions| permissions.assert_obligations(false)).await;
+async fn a_replay_asks_again_for_the_handler_checks_its_success_was_allowed() {
+    let harness = serve(|permissions| permissions).await;
     harness
         .grants
         .member("alice", "w1")
-        .grant("alice", &GRANT_MANAGE, "w1");
-    let commit_first = || {
+        .grant("alice", &GRANT_MANAGE, "w1")
+        .grant("alice", &WORKSPACE_ADMIN, "w1");
+    let delete = || {
         harness.post(
             "/w/w1/grants/g1",
             "alice",
-            json!({ "mode": "commit-first", "clientToken": "c-1" }),
+            json!({ "mode": "admin", "clientToken": "z-1" }),
         )
     };
-    assert_eq!(commit_first().await.status, 403);
-    // Without the abandon, the committed claim would make this a 409 for
-    // the whole retention.
-    harness.grants.grant("alice", &WORKSPACE_ADMIN, "w1");
-    let retried = commit_first().await;
-    assert_eq!(retried.status, 200, "{}", retried.json());
+    let first = delete().await;
+    assert_eq!(first.status, 200, "{}", first.json());
+
+    // The admin grant that the handler's discharge needed is revoked: the
+    // declared grant:manage still holds, but the replay is refused rather
+    // than served.
+    harness.grants.revoke("alice", &WORKSPACE_ADMIN, "w1");
+    let refused = delete().await;
+    assert_eq!(refused.status, 403, "{}", refused.json());
+    assert_eq!(
+        refused.json()["message"],
+        "This principal does not hold workspace:admin on that workspace."
+    );
+    // Without the workspace at all, the replay is hidden.
+    harness.grants.members.lock().unwrap().clear();
+    assert_eq!(delete().await.status, 404);
+
+    // Granted again, it replays the first success without running.
+    harness
+        .grants
+        .member("alice", "w1")
+        .grant("alice", &WORKSPACE_ADMIN, "w1");
+    let replay = delete().await;
+    assert_eq!(replay.status, 200);
+    assert_eq!(replay.body, first.body);
+    assert_eq!(harness.state.deletes.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        harness.audit.last().obligations[0].outcome,
+        ObligationOutcome::Replayed
+    );
+    let asked = harness.grants.calls().last().unwrap().1.clone();
+    assert_eq!(asked, ["workspace:admin on workspace(w1)"]);
+}
+
+#[tokio::test]
+async fn a_hidden_listing_declared_first_is_a_404_before_a_later_denied_check() {
+    let harness = serve(|permissions| permissions).await;
+    harness.grants.member("bob", "w1");
+    harness
+        .grants
+        .hidden_listings
+        .lock()
+        .unwrap()
+        .insert("bob".to_owned());
+    // Clause 0 (the listing) is Hidden, clause 1 (grant:manage) Denied.
+    let hidden = harness.get("/w/w1/search", "bob").await;
+    assert_eq!(hidden.status, 404, "{}", hidden.json());
+    assert_eq!(hidden.json()["resourceType"], "inbox");
+    // With the listing visible, the check refuses.
+    harness.grants.hidden_listings.lock().unwrap().clear();
+    let denied = harness.get("/w/w1/search", "bob").await;
+    assert_eq!(denied.status, 403);
+    // And with both, the listing is answered.
+    harness.grants.grant("bob", &GRANT_MANAGE, "w1");
+    harness.grants.grant("bob", &INBOX_READ, "w1/i2");
+    let shown = harness.get("/w/w1/search", "bob").await;
+    assert_eq!(shown.json()["value"], json!(["i2"]));
+}
+
+#[tokio::test]
+async fn an_authorizer_answering_the_wrong_number_of_verdicts_is_a_500() {
+    let harness = serve(|permissions| permissions).await;
+    harness
+        .grants
+        .member("alice", "w1")
+        .grant("alice", &INBOX_READ, "w1/*");
+    harness.grants.short.store(true, Ordering::SeqCst);
+    assert_internal(&harness.get("/w/w1/inboxes/i1", "alice").await);
 }
 
 #[tokio::test]
@@ -1674,6 +1910,20 @@ async fn shadow_mode_records_and_logs_but_refuses_nothing() {
     assert!(record.shadow);
     assert_eq!(record.decisions[0].verdict, Verdict::Denied);
     assert_eq!(harness.get("/legacy", "bob").await.status, 200);
+
+    // Nor does it refuse what it cannot decide: an Authorizer error,
+    harness.grants.fail.store(true, Ordering::SeqCst);
+    assert_eq!(harness.get("/w/w1/inboxes/i1", "bob").await.status, 200);
+    harness.grants.fail.store(false, Ordering::SeqCst);
+    // a hidden listing (the handler still reads what it may show: nothing),
+    let hidden = harness.get("/w/w1/inboxes", "carol").await;
+    assert_eq!(hidden.status, 200);
+    assert_eq!(hidden.json()["value"], json!([]));
+    // or a wiring error in its own descriptions.
+    assert_eq!(
+        harness.get("/w/w1/inboxes/i1/miswired", "bob").await.status,
+        200
+    );
 }
 
 #[tokio::test]
@@ -1713,7 +1963,30 @@ async fn a_direct_invoke_is_authorized_and_hidden_alike() {
 }
 
 #[test]
-fn registering_permissions_after_idempotency_is_warned_at_build() {
+fn registering_permissions_after_idempotency_fails_the_build() {
+    let build = |permissions_first: bool| {
+        let permissions = Permissions::new(Shared(Arc::default()));
+        let idempotency = Idempotency::new(MemoryIdempotencyStore::new(), |_| None);
+        let builder = Crucible::builder(operations(state())).protocol(JsonProtocol);
+        if permissions_first {
+            builder.interceptor(permissions).interceptor(idempotency)
+        } else {
+            builder.interceptor(idempotency).interceptor(permissions)
+        }
+        .build()
+    };
+    let Err(crucible_server_runtime_rust::BuildError::Prepare(message)) = build(false) else {
+        panic!("Permissions after Idempotency must not build");
+    };
+    assert!(
+        message.contains("Permissions is registered after Idempotency"),
+        "{message}"
+    );
+    assert!(build(true).is_ok());
+}
+
+#[test]
+fn the_build_names_authenticated_operations_that_declare_nothing() {
     #[derive(Clone, Default)]
     struct Captured(Arc<Mutex<Vec<u8>>>);
     impl std::io::Write for Captured {
@@ -1725,37 +1998,21 @@ fn registering_permissions_after_idempotency_is_warned_at_build() {
             Ok(())
         }
     }
-    let build = |permissions_first: bool| {
-        let captured = Captured::default();
-        let writer = captured.clone();
-        let subscriber = tracing_subscriber::fmt()
-            .with_writer(move || writer.clone())
-            .with_ansi(false)
-            .finish();
-        tracing::subscriber::with_default(subscriber, || {
-            let permissions = Permissions::new(Shared(Arc::default()));
-            let idempotency = Idempotency::new(MemoryIdempotencyStore::new(), |_| None);
-            let builder = Crucible::builder(operations(state())).protocol(JsonProtocol);
-            let builder = if permissions_first {
-                builder.interceptor(permissions).interceptor(idempotency)
-            } else {
-                builder.interceptor(idempotency).interceptor(permissions)
-            };
-            builder.build().unwrap();
-        });
-        String::from_utf8(captured.0.lock().unwrap().clone()).unwrap()
-    };
-    let misordered = build(false);
-    assert!(
-        misordered.contains("Permissions is registered after Idempotency"),
-        "{misordered}"
-    );
-    let ordered = build(true);
-    assert!(
-        !ordered.contains("registered after Idempotency"),
-        "{ordered}"
-    );
-    // Both builds name the authenticated operation that declares nothing.
-    assert!(ordered.contains("Legacy"), "{ordered}");
-    assert!(!ordered.contains("Health"), "{ordered}");
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .finish();
+    tracing::subscriber::with_default(subscriber, || {
+        Crucible::builder(operations(state()))
+            .protocol(JsonProtocol)
+            .interceptor(Permissions::new(Shared(Arc::default())))
+            .build()
+            .unwrap();
+    });
+    let text = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    assert!(text.contains("Legacy"), "{text}");
+    // Public by the model, not by an empty scheme list.
+    assert!(!text.contains("Health"), "{text}");
 }
