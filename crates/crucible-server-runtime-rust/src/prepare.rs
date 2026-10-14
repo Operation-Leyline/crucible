@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use crate::operation::{OperationInfo, ServiceInfo};
 
 /// The service as a extension sees it at `build`: the whole of it, and the
@@ -9,16 +11,37 @@ pub struct Prepare<'a> {
     scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
     /// The scope this one narrows: an operation must pass both.
     outer: Option<&'a Prepare<'a>>,
+    /// The runtime's own extensions prepared so far, in registration order,
+    /// for the ordering rules between them (`Permissions` before
+    /// `Idempotency`). Never a service's extension: those are not named.
+    builtins: &'a RefCell<Vec<&'static str>>,
 }
 
 impl<'a> Prepare<'a> {
-    pub(crate) fn new(registry: &'a crate::Operations) -> Self {
+    pub(crate) fn new(
+        registry: &'a crate::Operations,
+        builtins: &'a RefCell<Vec<&'static str>>,
+    ) -> Self {
         Self {
             service: registry.service(),
             registry,
             scope: None,
             outer: None,
+            builtins,
         }
+    }
+
+    /// Records that the runtime's own extension `name` is registered here,
+    /// answering whether `before` was registered ahead of it.
+    #[cfg_attr(
+        not(any(feature = "idempotency", feature = "permissions")),
+        allow(dead_code)
+    )]
+    pub(crate) fn builtin(&self, name: &'static str, before: &str) -> bool {
+        let mut builtins = self.builtins.borrow_mut();
+        let earlier = builtins.contains(&before);
+        builtins.push(name);
+        earlier
     }
 
     pub fn service(&self) -> &'static ServiceInfo {
@@ -77,6 +100,7 @@ impl<'a> Prepare<'a> {
             registry: self.registry,
             scope: Some(scope),
             outer: Some(self),
+            builtins: self.builtins,
         }
     }
 }

@@ -72,6 +72,14 @@ impl<'a> OperationJob<'a> {
         self.job.replace_error(error);
     }
 
+    /// Fails the request, even one whose operation succeeded: for the
+    /// runtime's own assertions after the operation (an open permission
+    /// obligation).
+    #[cfg(feature = "permissions")]
+    pub(crate) fn fail(&mut self, error: Error) {
+        self.job.fail(error);
+    }
+
     /// Answers without decoding or entering interceptors and the operation.
     pub fn respond(&mut self, response: Response) {
         self.job.respond(response);

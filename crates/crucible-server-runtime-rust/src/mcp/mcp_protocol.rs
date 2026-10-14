@@ -431,11 +431,26 @@ impl Protocol for McpProtocol {
                 rpc_error(call.id, -32602, &rejection.summary())
             }
             // A conflict is the caller's to resolve (a reused idempotency
-            // token), so the agent sees it as a tool error it can act on.
-            Some(Resolution::Framework(error @ FrameworkError::Conflict { .. })) => rpc_result(
-                call.id,
-                json!({"content":[{"type":"text","text":json!({"name":error.name(),"message":error.message()}).to_string()}],"isError":true}),
-            ),
+            // token), so the agent sees it as a tool error it can act on; so
+            // are a missing resource and a permission the caller lacks, the
+            // operation's answers rather than authentication's.
+            Some(Resolution::Framework(
+                error @ (FrameworkError::Conflict { .. }
+                | FrameworkError::NotFound { .. }
+                | FrameworkError::PermissionDenied { .. }),
+            )) => {
+                let mut response = rpc_result(
+                    call.id,
+                    json!({"content":[{"type":"text","text":json!({"name":error.name(),"message":error.message()}).to_string()}],"isError":true}),
+                );
+                if matches!(error, FrameworkError::NotFound { .. }) {
+                    response.headers_mut().insert(
+                        axum::http::header::CACHE_CONTROL,
+                        axum::http::HeaderValue::from_static("no-store"),
+                    );
+                }
+                response
+            }
             _ => rpc_error(call.id, -32603, "Internal error"),
         }
     }

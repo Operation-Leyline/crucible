@@ -49,6 +49,23 @@ pub trait Operation: Send + Sync + 'static {
     /// and an output that does not stream; `None` means the operation's
     /// output cannot be replayed.
     const OUTPUT_FROM_JSON: Option<OutputFromJson<Self::Output>> = None;
+    /// What the operation requires of its caller (`requires`, `filters`,
+    /// `requires none`, `requires pending`), for the server's `Permissions`
+    /// interceptor. Generated for server bindings; `Undeclared` otherwise.
+    const REQUIREMENTS: crate::permissions::Requirements =
+        crate::permissions::Requirements::Undeclared;
+    /// Evaluates the bindings and `when` conditions of
+    /// [`Operation::REQUIREMENTS`] against the decoded input: one
+    /// [`Check`](crate::permissions::Check) per `Check` or `Filter` clause
+    /// that applies, in clause order. Generated, so it reads fields rather
+    /// than JSON; `None` for an operation with no such clause.
+    const CHECKS: Option<crate::permissions::Checks<Self::Input>> = None;
+    /// Whether the model explicitly makes the operation public (no
+    /// authentication: `@auth([])` on the operation, a `.cru` public
+    /// operation), so it carries no requirements and there is nothing to
+    /// authorize. Never inferred from an empty list of schemes, which also
+    /// describes a service authenticated outside the model.
+    const PUBLIC: bool = false;
     const HAS_INPUT: bool = true;
     const HAS_OUTPUT: bool = true;
     fn output_status(_output: &Self::Output) -> Option<u16> {
@@ -107,6 +124,11 @@ pub struct ServiceInfo {
     /// that standard reason; `None` answers the protocol's own
     /// `UnknownOperation`.
     pub unknown: Option<InternalFn>,
+    /// Every permission the model declares, primaries only
+    /// ([`ServiceInfo::with_permissions`]): what a stored authorization
+    /// decision is read back against, and where a modelled
+    /// `NotFoundException` finds its resource.
+    pub permissions: &'static [&'static crate::permissions::PermissionInfo],
 }
 
 pub type Classify =
@@ -117,6 +139,37 @@ pub type InternalFn = fn() -> Box<dyn ModelledError>;
 impl ServiceInfo {
     pub fn operation(&self, name: &str) -> Option<&'static OperationInfo> {
         self.operations.iter().copied().find(|op| op.name == name)
+    }
+
+    /// The same service with its permission registry: generated as
+    /// `service_info(..).with_permissions(&[..])`.
+    pub const fn with_permissions(
+        mut self,
+        permissions: &'static [&'static crate::permissions::PermissionInfo],
+    ) -> Self {
+        self.permissions = permissions;
+        self
+    }
+
+    /// The permission `value` (or an alias of it) on the resource named
+    /// `resource`, from the registry.
+    pub fn permission(
+        &self,
+        resource: &str,
+        value: &str,
+    ) -> Option<&'static crate::permissions::PermissionInfo> {
+        self.permissions
+            .iter()
+            .copied()
+            .find(|permission| permission.resource.name == resource && permission.accepts(value))
+    }
+
+    /// The resource named `name`, from the registry.
+    pub fn resource(&self, name: &str) -> Option<&'static crate::permissions::ResourceInfo> {
+        self.permissions
+            .iter()
+            .map(|permission| permission.resource)
+            .find(|resource| resource.name == name)
     }
 }
 

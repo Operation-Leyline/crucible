@@ -78,6 +78,10 @@ impl<'a> DecodedJob<'a> {
             ))
         })?;
         self.job.outcome = Some(Outcome::Output(read(output)?));
+        // The operation will not run, so its handler obligations cannot be
+        // discharged; the declared checks were made for this request.
+        #[cfg(feature = "permissions")]
+        crate::permissions::replayed(self.context());
         Ok(())
     }
 

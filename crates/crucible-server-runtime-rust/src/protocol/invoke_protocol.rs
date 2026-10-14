@@ -89,7 +89,14 @@ impl Protocol for InvokeProtocol {
                 framework_body(&FrameworkError::InternalFailure)
             }
         };
-        respond(status, serde_json::to_vec(&body).unwrap_or_default())
+        let mut response = respond(status, serde_json::to_vec(&body).unwrap_or_default());
+        if let Some(Resolution::Framework(FrameworkError::NotFound { .. })) = job.resolution() {
+            // Whether a resource is visible changes with grants.
+            response
+                .headers_mut()
+                .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+        }
+        response
     }
 }
 
@@ -149,8 +156,15 @@ fn error_body(error: &dyn ModelledError) -> (u16, Value) {
 }
 
 fn framework_body(error: &FrameworkError) -> (u16, Value) {
-    (
-        error.status(),
-        json!({ "error": { "__type": error.name(), "message": error.message() } }),
-    )
+    let body = match error {
+        // The modelled `crucible.errors#NotFoundException`, written as an
+        // invoke writes a modelled error: its members, named by its name.
+        FrameworkError::NotFound { resource } => json!({ "error": {
+            "__type": error.name(),
+            "message": error.message(),
+            "resourceType": resource.name,
+        } }),
+        _ => json!({ "error": { "__type": error.name(), "message": error.message() } }),
+    };
+    (error.status(), body)
 }

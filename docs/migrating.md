@@ -27,10 +27,11 @@ authority. Only code that constructs or exhaustively destructures
 `crucible_auth::Principal`, or matches `FrameworkError` without a wildcard
 arm, has to change; reading `Principal`'s fields does not.
 
-### `FrameworkError::Conflict`
+### `FrameworkError::Conflict`, `NotFound` and `PermissionDenied`
 
 `FrameworkError` gained `Conflict { message }`, the 409 that idempotency
-answers by default. A `match` naming every variant needs an arm for it (or
+answers by default, and `NotFound { resource }` (404) and
+`PermissionDenied { permission }` (403), which typed permissions answer. A `match` naming every variant needs an arm for each (or
 `_`), in server code and in client code that names it through
 `crucible_client_runtime_rust`, which re-exports it; `name()`, `status()` and
 `message()` cover it, so code that only calls those is unaffected.

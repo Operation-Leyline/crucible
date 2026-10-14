@@ -16,6 +16,7 @@ pub mod mcp;
 pub mod number;
 pub mod open;
 pub mod operation;
+pub mod permissions;
 pub mod split;
 pub mod stream;
 pub mod text;

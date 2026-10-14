@@ -66,6 +66,7 @@ pub const fn service_info(
         reject,
         internal,
         unknown,
+        permissions: &[],
     }
 }
 
