@@ -501,7 +501,10 @@ version's section when it is prepared.
   and selects it by the description the request is served under, so each
   version is authenticated by its own release's schemes, as
   [API versions](docs/api-versions.md#limits) promise. A construction error
-  for an older version's entry names its API version.
+  for an older version's entry names its API version. The chain now needs
+  an authenticator for every scheme an older version's entry declares, so
+  a service whose older release used a scheme no installed authenticator
+  supports, which built before, now fails to construct until one is added.
 
 - A structure is read only from a JSON object. serde's derived struct
   reader also takes an array of positional values, so a JSON body, a
@@ -905,6 +908,16 @@ version's section when it is prepared.
   differently. Variants added later are then not breaking. Code that only
   calls `name()`, `status()`, `message()` or the new `shape_id()` is
   unaffected. No shim is possible: the attribute is on the type. See
+  [migrating](docs/migrating.md#unreleased).
+
+- **An `AuthenticatorChain` covering older API versions needs their
+  authenticators.** Each served API version's operations are now
+  authenticated by that release's own schemes, so the chain needs an
+  authenticator for every scheme an older release's operations declare.
+  Without one, `Builder::build` returns an error naming the API version and
+  scheme. Install the missing authenticator, or scope the chain away from
+  that release. No shim is possible: the old behaviour authenticated an
+  older release by the current one's schemes. See
   [migrating](docs/migrating.md#unreleased).
 
 - **`OperationMetadata` is `#[non_exhaustive]` and has new fields.** Since

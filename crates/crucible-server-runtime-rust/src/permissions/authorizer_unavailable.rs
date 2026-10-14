@@ -7,7 +7,7 @@ use crate::OpaqueError;
 /// outage is never a reason to allow a request, nor to refuse it as if the
 /// caller lacked the permission.
 #[derive(Debug)]
-pub(crate) struct AuthorizerUnavailable(pub crate::Error);
+pub(crate) struct AuthorizerUnavailable(crate::Error);
 
 impl AuthorizerUnavailable {
     /// The request's failure for an Authorizer error. Opaque: a service rule

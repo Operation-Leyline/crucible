@@ -881,6 +881,9 @@ struct Faulty {
     failed: AtomicBool,
     /// This many of the next holds fail.
     fail_holds: AtomicUsize,
+    /// This many of the next holds fail with the cities' client error for
+    /// a name already taken, which the service translates into its 409.
+    taken_holds: AtomicUsize,
     /// Holds that landed.
     held: AtomicUsize,
     /// A claim is written, and answered only after a long while.
@@ -933,6 +936,10 @@ impl IdempotencyStore for Faulty {
             self.fail_holds.fetch_sub(1, Ordering::SeqCst);
             return Err(Error::internal("the hold timed out"));
         }
+        if self.taken_holds.load(Ordering::SeqCst) > 0 {
+            self.taken_holds.fetch_sub(1, Ordering::SeqCst);
+            return Err(NameTaken("Oslo".to_owned()).into());
+        }
         let held = self.inner.hold(key, attempt, expires).await?;
         self.held.fetch_add(1, Ordering::SeqCst);
         Ok(held)
@@ -966,6 +973,26 @@ impl IdempotencyStore for Faulty {
     ) -> crucible_server_runtime_rust::Result<Ownership> {
         self.inner.release(key, attempt).await
     }
+}
+
+/// The hold `commit()` writes at the point of no return fails with the
+/// error the service translates: a server failure, never the 409 its rule
+/// answers for the operation's own `NameTaken`.
+#[tokio::test]
+async fn a_rule_for_the_services_store_errors_never_translates_a_failed_commit() {
+    let store = Arc::new(Faulty::default());
+    store.taken_holds.store(1, Ordering::SeqCst);
+    let harness = serve(Idempotency::new(store.clone(), caller)).await;
+    harness.cities.next(Step::FailAfterCommit);
+    let failed = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(
+        failed.status,
+        500,
+        "{}",
+        String::from_utf8_lossy(&failed.body)
+    );
+    assert_eq!(store.taken_holds.load(Ordering::SeqCst), 0, "commit held");
+    assert_eq!(store.held.load(Ordering::SeqCst), 0);
 }
 
 #[tokio::test]
