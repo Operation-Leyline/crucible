@@ -181,23 +181,22 @@ version's section when it is prepared.
   with either was already invalid Smithy; one assembled without Smithy's
   validators is now refused at lowering instead of reaching a generator.
 
-- Typed permissions, phase A1: the language, the Smithy traits, the IR and
-  the compiler checks ([docs/permissions.md](docs/permissions.md)). A `.cru`
+- Typed permissions, phase A1: the `.cru` language, the IR and the
+  compiler checks ([docs/permissions.md](docs/permissions.md)). A `.cru`
   resource declares `permission symbol = "value"` entries (`internal`,
   `@permissionOnly`, `@notGrantable`, `@aliasOf(primary)`, and
   `@authorizationName("..")` on the resource); an operation declares
   `requires p [on Target(bindings)] [when condition] [by handler]`,
   `filters p on R`, `requires none` or `requires pending because ".."`;
   `@permissionTypes(exclude: [..])` checks a resource-type enum against the
-  resources both ways. Smithy models use the new `crucible.auth` traits
-  `permissionsOf`, `authorizationName`, `permissionOnly`, `notGrantable`,
-  `aliasOf`, `permissionTypes`, `requires`, `requiresNone` and
-  `requiresPending` in `smithy/auth.smithy`. Both lower to
+  resources both ways. Permissions are declared in `.cru` only: a Smithy
+  model cannot declare them, and one that uses a `crucible.auth`
+  permission trait is refused at lowering. They lower to
   `ir::Service::permissions`, `ir::Service::permission_types` and
   `ir::Operation::requirements` (all `#[serde(default)]`, and not written
   when empty, so existing release snapshots read and write unchanged), with
-  `Service::all_permissions()` for the registry, and both are checked once
-  by `crucible_smithy::validate::permissions`: once a service declares any
+  `Service::all_permissions()` for the registry, and are checked by
+  `crucible_smithy::validate::permissions`: once a service declares any
   permission, an authenticated operation that says nothing about
   authorization is the error `permissions.undeclared`. Lowering adds the new
   `crucible.errors#NotFoundException` (404, `message` and `resourceType`;
@@ -206,17 +205,16 @@ version's section when it is prepared.
   clause is on a root resource with `*`. The client audience projection
   drops internal permissions; an operation whose requirements were all
   internal becomes `Requirements::Internal`. `ir::Operation::public` says
-  an operation was declared public (`@auth([])`, or `.cru` `public`).
+  an operation was declared public (`.cru` `public`, or Smithy
+  `@auth([])`).
   `crucible check` counts permissions and lists pending operations.
   Generators do not read the new fields yet, but an operation with a
   requirement has `NotFoundException` in its `errors`, so the code
   generated for it changes: its error types gain the 404.
 
-- `crucible_smithy::Model::lower_with_warnings`: the permission checks'
-  warnings and advice for a Smithy model, which `crucible-build` prints as
-  Cargo warnings and `crucible` prints to stderr, as they already do for
-  `.cru` packages. `validate::permissions_from_ir` runs the checks that
-  need nothing but the IR.
+- `crucible-build` and `crucible` print a `.cru` package's advice beside
+  its warnings. `crucible_smithy::validate::permissions_from_ir` runs the
+  permission checks that need nothing but the IR.
 
 - Release guard and `crucible diff`: `compatibility.permissions` reports a
   removed permission or alias, a changed value, a changed authorization

@@ -801,11 +801,11 @@ trait when a project defines it.
 37k. **Scopes stay out of permission syntax and the order is fixed**
     (decisions 10 and 11): adding a requirement to a released operation is
     reported as an authorization change (`compatibility.authorization`, a
-    warning), not refused, because it is how holes get closed. Smithy
-    models use the `crucible.auth` traits (`permissionsOf`, `requires`,
-    `requiresNone`, `requiresPending` and the rest), whose binding and
-    `when` strings are read with the `.cru` grammar, and the same
-    `crucible_smithy::validate::permissions` checks both front ends.
+    warning), not refused, because it is how holes get closed. Permissions
+    are declared in `.cru` only: the Smithy front end lowers none and
+    refuses a model that uses a `crucible.auth` permission trait, so
+    Leyline, the one Smithy consumer, migrates to `.cru` before adopting
+    them. `crucible_smithy::validate::permissions` checks the IR.
 
 38. **Streaming payloads, event streams, host prefixes, endpoint rule
     sets, endpoint discovery, waiters, checksums, unsigned payloads and
