@@ -269,7 +269,7 @@ impl ServiceLog {
             Some(Resolution::Rejected(rejection)) => {
                 record.violations = Some(Value::Array(
                     rejection
-                        .violations
+                        .violations()
                         .iter()
                         .map(|v| json!({ "path": v.path, "message": v.message }))
                         .collect(),

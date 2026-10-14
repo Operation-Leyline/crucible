@@ -375,8 +375,8 @@ mod tests {
         crucible_wire::cbor::write(&value, &mut bytes).unwrap();
         let cbor = unreadable_message(&crucible_wire::cbor::read::<Strict>(&bytes).unwrap_err());
         for rejection in [json, cbor] {
-            assert_eq!(rejection.violations.len(), 1);
-            let violation = &rejection.violations[0];
+            assert_eq!(rejection.violations().len(), 1);
+            let violation = &rejection.violations()[0];
             assert_eq!(violation.path, "[key]");
             assert_eq!(violation.message, "is not a member of this structure");
             assert_eq!(violation.kind, ViolationKind::Malformed);
@@ -388,7 +388,7 @@ mod tests {
         let json = unreadable(serde_json::from_str::<Strict>("{}").unwrap_err());
         let cbor = unreadable_message(&crucible_wire::cbor::read::<Strict>(b"\xA0").unwrap_err());
         for rejection in [json, cbor] {
-            let violation = &rejection.violations[0];
+            let violation = &rejection.violations()[0];
             assert_eq!(violation.path, "name");
             assert_eq!(violation.message, "is required");
             assert_eq!(violation.kind, ViolationKind::Constraint);

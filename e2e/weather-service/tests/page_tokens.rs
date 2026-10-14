@@ -301,7 +301,7 @@ async fn an_expired_token_is_refused() {
 #[tokio::test]
 async fn a_service_can_answer_a_refusal_its_own_way() {
     let service = seeded(tokens().refusal(|rejection| {
-        assert_eq!(rejection.violations[0].path, "nextToken");
+        assert_eq!(rejection.violations()[0].path, "nextToken");
         model::ValidationError {
             message: "Start the listing again.".into(),
             reason: model::ValidationReason::Other,

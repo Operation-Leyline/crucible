@@ -134,7 +134,7 @@ function decodeHeaders(bytes: Uint8Array): EventMessage["headers"] {
         else { try { value = { type: "string", value: text(raw) }; } catch { throw frameError("a string header is not UTF-8"); } }
         break;
       }
-      default: throw frameError(`unknown header value type ${type}`);
+      default: throw frameError("unknown header value type");
     }
     headers.push({ name, value });
   }
@@ -363,7 +363,8 @@ export function decodeEvent(spec: EventStreamSpec, message: EventMessage): Recei
     return { kind: "exception", name, fields: body, message: messageText };
   }
   if (type === "error") return { kind: "error", code: stringHeader(message, ":error-code") ?? "", message: stringHeader(message, ":error-message") ?? "" };
-  throw new TypeError(type === undefined ? "a message has no :message-type" : `unknown :message-type ${type}`);
+  // The sender's text is not repeated: it may be anything, of any length.
+  throw new TypeError(type === undefined ? "a message has no :message-type" : "unknown :message-type");
 }
 
 /** Messages from a byte stream, decoded as they complete. */

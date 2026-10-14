@@ -1345,8 +1345,9 @@ the rest, whichever part of the request they come from: the body, labels, the
 query string or headers. The framework collects every rejection it makes
 through `validate::Violations` (or `Rejection::new`), which keeps that cap;
 the message's "(and N more)" counts the unlisted ones too. A custom protocol
-or extension should build its rejections the same way: `Rejection.violations`
-is a public field, and a `Rejection { violations }` literal is not capped. Messages name the kind
+or extension builds its rejections the same way, since `Rejection`'s list is
+private (read it with `Rejection::violations()`), so no rejection escapes the
+cap. Messages name the kind
 of a value that does not read, never the value itself, so a `@sensitive`
 member's value cannot reach the response or the service log. Nor do they
 repeat other request text a client controls: a query parameter the operation

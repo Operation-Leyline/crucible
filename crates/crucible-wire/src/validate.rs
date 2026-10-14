@@ -39,9 +39,19 @@ impl fmt::Display for Violation {
 /// A request that could not become an operation's input, with every
 /// violation found, up to [`MAX_VIOLATIONS`]. Build one with
 /// [`Rejection::new`] or a [`Violations`] collector, which keep that cap.
+///
+/// The violations are read through [`Rejection::violations`]; a literal
+/// cannot build one around the cap:
+///
+/// ```compile_fail,E0451
+/// let rejection = crucible_wire::validate::Rejection { violations: Vec::new() };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rejection {
-    pub violations: Vec<Violation>,
+    // Private so that every rejection is built through the cap: a public
+    // field let a literal or a `push` list any number of violations, and
+    // the response, log record and field list copy all of them.
+    violations: Vec<Violation>,
 }
 
 impl Rejection {
@@ -69,6 +79,17 @@ impl Rejection {
                 kind,
             }],
         }
+    }
+
+    /// The violations listed: at most [`MAX_VIOLATIONS`], then, when there
+    /// were more, one with an empty path counting the rest.
+    pub fn violations(&self) -> &[Violation] {
+        &self.violations
+    }
+
+    /// The listed violations, owned. See [`Rejection::violations`].
+    pub fn into_violations(self) -> Vec<Violation> {
+        self.violations
     }
 
     pub fn is_malformed(&self) -> bool {
@@ -491,14 +512,17 @@ mod tests {
             }
         }
         let rejection = Validator::check(&Items(super::MAX_VIOLATIONS)).unwrap_err();
-        assert_eq!(rejection.violations.len(), super::MAX_VIOLATIONS);
-        assert_eq!(rejection.violations[99].path, "items/99");
+        assert_eq!(rejection.violations().len(), super::MAX_VIOLATIONS);
+        assert_eq!(rejection.violations()[99].path, "items/99");
 
         let rejection = Validator::check(&Items(1_000_000)).unwrap_err();
-        assert_eq!(rejection.violations.len(), super::MAX_VIOLATIONS + 1);
-        assert_eq!(rejection.violations[0].path, "items/0");
-        assert_eq!(rejection.violations[0].message, "length must be at least 1");
-        let last = rejection.violations.last().unwrap();
+        assert_eq!(rejection.violations().len(), super::MAX_VIOLATIONS + 1);
+        assert_eq!(rejection.violations()[0].path, "items/0");
+        assert_eq!(
+            rejection.violations()[0].message,
+            "length must be at least 1"
+        );
+        let last = rejection.violations().last().unwrap();
         assert_eq!(last.path, "");
         assert_eq!(last.message, "999900 more violations are not listed");
         assert_eq!(rejection.count(), 1_000_000);
@@ -538,10 +562,10 @@ mod tests {
             kind: super::ViolationKind::Malformed,
         };
         let rejection = super::Rejection::new((0..150).map(violation));
-        assert_eq!(rejection.violations.len(), super::MAX_VIOLATIONS + 1);
+        assert_eq!(rejection.violations().len(), super::MAX_VIOLATIONS + 1);
         assert_eq!(rejection.count(), 150);
         assert_eq!(rejection.summary(), "p0: broken (and 149 more)");
-        let last = rejection.violations.last().unwrap();
+        let last = rejection.violations().last().unwrap();
         assert_eq!(last.message, "50 more violations are not listed");
 
         let rejection = super::Rejection::new((0..3).map(violation));

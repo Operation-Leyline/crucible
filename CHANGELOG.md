@@ -705,8 +705,9 @@ version's section when it is prepared.
   megabytes. The cap covers violations from the query string, labels and
   headers too (`?a=%zz&a=%zz...` once listed one per pair): every
   framework producer collects through the new `validate::Violations` or
-  `Rejection::new`. A `Rejection { violations }` built by hand (in a custom
-  protocol, say) is not capped; build it with those instead.
+  `Rejection::new`, and so does every other one: `Rejection`'s violations
+  are private now, read with `Rejection::violations()`, so a custom protocol
+  or extension cannot build one around the cap (see *Migration*).
   `Rejection::summary` counts the unlisted violations ("and 149 more" for
   150), and `Rejection::count` says how many there were.
 - Rejections no longer quote the request's values, so a `@sensitive`
@@ -733,7 +734,9 @@ version's section when it is prepared.
     name, at `<member>/[key]` for a key of an `@httpQueryParams` map, and at
     `query` for an undeclared parameter; a malformed prefixed header at
     `<member>/[key]`. Event stream frames and received events are refused
-    without the sender's `:message-type`, checksum bytes or values.
+    without the sender's `:message-type`, checksum bytes or values. The
+    TypeScript client's event stream reader no longer repeats an unknown
+    `:message-type` or header value type either.
   - A violation's path names a map key `[key]` when the key is client data
     under a sensitivity rule: the map's keys are `@sensitive`, or the map is
     reached through a `@sensitive` member or structure (an ordinary
@@ -793,6 +796,18 @@ version's section when it is prepared.
   read those paths, messages or reasons, from the response's `fieldList`,
   an `on_rejection` hook or the service log, need the new values. No shim
   is possible: this is wire behaviour. See
+  [migrating](docs/migrating.md#unreleased).
+
+- **`Rejection::violations` is a method; the public field is removed.** A
+  `Rejection { violations }` literal, or a push onto the field, listed any
+  number of violations past `validate::MAX_VIOLATIONS`, and the response,
+  service log and `fieldList` copied all of them. Read the list with
+  `rejection.violations()` (a `&[Violation]`) or `into_violations()`, and
+  build a rejection with `Rejection::new(iter)`, `Rejection::constraint`,
+  `Rejection::malformed` or a `validate::Violations` collector. Generated
+  server code reads it through the method after regeneration. No shim: a
+  deprecated public field would keep the uncapped path open for another
+  minor, so this removal is named here instead. See
   [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12

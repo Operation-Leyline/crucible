@@ -1077,7 +1077,7 @@ pub mod weather {
         ::std::boxed::Box::new(errors::ValidationError {
             message: rejection.summary(),
             reason: if rejection.is_malformed() { model::ValidationReason::CannotParse } else { model::ValidationReason::FieldValidationFailed },
-            field_list: Some(rejection.violations.iter().map(|violation| model::ValidationField { path: violation.path.clone(), message: violation.message.clone() }).collect()),
+            field_list: Some(rejection.violations().iter().map(|violation| model::ValidationField { path: violation.path.clone(), message: violation.message.clone() }).collect()),
             request_id: ::crucible_server_runtime_rust::__generated::Context::try_current().map(|context| context.request_id().to_owned())
         })
     }
