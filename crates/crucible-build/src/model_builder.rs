@@ -113,13 +113,13 @@ impl ModelConfig {
                 .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
             let model = Model::from_json(&text).map_err(|e| e.to_string())?;
             let capabilities = Capabilities::new(Feature::ALL.iter().copied());
-            let service = match self.protocol {
-                Some(protocol) => {
-                    model.lower_with_protocol(self.service.as_ref(), &capabilities, protocol)
-                }
-                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities),
+            let (service, warnings) = model
+                .lower_with_warnings(self.service.as_ref(), &capabilities, self.protocol)
+                .map_err(|e| e.to_string())?;
+            // The permission checks' warnings and advice: Cargo shows each.
+            for warning in &warnings {
+                println!("cargo::warning={warning}");
             }
-            .map_err(|e| e.to_string())?;
             (service, Some(model))
         };
         #[cfg(not(any(feature = "docs", feature = "cdk", feature = "terraform")))]

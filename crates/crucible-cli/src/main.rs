@@ -809,18 +809,24 @@ fn lower_with_capabilities(
         return Ok(service);
     }
     let model = load_model(source)?;
-    match &source.protocol {
-        Some(id) => {
-            let protocol = crucible_smithy::Protocol::ALL
+    let protocol = match &source.protocol {
+        Some(id) => Some(
+            crucible_smithy::Protocol::ALL
                 .iter()
                 .copied()
                 .find(|protocol| protocol.trait_id() == *id)
-                .ok_or_else(|| format!("unsupported protocol {id}"))?;
-            model.lower_with_protocol(source.service.as_ref(), capabilities, protocol)
-        }
-        None => model.lower_with_capabilities(source.service.as_ref(), capabilities),
+                .ok_or_else(|| format!("unsupported protocol {id}"))?,
+        ),
+        None => None,
+    };
+    let (service, warnings) = model
+        .lower_with_warnings(source.service.as_ref(), capabilities, protocol)
+        .map_err(|error| error.to_string())?;
+    // The permission checks' warnings and advice (docs/permissions.md §5).
+    for warning in &warnings {
+        eprintln!("{warning}");
     }
-    .map_err(|error| error.to_string())
+    Ok(service)
 }
 
 fn lower_for_audience(
@@ -878,8 +884,11 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
     let Some(service) = compiled.service.clone() else {
         return Err(format!("{} does not compile:\n{rendered}", path.display()));
     };
-    // Warnings do not stop generation; show them all the same.
-    for line in rendered.lines().filter(|line| line.contains(": warning: ")) {
+    // Warnings and advice do not stop generation; show them all the same.
+    for line in rendered
+        .lines()
+        .filter(|line| line.contains(": warning: ") || line.contains(": advice: "))
+    {
         eprintln!("{line}");
     }
     // The compatibility guard: a breaking change against the package's

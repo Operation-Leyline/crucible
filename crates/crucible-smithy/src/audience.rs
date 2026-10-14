@@ -863,6 +863,11 @@ fn project_permissions(result: &mut Service) {
                     .get(&clause.resource)
                     .is_some_and(|r| r.permission(&clause.permission).is_some())
             });
+            // Requirements the client may not see are still requirements:
+            // an empty list would read as a model that lists none.
+            if clauses.is_empty() {
+                op.requirements = Requirements::Internal;
+            }
         }
     }
     result.permissions.retain(|_, r| !r.permissions.is_empty());

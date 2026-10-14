@@ -56,17 +56,17 @@ string authorizationName
 
 /// A permission no operation requires: checked by the service's policy
 /// (a role bundle, a delegation rule). Documented in its own table.
-@trait(selector: "enum > member", conflicts: [notGrantable])
+@trait(selector: "[trait|crucible.auth#permissionsOf] > member", conflicts: [notGrantable])
 structure permissionOnly {}
 
 /// A permission the service's policy confers whole, such as an
 /// administrator bundle: never offered for composition.
-@trait(selector: "enum > member", conflicts: [permissionOnly])
+@trait(selector: "[trait|crucible.auth#permissionsOf] > member", conflicts: [permissionOnly])
 structure notGrantable {}
 
 /// This value is a deprecated alias of the named member of the same enum:
 /// a grant stored under it satisfies a check of the primary.
-@trait(selector: "enum > member")
+@trait(selector: "[trait|crucible.auth#permissionsOf] > member")
 string aliasOf
 
 /// The wire enum of resource types a grant can name, checked both ways:

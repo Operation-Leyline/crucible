@@ -4,14 +4,36 @@
 
 use crucible_smithy::ir::permissions::Binding;
 use crucible_smithy::ir::{Condition, Mode, Requirements, Service, Tier};
-use crucible_smithy::validate::{FindingSeverity, PermissionFacts};
-use crucible_smithy::{Audience, Model, ShapeId};
+use crucible_smithy::validate::{FindingSeverity, PermissionFinding};
+use crucible_smithy::{Audience, Capabilities, Model, ShapeId};
+use serde_json::{Value, json};
 
 const ACCEPTED: &str = include_str!("fixtures/permissions.json");
 const REFUSED: &str = include_str!("fixtures/permissions-refused.json");
 
 fn lower(json: &str) -> Result<Service, crucible_smithy::Error> {
     Model::from_json(json).unwrap().lower(None)
+}
+
+fn with_warnings(json: &str) -> (Service, Vec<PermissionFinding>) {
+    Model::from_json(json)
+        .unwrap()
+        .lower_with_warnings(None, &Capabilities::default(), None)
+        .unwrap_or_else(|e| panic!("{e}"))
+}
+
+fn accepted() -> Value {
+    serde_json::from_str(ACCEPTED).unwrap()
+}
+
+/// The diagnostics a modified model is refused with.
+fn refusal(model: &Value) -> Vec<String> {
+    match lower(&model.to_string()) {
+        Err(crucible_smithy::Error::Unsupported(diagnostics)) => {
+            diagnostics.iter().map(ToString::to_string).collect()
+        }
+        other => panic!("expected diagnostics, lowered {other:?}"),
+    }
 }
 
 fn service() -> Service {
@@ -175,42 +197,22 @@ fn not_found_is_attached_where_something_can_be_hidden() {
 
 #[test]
 fn the_shared_check_warns_about_pending_operations_only() {
-    let service = service();
-    let facts = PermissionFacts {
-        resources: [
-            (
-                id("Organization"),
-                vec![("organizationId".into(), id("OrganizationId"))],
-            ),
-            (
-                id("Graph"),
-                vec![
-                    ("organizationId".into(), id("OrganizationId")),
-                    ("graphId".into(), id("GraphId")),
-                ],
-            ),
-            (
-                id("History"),
-                vec![
-                    ("organizationId".into(), id("OrganizationId")),
-                    ("graphId".into(), id("GraphId")),
-                    ("historyId".into(), id("HistoryId")),
-                ],
-            ),
-        ]
-        .into(),
-        collection_operations: [id("CreateGraph"), id("ListGraphs")].into(),
-        declared_at: Default::default(),
-    };
-    let findings = crucible_smithy::validate::permissions(&service, &facts);
-    let rendered: Vec<String> = findings.iter().map(ToString::to_string).collect();
+    let (service, warnings) = with_warnings(ACCEPTED);
+    let rendered: Vec<String> = warnings.iter().map(ToString::to_string).collect();
     assert_eq!(
         rendered,
         [
-            "example.leyline#RestoreBackup: permissions.pending: `RestoreBackup` has no declared requirements yet: guard::allow in the handler until the history module moves."
+            "example.leyline#RestoreBackup: warning: permissions.pending: `RestoreBackup` has no declared requirements yet: guard::allow in the handler until the history module moves."
         ]
     );
-    assert_eq!(findings[0].severity, FindingSeverity::Warning);
+    assert_eq!(warnings[0].severity, FindingSeverity::Warning);
+    // On the IR alone the checks that need lowering's facts are skipped,
+    // not reported: `ListGraphs` still filters.
+    let from_ir: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(from_ir, rendered);
 }
 
 #[test]
@@ -220,10 +222,11 @@ fn the_client_audience_keeps_no_internal_permission() {
     let org = &external.permissions[&id("Organization")];
     let symbols: Vec<&str> = org.permissions.iter().map(|p| p.symbol.as_str()).collect();
     assert_eq!(symbols, ["ADMIN"]);
-    // GetOrganization required only the internal permission.
+    // GetOrganization required only the internal permission: it still has
+    // requirements, which the client may not see.
     assert_eq!(
         requirements(&external, "GetOrganization"),
-        &Requirements::List(Vec::new())
+        &Requirements::Internal
     );
     // Its error contract is unchanged.
     let get = external
@@ -446,11 +449,252 @@ fn malformed_trait_values_are_diagnosed_not_skipped() {
     );
     on(
         "Empty",
-        "lists no requirement; an operation that needs no permission says @requiresNone",
+        "permissions.requires: `Empty` lists no requirement; an operation that needs no permission says `requires none` (Smithy `@requiresNone(\"why\")`)",
     );
     on(
         "FilterWhen",
         "permissions.filters: @requires[0]: `filters` takes no `when`",
     );
     assert_eq!(d.len(), 16, "{d:#?}");
+}
+
+/// `RestoreBackup` with these requirements in place of `@requiresPending`.
+fn restore_requiring(model: &mut Value, requires: Value) {
+    let traits = model["shapes"]["example.leyline#RestoreBackup"]["traits"]
+        .as_object_mut()
+        .unwrap();
+    traits.remove("crucible.auth#requiresPending");
+    traits.insert("crucible.auth#requires".into(), requires);
+}
+
+fn add_input_member(model: &mut Value, input: &str, name: &str, member: Value) {
+    model["shapes"][format!("example.leyline#{input}")]["members"]
+        .as_object_mut()
+        .unwrap()
+        .insert(name.into(), member);
+}
+
+#[test]
+fn each_service_of_a_model_has_its_own_permission_types() {
+    let mut model = accepted();
+    let shapes = model["shapes"].as_object_mut().unwrap();
+    for (id, shape) in [
+        (
+            "example.leyline#Shop",
+            json!({"type": "service", "version": "1", "traits": {"crucible.protocols#json": {}, "smithy.api#httpBearerAuth": {}}, "resources": [{"target": "example.leyline#Store"}]}),
+        ),
+        ("example.leyline#StoreId", json!({"type": "string"})),
+        (
+            "example.leyline#Store",
+            json!({"type": "resource", "identifiers": {"storeId": {"target": "example.leyline#StoreId"}}, "read": {"target": "example.leyline#GetStore"}}),
+        ),
+        (
+            "example.leyline#StorePermission",
+            json!({"type": "enum", "traits": {"crucible.auth#permissionsOf": "example.leyline#Store"}, "members": {"READ": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "store:read"}}}}),
+        ),
+        (
+            "example.leyline#StoreKind",
+            json!({"type": "enum", "traits": {"crucible.auth#permissionTypes": {}}, "members": {"STORE": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "store"}}}}),
+        ),
+        (
+            "example.leyline#GetStore",
+            json!({"type": "operation", "input": {"target": "example.leyline#GetStoreInput"}, "traits": {"smithy.api#http": {"method": "GET", "uri": "/stores/{storeId}", "code": 200}, "smithy.api#readonly": {}, "crucible.auth#requires": [{"permission": "store:read", "resource": "example.leyline#Store"}]}}),
+        ),
+        (
+            "example.leyline#GetStoreInput",
+            json!({"type": "structure", "members": {"storeId": {"target": "example.leyline#StoreId", "traits": {"smithy.api#required": {}, "smithy.api#httpLabel": {}}}}}),
+        ),
+    ] {
+        shapes.insert(id.into(), shape);
+    }
+    let model = Model::from_json(&model.to_string()).unwrap();
+    let leyline = model
+        .lower(Some(&id("Leyline")))
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(leyline.permission_types.unwrap().shape, id("ResourceKind"));
+    let shop = model
+        .lower(Some(&id("Shop")))
+        .unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(shop.permission_types.unwrap().shape, id("StoreKind"));
+    assert_eq!(shop.permissions.keys().collect::<Vec<_>>(), [&id("Store")]);
+}
+
+#[test]
+fn warnings_and_advice_reach_a_smithy_build() {
+    let mut model = accepted();
+    restore_requiring(
+        &mut model,
+        json!([{"permission": "history:read", "resource": "example.leyline#History", "bind": {"historyId": "otherHistory"}}]),
+    );
+    add_input_member(
+        &mut model,
+        "RestoreBackupInput",
+        "otherHistory",
+        json!({"target": "example.leyline#HistoryId", "traits": {"smithy.api#required": {}}}),
+    );
+    let (_, warnings) = with_warnings(&model.to_string());
+    let rendered: Vec<String> = warnings.iter().map(ToString::to_string).collect();
+    assert_eq!(
+        rendered,
+        [
+            "example.leyline#RestoreBackup: warning: permissions.other-instance: @requires[0]: `historyId` of `History` is bound to `otherHistory`, but `RestoreBackup` is bound to `History` through `historyId`: the check authorizes another instance than the handler loads; bind `historyId`, or also require a permission on the instance the operation is bound to"
+        ]
+    );
+    // Requiring a permission on the bound instance as well is deliberate.
+    restore_requiring(
+        &mut model,
+        json!([
+            {"permission": "history:read", "resource": "example.leyline#History"},
+            {"permission": "history:read", "resource": "example.leyline#History", "bind": {"historyId": "otherHistory"}}
+        ]),
+    );
+    let (_, warnings) = with_warnings(&model.to_string());
+    assert!(warnings.is_empty(), "{warnings:#?}");
+    // Advice: an identifier of a resource with permissions that no
+    // requirement covers.
+    let mut model = accepted();
+    add_input_member(
+        &mut model,
+        "GetOrganizationInput",
+        "graphId",
+        json!({"target": "example.leyline#GraphId"}),
+    );
+    let (_, warnings) = with_warnings(&model.to_string());
+    assert_eq!(warnings.len(), 2, "{warnings:#?}");
+    assert!(warnings.iter().any(|w| w.severity == FindingSeverity::Advice
+        && w.to_string().starts_with(
+            "example.leyline#GetOrganization: advice: permissions.unchecked-reference: the input binds `graphId` of `Graph`"
+        )));
+}
+
+#[test]
+fn an_empty_requirement_list_is_refused_by_the_shared_check() {
+    let mut model = accepted();
+    restore_requiring(&mut model, json!([]));
+    assert_eq!(
+        refusal(&model),
+        [
+            "example.leyline#RestoreBackup: permissions.requires: `RestoreBackup` lists no requirement; an operation that needs no permission says `requires none` (Smithy `@requiresNone(\"why\")`)"
+        ]
+    );
+}
+
+#[test]
+fn a_binding_never_passes_through_a_map_or_a_map_of_structures() {
+    let mut model = accepted();
+    let shapes = model["shapes"].as_object_mut().unwrap();
+    shapes.insert(
+        "example.leyline#HistoryIds".into(),
+        json!({"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.leyline#HistoryId"}}),
+    );
+    shapes.insert(
+        "example.leyline#HistoryRefs".into(),
+        json!({"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.leyline#HistoryRef"}}),
+    );
+    restore_requiring(
+        &mut model,
+        json!([
+            {"permission": "history:read", "resource": "example.leyline#History", "bind": {"historyId": "ids"}},
+            {"permission": "history:read", "resource": "example.leyline#History", "bind": {"historyId": "refs.historyId"}}
+        ]),
+    );
+    add_input_member(
+        &mut model,
+        "RestoreBackupInput",
+        "ids",
+        json!({"target": "example.leyline#HistoryIds", "traits": {"smithy.api#required": {}}}),
+    );
+    add_input_member(
+        &mut model,
+        "RestoreBackupInput",
+        "refs",
+        json!({"target": "example.leyline#HistoryRefs", "traits": {"smithy.api#required": {}}}),
+    );
+    let d = refusal(&model);
+    assert!(
+        d.iter().any(|m| m.contains(
+            "permissions.list-binding: @requires[0]: `historyId` of `History` is bound to `ids`, which passes through the map `ids`"
+        )),
+        "{d:#?}"
+    );
+    assert!(
+        d.iter().any(|m| m.contains(
+            "permissions.list-binding: @requires[1]: `historyId` of `History` is bound to `refs.historyId`, which passes through the map `refs`"
+        )),
+        "{d:#?}"
+    );
+}
+
+#[test]
+fn permission_traits_outside_a_vocabulary_are_refused() {
+    let mut model = accepted();
+    let shapes = model["shapes"].as_object_mut().unwrap();
+    shapes.insert(
+        "example.leyline#Color".into(),
+        json!({"type": "enum", "members": {
+            "RED": {"target": "smithy.api#Unit", "traits": {"crucible.auth#permissionOnly": {}}},
+            "BLUE": {"target": "smithy.api#Unit", "traits": {"crucible.auth#notGrantable": {}}},
+            "GREEN": {"target": "smithy.api#Unit", "traits": {"crucible.auth#aliasOf": "RED"}}
+        }}),
+    );
+    shapes.insert(
+        "example.leyline#SnapshotId".into(),
+        json!({"type": "string"}),
+    );
+    shapes.insert(
+        "example.leyline#Snapshot".into(),
+        json!({"type": "resource", "identifiers": {"organizationId": {"target": "example.leyline#OrganizationId"}, "graphId": {"target": "example.leyline#GraphId"}, "snapshotId": {"target": "example.leyline#SnapshotId"}}, "traits": {"crucible.auth#authorizationName": "snap"}}),
+    );
+    model["shapes"]["example.leyline#Graph"]["resources"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"target": "example.leyline#Snapshot"}));
+    let d = refusal(&model);
+    for (site, name) in [
+        ("RED", "permissionOnly"),
+        ("BLUE", "notGrantable"),
+        ("GREEN", "aliasOf"),
+    ] {
+        assert!(
+            d.contains(&format!(
+                "example.leyline#Color${site}: permissions.vocabulary: @crucible.auth#{name} applies to a member of a @crucible.auth#permissionsOf enum: a permission"
+            )),
+            "{d:#?}"
+        );
+    }
+    assert!(
+        d.iter().any(|m| m.starts_with(
+            "example.leyline#Snapshot: permissions.name: example.leyline#Snapshot has @crucible.auth#authorizationName but declares no permissions"
+        )),
+        "{d:#?}"
+    );
+    assert_eq!(d.len(), 4, "{d:#?}");
+}
+
+#[test]
+fn only_an_explicit_empty_auth_marks_an_operation_public() {
+    let mut model = accepted();
+    let get_user = model["shapes"]["example.leyline#GetUser"]["traits"]
+        .as_object_mut()
+        .unwrap();
+    get_user.remove("crucible.auth#requiresNone");
+    get_user.insert("smithy.api#auth".into(), json!([]));
+    let service = lower(&model.to_string()).unwrap_or_else(|e| panic!("{e}"));
+    let public: Vec<&str> = service
+        .operations
+        .iter()
+        .filter(|op| op.public)
+        .map(|op| op.id.name())
+        .collect();
+    assert_eq!(public, ["GetUser"]);
+    // A service with no scheme leaves its operations without one, which is
+    // not a declaration that they are public.
+    let bare = json!({"smithy": "2.0", "shapes": {
+        "example.bare#Bare": {"type": "service", "version": "1", "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.bare#Ping"}]},
+        "crucible.protocols#json": {"type": "structure", "traits": {"smithy.api#trait": {}, "smithy.api#protocolDefinition": {}}},
+        "example.bare#Ping": {"type": "operation", "traits": {"smithy.api#http": {"method": "GET", "uri": "/ping", "code": 200}}}
+    }});
+    let service = lower(&bare.to_string()).unwrap_or_else(|e| panic!("{e}"));
+    assert!(service.operations[0].auth.is_empty());
+    assert!(!service.operations[0].public);
 }

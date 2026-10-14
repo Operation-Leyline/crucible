@@ -23,7 +23,7 @@ mod authorization;
 
 pub use authorization::{
     FindingSeverity, PermissionFacts, PermissionFinding, derived_authorization_name,
-    needs_not_found, not_found_id, permission_value_valid, permissions,
+    needs_not_found, not_found_id, permission_value_valid, permissions, permissions_from_ir,
 };
 
 /// Headers the HTTP layer owns: framing and hop-by-hop headers (decision

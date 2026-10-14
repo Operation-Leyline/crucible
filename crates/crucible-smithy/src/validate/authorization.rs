@@ -1,9 +1,14 @@
 //! Checks 1-18 of docs/permissions.md §5: what holds of a lowered service's
 //! permissions and requirements, whichever front end built it.
 //!
-//! Two facts the contract IR does not carry are passed in [`PermissionFacts`]:
-//! each resource's identifier types, and which operations are collection
-//! operations. Every front end knows both while lowering.
+//! Facts the contract IR does not carry are passed in [`PermissionFacts`]:
+//! each resource's identifier types, which operations are collection
+//! operations, and which input member binds each identifier of an
+//! operation's resource. Every front end knows them while lowering, so the
+//! checks that need them (the binding types of check 10, `filters` on a
+//! collection operation in check 14, and `permissions.other-instance`) run
+//! in the front ends only. [`permissions_from_ir`] runs the rest on an IR
+//! alone and skips those.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -34,6 +39,10 @@ pub struct PermissionFacts {
     /// Where a permission was declared, when that is not `resource$symbol`:
     /// a Smithy `@permissionsOf` enum's member.
     pub declared_at: BTreeMap<(ShapeId, String), ShapeId>,
+    /// For an operation bound to a resource: the input member that binds
+    /// each of the resource's identifiers (inherited ones included), by
+    /// identifier. The handler loads the instance these name.
+    pub identifier_members: BTreeMap<ShapeId, BTreeMap<String, String>>,
 }
 
 impl PermissionFacts {
@@ -46,6 +55,7 @@ impl PermissionFacts {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
 pub enum FindingSeverity {
     /// The model does not compile.
     Error,
@@ -74,11 +84,39 @@ impl PermissionFinding {
     pub fn text(&self) -> String {
         format!("{}: {}", self.code, self.message)
     }
+
+    /// `code: @requires[i]: message`: the text with the clause a Smithy
+    /// model's `@requires` list holds it at.
+    pub fn smithy_text(&self) -> String {
+        match self.requirement {
+            Some(index) => format!("{}: @requires[{index}]: {}", self.code, self.message),
+            None => self.text(),
+        }
+    }
 }
 
+impl FindingSeverity {
+    /// `error`, `warning` or `advice`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Advice => "advice",
+        }
+    }
+}
+
+/// `shape: severity: code: [@requires[i]: ]message`, the line a Smithy
+/// build prints.
 impl fmt::Display for PermissionFinding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.shape, self.text())
+        write!(
+            f,
+            "{}: {}: {}",
+            self.shape,
+            self.severity.label(),
+            self.smithy_text()
+        )
     }
 }
 
@@ -137,9 +175,23 @@ fn lower_camel(name: &str) -> bool {
 /// Every check of §5 against `service`. Findings are in model order:
 /// resources by id, then operations by name, each clause in source order.
 pub fn permissions(service: &Service, facts: &PermissionFacts) -> Vec<PermissionFinding> {
+    check(service, Some(facts))
+}
+
+/// The checks of §5 that need nothing but the IR, for a service read back
+/// from a snapshot. The binding types of check 10, check 14's collection
+/// operation rule and `permissions.other-instance` need lowering's
+/// [`PermissionFacts`]; they are skipped, never reported.
+pub fn permissions_from_ir(service: &Service) -> Vec<PermissionFinding> {
+    check(service, None)
+}
+
+fn check(service: &Service, facts: Option<&PermissionFacts>) -> Vec<PermissionFinding> {
+    let empty = PermissionFacts::default();
     let mut check = Checker {
         service,
-        facts,
+        facts: facts.unwrap_or(&empty),
+        complete: facts.is_some(),
         findings: Vec::new(),
     };
     check.vocabulary();
@@ -153,6 +205,9 @@ pub fn permissions(service: &Service, facts: &PermissionFacts) -> Vec<Permission
 struct Checker<'a> {
     service: &'a Service,
     facts: &'a PermissionFacts,
+    /// `facts` came from lowering; without them the checks that need them
+    /// are skipped.
+    complete: bool,
     findings: Vec<PermissionFinding>,
 }
 
@@ -450,7 +505,8 @@ impl<'a> Checker<'a> {
 
     fn operation(&mut self, op: &'a Operation) {
         let id = &op.id;
-        let public = op.auth.is_empty();
+        // No caller to authorize: declared public, or no scheme at all.
+        let public = op.public || op.auth.is_empty();
         match &op.requirements {
             Requirements::Undeclared => {
                 if !public && !self.service.permissions.is_empty() {
@@ -467,18 +523,23 @@ impl<'a> Checker<'a> {
                 return;
             }
             _ if public => {
+                let why = if op.public || !self.service.auth.is_empty() {
+                    "is public"
+                } else {
+                    "has no authentication scheme (the service declares none)"
+                };
                 self.error(
                     "permissions.public",
                     id,
                     None,
                     format!(
-                        "`{}` is public, so there is no caller to authorize; remove its requirement declarations",
+                        "`{}` {why}, so there is no caller to authorize; remove its requirement declarations",
                         op.name()
                     ),
                 );
                 return;
             }
-            Requirements::None => return,
+            Requirements::None | Requirements::Internal => return,
             Requirements::Pending { reason } => {
                 if reason.trim().is_empty() {
                     self.error(
@@ -495,6 +556,18 @@ impl<'a> Checker<'a> {
                         format!("`{}` has no declared requirements yet: {reason}", op.name()),
                     );
                 }
+                return;
+            }
+            Requirements::List(list) if list.is_empty() => {
+                self.error(
+                    "permissions.requires",
+                    id,
+                    None,
+                    format!(
+                        "`{}` lists no requirement; an operation that needs no permission says `requires none` (Smithy `@requiresNone(\"why\")`)",
+                        op.name()
+                    ),
+                );
                 return;
             }
             Requirements::List(_) => {}
@@ -551,13 +624,14 @@ impl<'a> Checker<'a> {
         }
         self.not_found(op);
         self.unchecked_references(op);
+        self.other_instances(op);
     }
 
     fn clause(&mut self, op: &'a Operation, index: usize, clause: &'a Requirement) {
         let id = &op.id;
         let at = Some(index);
         let Some(resource) = self.service.permissions.get(&clause.resource) else {
-            let message = if self.facts.resources.contains_key(&clause.resource) {
+            let message = if !self.complete || self.facts.resources.contains_key(&clause.resource) {
                 let owners = self.owners(&clause.permission);
                 format!(
                     "`{}` declares no permissions{}",
@@ -649,7 +723,7 @@ impl<'a> Checker<'a> {
             return;
         }
         if clause.mode == Mode::Filter {
-            if !self.facts.collection_operations.contains(id) {
+            if self.complete && !self.facts.collection_operations.contains(id) {
                 self.error(
                     "permissions.filters",
                     id,
@@ -1058,6 +1132,88 @@ impl<'a> Checker<'a> {
                     ),
                 );
             }
+        }
+    }
+
+    /// A clause on the operation's own resource, or on an ancestor, that
+    /// binds one of its identifiers from another member than the operation
+    /// is bound by: the check authorizes an instance the handler does not
+    /// load. Not reported when another clause checks the loaded instance,
+    /// which makes the second one deliberate (a move between two inboxes).
+    fn other_instances(&mut self, op: &'a Operation) {
+        let (Some(bound), Some(own)) = (
+            self.facts.identifier_members.get(&op.id),
+            op.resource.as_ref(),
+        ) else {
+            return;
+        };
+        let Some(chain) = self.facts.resources.get(own) else {
+            return;
+        };
+        let service = self.service;
+        // The clause's resource, when it is `own` or an ancestor of it and
+        // the clause binds each of its identifiers.
+        let on_chain = |clause: &Requirement| -> Option<&'a ResourcePermissions> {
+            let resource = service.permissions.get(&clause.resource)?;
+            let ancestor = resource.identifiers.len() <= chain.len()
+                && resource
+                    .identifiers
+                    .iter()
+                    .zip(chain)
+                    .all(|(a, (b, _))| a == b);
+            (ancestor
+                && clause.mode != Mode::Handler
+                && clause.bindings.len() == resource.identifiers.len())
+            .then_some(resource)
+        };
+        let mismatches = |clause: &Requirement, resource: &ResourcePermissions| {
+            resource
+                .identifiers
+                .iter()
+                .zip(&clause.bindings)
+                .filter_map(
+                    |(identifier, binding)| match (binding, bound.get(identifier)) {
+                        (Binding::Member(path), Some(member))
+                            if path.as_slice() != [member.clone()] =>
+                        {
+                            Some((identifier.clone(), path.join("."), member.clone()))
+                        }
+                        _ => None,
+                    },
+                )
+                .collect::<Vec<_>>()
+        };
+        let clauses = op.requirements.clauses();
+        let mut found = Vec::new();
+        for (index, clause) in clauses.iter().enumerate() {
+            let Some(resource) = on_chain(clause) else {
+                continue;
+            };
+            let Some((identifier, path, member)) = mismatches(clause, resource).into_iter().next()
+            else {
+                continue;
+            };
+            let loaded_checked = clauses.iter().any(|other| {
+                other.resource == clause.resource
+                    && on_chain(other).is_some()
+                    && mismatches(other, resource).is_empty()
+            });
+            if !loaded_checked {
+                found.push((index, clause, identifier, path, member));
+            }
+        }
+        for (index, clause, identifier, path, member) in found {
+            self.warning(
+                "permissions.other-instance",
+                &op.id,
+                Some(index),
+                format!(
+                    "`{identifier}` of `{}` is bound to `{path}`, but `{}` is bound to `{}` through `{member}`: the check authorizes another instance than the handler loads; bind `{member}`, or also require a permission on the instance the operation is bound to",
+                    clause.resource.name(),
+                    op.name(),
+                    own.name()
+                ),
+            );
         }
     }
 

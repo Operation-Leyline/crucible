@@ -21,6 +21,14 @@ use crate::ir::{
 use crate::shape_id::ShapeId;
 use crate::{Capabilities, Feature, FeatureUse, Protocol};
 
+/// `@auth([])`: declared public, as opposed to having no scheme to inherit.
+fn explicitly_public(traits: &Traits) -> bool {
+    traits
+        .get(&smithy("auth"))
+        .and_then(Value::as_array)
+        .is_some_and(Vec::is_empty)
+}
+
 const PRELUDE_AUTH: &[&str] = &[
     "httpBasicAuth",
     "httpDigestAuth",
@@ -35,7 +43,7 @@ pub(crate) fn lower(
     selected_protocol: Option<Protocol>,
     infrastructure: bool,
     documentation: bool,
-) -> Result<Service, Diagnostics> {
+) -> Result<(Service, Vec<crate::validate::PermissionFinding>), Diagnostics> {
     let mut lowerer = Lowerer {
         model: shapes,
         protocol: Protocol::CrucibleJson,
@@ -51,10 +59,12 @@ pub(crate) fn lower(
         http_outputs: BTreeSet::new(),
         permissions: BTreeMap::new(),
         permission_facts: crate::validate::PermissionFacts::default(),
+        service_public: false,
+        warnings: Vec::new(),
     };
     let service = lowerer.service(service_id, infrastructure, documentation);
     if lowerer.diagnostics.is_empty() {
-        Ok(service)
+        Ok((service, lowerer.warnings))
     } else {
         Err(lowerer.diagnostics)
     }
@@ -81,6 +91,12 @@ pub(crate) struct Lowerer<'m> {
     /// against them.
     pub(crate) permissions: BTreeMap<ShapeId, crate::ir::ResourcePermissions>,
     pub(crate) permission_facts: crate::validate::PermissionFacts,
+    /// The service's own `@auth([])`, which operations without an `@auth`
+    /// inherit as an explicit public declaration.
+    service_public: bool,
+    /// What the shared permission checks warn about or advise: the model
+    /// still lowers.
+    pub(crate) warnings: Vec<crate::validate::PermissionFinding>,
 }
 
 impl<'m> Lowerer<'m> {
@@ -127,6 +143,7 @@ impl<'m> Lowerer<'m> {
         let auth_schemes = self.auth_configs(id, shape, &auth);
         let endpoint_rules = self.endpoint_rules(id, &shape.traits);
         let default_auth = self.effective_auth(id, &shape.traits, &auth);
+        self.service_public = explicitly_public(&shape.traits);
         let scopes = crate::scopes::lower(id, &shape.traits, &mut self.diagnostics);
         if scopes.as_ref().is_some_and(|scopes| !scopes.is_empty()) && default_auth.is_empty() {
             self.diagnostics.push(
@@ -151,7 +168,7 @@ impl<'m> Lowerer<'m> {
             }
         }
         self.http_outputs.extend(service_errors.iter().cloned());
-        let permission_types = self.lower_permissions(shape);
+        self.lower_permissions(shape);
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
@@ -181,6 +198,7 @@ impl<'m> Lowerer<'m> {
             }
         }
         operations.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        let permission_types = self.lower_permission_types();
         let resources = if infrastructure {
             crate::resources::lower(self.model, shape, &mut self.diagnostics)
         } else if documentation {
@@ -306,16 +324,13 @@ impl<'m> Lowerer<'m> {
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);
-        // The Smithy front end has no warnings: only errors stop it.
+        // Errors stop lowering; warnings and advice are returned beside the
+        // service (`Model::lower_with_warnings`).
         for finding in crate::validate::permissions(&service, &self.permission_facts) {
             if finding.severity == crate::validate::FindingSeverity::Error {
-                let message = match finding.requirement {
-                    Some(index) => {
-                        format!("{}: @requires[{index}]: {}", finding.code, finding.message)
-                    }
-                    None => finding.text(),
-                };
-                self.diagnostics.push(&finding.shape, message);
+                self.diagnostics.push(&finding.shape, finding.smithy_text());
+            } else {
+                self.warnings.push(finding);
             }
         }
         service
@@ -525,10 +540,13 @@ impl<'m> Lowerer<'m> {
             return None;
         };
         self.check_traits(id, &shape.traits);
-        let auth = if shape.traits.contains_key(&smithy("auth")) {
-            self.effective_auth(id, &shape.traits, supported_auth)
+        let (auth, public) = if shape.traits.contains_key(&smithy("auth")) {
+            (
+                self.effective_auth(id, &shape.traits, supported_auth),
+                explicitly_public(&shape.traits),
+            )
         } else {
-            default_auth.to_vec()
+            (default_auth.to_vec(), self.service_public)
         };
         let scopes = match crate::scopes::lower(id, &shape.traits, &mut self.diagnostics) {
             // A public operation has no caller to hold a scope. A service default
@@ -629,6 +647,7 @@ impl<'m> Lowerer<'m> {
 
         let mut errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
         let requirements = self.requirements_of(id, &shape.traits, input.as_ref(), &request);
+        self.record_identifier_members(id, resource.as_ref(), input.as_ref());
         self.attach_not_found(&requirements, shape.errors.len(), &mut errors);
         for error in service_errors {
             if !errors.contains(error) {
@@ -697,6 +716,7 @@ impl<'m> Lowerer<'m> {
             checksum: self.checksum(id, shape, input.as_ref()),
             id: id.clone(),
             auth,
+            public,
             scopes,
             optional_auth: shape.traits.contains_key(&smithy("optionalAuth")),
             endpoint: self.endpoint_host_prefix(id, shape, input.as_ref()),

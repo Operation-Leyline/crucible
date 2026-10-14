@@ -108,8 +108,14 @@ pub enum Requirements {
     None,
     /// `requires pending because "..."`: the handler still checks.
     Pending { reason: String },
-    /// Every clause, in source order, which is the refusal order.
+    /// Every clause, in source order, which is the refusal order. Never
+    /// empty: the checks refuse an empty list.
     List(Vec<Requirement>),
+    /// Only in a client-audience projection (`crate::project`): the
+    /// operation has requirements, and every one names an internal
+    /// permission, which the projection removed. A front end never produces
+    /// it; the server contract keeps the clauses.
+    Internal,
 }
 
 impl Requirements {

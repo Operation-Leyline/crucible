@@ -663,6 +663,7 @@ fn check_source(source: &str) -> Vec<String> {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
                 Severity::Advice => "advice",
+                _ => "other",
             };
             format!("{severity}: {}", d.diagnostic.message)
         })
@@ -1350,4 +1351,218 @@ fn renames_that_keep_stored_grants_pass_the_guard() {
             && f.message
                 .contains("a renamed resource keeps them with `@authorizationName(\"order\")`")
     }));
+}
+
+#[test]
+fn a_binding_never_passes_through_a_map_or_a_map_of_structures() {
+    let found = check(
+        "structure Line { orderId: OrderId }\nmap ByName: string -> Line\nmap Refs: string -> OrderId\noperation Batch on Store {\n    http POST \"/batch/{storeId}\"\n    requires read on Order(refs)\n    requires read on Order(byName.orderId)\n    input {\n        $storeId\n        refs: Refs\n        byName: ByName\n    }\n}",
+    );
+    expect(
+        &found,
+        "permissions.list-binding: `orderId` of `Order` is bound to `refs`, which passes through the map `refs`",
+    );
+    expect(
+        &found,
+        "permissions.list-binding: `orderId` of `Order` is bound to `byName.orderId`, which passes through the map `byName`",
+    );
+}
+
+#[test]
+fn a_label_binding_names_an_identifier_the_input_binds() {
+    let op = |target: &str| {
+        format!(
+            "readonly operation X on Store {{\n    http GET \"/x/{{storeId}}\"\n    requires read on {target}\n    input {{\n        $storeId\n        @query ref: OrderId\n    }}\n}}"
+        )
+    };
+    // `$storeId` binds an identifier of the operation's resource.
+    assert!(check(&op("Order(storeId: $storeId, orderId: ref)")).is_empty());
+    // `ref` is a member, not an identifier the input binds: write its path.
+    expect(
+        &check(&op("Order(storeId: $storeId, orderId: $ref)")),
+        "error: permissions.binding: `$ref` names an identifier the input binds, and the input binds `$storeId`; bind any other member by its path: `ref`",
+    );
+    // An operation bound to no resource binds no identifier.
+    expect(
+        &check(
+            "readonly operation Loose {\n    http GET \"/loose/{storeId}\"\n    requires read on Store(storeId: $storeId)\n    input { storeId: StoreId }\n}",
+        ),
+        "`$storeId` names an identifier the input binds, and the input binds no identifier",
+    );
+}
+
+#[test]
+fn checking_another_instance_than_the_handler_loads_is_a_warning() {
+    let op = |clauses: &str| {
+        format!(
+            "readonly operation Peek on Store {{\n    http GET \"/peek/{{storeId}}\"\n    {clauses}\n    input {{\n        $storeId\n        @query other: StoreId\n    }}\n}}"
+        )
+    };
+    let found = check(&op("requires read on Store(other)"));
+    assert_eq!(
+        found,
+        [
+            "warning: permissions.other-instance: `storeId` of `Store` is bound to `other`, but `Peek` is bound to `Store` through `storeId`: the check authorizes another instance than the handler loads; bind `storeId`, or also require a permission on the instance the operation is bound to"
+        ]
+    );
+    // Checking the loaded instance too makes the second one deliberate.
+    assert!(check(&op("requires read\n    requires manage on Store(other)")).is_empty());
+    // A child's parent identifier counts the same.
+    let found = check(
+        "readonly operation Look reads Order {\n    http GET \"/look/{storeId}/{orderId}\"\n    requires read on Order(storeId: other, orderId: $orderId)\n    input {\n        $storeId\n        $orderId\n        @query other: StoreId\n    }\n}",
+    );
+    expect(
+        &found,
+        "warning: permissions.other-instance: `storeId` of `Order` is bound to `other`, but `Look` is bound to `Order` through `storeId`",
+    );
+}
+
+#[test]
+fn authorization_name_and_permission_annotations_need_permissions() {
+    let found = check_source(&BASE.replace(
+        "readonly operation Ping {",
+        "@authorizationName(\"thing\")\nresource Thing {\n    id thingId: StoreId\n}\n\nreadonly operation Ping {",
+    ));
+    expect(
+        &found,
+        "error: permissions.name: `@authorizationName` names `Thing` in grants, but it declares no permissions",
+    );
+    let found = check(
+        "enum Color {\n    @permissionOnly\n    red = \"red\"\n}\nstructure Paint { color: Color }",
+    );
+    assert!(
+        found
+            .iter()
+            .any(|m| m.starts_with("error: ") && m.contains("permissionOnly")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn a_public_operation_is_marked_public_in_the_ir() {
+    let compiled = compile(
+        &small(&BASE.replace(
+            "readonly operation Ping {\n    http GET \"/ping\"\n    requires none\n}",
+            "public readonly operation Ping {\n    http GET \"/ping\"\n}",
+        )),
+        None,
+    );
+    let service = compiled.service.expect("compiles");
+    let public: Vec<(&str, bool)> = service
+        .operations
+        .iter()
+        .map(|op| (op.id.name(), op.public))
+        .collect();
+    assert!(public.contains(&("Ping", true)), "{public:?}");
+    assert!(public.contains(&("GetOrder", false)), "{public:?}");
+}
+
+/// The guard of `current` against `base` frozen as release "1".
+fn guarded_from(name: &str, base: &str, current: &str) -> crucible_lang::Guard {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("permissions-{name}"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let compiled = compile(&small(base), None);
+    let frozen = compiled
+        .service
+        .clone()
+        .unwrap_or_else(|| panic!("{}", compiled.render()));
+    crucible_lang::release::freeze(&dir, &frozen, "test").unwrap();
+    let mut package = small(current);
+    package.baseline = Some(dir.join("1.json"));
+    let compiled = compile(&package, None);
+    assert!(!compiled.has_errors(), "{}", compiled.render());
+    crucible_lang::guard(&package, &compiled, 1, &crucible_policy::Config::default())
+        .expect("a baseline")
+        .expect("it loads")
+}
+
+#[test]
+fn declaring_requirements_on_a_released_operation_is_reported_not_refused() {
+    let audit = |clause: &str| {
+        format!(
+            "{BASE}\noperation Audit on Store {{\n    http POST \"/audit/{{storeId}}\"\n    {clause}\n    input {{ $storeId }}\n}}\n"
+        )
+    };
+    // Pending, then a requirement: NotFoundException comes with it.
+    let guard = guarded_from(
+        "pending",
+        &audit("requires pending because \"the handler checks\""),
+        &audit("requires manage"),
+    );
+    assert!(!guard.has_errors(), "{:#?}", guard.undeclared);
+    assert!(guard.undeclared.iter().any(|f| {
+        f.rule == "compatibility.authorization"
+            && f.message.contains(
+                "`Audit` now requires \"store:manage\" on `Store` (it was `requires pending`)",
+            )
+    }));
+    // A release from before the service declared any permission.
+    let bare: String = BASE
+        .lines()
+        .filter(|line| !line.contains("permission ") && !line.contains("requires "))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let guard = guarded_from("undeclared", &bare, BASE);
+    assert!(!guard.has_errors(), "{:#?}", guard.undeclared);
+    assert!(guard.undeclared.iter().any(|f| {
+        f.rule == "compatibility.authorization"
+            && f.message
+                .contains("`GetOrder` now requires \"order:read\" on `Order` (it declared none)")
+    }));
+    assert!(
+        !guard
+            .undeclared
+            .iter()
+            .any(|f| f.rule == "compatibility.error" || f.rule == "compatibility.sdk"),
+        "{:#?}",
+        guard.undeclared
+    );
+}
+
+#[test]
+fn swapping_two_values_is_refused_and_moves_the_requirement() {
+    let base = BASE.replace(
+        "    requires manage\n    requires read\n",
+        "    requires manage\n",
+    );
+    let swapped = base
+        .replace("\"store:read\"", "\"store:tmp\"")
+        .replace("\"store:manage\"", "\"store:read\"")
+        .replace("\"store:tmp\"", "\"store:manage\"");
+    let guard = guarded_from("swap", &base, &swapped);
+    assert!(guard.has_errors());
+    assert!(guard.undeclared.iter().any(|f| {
+        f.rule == "compatibility.permissions"
+            && f.message.contains(
+                "grants stored under \"store:manage\" satisfied `manage` and now satisfy `read`",
+            )
+    }));
+    // `requires manage` names the same symbol, which now checks "store:read".
+    assert!(
+        guard.undeclared.iter().any(|f| {
+            f.rule == "compatibility.authorization"
+                && f.message
+                    .contains("`ManageStore` now requires \"store:read\" on `Store`")
+        }),
+        "{:#?}",
+        guard.undeclared
+    );
+}
+
+#[test]
+fn advice_without_a_source_location_renders_as_advice() {
+    let mut compiled = compile(&small(BASE), None);
+    compiled.diagnostics.push(crucible_lang::FileDiagnostic {
+        file: None,
+        diagnostic: crucible_lang::Diagnostic::advice(Default::default(), "decide"),
+    });
+    compiled.diagnostics.push(crucible_lang::FileDiagnostic {
+        file: None,
+        diagnostic: crucible_lang::Diagnostic::warning(Default::default(), "look"),
+    });
+    assert_eq!(
+        compiled.render(),
+        "example.shop: advice: decide\nexample.shop: warning: look\n"
+    );
 }

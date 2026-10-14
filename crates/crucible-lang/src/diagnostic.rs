@@ -8,6 +8,7 @@ use crate::span::{LineIndex, Span};
 /// Whether a diagnostic stops compilation. Warnings report something
 /// probably unintended (decisions 33, 41, 47f) without withholding the IR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum Severity {
     Error,
     Warning,
