@@ -23,7 +23,7 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     // What the caller must hold (docs/permissions.md §6.3, decision 10): a
     // sentence in the description and the clauses as `x-crucible-requires`.
     // Never OAuth scopes: a scope list cannot name the resource.
-    let requires = crucible_codegen_common::permissions::requirement_paragraph(service, op);
+    let requires = crucible_codegen_common::permissions::requirement_paragraph(service, op, true);
     let docs = match (op.docs.as_deref(), requires) {
         (Some(docs), Some(requires)) => Some(format!("{docs}\n\n{requires}")),
         (docs, requires) => docs.map(str::to_owned).or(requires),

@@ -87,7 +87,9 @@ fn typed_contract(service: &mut Service) {
         for waiter in op.waiters.values_mut() {
             waiter.documentation = None;
         }
-        if let crate::ir::Requirements::List(clauses) = &mut op.requirements {
+        if let crate::ir::Requirements::List(clauses) | crate::ir::Requirements::Partial(clauses) =
+            &mut op.requirements
+        {
             for clause in clauses {
                 clause.docs = None;
             }

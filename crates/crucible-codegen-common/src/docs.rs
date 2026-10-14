@@ -128,9 +128,11 @@ pub fn operation_notes(op: &Operation, token_member: Option<&str>) -> Vec<String
 }
 
 /// What the caller must hold for `op`, as the model states it
-/// (docs/permissions.md §6.3), escaped like [`operation_notes`]' text.
+/// (docs/permissions.md §6.3), escaped like [`operation_notes`]' text. For
+/// SDK doc comments: never an internal permission, whatever the audience,
+/// as the SDK's registry has none.
 pub fn requirement_notes(service: &Service, op: &Operation) -> Vec<String> {
-    crate::permissions::requirement_sentences(service, op)
+    crate::permissions::requirement_sentences(service, op, false)
         .iter()
         .map(|sentence| escape(sentence))
         .collect()

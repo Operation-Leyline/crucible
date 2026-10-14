@@ -1,6 +1,184 @@
 {
   "format": "crucible.describe/1",
   "operations": {
+    "example.leyline#ArchiveGraph": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its <code>when</code> reads.</p>\n",
+        "markdown": "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its `when` reads.",
+        "text": "A mixed list: clients see the public clause and that more are internal,\nnever the internal clause or the internal member its when reads."
+      },
+      "errors": [
+        "crucible.errors#NotFoundException",
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "id": "example.leyline#ArchiveGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#ArchiveGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.ArchiveGraphInput": {
+            "properties": {
+              "graphId": {
+                "pattern": "^g_[a-z0-9]+$",
+                "type": "string"
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.GraphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string"
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string"
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "ArchiveGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": "example.leyline#ArchiveGraphOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.leyline.ArchiveGraphOutput": {
+            "properties": {
+              "archived": {
+                "$ref": "#/$defs/smithy.api.Boolean"
+              }
+            },
+            "required": [
+              "archived"
+            ],
+            "type": "object"
+          },
+          "smithy.api.Boolean": {
+            "type": "boolean"
+          }
+        },
+        "properties": {
+          "archived": {
+            "$ref": "#/$defs/smithy.api.Boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires <code>graph:write</code> on the graph; and further permissions internal to the service.</p>\n",
+          "markdown": "Requires `graph:write` on the graph; and further permissions internal to the service.",
+          "text": "Requires graph:write on the graph; and further permissions internal to the service."
+        }
+      ],
+      "requirementSentences": [
+        "Requires `graph:write` on the graph; and further permissions internal to the service."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              }
+            ],
+            "mode": "check",
+            "permission": "graph:write",
+            "resourceType": "graph",
+            "tier": "public"
+          }
+        ],
+        "kind": "list",
+        "partial": true
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "archived"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{organizationId}/graphs/{graphId}/archive"
+    },
     "example.leyline#CreateGraph": {
       "auth": [
         "smithy.api#httpBearerAuth"
@@ -755,8 +933,16 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementDocumentation": [],
-      "requirementSentences": [],
+      "requirementDocumentation": [
+        {
+          "html": "<p>Requires permissions internal to the service.</p>\n",
+          "markdown": "Requires permissions internal to the service.",
+          "text": "Requires permissions internal to the service."
+        }
+      ],
+      "requirementSentences": [
+        "Requires permissions internal to the service."
+      ],
       "requirements": {
         "kind": "internal"
       },
@@ -2299,6 +2485,149 @@
           "value": "other"
         }
       ]
+    },
+    "example.leyline#ArchiveGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#ArchiveGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        }
+      ],
+      "name": "ArchiveGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#ArchiveGraphOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#ArchiveGraphOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "archived",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#Boolean",
+          "targetName": "Boolean",
+          "targetType": "boolean",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "archived"
+        }
+      ],
+      "name": "ArchiveGraphOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
     },
     "example.leyline#CreateGraphInput": {
       "documentation": {

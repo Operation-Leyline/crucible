@@ -581,7 +581,7 @@ impl<'a> Checker<'a> {
                 );
                 return;
             }
-            Requirements::List(_) => {}
+            Requirements::List(_) | Requirements::Partial(_) => {}
         }
         let clauses = op.requirements.clauses();
         let mut seen: Vec<&Requirement> = Vec::new();
@@ -785,6 +785,112 @@ impl<'a> Checker<'a> {
             self.condition(op, index, when);
         }
         self.bindings(op, index, clause, resource, &guaranteed);
+        let internal = resource
+            .permission(&clause.permission)
+            .is_none_or(|p| p.tier == Tier::Internal);
+        if !internal && !op.internal && !self.service.internal {
+            self.client_contract(op, index, clause);
+        }
+    }
+
+    /// A clause a client sees is part of the client contract: its bindings
+    /// and its `when` are published (docs, OpenAPI `x-crucible-requires`,
+    /// MCP), so they cannot read an internal member or compare with an
+    /// internal enum value, which the client audience removes. Nor would
+    /// the clause mean the same to a client, which never sends the member.
+    /// An `internal permission` may read either: its clause is removed too.
+    fn client_contract(&mut self, op: &'a Operation, index: usize, clause: &'a Requirement) {
+        let advice = "make the permission `internal`, or read only what clients send";
+        let mut paths: Vec<(&[String], &str)> = clause
+            .bindings
+            .iter()
+            .filter_map(|binding| match binding {
+                Binding::Member(path) => Some((path.as_slice(), "it binds")),
+                Binding::All => None,
+            })
+            .collect();
+        if let Some(when) = &clause.when {
+            paths.extend(
+                when.paths()
+                    .into_iter()
+                    .map(|path| (path, "its `when` reads")),
+            );
+        }
+        let mut reported = BTreeSet::new();
+        for (path, what) in paths {
+            // A path that does not resolve is reported already.
+            let Ok(steps) = self.resolve(op, path, true) else {
+                continue;
+            };
+            let hidden = steps.iter().position(|step| {
+                step.member.internal
+                    || self
+                        .service
+                        .shape(&step.member.target)
+                        .is_some_and(Shape::internal)
+            });
+            if let Some(depth) = hidden
+                && reported.insert(path.to_vec())
+            {
+                let through = if depth + 1 == path.len() {
+                    "an internal member".to_owned()
+                } else {
+                    format!(
+                        "which passes through the internal member `{}`",
+                        path[..=depth].join(".")
+                    )
+                };
+                self.error(
+                    "permissions.internal-member",
+                    &op.id,
+                    Some(index),
+                    format!(
+                        "`{}` on `{}` is visible to clients, but {what} `{}`, {through}; {advice}",
+                        clause.permission,
+                        clause.resource.name(),
+                        path.join("."),
+                    ),
+                );
+            }
+        }
+        let Some(when) = &clause.when else {
+            return;
+        };
+        let mut compared = Vec::new();
+        compared_values(when, &mut compared);
+        for (path, value) in compared {
+            let Ok(steps) = self.resolve(op, path, true) else {
+                continue;
+            };
+            let Some(step) = steps.last() else {
+                continue;
+            };
+            let internal = match self.service.shape(&step.member.target) {
+                Some(Shape::Enum(e)) => e
+                    .values
+                    .iter()
+                    .any(|v| v.internal && value.as_str() == Some(v.value.as_str())),
+                Some(Shape::IntEnum(e)) => e
+                    .values
+                    .iter()
+                    .any(|v| v.internal && value.as_i64() == Some(i64::from(v.value))),
+                _ => false,
+            };
+            if internal {
+                self.error(
+                    "permissions.internal-member",
+                    &op.id,
+                    Some(index),
+                    format!(
+                        "`{}` on `{}` is visible to clients, but its `when` compares `{}` with {value}, an internal value of `{}`; {advice}",
+                        clause.permission,
+                        clause.resource.name(),
+                        path.join("."),
+                        step.member.target.name()
+                    ),
+                );
+            }
+        }
     }
 
     /// The resources that declare a permission with this symbol.
@@ -1374,6 +1480,21 @@ impl<'a> Checker<'a> {
 }
 
 /// The member paths a condition guarantees present when it holds.
+/// Every literal a condition compares a member with.
+fn compared_values<'c>(condition: &'c Condition, out: &mut Vec<(&'c [String], &'c Value)>) {
+    match condition {
+        Condition::Has(_) => {}
+        Condition::Equals(path, value) => out.push((path, value)),
+        Condition::In(path, values) => out.extend(values.iter().map(|v| (path.as_slice(), v))),
+        Condition::And(parts) | Condition::Or(parts) => {
+            for part in parts {
+                compared_values(part, out);
+            }
+        }
+        Condition::Not(inner) => compared_values(inner, out),
+    }
+}
+
 fn present(condition: &Condition) -> BTreeSet<Vec<String>> {
     let prefixes = |path: &[String]| -> BTreeSet<Vec<String>> {
         (1..=path.len()).map(|n| path[..n].to_vec()).collect()

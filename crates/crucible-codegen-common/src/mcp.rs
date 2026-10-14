@@ -82,7 +82,7 @@ pub fn emit(
         // What the caller must hold, so an agent knows before it calls
         // (docs/permissions.md §6.3); the External projection names no
         // internal permission.
-        if let Some(requirements) = crate::permissions::requirement_paragraph(service, op) {
+        if let Some(requirements) = crate::permissions::requirement_paragraph(service, op, false) {
             if !description.is_empty() {
                 description.push_str("\n\n");
             }

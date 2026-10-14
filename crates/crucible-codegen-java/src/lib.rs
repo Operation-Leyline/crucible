@@ -265,7 +265,7 @@ fn operation_javadoc(
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
     let requirements: Vec<String> =
-        crucible_codegen_common::permissions::requirement_sentences(service, op)
+        crucible_codegen_common::permissions::requirement_sentences(service, op, false)
             .iter()
             .flat_map(|sentence| docs::javadoc(sentence))
             .collect();

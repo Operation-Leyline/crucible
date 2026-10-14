@@ -425,6 +425,23 @@ version's section when it is prepared.
   with, say, a 409 no longer matches the store's error on the same client
   inside the outage. They stay the service's internal error.
 
+- Typed permissions in client output no longer leak or understate internal
+  requirements (#258). A requirement list that mixes public and internal
+  clauses projects to the new `Requirements::Partial` for clients: its
+  sentence ends "; and further permissions internal to the service.", and
+  `describe.json` `requirements` and OpenAPI `x-crucible-requires` add
+  `partial: true`. An operation whose requirements are all internal now
+  says "Requires permissions internal to the service." in every SDK's doc
+  comments and MCP tool descriptions, not only in the reference. SDK doc
+  comments name only what the SDK's registry has, so an internal-audience
+  SDK no longer names internal permissions there (`requirement_sentences`
+  and `requirement_paragraph` in `crucible-codegen-common` take an
+  `internal` flag, as `registry` does). A clause clients see may no longer
+  bind or test an `internal` member, or compare with an `internal` enum
+  value (`permissions.internal-member`); the client projection drops
+  `@permissionTypes` exclusions of resources it removed. See
+  [docs/permissions.md](docs/permissions.md).
+
 - `AuthenticatorChain` checked a request at an older API version against
   the current version's authentication plan when its scope took both
   versions (an unscoped chain, say): plans were keyed by operation id, and

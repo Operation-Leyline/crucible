@@ -19,6 +19,60 @@ public final class LeylineClient {
         runtime = new ClientRuntime(config, "https://weather.example", true, ModelRegistry.classes());
     }
     /**
+     * <p>A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <code>when</code> reads.</p>
+     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
+     * <p>Requires <code>graph:write</code> on the graph; and further permissions internal to the service.</p>
+     *
+     * @param input the request
+     * @return a future of the response
+     */
+    public java.util.concurrent.CompletableFuture<example.weather.model.ArchiveGraphOutput> archiveGraphAsync(example.weather.model.ArchiveGraphInput input) {
+        return runtime.call("ArchiveGraph", input, example.weather.model.ArchiveGraphOutput.class);
+    }
+    /**
+     * <p>A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <code>when</code> reads.</p>
+     * <p>Blocking form: returns when the response has been decoded.</p>
+     * <p>Requires <code>graph:write</code> on the graph; and further permissions internal to the service.</p>
+     *
+     * @param input the request
+     * @return the response
+     * @throws example.weather.model.NotFoundException if the service returns <code>crucible.errors#NotFoundException</code>
+     * @throws example.weather.model.ValidationException if the service returns <code>crucible.errors#ValidationException</code>
+     * @throws example.weather.model.InternalServerException if the service returns <code>crucible.errors#InternalServerException</code>
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    public example.weather.model.ArchiveGraphOutput archiveGraph(example.weather.model.ArchiveGraphInput input) {
+        return ClientRuntime.await(archiveGraphAsync(input));
+    }
+    /**
+     * <p>A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <code>when</code> reads.</p>
+     * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
+     * <p>Requires <code>graph:write</code> on the graph; and further permissions internal to the service.</p>
+     *
+     * @param configure fills the request builder
+     * @return the response
+     * @throws example.weather.model.NotFoundException if the service returns <code>crucible.errors#NotFoundException</code>
+     * @throws example.weather.model.ValidationException if the service returns <code>crucible.errors#ValidationException</code>
+     * @throws example.weather.model.InternalServerException if the service returns <code>crucible.errors#InternalServerException</code>
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    public example.weather.model.ArchiveGraphOutput archiveGraph(java.util.function.Consumer<example.weather.model.ArchiveGraphInput.Builder> configure) {
+        var builder = example.weather.model.ArchiveGraphInput.builder(); configure.accept(builder); return archiveGraph(builder.build());
+    }
+    /**
+     * <p>A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <code>when</code> reads.</p>
+     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
+     * <p>Requires <code>graph:write</code> on the graph; and further permissions internal to the service.</p>
+     *
+     * @param configure fills the request builder
+     * @return a future of the response
+     */
+    public java.util.concurrent.CompletableFuture<example.weather.model.ArchiveGraphOutput> archiveGraphAsync(java.util.function.Consumer<example.weather.model.ArchiveGraphInput.Builder> configure) {
+        var builder = example.weather.model.ArchiveGraphInput.builder(); configure.accept(builder); return archiveGraphAsync(builder.build());
+    }
+    /**
      * <p>Calls the <code>CreateGraph</code> operation.</p>
      * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
      * <p>Requires <code>graph:write</code> on every graph in the organization.</p>
@@ -188,6 +242,7 @@ public final class LeylineClient {
      * <p>Calls the <code>GetOrganization</code> operation.</p>
      * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
      * <p>This operation is read-only; the client may retry it.</p>
+     * <p>Requires permissions internal to the service.</p>
      *
      * @param input the request
      * @return a future of the response
@@ -199,6 +254,7 @@ public final class LeylineClient {
      * <p>Calls the <code>GetOrganization</code> operation.</p>
      * <p>Blocking form: returns when the response has been decoded.</p>
      * <p>This operation is read-only; the client may retry it.</p>
+     * <p>Requires permissions internal to the service.</p>
      *
      * @param input the request
      * @return the response
@@ -215,6 +271,7 @@ public final class LeylineClient {
      * <p>Calls the <code>GetOrganization</code> operation.</p>
      * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
      * <p>This operation is read-only; the client may retry it.</p>
+     * <p>Requires permissions internal to the service.</p>
      *
      * @param configure fills the request builder
      * @return the response
@@ -231,6 +288,7 @@ public final class LeylineClient {
      * <p>Calls the <code>GetOrganization</code> operation.</p>
      * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
      * <p>This operation is read-only; the client may retry it.</p>
+     * <p>Requires permissions internal to the service.</p>
      *
      * @param configure fills the request builder
      * @return a future of the response

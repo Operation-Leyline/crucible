@@ -411,7 +411,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         // The sentences as Markdown strings, and (additive, so format 1
         // keeps its meaning) each rendered like documentation, since they
         // hold model text.
-        let sentences = crate::permissions::requirement_sentences(service, op);
+        let sentences = crate::permissions::requirement_sentences(service, op, true);
         value["requirementDocumentation"] = json!(
             sentences
                 .iter()

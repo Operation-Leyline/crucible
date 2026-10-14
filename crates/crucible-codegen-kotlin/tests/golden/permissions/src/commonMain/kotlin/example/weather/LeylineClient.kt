@@ -20,6 +20,38 @@ class LeylineClient(config: ClientConfig) : AutoCloseable {
     /** This client's retry quota, shared by all of its calls: null in `RetryMode.LEGACY`. */
     val retryQuota: RetryQuota? get() = runtime.retryQuota
     /**
+     * A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its `when` reads.
+     *
+     * Requires `graph:write` on the graph; and further permissions internal to the service.
+     *
+     * Suspends until the response has been decoded.
+     *
+     * @param input the request
+     * @return the response
+     * @throws example.weather.model.NotFoundException if the service returns `crucible.errors#NotFoundException`
+     * @throws example.weather.model.ValidationException if the service returns `crucible.errors#ValidationException`
+     * @throws example.weather.model.InternalServerException if the service returns `crucible.errors#InternalServerException`
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    suspend fun `archiveGraph`(input: example.weather.model.`ArchiveGraphInput`): example.weather.model.`ArchiveGraphOutput` = runtime.call("ArchiveGraph", input) as example.weather.model.`ArchiveGraphOutput`
+    /**
+     * A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its `when` reads.
+     *
+     * Requires `graph:write` on the graph; and further permissions internal to the service.
+     *
+     * Builds the request with a lambda; omit it to send an empty request when every member is optional.
+     *
+     * @param block fills the request builder
+     * @return the response
+     * @throws example.weather.model.NotFoundException if the service returns `crucible.errors#NotFoundException`
+     * @throws example.weather.model.ValidationException if the service returns `crucible.errors#ValidationException`
+     * @throws example.weather.model.InternalServerException if the service returns `crucible.errors#InternalServerException`
+     * @throws example.weather.LeylineException for any other error response
+     * @throws example.weather.NetworkError if the transport fails
+     */
+    suspend fun `archiveGraph`(block: example.weather.model.`ArchiveGraphInput`.Builder.() -> kotlin.Unit = {}): example.weather.model.`ArchiveGraphOutput` = `archiveGraph`(example.weather.model.`ArchiveGraphInput`(block))
+    /**
      * Requires `graph:write` on every graph in the organization.
      *
      * Calls the `CreateGraph` operation.
@@ -120,6 +152,8 @@ class LeylineClient(config: ClientConfig) : AutoCloseable {
      */
     suspend fun `getGraph`(block: example.weather.model.`GetGraphInput`.Builder.() -> kotlin.Unit = {}): example.weather.model.`GetGraphOutput` = `getGraph`(example.weather.model.`GetGraphInput`(block))
     /**
+     * Requires permissions internal to the service.
+     *
      * Calls the `GetOrganization` operation.
      *
      * Suspends until the response has been decoded.
@@ -136,6 +170,8 @@ class LeylineClient(config: ClientConfig) : AutoCloseable {
      */
     suspend fun `getOrganization`(input: example.weather.model.`GetOrganizationInput`): example.weather.model.`GetOrganizationOutput` = runtime.call("GetOrganization", input) as example.weather.model.`GetOrganizationOutput`
     /**
+     * Requires permissions internal to the service.
+     *
      * Calls the `GetOrganization` operation.
      *
      * Builds the request with a lambda; omit it to send an empty request when every member is optional.

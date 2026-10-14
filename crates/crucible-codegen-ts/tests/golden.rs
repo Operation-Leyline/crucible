@@ -114,6 +114,18 @@ fn permission_constants_match_golden() {
         client.contains("\n   * \\@see the runbook; @param is no tag either.\n   *\n   * Input: RewriteGraphInput."),
         "{client}"
     );
+    // Requirements on internal permissions are still requirements: a mixed
+    // list says more are internal, and an all-internal one says only that.
+    assert!(
+        client.contains(
+            "Requires `graph:write` on the graph; and further permissions internal to the service."
+        ),
+        "{client}"
+    );
+    assert!(
+        client.contains("Requires permissions internal to the service."),
+        "{client}"
+    );
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions.ts");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
         fs::write(&path, &permissions).unwrap();
@@ -134,6 +146,60 @@ fn permission_constants_match_golden() {
             .unwrap()
             .iter()
             .all(|file| file.path != "src/permissions.ts")
+    );
+}
+
+/// An internal-audience client keeps internal members and operations, but
+/// its registry has no internal permission (decision 9), so its doc
+/// comments name none either: they say what is left out, as the client
+/// audience projection does.
+#[test]
+fn an_internal_audience_client_names_no_internal_permission() {
+    let service = leyline();
+    let internal = crucible_smithy::project(&service, crucible_smithy::Audience::Internal).unwrap();
+    let options = Options {
+        package_name: "@example/leyline".into(),
+        package_version: "0.0.0-dev".into(),
+        client_name: None,
+        endpoint: None,
+        middleware: vec![],
+        package_json: None,
+        metadata: Default::default(),
+    };
+    let files = emit(&internal, &options).unwrap();
+    for file in &files {
+        assert!(
+            !file.contents.contains("organization:read"),
+            "{}: {}",
+            file.path,
+            file.contents
+        );
+    }
+    let client = &files
+        .iter()
+        .find(|file| file.path == "src/client.ts")
+        .unwrap()
+        .contents;
+    // The member is this audience's; the internal clause reading it is not.
+    assert!(
+        files
+            .iter()
+            .any(|file| file.contents.contains("auditTicket"))
+    );
+    assert!(
+        files
+            .iter()
+            .all(|file| !file.contents.contains("has auditTicket"))
+    );
+    assert!(
+        client.contains(
+            "Requires `graph:write` on the graph; and further permissions internal to the service."
+        ),
+        "{client}"
+    );
+    assert!(
+        client.contains("Requires permissions internal to the service."),
+        "{client}"
     );
 }
 

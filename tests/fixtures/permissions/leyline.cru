@@ -154,6 +154,20 @@ operation RewriteGraph on Graph {
     output { rewritten: boolean }
 }
 
+/// A mixed list: clients see the public clause and that more are internal,
+/// never the internal clause or the internal member its `when` reads.
+operation ArchiveGraph on Graph {
+    http POST "/orgs/{organizationId}/graphs/{graphId}/archive"
+    requires write
+    requires read on Organization when has auditTicket
+    input {
+        $organizationId
+        $graphId
+        internal auditTicket?: string
+    }
+    output { archived: boolean }
+}
+
 operation RestoreBackup on History {
     http POST "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
     requires pending because "guard::allow in the handler until the history module moves."

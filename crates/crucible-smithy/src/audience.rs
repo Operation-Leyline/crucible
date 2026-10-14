@@ -837,7 +837,10 @@ fn expression_targets(
 }
 
 /// Internal permissions, aliases of them, and requirements that name them
-/// are server contract only (decision 9), as internal members are.
+/// are server contract only (decision 9), as internal members are. A
+/// requirement the client keeps never reads an internal member: the shared
+/// check refuses a client-visible clause that binds or tests one
+/// (`permissions.internal-member`), so nothing here redacts paths.
 fn project_permissions(result: &mut Service) {
     use crate::ir::{Requirements, Tier};
     for resource in result.permissions.values_mut() {
@@ -863,24 +866,45 @@ fn project_permissions(result: &mut Service) {
             op.requirements = Requirements::Undeclared;
         }
         if let Requirements::List(clauses) = &mut op.requirements {
+            let before = clauses.len();
             clauses.retain(|clause| {
                 permissions
                     .get(&clause.resource)
                     .is_some_and(|r| r.permission(&clause.permission).is_some())
             });
             // Requirements the client may not see are still requirements:
-            // an empty list would read as a model that lists none.
+            // an empty list would read as a model that lists none, and a
+            // shorter one as everything the caller must hold.
             if clauses.is_empty() {
                 op.requirements = Requirements::Internal;
+            } else if clauses.len() < before {
+                op.requirements = Requirements::Partial(std::mem::take(clauses));
             }
         }
     }
     result.permissions.retain(|_, r| !r.permissions.is_empty());
-    if result
-        .permission_types
-        .as_ref()
-        .is_some_and(|types| !result.shapes.contains_key(&types.shape))
-    {
+    // `@permissionTypes` names its enum and the resources it excludes. A
+    // resource whose permissions were all internal is gone from this view,
+    // so it is no longer excluded either; and an enum (still a wire enum
+    // here) with a value that names no resource of this view, or that the
+    // projection removed, is no longer this view's permission types.
+    if let Some(types) = &mut result.permission_types {
+        types
+            .excluded
+            .retain(|id| result.permissions.contains_key(id));
+    }
+    let names: BTreeSet<&str> = result
+        .permissions
+        .values()
+        .map(|r| r.name.as_str())
+        .collect();
+    let consistent = result.permission_types.as_ref().is_some_and(|types| {
+        match result.shapes.get(&types.shape) {
+            Some(Shape::Enum(e)) => e.values.iter().all(|v| names.contains(v.value.as_str())),
+            _ => false,
+        }
+    });
+    if !consistent {
         result.permission_types = None;
     }
 }

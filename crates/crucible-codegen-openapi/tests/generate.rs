@@ -106,6 +106,21 @@ fn permissions_match_reviewed_golden_per_audience() {
                 "{file}: {value}"
             );
         }
+        // ArchiveGraph's internal clause reads an internal member; neither
+        // reaches a client, and its public clause is marked partial there.
+        assert_eq!(
+            strings.iter().any(|s| s.contains("auditTicket")),
+            audience == crucible_smithy::Audience::Internal,
+            "{file}"
+        );
+        let archive = document["paths"]["/orgs/{organizationId}/graphs/{graphId}/archive"]["post"]
+            ["x-crucible-requires"]
+            .clone();
+        assert_eq!(
+            archive.get("partial").cloned(),
+            (audience == crucible_smithy::Audience::External).then_some(serde_json::json!(true)),
+            "{file}: {archive}"
+        );
         let internal_tier = generated.contains("\"tier\": \"internal\"");
         assert_eq!(
             internal_tier,
@@ -144,7 +159,7 @@ fn permissions_match_reviewed_golden_per_audience() {
                     Requirements::None => Some("none"),
                     Requirements::Pending { .. } => Some("pending"),
                     Requirements::Internal => Some("internal"),
-                    Requirements::List(_) => Some("list"),
+                    Requirements::List(_) | Requirements::Partial(_) => Some("list"),
                 };
                 (op.id.name().to_owned(), kind.map(str::to_owned))
             })

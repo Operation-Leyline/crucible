@@ -253,7 +253,10 @@ language's own checks include:
   a path through an optional member or union arm is guarded by `when`,
   which reads input members (`has` may test a list or map member, nothing
   reads into one) and compares like with like (a number of the
-  member's own type; never a `bigInteger` or `bigDecimal`); `filters`
+  member's own type; never a `bigInteger` or `bigDecimal`); a clause
+  clients see (its permission, operation and service are not `internal`)
+  binds and tests no `internal` member and compares with no `internal`
+  enum value (`permissions.internal-member`); `filters`
   appears once, on a `lists` or `on .. collection` operation, and names a
   permission of the resource the operation is bound to, the one the
   listing returns; `by handler`
