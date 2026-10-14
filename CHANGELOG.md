@@ -76,31 +76,42 @@ version's section when it is prepared.
   response from before a deploy that changed it. A failure releases the
   claim so a retry runs again, unless the operation called
   `idempotency::commit()` before a step that is not safe to repeat, after
-  which the claim is held for the retention; `commit` refuses an attempt
-  that outlived its claim. Successes replay for 24 hours (`retention`); an
-  unsettled claim lapses after 15 minutes (`lease`), or a minute past the
-  request's deadline. A success that cannot be stored (the write failed, or
-  it is over `max_stored_response`, 256 KiB) is held for the retention
-  instead. `refusal_factory` maps an `IdempotencyRefusal` (`Missing`,
-  `Invalid`, `Mismatch`, `InFlight`, `Lapsed`, `Unreplayable`) to the
-  service's own errors. Store errors are sanitized 5xx answers; a failed
-  completion write never turns a success into an error. Operations with a
+  which the failure is recorded for the retention and a retry is refused
+  as `Failed`; every `commit` checks the claim is still the attempt's and
+  refuses one that outlived it. A request that ends without finishing (a
+  client that disconnected, a claim whose store call failed or timed out)
+  settles its claim in the background through a drop guard: released, or
+  recorded as failed past a commit. Successes replay for 24 hours
+  (`retention`); an unsettled claim lapses after 15 minutes (`lease`), or a
+  minute past the request's deadline. A success that cannot be stored (the
+  write failed, or it is over `max_stored_response`, 256 KiB) is recorded
+  without its response, and a retry is refused as `Unreplayable`; when that
+  write fails too the claim is held for the retention, retried in the
+  background when even that fails. Each store call is bounded by
+  `store_timeout` (5 seconds). `refusal_factory` maps an `IdempotencyRefusal`
+  (`Missing`, `Invalid`, `Mismatch`, `InFlight`, `Lapsed`, `Unreplayable`,
+  `Failed`) to the service's own errors. Store errors are sanitized 5xx
+  answers; a failed completion write never turns a success into an error.
+  `Claim` and `Ownership` are `#[non_exhaustive]`. Operations with a
   streaming input or output are refused at build (leave them out with
-  `.except`), and an older API version without the token runs unclaimed.
-  `MemoryIdempotencyStore` (`test-support`) stands in for the table in
-  tests. See
+  `.except`), two `Idempotency` interceptors covering one operation answer
+  its requests with an internal error, and an older API version without
+  the token runs unclaimed. `MemoryIdempotencyStore` (`test-support`)
+  stands in for the table in tests, sweeping expired records on each
+  claim. See
   [docs/framework.md](docs/framework.md#idempotency-tokens).
 
-- `idempotency::abandon()` takes back `idempotency::commit()` when the step
-  after it provably did not happen (the provider refused explicitly): a
-  failure then releases the claim as if `commit` had never been called, so
-  a retry with the same token runs the operation again instead of getting a
-  409 for the retention. It changes only what a failure does (a success
-  still completes and replays), makes no store call (the request's own
-  completion releases the claim, and a process that stops first leaves it
-  held as committed), does nothing without a prior `commit` or for an
-  unclaimed request, and is an internal error without `Idempotency`. A
-  `commit` after it commits again. See
+- `idempotency::abandon()` takes back the latest `idempotency::commit()`
+  when the step after it provably did not happen (the provider refused
+  explicitly); earlier commits stand, since their steps happened. With none
+  standing, a failure releases the claim as if `commit` had never been
+  called, so a retry with the same token runs the operation again instead
+  of getting a 409 for the retention. It changes only what a failure does
+  (a success still completes and replays), makes no store call (the
+  request's own completion releases the claim, and a process that stops
+  first leaves it held as committed), does nothing with no commit standing
+  or for an unclaimed request, and is an internal error without
+  `Idempotency`. A `commit` after it commits again. See
   [docs/framework.md](docs/framework.md#idempotency-tokens).
 
 - Typed permissions, the runtime side. `permissions` holds the static

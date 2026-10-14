@@ -17,20 +17,22 @@
 //! - **Replayed.** A retry with the same token and the same input gets the
 //!   first success's output, encoded afresh for the retry (its protocol, its
 //!   API version, its own request id), without the operation running again.
-//! - **Refused.** The same token with different input, or while the first
-//!   request is still running, is a 409 `ConflictException`
-//!   ([`IdempotencyRefusal`]; [`Idempotency::refusal_factory`] builds a
-//!   service's own errors instead).
+//! - **Refused.** The same token with different input, while the first
+//!   request is still running, or after it failed past its point of no
+//!   return, is a 409 `ConflictException` ([`IdempotencyRefusal`];
+//!   [`Idempotency::refusal_factory`] builds a service's own errors instead).
 //! - **Released on failure.** A failed attempt removes its claim, so a retry
-//!   runs the operation again, unless the operation has called [`commit`]
-//!   (and not [`abandon`] since).
+//!   runs the operation again, unless a [`commit`] still stands (one not
+//!   taken back by [`abandon`]). So does a request that ends without
+//!   finishing, such as one dropped when its client disconnects: its claim
+//!   is released in the background, or recorded as failed when a commit
+//!   stands.
 //!
 //! An operation calls [`commit`] right before any step that is not safe to
 //! repeat: an external side effect (sending mail, charging a card), or a
-//! write a second run would make twice. From then on a failure keeps the
-//! claim in flight for the whole retention, so a retry is refused rather
-//! than repeating the step; and an attempt that outlived its claim is
-//! stopped there:
+//! write a second run would make twice. From then on a failure is recorded
+//! for the whole retention, so a retry is refused rather than repeating the
+//! step; and an attempt that outlived its claim is stopped there:
 //!
 //! ```ignore
 //! let message = build(&input)?;                    // a failure here: the retry runs again
@@ -54,6 +56,18 @@
 //!     return Err(error.into());                    // otherwise it may have been sent: refused
 //! }
 //! ```
+//!
+//! `abandon` takes back only the latest `commit`. An operation with several
+//! irreversible steps commits before each; abandoning the last leaves the
+//! earlier ones standing, so a failure still keeps the claim.
+//!
+//! What a replay does not carry: headers an extension added to the first
+//! response outside the operation's output (the retry gets its own), and
+//! what an outer extension did after the record was written (`Idempotency`
+//! stores the operation's outcome in its own after hook, before extensions
+//! registered ahead of it unwind and before an older API version's
+//! conversion). The record keeps the output as JSON, `@sensitive` members
+//! included, in plaintext for the retention.
 
 mod attempt;
 mod claim;
@@ -86,9 +100,9 @@ use attempt::Attempt;
 /// Marks this request's operation as past its point of no return: call it
 /// right before a step that is not safe to repeat (an external side effect,
 /// or a write a second run would duplicate). From then on a failure does not
-/// release the request's claim; it stays in flight for the whole retention,
-/// and a retry with the token is refused as in flight instead of running the
-/// operation, and the step, again.
+/// release the request's claim; it is kept for the whole retention, and a
+/// retry with the token is refused ([`IdempotencyRefusal::Failed`]) instead
+/// of running the operation, and the step, again.
 ///
 /// The claim is extended in the store before this returns, so a process
 /// that stops, or a request dropped, after the step is covered too. An
@@ -96,8 +110,9 @@ use attempt::Attempt;
 /// internal error when the store could not record the claim, and
 /// [`IdempotencyRefusal::Lapsed`] (a 409 by default) when this request no
 /// longer holds its claim because it ran past its lease, so another attempt
-/// may be running the operation. Calling it again does nothing, unless
-/// [`abandon`] was called since: then it commits again.
+/// may be running the operation. Call it before each such step: every call
+/// writes, so each finds out whether the claim is still this request's, and
+/// each is one step [`abandon`] can take back.
 ///
 /// A request that runs unclaimed (it carried no token where
 /// [`Idempotency::optional_tokens`] allows that, or its API version has no
@@ -117,10 +132,11 @@ pub async fn commit() -> Result<()> {
     }
 }
 
-/// Takes back [`commit`]: declares that the irreversible step after it
-/// provably did not happen, so if the operation now fails, its claim is
-/// released exactly as if `commit` had never been called, and a retry with
-/// the token runs the operation again.
+/// Takes back the latest [`commit`]: declares that the irreversible step
+/// after it provably did not happen. Earlier commits stand, since their
+/// steps did happen; once none stands, a failure releases the claim exactly
+/// as if `commit` had never been called, and a retry with the token runs the
+/// operation again.
 ///
 /// Call it only on a failure that proves nothing happened (the provider
 /// answered with an explicit refusal: throttled, the message rejected), then
@@ -144,7 +160,7 @@ pub async fn commit() -> Result<()> {
 /// operation still runs is refused as in flight. If the process stops after
 /// this but before the operation finishes, the claim stays held as
 /// committed and retries are refused until the retention ends: the
-/// conservative outcome. Calling it without a prior `commit` does nothing (a
+/// conservative outcome. Calling it with no commit standing does nothing (a
 /// failure releases the claim anyway); a `commit` after it commits again.
 ///
 /// Like `commit`, it does nothing for a request that runs unclaimed, and an

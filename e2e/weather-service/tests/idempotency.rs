@@ -3,7 +3,7 @@
 //! replays the first success to a retry, refuses a reused token with other
 //! input or while the first request runs, and releases the claim when the
 //! operation fails before `idempotency::commit`, or after
-//! `idempotency::abandon` takes the commit back.
+//! `idempotency::abandon` takes the commit back, or is dropped before it.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -15,7 +15,7 @@ use crucible_server_runtime_rust::idempotency::{
     MemoryIdempotencyStore, Ownership, StoredResponse,
 };
 use crucible_server_runtime_rust::mcp::McpConfig;
-use crucible_server_runtime_rust::{Context, Crucible, Error};
+use crucible_server_runtime_rust::{Builder, Context, Crucible, Error};
 use serde_json::{Value, json};
 use tokio::sync::Notify;
 use weather_service::weather::{CitySummary, ConflictError};
@@ -36,6 +36,18 @@ enum Step {
     AbandonThenSucceed,
     /// Commits, abandons, commits again, then fails: a retry must not run.
     RecommitThenFail,
+    /// Commits and takes its first irreversible step, commits for a second,
+    /// finds that one refused and abandons it, then fails: the first step
+    /// happened, so a retry must not run.
+    TwoStepsAbandonTheSecond,
+    /// Panics before the point of no return: a retry runs again.
+    PanicBeforeCommit,
+    /// Commits, takes its step, then panics: a retry must not run.
+    PanicAfterCommit,
+    /// Never finishes, before the point of no return.
+    HangBeforeCommit,
+    /// Commits, takes its step, and never finishes.
+    HangAfterCommit,
     /// Says it entered, then waits to be let go.
     Wait {
         entered: Arc<Notify>,
@@ -43,6 +55,11 @@ enum Step {
     },
     /// Waits like `Wait`, then commits and takes its irreversible step.
     WaitThenSend {
+        entered: Arc<Notify>,
+        release: Arc<Notify>,
+    },
+    /// Commits and takes its step, then says it entered and waits.
+    SendThenWait {
         entered: Arc<Notify>,
         release: Arc<Notify>,
     },
@@ -112,7 +129,32 @@ impl CityStore for Counted {
                 idempotency::commit().await?;
                 return Err(Error::internal("recorded nothing after the side effect"));
             }
+            Some(Step::TwoStepsAbandonTheSecond) => {
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
+                idempotency::commit().await?;
+                idempotency::abandon()?;
+                return Err(Error::internal("the second provider refused"));
+            }
+            Some(Step::PanicBeforeCommit) => panic!("the handler panicked before its step"),
+            Some(Step::PanicAfterCommit) => {
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
+                panic!("the handler panicked after its step");
+            }
+            Some(Step::HangBeforeCommit) => std::future::pending::<()>().await,
+            Some(Step::HangAfterCommit) => {
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
+                std::future::pending::<()>().await;
+            }
             Some(Step::Wait { entered, release }) => {
+                entered.notify_one();
+                release.notified().await;
+            }
+            Some(Step::SendThenWait { entered, release }) => {
+                idempotency::commit().await?;
+                self.sends.fetch_add(1, Ordering::SeqCst);
                 entered.notify_one();
                 release.notified().await;
             }
@@ -188,8 +230,16 @@ impl Answer {
 }
 
 async fn serve(idempotency: Idempotency) -> Harness {
+    serve_with(idempotency, |builder| builder).await
+}
+
+/// `serve`, with the service's builder configured further first.
+async fn serve_with(
+    idempotency: Idempotency,
+    configure: impl FnOnce(Builder) -> Builder,
+) -> Harness {
     let cities = Arc::new(Counted::default());
-    let service = weather_service::builder(cities.clone())
+    let service = configure(weather_service::builder(cities.clone()))
         .interceptor(idempotency)
         .build()
         .unwrap();
@@ -268,6 +318,28 @@ fn store() -> Arc<MemoryIdempotencyStore> {
 
 fn oslo(token: &str) -> Value {
     json!({ "name": "Oslo", "clientToken": token })
+}
+
+/// The refusal message of a 409.
+fn refusal(answer: &Answer) -> String {
+    assert_eq!(
+        answer.status,
+        409,
+        "{}",
+        String::from_utf8_lossy(&answer.body)
+    );
+    answer.json()["message"].as_str().unwrap().to_owned()
+}
+
+/// Waits, briefly, for what a background settlement does.
+async fn eventually(what: &str, mut check: impl AsyncFnMut() -> bool) {
+    for _ in 0..500 {
+        if check().await {
+            return;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    panic!("{what} did not happen");
 }
 
 #[tokio::test]
@@ -403,13 +475,8 @@ async fn a_failure_after_commit_keeps_the_claim_so_the_retry_does_not_run() {
     harness.cities.next(Step::FailAfterCommit);
     assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
     let retry = harness.create(Some("alice"), oslo("t-1")).await;
-    assert_eq!(retry.status, 409);
-    assert!(
-        retry.json()["message"]
-            .as_str()
-            .unwrap()
-            .contains("in progress")
-    );
+    // Not "in progress": nothing is running, and waiting will not help.
+    assert!(refusal(&retry).contains("failed after"), "{}", retry.json());
     assert_eq!(harness.cities.creates(), 1);
 }
 
@@ -452,14 +519,137 @@ async fn a_commit_after_abandoning_keeps_the_claim_again() {
     harness.cities.next(Step::RecommitThenFail);
     assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
     let retry = harness.create(Some("alice"), oslo("t-1")).await;
-    assert_eq!(retry.status, 409);
-    assert!(
-        retry.json()["message"]
-            .as_str()
-            .unwrap()
-            .contains("in progress")
+    assert!(refusal(&retry).contains("failed after"), "{}", retry.json());
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn abandoning_a_later_step_leaves_an_earlier_commit_standing() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::TwoStepsAbandonTheSecond);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert!(refusal(&retry).contains("failed after"), "{}", retry.json());
+    assert_eq!(
+        harness.cities.sends(),
+        1,
+        "the first step is not taken again"
     );
     assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_panic_before_commit_lets_the_retry_run() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::PanicBeforeCommit);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201, "{}", retry.json());
+    assert_eq!(harness.cities.creates(), 2);
+}
+
+#[tokio::test]
+async fn a_panic_after_commit_is_refused_as_failed() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::PanicAfterCommit);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert!(refusal(&retry).contains("failed after"), "{}", retry.json());
+    assert_eq!(harness.cities.sends(), 1);
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_deadline_before_commit_lets_the_retry_run() {
+    let harness = serve_with(Idempotency::new(store(), caller), |builder| {
+        builder.request_timeout(Duration::from_millis(200))
+    })
+    .await;
+    harness.cities.next(Step::HangBeforeCommit);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201, "{}", retry.json());
+    assert_eq!(harness.cities.creates(), 2);
+}
+
+#[tokio::test]
+async fn a_deadline_after_commit_is_refused_as_failed() {
+    let harness = serve_with(Idempotency::new(store(), caller), |builder| {
+        builder.request_timeout(Duration::from_millis(200))
+    })
+    .await;
+    harness.cities.next(Step::HangAfterCommit);
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 500);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert!(refusal(&retry).contains("failed after"), "{}", retry.json());
+    assert_eq!(harness.cities.sends(), 1);
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+/// Starts a direct invocation of `CreateCity` that runs `step`, and drops it
+/// once the operation is inside, as a host drops the request of a client
+/// that disconnected. Invocations are the anonymous caller.
+async fn drop_inside(harness: &Harness, step: impl FnOnce(Arc<Notify>, Arc<Notify>) -> Step) {
+    let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    harness.cities.next(step(entered.clone(), release));
+    let invocation = tokio::spawn({
+        let service = harness.service.clone();
+        async move {
+            service
+                .invoke(
+                    "CreateCity",
+                    json!({ "name": "Oslo", "clientToken": "t-1", "expectedRevision": 7 }),
+                )
+                .await
+        }
+    });
+    entered.notified().await;
+    invocation.abort();
+    assert!(invocation.await.unwrap_err().is_cancelled());
+}
+
+#[tokio::test]
+async fn a_request_dropped_before_commit_releases_its_claim() {
+    let store = store();
+    let harness = serve(Idempotency::new(store.clone(), caller)).await;
+    drop_inside(&harness, |entered, release| Step::Wait { entered, release }).await;
+    // Released in the background, not left in flight for the lease.
+    eventually("the release", async || store.is_empty()).await;
+    let retry = harness.create(None, oslo("t-1")).await;
+    assert_eq!(retry.status, 201, "{}", retry.json());
+    assert_eq!(harness.cities.creates(), 2);
+}
+
+#[tokio::test]
+async fn a_request_dropped_after_commit_is_refused_as_failed() {
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    drop_inside(&harness, |entered, release| Step::SendThenWait {
+        entered,
+        release,
+    })
+    .await;
+    // In flight until the background settlement lands, then failed.
+    eventually("the failure's record", async || {
+        refusal(&harness.create(None, oslo("t-1")).await).contains("failed after")
+    })
+    .await;
+    assert_eq!(harness.cities.sends(), 1);
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn two_idempotency_interceptors_on_one_operation_are_a_wiring_error() {
+    let first = store();
+    let harness = serve_with(Idempotency::new(store(), caller), {
+        let first = first.clone();
+        |builder| builder.interceptor(Idempotency::new(first, caller))
+    })
+    .await;
+    let refused = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(refused.status, 500);
+    assert_eq!(harness.cities.creates(), 0);
+    // The claim the first one took is released, not left in flight.
+    assert!(first.is_empty());
 }
 
 #[tokio::test]
@@ -524,13 +714,23 @@ async fn a_store_outage_is_an_internal_error_and_never_runs_the_operation() {
     assert_eq!(harness.cities.creates(), 0);
 }
 
-/// A store that fails its completion writes, or answers replays with a
-/// response written before a deploy, as a database might.
+/// A store that fails its completion writes, or its holds, answers a claim
+/// it wrote only too late, or answers replays with a response written
+/// before a deploy, as a database might.
 #[derive(Default)]
 struct Faulty {
     inner: MemoryIdempotencyStore,
+    /// Every completion fails.
     fail_completions: AtomicBool,
+    /// Completions carrying an output fail; notes that there is none land.
+    fail_outputs: AtomicBool,
     failed: AtomicBool,
+    /// This many of the next holds fail.
+    fail_holds: AtomicUsize,
+    /// Holds that landed.
+    held: AtomicUsize,
+    /// A claim is written, and answered only after a long while.
+    slow_claims: AtomicBool,
     stale: AtomicBool,
 }
 
@@ -548,6 +748,9 @@ impl IdempotencyStore for Faulty {
             .inner
             .claim(key, fingerprint, attempt, now, expires)
             .await?;
+        if self.slow_claims.load(Ordering::SeqCst) {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+        }
         Ok(match claim {
             Claim::Replay { fingerprint, .. } if self.stale.load(Ordering::SeqCst) => {
                 Claim::Replay {
@@ -567,7 +770,17 @@ impl IdempotencyStore for Faulty {
         attempt: &str,
         expires: SystemTime,
     ) -> crucible_server_runtime_rust::Result<Ownership> {
-        self.inner.hold(key, attempt, expires).await
+        let failing = self
+            .fail_holds
+            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
+                left.checked_sub(1)
+            });
+        if failing.is_ok() {
+            return Err(Error::internal("the hold timed out"));
+        }
+        let held = self.inner.hold(key, attempt, expires).await?;
+        self.held.fetch_add(1, Ordering::SeqCst);
+        Ok(held)
     }
 
     async fn complete(
@@ -577,7 +790,10 @@ impl IdempotencyStore for Faulty {
         response: &StoredResponse,
         expires: SystemTime,
     ) -> crucible_server_runtime_rust::Result<Ownership> {
-        if self.fail_completions.load(Ordering::SeqCst) {
+        let output = response.as_str().contains(r#""output""#);
+        if self.fail_completions.load(Ordering::SeqCst)
+            || (output && self.fail_outputs.load(Ordering::SeqCst))
+        {
             self.failed.store(true, Ordering::SeqCst);
             return Err(Error::internal("the write timed out"));
         }
@@ -614,12 +830,74 @@ async fn a_lost_completion_keeps_the_success_and_holds_the_claim_for_the_retenti
 }
 
 #[tokio::test]
-async fn a_response_too_large_to_keep_is_held_rather_than_replayed() {
+async fn a_lost_completion_is_recorded_as_a_success_that_cannot_be_replayed() {
+    let store = Arc::new(Faulty::default());
+    store.fail_outputs.store(true, Ordering::SeqCst);
+    let harness = serve(Idempotency::new(store.clone(), caller)).await;
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 201);
+    assert!(store.failed.load(Ordering::SeqCst));
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    // Not "in progress": the first request finished.
+    assert!(
+        refusal(&retry).contains("cannot be replayed"),
+        "{}",
+        retry.json()
+    );
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_success_neither_completed_nor_held_is_held_in_the_background() {
+    let store = Arc::new(Faulty::default());
+    store.fail_completions.store(true, Ordering::SeqCst);
+    store.fail_holds.store(1, Ordering::SeqCst);
+    let clock = Clock::new();
+    let idempotency = Idempotency::new(store.clone(), caller)
+        .lease(Duration::from_secs(60))
+        .clock(clock.reader());
+    let harness = serve(idempotency).await;
+    assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 201);
+    // The hold after the failed completions failed too; it is tried again.
+    eventually("the background hold", async || {
+        store.held.load(Ordering::SeqCst) > 0
+    })
+    .await;
+    clock.advance(Duration::from_secs(60 * 60));
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 409, "past the lease, still not run again");
+    assert_eq!(harness.cities.creates(), 1);
+}
+
+#[tokio::test]
+async fn a_claim_the_store_answers_too_late_is_an_error_and_released() {
+    let store = Arc::new(Faulty::default());
+    store.slow_claims.store(true, Ordering::SeqCst);
+    let idempotency =
+        Idempotency::new(store.clone(), caller).store_timeout(Duration::from_millis(100));
+    let harness = serve(idempotency).await;
+    let started = std::time::Instant::now();
+    let refused = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(refused.status, 500);
+    assert!(started.elapsed() < Duration::from_secs(10));
+    assert_eq!(harness.cities.creates(), 0);
+    // The write landed; the request that made it releases it.
+    eventually("the release", async || store.inner.is_empty()).await;
+    store.slow_claims.store(false, Ordering::SeqCst);
+    let retry = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(retry.status, 201, "{}", retry.json());
+}
+
+#[tokio::test]
+async fn a_response_too_large_to_keep_is_refused_rather_than_replayed() {
     let idempotency = Idempotency::new(store(), caller).max_stored_response(16);
     let harness = serve(idempotency).await;
     assert_eq!(harness.create(Some("alice"), oslo("t-1")).await.status, 201);
     let retry = harness.create(Some("alice"), oslo("t-1")).await;
-    assert_eq!(retry.status, 409);
+    assert!(
+        refusal(&retry).contains("cannot be replayed"),
+        "{}",
+        retry.json()
+    );
     assert_eq!(harness.cities.creates(), 1);
 }
 
