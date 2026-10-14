@@ -344,7 +344,8 @@ fn comment_body(line: &str) -> Option<&str> {
 
 /// A model line that starts with `@` (`@returns injected`) stays prose in
 /// the doc tools that read such a line as a tag: JSDoc, Javadoc, KDoc,
-/// PHPDoc, YARD, Doxygen and roxygen.
+/// PHPDoc, YARD, Doxygen and roxygen. JSDoc, PHPDoc and YARD read one inside
+/// a code fence (`@throws fenced`) as a tag too; KDoc's lexer knows fences.
 #[test]
 fn hostile_model_text_never_becomes_a_doc_tag() {
     let mut problems = Vec::new();
@@ -352,9 +353,13 @@ fn hostile_model_text_never_becomes_a_doc_tag() {
         if !["ts", "java", "kotlin", "php", "ruby", "c", "cpp", "r"].contains(&language) {
             continue;
         }
+        let fences = ["ts", "php", "ruby"].contains(&language);
         for file in files.iter().filter(|file| source(file)) {
             for (number, line) in file.contents.lines().enumerate() {
-                if comment_body(line).is_some_and(|body| body.starts_with("@returns injected")) {
+                if comment_body(line).is_some_and(|body| {
+                    body.starts_with("@returns injected")
+                        || (fences && body.starts_with("@throws fenced"))
+                }) {
                     problems.push(format!("{language} {}:{}: {line:?}", file.path, number + 1));
                 }
             }

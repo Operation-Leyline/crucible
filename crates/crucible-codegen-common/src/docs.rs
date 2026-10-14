@@ -73,11 +73,33 @@ pub fn note_paragraphs(notes: &DocNotes) -> Vec<String> {
     paragraphs
 }
 
+/// [`note_paragraphs`] with the deprecation message through
+/// [`escape_block`], for the doc tools that read a tag inside a code fence.
+pub fn note_paragraphs_block(notes: &DocNotes) -> Vec<String> {
+    let mut paragraphs = notes.lines();
+    paragraphs.extend(
+        notes
+            .deprecated
+            .as_ref()
+            .map(|d| escape_block(&d.sentence())),
+    );
+    paragraphs
+}
+
 /// Model documentation (escaped) followed by [`note_paragraphs`], for the
 /// line-comment targets. `None` when there is nothing to say.
 pub fn annotated(text: Option<&str>, notes: &DocNotes) -> Option<String> {
     let mut parts: Vec<String> = text.map(escape).into_iter().collect();
     parts.extend(note_paragraphs(notes));
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
+/// [`annotated`] for a doc tool that reads a line starting with `@` as a
+/// tag even inside a code fence (PHPDoc, YARD): model text goes through
+/// [`escape_block`].
+pub fn annotated_block(text: Option<&str>, notes: &DocNotes) -> Option<String> {
+    let mut parts: Vec<String> = text.map(escape_block).into_iter().collect();
+    parts.extend(note_paragraphs_block(notes));
     (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
@@ -134,16 +156,39 @@ pub fn escape(text: &str) -> String {
     lines.join("\n")
 }
 
-/// LF endings, no trailing blanks or blank edges; `*/` defused when the
-/// target comment has a terminator (`/** */`). Line comments (`///`, `#`)
-/// have none, so their text stays as written.
+/// [`escape`] for a doc tool (PHPDoc, JSDoc, YARD) that reads a line
+/// starting with `@` as a tag even inside a code fence, which [`escape`]
+/// leaves alone: there the `@` is escaped too, a visible backslash in the
+/// sample being better than a tag that swallows the rest of the comment.
+pub fn escape_block(text: &str) -> String {
+    escape(text)
+        .lines()
+        .map(guard_tag)
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// `line` with a leading `@` (after its indent) backslash-escaped.
+fn guard_tag(line: &str) -> String {
+    let rest = line.trim_start();
+    if rest.starts_with('@') {
+        format!("{}{BACKSLASH}{rest}", &line[..line.len() - rest.len()])
+    } else {
+        line.to_string()
+    }
+}
+
+/// LF endings, no trailing blanks or blank edges; `*/` defused, and a
+/// line-initial `@` escaped (see [`escape_block`]), when the target comment
+/// is a `/** */` block. Line comments (`///`, `#`) have no terminator, so
+/// their text stays as written.
 fn normalise(text: &str, terminator: bool) -> String {
     let mut lines: Vec<String> = comment_text(text)
         .lines()
         .map(|line| {
             let line = line.trim_end();
             if terminator {
-                line.replace("*/", "*\u{5c}/")
+                guard_tag(line).replace("*/", "*\u{5c}/")
             } else {
                 line.to_string()
             }
@@ -298,6 +343,21 @@ mod tests {
             "see \u{5c}[Foo] and [link](http://x) and `[Bar]`"
         );
         assert_eq!(escape("```\n[Foo]\n```"), "```\n[Foo]\n```");
+    }
+
+    #[test]
+    fn fenced_tags_are_escaped_for_block_doc_tools() {
+        let text = "```\n@throws x\n  @see y\n```";
+        assert_eq!(escape(text), text);
+        assert_eq!(
+            escape_block(text),
+            "```\n\u{5c}@throws x\n  \u{5c}@see y\n```"
+        );
+        assert_eq!(escape_block("@a"), "\u{5c}@a");
+        assert_eq!(
+            block_comment("", "```\n@throws x\n```", &["@return y".into()]),
+            "/**\n * ```\n * \u{5c}@throws x\n * ```\n *\n * @return y\n */\n"
+        );
     }
 
     #[test]

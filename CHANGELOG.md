@@ -466,7 +466,9 @@ version's section when it is prepared.
   escape their embedded literals and descriptors the same way (a BOM broke
   `go build`). A model line starting with `@` no longer becomes a tag in
   TypeScript JSDoc, a Kotlin deprecation note or a PHP waiter's docblock,
-  whose documentation is now escaped like the rest. Ruby literals that
+  whose documentation is now escaped like the rest; in TypeScript, PHP and
+  Ruby, whose doc tools read such a line as a tag even inside a code fence,
+  it is escaped there too (`docs::escape_block`). Ruby literals that
   carry a line break or an invisible character are double-quoted with
   escapes: Ruby's lexer read a raw CRLF as LF even in a single-quoted
   literal, so an enum value of `a`, CRLF, `b` was sent with LF alone. The

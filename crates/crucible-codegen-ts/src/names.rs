@@ -159,13 +159,13 @@ pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, not
     // is the only tag.
     let mut text = docs
         .map(str::trim)
-        .map(crucible_codegen_common::docs::escape)
+        .map(crucible_codegen_common::docs::escape_block)
         .unwrap_or_default();
     for line in notes.lines() {
         if !text.is_empty() {
             text.push_str("\n\n");
         }
-        text.push_str(&crucible_codegen_common::docs::escape(&line));
+        text.push_str(&crucible_codegen_common::docs::escape_block(&line));
     }
     if let Some(deprecated) = &notes.deprecated {
         if !text.is_empty() {
@@ -173,7 +173,7 @@ pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, not
         }
         text.push_str(&format!(
             "@deprecated {}",
-            crucible_codegen_common::docs::escape(&deprecated.note())
+            crucible_codegen_common::docs::escape_block(&deprecated.note())
         ));
     }
     let text = crucible_codegen_common::docs::comment_text(&text);
