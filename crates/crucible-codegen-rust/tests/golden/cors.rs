@@ -9,7 +9,7 @@ pub mod cors_service {
 
         pub type Headers = ::std::collections::BTreeMap<::std::string::String, ::std::string::String>;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ReadInput {
             #[serde(rename = "id")]
@@ -19,12 +19,28 @@ pub mod cors_service {
             #[serde(rename = "metadata", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub metadata: ::std::option::Option<Headers>,
         }
+        impl ::std::fmt::Debug for ReadInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ReadInput");
+                debug.field("id", &self.id);
+                debug.field("header", &self.header);
+                debug.field("metadata", &self.metadata);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ReadOutput {
             #[serde(rename = "header", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub header: ::std::option::Option<::std::string::String>,
+        }
+        impl ::std::fmt::Debug for ReadOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ReadOutput");
+                debug.field("header", &self.header);
+                debug.finish()
+            }
         }
 
         impl ::crucible_server_runtime_rust::__generated::validate::Validate for ReadInput {
@@ -38,7 +54,7 @@ pub mod cors_service {
     mod errors {
         use super::__redaction;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct CorsError {
             #[serde(rename = "message", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -47,6 +63,14 @@ pub mod cors_service {
             pub header: ::std::option::Option<::std::string::String>,
         }
 
+        impl ::std::fmt::Debug for CorsError {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("CorsError");
+                debug.field("message", &self.message);
+                debug.field("header", &self.header);
+                debug.finish()
+            }
+        }
         pub(super) static CORS_ERROR_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "CorsError",
             409,

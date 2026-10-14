@@ -7,7 +7,7 @@ pub mod api {
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub enum Choice {
             #[serde(rename = "public")]
@@ -15,15 +15,30 @@ pub mod api {
             #[serde(rename = "private")]
             Private(SecretValue),
         }
+        impl ::std::fmt::Debug for Choice {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                match self {
+                    Self::Public(value) => f.debug_tuple("Choice::Public").field(value).finish(),
+                    Self::Private(value) => f.debug_tuple("Choice::Private").field(value).finish(),
+                }
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PrivateDetails {
             #[serde(rename = "value", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub value: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for PrivateDetails {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PrivateDetails");
+                debug.field("value", &self.value);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PublicInput {
             #[serde(rename = "value", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -33,8 +48,17 @@ pub mod api {
             #[serde(rename = "privateHeader", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub private_header: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for PublicInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PublicInput");
+                debug.field("value", &self.value);
+                debug.field("privateValue", &self.private_value);
+                debug.field("privateHeader", &self.private_header);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PublicOutput {
             #[serde(rename = "value", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -44,14 +68,31 @@ pub mod api {
             #[serde(rename = "choice", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub choice: ::std::option::Option<Choice>,
         }
+        impl ::std::fmt::Debug for PublicOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PublicOutput");
+                debug.field("value", &self.value);
+                debug.field("privateValue", &self.private_value);
+                debug.field("choice", &self.choice);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct SecretInput {
             #[serde(rename = "secret", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub secret: ::std::option::Option<SecretValue>,
             #[serde(rename = "details", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub details: ::std::option::Option<PrivateDetails>,
+        }
+        impl ::std::fmt::Debug for SecretInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("SecretInput");
+                debug.field("secret", &self.secret);
+                debug.field("details", &self.details);
+                debug.finish()
+            }
         }
 
         pub type SecretValue = ::std::string::String;
@@ -83,13 +124,20 @@ pub mod api {
     mod errors {
         use super::__redaction;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct InternalFault {
             #[serde(rename = "message", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub message: ::std::option::Option<::std::string::String>,
         }
 
+        impl ::std::fmt::Debug for InternalFault {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("InternalFault");
+                debug.field("message", &self.message);
+                debug.finish()
+            }
+        }
         pub(super) static INTERNAL_FAULT_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "InternalFault",
             400,
@@ -133,13 +181,20 @@ pub mod api {
 
         impl ::std::error::Error for InternalFault {}
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PublicFault {
             #[serde(rename = "message", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub message: ::std::option::Option<::std::string::String>,
         }
 
+        impl ::std::fmt::Debug for PublicFault {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PublicFault");
+                debug.field("message", &self.message);
+                debug.finish()
+            }
+        }
         pub(super) static PUBLIC_FAULT_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "PublicFault",
             400,

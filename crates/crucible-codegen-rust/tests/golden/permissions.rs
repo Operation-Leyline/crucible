@@ -7,7 +7,7 @@ pub mod leyline {
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct CreateGraphInput {
             #[serde(rename = "organizationId")]
@@ -15,15 +15,30 @@ pub mod leyline {
             #[serde(rename = "name")]
             pub name: ::std::string::String,
         }
+        impl ::std::fmt::Debug for CreateGraphInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("CreateGraphInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("name", &self.name);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct CreateGraphOutput {
             #[serde(rename = "created")]
             pub created: GraphId,
         }
+        impl ::std::fmt::Debug for CreateGraphOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("CreateGraphOutput");
+                debug.field("created", &self.created);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ExecuteQueryInput {
             #[serde(rename = "organizationId")]
@@ -35,15 +50,32 @@ pub mod leyline {
             #[serde(rename = "target", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub target: ::std::option::Option<QueryTarget>,
         }
+        impl ::std::fmt::Debug for ExecuteQueryInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ExecuteQueryInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("graphId", &self.graph_id);
+                debug.field("query", &self.query);
+                debug.field("target", &self.target);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ExecuteQueryOutput {
             #[serde(rename = "rows")]
             pub rows: Names,
         }
+        impl ::std::fmt::Debug for ExecuteQueryOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ExecuteQueryOutput");
+                debug.field("rows", &self.rows);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetGraphInput {
             #[serde(rename = "organizationId")]
@@ -51,65 +83,129 @@ pub mod leyline {
             #[serde(rename = "graph")]
             pub graph: GraphId,
         }
+        impl ::std::fmt::Debug for GetGraphInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetGraphInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("graph", &self.graph);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetGraphOutput {
             #[serde(rename = "name")]
             pub name: ::std::string::String,
         }
+        impl ::std::fmt::Debug for GetGraphOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetGraphOutput");
+                debug.field("name", &self.name);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetOrganizationInput {
             #[serde(rename = "organizationId")]
             pub organization_id: OrganizationId,
         }
+        impl ::std::fmt::Debug for GetOrganizationInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetOrganizationInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetOrganizationOutput {
             #[serde(rename = "name")]
             pub name: ::std::string::String,
         }
+        impl ::std::fmt::Debug for GetOrganizationOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetOrganizationOutput");
+                debug.field("name", &self.name);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetUserOutput {
             #[serde(rename = "subject")]
             pub subject: ::std::string::String,
         }
+        impl ::std::fmt::Debug for GetUserOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetUserOutput");
+                debug.field("subject", &self.subject);
+                debug.finish()
+            }
+        }
 
         pub type GraphId = ::std::string::String;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct HealthOutput {
             #[serde(rename = "status")]
             pub status: ::std::string::String,
         }
+        impl ::std::fmt::Debug for HealthOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("HealthOutput");
+                debug.field("status", &self.status);
+                debug.finish()
+            }
+        }
 
         pub type HistoryId = ::std::string::String;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct HistoryRef {
             #[serde(rename = "historyId")]
             pub history_id: HistoryId,
         }
+        impl ::std::fmt::Debug for HistoryRef {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("HistoryRef");
+                debug.field("historyId", &self.history_id);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ListGraphsInput {
             #[serde(rename = "organizationId")]
             pub organization_id: OrganizationId,
         }
+        impl ::std::fmt::Debug for ListGraphsInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ListGraphsInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ListGraphsOutput {
             #[serde(rename = "names")]
             pub names: Names,
+        }
+        impl ::std::fmt::Debug for ListGraphsOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ListGraphsOutput");
+                debug.field("names", &self.names);
+                debug.finish()
+            }
         }
 
         pub type Names = ::std::vec::Vec<::std::string::String>;
@@ -117,13 +213,21 @@ pub mod leyline {
         pub type OrganizationId = ::std::string::String;
 
         /// Where a query reads: the current state, or a saved history.
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub enum QueryTarget {
             #[serde(rename = "current")]
             Current(::crucible_server_runtime_rust::__generated::operation::Unit),
             #[serde(rename = "history")]
             History(HistoryRef),
+        }
+        impl ::std::fmt::Debug for QueryTarget {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                match self {
+                    Self::Current(value) => f.debug_tuple("QueryTarget::Current").field(value).finish(),
+                    Self::History(value) => f.debug_tuple("QueryTarget::History").field(value).finish(),
+                }
+            }
         }
 
         /// The resource types grants name; histories are granted through graphs.
@@ -146,7 +250,7 @@ pub mod leyline {
             }
         }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct RestoreBackupInput {
             #[serde(rename = "organizationId")]
@@ -156,22 +260,46 @@ pub mod leyline {
             #[serde(rename = "historyId")]
             pub history_id: HistoryId,
         }
+        impl ::std::fmt::Debug for RestoreBackupInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RestoreBackupInput");
+                debug.field("organizationId", &self.organization_id);
+                debug.field("graphId", &self.graph_id);
+                debug.field("historyId", &self.history_id);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct RestoreBackupOutput {
             #[serde(rename = "restored")]
             pub restored: bool,
         }
+        impl ::std::fmt::Debug for RestoreBackupOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RestoreBackupOutput");
+                debug.field("restored", &self.restored);
+                debug.finish()
+            }
+        }
 
         /// A request field that failed validation.
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationExceptionField {
             #[serde(rename = "name")]
             pub name: ::std::string::String,
             #[serde(rename = "message")]
             pub message: ::std::string::String,
+        }
+        impl ::std::fmt::Debug for ValidationExceptionField {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ValidationExceptionField");
+                debug.field("name", &self.name);
+                debug.field("message", &self.message);
+                debug.finish()
+            }
         }
 
         pub type ValidationExceptionFieldList = ::std::vec::Vec<ValidationExceptionField>;
@@ -337,7 +465,7 @@ pub mod leyline {
         use super::__redaction;
 
         /// An unexpected server failure. Its message never exposes the underlying cause.
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct InternalServerException {
             #[serde(rename = "message")]
@@ -346,6 +474,14 @@ pub mod leyline {
             pub retry_after_seconds: ::std::option::Option<i32>,
         }
 
+        impl ::std::fmt::Debug for InternalServerException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("InternalServerException");
+                debug.field("message", &self.message);
+                debug.field("retryAfterSeconds", &self.retry_after_seconds);
+                debug.finish()
+            }
+        }
         pub(super) static INTERNAL_SERVER_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "InternalServerException",
             500,
@@ -391,7 +527,7 @@ pub mod leyline {
         impl ::std::error::Error for InternalServerException {}
 
         /// The resource does not exist, or the caller may not know that it does.
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct NotFoundException {
             #[serde(rename = "message")]
@@ -400,6 +536,14 @@ pub mod leyline {
             pub resource_type: ::std::string::String,
         }
 
+        impl ::std::fmt::Debug for NotFoundException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("NotFoundException");
+                debug.field("message", &self.message);
+                debug.field("resourceType", &self.resource_type);
+                debug.finish()
+            }
+        }
         pub(super) static NOT_FOUND_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "NotFoundException",
             404,
@@ -445,7 +589,7 @@ pub mod leyline {
         impl ::std::error::Error for NotFoundException {}
 
         /// A request cannot be parsed or does not satisfy the service's input model.
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationException {
             #[serde(rename = "message")]
@@ -456,6 +600,15 @@ pub mod leyline {
             pub field_list: ::std::option::Option<super::model::ValidationExceptionFieldList>,
         }
 
+        impl ::std::fmt::Debug for ValidationException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ValidationException");
+                debug.field("message", &self.message);
+                debug.field("reason", &self.reason);
+                debug.field("fieldList", &self.field_list);
+                debug.finish()
+            }
+        }
         pub(super) static VALIDATION_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "ValidationException",
             400,

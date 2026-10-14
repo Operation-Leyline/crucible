@@ -26,7 +26,7 @@ pub(crate) fn union(
     service: &Service,
     name: &str,
     shape: &Structure,
-    unknown: &str,
+    unknown: Option<&str>,
 ) {
     out.push_str(&format!("impl ::std::fmt::Debug for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        match self {{\n"));
     for m in &shape.members {
@@ -46,8 +46,11 @@ pub(crate) fn union(
         ));
     }
     // Unknown values have no sensitivity contract; do not expose their payload.
-    out.push_str(&format!(
-        "            Self::{unknown}(_) => f.write_str({}),\n        }}\n    }}\n}}\n",
-        literal(&format!("{name}::Unknown(*** Sensitive Data Redacted ***)"))
-    ));
+    if let Some(unknown) = unknown {
+        out.push_str(&format!(
+            "            Self::{unknown}(_) => f.write_str({}),\n",
+            literal(&format!("{name}::Unknown(*** Sensitive Data Redacted ***)"))
+        ));
+    }
+    out.push_str("        }\n    }\n}\n");
 }
