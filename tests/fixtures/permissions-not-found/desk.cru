@@ -6,6 +6,7 @@ service Desk {
     auth bearer
     notFound ResourceNotFoundException
 
+    operations [Whoami]
     resources [Workspace]
     errors [AccessDeniedException, InternalServerException, ValidationException]
 }
@@ -72,6 +73,9 @@ error ResourceNotFoundException {
     message: string
     resourceType: ErrorResourceType
     resourceId: string
+
+    /// The request's id, as its `x-request-id` header carries it.
+    requestId?: string
 }
 
 readonly operation GetWorkspace on Workspace {
@@ -97,4 +101,24 @@ readonly operation ListRooms on Room collection {
     filters read on Room
     input { $workspaceId }
     output { rooms: RoomIds }
+}
+
+/// Not converted yet: its handler checks, and a hidden room is still the
+/// service's 404, which the designation attaches here too.
+operation RenameRoom on Room {
+    http POST "/w/{workspaceId}/rooms/{roomId}/rename"
+    requires pending because "permissions::require in the handler"
+    input {
+        $workspaceId
+        $roomId
+    }
+    output { name: string }
+}
+
+/// The caller's home workspace, which the handler checks it may read.
+readonly operation Whoami {
+    http GET "/me"
+    requires none
+    input { @query home: WorkspaceId }
+    output { name: string }
 }

@@ -21,6 +21,10 @@ pub struct ResourceInfo {
 impl ResourceInfo {
     /// The framework's 404 for this resource: what a hidden instance and a
     /// genuinely missing one both answer, so the two cannot be told apart.
+    /// It names no instance, so a service that designates its own not-found
+    /// error cannot build that from it: there it is a wiring error, and
+    /// [`ResourceRef::not_found`](super::ResourceRef::not_found) is the one
+    /// to use.
     pub fn not_found_error(&'static self) -> Error {
         FrameworkError::NotFound { resource: self }.into()
     }

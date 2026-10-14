@@ -16,7 +16,7 @@ use crucible_smithy::ir::{
     Service, Tier,
 };
 use crucible_smithy::validate::{
-    FindingSeverity, derived_authorization_name, needs_not_found, not_found_id,
+    FindingSeverity, attaches_not_found, derived_authorization_name, not_found_id,
 };
 use serde_json::Value as Json;
 
@@ -686,6 +686,9 @@ impl<'a> Lowerer<'a> {
         let problem = match self.decl(&name.name) {
             Some(decl) if matches!(decl.item.decl, Decl::Error(_)) && decl.ns == self.ns => {
                 let id = self.ref_id(&name.name);
+                // It travels in responses, so its members take the
+                // response timestamp format.
+                self.http_outputs.insert(id.clone());
                 self.visit(&id);
                 self.not_found = Some(id);
                 return;
@@ -710,7 +713,7 @@ impl<'a> Lowerer<'a> {
         own: usize,
         errors: &mut Vec<ShapeId>,
     ) {
-        if !needs_not_found(requirements, &self.permissions) {
+        if !attaches_not_found(self.not_found.is_some(), requirements, &self.permissions) {
             return;
         }
         let id = match &self.not_found {

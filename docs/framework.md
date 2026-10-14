@@ -876,7 +876,9 @@ such as `No such inbox.`, and `resourceType`, the authorization name), named
 in each protocol as a modelled error is (`crucible.errors#NotFoundException`
 in RPC v2 and AWS JSON 1.0) and a tool error in MCP. It never names a
 permission or an identifier. A handler reports genuine absence with
-`permissions::not_found(&resource)` (or `ResourceRef::not_found`); a
+`permissions::not_found(&resource)` (or `ResourceRef::not_found`, which is
+answered the same way, as is a generated reference's `not_found()`; on a
+service with its own not-found error, below, all three are that error); a
 modelled `NotFoundException` it returns instead is answered the same way,
 its own message replaced by the resource's (the resource is found by its
 `resourceType` in the service's permission registry,
@@ -910,14 +912,16 @@ service Pigeon {
 ```
 
 Check 17 then attaches it, not `crucible.errors#NotFoundException`, to
-every operation with something to hide, and nothing of `crucible.errors` is
-needed. The bindings name it (`SERVICE.not_found`, from
+every operation with something to hide, and to every `requires pending`
+operation, whose handler still checks; nothing of `crucible.errors` is
+needed. It renders on any operation, as the framework's NotFound does, so a
+handler check on a `requires none` operation is a 404 too. The bindings name it (`SERVICE.not_found`, from
 `.with_not_found("pigeon.api#ResourceNotFoundException")`). Its members are
 the service's (an enum resource type, the id the caller named), so the
 runtime never builds it: `Permissions::not_found_factory` does, from the
-hidden resource's `ResourceRef` (its `ResourceInfo` and the identifiers the
-request named, never the permission). Give it the same constructor the
-handlers use for a genuine miss, and the two are byte-identical:
+refused check's `ResourceRef` (its `ResourceInfo` and identifiers, never
+the permission). Give it the same constructor the handlers use for a
+genuine miss, and the two are byte-identical (request id aside):
 
 ```rust
 /// Pigeon's one 404: its handlers' and the not-found factory's.
@@ -928,7 +932,8 @@ fn not_found(resource: &ResourceRef) -> Error {
         Ok(Resource::Inbox(inbox)) => (ErrorResourceType::Workspace, inbox.workspace_id),
         // ..
     };
-    ResourceNotFoundException { message: resource.resource().not_found.into(), resource_type, resource_id, request_id: None }.into()
+    let request_id = Context::try_current().map(|context| context.request_id().to_owned());
+    ResourceNotFoundException { message: resource.resource().not_found.into(), resource_type, resource_id, request_id }.into()
 }
 
 Permissions::new(authorizer)
@@ -936,13 +941,25 @@ Permissions::new(authorizer)
     .refusal_factory(denied)
 ```
 
-A model that designates one needs the factory, and a factory needs the
-designation: either alone fails the build. A factory that builds another
-error is a wiring error, answered with the internal error.
-`permissions::not_found(&resource)` and a generated reference's
-`not_found()` call the factory too, inside a request `Permissions` covers.
-Every response carrying the designated error, hidden or missing, is sent
-with `Cache-Control: no-store`, as the framework's NotFound is.
+A declared check's identifiers are the ones the request named, but a
+handler check's (`permissions::require`, `discharge`) are whatever the
+handler bound, perhaps an id it looked up: a factory that echoes an
+identifier should echo one the caller sent, or the handler should bind
+only those, or a Hidden answer may reveal an id the caller never knew.
+
+It fails closed. A model that designates one needs `Permissions` and the
+factory, and a factory needs the designation: anything else fails the
+build. So does a factory that builds another error for any resource the
+model declares permissions on, which `build` asks it for (one instance,
+and every instance under a parent). `permissions::not_found(&resource)`, a
+generated reference's `not_found()` and `ResourceRef::not_found` returned
+from a handler all go through the factory; in a request `Permissions` does
+not cover (it is scoped with `only`), or from
+`ResourceInfo::not_found_error`, which names no instance, there is nothing
+to build it from, and the answer is the internal error, logged as a wiring
+error, never the framework's 404. Every response carrying the designated
+error, hidden or missing, is sent with `Cache-Control: no-store`, as the
+framework's NotFound is, also at an older API version that renames it.
 
 **Handler checks.** What the model cannot bind is checked from the handler
 through the same Authorizer, with task-local functions like

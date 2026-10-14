@@ -56,6 +56,10 @@ pub struct Job {
     pub(crate) wants_snapshot: bool,
     /// The input as JSON, kept for `after` hooks when one asked for it.
     pub(crate) input_snapshot: Option<Value>,
+    /// The outcome is the service's designated not-found error, as the
+    /// current version names it: sent with `Cache-Control: no-store`
+    /// however an older API version's conversion renames it.
+    pub(crate) designated_not_found: bool,
 }
 
 impl Job {
@@ -362,6 +366,11 @@ impl Job {
         if let Some(rejection) = error.downcast_ref::<Rejection>() {
             return Resolution::Rejected(rejection);
         }
+        // A service that designates its own not-found error has had this
+        // answered as that error already (`permissions::answer_not_found`).
+        if let Some(missing) = error.downcast_ref::<crucible_wire::permissions::MissingResource>() {
+            return Resolution::Framework(missing.framework_error());
+        }
         if let Some(framework) = error.downcast_ref::<FrameworkError>() {
             return match framework {
                 FrameworkError::InternalFailure => Resolution::Internal(error),
@@ -373,10 +382,15 @@ impl Job {
             .and_then(|release| (release.classify)(error.get_ref()))
             .or_else(|| (self.service.classify)(error.get_ref()));
         match modelled {
+            // The service's designated not-found error is its answer for a
+            // hidden resource on any operation, as the framework's NotFound
+            // is, so a handler check on one check 17 attached nothing to
+            // (`requires none`) is a 404, not an internal error.
             Some(modelled)
                 if self
                     .operation()
-                    .is_none_or(|op| op.declares(modelled.info().name)) =>
+                    .is_none_or(|op| op.declares(modelled.info().name))
+                    || self.service.not_found == Some(modelled.shape_id()) =>
             {
                 match self.not_found(modelled) {
                     Some(not_found) => Resolution::Framework(not_found),

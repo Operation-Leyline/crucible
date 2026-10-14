@@ -188,15 +188,21 @@ version's section when it is prepared.
   `Service::not_found` (`#[serde(default)]`; `Service::not_found_error()`
   answers whichever applies) and the server bindings as
   `ServiceInfo::not_found` (`service_info(..).with_not_found(..)`).
-  `Permissions::not_found_factory(|resource: &ResourceRef| ..)` builds it
-  for a Hidden verdict or a hidden listing, from the resource type and the
-  identifiers the request named, so a service gives it the constructor its
-  handlers answer a genuine miss with and the two stay byte-identical;
-  `permissions::not_found` and a generated reference's `not_found()` call
-  it too. A designation without a factory, or a factory without one, fails
-  the build, and a factory that builds another error is an internal error.
-  Every response carrying the designated error is sent with
-  `Cache-Control: no-store`. The release guard reports an operation that
+  `requires pending` operations get it too, and it renders on any
+  operation. `Permissions::not_found_factory(|resource: &ResourceRef| ..)`
+  builds it for a Hidden verdict or a hidden listing, from the refused
+  check's resource type and identifiers, so a service gives it the
+  constructor its handlers answer a genuine miss with and the two stay
+  byte-identical; `permissions::not_found`, a generated reference's
+  `not_found()` and `ResourceRef::not_found` (now a
+  `permissions::MissingResource`, answered as the framework's NotFound
+  without a designation) go through it too. It fails closed: a designation
+  without `Permissions` or a factory, a factory without a designation, or a
+  factory that builds another error (asked once per resource at build)
+  fails the build, and a framework 404 the factory cannot be asked for
+  (outside what `Permissions` covers, or `ResourceInfo::not_found_error`)
+  is a logged wiring error. Every response carrying the designated error is
+  sent with `Cache-Control: no-store`, at older API versions too. The release guard reports an operation that
   switches to a newly designated 404 as a new error. `crucible-lsp`
   completes and explains `notFound`. See
   [docs/framework.md](docs/framework.md#typed-permissions).

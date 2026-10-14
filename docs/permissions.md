@@ -395,7 +395,7 @@ runtime, catches "required a template that was not sent".
 `filters read on Inbox` is `ListInboxes`: the operation is answered with
 only the instances the caller holds `read` on. Before the operation runs,
 the interceptor asks the Authorizer what is visible under the bound parent
-(§7.1). The answer is one of three:
+(§7.1). The answer is one of four:
 
 - **Hidden**: refused with the framework 404, for example a non-member.
 - **All**: no filtering needed.
@@ -690,7 +690,8 @@ All of these are errors unless marked. Everything that holds of the IR
     clause targets a root resource with `*`, which leaves nothing to hide
     (decision 5). A service that designates its own not-found error
     (`notFound E` in the service, the addendum to decision 5) gets `E`
-    instead, and needs nothing of `crucible.errors`; `E` is an error of the
+    instead, on `requires pending` operations too (their handlers still
+    check, and Hidden is `E`), and needs nothing of `crucible.errors`; `E` is an error of the
     service's own package, a client error with status 404
     (`permissions.not-found-error`). *Warning*, `permissions.second-not-found`: such an
     operation also declares another error with HTTP status 404. The handler
@@ -783,8 +784,9 @@ pub enum Condition {
 And two facts carried in existing fields:
 
 - `Operation::errors` already includes `crucible.errors#NotFoundException`
-  where check 17 applies, and the shape is in the IR, so generators need no
-  special case.
+  where check 17 applies (or, for a service that designates its own 404,
+  that error: the addendum to decision 5), and the shape is in the IR, so
+  generators need no special case.
 - `Operation::readonly` and `Operation::idempotent` are unchanged and reach
   the Authorizer (§7.1).
 
@@ -1192,7 +1194,9 @@ Leyline returns `Denied` for a non-member, as it does today. Neither choice
 is Crucible's. Each operation's verdict comes from its own requirements and
 the container's visibility, never from probing related permissions.
 
-**Hidden is always the framework NotFound.** It is
+**Hidden is the framework NotFound**, by default: a service that designates
+its own not-found error answers Hidden with that instead (the as-built note
+below and the addendum to decision 5). By default it is
 `FrameworkError::NotFound`, encoded as the modelled
 `crucible.errors#NotFoundException` (404) that the compiler attached to the
 operation (check 17), so SDKs see it as a typed error:
@@ -1215,8 +1219,10 @@ permission, never an identifier the caller did not send. It is sent with
 constructor (`InboxRef::not_found()` or `permissions::not_found(&resource)`),
 so a hidden inbox and a missing one produce byte-identical responses. Check
 17's warning catches an operation that still declares its own 404. Hidden
-is not customizable: `refusal_factory` sees only Denied, because a service
-mapping Hidden to its own error would make the two distinguishable again.
+is not customizable through `refusal_factory`, which sees only Denied,
+because a service mapping Hidden to an error of its choosing would make the
+two distinguishable again; the one exception is the designated not-found
+error below, which handlers must answer a genuine miss with too.
 
 *As built (the addendum to decision 5).* A service whose model designates
 its own not-found error (`notFound ResourceNotFoundException`) answers
@@ -1225,12 +1231,28 @@ hidden `ResourceRef` (its `ResourceInfo` and the identifiers the request
 named; the factory never sees the permission). The guarantee is kept by
 construction rather than by a fixed shape: the service gives the factory
 the same constructor its handlers answer a genuine miss with, and
-`permissions::not_found` and the generated references' `not_found()` call
-it too. The runtime refuses to build a service that designates an error
-without a factory, or gives a factory without a designation, answers a
-factory that builds any other error as an internal error, and sends every
-response carrying the designated error, hidden or missing, with
-`Cache-Control: no-store`. `refusal_factory` still never sees Hidden.
+`permissions::not_found`, the generated references' `not_found()` and
+`ResourceRef::not_found` (returned from a handler) all reach it, so every
+constructor of the framework's 404 is answered as the service's. The
+runtime fails closed: it refuses to build a service that designates an
+error without `Permissions`, or without a factory, or that gives a factory
+without a designation; it calls the factory at build time for every
+resource the model declares permissions on (one instance, and every
+instance under a parent) and refuses one that builds another error; and a
+framework 404 it cannot build the designated error for (outside what
+`Permissions` covers, or `ResourceInfo::not_found_error`, which names no
+instance) is the internal error, logged as a wiring error, never a 404 of
+another shape. The designated error is attached to `requires pending`
+operations too, whose handlers still check, and renders on any operation
+(a handler check on a `requires none` one), as the framework's NotFound
+does. Every response carrying it, hidden or missing, is sent with
+`Cache-Control: no-store`, also when an older API version's conversion
+renames it. The factory receives the `ResourceRef` of the refused check: a
+declared check's identifiers came from the request, but a handler check's
+(`require`, `discharge`) are whatever the handler bound, perhaps an id it
+looked up, so a factory that echoes an identifier should echo only one the
+request named, or handler checks should bind only those. `refusal_factory`
+still never sees Hidden.
 A `filters` listing the Authorizer answers `Visibility::Denied` is refused
 like a Denied verdict on its clause: through `refusal_factory`, with the
 clause's permission, in declaration order with the other clauses.

@@ -126,8 +126,23 @@ fn a_designated_not_found_error_matches_golden() {
         .join("../../tests/fixtures/permissions-not-found");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let rendered = compiled.render();
-    assert!(compiled.diagnostics.is_empty(), "\n{rendered}");
+    // Only the pending operation's reminder.
+    assert_eq!(compiled.diagnostics.len(), 1, "\n{rendered}");
+    assert!(rendered.contains("permissions.pending"), "\n{rendered}");
     let service = compiled.service.expect("the fixture compiles");
+    // The designated 404 is declared under `requires pending` too, where
+    // the handler still checks; not under `requires none`.
+    let declares = |name: &str| {
+        let op = service
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap();
+        op.errors
+            .iter()
+            .any(|e| e.name() == "ResourceNotFoundException")
+    };
+    assert!(declares("RenameRoom") && declares("GetRoom") && !declares("Whoami"));
     let code = generate(&service, &Options::default()).unwrap();
     assert!(
         code.contains(".with_not_found(\"example.desk#ResourceNotFoundException\")"),

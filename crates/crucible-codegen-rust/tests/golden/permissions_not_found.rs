@@ -93,9 +93,39 @@ pub mod desk {
             pub rooms: RoomIds,
         }
 
+        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RenameRoomInput {
+            #[serde(rename = "workspaceId")]
+            pub workspace_id: WorkspaceId,
+            #[serde(rename = "roomId")]
+            pub room_id: RoomId,
+        }
+
+        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RenameRoomOutput {
+            #[serde(rename = "name")]
+            pub name: ::std::string::String,
+        }
+
         pub type RoomId = ::std::string::String;
 
         pub type RoomIds = ::std::vec::Vec<RoomId>;
+
+        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct WhoamiInput {
+            #[serde(rename = "home")]
+            pub home: WorkspaceId,
+        }
+
+        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct WhoamiOutput {
+            #[serde(rename = "name")]
+            pub name: ::std::string::String,
+        }
 
         pub type WorkspaceId = ::std::string::String;
 
@@ -112,6 +142,18 @@ pub mod desk {
         }
 
         impl ::crucible_server_runtime_rust::__generated::validate::Validate for ListRoomsInput {
+            fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
+                let _ = validator;
+            }
+        }
+
+        impl ::crucible_server_runtime_rust::__generated::validate::Validate for RenameRoomInput {
+            fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
+                let _ = validator;
+            }
+        }
+
+        impl ::crucible_server_runtime_rust::__generated::validate::Validate for WhoamiInput {
             fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
                 let _ = validator;
             }
@@ -139,7 +181,7 @@ pub mod desk {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
                 ::crucible_server_runtime_rust::__generated::member_info("reason", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
             ],
         );
@@ -191,7 +233,7 @@ pub mod desk {
             true,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
             ],
         );
 
@@ -238,6 +280,9 @@ pub mod desk {
             pub resource_type: super::model::ErrorResourceType,
             #[serde(rename = "resourceId")]
             pub resource_id: ::std::string::String,
+            /// The request's id, as its `x-request-id` header carries it.
+            #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
+            pub request_id: ::std::option::Option<::std::string::String>,
         }
 
         pub(super) static RESOURCE_NOT_FOUND_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
@@ -247,9 +292,10 @@ pub mod desk {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
                 ::crucible_server_runtime_rust::__generated::member_info("resourceType", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_2, &[]),
-                ::crucible_server_runtime_rust::__generated::member_info("resourceId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("resourceId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("requestId", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
             ],
         );
 
@@ -300,7 +346,7 @@ pub mod desk {
             false,
             false,
             &[
-                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+                ::crucible_server_runtime_rust::__generated::member_info("message", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
             ],
         );
 
@@ -339,7 +385,7 @@ pub mod desk {
 
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
-    pub use model::{AccessDeniedReason, ErrorResourceType, GetRoomInput, GetRoomOutput, GetWorkspaceInput, GetWorkspaceOutput, ListRoomsInput, ListRoomsOutput, RoomId, RoomIds, WorkspaceId};
+    pub use model::{AccessDeniedReason, ErrorResourceType, GetRoomInput, GetRoomOutput, GetWorkspaceInput, GetWorkspaceOutput, ListRoomsInput, ListRoomsOutput, RenameRoomInput, RenameRoomOutput, RoomId, RoomIds, WhoamiInput, WhoamiOutput, WorkspaceId};
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
     pub use errors::{AccessDeniedException, InternalServerException, ResourceNotFoundException, ValidationException};
@@ -347,22 +393,26 @@ pub mod desk {
     #[allow(dead_code, unused_imports)]
     mod __redaction {
         use ::crucible_server_runtime_rust::__generated::operation::Redaction;
-        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_15), ("reason", &R_1)]);
+        pub(super) static R_0: Redaction = Redaction::Structure(&[("message", &R_19), ("reason", &R_1)]);
         pub(super) static R_1: Redaction = Redaction::Public;
         pub(super) static R_2: Redaction = Redaction::Public;
-        pub(super) static R_3: Redaction = Redaction::Structure(&[("workspaceId", &R_14), ("roomId", &R_11)]);
-        pub(super) static R_4: Redaction = Redaction::Structure(&[("name", &R_15)]);
-        pub(super) static R_5: Redaction = Redaction::Structure(&[("workspaceId", &R_14)]);
-        pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_15)]);
-        pub(super) static R_7: Redaction = Redaction::Structure(&[("message", &R_15)]);
-        pub(super) static R_8: Redaction = Redaction::Structure(&[("workspaceId", &R_14)]);
-        pub(super) static R_9: Redaction = Redaction::Structure(&[("rooms", &R_12)]);
-        pub(super) static R_10: Redaction = Redaction::Structure(&[("message", &R_15), ("resourceType", &R_2), ("resourceId", &R_15)]);
-        pub(super) static R_11: Redaction = Redaction::Public;
-        pub(super) static R_12: Redaction = Redaction::List(&R_11);
-        pub(super) static R_13: Redaction = Redaction::Structure(&[("message", &R_15)]);
-        pub(super) static R_14: Redaction = Redaction::Public;
-        pub(super) static R_15: Redaction = Redaction::Public;
+        pub(super) static R_3: Redaction = Redaction::Structure(&[("workspaceId", &R_18), ("roomId", &R_13)]);
+        pub(super) static R_4: Redaction = Redaction::Structure(&[("name", &R_19)]);
+        pub(super) static R_5: Redaction = Redaction::Structure(&[("workspaceId", &R_18)]);
+        pub(super) static R_6: Redaction = Redaction::Structure(&[("name", &R_19)]);
+        pub(super) static R_7: Redaction = Redaction::Structure(&[("message", &R_19)]);
+        pub(super) static R_8: Redaction = Redaction::Structure(&[("workspaceId", &R_18)]);
+        pub(super) static R_9: Redaction = Redaction::Structure(&[("rooms", &R_14)]);
+        pub(super) static R_10: Redaction = Redaction::Structure(&[("workspaceId", &R_18), ("roomId", &R_13)]);
+        pub(super) static R_11: Redaction = Redaction::Structure(&[("name", &R_19)]);
+        pub(super) static R_12: Redaction = Redaction::Structure(&[("message", &R_19), ("resourceType", &R_2), ("resourceId", &R_19), ("requestId", &R_19)]);
+        pub(super) static R_13: Redaction = Redaction::Public;
+        pub(super) static R_14: Redaction = Redaction::List(&R_13);
+        pub(super) static R_15: Redaction = Redaction::Structure(&[("message", &R_19)]);
+        pub(super) static R_16: Redaction = Redaction::Structure(&[("home", &R_18)]);
+        pub(super) static R_17: Redaction = Redaction::Structure(&[("name", &R_19)]);
+        pub(super) static R_18: Redaction = Redaction::Public;
+        pub(super) static R_19: Redaction = Redaction::Public;
     }
 
 
@@ -377,11 +427,11 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_14, &[]),
-            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_11, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_13, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         true,
@@ -423,10 +473,10 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_14, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_15, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         true,
@@ -469,10 +519,10 @@ pub mod desk {
         &[],
         200,
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_14, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
         ],
         &[
-            ::crucible_server_runtime_rust::__generated::member_info("rooms", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_12, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("rooms", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_14, &[]),
         ],
         &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
         true,
@@ -502,6 +552,91 @@ pub mod desk {
     /// Only the rooms the caller holds `room:read` on.
     pub trait ListRoomsOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
         fn list_rooms(&self, input: ListRoomsInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<ListRoomsOutput>> + Send;
+    }
+
+    /// Not converted yet: its handler checks, and a hidden room is still the
+    /// service's 404, which the designation attaches here too.
+    pub struct RenameRoom;
+
+    static RENAME_ROOM_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
+        "example.desk#RenameRoom",
+        "RenameRoom",
+        Some("Room"),
+        "POST",
+        &[::crucible_server_runtime_rust::__generated::operation::Segment::Literal("w"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("workspaceId"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("rooms"), ::crucible_server_runtime_rust::__generated::operation::Segment::Label("roomId"), ::crucible_server_runtime_rust::__generated::operation::Segment::Literal("rename")],
+        &[],
+        200,
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("workspaceId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+            ::crucible_server_runtime_rust::__generated::member_info("roomId", ::crucible_server_runtime_rust::__generated::operation::Location::Label, ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_13, &[]),
+        ],
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+        ],
+        &["ResourceNotFoundException", "AccessDeniedException", "InternalServerException", "ValidationException"],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    impl ::crucible_server_runtime_rust::__generated::Operation for RenameRoom {
+        const AUTH_BEARER: bool = true;
+        const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const OPTIONAL_AUTH: bool = false;
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::Pending { reason: "permissions::require in the handler" };
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
+        const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RENAME_ROOM_OPERATION;
+        type Input = model::RenameRoomInput;
+        type Output = model::RenameRoomOutput;
+    }
+
+    /// Not converted yet: its handler checks, and a hidden room is still the
+    /// service's 404, which the designation attaches here too.
+    pub trait RenameRoomOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
+        fn rename_room(&self, input: RenameRoomInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<RenameRoomOutput>> + Send;
+    }
+
+    /// The caller's home workspace, which the handler checks it may read.
+    pub struct Whoami;
+
+    static WHOAMI_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
+        "example.desk#Whoami",
+        "Whoami",
+        None,
+        "GET",
+        &[::crucible_server_runtime_rust::__generated::operation::Segment::Literal("me")],
+        &[],
+        200,
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("home", ::crucible_server_runtime_rust::__generated::operation::Location::Query("home"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_18, &[]),
+        ],
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("name", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_19, &[]),
+        ],
+        &["AccessDeniedException", "InternalServerException", "ValidationException"],
+        true,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    impl ::crucible_server_runtime_rust::__generated::Operation for Whoami {
+        const AUTH_BEARER: bool = true;
+        const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const OPTIONAL_AUTH: bool = false;
+        const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::None;
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
+        const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &WHOAMI_OPERATION;
+        type Input = model::WhoamiInput;
+        type Output = model::WhoamiOutput;
+    }
+
+    /// The caller's home workspace, which the handler checks it may read.
+    pub trait WhoamiOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
+        fn whoami(&self, input: WhoamiInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<WhoamiOutput>> + Send;
     }
 
     fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option::Option<&'a dyn ::crucible_server_runtime_rust::__generated::ModelledError> {
@@ -542,6 +677,8 @@ pub mod desk {
             &GET_ROOM_OPERATION,
             &GET_WORKSPACE_OPERATION,
             &LIST_ROOMS_OPERATION,
+            &RENAME_ROOM_OPERATION,
+            &WHOAMI_OPERATION,
         ],
         &[&errors::ACCESS_DENIED_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO, &errors::RESOURCE_NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO],
         classify,
@@ -575,6 +712,16 @@ pub mod desk {
             Self(self.0.add::<ListRooms, S, _>(implementation, |implementation, input| async move { implementation.list_rooms(input).await }))
         }
 
+        /// Serves RenameRoom with `implementation`.
+        pub fn rename_room<S: RenameRoomOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
+            Self(self.0.add::<RenameRoom, S, _>(implementation, |implementation, input| async move { implementation.rename_room(input).await }))
+        }
+
+        /// Serves Whoami with `implementation`.
+        pub fn whoami<S: WhoamiOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
+            Self(self.0.add::<Whoami, S, _>(implementation, |implementation, input| async move { implementation.whoami(input).await }))
+        }
+
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {
             self.0.build()
         }
@@ -587,12 +734,14 @@ pub mod desk {
     /// Every operation, served by one type: checked at compile time.
     pub fn operations<T>(implementation: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::__generated::Operations
     where
-        T: GetRoomOperation + GetWorkspaceOperation + ListRoomsOperation,
+        T: GetRoomOperation + GetWorkspaceOperation + ListRoomsOperation + RenameRoomOperation + WhoamiOperation,
     {
         builder()
             .get_room(implementation.clone())
             .get_workspace(implementation.clone())
             .list_rooms(implementation.clone())
+            .rename_room(implementation.clone())
+            .whoami(implementation.clone())
             .build()
             .expect("every operation is registered")
     }

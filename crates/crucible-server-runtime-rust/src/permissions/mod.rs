@@ -116,14 +116,69 @@ use session::Session;
 /// authorization that hides it gets. The framework's `NotFoundException`,
 /// naming the resource's type and nothing else; or, when the model
 /// designates the service's own not-found error, what the
-/// `Permissions::not_found_factory` builds from `resource`, which needs the
-/// request to be one `Permissions` covers (elsewhere it is the framework's).
+/// `Permissions::not_found_factory` builds from `resource`. The latter
+/// needs a request `Permissions` covers: elsewhere it is answered as an
+/// internal error and logged as a wiring error, never as an error the
+/// operation does not declare. (`ResourceRef::not_found` is answered the
+/// same way.)
 pub fn not_found(resource: &ResourceRef) -> Error {
     #[cfg(feature = "permissions")]
     if let Ok((_, session)) = Session::current() {
         return session.not_found(resource);
     }
     resource.not_found()
+}
+
+/// On a service that designates its own not-found error, a handler's (or
+/// an extension's) framework 404 is answered as that error: a
+/// [`MissingResource`](crucible_wire::permissions::MissingResource)
+/// through the not-found factory of the request's `Permissions`, so a
+/// genuine miss reads as a hidden one whichever constructor the handler
+/// used. Without a factory to build it (the request is outside what
+/// `Permissions` covers), or from a `FrameworkError::NotFound` that names no
+/// instance, it is a wiring error: the internal error, never a 404 of
+/// another shape that would tell the two apart.
+pub(crate) fn answer_not_found(job: &mut crate::Job) {
+    let Some(shape) = job.service.not_found else {
+        return;
+    };
+    let Some(crate::Outcome::Failed(error)) = &job.outcome else {
+        return;
+    };
+    let problem = if let Some(missing) =
+        error.downcast_ref::<crucible_wire::permissions::MissingResource>()
+    {
+        #[cfg(feature = "permissions")]
+        if let Some(session) = job.context.attribute::<Session>()
+            && session.builds_not_found()
+        {
+            let answer = session.not_found(missing.reference());
+            job.outcome = Some(crate::Outcome::Failed(answer));
+            return;
+        }
+        format!(
+            "{} is missing, but the request is not one Permissions with a not_found_factory covers, so `{shape}` cannot be built for it",
+            missing.reference()
+        )
+    } else if let Some(crate::FrameworkError::NotFound { resource }) =
+        error.downcast_ref::<crate::FrameworkError>()
+    {
+        format!(
+            "the framework's NotFound for `{}` names no instance, so `{shape}` cannot be built from it; answer with permissions::not_found(&resource) or ResourceRef::not_found",
+            resource.name
+        )
+    } else {
+        return;
+    };
+    let operation = job.operation().map_or("", |op| op.id);
+    tracing::error!(
+        target: "crucible_server_runtime_rust::permissions",
+        operation,
+        "a wiring error: {problem}"
+    );
+    job.outcome = Some(crate::Outcome::Failed(Error::internal(format!(
+        "{operation}: {problem}"
+    ))));
 }
 
 /// Requires `permission` on `resource`, through the service's Authorizer,

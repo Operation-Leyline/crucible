@@ -337,7 +337,8 @@ operation SendMessage on Message collection {
   migration. Each operation with a `requires` or `filters` clause gets
   the service's not-found error in its errors, unless every clause is on a
   root resource with `*`: `crucible.errors#NotFoundException` (import
-  `crucible.errors`), or the service's own.
+  `crucible.errors`), or the service's own, which a `requires pending`
+  operation gets too.
 - **`notFound E`** in the service designates the service's own 404, `E`,
   for a service with errors of its own that cannot import
   `crucible.errors`. `E` is an `error` of the package with `status 404`;

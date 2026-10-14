@@ -86,7 +86,7 @@ fn main() {
     println!("cargo::rerun-if-changed={desk}");
     std::fs::write(
         out.join("permissions_not_found.rs"),
-        crucible_build::model(desk).server().render().unwrap(),
+        crucible_build::model(desk).server().mcp().render().unwrap(),
     )
     .unwrap();
     // And its client: open permission constants without the internal ones.

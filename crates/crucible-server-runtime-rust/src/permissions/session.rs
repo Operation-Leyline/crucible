@@ -257,6 +257,11 @@ impl Session {
         ))
     }
 
+    /// Whether the service's own not-found error is built here.
+    pub fn builds_not_found(&self) -> bool {
+        self.0.not_found.is_some()
+    }
+
     /// What `listing` may show, recorded.
     pub async fn visible(&self, context: &Context, listing: &Listing) -> Result<Visibility> {
         let request = AuthorizationRequest::new(context, self.0.facts);

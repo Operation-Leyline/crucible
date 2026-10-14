@@ -3,34 +3,38 @@
 //! so it imports nothing of `crucible.errors`. Its bindings are generated;
 //! `Permissions` answers a hidden resource with what the service's
 //! `not_found_factory` builds, the same function its handlers answer a
-//! missing one with, so the two are byte-identical and neither is cached. A
-//! listing the Authorizer refuses outright is a 403 through the refusal
-//! factory.
+//! missing one with, so the two are byte-identical (request id aside) and
+//! neither is cached, whichever path produced it: a declared check, a
+//! handler check on a pending or `requires none` operation, or a handler
+//! returning the framework's helpers. A listing the Authorizer refuses
+//! outright is a 403 through the refusal factory.
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::Request;
+use crucible_server_runtime_rust::mcp::McpConfig;
 use crucible_server_runtime_rust::permissions::{
-    AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Listing, PermissionRefusal,
+    self, AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Listing, PermissionRefusal,
     Permissions, ResourceRef, Target, Verdict, Visibility,
 };
 use crucible_server_runtime_rust::{
-    BuildError, Crucible, Error, Interceptor, JsonProtocol, Operations, Result,
+    BuildError, Context, Crucible, Error, Interceptor, InterceptorExt, JsonProtocol, Operations,
+    Result,
 };
 use serde_json::{Value, json};
 
 include!(concat!(env!("OUT_DIR"), "/permissions_not_found.rs"));
 
-use desk::permissions::{Resource, RoomRef, WorkspaceRef};
+use desk::permissions::{Resource, RoomPermission, RoomRef, WorkspacePermission, WorkspaceRef};
 use desk::{
     AccessDeniedException, AccessDeniedReason, ErrorResourceType, ResourceNotFoundException,
 };
 
 /// The service's one 404, as its handlers build it and as the not-found
-/// factory does: what the request named, and the resource's fixed message.
-/// Only the deepest identifier the request named is echoed, so a hidden
-/// listing (`room(w1, *)`) is about its workspace.
+/// factory does: what the request named, the resource's fixed message and
+/// the request's id. Only the deepest identifier the request named is
+/// echoed, so a hidden listing (`room(w1, *)`) is about its workspace.
 fn not_found(resource: &ResourceRef) -> Error {
     let (resource_type, resource_id) = match Resource::try_from(resource) {
         Ok(Resource::Workspace(WorkspaceRef {
@@ -53,6 +57,7 @@ fn not_found(resource: &ResourceRef) -> Error {
         message: message.to_owned(),
         resource_type,
         resource_id,
+        request_id: Context::try_current().map(|context| context.request_id().to_owned()),
     }
     .into()
 }
@@ -117,10 +122,15 @@ fn operations() -> Operations {
         .add::<desk::GetWorkspace, _, _>(
             Arc::new(()),
             |_, input: desk::GetWorkspaceInput| async move {
-                if input.workspace_id != "w1" {
-                    return Err(not_found(&WorkspaceRef::new(&input.workspace_id).into()));
+                let workspace = WorkspaceRef::new(&input.workspace_id);
+                match input.workspace_id.as_str() {
+                    "w1" => Ok(desk::GetWorkspaceOutput { name: "One".into() }),
+                    // The framework's helper, answered as the service's 404.
+                    "w8" => Err(ResourceRef::from(workspace).not_found()),
+                    // A 404 that names no instance cannot be the service's.
+                    "w7" => Err(WorkspaceRef::INFO.not_found_error()),
+                    _ => Err(not_found(&workspace.into())),
                 }
-                Ok(desk::GetWorkspaceOutput { name: "One".into() })
             },
         )
         .add::<desk::GetRoom, _, _>(Arc::new(()), |_, input: desk::GetRoomInput| async move {
@@ -133,7 +143,7 @@ fn operations() -> Operations {
             })
         })
         .add::<desk::ListRooms, _, _>(Arc::new(()), |_, _: desk::ListRoomsInput| async move {
-            let visible = crucible_server_runtime_rust::permissions::visible()?;
+            let visible = permissions::visible()?;
             Ok(desk::ListRoomsOutput {
                 rooms: ["r1", "r2"]
                     .into_iter()
@@ -141,6 +151,26 @@ fn operations() -> Operations {
                     .map(str::to_owned)
                     .collect(),
             })
+        })
+        // `requires pending`: the handler checks.
+        .add::<desk::RenameRoom, _, _>(Arc::new(()), |_, input: desk::RenameRoomInput| async move {
+            permissions::require(
+                RoomPermission::Read,
+                RoomRef::new(&input.workspace_id, &input.room_id).into(),
+            )
+            .await?;
+            Ok(desk::RenameRoomOutput {
+                name: input.room_id,
+            })
+        })
+        // `requires none`, and still a handler check.
+        .add::<desk::Whoami, _, _>(Arc::new(()), |_, input: desk::WhoamiInput| async move {
+            permissions::require(
+                WorkspacePermission::Read,
+                WorkspaceRef::new(&input.home).into(),
+            )
+            .await?;
+            Ok(desk::WhoamiOutput { name: input.home })
         })
         .build()
         .unwrap()
@@ -162,6 +192,12 @@ impl Interceptor for Audit {
     }
 }
 
+fn permissions() -> Permissions {
+    Permissions::new(Desk)
+        .not_found_factory(not_found)
+        .refusal_factory(denied)
+}
+
 fn build(permissions: Permissions) -> std::result::Result<Crucible, BuildError> {
     Crucible::builder(operations())
         .protocol(JsonProtocol)
@@ -170,17 +206,14 @@ fn build(permissions: Permissions) -> std::result::Result<Crucible, BuildError> 
 }
 
 fn service() -> Crucible {
-    build(
-        Permissions::new(Desk)
-            .not_found_factory(not_found)
-            .refusal_factory(denied),
-    )
-    .unwrap()
+    build(permissions()).unwrap()
 }
 
 struct Answer {
     status: u16,
     headers: axum::http::HeaderMap,
+    /// The request id in the body is replaced by `<request id>`: it is each
+    /// request's own, like its header.
     body: Vec<u8>,
 }
 
@@ -190,28 +223,44 @@ impl Answer {
     }
 }
 
-async fn get(service: &Crucible, path: &str, caller: &str) -> Answer {
-    let response = service
-        .handle(
-            Request::get(path)
-                .header("x-caller", caller)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await;
+async fn send(service: &Crucible, request: Request<Body>) -> Answer {
+    let response = service.handle(request).await;
     let status = response.status().as_u16();
     let mut headers = response.headers().clone();
-    // The request id is each request's own.
-    headers.remove("x-request-id");
+    let request_id = headers
+        .remove("x-request-id")
+        .map(|id| id.to_str().unwrap().to_owned())
+        .unwrap_or_default();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap()
         .to_vec();
+    let body = String::from_utf8(body)
+        .unwrap()
+        .replace(&format!("\"{request_id}\""), "\"<request id>\"")
+        .into_bytes();
     Answer {
         status,
         headers,
         body,
     }
+}
+
+async fn call(service: &Crucible, method: &str, path: &str, caller: &str) -> Answer {
+    send(
+        service,
+        Request::builder()
+            .method(method)
+            .uri(path)
+            .header("x-caller", caller)
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await
+}
+
+async fn get(service: &Crucible, path: &str, caller: &str) -> Answer {
+    call(service, "GET", path, caller).await
 }
 
 #[test]
@@ -220,11 +269,19 @@ fn the_service_description_names_its_own_not_found_error() {
         desk::SERVICE.not_found,
         Some("example.desk#ResourceNotFoundException")
     );
-    for operation in ["GetWorkspace", "GetRoom", "ListRooms"] {
+    // Declared wherever a hidden resource can be answered: requirements,
+    // and pending operations whose handlers check.
+    for operation in ["GetWorkspace", "GetRoom", "ListRooms", "RenameRoom"] {
         let info = desk::SERVICE.operation(operation).unwrap();
         assert!(info.declares("ResourceNotFoundException"), "{operation}");
         assert!(!info.declares("NotFoundException"), "{operation}");
     }
+    assert!(
+        !desk::SERVICE
+            .operation("Whoami")
+            .unwrap()
+            .declares("ResourceNotFoundException")
+    );
 }
 
 #[tokio::test]
@@ -240,6 +297,7 @@ async fn a_hidden_room_reads_as_a_missing_one_through_the_service_factory() {
             "message": "No such room.",
             "resourceType": "room",
             "resourceId": "r9",
+            "requestId": "<request id>",
         })
     );
     assert_eq!(
@@ -271,6 +329,7 @@ async fn a_hidden_workspace_and_a_hidden_listing_read_as_a_missing_workspace() {
             "message": "No such workspace.",
             "resourceType": "workspace",
             "resourceId": "w9",
+            "requestId": "<request id>",
         })
     );
     assert_eq!(hidden.body, missing.body);
@@ -283,16 +342,70 @@ async fn a_hidden_workspace_and_a_hidden_listing_read_as_a_missing_workspace() {
 }
 
 #[tokio::test]
+async fn the_frameworks_helpers_are_answered_as_the_services_404() {
+    let service = service();
+    // `ResourceRef::not_found` from a handler goes through the factory.
+    let helper = get(&service, "/w/w8", "member").await;
+    let hidden = get(&service, "/w/w8", "stranger").await;
+    assert_eq!(helper.status, 404);
+    assert_eq!(helper.json()["__type"], "ResourceNotFoundException");
+    assert_eq!(helper.json()["resourceId"], "w8");
+    assert_eq!(helper.body, hidden.body);
+    assert_eq!(helper.headers, hidden.headers);
+    // `ResourceInfo::not_found_error` names no instance: never a 404 of
+    // the framework's shape, which would tell a miss from a hidden one.
+    let anonymous = get(&service, "/w/w7", "member").await;
+    assert_eq!(anonymous.status, 500);
+    assert_eq!(
+        anonymous.headers["x-crucible-error"],
+        "InternalServerException"
+    );
+}
+
+#[tokio::test]
+async fn a_handler_check_hides_with_the_services_404_on_pending_and_none_operations() {
+    let service = service();
+    // `requires pending`: the designation declares its 404 there too.
+    let hidden = call(&service, "POST", "/w/w1/rooms/r1/rename", "stranger").await;
+    let missing = get(&service, "/w/w1/rooms/r1", "stranger").await;
+    assert_eq!(
+        hidden.status,
+        404,
+        "{}",
+        String::from_utf8_lossy(&hidden.body)
+    );
+    assert_eq!(hidden.body, missing.body);
+    assert_eq!(hidden.headers["cache-control"], "no-store");
+    let allowed = call(&service, "POST", "/w/w1/rooms/r1/rename", "member").await;
+    assert_eq!(allowed.status, 200);
+    // `requires none` declares none, and is answered with it all the same.
+    let hidden = get(&service, "/me?home=w1", "stranger").await;
+    assert_eq!(
+        hidden.status,
+        404,
+        "{}",
+        String::from_utf8_lossy(&hidden.body)
+    );
+    assert_eq!(
+        hidden.json(),
+        json!({
+            "__type": "ResourceNotFoundException",
+            "message": "No such workspace.",
+            "resourceType": "workspace",
+            "resourceId": "w1",
+            "requestId": "<request id>",
+        })
+    );
+    assert_eq!(hidden.headers["cache-control"], "no-store");
+}
+
+#[tokio::test]
 async fn a_denied_listing_and_a_denied_check_are_the_services_403() {
     let audit = Audit::default();
     let service = Crucible::builder(operations())
         .protocol(JsonProtocol)
         .interceptor(audit.clone())
-        .interceptor(
-            Permissions::new(Desk)
-                .not_found_factory(not_found)
-                .refusal_factory(denied),
-        )
+        .interceptor(permissions())
         .build()
         .unwrap();
     let listing = get(&service, "/w/w1/rooms", "suspended").await;
@@ -321,8 +434,63 @@ async fn a_denied_listing_and_a_denied_check_are_the_services_403() {
     assert_eq!(shown.json(), json!({ "rooms": ["r1"] }));
 }
 
+#[tokio::test]
+async fn shadowing_a_denied_listing_refuses_nothing_and_shows_nothing() {
+    let audit = Audit::default();
+    let service = Crucible::builder(operations())
+        .protocol(JsonProtocol)
+        .interceptor(audit.clone())
+        .interceptor(permissions().shadow())
+        .build()
+        .unwrap();
+    let listing = get(&service, "/w/w1/rooms", "suspended").await;
+    assert_eq!(listing.status, 200);
+    assert_eq!(listing.json(), json!({ "rooms": [] }));
+    let record = audit.0.lock().unwrap().pop().unwrap();
+    assert!(record.shadow);
+    assert_eq!(record.listing.unwrap().1, Visibility::Denied);
+}
+
+#[tokio::test]
+async fn an_mcp_tool_call_gets_the_services_404_as_a_tool_error() {
+    let service = Crucible::builder(operations())
+        .protocol(JsonProtocol)
+        .mcp(McpConfig::new())
+        .interceptor(permissions())
+        .build()
+        .unwrap();
+    let tool = |caller: &'static str, room: &'static str| {
+        let call = json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": { "name": "GetRoom", "arguments": { "workspaceId": "w1", "roomId": room } },
+        });
+        Request::post("/mcp")
+            .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream")
+            .header("x-caller", caller)
+            .body(Body::from(call.to_string()))
+            .unwrap()
+    };
+    let hidden = send(&service, tool("stranger", "r1")).await;
+    let missing = send(&service, tool("member", "r1-gone")).await;
+    for answer in [&hidden, &missing] {
+        assert_eq!(answer.status, 200);
+        assert_eq!(answer.headers["cache-control"], "no-store");
+        let body = answer.json();
+        assert_eq!(body["result"]["isError"], true, "{body}");
+        let text: Value =
+            serde_json::from_str(body["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            text,
+            json!({ "name": "ResourceNotFoundException", "message": "No such room." })
+        );
+    }
+}
+
 #[test]
-fn the_designated_error_and_its_factory_come_together() {
+fn the_designated_error_its_factory_and_permissions_come_together() {
     // The model designates its own 404, so Hidden needs the factory.
     let error = build(Permissions::new(Desk)).err().unwrap().to_string();
     assert!(error.contains("not_found_factory"), "{error}");
@@ -330,6 +498,14 @@ fn the_designated_error_and_its_factory_come_together() {
         error.contains("example.desk#ResourceNotFoundException"),
         "{error}"
     );
+    // And only Permissions builds it.
+    let error = Crucible::builder(operations())
+        .protocol(JsonProtocol)
+        .build()
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(error.contains("only Permissions builds"), "{error}");
     // A model without one answers Hidden with the framework's 404, so a
     // factory would build an error no operation declares.
     let weather = weather_service::builder(Arc::new(weather_service::MemoryCities::default()))
@@ -343,9 +519,9 @@ fn the_designated_error_and_its_factory_come_together() {
     assert!(error.contains("not_found_factory"), "{error}");
 }
 
-#[tokio::test]
-async fn a_factory_that_builds_another_error_is_a_wiring_error() {
-    let service = build(
+#[test]
+fn a_factory_that_builds_another_error_fails_the_build() {
+    let error = build(
         Permissions::new(Desk)
             .not_found_factory(|_: &ResourceRef| {
                 AccessDeniedException {
@@ -356,24 +532,44 @@ async fn a_factory_that_builds_another_error_is_a_wiring_error() {
             })
             .refusal_factory(denied),
     )
-    .unwrap();
-    let hidden = get(&service, "/w/w1/rooms/r1", "stranger").await;
-    assert_eq!(
-        hidden.status,
-        500,
-        "{}",
-        String::from_utf8_lossy(&hidden.body)
+    .err()
+    .unwrap()
+    .to_string();
+    assert!(
+        error.contains("builds `example.desk#AccessDeniedException`"),
+        "{error}"
     );
+    // One that cannot name a hidden listing fails too.
+    let error = build(
+        Permissions::new(Desk).not_found_factory(|resource: &ResourceRef| {
+            match resource.identifiers().last() {
+                Some(Target::All) => Error::internal("no listing"),
+                _ => not_found(resource),
+            }
+        }),
+    )
+    .err()
+    .unwrap()
+    .to_string();
+    assert!(error.contains("room(workspaceId, *)"), "{error}");
+}
+
+#[tokio::test]
+async fn outside_what_permissions_covers_a_framework_404_is_a_wiring_error() {
+    // Permissions covers GetRoom only: GetWorkspace's handler has no
+    // factory to build the service's 404 with.
+    let service = Crucible::builder(operations())
+        .protocol(JsonProtocol)
+        .interceptor(permissions().only(&["GetRoom"]))
+        .build()
+        .unwrap();
+    let helper = get(&service, "/w/w8", "member").await;
+    assert_eq!(helper.status, 500);
     assert_eq!(
-        hidden.headers["x-crucible-error"],
+        helper.headers["x-crucible-error"],
         "InternalServerException"
     );
-    // Handlers outside a request Permissions covers get the framework's.
-    let error =
-        crucible_server_runtime_rust::permissions::not_found(&RoomRef::new("w1", "r1").into());
-    assert!(
-        error
-            .downcast_ref::<crucible_server_runtime_rust::FrameworkError>()
-            .is_some()
-    );
+    // Its own constructor still answers.
+    let own = get(&service, "/w/w9", "member").await;
+    assert_eq!(own.status, 404);
 }

@@ -118,17 +118,22 @@ impl Permissions {
     /// How a Hidden verdict (and a hidden `filters` listing) is answered
     /// when the model designates the service's own not-found error
     /// (`notFound ResourceNotFoundException` in the `.cru` service): the
-    /// factory builds that error from the hidden resource, its type and the
-    /// identifiers the request named, never the permission. Build it with
-    /// the same function the handlers use for a genuinely missing resource,
-    /// so the two cannot be told apart; [`permissions::not_found`](super::not_found)
-    /// (and a generated reference's `not_found()`) calls it for them.
+    /// factory builds that error from the refused check's resource, its
+    /// type and identifiers, never the permission. A declared check's
+    /// identifiers are the ones the request named; a handler check's are
+    /// what the handler bound, so echo only an identifier the caller sent.
+    /// Build it with the same function the handlers use for a genuinely
+    /// missing resource, so the two cannot be told apart;
+    /// [`permissions::not_found`](super::not_found), a generated
+    /// reference's `not_found()` and `ResourceRef::not_found` returned from
+    /// a handler all go through it.
     ///
     /// Required when the model designates one, and refused when it does
     /// not (the framework's `NotFoundException` is then the 404): either
-    /// mismatch fails the build. An error the factory builds that is not the
-    /// designated one is answered as an internal error and logged as a
-    /// wiring error.
+    /// mismatch fails the build. So does a factory that builds another
+    /// error: the build asks it once per resource the model declares
+    /// permissions on. Should it still build another one for a request, that
+    /// is answered as an internal error and logged as a wiring error.
     pub fn not_found_factory(
         mut self,
         factory: impl Fn(&ResourceRef) -> Error + Send + Sync + 'static,
@@ -312,6 +317,47 @@ impl Permissions {
         }
         Err(session.refuse(context, check, verdict))
     }
+}
+
+/// Asks the not-found factory once for every resource the model declares
+/// permissions on, one instance and (below a root) every instance under a
+/// parent, as a hidden listing names it: a factory that builds anything but
+/// the designated error fails the build, rather than the first hidden
+/// request.
+fn probe_not_found(
+    service: &crate::operation::ServiceInfo,
+    shape: &'static str,
+    factory: &NotFoundFactory,
+) -> std::result::Result<(), String> {
+    let mut resources: Vec<&'static super::ResourceInfo> = Vec::new();
+    for permission in service.permissions {
+        if !resources.contains(&permission.resource) {
+            resources.push(permission.resource);
+        }
+    }
+    for resource in resources {
+        let one = ResourceRef::new(resource, resource.identifiers.iter().copied());
+        let mut probes = vec![one];
+        if let Some((_, parents)) = resource.identifiers.split_last()
+            && !parents.is_empty()
+        {
+            probes.push(ResourceRef::all(resource, parents.iter().copied()));
+        }
+        for probe in probes {
+            let error = factory(&probe);
+            let built = (service.classify)(error.get_ref()).map(|modelled| modelled.shape_id());
+            if built != Some(shape) {
+                return Err(format!(
+                    "Permissions: the not_found_factory builds {} for {probe}, not `{shape}`, the model's not-found error: a hidden resource would read unlike a missing one",
+                    built.map_or_else(
+                        || format!("an unmodelled error ({})", error.chain()),
+                        |id| format!("`{id}`")
+                    )
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Opens the operation's `by handler` obligations on its record.
@@ -558,11 +604,14 @@ impl Interceptor for Permissions {
         // one.
         let service = prepare.service();
         self.not_found = match (service.not_found, &self.not_found_factory) {
-            (Some(shape), Some(factory)) => Some(NotFound {
-                shape,
-                factory: factory.clone(),
-                classify: service.classify,
-            }),
+            (Some(shape), Some(factory)) => {
+                probe_not_found(service, shape, factory)?;
+                Some(NotFound {
+                    shape,
+                    factory: factory.clone(),
+                    classify: service.classify,
+                })
+            }
             (None, None) => None,
             (Some(shape), None) => {
                 return Err(format!(

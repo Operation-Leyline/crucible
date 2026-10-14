@@ -114,6 +114,23 @@ pub fn needs_not_found(
     })
 }
 
+/// Whether lowering attaches the service's not-found error to an operation
+/// (check 17): when it has something to hide ([`needs_not_found`]), and, for
+/// a service that designates its own (`designated`), also under `requires
+/// pending`. A pending operation's handler still checks, through the
+/// Authorizer once it adopts one, and its Hidden answer is the designated
+/// error: declaring it keeps clients and docs in step with what the
+/// operation answers. The framework's NotFound is not attached to a
+/// pending operation, so a model without a designation is unchanged.
+pub fn attaches_not_found(
+    designated: bool,
+    requirements: &Requirements,
+    permissions: &BTreeMap<ShapeId, ResourcePermissions>,
+) -> bool {
+    needs_not_found(requirements, permissions)
+        || (designated && matches!(requirements, Requirements::Pending { .. }))
+}
+
 /// Whether `value` follows the permission value grammar (§4.1):
 /// `segment { ":" segment }`, a segment a lowercase letter, then letters
 /// and digits, with single hyphens between them.
@@ -1139,11 +1156,11 @@ impl<'a> Checker<'a> {
 
     /// Check 17.
     fn not_found(&mut self, op: &'a Operation) {
-        if !needs_not_found(&op.requirements, &self.service.permissions) {
+        let designated = self.service.not_found.is_some();
+        if !attaches_not_found(designated, &op.requirements, &self.service.permissions) {
             return;
         }
         let not_found = self.service.not_found_error();
-        let designated = self.service.not_found.is_some();
         if !op.errors.contains(&not_found) || self.service.shape(&not_found).is_none() {
             // A designated error that is not in the model is reported once,
             // against the service.
