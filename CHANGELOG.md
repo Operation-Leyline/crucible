@@ -453,13 +453,17 @@ version's section when it is prepared.
 
 - A Go client call with a streaming request body now returns as soon as its
   context is cancelled or its deadline passes, even while the transport is
-  blocked reading the caller's stream (#298). `net/http` closes the
+  blocked reading the caller's stream, when that stream is an `io.Closer`
+  whose `Close` ends a blocked `Read` (#298). `net/http` closes the
   connection on cancellation, but `Do` waits for its write loop, and that
   loop stayed blocked reading a pipe that would get no more bytes. So the
   call hung until the caller wrote again or closed the pipe itself. The
   attempt's body is now closed when the context ends. That closes a one-shot
   `io.Closer`, or the reader a `NewByteStream` factory opened, and ends the
-  read.
+  read. A reader that is not an `io.Closer` still holds a cancelled call
+  until its pending `Read` returns. Every return, including an early error
+  response, also closes the attempt's body, so the transport stops reading
+  the caller's stream once the call has ended.
 
 - An idempotency store outage, or an Authorizer outage, can no longer
   become a modelled 4xx through the service's exception rules. Both are

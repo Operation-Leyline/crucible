@@ -115,6 +115,18 @@ func handler(o *observed) http.HandlerFunc {
 		switch r.URL.Path {
 		case "/upload", "/sized", "/store":
 			attempt := o.attempts.Add(1)
+			if mode == "early" {
+				// Answer before reading any of the body, as a server rejecting an upload
+				// does. Full duplex stops net/http draining the unread body before it
+				// writes the response, which would wait on a client that sends nothing.
+				if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
+					panic(err)
+				}
+				w.Header().Set("Content-Length", "0")
+				w.WriteHeader(400)
+				w.(http.Flusher).Flush()
+				return
+			}
 			sink := &prefix{arrived: o.arrival()}
 			if _, err := io.Copy(sink, r.Body); err != nil {
 				signal()
@@ -367,6 +379,46 @@ func TestStreamingUploadCancellation(t *testing.T) {
 			}
 			if _, err := writer.Write([]byte("more")); !errors.Is(err, io.ErrClosedPipe) {
 				t.Fatal("cancelled upload left the caller's stream open", err)
+			}
+		})
+	}
+}
+
+func TestStreamingUploadEarlyResponse(t *testing.T) {
+	// A response that arrives before the body is sent ends the call while the
+	// transport is still blocked reading the stream: the call closes it on return,
+	// so the transport never reads the caller's stream after the call has ended.
+	for _, name := range []string{"one-shot", "replayable"} {
+		t.Run(name, func(t *testing.T) {
+			o, client, _ := setup(t)
+			o.set("early")
+			reader, writer := io.Pipe()
+			var body io.Reader = reader
+			if name == "replayable" {
+				body = NewByteStream(func() (io.ReadCloser, error) { return reader, nil }, -1)
+			}
+			done := make(chan error, 1)
+			go func() {
+				_, err := client.Upload(context.Background(), &UploadInput{Body: body})
+				done <- err
+			}()
+			select {
+			case err := <-done:
+				if err == nil {
+					t.Fatal("rejected upload succeeded")
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("the early response did not end the call")
+			}
+			written := make(chan error, 1)
+			go func() { _, err := writer.Write([]byte("late")); written <- err }()
+			select {
+			case err := <-written:
+				if !errors.Is(err, io.ErrClosedPipe) {
+					t.Fatal("rejected upload left the caller's stream open", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("rejected upload left the caller's stream open: nothing closed or read it")
 			}
 		})
 	}

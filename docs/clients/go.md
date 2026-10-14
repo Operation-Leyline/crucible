@@ -354,8 +354,10 @@ A replay factory must return the same bytes every time. A one-shot body is read
 at most once, so its operation is never retried, and passing the same
 `NewReaderStream` to a second call fails with `ErrStreamConsumed`. Like
 `net/http` request bodies, a one-shot reader that is an `io.Closer` is closed
-when the call ends, including on failure; a seekable reader belongs to the
-caller and is left open. Cancelling the context, or reaching the call's
+when the call ends, including on failure, and so is the reader a
+`NewByteStream` factory opened; a seekable reader belongs to the caller and is
+left open, but the transport stops reading it once the call returns, even after
+an early response. Cancelling the context, or reaching the call's
 deadline, closes the body straight away: a one-shot `io.Closer`, or the reader a
 `NewByteStream` factory opened. That ends a read blocked in it, so the call
 returns the context's error without waiting for more bytes. A reader that is
