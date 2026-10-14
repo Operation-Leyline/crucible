@@ -197,3 +197,26 @@ fn permissions_must_cover_every_version_of_an_operation() {
         "{message}"
     );
 }
+
+#[test]
+fn permissions_covering_only_an_older_description_leave_the_current_one_uncovered() {
+    // The converse: a scope that takes v1's GetNote alone. `Prepare::operations`
+    // lists GetNote by that description then (its current one is outside),
+    // but coverage is recorded per served entry, so the current version's
+    // GetNote is still reported as running unchecked.
+    let v1_get_note = <v1::GetNote as Operation>::INFO;
+    let Err(BuildError::Prepare(message)) = Crucible::builder(board::operations(Arc::new(Board)))
+        .defaults()
+        .interceptor(
+            Permissions::new(Grants::default()).when(move |op| std::ptr::eq(op, v1_get_note)),
+        )
+        .build()
+    else {
+        panic!("the current GetNote declares requirements outside Permissions");
+    };
+    assert!(
+        message.contains("no Permissions covers GetNote,"),
+        "{message}"
+    );
+    assert!(!message.contains("GetNote (API version v1)"), "{message}");
+}
