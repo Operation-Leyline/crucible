@@ -1026,17 +1026,18 @@ impl Builder {
             )));
         }
         // Only `Permissions` enforces declared requirements: a served
-        // operation that declares them outside it would run unchecked.
-        let unenforced: Vec<&str> = {
+        // operation that declares them outside it would run unchecked. Each
+        // API version's entry is checked on its own, since a scope decides
+        // on the description a request at that version carries.
+        let unenforced: Vec<String> = {
             let builtins = builtins.borrow();
             prepare
-                .operations()
-                .filter(|operation| {
-                    prepare.metadata(operation).is_some_and(|metadata| {
-                        matches!(metadata.requirements, Requirements::List(_))
-                    }) && !builtins.authorized.contains(&operation.id)
+                .served()
+                .filter(|served| {
+                    matches!(served.metadata.requirements, Requirements::List(_))
+                        && !builtins.authorized.contains(&served.key())
                 })
-                .map(|operation| operation.name)
+                .map(|served| served.label())
                 .collect()
         };
         if !unenforced.is_empty() {

@@ -824,12 +824,18 @@ let builder = builder
 ```
 
 Only `Permissions` enforces declared requirements, so it must cover every
-served operation, at any API version, that declares them: building a
-service fails, naming the operations, when one is outside every
-`Permissions` (none installed, the `permissions` feature off, or scoped
-away with `only` or `except`). Operations that declare nothing to enforce
-(`requires pending`, `requires none`, public or undeclared) may be left
-out. To observe without refusing, install it with `shadow()`. It runs in
+served operation that declares them, at every API version that serves it:
+building a service fails, naming the operations (and the older version,
+for an entry only that version's description leaves out), when one is
+outside every `Permissions` (none installed, the `permissions` feature
+off, or scoped away with `only`, `except`, `when` or `when_trait`, which
+decide on the description of the version a request names). Operations
+that declare nothing to enforce (`requires pending`, `requires none`,
+public or undeclared) may be left out. An undeclared one left out runs
+without authorization, as every operation did before its model declared
+permissions; covered, it is refused as a wiring error unless
+`allow_undeclared()`, so cover them all to catch one the model forgot.
+To observe without refusing, install it with `shadow()`. It runs in
 the interceptor phase, after authentication middleware whatever the
 registration order; register it before `PageTokens` and `Idempotency`
 (the other order fails the build), and after any interceptor of the

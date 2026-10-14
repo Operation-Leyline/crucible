@@ -321,12 +321,15 @@ version's section when it is prepared.
   enforced it.
 
 - Building a service fails, naming the operations, when a served operation
-  (at any API version) declares requirements (`Requirements::List`) and no
-  `Permissions` covers it: none installed, the `permissions` feature off, or
-  `Permissions` scoped away with `only` or `except`. Before, such an
-  operation ran with its declared checks unchecked. `requires pending`,
-  `requires none`, public and undeclared operations may stay outside it;
-  `Permissions::shadow()` is the explicit way to record without refusing.
+  declares requirements (`Requirements::List`) and no `Permissions` covers
+  it at every API version that serves it: none installed, the
+  `permissions` feature off, or `Permissions` scoped away (`only`,
+  `except`, `when`, `when_trait`, each asked of the description a request
+  at that version carries). Before, such an operation ran with its
+  declared checks unchecked. `requires pending`, `requires none`, public
+  and undeclared operations may stay outside it (an undeclared one then
+  runs without authorization); `Permissions::shadow()` is the explicit way
+  to record without refusing.
   Registering `PageTokens` before `Permissions` now fails the build too, as
   the documentation already said.
 

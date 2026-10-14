@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use crate::operation::{OperationInfo, ServiceInfo};
+use crate::versioning::ApiVersion;
 
 /// The service as a extension sees it at `build`: the whole of it, and the
 /// operations the extension's scope includes.
@@ -23,9 +24,34 @@ pub(crate) struct Builtins {
     /// between them (`Permissions` before `PageTokens` and `Idempotency`).
     /// Never a service's extension: those are not named.
     pub(crate) order: Vec<&'static str>,
-    /// The operations a `Permissions` covers, by id: a served operation
+    /// The served entries a `Permissions` covers, by [`Served::key`]: one
     /// declaring requirements outside all of them would run unchecked.
-    pub(crate) authorized: Vec<&'static str>,
+    pub(crate) authorized: Vec<(Option<ApiVersion>, &'static str)>,
+}
+
+/// One operation as a request at one API version reaches it: the table's
+/// version (`None` for the current one), the description a scope's
+/// predicate sees for that request, and its effective metadata.
+pub(crate) struct Served<'r> {
+    pub(crate) version: Option<ApiVersion>,
+    pub(crate) info: &'static OperationInfo,
+    pub(crate) metadata: &'r crate::OperationMetadata,
+}
+
+impl Served<'_> {
+    /// What identifies the entry: an operation name is unique in its table.
+    pub(crate) fn key(&self) -> (Option<ApiVersion>, &'static str) {
+        (self.version, self.info.name)
+    }
+
+    /// The operation's name, with its API version when an older one serves
+    /// it, for a build error.
+    pub(crate) fn label(&self) -> String {
+        match self.version {
+            Some(version) => format!("{} (API version {version})", self.info.name),
+            None => self.info.name.to_owned(),
+        }
+    }
 }
 
 impl<'a> Prepare<'a> {
@@ -62,14 +88,41 @@ impl<'a> Prepare<'a> {
         self.builtins.borrow().order.contains(&name)
     }
 
-    /// Records that `Permissions` covers `operation`, so `build` knows its
-    /// declared requirements are enforced.
+    /// Records that `Permissions` covers every served entry in this scope,
+    /// so `build` knows their declared requirements are enforced. Asked per
+    /// entry, not per operation: a request at an older API version carries
+    /// that version's description, and the scope decides on it.
     #[cfg_attr(not(feature = "permissions"), allow(dead_code))]
-    pub(crate) fn authorizes(&self, operation: &'static OperationInfo) {
+    pub(crate) fn authorize_scope(&self) {
+        let covered: Vec<_> = self
+            .served()
+            .filter(|served| self.applies(served.info))
+            .map(|served| served.key())
+            .collect();
         let mut builtins = self.builtins.borrow_mut();
-        if !builtins.authorized.contains(&operation.id) {
-            builtins.authorized.push(operation.id);
+        for key in covered {
+            if !builtins.authorized.contains(&key) {
+                builtins.authorized.push(key);
+            }
         }
+    }
+
+    /// Every served entry, whatever this scope: the current version's
+    /// table, then each older version's, oldest first.
+    pub(crate) fn served(&self) -> impl Iterator<Item = Served<'a>> + 'a {
+        let current = self.registry.entries.values().map(|entry| Served {
+            version: None,
+            info: entry.info,
+            metadata: &entry.metadata,
+        });
+        let older = self.registry.versions.older.iter().flat_map(|older| {
+            older.operations.entries.values().map(move |entry| Served {
+                version: Some(older.version),
+                info: entry.info,
+                metadata: &entry.metadata,
+            })
+        });
+        current.chain(older)
     }
 
     pub fn service(&self) -> &'static ServiceInfo {

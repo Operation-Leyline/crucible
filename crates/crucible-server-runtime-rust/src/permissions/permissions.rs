@@ -639,8 +639,8 @@ impl Interceptor for Permissions {
         let mut registry: Vec<&'static PermissionInfo> = prepare.service().permissions.to_vec();
         let mut problems = Vec::new();
         let mut undeclared = Vec::new();
+        prepare.authorize_scope();
         for operation in prepare.operations() {
-            prepare.authorizes(operation);
             let Some(metadata) = prepare.metadata(operation) else {
                 continue;
             };

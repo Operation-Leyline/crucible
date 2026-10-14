@@ -137,7 +137,8 @@ constructs them and services read them. Handlers use `require`, `decide`,
 `discharge`, `not_applicable`, `visible` and `not_found`.
 
 Building a service enforces the wiring: every served operation that
-declares requirements must be covered by a `Permissions`, and `Permissions`
+declares requirements must be covered by a `Permissions` at every API
+version that serves it, and `Permissions`
 must be registered before `page_tokens::PageTokens` and
 `idempotency::Idempotency`. A service that breaks either rule gets a
 `BuildError::Prepare` naming it. See
