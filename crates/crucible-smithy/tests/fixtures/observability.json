@@ -98,6 +98,18 @@
         },
         "scoreMapList": {
           "target": "example.observability#ScoreMapList"
+        },
+        "tierScores": {
+          "target": "example.observability#TierScores"
+        },
+        "privateTierScores": {
+          "target": "example.observability#TierScores",
+          "traits": {
+            "smithy.api#sensitive": {}
+          }
+        },
+        "secretTierScores": {
+          "target": "example.observability#SecretTierScores"
         }
       }
     },
@@ -194,6 +206,49 @@
       "type": "list",
       "member": {
         "target": "example.observability#PrivateScores"
+      }
+    },
+    "example.observability#Tier": {
+      "type": "enum",
+      "members": {
+        "GOLD": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "gold"
+          }
+        }
+      }
+    },
+    "example.observability#SecretTier": {
+      "type": "enum",
+      "members": {
+        "GOLD": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "gold"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#sensitive": {}
+      }
+    },
+    "example.observability#TierScores": {
+      "type": "map",
+      "key": {
+        "target": "example.observability#Tier"
+      },
+      "value": {
+        "target": "example.observability#Score"
+      }
+    },
+    "example.observability#SecretTierScores": {
+      "type": "map",
+      "key": {
+        "target": "example.observability#SecretTier"
+      },
+      "value": {
+        "target": "example.observability#Score"
       }
     },
     "example.observability#Choice": {

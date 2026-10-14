@@ -144,6 +144,11 @@ async fn validation_paths_name_no_sensitive_map_key() {
         // the entry's own and stay; the keys inside are hidden.
         "scoreMaps": {"outer": {"hunter4": 99}},
         "scoreMapList": [{"hunter5": 99}],
+        // Enum keys are spelled by the model, but which one was sent is
+        // the client's: hidden under a sensitive member or a sensitive enum.
+        "tierScores": {"gold": 99},
+        "privateTierScores": {"gold": 99},
+        "secretTierScores": {"gold": 99},
     });
     let answer = service.invoke("Echo", payload).await;
     assert_eq!(answer["error"]["__type"], "ValidationError", "{answer}");
@@ -163,6 +168,9 @@ async fn validation_paths_name_no_sensitive_map_key() {
             "scores/visible",
             "scoreMaps/outer/[key]",
             "scoreMapList/0/[key]",
+            "tierScores/gold",
+            "privateTierScores/[key]",
+            "secretTierScores/[key]",
         ],
         "{violations}"
     );

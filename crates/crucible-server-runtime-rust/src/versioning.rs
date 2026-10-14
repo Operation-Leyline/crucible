@@ -395,12 +395,14 @@ pub enum Unversioned {
     Resolve(Resolver),
 }
 
-/// Why a request's version cannot be served, as a client sees it.
-pub(crate) fn unsupported(name: &str, supported: &[ApiVersion]) -> Rejection {
+/// Why a request's version cannot be served, as a client sees it. The
+/// version it named is the client's text, of any length: the message lists
+/// what the service serves instead of repeating it.
+pub(crate) fn unsupported(supported: &[ApiVersion]) -> Rejection {
     Rejection::malformed(
         "Crucible-Version",
         format!(
-            "the API version \"{name}\" is not supported; this service serves {}",
+            "this API version is not supported; this service serves {}",
             supported
                 .iter()
                 .map(|v| v.name)

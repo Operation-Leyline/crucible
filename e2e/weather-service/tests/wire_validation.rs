@@ -162,6 +162,26 @@ static HEADERS: OperationInfo = {
         base.traits,
     )
 };
+static PREFIX_IN: OperationInfo = {
+    let base = weather::Ping::INFO;
+    generated::operation_info(
+        base.id,
+        "PrefixIn",
+        base.resource,
+        base.method,
+        &[Segment::Literal("prefix-in")],
+        base.literal_query,
+        base.status,
+        &[PREFIX],
+        &[BODY],
+        base.errors,
+        base.readonly,
+        base.idempotent,
+        base.internal,
+        base.idempotency_token,
+        base.traits,
+    )
+};
 static STREAM: OperationInfo = {
     let base = weather::Ping::INFO;
     generated::operation_info(
@@ -274,6 +294,7 @@ static SERVICE: ServiceInfo = {
             &REQUIRED_BOUND,
             &QUERIES,
             &HEADERS,
+            &PREFIX_IN,
             &STREAM,
             &TEXT,
             &BLOB,
@@ -314,6 +335,14 @@ struct QueryMap {
     tags: Option<Vec<String>>,
 }
 impl Validate for QueryMap {
+    fn validate(&self, _: &mut Validator) {}
+}
+#[derive(Serialize, Deserialize)]
+struct PrefixMap {
+    #[serde(default)]
+    prefix: BTreeMap<String, String>,
+}
+impl Validate for PrefixMap {
     fn validate(&self, _: &mut Validator) {}
 }
 #[derive(Serialize, Deserialize)]
@@ -365,6 +394,7 @@ operation!(Required, REQUIRED, RequiredBody, Unit);
 operation!(RequiredBound, REQUIRED_BOUND, RequiredBody, Unit);
 operation!(Queries, QUERIES, QueryMap, QueryMap);
 operation!(Headers, HEADERS, Unit, HeaderOutput);
+operation!(PrefixIn, PREFIX_IN, PrefixMap, Unit);
 operation!(Text, TEXT, TextBody, TextBody);
 operation!(Blob, BLOB, BlobBody, Value);
 operation!(Document, DOCUMENT, DocumentBody, DocumentBody);
@@ -447,6 +477,7 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         .add::<Required, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .add::<RequiredBound, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .add::<Queries, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<PrefixIn, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .add::<Text, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<Document, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<Blob, _, _>(Arc::new(()), |_, input| {
@@ -645,4 +676,62 @@ async fn invalid_success_error_and_stream_headers_become_observable_internal_fai
             );
         }
     }
+}
+
+/// A rejection built from the request's query or headers lists at most 100
+/// violations and counts the rest, and names a client's key `[key]`.
+fn assert_capped(body: &Value, total: usize, path: &str) {
+    let fields = body["fieldList"].as_array().unwrap();
+    assert_eq!(fields.len(), 101, "{body}");
+    assert!(fields[..100].iter().all(|field| field["path"] == path), "{body}");
+    assert_eq!(fields[100]["path"], "", "{body}");
+    assert_eq!(
+        fields[100]["message"],
+        format!("{} more violations are not listed", total - 100)
+    );
+    let message = body["message"].as_str().unwrap();
+    assert!(
+        message.ends_with(&format!("(and {} more)", total - 1)),
+        "{message}"
+    );
+    assert!(!body.to_string().contains("hunter"), "{body}");
+}
+
+#[tokio::test]
+async fn query_and_prefix_header_rejections_are_capped_and_name_no_client_key() {
+    let logs = Records::default();
+    let service = service("valid", logs.clone(), Records::default());
+    let query = |key: &str| {
+        (0..250)
+            .map(|index| format!("{key}{index}=%zz"))
+            .collect::<Vec<_>>()
+            .join("&")
+    };
+    // A map bound to the query takes every key: an undeclared one is its.
+    let (status, body) = answer(&service, &format!("/queries?{}", query("hunter")), b"").await;
+    assert_eq!(status, 400, "{body}");
+    assert_capped(&body, 250, "queries/[key]");
+    // Without such a map, the key is no parameter at all.
+    let (status, body) = answer(&service, &format!("/body?{}", query("hunter")), b"").await;
+    assert_eq!(status, 400, "{body}");
+    assert_capped(&body, 250, "query");
+    // A declared parameter keeps the model's name.
+    let (_, body) = answer(&service, "/queries?tag=%zz", b"").await;
+    assert_eq!(body["fieldList"][0]["path"], "tag", "{body}");
+
+    let mut request = Request::get("/prefix-in");
+    for index in 0..150 {
+        request = request.header(
+            format!("x-prefix-hunter{index}"),
+            axum::http::HeaderValue::from_bytes(b"\xff").unwrap(),
+        );
+    }
+    let response = service.handle(request.body(Body::empty()).unwrap()).await;
+    assert_eq!(response.status(), 400);
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_capped(&body, 150, "prefix/[key]");
+
+    let logs = serde_json::to_string(&*logs.0.lock().unwrap()).unwrap();
+    assert!(!logs.contains("hunter"), "{logs}");
 }

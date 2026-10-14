@@ -765,9 +765,11 @@ fn value_checks(
             };
             if !key.is_empty() || !item.is_empty() {
                 let item_binding = if item.is_empty() { "_item" } else { "item" };
-                // The path names the key; an enum key spells itself as on the wire.
+                // The path names the key; an enum key spells itself as on the
+                // wire. It is still a key (`Step::Key`), not a member name: a
+                // sensitive scope hides which value the client sent.
                 let path = match service.shape(&map.key.target) {
-                    Some(Shape::Enum(_)) => "key.as_str()",
+                    Some(Shape::Enum(_)) => "key.as_str().to_owned()",
                     _ => "key",
                 };
                 // A sensitive key is client data: the path says `[key]`.

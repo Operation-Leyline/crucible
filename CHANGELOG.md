@@ -491,7 +491,11 @@ version's section when it is prepared.
   response, the service log and the validation error's `fieldList` each
   copied every violation. So a body of a few megabytes of empty strings
   could build an error response, and a log record, of hundreds of
-  megabytes.
+  megabytes. The cap covers violations from the query string, labels and
+  headers too (`?a=%zz&a=%zz...` once listed one per pair): every producer
+  collects through the new `validate::Violations` or `Rejection::new`.
+  `Rejection::summary` counts the unlisted violations ("and 149 more" for
+  150), and `Rejection::count` says how many there were.
 - Rejections no longer quote the request's values, so a `@sensitive`
   member's value stays out of the response and the service log.
   - A JSON or CBOR value of the wrong type is named by its kind:
@@ -508,13 +512,24 @@ version's section when it is prepared.
     and says `[key]` for a map key (`/settings/[key]/limit`).
   - A value an API version hook cannot read becomes an internal error
     without quoting the value, so its logged cause carries no request data.
+  - Request text a client controls is not repeated either. An unsupported
+    `Crucible-Version` is refused by listing the versions served. An unknown
+    member of a strict structure is reported at `[key]` (JSON and CBOR
+    alike; a missing CBOR member is now `is required` at its name, as in
+    JSON). A malformed query value is reported at the model's parameter
+    name, at `<member>/[key]` for a key of an `@httpQueryParams` map, and at
+    `query` for an undeclared parameter; a malformed prefixed header at
+    `<member>/[key]`. Event stream frames and received events are refused
+    without the sender's `:message-type`, checksum bytes or values.
   - A violation's path names a map key `[key]` when the key is client data
     under a sensitivity rule: the map's keys are `@sensitive`, or the map is
     reached through a `@sensitive` member or structure (an ordinary
     structure behind a sensitive member included), or is the item of a list
     or map whose items are sensitive (`scoreMaps/outer/[key]`). Generated validation
     opens the new `Validator::sensitive` scope for them. Member names, list
-    indexes and public map keys still appear.
+    indexes and public map keys still appear. An enum map key is hidden the
+    same way: it used to be named like a member, so a sensitive scope let it
+    through.
 
   Paths and the model's expectations are unchanged.
 

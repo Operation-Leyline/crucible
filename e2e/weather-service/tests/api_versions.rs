@@ -325,11 +325,14 @@ async fn a_request_without_a_version_is_settled_by_the_builder() {
     let (_, headers, _) = call(&resolved, "GET", "/items/a", None).await;
     assert_eq!(headers["crucible-version"], "v2");
 
-    // An unknown version is refused, whatever the builder says.
+    // An unknown version is refused, whatever the builder says, naming the
+    // versions served but not the client's text, which could be any length.
+    let unknown = "v9-".repeat(1000);
     let (status, _, body) =
-        call(&service(Unversioned::Oldest), "GET", "/items/a", Some("v9")).await;
+        call(&service(Unversioned::Oldest), "GET", "/items/a", Some(&unknown)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(body.to_string().contains("\\\"v9\\\""), "{body}");
+    assert!(body.to_string().contains("v1, v2, v3"), "{body}");
+    assert!(!body.to_string().contains("v9"), "{body}");
 }
 
 #[tokio::test]

@@ -309,7 +309,7 @@ fn decode_headers(mut bytes: &[u8]) -> Result<Vec<Header>, FrameError> {
                 }
             }
             9 => HeaderValue::Uuid(take(&mut bytes, 16)?.try_into().expect("sixteen")),
-            other => return frame_error(format!("unknown header value type {other}")),
+            _ => return frame_error("unknown header value type"),
         };
         headers.push(Header { name, value });
     }
@@ -364,10 +364,10 @@ impl MessageDecoder {
             |at: usize| u32::from_be_bytes(self.buffer[at..at + 4].try_into().expect("four bytes"));
         let (total, headers, prelude) = (word(0) as usize, word(4) as usize, word(8));
         let actual = crc32(&self.buffer[..8]);
+        // Checksums are the sender's bytes: a mismatch is reported, not
+        // the values.
         if actual != prelude {
-            return frame_error(format!(
-                "prelude checksum {prelude:#010x} does not match {actual:#010x}"
-            ));
+            return frame_error("the prelude checksum does not match");
         }
         if self.validate_limits && headers > MAX_HEADERS {
             return frame_error("headers exceed 128 KiB");
@@ -385,9 +385,7 @@ impl MessageDecoder {
         let expected = u32::from_be_bytes(frame[total - 4..].try_into().expect("four bytes"));
         let actual = crc32(&frame[..total - 4]);
         if actual != expected {
-            return frame_error(format!(
-                "message checksum {expected:#010x} does not match {actual:#010x}"
-            ));
+            return frame_error("the message checksum does not match");
         }
         let payload = frame.slice(PRELUDE + headers..total - TRAILER);
         let headers = decode_headers(&frame[PRELUDE..PRELUDE + headers])?;
@@ -625,7 +623,8 @@ impl EventStreamInfo {
                     .unwrap_or_default()
                     .to_owned(),
             }),
-            Some(other) => Err(format!("unknown :message-type `{other}`")),
+            // The type is the sender's text, of any length: not repeated.
+            Some(_) => Err("unknown :message-type".into()),
             None => Err("a message has no :message-type".into()),
         }
     }
@@ -732,6 +731,12 @@ fn json_value(kind: EventHeaderKind, value: &HeaderValue) -> Option<Value> {
         }
         _ => return None,
     })
+}
+
+/// An event that does not read as its type, said without the values it
+/// carried: they are the sender's, and may be `@sensitive`.
+fn unreadable(error: serde_json::Error) -> String {
+    crate::text::without_values(&error.to_string()).into_owned()
 }
 
 /// Why an event stream ended early.
@@ -874,7 +879,7 @@ impl<T: Send + 'static> EventStream<T> {
     where
         T: DeserializeOwned,
     {
-        let typed = |value: Value| serde_json::from_value::<T>(value).map_err(|e| e.to_string());
+        let typed = |value: Value| serde_json::from_value::<T>(value).map_err(unreadable);
         Self::from_source(Box::pin(events.map(move |event| match event {
             Ok(value) => typed(value).map_err(EventStreamError::Decode),
             Err(error) => Err(error.map(typed)),
@@ -888,7 +893,7 @@ impl<T: Send + 'static> EventStream<T> {
         T: DeserializeOwned + crate::validate::Validate,
     {
         let typed = |value: Value| {
-            let value: T = serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let value: T = serde_json::from_value(value).map_err(unreadable)?;
             crate::validate::Validator::check(&value).map_err(|error| error.summary())?;
             Ok(value)
         };

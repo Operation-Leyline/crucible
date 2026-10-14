@@ -411,7 +411,9 @@ async fn a_strict_input_refuses_a_member_it_does_not_define() {
         .unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap();
     assert_eq!(body["__type"], "ValidationError", "{body}");
-    assert_eq!(body["fieldList"][0]["path"], "nmae", "{body}");
+    // The member is the client's text, so it is not repeated.
+    assert_eq!(body["fieldList"][0]["path"], "[key]", "{body}");
+    assert!(!body.to_string().contains("nmae"), "{body}");
 }
 
 #[tokio::test]

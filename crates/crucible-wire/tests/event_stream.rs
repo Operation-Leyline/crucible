@@ -355,3 +355,51 @@ fn an_event_stream_is_opened_once_and_ends_after_an_error() {
         Value::Null
     );
 }
+
+#[test]
+fn received_frames_and_events_are_refused_without_repeating_the_senders_text() {
+    let secret = "hunter2";
+    let odd = Message::new(Bytes::new())
+        .with_header(":message-type", HeaderValue::String(secret.repeat(1000)));
+    assert_eq!(EVENTS.decode(&odd).unwrap_err(), "unknown :message-type");
+
+    // Checksums are the sender's bytes: a mismatch says which, not the values.
+    let good = hex(vectors()["positive"][6]["hex"].as_str().unwrap());
+    let mut prelude = good.clone();
+    prelude[11] ^= 0xFF;
+    let mut message = good;
+    let last = message.len() - 1;
+    message[last] ^= 0xFF;
+    for (bytes, expected) in [
+        (prelude, "the prelude checksum does not match"),
+        (message, "the message checksum does not match"),
+    ] {
+        let mut decoder = MessageDecoder::new();
+        decoder.push(&bytes);
+        assert_eq!(decoder.next_message().unwrap_err().0, expected);
+    }
+
+    // A server's received event that does not read as its type.
+    #[derive(Debug, serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Pin {
+        #[allow(dead_code)]
+        pin: i64,
+    }
+    impl crucible_wire::validate::Validate for Pin {
+        fn validate(&self, _: &mut crucible_wire::validate::Validator) {}
+    }
+    for event in [json!({ "pin": secret }), json!({ "pin": 1, secret: 1 })] {
+        let events: crucible_wire::event_stream::Incoming =
+            Box::pin(futures_util::stream::iter([Ok(event)]));
+        let mut receiver = EventStream::<Pin>::incoming_validated(events)
+            .open()
+            .unwrap();
+        match receiver.recv().now_or_never().unwrap() {
+            Err(EventStreamError::Decode(message)) => {
+                assert!(!message.contains(secret), "{message}");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+}
