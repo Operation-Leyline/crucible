@@ -425,6 +425,47 @@ async fn custom_header_requires_bearer_scheme_and_clock_is_injectable() {
 }
 
 #[tokio::test]
+async fn credential_headers_read_the_first_present_header_in_order() {
+    let auth = JwtAuthenticator::with_jwks(issuer().config(vec!["client".into()]), issuer().jwks())
+        .unwrap()
+        .credential_headers([
+            HeaderName::from_static("x-leyline-authorization"),
+            HeaderName::from_static("authorization"),
+        ])
+        .unwrap();
+    let service = service(vec![Arc::new(auth), Arc::new(ApiKey)]);
+    let token = issuer()
+        .mint(&issuer().id_claims("person", "client"))
+        .unwrap();
+    let bearer = format!("Bearer {token}");
+    // The router's header wins over a SigV4 Authorization.
+    let routed = [
+        ("x-leyline-authorization", bearer.as_str()),
+        ("authorization", "AWS4-HMAC-SHA256 oac"),
+    ];
+    assert_eq!(
+        call(&service, "/protected", &routed).await.0,
+        StatusCode::OK
+    );
+    // Unrouted local calls fall back to Authorization.
+    assert_eq!(
+        call(&service, "/protected", &[("authorization", &bearer)])
+            .await
+            .0,
+        StatusCode::OK
+    );
+    // The first present header is the only one read.
+    let shadowed = [
+        ("x-leyline-authorization", "Bearer not.a.token"),
+        ("authorization", bearer.as_str()),
+    ];
+    assert_eq!(
+        call(&service, "/protected", &shadowed).await.0,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[tokio::test]
 async fn es256_audience_array_scopes_groups_and_strict_claim_types() {
     let issuer = TestTokenIssuer::es256("https://ec.example", "ec-1").unwrap();
     let mut config = issuer.config(vec!["client".into()]);

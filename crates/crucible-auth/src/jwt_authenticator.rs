@@ -26,7 +26,7 @@ pub struct JwtAuthenticator {
     client: reqwest::Client,
     cache: RwLock<JwksCache>,
     refresh: Mutex<()>,
-    credential_header: HeaderName,
+    credential_headers: Vec<HeaderName>,
     clock: Arc<dyn Fn() -> SystemTime + Send + Sync>,
     rsa_validation: Validation,
     ec_validation: Validation,
@@ -38,7 +38,7 @@ impl JwtAuthenticator {
     }
 
     pub(crate) fn mcp_access_policy(&self) -> bool {
-        self.credential_header == header::AUTHORIZATION
+        self.credential_headers == [header::AUTHORIZATION]
             && self
                 .config
                 .token_rules
@@ -114,16 +114,43 @@ impl JwtAuthenticator {
             client,
             cache: RwLock::new(JwksCache::default()),
             refresh: Mutex::new(()),
-            credential_header: header::AUTHORIZATION,
+            credential_headers: vec![header::AUTHORIZATION],
             clock: Arc::new(SystemTime::now),
             rsa_validation: validation,
             ec_validation,
         })
     }
 
+    /// The one header to read the bearer token from. Defaults to
+    /// `Authorization`; [`credential_headers`](Self::credential_headers) is the
+    /// ordered form.
     pub fn credential_header(mut self, header: HeaderName) -> Self {
-        self.credential_header = header;
+        self.credential_headers = vec![header];
         self
+    }
+
+    /// Headers to read the bearer token from, in order; the first one present
+    /// is the only one read, so a later header never rescues a refused token.
+    /// Duplicate values of that header are refused. An empty list is a
+    /// configuration error: it would never see a token.
+    pub fn credential_headers(
+        mut self,
+        headers: impl IntoIterator<Item = HeaderName>,
+    ) -> std::result::Result<Self, AuthError> {
+        let headers: Vec<_> = headers.into_iter().collect();
+        if headers.is_empty() {
+            return Err(AuthError::Configuration(
+                "JWT credential headers must not be empty".into(),
+            ));
+        }
+        self.credential_headers = headers;
+        Ok(self)
+    }
+
+    fn credential_header_present(&self, request: &Parts) -> Option<&HeaderName> {
+        self.credential_headers
+            .iter()
+            .find(|name| request.headers.contains_key(*name))
     }
 
     pub fn clock(mut self, clock: impl Fn() -> SystemTime + Send + Sync + 'static) -> Self {
@@ -464,11 +491,14 @@ impl Authenticator for JwtAuthenticator {
     }
 
     fn has_credentials(&self, request: &Parts, _: &AuthScheme) -> bool {
-        request.headers.contains_key(&self.credential_header)
+        self.credential_header_present(request).is_some()
     }
 
     async fn authenticate(&self, request: &Parts, _: &AuthScheme) -> AuthenticateResult {
-        let mut headers = request.headers.get_all(&self.credential_header).iter();
+        let Some(name) = self.credential_header_present(request) else {
+            return AuthenticateResult::Refused;
+        };
+        let mut headers = request.headers.get_all(name).iter();
         let Some(value) = headers.next() else {
             return AuthenticateResult::Refused;
         };
