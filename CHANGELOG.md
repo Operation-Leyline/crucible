@@ -167,7 +167,7 @@ version's section when it is prepared.
     obligation exactly once with `discharge` or `not_applicable`.
     `idempotency::commit()` refuses an unsatisfied obligation in every
     build (`shadow()` only logs it). A success with one fails the request
-    in debug builds and with `test-support` (`assert_obligations`). Handlers read a listing's
+    in every build unless `assert_obligations(false)` opts out. Handlers read a listing's
     `permissions::visible()` and report genuine absence with
     `permissions::not_found`, which is answered exactly as a handler's own
     modelled `NotFoundException` would be.
@@ -425,6 +425,36 @@ version's section when it is prepared.
   "checked": an API key carries no scopes, so both refuse it on every
   operation that declares scopes. `docs/auth.md` says so and shows the
   `ScopelessPolicy::Exempt` that admits API keys.
+
+- Typed permissions, the request's session (unreleased since #246):
+  `Permissions::shadow()` refuses nothing, also when the Authorizer cannot
+  answer a read-only operation's `filters` listing (the handler's
+  `permissions::visible()` shows nothing instead of failing, and that
+  success is never replayed) or a replay's handler checks (the replay is
+  served). An operation that changes state still fails when its listing
+  cannot be answered, since on an empty listing it would succeed as a
+  no-op. A success with a `by handler` obligation unsatisfied now fails
+  in release builds too, not only in debug builds: `assert_obligations`
+  defaults to `true`, and `false` is the deliberate opt-out. So does a
+  success whose `filters` listing shows less than everything and was never
+  read with `visible()`, which `idempotency::commit()` also refuses. A
+  replay of a filtered listing is refused as unreplayable (409) unless the
+  caller now sees all of it, or the same ids the stored success showed; the
+  idempotency record's `authorization` becomes `{ "checks", "listing" }`
+  (a digest of the ids), and a record in the earlier array form still
+  reads. A `discharge` holds its obligation while it asks the Authorizer,
+  so a concurrent `not_applicable` or `discharge` of it is refused instead
+  of racing past a refusal, and an obligation is only ever closed from
+  open. Stored handler checks are kept once per permission and resource.
+  Identifiers in permission log lines and internal errors are escaped and
+  cut short. `permissions::decide` answers a `#[must_use]` `Verdicts`
+  (a slice of `Verdict`, `into_vec`), so dropping its answer unread is a
+  warning; `Verdict` and `Visibility` are `#[non_exhaustive]`.
+  `PermissionRefusal::resource` no longer claims its identifiers came from
+  the request: a handler check's or an obligation's are what the handler
+  bound. The record is published once per hook or handler call, and the
+  interceptor's settings are shared by one `Arc` per request, instead of
+  cloned on every change.
 
 - The Rust client's default HTTP transport no longer follows redirects,
   which could forward custom API-key and SigV4 session-token headers to

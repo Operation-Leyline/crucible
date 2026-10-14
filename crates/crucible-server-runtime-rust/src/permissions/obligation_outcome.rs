@@ -11,9 +11,10 @@ pub enum ObligationOutcome {
     /// Closed without a check, for this reason
     /// ([`not_applicable`](super::not_applicable)).
     NotApplicable(String),
-    /// Still open when the operation succeeded: a handler bug. Tests and
-    /// debug builds fail the request; release builds log it and keep the
-    /// response, since whatever the handler did has happened.
+    /// Still open when the operation succeeded: a handler bug, which fails
+    /// the request unless `Permissions::assert_obligations(false)` opted out
+    /// (or the interceptor only shadows); then it is logged and the response
+    /// kept, since whatever the handler did has happened.
     Undischarged,
     /// A replay: the operation did not run, and the handler checks its
     /// success was allowed were asked again before the replay was served.

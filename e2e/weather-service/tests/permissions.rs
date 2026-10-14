@@ -244,6 +244,7 @@ static SERVICE: ServiceInfo = {
             <mail::Delegate as Operation>::INFO,
             <mail::GetGraph as Operation>::INFO,
             <mail::SearchInboxes as Operation>::INFO,
+            <mail::ArchiveInboxes as Operation>::INFO,
             <mail::GetMe as Operation>::INFO,
             <mail::Health as Operation>::INFO,
             &MISWIRED,
@@ -322,6 +323,7 @@ struct State {
     inboxes: BTreeMap<String, Vec<String>>,
     sends: AtomicUsize,
     deletes: AtomicUsize,
+    archives: AtomicUsize,
     renames: AtomicUsize,
 }
 
@@ -485,6 +487,21 @@ fn operations(state: Arc<State>) -> Operations {
                     .filter(|inbox| visible.shows(inbox))
                     .collect();
                 answer!(SearchInboxesOutput, shown)
+            },
+        )
+        .add::<mail::ArchiveInboxes, _, _>(
+            state.clone(),
+            |state, input: mail::ArchiveInboxesInput| async move {
+                let inboxes = state.inboxes.get(&input.workspace_id).into_iter().flatten();
+                let shown: Vec<&String> = if input.mode.as_deref() == Some("unread") {
+                    // Never reads what the caller may see.
+                    inboxes.collect()
+                } else {
+                    let visible = permissions::visible()?;
+                    inboxes.filter(|inbox| visible.shows(inbox)).collect()
+                };
+                state.archives.fetch_add(1, Ordering::SeqCst);
+                answer!(ArchiveInboxesOutput, shown)
             },
         )
         .add::<Miswired, _, _>(state.clone(), |_, _: InboxInput| async move {
@@ -1316,8 +1333,9 @@ async fn a_success_with_an_obligation_open_fails_before_it_is_stored() {
             json!({ "mode": "forget", "clientToken": "s-1" }),
         )
     };
-    // The handler succeeded with its obligation open: in tests that is a
-    // failure, and it is never stored, so the retry runs again.
+    // The handler succeeded with its obligation open: by default, in every
+    // build, that is a failure, and it is never stored, so the retry runs
+    // again.
     assert_internal(&forget().await);
     assert_eq!(
         harness.audit.last().obligations[0].outcome,
@@ -1326,7 +1344,8 @@ async fn a_success_with_an_obligation_open_fails_before_it_is_stored() {
     assert_internal(&forget().await);
     assert_eq!(harness.state.deletes.load(Ordering::SeqCst), 2);
 
-    // Release builds log the open obligation and keep the response.
+    // Opting out deliberately logs the open obligation and keeps the
+    // response.
     let release = serve(|permissions| permissions.assert_obligations(false)).await;
     release
         .grants
@@ -1632,6 +1651,108 @@ async fn shadow_mode_records_and_logs_but_refuses_nothing() {
 }
 
 #[tokio::test]
+async fn shadow_mode_refuses_nothing_when_the_authorizer_is_down() {
+    let harness = serve(Permissions::shadow).await;
+    harness
+        .grants
+        .member("alice", "w1")
+        .grant("alice", GRANT_MANAGE, "w1")
+        .grant("alice", WORKSPACE_ADMIN, "w1")
+        .grant("alice", INBOX_READ, "w1/i1");
+    let delete = || {
+        harness.post(
+            "/w/w1/grants/g1",
+            "alice",
+            json!({ "mode": "admin", "clientToken": "d-1" }),
+        )
+    };
+    let first = delete().await;
+    assert_eq!(first.status, 200, "{}", first.json());
+
+    harness.grants.fail.store(true, Ordering::SeqCst);
+    // A listing it cannot get answered shows nothing, rather than failing
+    // the handler that reads it,
+    let listed = harness.get("/w/w1/inboxes", "alice").await;
+    assert_eq!(listed.status, 200, "{}", listed.json());
+    assert_eq!(listed.json()["value"], json!([]));
+    assert!(harness.audit.last().listing.is_none());
+    // and a replay whose handler checks it cannot ask again is served.
+    let replay = delete().await;
+    assert_eq!(replay.status, 200, "{}", replay.json());
+    assert_eq!(replay.body, first.body);
+    assert_eq!(harness.state.deletes.load(Ordering::SeqCst), 1);
+
+    // A listing that changes state is not run on an empty answer: it
+    // fails, so its claim is released rather than keeping a no-op success,
+    let archive = || harness.post("/w/w1/archive", "alice", json!({ "clientToken": "a-1" }));
+    assert_internal(&archive().await);
+    assert_eq!(harness.state.archives.load(Ordering::SeqCst), 0);
+    // and the same token does the work once the Authorizer answers.
+    harness.grants.fail.store(false, Ordering::SeqCst);
+    let archived = archive().await;
+    assert_eq!(archived.status, 200, "{}", archived.json());
+    assert_eq!(archived.json()["value"], json!(["i1"]));
+    assert_eq!(archive().await.body, archived.body);
+    assert_eq!(harness.state.archives.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn a_listing_that_shows_less_than_everything_must_be_filtered() {
+    let harness = serve(|permissions| permissions).await;
+    harness
+        .grants
+        .member("alice", "w1")
+        .member("erin", "w1")
+        .grant("alice", INBOX_READ, "w1/i1")
+        .grant("erin", INBOX_READ, "w1/*");
+    let archive = |caller: &'static str, mode: &'static str, token: &'static str| {
+        harness.post(
+            "/w/w1/archive",
+            caller,
+            json!({ "mode": mode, "clientToken": token }),
+        )
+    };
+    // Alice sees one inbox; a handler that never reads that has filtered
+    // nothing, so its success is not served (nor stored for a replay).
+    assert_internal(&archive("alice", "unread", "u-1").await);
+    assert_internal(&archive("alice", "unread", "u-1").await);
+    let filtered = archive("alice", "read", "u-2").await;
+    assert_eq!(filtered.status, 200);
+    assert_eq!(filtered.json()["value"], json!(["i1"]));
+    // Erin sees all of them: there is nothing to filter.
+    let all = archive("erin", "unread", "u-3").await;
+    assert_eq!(all.json()["value"], json!(["i1", "i2", "i3"]));
+}
+
+#[tokio::test]
+async fn a_filtered_listing_is_not_replayed_to_a_caller_who_sees_less_now() {
+    let harness = serve(|permissions| permissions).await;
+    harness
+        .grants
+        .member("alice", "w1")
+        .grant("alice", INBOX_READ, "w1/i1")
+        .grant("alice", INBOX_READ, "w1/i2");
+    let archive = || harness.post("/w/w1/archive", "alice", json!({ "clientToken": "l-1" }));
+    let first = archive().await;
+    assert_eq!(first.status, 200);
+    assert_eq!(first.json()["value"], json!(["i1", "i2"]));
+    assert_eq!(archive().await.body, first.body);
+
+    // Read on i2 revoked: the stored listing shows what she may no longer
+    // see, so it is not replayed, and she is told to send a new token.
+    harness.grants.revoke("alice", INBOX_READ, "w1/i2");
+    let refused = archive().await;
+    assert_eq!(refused.status, 409, "{}", refused.json());
+    assert!(!String::from_utf8_lossy(&refused.body).contains("i2"));
+    // Seeing as much again, or more, the replay is served.
+    harness.grants.grant("alice", INBOX_READ, "w1/i2");
+    assert_eq!(archive().await.body, first.body);
+    harness.grants.grant("alice", INBOX_READ, "w1/*");
+    assert_eq!(archive().await.body, first.body);
+    assert_eq!(harness.state.archives.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn a_direct_invoke_is_authorized_and_hidden_alike() {
     let service = Crucible::builder(operations(state()))
         .protocol(JsonProtocol)
@@ -1715,7 +1836,7 @@ fn registering_permissions_after_page_tokens_fails_the_build() {
 
 /// The operations of `permissions/mail.cru` that declare requirements, as
 /// opposed to `requires pending`, `requires none`, public or undeclared.
-const DECLARING: [&str; 9] = [
+const DECLARING: [&str; 10] = [
     "GetInbox",
     "SendMessage",
     "CreateInbox",
@@ -1724,6 +1845,7 @@ const DECLARING: [&str; 9] = [
     "Delegate",
     "GetGraph",
     "SearchInboxes",
+    "ArchiveInboxes",
     "Miswired",
 ];
 

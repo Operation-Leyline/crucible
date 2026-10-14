@@ -134,8 +134,10 @@ interface a service implements, and `Permissions::{new, refusal_factory,
 not_found_factory, allow_undeclared, shadow, assert_obligations,
 undeclared_operations}` installs it as an interceptor.
 `UndeclaredOperations::get`, `PermissionRefusal::{public_permission,
-permission_for_logging, resource, origin, default_error}`, `Verdict` and
-`Visibility` complete that configuration. `AuthorizationRequest`,
+permission_for_logging, resource, origin, default_error}`, and the
+non-exhaustive `Verdict` and `Visibility` complete that configuration.
+`Verdicts` (what `decide` answers: a slice of `Verdict`, `into_vec`) is
+`#[must_use]`. `AuthorizationRequest`,
 `OperationFacts`, `Listing`, `AuthorizationRecord`, `Decision`,
 `ObligationRecord` and `ObligationOutcome` are non-exhaustive: the runtime
 constructs them and services read them. Handlers use `require`, `decide`,

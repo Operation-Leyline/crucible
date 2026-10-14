@@ -74,6 +74,8 @@ mod session;
 #[cfg(feature = "permissions")]
 mod verdict;
 #[cfg(feature = "permissions")]
+mod verdicts;
+#[cfg(feature = "permissions")]
 mod visibility;
 
 pub use crate::operation_metadata::ErasedChecks;
@@ -105,6 +107,8 @@ pub use permissions::{Permissions, UndeclaredOperations};
 #[cfg(feature = "permissions")]
 pub use verdict::Verdict;
 #[cfg(feature = "permissions")]
+pub use verdicts::Verdicts;
+#[cfg(feature = "permissions")]
 pub use visibility::Visibility;
 
 #[cfg(all(feature = "permissions", feature = "idempotency"))]
@@ -117,6 +121,44 @@ use crate::Error;
 use crate::Result;
 #[cfg(feature = "permissions")]
 use session::Session;
+
+/// How many characters of one identifier a log line or an internal error's
+/// message shows, and how many identifiers: identifiers come from the
+/// request (or from what a handler bound), so they are bounded and escaped
+/// before they reach a log.
+const LOGGED_IDENTIFIER: usize = 64;
+const LOGGED_IDENTIFIERS: usize = 8;
+
+/// `resource` for a log line or an internal error's message: its
+/// identifiers came from the request or a handler, so each is escaped (no
+/// control characters, no non-ASCII) and cut short, and so is their count.
+pub(crate) fn loggable(resource: &ResourceRef) -> String {
+    let mut text = String::from(resource.resource().name);
+    text.push('(');
+    for (index, target) in resource.identifiers().iter().enumerate() {
+        if index > 0 {
+            text.push_str(", ");
+        }
+        if index == LOGGED_IDENTIFIERS {
+            text.push_str("...");
+            break;
+        }
+        match target {
+            Target::All => text.push('*'),
+            Target::One(id) => {
+                for (count, character) in id.chars().enumerate() {
+                    if count == LOGGED_IDENTIFIER {
+                        text.push_str("...");
+                        break;
+                    }
+                    text.extend(character.escape_default());
+                }
+            }
+        }
+    }
+    text.push(')');
+    text
+}
 
 /// The 404 for `resource`: what a handler returns when the resource is
 /// genuinely missing, so the answer is byte-identical to the one an
@@ -165,7 +207,7 @@ pub(crate) fn answer_not_found(job: &mut crate::Job) {
         }
         format!(
             "{} is missing, but the request is not one Permissions with a not_found_factory covers, so `{shape}` cannot be built for it",
-            missing.reference()
+            loggable(missing.reference())
         )
     } else if let Some(crate::FrameworkError::NotFound { resource }) =
         error.downcast_ref::<crate::FrameworkError>()
@@ -216,17 +258,23 @@ pub async fn require(
 /// (delegation refuses with its own error, not a missing permission). Every
 /// check is a [`Check::handler`], and all of them go to the Authorizer in one
 /// batch. Nothing is refused here: a check that is not [`Verdict::Allowed`]
-/// is the handler's to answer, before any write.
+/// is the handler's to answer, before any write, and [`Verdicts`] is
+/// `#[must_use]`, so dropping the answer unread is a warning.
 #[cfg(feature = "permissions")]
-pub async fn decide(checks: &[Check]) -> Result<Vec<Verdict>> {
+pub async fn decide(checks: &[Check]) -> Result<Verdicts> {
     let (context, session) = Session::current()?;
     if let Some(check) = checks.iter().find(|check| check.origin != Origin::Handler) {
         return Err(Error::internal(format!(
             "permissions::decide takes handler checks; {} on {} came from {:?}",
-            check.permission.value, check.resource, check.origin
+            check.permission.value,
+            loggable(&check.resource),
+            check.origin
         )));
     }
-    session.decide_for_handler(&context, checks).await
+    session
+        .decide_for_handler(&context, checks)
+        .await
+        .map(Verdicts::new)
 }
 
 /// Discharges a `by handler` obligation: checks its permission on
@@ -258,7 +306,20 @@ pub fn not_applicable(obligation: Obligation, reason: impl Into<String>) -> Resu
 /// the operation ran: [`Visibility::All`], or [`Visibility::Only`] the ids
 /// the handler filters to. (A Hidden or Denied listing was refused before
 /// the handler ran, except under `Permissions::shadow`, where it shows
-/// nothing.) An internal error for an operation without a `filters` clause.
+/// nothing, as does a read-only listing shadow mode could not get
+/// answered.) An internal error for an operation without a `filters`
+/// clause.
+///
+/// With an idempotency token, a retry is replayed only to a caller who
+/// now sees the whole listing or exactly the ids the first success
+/// showed: any change to the set, even growth, refuses the replay as
+/// unreplayable, and the new token the caller then sends runs the
+/// operation again.
+///
+/// A handler of a `filters` operation must read it: a success whose
+/// listing shows less than everything, never read here, fails as an
+/// unsatisfied obligation does (and `idempotency::commit()` refuses it),
+/// since nothing was filtered.
 #[cfg(feature = "permissions")]
 pub fn visible() -> Result<Visibility> {
     let (_, session) = Session::current()?;

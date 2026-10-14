@@ -401,6 +401,9 @@ the interceptor asks the Authorizer what is visible under the bound parent
 (§7.1). The answer is one of four:
 
 - **Hidden**: refused with the framework 404, for example a non-member.
+  A listing of a root resource has no parent to hide: Hidden there is
+  answered as Denied, as a Hidden verdict on a root check with `*` is
+  (§7.1; check 17 attaches no 404 to it).
 - **All**: no filtering needed.
 - **Only(ids)**: the handler filters to these ids.
 - **Denied**: refused with a 403 for the clause's permission, for a caller
@@ -427,8 +430,8 @@ write, either discharge it through the Authorizer
 (`permissions::discharge`) or record that it does not apply to this
 request (`permissions::not_applicable`, with a reason). The runtime checks
 this twice. A call to `idempotency::commit()` while an obligation is open
-is refused in every build, and a success returned with one open is an
-assertion failure in tests and debug builds (§7.5). A refusal releases any
+is refused in every build, and a success returned with one open is the
+internal error in every build too (§7.5). A refusal releases any
 idempotency claim, so the client can retry the same token once it holds
 the permission.
 
@@ -1372,12 +1375,15 @@ idempotency::commit().await?;   // the point of no return; no obligation may be 
   discharged with a refusal the handler went on past). The refusal is an
   internal error that is logged, and the step after `commit` does not run.
   Only `shadow` logs it and lets `commit` go on.
-- **After the handler.** In tests (the `test-support` harness) and debug
-  builds, `after` asserts that every obligation was discharged or closed:
-  a success with one open becomes `InternalFailure` and the test fails.
-  Release builds log it and record `undischarged` in the
-  `AuthorizationRecord`, but do not change the response, because whatever
-  the handler did has already happened.
+- **After the handler.** `after` asserts that every obligation was
+  discharged or closed: a success with one open becomes `InternalFailure`,
+  in every build. *As built:* this was first a debug-build assertion, with
+  release builds only logging, so a handler that forgot a discharge served
+  its success in production. Enforcement is now the default, and
+  `Permissions::assert_obligations(false)` is the deliberate opt-out, which
+  logs it, records `undischarged` in the `AuthorizationRecord`, and keeps
+  the response. A `filters` listing that shows less than everything and
+  that the handler never read with `visible()` counts as unsatisfied too.
 - **A refusal releases the claim.** A refusal before `commit` fails the
   request, and `Idempotency` releases the claim as for any failure before
   the point of no return, so a retry with the same token runs again once
@@ -1582,8 +1588,8 @@ ones):
   `docs/framework.md` updated.
 - Handler API: `require`, `decide`, `discharge`, `not_applicable`;
   obligations opened by `before`, the open-obligation refusal in
-  `idempotency::commit()` (every build), and the `after` assertion in tests
-  and debug builds. *As built:* no `abandon()` path is needed, because
+  `idempotency::commit()` (every build), and the `after` assertion (first
+  in tests and debug builds, now in every build). *As built:* no `abandon()` path is needed, because
   `commit` refuses first (§7.5).
 
 **Phase B: generators**, against the A1 IR and the A2 types:

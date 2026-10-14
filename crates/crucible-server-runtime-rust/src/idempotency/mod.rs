@@ -94,6 +94,9 @@ pub use memory_idempotency_store::MemoryIdempotencyStore;
 pub use ownership::Ownership;
 pub use stored_response::StoredResponse;
 
+#[cfg(feature = "permissions")]
+pub(crate) use fingerprint::hex;
+
 use crate::{Context, Error, Result};
 use attempt::Attempt;
 

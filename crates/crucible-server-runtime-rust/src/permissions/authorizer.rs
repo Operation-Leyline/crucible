@@ -38,7 +38,8 @@ pub trait Authorizer: Send + Sync + 'static {
         let _ = request;
         Err(Error::internal(format!(
             "the Authorizer answers no `filters` listing, and {} on {} needs one",
-            listing.permission.value, listing.resource
+            listing.permission.value,
+            super::loggable(&listing.resource)
         )))
     }
 

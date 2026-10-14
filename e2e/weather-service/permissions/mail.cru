@@ -172,6 +172,21 @@ readonly operation SearchInboxes on Inbox collection {
     output { value: document }
 }
 
+/// Archives the inboxes the caller may read: a listing that filters and
+/// changes state, so a retry replays it.
+operation ArchiveInboxes on Inbox collection {
+    http POST "/w/{workspaceId}/archive"
+    filters read on Inbox
+    input {
+        $workspaceId
+        /// `unread`: the handler forgets to filter.
+        mode?: string
+        @token
+        clientToken?: ClientToken
+    }
+    output { value: document }
+}
+
 /// Answers about the caller's own credential; there is nothing to authorize.
 readonly operation GetMe {
     http GET "/me"
