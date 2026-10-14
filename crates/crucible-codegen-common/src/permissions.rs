@@ -231,7 +231,11 @@ fn handler_docs(docs: Option<&str>) -> HandlerDocs {
     }
     // One paragraph: its soft line breaks read as spaces already.
     let text = docs.lines().map(str::trim).collect::<Vec<_>>().join(" ");
-    let text = text.trim_end_matches('.');
+    // The sentence's own period only: an ellipsis keeps its dots.
+    let text = text
+        .strip_suffix('.')
+        .filter(|rest| !rest.ends_with('.'))
+        .unwrap_or(&text);
     let first_word = text
         .split(|c: char| !c.is_alphanumeric())
         .next()
@@ -551,6 +555,8 @@ mod prose {
         assert_eq!(inline("GraphQL plans only."), "GraphQL plans only");
         assert_eq!(inline("I check it."), "I check it");
         assert_eq!(inline("Only when\nit writes."), "only when it writes");
+        assert_eq!(inline("Only for the U.S."), "only for the U.S");
+        assert_eq!(inline("Only sometimes..."), "only sometimes...");
         for docs in [
             "One.\n\nTwo.",
             "- a\n- b",
