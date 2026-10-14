@@ -129,11 +129,7 @@ impl HeldClaim {
     /// whether the claim is still this attempt's: one it no longer holds is
     /// refused, since another attempt may be running the operation.
     pub async fn commit(&self) -> Result<()> {
-        match self
-            .hold()
-            .await
-            .map_err(|error| Error::new(StoreUnavailable(error)))?
-        {
+        match self.hold().await.map_err(StoreUnavailable::error)? {
             Ownership::Held => {
                 self.commits.fetch_add(1, Ordering::SeqCst);
                 Ok(())

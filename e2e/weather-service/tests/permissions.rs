@@ -28,8 +28,9 @@ use crucible_server_runtime_rust::permissions::{
 };
 use crucible_server_runtime_rust::validate::{Validate, Validator};
 use crucible_server_runtime_rust::{
-    BuildError, Builder, Crucible, Error, Hook, Interceptor, InterceptorExt, InvokeProtocol,
-    JsonProtocol, Operation, OperationInfo, OperationJob, Operations, Result, ServiceInfo,
+    BuildError, Builder, Crucible, Error, ExceptionTranslator, FrameworkError, Hook, Interceptor,
+    InterceptorExt, InvokeProtocol, JsonProtocol, Operation, OperationInfo, OperationJob,
+    Operations, Result, ServiceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -641,6 +642,19 @@ fn caller(request: &AuthorizationRequest<'_>) -> String {
         .to_owned()
 }
 
+/// The grants table's client error. The service translates it for its own
+/// operations; the Authorizer happens to use the same client.
+#[derive(Debug)]
+struct GrantsDown;
+
+impl std::fmt::Display for GrantsDown {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the grants table is unreachable")
+    }
+}
+
+impl std::error::Error for GrantsDown {}
+
 struct Shared(Arc<Grants>);
 
 #[crucible_server_runtime_rust::async_trait]
@@ -658,7 +672,7 @@ impl Authorizer for Shared {
                 .collect(),
         ));
         if self.0.fail.load(Ordering::SeqCst) {
-            return Err(Error::internal("the grants table is unreachable"));
+            return Err(GrantsDown.into());
         }
         let caller = caller(request);
         let mut verdicts: Vec<Verdict> = checks
@@ -677,7 +691,7 @@ impl Authorizer for Shared {
         listing: &Listing,
     ) -> Result<Visibility> {
         if self.0.fail.load(Ordering::SeqCst) {
-            return Err(Error::internal("the grants table is unreachable"));
+            return Err(GrantsDown.into());
         }
         let caller = caller(request);
         if self.0.hidden_listings.lock().unwrap().contains(&caller) {
@@ -1608,6 +1622,42 @@ async fn an_authorizer_that_cannot_tell_is_a_sanitized_500_never_an_allow() {
             .await,
     );
     assert_eq!(harness.state.renames.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn a_rule_for_the_services_store_errors_never_translates_an_authorizer_outage() {
+    // What the translator is shown, so the test sees it ran.
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let translator = ExceptionTranslator::new()
+        .translate(|_: &GrantsDown| FrameworkError::Forbidden.into())
+        .translate_with({
+            let seen = seen.clone();
+            move |error| {
+                seen.lock().unwrap().push(error.to_string());
+                None
+            }
+        });
+    let harness = serve_with(|builder, permissions, idempotency| {
+        builder
+            .exception_translator(translator)
+            .interceptor(permissions)
+            .interceptor(idempotency)
+    })
+    .await;
+    harness
+        .grants
+        .member("alice", "w1")
+        .grant("alice", INBOX_READ, "w1/*");
+    harness.grants.fail.store(true, Ordering::SeqCst);
+    // A declared check and a listing: neither outage becomes the 403 the
+    // rule answers for the client's error.
+    assert_internal(&harness.get("/w/w1/inboxes/i1", "alice").await);
+    assert_internal(&harness.get("/w/w1/inboxes", "alice").await);
+    assert_eq!(
+        *seen.lock().unwrap(),
+        ["the Authorizer could not decide"; 2],
+        "the rules saw the outage, never its cause"
+    );
 }
 
 #[tokio::test]
