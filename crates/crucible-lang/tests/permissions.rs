@@ -2209,6 +2209,13 @@ fn a_condition_that_does_not_lower_leaves_its_clause_out() {
             .all(|m| !m.starts_with("permissions.undeclared")),
         "{messages:#?}"
     );
+    // A public operation is still told it declares requirements.
+    expect(
+        &check(
+            "public readonly operation Open {\n    http GET \"/open\"\n    requires read on Store(*) when nothing == [1]\n}",
+        ),
+        "error: permissions.public: `Open` is public",
+    );
 }
 
 #[test]

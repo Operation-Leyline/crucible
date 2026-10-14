@@ -4353,6 +4353,19 @@ impl<'a> Lowerer<'a> {
             }
         }
         let requirements = self.requirements(file, &id, operation);
+        // Its clauses failed to lower, so the IR says `Undeclared` and the
+        // shared check, which reads a public operation without
+        // requirements as correct, cannot tell it declared some.
+        if modifiers.contains("public") && self.unlowered_requirements.contains(&id) {
+            self.error(
+                file,
+                operation.name.span,
+                format!(
+                    "permissions.public: `{}` is public, so there is no caller to authorize; remove its requirement declarations",
+                    operation.name.name
+                ),
+            );
+        }
         self.attach_not_found(&requirements, errors.len(), &mut errors);
         for error in service_errors {
             if !errors.contains(error) {
