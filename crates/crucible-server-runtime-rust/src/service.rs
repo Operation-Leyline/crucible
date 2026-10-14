@@ -19,6 +19,7 @@ use crate::error::{Error, FrameworkError, ModelledError};
 use crate::middlewares::{Cors, ServiceLog};
 use crate::operation::{Operation, OperationInfo};
 use crate::operations::Operations;
+use crate::permissions::Requirements;
 use crate::protocol::{Answers, Invocation, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch};
 use crate::validate::Rejection;
 use crate::versioning::{self, Unversioned};
@@ -1001,7 +1002,7 @@ impl Builder {
         if let Some(cors) = &cors {
             self.middleware.insert(0, Box::new(cors.clone()));
         }
-        let builtins = std::cell::RefCell::new(Vec::new());
+        let builtins = std::cell::RefCell::new(crate::prepare::Builtins::default());
         let prepare = Prepare::new(&self.operations, &builtins);
         for middleware in &mut self.middleware {
             middleware.prepare(&prepare).map_err(BuildError::Prepare)?;
@@ -1018,10 +1019,31 @@ impl Builder {
         // Only `Permissions` builds a designated not-found error: without it
         // a hidden or missing resource would have no answer of that shape.
         if let Some(shape) = self.operations.service.not_found
-            && !builtins.borrow().contains(&"permissions")
+            && !builtins.borrow().order.contains(&"permissions")
         {
             return Err(BuildError::Prepare(format!(
                 "the model answers a missing resource with `{shape}` (`notFound` in the service), which only Permissions builds: install Permissions with a not_found_factory"
+            )));
+        }
+        // Only `Permissions` enforces declared requirements: a served
+        // operation that declares them outside it would run unchecked. Each
+        // API version's entry is checked on its own, since a scope decides
+        // on the description a request at that version carries.
+        let unenforced: Vec<String> = {
+            let builtins = builtins.borrow();
+            prepare
+                .served()
+                .filter(|served| {
+                    matches!(served.metadata.requirements, Requirements::List(_))
+                        && !builtins.authorized.contains(&served.key())
+                })
+                .map(|served| served.label())
+                .collect()
+        };
+        if !unenforced.is_empty() {
+            return Err(BuildError::Prepare(format!(
+                "no Permissions covers {}, so their declared requirements would go unchecked: install Permissions (the `permissions` feature) for them, or Permissions::shadow() to record without refusing",
+                unenforced.join(", ")
             )));
         }
         if self.protocols.is_empty() {

@@ -165,6 +165,14 @@ fn operations() -> Operations {
         })
         // `requires none`, and still a handler check.
         .add::<desk::Whoami, _, _>(Arc::new(()), |_, input: desk::WhoamiInput| async move {
+            let home = WorkspaceRef::new(&input.home);
+            match input.home.as_str() {
+                // The framework's helper, before any check.
+                "w8" => return Err(ResourceRef::from(home).not_found()),
+                // The service's own constructor.
+                "w9" => return Err(not_found(&home.into())),
+                _ => {}
+            }
             permissions::require(
                 WorkspacePermission::Read,
                 WorkspaceRef::new(&input.home).into(),
@@ -554,22 +562,39 @@ fn a_factory_that_builds_another_error_fails_the_build() {
     assert!(error.contains("room(workspaceId, *)"), "{error}");
 }
 
-#[tokio::test]
-async fn outside_what_permissions_covers_a_framework_404_is_a_wiring_error() {
-    // Permissions covers GetRoom only: GetWorkspace's handler has no
-    // factory to build the service's 404 with.
-    let service = Crucible::builder(operations())
+#[test]
+fn permissions_must_cover_every_operation_that_declares_requirements() {
+    // Scoped to GetRoom, it leaves GetWorkspace and ListRooms unchecked.
+    let error = Crucible::builder(operations())
         .protocol(JsonProtocol)
         .interceptor(permissions().only(&["GetRoom"]))
         .build()
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(
+        error.contains("no Permissions covers GetWorkspace, ListRooms,"),
+        "{error}"
+    );
+}
+
+#[tokio::test]
+async fn outside_what_permissions_covers_a_framework_404_is_a_wiring_error() {
+    // Permissions leaves out Whoami (`requires none`, so nothing declared
+    // goes unchecked): its handler has no factory to build the service's
+    // 404 with.
+    let service = Crucible::builder(operations())
+        .protocol(JsonProtocol)
+        .interceptor(permissions().except(&["Whoami"]))
+        .build()
         .unwrap();
-    let helper = get(&service, "/w/w8", "member").await;
+    let helper = get(&service, "/me?home=w8", "member").await;
     assert_eq!(helper.status, 500);
     assert_eq!(
         helper.headers["x-crucible-error"],
         "InternalServerException"
     );
     // Its own constructor still answers.
-    let own = get(&service, "/w/w9", "member").await;
+    let own = get(&service, "/me?home=w9", "member").await;
     assert_eq!(own.status, 404);
 }

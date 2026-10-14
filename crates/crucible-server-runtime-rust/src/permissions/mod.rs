@@ -27,9 +27,16 @@
 //! - **Handler checks** the model cannot declare (a permission the request
 //!   chooses) go through `require` and `decide`.
 //!
-//! Register it after authentication and before `PageTokens` and
-//! `Idempotency`, so a refused request never claims an idempotency token and
-//! every replay is authorized again:
+//! Only `Permissions` enforces declared requirements, so building a service
+//! fails when a served operation that declares them is outside every
+//! `Permissions` (left out by `only` or `except`, or none installed).
+//! Register it before `PageTokens` and `Idempotency`, so a refused request
+//! never has its page token opened or claims an idempotency token and every
+//! replay is authorized again; the other order fails the build.
+//! Authentication through `crucible-auth` is operation middleware, a phase
+//! before the interceptors, so it runs first whatever the registration
+//! order; a service that authenticates in an interceptor of its own
+//! registers it ahead of `Permissions`. In order:
 //!
 //! ```ignore
 //! builder

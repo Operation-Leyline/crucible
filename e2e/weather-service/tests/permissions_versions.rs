@@ -11,7 +11,7 @@ use axum::http::Request;
 use crucible_server_runtime_rust::permissions::{
     AuthorizationRequest, Authorizer, Check, Permissions, Requirements, Verdict,
 };
-use crucible_server_runtime_rust::{Crucible, Operation, Result};
+use crucible_server_runtime_rust::{BuildError, Crucible, InterceptorExt, Operation, Result};
 use serde_json::Value;
 
 include!(concat!(env!("OUT_DIR"), "/versioned_permissions.rs"));
@@ -156,4 +156,44 @@ fn the_build_reports_no_undeclared_operation_at_any_release() {
         .build()
         .unwrap();
     assert_eq!(report.get(), Some(Vec::new()));
+}
+
+#[test]
+fn permissions_must_cover_an_operation_only_an_older_version_serves() {
+    let Err(BuildError::Prepare(message)) = Crucible::builder(board::operations(Arc::new(Board)))
+        .defaults()
+        .interceptor(Permissions::new(Grants::default()).except(&["CountNotes"]))
+        .build()
+    else {
+        panic!("CountNotes declares v1's requirements outside Permissions");
+    };
+    assert!(
+        message.contains("no Permissions covers CountNotes (API version v1),"),
+        "{message}"
+    );
+}
+
+#[test]
+fn permissions_must_cover_every_version_of_an_operation() {
+    // A scope decides on the description a request carries, and a v1
+    // request for GetNote carries v1's: one that leaves it out would let v1
+    // callers past GetNote's requirements while v2 callers are checked.
+    let v1_get_note = <v1::GetNote as Operation>::INFO;
+    assert!(!std::ptr::eq(
+        v1_get_note,
+        <board::GetNote as Operation>::INFO
+    ));
+    let Err(BuildError::Prepare(message)) = Crucible::builder(board::operations(Arc::new(Board)))
+        .defaults()
+        .interceptor(
+            Permissions::new(Grants::default()).when(move |op| !std::ptr::eq(op, v1_get_note)),
+        )
+        .build()
+    else {
+        panic!("v1's GetNote declares requirements outside Permissions");
+    };
+    assert!(
+        message.contains("no Permissions covers GetNote (API version v1),"),
+        "{message}"
+    );
 }

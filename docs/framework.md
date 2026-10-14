@@ -483,7 +483,9 @@ let next_token = last.map(|key| page_tokens::issue(&key)).transpose()?;
   key opening the tokens it sealed while the current key seals new ones;
   drop it after one token lifetime.
 
-The interceptor opens the request's token before the operation runs. A token
+The interceptor opens the request's token before the operation runs; with
+typed permissions, register it after `Permissions`, so a refused request is
+refused before its token is opened (the other order fails the build). A token
 that does not open, whatever the reason, is the service's validation error
 naming the token member (`fieldValidationFailed`), never echoing the token.
 `PageTokens::refusal` builds a different error, for a service with a reason
@@ -659,7 +661,7 @@ no grants or principals.
 middleware runs before it, and so does any authorization interceptor
 registered before `Idempotency` (register `ScopeEnforcer` and `Permissions`
 first; building a service that registers `Permissions` after `Idempotency`
-fails). Then a refused request never claims its token, so the client can
+or `PageTokens` fails). Then a refused request never claims its token, so the client can
 retry the same token once it is granted access, and a replay is authorized
 against the caller's current grants before it is served: the operation's
 declared checks are made again, and so are the handler checks the first
@@ -820,6 +822,24 @@ let builder = builder
     .interceptor(PageTokens::new(keys, caller))
     .interceptor(Idempotency::new(store, caller));
 ```
+
+Only `Permissions` enforces declared requirements, so it must cover every
+served operation that declares them, at every API version that serves it:
+building a service fails, naming the operations (and the older version,
+for an entry only that version's description leaves out), when one is
+outside every `Permissions` (none installed, the `permissions` feature
+off, or scoped away with `only`, `except`, `when` or `when_trait`, which
+decide on the description of the version a request names). Operations
+that declare nothing to enforce (`requires pending`, `requires none`,
+public or undeclared) may be left out. An undeclared one left out runs
+without authorization, as every operation did before its model declared
+permissions; covered, it is refused as a wiring error unless
+`allow_undeclared()`, so cover them all to catch one the model forgot.
+To observe without refusing, install it with `shadow()`. It runs in
+the interceptor phase, after authentication middleware whatever the
+registration order; register it before `PageTokens` and `Idempotency`
+(the other order fails the build), and after any interceptor of the
+service's own that authenticates.
 
 `Authorizer::decide(request, checks)` answers every check of one call at
 once, so a store batches them, with a `Verdict` per check: `Allowed`,

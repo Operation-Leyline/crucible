@@ -24,7 +24,9 @@ type Refusal = Arc<dyn Fn(Rejection) -> Error + Send + Sync>;
 ///
 /// An `Interceptor`: it reads the decoded input, so the binding is the same
 /// whichever protocol or binding carried a filter. Operations that are not
-/// `@paginated` pass through untouched.
+/// `@paginated` pass through untouched. Register it after `Permissions`
+/// (the other order fails the build), so a refused request is refused
+/// before its token is opened.
 pub struct PageTokens {
     sealer: Arc<Sealer>,
     caller: Caller,
@@ -115,7 +117,10 @@ impl Interceptor for PageTokens {
         }))
     }
 
-    fn prepare(&mut self, _: &Prepare<'_>) -> std::result::Result<(), String> {
+    fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        // Records the registration order for `Permissions`, which refuses
+        // to follow.
+        prepare.builtin("page_tokens", "permissions");
         if self.sealer.ttl.is_zero() {
             return Err("a page token lifetime must be positive".to_owned());
         }
