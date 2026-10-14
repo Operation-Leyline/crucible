@@ -1,5 +1,6 @@
 //! Kotlin Multiplatform models and coroutine clients.
 mod models;
+mod permissions;
 use crucible_codegen_common::documentation as docs;
 use crucible_smithy::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
@@ -510,6 +511,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
     }
+    permissions::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -690,6 +692,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         },
     ];
     files.push(File { path: format!("{source}/WireSchema.kt"), contents: format!("{header}internal fun loadSchema(): kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.Json.parseToJsonElement(listOf({}).joinToString(\"\")) as kotlinx.serialization.json.JsonObject\n", schema.chars().collect::<Vec<_>>().chunks(6000).map(|chunk| literal(&chunk.iter().collect::<String>())).collect::<Vec<_>>().join(",\n")) });
+    files.extend(permissions::files(service, package, &source));
     for (name, body) in models {
         files.push(File {
             path: format!("{source}/model/{name}.kt"),

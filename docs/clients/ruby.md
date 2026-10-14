@@ -252,6 +252,46 @@ transport that serves streamed responses accepts `sink:` and calls it with
 each chunk of a successful body, and reads a `Runtime::StreamBody` request
 body with `read`.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+gets `Weather::Permissions` in `lib/<package>/permissions.rb`; without
+permissions there is no such module. Its own module keeps a model named
+`GraphPermission` or `PERMISSIONS` from colliding. Each resource gets an open
+class, `<Resource>Permission`, shaped like the model's string enums: one
+constant per permission, in declaration order, whose `value` is what grants
+store (`Permissions::GraphPermission::READ.value == 'graph:read'`), with YARD
+documentation from the model. Constants are the permission's name in upper
+snake case (`mailSend` is `MAIL_SEND`). A deprecated alias is a constant too,
+documented "An alias of `graph:read`." with `@deprecated`.
+
+The classes are open: `GraphPermission.new('graph:export')` keeps any string
+verbatim, so a grant written by a newer server, or naming a permission
+internal to the service, survives a round trip. Values compare and hash by
+`value`. `canonical` maps an alias to its primary
+(`GraphPermission::VIEW.canonical == GraphPermission::READ`) and returns any
+other value, unknown ones included, unchanged.
+
+`Permissions::PERMISSIONS` is the registry: a frozen array of
+`Runtime::ResourcePermissions` (`resource_type`, `permissions`), one per
+resource type sorted by authorization name, each holding
+`Runtime::PermissionDescription` entries (`value`, `description`, `tier`,
+`grantable`, `deprecated`, `alias_of`) sorted by value. `tier` is a plain
+string (`'public'`, `'permissionOnly'` or `'notGrantable'`), since a newer
+server may add tiers; `alias_of` is nil except on an alias. Both are `Data`
+classes from the bundled runtime, shipped only with a registry. A grant picker
+offers the grantable, current permissions:
+
+```ruby
+offered = Weather::Permissions::PERMISSIONS.flat_map do |resource|
+  resource.permissions.select { |p| p.grantable && !p.deprecated }
+end
+```
+
+Internal permissions never appear: not as constants, not in `PERMISSIONS`, not
+in any documentation. Two permissions of one resource that Ruby names alike
+(`read` and `READ`), or a model named `Permissions`, are diagnosed.
+
 ## Qualification
 
 Generation diagnoses invalid package/module names, core-class module
@@ -267,7 +307,9 @@ ec2Query vectors (through `tests/protocol_adapter.rb` and
 `tools/protocol_conformance.py`) and their consumer suite (fake and loopback
 HTTP transports, error envelopes, hostile XML), and streaming blobs
 (replay rules, length rules, cancellation, and 256 MiB each way over loopback
-HTTP with bounded peak memory). Set `RUBY` to select the executable.
+HTTP with bounded peak memory), and the typed permissions of
+`tests/fixtures/permissions` (`tests/permissions.rb`). Set `RUBY` to select
+the executable.
 These checks do not establish published-gem or authenticated deployed-Leyline
 compatibility.
 The [XML qualification scope](../xml-qualification.md) records pinned official

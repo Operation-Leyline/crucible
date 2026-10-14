@@ -210,6 +210,95 @@ func main() {
         "tests/conformance/empty-service.json", "--out", str(empty),
         "--module-path", "example.com/empty", "--package-name", "empty")
     run(GO, "test", "./...", cwd=empty)
+    permissions(output)
+
+
+def permissions(output):
+    """The typed permissions sub-package, from a separate module, as a console would use it."""
+    sdk = output / "leyline"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
+        "tests/fixtures/permissions", "--out", str(sdk),
+        "--module-path", "example.com/leyline", "--package-name", "leyline")
+    run(GO, "vet", "./...", cwd=sdk)
+    consumer = output / "permissions-consumer"
+    consumer.mkdir()
+    (consumer / "go.mod").write_text(
+        'module example.com/consumer\n\ngo 1.24.0\nrequire example.com/leyline v0.0.0\n'
+        'replace example.com/leyline => ../leyline\n', encoding="utf-8")
+    (consumer / "main.go").write_text('''package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+
+	"example.com/leyline/permissions"
+)
+
+func check(ok bool, what string) {
+	if !ok {
+		panic(what)
+	}
+}
+
+// roundTrip decodes a JSON string into a permission and encodes it back.
+func roundTrip(text string) string {
+	var value permissions.GraphPermission
+	if err := json.Unmarshal([]byte(fmt.Sprintf("%q", text)), &value); err != nil {
+		panic(err)
+	}
+	check(string(value) == text, "decoded "+text)
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
+func main() {
+	check(permissions.GraphPermissionRead == "graph:read", "a known constant's value")
+	check(roundTrip("graph:export") == `"graph:export"`, "an unknown value round-trips")
+	check(roundTrip("organization:read") == `"organization:read"`, "an internal value round-trips")
+	check(permissions.GraphPermissionView.Canonical() == permissions.GraphPermissionRead, "an alias's canonical")
+	check(permissions.GraphPermissionWrite.Canonical() == permissions.GraphPermissionWrite, "a primary's canonical")
+	check(permissions.GraphPermission("graph:export").Canonical() == "graph:export", "an unknown value's canonical")
+	check(permissions.HistoryPermissionRestore.Canonical() == permissions.HistoryPermissionRestore, "no aliases")
+	var types []string
+	var grantable []string
+	found := map[string]permissions.PermissionDescription{}
+	for _, resource := range permissions.Permissions {
+		types = append(types, resource.ResourceType)
+		for _, permission := range resource.Permissions {
+			found[permission.Value] = permission
+			// A grant picker's filter.
+			if permission.Grantable && !permission.Deprecated {
+				grantable = append(grantable, permission.Value)
+			}
+		}
+	}
+	check(reflect.DeepEqual(types, []string{"graph", "history", "org"}), fmt.Sprint("resource types ", types))
+	check(reflect.DeepEqual(grantable, []string{"graph:audit", "graph:read", "graph:write", "history:read", "history:restore"}), fmt.Sprint("grantable ", grantable))
+	admin := found["organization:admin"]
+	check(!admin.Grantable && admin.Tier == "notGrantable", "organization:admin is not grantable")
+	view := found["graph:view"]
+	check(view.AliasOf == "graph:read" && view.Deprecated, "graph:view is a deprecated alias")
+	check(found["graph:read"].AliasOf == "" && found["graph:read"].Tier == "public", "graph:read is a public primary")
+	_, internal := found["organization:read"]
+	check(!internal, "an internal permission never appears")
+	encoded, err := json.Marshal(view)
+	if err != nil {
+		panic(err)
+	}
+	check(string(encoded) == `{"value":"graph:view","description":"","tier":"public","grantable":true,"deprecated":true,"aliasOf":"graph:read"}`, string(encoded))
+	encoded, err = json.Marshal(admin)
+	if err != nil {
+		panic(err)
+	}
+	check(string(encoded) == `{"value":"organization:admin","description":"Everything in the organization.","tier":"notGrantable","grantable":false,"deprecated":false}`, string(encoded))
+}
+''', encoding="utf-8")
+    run(GO, "vet", ".", cwd=consumer)
+    run(GO, "run", ".", cwd=consumer)
 
 
 if __name__ == "__main__":

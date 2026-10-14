@@ -472,7 +472,9 @@ pub fn emit(service: &Service, plan: &Plan, options: &Options) -> Result<Vec<Fil
     )?;
     let mut files: Vec<_> = sdk
         .into_iter()
-        .filter(|f| f.path != "go.mod")
+        // The permission registry is for consoles built on the Go SDK; a
+        // provider never names a permission, so its sub-package stays out.
+        .filter(|f| f.path != "go.mod" && !f.path.starts_with("permissions/"))
         .map(|f| File {
             path: format!("internal/provider/{}", f.path),
             contents: f.contents,

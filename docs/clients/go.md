@@ -94,6 +94,48 @@ Modeled errors support `errors.As(err, &typedError)`. Their `Metadata` is a
 request ID, headers, and retry traits. Transport failures use `*NetworkError`;
 context cancellation and deadlines retain their context errors.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+also generates the sub-package `permissions` (`<module>/permissions`), so no
+model name collides with its declarations; a model without them generates no
+sub-package. Each resource type with permissions a client may see has an open
+permission type named for the resource, `GraphPermission`, in the enum
+convention: a named `string` with one constant per permission, in declaration
+order, such as `GraphPermissionRead`, documented with the permission's own
+documentation. Any string converts (`permissions.GraphPermission("graph:export")`):
+a value this client does not know, from a newer server or for a permission it
+never sees, is kept and encodes back unchanged, through `encoding/json` too. A
+deprecated alias is a constant whose documentation ends in a `Deprecated:`
+paragraph, and `Canonical()` maps it to its primary; any other value, an
+unknown one included, is itself.
+
+`permissions.Permissions` is the registry: a slice of `ResourcePermissions`
+sorted by resource type, each with its `ResourceType` and `Permissions` sorted
+by value. A `PermissionDescription` has `Value`, `Description`, `Tier`
+(`"public"`, `"permissionOnly"` or `"notGrantable"`, a plain string because a
+newer server may add one), `Grantable`, `Deprecated`, and `AliasOf` (the
+primary's value, empty for anything else). Both carry `json` tags for serving
+the registry to a console. Read the slice; do not modify it. A grant picker
+offers only what may be granted:
+
+```go
+import "example.com/leyline/permissions"
+
+for _, resource := range permissions.Permissions {
+    for _, p := range resource.Permissions {
+        if p.Grantable && !p.Deprecated {
+            offer(resource.ResourceType, p.Value)
+        }
+    }
+}
+stored := permissions.GraphPermission(grant.Permission).Canonical() // graph:view reads as GraphPermissionRead
+```
+
+Internal permissions never appear, whatever audience the client was generated
+for. `tools/test-go.py` vets the generated module and runs a separate consumer
+module against the sub-package.
+
 ## Transport and pagination
 
 `Config.HTTPClient` accepts an injected `Do(*http.Request)` transport and remains

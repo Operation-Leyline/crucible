@@ -1,4 +1,5 @@
 //! Java 17 models and synchronous/asynchronous HTTP clients packaged for Gradle and Maven.
+mod permissions;
 use crucible_codegen_common::documentation as docs;
 use crucible_smithy::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
@@ -622,6 +623,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
     }
+    permissions::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -1204,6 +1206,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file(format!("{resource}/crucible.json"), provenance),
     ];
     files.extend(model_files);
+    files.extend(permissions::files(service, package, &source));
     for (name, body) in [
         (
             "ClientRuntime",

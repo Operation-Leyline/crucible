@@ -97,6 +97,9 @@ def qualify(output):
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
         "--package-name", "auth_client", "--module-name", "AuthSdk")
     run(RUBY, "-I", str(output / "auth/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/auth.rb"))
+    # Typed permissions: the open permission classes and the registry, from the shared .cru fixture.
+    generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "Leyline")
+    run(RUBY, "-I", str(output / "permissions/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/permissions.rb"))
     behaviors(output)
     print("Ruby empty, void, renamed, dynamic-binding and extended-type packages passed")
 

@@ -363,6 +363,56 @@ stream with `$request->stream->open()`, and may declare a fourth
 chunk of a 2xx body, with lowercase headers. A transport without the parameter
 returns the body buffered, and the runtime delivers it to the target.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+gets a `Permissions` namespace under the configured one, in
+`src/Permissions/`; without permissions there is none. Its own namespace keeps
+a model named `GraphPermission` from colliding. Each resource gets an open
+class, `<Resource>Permission`, shaped like the model's string enums: a
+readonly class wrapping `$value`, with one string constant per permission, in
+declaration order, whose value is what grants store
+(`GraphPermission::READ === 'graph:read'`), documented with the model's docs.
+Constants are the permission's name in upper snake case, as PSR-12 writes
+class constants (`mailSend` is `MAIL_SEND`). A deprecated alias is a constant
+too, documented "An alias of `graph:read`." with `@deprecated`.
+
+The classes are open: `new GraphPermission('graph:export')` keeps any string
+verbatim, so a grant written by a newer server, or naming a permission
+internal to the service, survives a round trip through `$value`.
+`canonical()` maps an alias to its primary
+(`(new GraphPermission(GraphPermission::VIEW))->canonical()->value === GraphPermission::READ`)
+and returns any other value, unknown ones included, unchanged.
+
+`Permissions\PERMISSIONS` is the registry, a namespace constant: a list of
+`Runtime\ResourcePermissions` (`resourceType`, `permissions`), one per
+resource type sorted by authorization name, each holding
+`Runtime\PermissionDescription` entries (`value`, `description`, `tier`,
+`grantable`, `deprecated`, `aliasOf`) sorted by value. `tier` is a plain string
+(`'public'`, `'permissionOnly'` or `'notGrantable'`), since a newer server may
+add tiers; `aliasOf` is null except on an alias. Both record types are
+readonly runtime classes, shipped only with a registry. PSR-4 cannot autoload
+a constant, so `composer.json` lists `src/Permissions/registry.php` under
+`autoload.files`: Composer's autoloader defines it; any other loader must
+`require` that file once. A grant picker offers the grantable, current
+permissions:
+
+```php
+use const Example\Weather\Permissions\PERMISSIONS;
+
+$offered = [];
+foreach (PERMISSIONS as $resource) {
+    foreach ($resource->permissions as $permission) {
+        if ($permission->grantable && !$permission->deprecated) $offered[] = $permission;
+    }
+}
+```
+
+Internal permissions never appear: not as constants, not in `PERMISSIONS`, not
+in any documentation. Two permissions of one resource that PHP names alike
+(`read` and `READ`), or two resources whose class names differ only in case,
+are diagnosed.
+
 ## Qualification
 
 `python tools/test-php.py` checks exact codecs, shared retry/header fixtures,
@@ -373,7 +423,9 @@ deadlines, and cancellation), endpoint rules and host prefixes, the shared
 checksum vectors and request and response checksum flows, the three AWS
 JSON protocols, and both Smithy RPC v2 protocols, through an injected transport, and streaming blobs: every
 source kind, replay and one-shot rules, length checks, digests and checksums,
-response targets, and retries. A loopback server then exercises the cURL
+response targets, and retries. The typed permissions of
+`tests/fixtures/permissions` are read through a Composer install
+(`tests/permissions.php`). A loopback server then exercises the cURL
 transport: 256 MiB uploads (chunked and sized) and a 256 MiB download under a
 64 MiB PHP memory limit, cancellation and a deadline on a stalled stream,
 streamed response checksums, a waiter, and request and response checksums. The

@@ -6,7 +6,7 @@ use crucible_codegen_common::docs;
 use crucible_smithy::ir::{DocNotes, Member, Service, Shape};
 
 /// A `/** */` docblock for model text; empty when the model has none.
-fn docblock(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+pub(crate) fn docblock(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
     let tags: Vec<String> = notes
         .deprecated
         .iter()

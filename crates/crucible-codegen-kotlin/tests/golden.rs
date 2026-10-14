@@ -421,3 +421,42 @@ fn permissions_match_goldens() {
         );
     }
 }
+
+/// A permission spelled as another's Kotlin constant is diagnosed against the
+/// service, never renamed.
+#[test]
+fn colliding_permission_names_are_diagnosed() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let full = compiled.service.expect("the fixture compiles");
+    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    for (symbol, value) in [
+        ("READ", "graph:reread"),
+        ("mailSend", "graph:mail"),
+        ("mailsend", "graph:mail2"),
+    ] {
+        let mut clash = graph.permissions[0].clone();
+        clash.symbol = symbol.into();
+        clash.value = value.into();
+        graph.permissions.push(clash);
+    }
+    let diagnostics = emit(&service, &options())
+        .err()
+        .expect("a collision is diagnosed")
+        .to_string();
+    assert!(
+        diagnostics.contains("shares the Kotlin constant `READ`"),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics
+            .contains("`mailsend` of `GraphPermission` shares the Kotlin constant `MAILSEND`"),
+        "{diagnostics}"
+    );
+}

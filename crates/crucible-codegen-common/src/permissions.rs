@@ -6,6 +6,7 @@
 //! has no internal permission to leak; the client-facing helpers drop the
 //! internal tier again regardless.
 
+use crucible_smithy::ShapeId;
 use crucible_smithy::ir::permissions::Binding;
 use crucible_smithy::ir::{
     DocNotes, Mode, Operation, Permission, Requirement, Requirements, ResourcePermissions, Service,
@@ -569,6 +570,91 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
             value
         }
     })
+}
+
+/// One resource type as a client's typed permissions and `PERMISSIONS`
+/// registry carry it (docs/permissions.md §6.3). Every client language
+/// generates from these, so they agree on which permissions appear, their
+/// order, and each entry's tier, `grantable`, `deprecated` and alias.
+pub struct ClientResource<'a> {
+    /// The resource shape: its (renamed) name names the language's type,
+    /// `Graph` for `GraphPermission`.
+    pub id: &'a ShapeId,
+    pub resource: &'a ResourcePermissions,
+    /// The permissions a client sees, aliases included, in declaration
+    /// order: the order of a language's constants.
+    pub permissions: Vec<&'a Permission>,
+}
+
+/// One permission's `PERMISSIONS` entry.
+pub struct RegistryEntry<'a> {
+    pub permission: &'a Permission,
+    /// What grants store.
+    pub value: &'a str,
+    /// The model's documentation, trimmed; empty when it has none.
+    pub description: &'a str,
+    /// [`tier_name`] of the [`effective_tier`]: never `internal`.
+    pub tier: &'static str,
+    pub grantable: bool,
+    pub deprecated: bool,
+    /// For an alias, its primary's value.
+    pub alias_of: Option<&'a str>,
+}
+
+impl<'a> ClientResource<'a> {
+    /// The registry entries, sorted by value.
+    pub fn entries(&self) -> Vec<RegistryEntry<'a>> {
+        let mut sorted = self.permissions.clone();
+        sorted.sort_by(|a, b| a.value.cmp(&b.value));
+        sorted
+            .into_iter()
+            .map(|p| RegistryEntry {
+                permission: p,
+                value: &p.value,
+                description: p.docs.as_deref().map(str::trim).unwrap_or_default(),
+                tier: tier_name(effective_tier(self.resource, p)),
+                grantable: grantable(self.resource, p),
+                deprecated: deprecated(p),
+                alias_of: p
+                    .alias_of
+                    .is_some()
+                    .then(|| primary(self.resource, p).value.as_str()),
+            })
+            .collect()
+    }
+
+    /// Each alias with the primary `canonical` maps it to, in declaration
+    /// order.
+    pub fn aliases(&self) -> Vec<(&'a Permission, &'a Permission)> {
+        self.permissions
+            .iter()
+            .filter(|p| p.alias_of.is_some())
+            .map(|&p| (p, primary(self.resource, p)))
+            .collect()
+    }
+}
+
+/// The resource types a client's registry lists: each that has a
+/// permission a client may see, sorted by authorization name. Internal
+/// permissions, and aliases of them, never appear, whatever audience the
+/// service was projected for.
+pub fn client_resources(service: &Service) -> Vec<ClientResource<'_>> {
+    let mut resources: Vec<ClientResource<'_>> = service
+        .permissions
+        .iter()
+        .map(|(id, resource)| ClientResource {
+            id,
+            resource,
+            permissions: resource
+                .permissions
+                .iter()
+                .filter(|p| client_visible(resource, p))
+                .collect(),
+        })
+        .filter(|resource| !resource.permissions.is_empty())
+        .collect();
+    resources.sort_by(|a, b| a.resource.name.cmp(&b.resource.name));
+    resources
 }
 
 #[cfg(test)]

@@ -110,6 +110,18 @@ $client->close();
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
         "--package-name", "example/auth", "--namespace", "AuthSdk")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/auth.php"), env=dict(os.environ, PHP_AUTH_PACKAGE=str(output / "auth")))
+    # Typed permissions: the open permission classes and the registry, from the shared .cru fixture,
+    # through Composer, which loads the registry's namespace constant.
+    permissions = output / "permissions"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "tests/fixtures/permissions"), "--out", str(permissions),
+        "--package-name", "example/leyline", "--namespace", "Leyline")
+    for path in sorted(permissions.rglob("*.php")):
+        run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+    composer("validate", "--no-check-publish", cwd=permissions)
+    composer("install", cwd=permissions)
+    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/permissions.php"),
+        env=dict(os.environ, PHP_PERMISSIONS_PACKAGE=str(permissions)))
     for name, model, namespace, test, variable, extra in [
         ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "JobsSdk", "waiters.php", "PHP_JOBS_PACKAGE", {}),
         ("behavior", "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "BehaviorSdk", "endpoints.php", "PHP_BEHAVIOR_PACKAGE", {}),

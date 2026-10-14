@@ -157,6 +157,11 @@ def qualify(output):
         generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", generated, package_name)
         run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/extensions.R"), str(library))
+    # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
+    generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline.client")
+    run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(output / "permissions" / "man"))
+    run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "permissions"))
+    run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/permissions.R"), str(library))
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", output / "wire", "wire.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "wire"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/wire.R"), str(library))

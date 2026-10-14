@@ -9,7 +9,7 @@ use crucible_smithy::{
 };
 
 /// A YARD comment for model text; empty when the model has none.
-fn yard(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+pub(crate) fn yard(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
     let mut text = docs::annotated_block(text, notes).unwrap_or_default();
     if let Some(deprecated) = &notes.deprecated {
         text.push_str(&format!(

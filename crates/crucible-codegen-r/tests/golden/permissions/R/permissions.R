@@ -1,0 +1,88 @@
+# Generated from the lowered Smithy model.
+#' @description
+#' The permissions `Graph` accepts (`graph`), by the values grants store. A permission value is a character string: a known one, or any string a newer server writes, kept as it is.
+#' @md
+#' @details
+#' read = graph:read: Read a graph and its catalog.
+#' @md
+#' @details
+#' write = graph:write: Change a graph: */ ends no comment and [bare] links nowhere.
+#' @@param is not a tag.
+#' @md
+#' @details
+#' audit = graph:audit: Known permission.
+#' @md
+#' @details
+#' view = graph:view: An alias of `graph:read`.
+#'
+#' Deprecated: Renamed to graph:read.
+#' @md
+`GraphPermission` <- list(
+  `read` = "graph:read",
+  `write` = "graph:write",
+  `audit` = "graph:audit",
+  `view` = "graph:view"
+)
+#' @description
+#' Returns the permission each element of `value`, a character vector, stands for on `Graph`: a deprecated alias's primary, or the element itself, unknown values included.
+#' @md
+`graph_permission_canonical` <- function(value) {
+  if (!is.character(value)) stop("a permission value is a character vector", call. = FALSE)
+  at <- match(value, c("graph:view"))
+  value[!is.na(at)] <- c("graph:read")[at[!is.na(at)]]
+  value
+}
+#' @description
+#' The permissions `History` accepts (`history`), by the values grants store. A permission value is a character string: a known one, or any string a newer server writes, kept as it is.
+#' @md
+#' @details
+#' read = history:read: Known permission.
+#' @md
+#' @details
+#' restore = history:restore: Known permission.
+#' @md
+`HistoryPermission` <- list(
+  `read` = "history:read",
+  `restore` = "history:restore"
+)
+#' @description
+#' Returns the permission each element of `value`, a character vector, stands for on `History`: a deprecated alias's primary, or the element itself, unknown values included.
+#' @md
+`history_permission_canonical` <- function(value) {
+  if (!is.character(value)) stop("a permission value is a character vector", call. = FALSE)
+  value
+}
+#' @description
+#' The permissions `Organization` accepts (`org`), by the values grants store. A permission value is a character string: a known one, or any string a newer server writes, kept as it is.
+#' @md
+#' @details
+#' admin = organization:admin: Everything in the organization.
+#' @md
+`OrganizationPermission` <- list(
+  `admin` = "organization:admin"
+)
+#' @description
+#' Returns the permission each element of `value`, a character vector, stands for on `Organization`: a deprecated alias's primary, or the element itself, unknown values included.
+#' @md
+`organization_permission_canonical` <- function(value) {
+  if (!is.character(value)) stop("a permission value is a character vector", call. = FALSE)
+  value
+}
+#' @description
+#' Every permission this client knows, by resource type, deprecated aliases included: a list of `resource_type` and `permissions`, each permission a list of `value`, `description`, `tier` ("public", "permissionOnly" or "notGrantable"; a string, since a newer server may add tiers), `grantable` (FALSE for a bundle the service confers whole: never offer it in a picker), `deprecated` and `alias_of` (a deprecated alias's primary, or NULL).
+#' @md
+`PERMISSIONS` <- list(
+  list(resource_type = "graph", permissions = list(
+    list(value = "graph:audit", description = "", tier = "permissionOnly", grantable = TRUE, deprecated = FALSE, alias_of = NULL),
+    list(value = "graph:read", description = "Read a graph and its catalog.", tier = "public", grantable = TRUE, deprecated = FALSE, alias_of = NULL),
+    list(value = "graph:view", description = "", tier = "public", grantable = TRUE, deprecated = TRUE, alias_of = "graph:read"),
+    list(value = "graph:write", description = "Change a graph: */ ends no comment and [bare] links nowhere.\n@param is not a tag.", tier = "public", grantable = TRUE, deprecated = FALSE, alias_of = NULL)
+  )),
+  list(resource_type = "history", permissions = list(
+    list(value = "history:read", description = "", tier = "public", grantable = TRUE, deprecated = FALSE, alias_of = NULL),
+    list(value = "history:restore", description = "", tier = "permissionOnly", grantable = TRUE, deprecated = FALSE, alias_of = NULL)
+  )),
+  list(resource_type = "org", permissions = list(
+    list(value = "organization:admin", description = "Everything in the organization.", tier = "notGrantable", grantable = FALSE, deprecated = FALSE, alias_of = NULL)
+  ))
+)

@@ -119,6 +119,29 @@ class OpenIntEnum(IntEnum):
         return unknown
 
 
+@dataclass(frozen=True, kw_only=True)
+class PermissionDescription:
+    """One permission in a client's permission registry (`permissions.PERMISSIONS`)."""
+    value: str
+    """What grants store."""
+    description: str
+    """The model's documentation for it, empty when it has none."""
+    tier: str
+    """The tier: "public", "permissionOnly" or "notGrantable"; a plain string, since a newer server may add tiers."""
+    grantable: bool
+    """False for a bundle the service confers whole: never offer it in a picker."""
+    deprecated: bool
+    alias_of: str | None = None
+    """For a deprecated alias, the value it stands for."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class ResourcePermissions:
+    """One resource type's permissions, sorted by value."""
+    resource_type: str
+    permissions: tuple[PermissionDescription, ...]
+
+
 def _json(value: Any) -> str:
     """Write Decimal as a JSON number without passing through binary floats."""
     if isinstance(value, Decimal):

@@ -224,6 +224,8 @@ def models(output):
     edge.write_text(json.dumps(renamed), encoding="utf-8")
     generate(edge, output / "edge", "edge_client", "edge")
     generate(ROOT / "tests/conformance/empty-service.json", output / "empty", "empty_client", "empty")
+    # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
+    generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "leyline")
     recursive = {"smithy": "2.0", "shapes": {
         "test#Service": {"type": "service", "version": "1", "operations": [{"target": "test#Get"}], "traits": {"crucible.protocols#json": {}}},
         "test#Get": {"type": "operation", "output": {"target": "test#Root"}, "traits": {"smithy.api#http": {"method": "GET", "uri": "/", "code": 200}}},
@@ -349,6 +351,9 @@ add_subdirectory("{(output / 'extended').as_posix()}" extended-sdk)
 add_subdirectory("{(output / 'wire').as_posix()}" wire-sdk)
 add_executable(wire_test "{tests.as_posix()}/wire.c")
 target_link_libraries(wire_test PRIVATE wire_client)
+add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
+add_executable(permissions_test "{tests.as_posix()}/permissions.c")
+target_link_libraries(permissions_test PRIVATE leyline_client)
 add_subdirectory("{(output / 'payload').as_posix()}" payload-sdk)
 add_subdirectory("{(output / 'payload_rest').as_posix()}" payload-rest-sdk)
 add_executable(payload_content_type payload_content_type.c)
@@ -370,7 +375,7 @@ foreach(name core models runtime proxy serialization)
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
 endforeach()
-foreach(name core models runtime proxy serialization edge recursive extensions wire_test payload_content_type payload_rest_content_type)
+foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test payload_content_type payload_rest_content_type)
   target_compile_features(${{name}} PRIVATE c_std_17)
   set_target_properties(${{name}} PROPERTIES C_EXTENSIONS OFF)
   if(MSVC)
@@ -387,7 +392,7 @@ endforeach()
     if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
         dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
-    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "payload_content_type", "payload_rest_content_type"]:
+    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "permissions_test", "payload_content_type", "payload_rest_content_type"]:
         run(str(executable(consumer_build, name)), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))

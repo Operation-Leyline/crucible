@@ -516,3 +516,62 @@ fn permissions_match_goldens() {
         );
     }
 }
+
+/// The typed permissions fixture (`tests/fixtures/permissions`) projected for
+/// a client, as `crucible generate` lowers it.
+fn permissions_service() -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let rendered = compiled.render();
+    let full = compiled.service.unwrap_or_else(|| {
+        panic!(
+            "the fixture compiles:
+{rendered}"
+        )
+    });
+    crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
+}
+
+/// The fixture with a permission `{symbol}` added to `graph`, whose name
+/// the language spells like an existing one's.
+fn permissions_with(symbol: &str) -> crucible_smithy::ir::Service {
+    let mut service = permissions_service();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut twin = graph.permissions[0].clone();
+    twin.symbol = symbol.into();
+    twin.value = "graph:twin".into();
+    twin.alias_of = None;
+    graph.permissions.push(twin);
+    service
+}
+
+#[test]
+fn permission_constants_that_go_spells_alike_are_diagnosed() {
+    let options = Options {
+        module_path: "example.com/leyline".into(),
+        package_name: "leyline".into(),
+        endpoint: None,
+        content_sha256: false,
+    };
+    let constant = emit(&permissions_with("Read"), &options).err().unwrap();
+    assert!(
+        constant
+            .to_string()
+            .contains("spells the Go constant `GraphPermissionRead`"),
+        "{constant}"
+    );
+    // Without permissions there is no sub-package.
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let files = emit(&service, &options).unwrap();
+    assert!(!files.iter().any(|f| f.path.starts_with("permissions/")));
+}

@@ -347,6 +347,10 @@ def qualify(output):
             str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--protocol", protocol,
             "--out", str(output / directory), "--package-name", directory + "_client", "--namespace", directory + "_sdk")
     edge_packages(output)
+    # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
+        str(ROOT / "tests/fixtures/permissions"), "--out", str(output / "permissions"),
+        "--package-name", "leyline_client", "--namespace", "leyline")
     for directory, model, package_name, namespace, extra in FEATURES:
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp", str(ROOT / model),
             *extra, "--out", str(output / directory), "--package-name", package_name, "--namespace", namespace)
@@ -376,6 +380,14 @@ target_link_libraries(wire_test PRIVATE wire_client)
 target_link_libraries(extensions PRIVATE dynamic_client types_client)
 add_executable(edge_models "{tests.as_posix()}/edge_models.cpp")
 target_link_libraries(edge_models PRIVATE edge_client empty_client)
+add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
+add_executable(permissions_test "{tests.as_posix()}/permissions.cpp")
+target_link_libraries(permissions_test PRIVATE leyline_client)
+if(MSVC)
+  target_compile_options(permissions_test PRIVATE /W4 /WX)
+else()
+  target_compile_options(permissions_test PRIVATE -Wall -Wextra -Werror)
+endif()
 foreach(name core runtime proxy serialization)
   add_executable(${{name}} "{tests.as_posix()}/${{name}}.cpp")
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
@@ -396,6 +408,7 @@ endforeach()
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
     run(str(executable(consumer_build, "core")), env=runtime_env)
     run(str(executable(consumer_build, "edge_models")), env=runtime_env)
+    run(str(executable(consumer_build, "permissions_test")), env=runtime_env)
     run(str(executable(consumer_build, "extensions")), env=runtime_env)
     run(str(executable(consumer_build, "wire_test")), env=runtime_env)
     run(str(executable(consumer_build, "payload_content_type")), env=runtime_env)

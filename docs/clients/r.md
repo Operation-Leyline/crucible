@@ -95,6 +95,41 @@ of truncated; raw blob payloads preserve NUL. Invalid UTF-8, nonfinite numbers,
 out-of-range integers, fractional integers, and subnanosecond timestamps also
 produce local errors. Recursive values are supported up to 255 model levels.
 
+## Permissions
+
+A model with typed permissions ([docs/permissions.md](../permissions.md))
+also generates `R/permissions.R` and its help page, `?permissions`; a model
+without them generates neither. Per resource a named list holds the values of
+the permissions the client may see, in declaration order:
+`GraphPermission$read` is `"graph:read"`. A permission value is an ordinary
+character string, so any other string is one too: a grant a newer server
+wrote, or one naming a permission this client never sees, is kept as it is.
+A deprecated alias's documentation names its primary and says it is
+deprecated, as a deprecated enum value's does.
+
+`graph_permission_canonical(value)` is vectorized: it maps each deprecated
+alias to its primary (`graph:view` to `graph:read`) and keeps every other
+element, unknown values, names and `NA` included.
+
+`PERMISSIONS` is the registry a console's grant picker reads: a list per
+resource type, sorted by authorization name, of `resource_type` and
+`permissions`, each permission sorted by value and a list of `value`,
+`description`, `tier` (`"public"`, `"permissionOnly"` or `"notGrantable"`, a
+string because a newer server may add tiers), `grantable`, `deprecated` and
+`alias_of` (`NULL` except for an alias). A picker offers the grantable
+permissions that are not deprecated:
+
+```r
+entries <- unlist(lapply(PERMISSIONS, `[[`, "permissions"), recursive = FALSE)
+offered <- Filter(function(p) p$grantable && !p$deprecated, entries)
+vapply(offered, `[[`, "", "value")
+```
+
+Internal permissions never appear in the package. These exports share the
+package namespace with the models, so a collision (a model named
+`GraphPermission`, say), or two permissions of one resource with the same
+list name, is a generator diagnostic, never a silent rename.
+
 ## Calls, retries, and cancellation
 
 `client_config()` accepts identities (see [Authentication](#authentication)), a named header list, middleware list,

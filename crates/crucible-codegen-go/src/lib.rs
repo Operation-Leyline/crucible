@@ -1,4 +1,5 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
+mod permissions;
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
 use crucible_smithy::ir::{DocNotes, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
@@ -336,6 +337,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             errors.push(&op.id, "Go paginator name collision");
         }
     }
+    permissions::check(service, &mut errors);
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -641,7 +643,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
-    Ok(vec![
+    let mut files = vec![
         File {
             path: "go.mod".into(),
             contents: format!("module {}\n\ngo 1.24.0\n", options.module_path),
@@ -751,7 +753,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             path: "crucible.json".into(),
             contents: provenance,
         },
-    ])
+    ];
+    if let Some(contents) = permissions::emit(service) {
+        files.push(File {
+            path: permissions::PATH.into(),
+            contents,
+        });
+    }
+    Ok(files)
 }
 
 fn wire_path(service: &Service, root: &crucible_smithy::ShapeId, path: &str) -> String {

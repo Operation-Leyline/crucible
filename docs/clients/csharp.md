@@ -94,6 +94,40 @@ Retry decisions follow [the shared contract](../clients.md); valid `Retry-After`
 values override jitter. Paginators preserve caller input and reject token
 cycles.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+gets a `<Namespace>.Permissions` namespace of its own, so no model name
+collides with it. Each resource type with permissions a client may see has an
+open permission record named for the resource, `GraphPermission`, in the enum
+records' convention: one static member per permission, in declaration order,
+whose `Value` is what grants store, documented with the permission's own
+documentation. Any string is accepted (`new GraphPermission("graph:export")`):
+a value this client does not know, from a newer server, is kept and written
+back unchanged, so compare with the members or `Value`. A deprecated alias is
+an `[Obsolete]` member, and `Canonical()` maps it to its primary; any other
+value, an unknown one included, is itself.
+
+`PermissionRegistry.Permissions` is the registry: a read-only list of
+`ResourcePermissions` sorted by resource type, each with its `ResourceType` and
+`Permissions` sorted by value. A `PermissionDescription` has `Value`,
+`Description`, `Tier` (`"public"`, `"permissionOnly"` or `"notGrantable"`, a
+plain string because a newer server may add one), `Grantable`, `Deprecated`,
+and `AliasOf` (the primary's value, or `null`). A grant picker offers only what
+may be granted:
+
+```csharp
+using Example.Leyline.Permissions;
+
+var offered = PermissionRegistry.Permissions
+    .SelectMany(r => r.Permissions.Where(p => p.Grantable && !p.Deprecated).Select(p => (r.ResourceType, p.Value)));
+var stored = new GraphPermission(grant.Permission).Canonical(); // graph:view reads as GraphPermission.Read
+```
+
+Internal permissions never appear, whatever audience the client was generated
+for. `tools/test-csharp.py` packs the package with `-warnaserror` and runs a
+separate consumer against it (`CSHARP_ONLY=permissions` runs only that).
+
 ## Migrating existing callers
 
 Smithy `bigInteger` maps to `System.Numerics.BigInteger`. `BigDecimal` preserves

@@ -277,6 +277,43 @@ once per call. Transport failures retry only safe operations; malformed
 successful JSON and cancellation do not retry. `retryMode` (below) limits
 retries further; it never makes an ineligible failure eligible.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+gets a `<package>.permissions` package of its own, in common code for every
+target, so no model name collides with it. Each resource type with permissions
+a client may see has an open permission class named for the resource,
+`GraphPermission`, in the enum classes' convention: one companion constant per
+permission, in declaration order, whose `value` is what grants store,
+documented with the permission's own documentation (Java reads the constants
+as static fields). Any string is accepted (`GraphPermission("graph:export")`):
+a value this client does not know, from a newer server, is kept and written
+back unchanged, so compare with the constants or `value`. A deprecated alias
+is a `@Deprecated` constant, and `canonical()` maps it to its primary; any
+other value, an unknown one included, is itself.
+
+`PERMISSIONS` (`Permissions.PERMISSIONS` from Java) is the registry: a
+`List<ResourcePermissions>` sorted by resource type, each with its
+`resourceType` and `permissions` sorted by value. A `PermissionDescription`
+has `value`, `description`, `tier` (`"public"`, `"permissionOnly"` or
+`"notGrantable"`, a plain string because a newer server may add one),
+`grantable`, `deprecated`, and `aliasOf` (the primary's value, or `null`).
+A grant picker offers only what may be granted:
+
+```kotlin
+import example.leyline.permissions.GraphPermission
+import example.leyline.permissions.PERMISSIONS
+
+val offered = PERMISSIONS.flatMap { resource ->
+    resource.permissions.filter { it.grantable && !it.deprecated }.map { resource.resourceType to it.value }
+}
+val stored = GraphPermission(grant.permission).canonical() // graph:view reads as GraphPermission.READ
+```
+
+Internal permissions never appear, whatever audience the client was generated
+for. `tools/test-kotlin-multiplatform.py` runs a consumer test of the package
+on every qualified target; `tools/test-kotlin.py` reads it from Java.
+
 ## Retry modes, endpoint discovery, and telemetry
 
 These follow the cross-language [runtime policy contract](../sdk-runtime-policy.md)

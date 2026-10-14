@@ -124,7 +124,8 @@ pub fn root_module(value: &str) -> bool {
         ]
         .contains(&value)
 }
-pub fn field(value: &str) -> String {
+/// `mailSend` and `HTTPRequest` are `mail_send` and `http_request`.
+pub fn snake(value: &str) -> String {
     let chars: Vec<_> = value.chars().collect();
     let mut result = String::new();
     for (index, c) in chars.iter().enumerate() {
@@ -139,6 +140,10 @@ pub fn field(value: &str) -> String {
         }
         result.push(c.to_ascii_lowercase());
     }
+    result
+}
+pub fn field(value: &str) -> String {
+    let mut result = snake(value);
     if [
         "alias",
         "and",

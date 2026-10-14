@@ -304,11 +304,52 @@ backoff sleeps and telemetry with any object providing `now()`, `sleep(s)` and
 `async asleep(s)`; tests use it to run deterministically. Call deadlines keep
 using the real monotonic clock.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+gets a `permissions` module beside `models`; without permissions there is no
+such module. It is not re-exported from the package root, so a model named
+`GraphPermission` or `PERMISSIONS` keeps its name. Each resource gets an open
+string enumeration, `<Resource>Permission`, built like the model's string
+enums: one member per permission, in declaration order, whose value is what
+grants store (`GraphPermission.READ == "graph:read"`), documented with the
+model's docs. A deprecated alias is a member too, whose docstring says
+"An alias of graph:read." and carries the deprecation note, as a deprecated
+enum value's does.
+
+The enumerations are open: `GraphPermission("graph:export")` succeeds and
+keeps the value as an `UNKNOWN` member, so a grant written by a newer server,
+or naming a permission internal to the service, survives a round trip and
+`json.dumps` writes it back unchanged. `canonical()` maps an alias to its
+primary (`GraphPermission.VIEW.canonical() is GraphPermission.READ`) and
+returns any other value, unknown ones included, unchanged.
+
+`PERMISSIONS` is the registry: a tuple of `ResourcePermissions(resource_type,
+permissions)`, one per resource type sorted by authorization name, each
+holding `PermissionDescription(value, description, tier, grantable,
+deprecated, alias_of)` entries sorted by value. `tier` is a plain string
+(`"public"`, `"permissionOnly"` or `"notGrantable"`), since a newer server may
+add tiers; `alias_of` is `None` except on an alias. Both record types are
+frozen dataclasses from the bundled runtime, importable from `permissions`.
+A grant picker offers the grantable, current permissions:
+
+```python
+from weather_client.permissions import PERMISSIONS
+
+offered = [p for resource in PERMISSIONS for p in resource.permissions
+           if p.grantable and not p.deprecated]
+```
+
+Internal permissions never appear: not as members, not in `PERMISSIONS`, not
+in any documentation. Two permissions of one resource that Python names alike
+(`read` and `READ`), or a model named `permissions`, are diagnosed.
+
 ## Qualification
 
 Run `python tools/test-python.py` after installing `httpx`, `jmespath==1.0.1`,
 `mypy`, and `build`.
-It checks generated types, shared retry decisions, the runtime policy vectors, wire behavior, real HTTP,
+It checks generated types, shared retry decisions, the runtime policy vectors, wire behavior, the
+typed permissions of `tests/fixtures/permissions` (`tests/test_permissions.py`), real HTTP,
 wheel construction, and clean installation. Generate, import, and type-check
 Leyline separately from its current public-service projection. Record its model
 fingerprint and operation coverage using the [shared qualification levels](../clients.md#qualification).

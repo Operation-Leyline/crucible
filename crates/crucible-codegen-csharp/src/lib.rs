@@ -1,4 +1,5 @@
 //! Native .NET 8 models, asynchronous clients, and NuGet packaging.
+mod permissions;
 use crucible_codegen_common::documentation as docs;
 use crucible_smithy::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
@@ -472,6 +473,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
     }
+    permissions::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -944,6 +946,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             ),
         });
     }
+    files.extend(permissions::files(service, ns));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }

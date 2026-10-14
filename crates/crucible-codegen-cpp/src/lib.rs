@@ -2,6 +2,7 @@
 mod client;
 mod models;
 mod names;
+mod permissions;
 
 use crucible_smithy::{
     Diagnostics,
@@ -168,6 +169,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             }
         }
     }
+    permissions::diagnose(service, &mut result);
     result
 }
 
@@ -212,6 +214,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let layout = models::Layout::new(service, options);
     let mut files = layout.emit();
     files.extend(client::emit(service, options, &layout));
+    files.extend(permissions::emit(service, options));
     let package = &options.package_name;
     for (name, source) in [
         ("json.hpp", include_str!("../runtime/json.hpp")),
