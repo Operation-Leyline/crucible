@@ -158,8 +158,65 @@ void main() {
             if re.search(r"\b(warning|error)\b", docs.stdout + docs.stderr, re.I) and "no issues found" not in docs.stdout:
                 raise RuntimeError("dart doc reported problems:\n" + docs.stdout + docs.stderr)
     qualify_payload_bindings(output)
+    qualify_permissions(output)
     print("Dart fresh consumer, native and JS compilation, empty and renamed packages passed")
     qualify_features(output)
+
+
+def qualify_permissions(output):
+    """The typed permissions library, from a separate package, as a console would use it."""
+    sdk = output / "leyline"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
+        "tests/fixtures/permissions", "--out", str(sdk), "--package-name", "leyline")
+    dart("pub", "get", cwd=sdk)
+    dart("analyze", cwd=sdk)
+    consumer = output / "permissions_consumer"
+    consumer.mkdir(exist_ok=True)
+    (consumer / "pubspec.yaml").write_text(json.dumps({"name": "permissions_consumer", "version": "0.0.0",
+        "publish_to": "none", "environment": {"sdk": ">=3.6.2 <4.0.0"},
+        "dependencies": {"leyline": {"path": sdk.as_posix()}}}), encoding="utf-8")
+    (consumer / "main.dart").write_text('''import 'dart:convert';
+import 'package:leyline/permissions.dart';
+
+void check(bool ok, String what) {
+  if (!ok) throw StateError(what);
+}
+
+void main() {
+  check(GraphPermission.read.value == 'graph:read', 'a known constant');
+  for (final value in ['graph:export', 'organization:read']) {
+    final permission = GraphPermission(jsonDecode(jsonEncode(value)) as String);
+    check(permission.value == value, 'decoded $value');
+    check(jsonEncode(permission) == jsonEncode(value), '$value round-trips');
+    check(permission.canonical() == permission, 'an unknown value is its own canonical');
+  }
+  // ignore: deprecated_member_use
+  check(GraphPermission.view.canonical() == GraphPermission.read, 'an alias maps to its primary');
+  check(GraphPermission.write.canonical() == GraphPermission.write, 'a primary is its own canonical');
+  check(HistoryPermission.restore.canonical() == HistoryPermission.restore, 'no aliases');
+  check(permissions.map((r) => r.resourceType).join(',') == 'graph,history,org', 'resource types');
+  final known = {for (final r in permissions) for (final p in r.permissions) p.value: p};
+  final admin = known['organization:admin']!;
+  check(!admin.grantable && admin.tier == 'notGrantable', 'organization:admin is not grantable');
+  final view = known['graph:view']!;
+  check(view.aliasOf == 'graph:read' && view.deprecated, 'graph:view is a deprecated alias');
+  check(known['graph:read']!.aliasOf == null, 'graph:read is a primary');
+  check(!known.containsKey('organization:read'), 'an internal permission never appears');
+  // A grant picker's filter.
+  final picker = [
+    for (final r in permissions)
+      for (final p in r.permissions)
+        if (p.grantable && !p.deprecated) p.value
+  ];
+  check(picker.join(',') == 'graph:audit,graph:read,graph:write,history:read,history:restore', 'picker $picker');
+  check(jsonEncode(view) == '{"value":"graph:view","description":"","tier":"public","grantable":true,"deprecated":true,"aliasOf":"graph:read"}', jsonEncode(view));
+  check(jsonEncode(admin) == '{"value":"organization:admin","description":"Everything in the organization.","tier":"notGrantable","grantable":false,"deprecated":false}', jsonEncode(admin));
+}
+''', encoding="utf-8")
+    dart("pub", "get", cwd=consumer)
+    dart("analyze", "--fatal-infos", cwd=consumer)
+    dart("run", "main.dart", cwd=consumer)
+    dart("compile", "js", "main.dart", "-o", "consumer.js", cwd=consumer)
 
 
 def qualify_payload_bindings(output):

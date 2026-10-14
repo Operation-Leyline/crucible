@@ -46,6 +46,12 @@ pub(crate) fn render(text: &str) -> String {
             Event::Text(text) | Event::Html(text) | Event::InlineHtml(text) => {
                 out.push_str(&escape(&text))
             }
+            // `\code` holds R-like text, where a quote opens an R string
+            // that runs past the closing brace: ``a`b`` or `don't` would
+            // swallow the rest of the page. Verbatim text has no strings.
+            Event::Code(text) if text.contains(['\'', '"', '`']) => {
+                out.push_str(&format!("\\verb{{{}}}", escape(&text)))
+            }
             Event::Code(text) => out.push_str(&format!("\\code{{{}}}", escape(&text))),
             Event::SoftBreak => out.push('\n'),
             Event::HardBreak => out.push_str("\\cr\n"),
@@ -58,6 +64,14 @@ pub(crate) fn render(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn code_spans_with_quotes_are_verbatim() {
+        assert_eq!(
+            super::render("``a`b`` and `don't` and `x == 1`"),
+            "\\verb{a`b} and \\verb{don't} and \\code{x == 1}\n\n"
+        );
+    }
+
     #[test]
     fn commonmark_renders_native_markup_and_escapes_rd_boundaries() {
         let out = super::render(

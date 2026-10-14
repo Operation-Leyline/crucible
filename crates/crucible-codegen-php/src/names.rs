@@ -129,6 +129,56 @@ pub fn constant(value: &str) -> String {
         value.into()
     }
 }
+/// `mailSend` and `HTTPRequest` are `MAIL_SEND` and `HTTP_REQUEST`, as
+/// PSR-12 writes class constants; a reserved word gets [`constant`]'s
+/// suffix.
+pub fn screaming(value: &str) -> String {
+    let chars: Vec<_> = value.chars().collect();
+    let mut result = String::new();
+    for (index, c) in chars.iter().enumerate() {
+        if index > 0
+            && c.is_ascii_uppercase()
+            && (chars[index - 1].is_ascii_lowercase()
+                || chars[index - 1].is_ascii_digit()
+                || chars.get(index + 1).is_some_and(char::is_ascii_lowercase)
+                    && chars[index - 1].is_ascii_uppercase())
+        {
+            result.push('_');
+        }
+        result.push(c.to_ascii_uppercase());
+    }
+    constant(&result)
+}
+/// A PHP string literal for model text: [`literal`] when every character
+/// can stand as written; otherwise double-quoted with escapes, so a line
+/// break survives a checkout that rewrites line endings, and line
+/// separators, a BOM and bidirectional controls stay visible in review.
+pub fn string(value: &str) -> String {
+    let escaped = |c: char| {
+        c.is_control()
+            || matches!(c, '\u{2028}' | '\u{2029}' | '\u{feff}')
+            || crucible_codegen_common::bidi(c)
+    };
+    if !value.chars().any(escaped) {
+        return literal(value);
+    }
+    let mut out = String::from("\"");
+    for c in value.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            // `$name` and `{$` interpolate in a double-quoted literal.
+            '$' => out.push_str("\\$"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if escaped(c) => out.push_str(&format!("\\u{{{:x}}}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
 /// `waitUntilReady` for a waiter named `Ready`, as AWS SDKs name waiter methods.
 pub fn waiter(value: &str) -> String {
     let mut chars = value.chars();
@@ -245,6 +295,21 @@ mod tests {
         assert_eq!(constant("CLASS"), "CLASS_VALUE");
 
         assert_eq!(constant("MY_CONSTANT"), "MY_CONSTANT");
+    }
+
+    #[test]
+    fn test_screaming() {
+        assert_eq!(screaming("read"), "READ");
+        assert_eq!(screaming("mailSend"), "MAIL_SEND");
+        assert_eq!(screaming("HTTPRequest"), "HTTP_REQUEST");
+        assert_eq!(screaming("class"), "CLASS_VALUE");
+    }
+
+    #[test]
+    fn test_string() {
+        assert_eq!(string("it's"), "'it\\'s'");
+        assert_eq!(string("a\nb $c \"d\" \\"), "\"a\\nb \\$c \\\"d\\\" \\\\\"");
+        assert_eq!(string("\u{202e}\r"), "\"\\u{202e}\\r\"");
     }
 
     #[test]

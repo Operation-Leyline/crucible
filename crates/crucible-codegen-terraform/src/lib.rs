@@ -461,7 +461,9 @@ pub fn emit(service: &Service, plan: &Plan, options: &Options) -> Result<Vec<Fil
     if !errors.is_empty() {
         return Err(errors);
     }
-    let sdk = crucible_codegen_go::emit(
+    // The permission registry is for consoles built on the Go SDK; a
+    // provider never names a permission.
+    let sdk = crucible_codegen_go::emit_without_permissions(
         service,
         &crucible_codegen_go::Options {
             module_path: options.module_path.clone(),

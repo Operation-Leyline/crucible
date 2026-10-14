@@ -88,9 +88,15 @@ def rpc(output):
     consume(output, fixtures / "rpc-auth.json", "vault", "Example.Vault", "RpcAuth.cs")
 
 
+def permissions(output):
+    """Typed permissions: the open permission records and the registry; pack's -warnaserror checks the hostile docs."""
+    consume(output, ROOT / "tests/fixtures/permissions", "permissions", "Example.Leyline", "Permissions.cs")
+
+
 def qualify(output):
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
     consume(output, ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json", "display", "Example.Docs", "Display.cs")
+    permissions(output)
     rpc(output)
     policy(output)
     streaming(output)
@@ -274,5 +280,7 @@ if __name__ == "__main__":
             policy(Path(directory))
         elif os.environ.get("CSHARP_ONLY") == "rpc":
             rpc(Path(directory))
+        elif os.environ.get("CSHARP_ONLY") == "permissions":
+            permissions(Path(directory))
         else:
             qualify(Path(directory))

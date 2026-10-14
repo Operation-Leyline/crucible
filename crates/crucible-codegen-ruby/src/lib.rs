@@ -1,6 +1,7 @@
 //! Ruby gem generation from the shared, lowered Smithy IR.
 mod models;
 mod names;
+mod permissions;
 
 use crucible_codegen_common::docs;
 use crucible_smithy::{
@@ -187,6 +188,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             _ => {}
         }
     }
+    permissions::check_names(service, &mut diagnostics);
     let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     for op in &service.operations {
         let name = field(op.name());
@@ -338,6 +340,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 .replace("CrucibleGenerated", module),
         });
     }
+    // The registry's record types, only for a client that has a registry.
+    if permissions::present(service) {
+        for (name, source) in permissions::RUNTIME {
+            entry.push_str(&format!("require_relative '{package}/runtime/{name}'\n"));
+            files.push(File {
+                path: format!("lib/{package}/runtime/{name}.rb"),
+                contents: source.replace("CrucibleGenerated", module),
+            });
+        }
+    }
     let exception = crucible_codegen_common::service_exception_name(service);
     entry.push_str(&format!(
         "module {module}\n  {exception} = Runtime::{exception}\nend\n"
@@ -351,6 +363,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     entry.push_str(&format!("module {module}\n  def self.codec\n    @codec ||= Runtime::WireCodec.new(Runtime::ExactJson.decode(::File.read(::File.join(__dir__, '{package}/schema.json'))), Registry::TYPES)\n  end\nend\n"));
+    // Its own module, so a model named `GraphPermission` or `PERMISSIONS`
+    // cannot collide with a permission's name.
+    if permissions::present(service) {
+        files.push(File {
+            path: format!("lib/{package}/permissions.rb"),
+            contents: permissions::emit(service, module),
+        });
+        entry.push_str(&format!("require_relative '{package}/permissions'\n"));
+    }
     entry.push_str(&format!("require_relative '{package}/client'\n"));
     let mut client = format!(
         "# frozen_string_literal: true\nmodule {module}\n{}  class {client_name}\n{}    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.\n    def close = @runtime.close\n",

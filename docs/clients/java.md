@@ -330,6 +330,44 @@ Modeled exceptions extend `ServiceError`. Catch the generated type or inspect
 `Value` suffix, such as `requestIdValue()`. Transport failures use `NetworkError`. Successful JSON decoding
 failures are surfaced directly and are not retried.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+gets a `<package>.permissions` package of its own, so no model name collides
+with it. Each resource type with permissions a client may see has an open
+permission record named for the resource, `GraphPermission`, in the enum
+records' convention: one upper-snake constant per permission (`mailSend` is
+`MAIL_SEND`), in declaration order, whose
+`value()` is what grants store, documented with the permission's own
+documentation. Any string is accepted (`new GraphPermission("graph:export")`):
+a value this client does not know, from a newer server, is kept and written
+back unchanged, so compare with the constants or `value()`. A deprecated alias
+is a `@Deprecated` constant, and `canonical()` maps it to its primary; any
+other value, an unknown one included, is itself.
+
+`Permissions.PERMISSIONS` is the registry: an immutable
+`List<ResourcePermissions>` sorted by resource type, each with its
+`resourceType()` and `permissions()` sorted by value. A `PermissionDescription`
+has `value()`, `description()`, `tier()` (`"public"`, `"permissionOnly"` or
+`"notGrantable"`, a plain string because a newer server may add one),
+`grantable()`, `deprecated()`, and `aliasOf()` (the primary's value, or `null`).
+A grant picker offers only what may be granted:
+
+```java
+import example.leyline.permissions.GraphPermission;
+import example.leyline.permissions.Permissions;
+
+for (var resource : Permissions.PERMISSIONS)
+    for (var permission : resource.permissions())
+        if (permission.grantable() && !permission.deprecated())
+            offer(resource.resourceType(), permission.value(), permission.description());
+var stored = new GraphPermission(grant.permission()).canonical(); // graph:view reads as GraphPermission.READ
+```
+
+Internal permissions never appear, whatever audience the client was generated
+for. `tools/test-java.py` checks the package with a separate consumer and
+Javadoc's full doclint.
+
 ## Transport and cancellation
 
 Each operation has synchronous and `CompletableFuture` methods. Cancelling the

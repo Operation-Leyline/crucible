@@ -239,6 +239,39 @@ version's section when it is prepared.
   reason is the server's migration note. See
   [docs/framework.md](docs/framework.md#typed-permissions).
 
+- Typed permissions in every native client. Python, Go, Java, C#, Kotlin,
+  Swift, Dart, PHP, Ruby, C++, C and R clients of a model with permissions
+  now get what Rust and TypeScript clients have:
+  - per resource an open permission type (`GraphPermission`), with a
+    constant per permission that a client may see; it keeps a value it does
+    not know and writes it back unchanged;
+  - deprecated aliases as deprecated constants, and a canonical mapping
+    (`canonical()`, or a function in C and R) from an alias to its primary;
+  - the registry a grant picker reads, with each permission's value,
+    description, tier (a string), `grantable`, `deprecated` and `aliasOf`.
+
+  Each language follows its own convention for open string enums. The
+  types sit in a namespace of their own where the language has one: the
+  `permissions` module, package, sub-package or library; `Permissions` in
+  C#, PHP, Ruby and Swift; `permissions` in C++. In C and R they share the
+  model namespace, so a model name they need is a diagnostic. So is a pair
+  of permissions that a language spells alike, and `_` where the language
+  reserves it (Kotlin, Swift, Dart). A hyphen in a symbol (`mail-send`)
+  starts a word of the constant's name, as Rust and TypeScript already
+  spell it. Every language, Rust and
+  TypeScript included, now generates from one rule,
+  `crucible_codegen_common::permissions::client_resources`, so every
+  registry lists the same permissions with the same flags. None names an
+  internal permission. Clients of a model without client-visible
+  permissions get no new file, except that Python's bundled `runtime.py`
+  gains the two record types. A Terraform provider embeds the Go client
+  through the new `crucible_codegen_go::emit_without_permissions`, without
+  the permissions sub-package or its name checks. The R client renders a documentation code
+  span that holds a quote or backtick as `\verb{}`, which `R CMD INSTALL`
+  parses, rather than `\code{}`. See
+  [docs/permissions.md](docs/permissions.md#63-clients-docs-and-openapi)
+  and each language's page under `docs/clients/`.
+
 - A service's own not-found error for typed permissions. A `.cru` service
   whose errors are its own (and so cannot import `crucible.errors`) names
   its 404 with `notFound ResourceNotFoundException` in the service block:

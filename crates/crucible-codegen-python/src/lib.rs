@@ -1,5 +1,6 @@
 //! A Python package with typed models and sync/async HTTPX clients.
 mod names;
+mod permissions;
 
 use crucible_smithy::ir::{Service, Shape};
 use crucible_smithy::{Capabilities, Diagnostics, Feature, ShapeId};
@@ -187,6 +188,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
     }
+    permissions::check_names(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -538,10 +540,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "generatorVersion": env!("CARGO_PKG_VERSION"), "service": service.id.to_string(),
         "serviceVersion": service.version, "schemaSha256": format!("{:x}", Sha256::digest(schema.as_bytes())),
     })).expect("provenance serializes");
-    Ok(vec![
+    let mut files = vec![
         file("pyproject.toml".into(), pyproject),
         file(format!("src/{module}/models.py"), models),
         file(format!("src/{module}/client.py"), client),
+    ];
+    // Its own module, so a model named `GraphPermission` or `PERMISSIONS`
+    // cannot collide with a permission's name.
+    if permissions::present(service) {
+        files.push(file(
+            format!("src/{module}/permissions.py"),
+            permissions::emit(service),
+        ));
+    }
+    files.extend([
         file(
             format!("src/{module}/runtime.py"),
             crucible_codegen_common::service_exception_runtime(
@@ -594,10 +606,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, {exception}, NetworkError, ResponseMetadata\nfrom .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials\nfrom .waiters import WaiterError, WaiterTimeout\nfrom .checksums import ChecksumError\nfrom .streams import ByteStream, StreamLengthError\nfrom .discovery import EndpointDiscoveryError\nfrom .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished\n"
             ),
         ),
-    ])
+    ]);
+    Ok(files)
 }
 
-fn python_doc(out: &mut String, indent: &str, docs: &str) {
+pub(crate) fn python_doc(out: &mut String, indent: &str, docs: &str) {
     // A standalone string literal is an attribute docstring after an assignment.
     // JSON escaping also prevents quotes and backslashes from changing Python syntax.
     out.push_str(&format!(

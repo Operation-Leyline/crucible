@@ -76,7 +76,7 @@ export interface ResourcePermissions {
 }
 
 /**
- * Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.
+ * Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.
  */
 export const PERMISSIONS: readonly ResourcePermissions[] = [
   {

@@ -3107,7 +3107,7 @@ pub mod permissions {
 
     /// Every permission this client knows, by resource type and value,
     /// deprecated aliases included. A grant picker offers only the
-    /// `grantable` ones.
+    /// `grantable` ones that are not `deprecated`.
     pub static PERMISSIONS: &[::crucible_client_runtime_rust::__generated::permissions::ResourcePermissions] = &[
         ::crucible_client_runtime_rust::__generated::permissions::ResourcePermissions {
             resource_type: "graph",

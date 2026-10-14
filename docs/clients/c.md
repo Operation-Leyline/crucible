@@ -103,6 +103,53 @@ nesting are limited to 255 levels. A missing required output is an error;
 required Document fields may contain JSON null. Defaults and timestamp formats
 come from the lowered IR.
 
+## Permissions
+
+A model with typed permissions ([docs/permissions.md](../permissions.md))
+also generates `<package>/permissions.h` and `src/permissions.c`; a model
+without them generates neither. Per resource the header declares an open
+permission type, a string view like an enum's, and one `_known_` function per
+permission the client may see, in declaration order. A deprecated alias's
+documentation names its primary and carries `@deprecated`, as a deprecated
+enum value's does:
+
+```c
+#include <leyline_client/permissions.h>
+
+leyline_graph_permission read = leyline_graph_permission_known_read(); /* "graph:read" */
+```
+
+Any other string is a value too: a grant a newer server wrote, or one naming a
+permission this client never sees, keeps its bytes. A value is a borrowed
+view, as model strings are. `leyline_graph_permission_canonical(value)` maps a
+deprecated alias to its primary (`graph:view` to `graph:read`) and returns any
+other value, unknown ones included, unchanged.
+
+`leyline_permissions` (`leyline_permissions_count` entries) is the registry a
+console's grant picker reads: a `leyline_resource_permissions` per resource
+type, sorted by authorization name, each with its
+`leyline_permission_description` entries sorted by value: `value`,
+`description`, `tier` (`"public"`, `"permissionOnly"` or `"notGrantable"`, a
+string because a newer server may add tiers), `grantable`, `deprecated`, and
+`alias_of` (its `data` is `NULL` except for an alias). The registry is static,
+NUL-terminated storage: never freed, and safe to read from any thread. A picker
+offers the grantable permissions that are not deprecated:
+
+```c
+for (size_t i = 0; i < leyline_permissions_count; i++) {
+    const leyline_resource_permissions *resource = &leyline_permissions[i];
+    for (size_t j = 0; j < resource->permission_count; j++) {
+        const leyline_permission_description *p = &resource->permissions[j];
+        if (p->grantable && !p->deprecated) printf("%s\n", p->value.data);
+    }
+}
+```
+
+Internal permissions never appear in the header, the registry, or anywhere
+else in the package. These symbols share C's one namespace with the models and
+operations, so a collision, or two permissions of one resource with the same
+`_known_` name, is a generator diagnostic, never a silent rename.
+
 ## Protocols
 
 The `crucible.protocols#json` protocol and the AWS JSON protocols

@@ -93,6 +93,46 @@ A modeled error also shows its transport metadata, without headers or message.
 
 Generated enums implement `==` and `hashCode`; structures and unions do not.
 
+## Permissions
+
+A model that declares typed permissions ([permissions](../permissions.md))
+also generates the library `package:<name>/permissions.dart`, which the main
+library does not export, so no model name collides with it; a model without
+them generates no library, and a package named `permissions` is diagnosed.
+Each resource type with permissions a client may see has an open permission
+class named for the resource, `GraphPermission`, in the enum convention: a
+`value` string and one constant per permission, in declaration order, such as
+`GraphPermission.read`, documented with the permission's own documentation.
+Any string is a value (`GraphPermission('graph:export')`): one this client
+does not know, from a newer server or for a permission it never sees, is kept
+and written back unchanged, and `toJson()` lets `jsonEncode` write it as its
+value. A deprecated alias is a `@Deprecated` constant, and `canonical()` maps
+it to its primary; any other value, an unknown one included, is itself.
+
+`permissions` is the registry: a constant list of `ResourcePermissions` sorted
+by resource type, each with its `resourceType` and `permissions` sorted by
+value. A `PermissionDescription` has `value`, `description`, `tier`
+(`'public'`, `'permissionOnly'` or `'notGrantable'`, a plain string because a
+newer server may add one), `grantable`, `deprecated`, and `aliasOf` (the
+primary's value, or `null`); both records have `toJson()`. The two record
+types are part of the bundled runtime, exported by the library. A grant
+picker offers only what may be granted:
+
+```dart
+import 'package:leyline/permissions.dart';
+
+final offered = [
+  for (final resource in permissions)
+    for (final p in resource.permissions)
+      if (p.grantable && !p.deprecated) (resource.resourceType, p.value),
+];
+final stored = GraphPermission(grant.permission).canonical(); // graph:view reads as GraphPermission.read
+```
+
+Internal permissions never appear, whatever audience the client was generated
+for. `tools/test-dart.py` analyzes the library, then runs and compiles to
+JavaScript a separate consumer package against it.
+
 ## Transport and errors
 
 Calls return `Future<Output>` and accept a `CancellationToken`. One deadline

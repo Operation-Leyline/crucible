@@ -1054,14 +1054,72 @@ that type (`float` as `f32`).
   server-audience document.
 - **MCP.** Tool descriptions include the "Requires" sentence.
 
-*As built (phase B).* Only the Rust and TypeScript clients have the open
-permission types, the alias constants with `canonical()`, and
-`PERMISSIONS`. The Rust variant is `UnknownValue(String)`, renamed
+*As built (phase B).* Every client language has the open permission
+types, the deprecated alias constants with a canonical mapping, and the
+registry. The Rust variant is `UnknownValue(String)`, renamed
 `UnknownValue2` and so on if a permission's symbol already takes the name, as
-for the client's other open enums. The other client languages carry only
-the requirement sentences in each operation's doc comment and the registry
-in their bundled runtime's `schema()`. Their constants and registry are a
-known gap, not yet scheduled. The API reference differs from the layout
+for the client's other open enums. Every language generates from one rule,
+`crucible_codegen_common::permissions::client_resources`:
+- resources are sorted by authorization name;
+- constants are in declaration order;
+- registry entries are sorted by value;
+- tier, `grantable`, `deprecated` and `aliasOf` are as §4.1 defines them.
+
+So every language lists the same permissions with the same flags, and
+none names an internal permission. The tier is a plain string in every
+language except Rust (`"public"`, `"permissionOnly"`, `"notGrantable"`),
+so a newer server's tier does not break an older client. Each language
+follows its own convention for open string enums. Where it can, it puts
+the types in a namespace of their own, away from the models:
+
+| Language | Type and constant | Canonical | Registry |
+|---|---|---|---|
+| Rust | `client::permissions::GraphPermission::Read` | `canonical()` | `permissions::PERMISSIONS` |
+| TypeScript | `GraphPermission.READ`, `GraphPermissionValue` | `canonicalPermission(resourceType, value)` | `PERMISSIONS` |
+| Python | `<module>.permissions.GraphPermission.READ` (`OpenEnum`) | `canonical()` | `permissions.PERMISSIONS` |
+| Go | `permissions.GraphPermissionRead` (`type GraphPermission string`) | `Canonical()` | `permissions.Permissions` |
+| Java | `<pkg>.permissions.GraphPermission.READ` (a record) | `canonical()` | `Permissions.PERMISSIONS` |
+| Kotlin | `<pkg>.permissions.GraphPermission.READ` (a data class) | `canonical()` | `PERMISSIONS` (`Permissions.PERMISSIONS` from Java) |
+| C# | `<Ns>.Permissions.GraphPermission.Read` (a record) | `Canonical()` | `PermissionRegistry.Permissions` |
+| Swift | `Permissions.GraphPermission.read` | `canonical()` | `Permissions.all` |
+| Dart | `GraphPermission.read` in `permissions.dart` | `canonical()` | `permissions` |
+| PHP | `\<Ns>\Permissions\GraphPermission::READ` | `canonical()` | `\<Ns>\Permissions\PERMISSIONS` |
+| Ruby | `<Mod>::Permissions::GraphPermission::READ` | `canonical` | `Permissions::PERMISSIONS` |
+| C++ | `<ns>::permissions::GraphPermission::known_read()` | `canonical()` | `permissions::registry` |
+| C | `<p>_graph_permission_known_read()` (a `<p>_string`) | `<p>_graph_permission_canonical(value)` | `<p>_permissions`, `<p>_permissions_count` |
+| R | `GraphPermission$read` (a character value) | `graph_permission_canonical(value)` | `PERMISSIONS` |
+
+A constant's name follows the language's naming for constants. TypeScript,
+Java, Kotlin, Python, PHP and Ruby write `mailSend` as `MAIL_SEND`; the
+first three share `crucible_codegen_common::permissions::upper_snake`. C#
+writes `MailSend`, Go `GraphPermissionMailSend`, and so on. A hyphen in
+a symbol, which `.cru` allows (`mail-send`), starts a word, so it gets the
+same constants as `mailSend`
+(`crucible_codegen_common::permissions::constant_symbol`). Rust and
+TypeScript already spelled it that way. Three cases are a diagnostic,
+never a rename:
+- two permissions of one resource that a language spells alike;
+- a model whose name takes one the permissions need, where the two share
+  a namespace (C, R, Swift's `Permissions`, a Python model named
+  `permissions`);
+- a name the language reserves: `_` in Kotlin, Swift and Dart.
+
+An alias carries the language's deprecation marker, and `canonical` maps
+it whether it was built from the constant or read from the wire. Using a
+deprecated name warns in Java, Kotlin, C#, Swift and Dart. There,
+`canonical` compares the raw value instead of naming the alias constant,
+so the generated code builds without deprecation warnings.
+
+Each language has two record types, `PermissionDescription` and
+`ResourcePermissions` (in its own case):
+- Python's always-present runtime holds them.
+- Ruby, PHP and Dart ship them as runtime files only with permissions.
+- The other languages emit them beside the permission types, only with
+  permissions.
+
+A client without permissions therefore gets no new generated file. The
+registry also stays in the bundled runtimes' `schema()`. The API reference
+differs from the layout
 above: one `permissions.md` page has a section per resource type (its
 identifiers, then a table each for "Permissions", "Permission-only",
 "Bundles" and, server audience only, "Internal"). Each operation page gets
@@ -1635,8 +1693,8 @@ ones):
   registry with tier and `grantable`, `"permissions"` in bundled
   `schema()`, requirement doc comments; internal permissions filtered by
   the client audience projection. A TS case for unknown-value round trips.
-  *As built:* the types and `PERMISSIONS` exist for Rust and TypeScript
-  only (§6.3).
+  *As built:* every client language has the types and the registry, each
+  with a consumer test in its qualification script (§6.3).
 - Docs and OpenAPI: permissions tables, permission-only tables and
   bundles, "Requires" and "Returns only…" sections, `x-crucible-requires`
   and `x-crucible-permissions`, server-audience-only internal entries; MCP

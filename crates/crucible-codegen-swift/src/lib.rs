@@ -1,6 +1,7 @@
 //! Native Swift models and async clients emitted from lowered Smithy semantics.
 mod client;
 mod models;
+mod permissions;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
 use crucible_smithy::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
@@ -551,6 +552,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
     }
+    permissions::check(service, &options.module_name, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -576,6 +578,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: provenance,
         },
     ];
+    if let Some(contents) = permissions::emit(service) {
+        files.push(File {
+            path: format!("{source}/{}.swift", permissions::NAMESPACE),
+            contents,
+        });
+    }
     for (name, contents) in [
         ("JSONValue", include_str!("../runtime/JSONValue.swift")),
         ("WireCodec", include_str!("../runtime/WireCodec.swift")),

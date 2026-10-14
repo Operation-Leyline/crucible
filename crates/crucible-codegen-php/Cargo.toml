@@ -11,5 +11,9 @@ crucible-codegen-common.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 sha2 = "0.10"
 
+[dev-dependencies]
+# The typed permissions fixture is a `.cru` package (tests/fixtures/permissions).
+crucible-lang.workspace = true
+
 [lints]
 workspace = true

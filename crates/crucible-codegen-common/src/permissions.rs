@@ -6,6 +6,7 @@
 //! has no internal permission to leak; the client-facing helpers drop the
 //! internal tier again regardless.
 
+use crucible_smithy::ShapeId;
 use crucible_smithy::ir::permissions::Binding;
 use crucible_smithy::ir::{
     DocNotes, Mode, Operation, Permission, Requirement, Requirements, ResourcePermissions, Service,
@@ -571,9 +572,159 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
     })
 }
 
+/// The name a client language spells a permission's constant from: its
+/// symbol, where each hyphen (which `.cru` allows between word characters,
+/// `mail-send`) starts a camel-case word, `mailSend`. No client language
+/// allows a hyphen in a name, and each applies its own case to this one, so
+/// `mail-send` reads as `MAIL_SEND`, `MailSend` or `mail_send`, as the Rust
+/// and TypeScript clients already spell it. Two symbols that meet here
+/// (`mail-send` and `mailSend`) are each language's collision diagnostic.
+pub fn constant_symbol(symbol: &str) -> String {
+    let mut out = String::with_capacity(symbol.len());
+    let mut upper = false;
+    for c in symbol.chars() {
+        if c == '-' {
+            upper = true;
+        } else if std::mem::take(&mut upper) {
+            out.extend(c.to_uppercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// A permission symbol as an upper-snake constant, for the languages that
+/// spell constants so (TypeScript, Java, Kotlin): `mailSend`, `READ`,
+/// `mail-send` and `HTTPRequest` are `MAIL_SEND`, `READ`, `MAIL_SEND` and
+/// `HTTP_REQUEST`. A word break survives, so `mailSend` and `mailsend`
+/// stay apart. A symbol with no letter or digit (`_`) is `_`, and one that
+/// starts with a digit gains a leading `_`, for the language to judge.
+pub fn upper_snake(symbol: &str) -> String {
+    let chars: Vec<char> = symbol.chars().collect();
+    let mut out = String::new();
+    for (index, &c) in chars.iter().enumerate() {
+        if !c.is_ascii_alphanumeric() {
+            if !out.ends_with('_') && !out.is_empty() {
+                out.push('_');
+            }
+            continue;
+        }
+        let previous = index.checked_sub(1).map(|p| chars[p]);
+        let next = chars.get(index + 1).copied();
+        let boundary = c.is_ascii_uppercase()
+            && previous.is_some_and(|p| {
+                p.is_ascii_lowercase()
+                    || p.is_ascii_digit()
+                    || (p.is_ascii_uppercase() && next.is_some_and(|n| n.is_ascii_lowercase()))
+            });
+        if boundary && !out.ends_with('_') {
+            out.push('_');
+        }
+        out.push(c.to_ascii_uppercase());
+    }
+    if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit()) {
+        out.insert(0, '_');
+    }
+    out
+}
+
+/// One resource type as a client's typed permissions and `PERMISSIONS`
+/// registry carry it (docs/permissions.md §6.3). Every client language
+/// generates from these, so they agree on which permissions appear, their
+/// order, and each entry's tier, `grantable`, `deprecated` and alias.
+pub struct ClientResource<'a> {
+    /// The resource shape: its (renamed) name names the language's type,
+    /// `Graph` for `GraphPermission`.
+    pub id: &'a ShapeId,
+    pub resource: &'a ResourcePermissions,
+    /// The permissions a client sees, aliases included, in declaration
+    /// order: the order of a language's constants.
+    pub permissions: Vec<&'a Permission>,
+}
+
+/// One permission's `PERMISSIONS` entry.
+pub struct RegistryEntry<'a> {
+    pub permission: &'a Permission,
+    /// What grants store.
+    pub value: &'a str,
+    /// The model's documentation, trimmed; empty when it has none.
+    pub description: &'a str,
+    /// [`tier_name`] of the [`effective_tier`]: never `internal`.
+    pub tier: &'static str,
+    pub grantable: bool,
+    pub deprecated: bool,
+    /// For an alias, its primary's value.
+    pub alias_of: Option<&'a str>,
+}
+
+impl<'a> ClientResource<'a> {
+    /// The registry entries, sorted by value.
+    pub fn entries(&self) -> Vec<RegistryEntry<'a>> {
+        let mut sorted = self.permissions.clone();
+        sorted.sort_by(|a, b| a.value.cmp(&b.value));
+        sorted
+            .into_iter()
+            .map(|p| RegistryEntry {
+                permission: p,
+                value: &p.value,
+                description: p.docs.as_deref().map(str::trim).unwrap_or_default(),
+                tier: tier_name(effective_tier(self.resource, p)),
+                grantable: grantable(self.resource, p),
+                deprecated: deprecated(p),
+                alias_of: p
+                    .alias_of
+                    .is_some()
+                    .then(|| primary(self.resource, p).value.as_str()),
+            })
+            .collect()
+    }
+
+    /// Each alias with the primary `canonical` maps it to, in declaration
+    /// order.
+    pub fn aliases(&self) -> Vec<(&'a Permission, &'a Permission)> {
+        self.permissions
+            .iter()
+            .filter(|p| p.alias_of.is_some())
+            .map(|&p| (p, primary(self.resource, p)))
+            .collect()
+    }
+}
+
+/// The resource types a client's registry lists: each that has a
+/// permission a client may see, sorted by authorization name. Internal
+/// permissions, and aliases of them, never appear, whatever audience the
+/// service was projected for.
+pub fn client_resources(service: &Service) -> Vec<ClientResource<'_>> {
+    let mut resources: Vec<ClientResource<'_>> = service
+        .permissions
+        .iter()
+        .map(|(id, resource)| ClientResource {
+            id,
+            resource,
+            permissions: resource
+                .permissions
+                .iter()
+                .filter(|p| client_visible(resource, p))
+                .collect(),
+        })
+        .filter(|resource| !resource.permissions.is_empty())
+        .collect();
+    resources.sort_by(|a, b| a.resource.name.cmp(&b.resource.name));
+    resources
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{noun, plural};
+    use super::{constant_symbol, noun, plural};
+
+    #[test]
+    fn hyphens_start_camel_case_words() {
+        assert_eq!(constant_symbol("mail-send"), "mailSend");
+        assert_eq!(constant_symbol("api-key-2"), "apiKey2");
+        assert_eq!(constant_symbol("read"), "read");
+        assert_eq!(constant_symbol("_"), "_");
+    }
 
     #[test]
     fn nouns_and_plurals_read_as_english() {

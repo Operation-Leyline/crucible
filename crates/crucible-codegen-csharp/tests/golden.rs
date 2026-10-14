@@ -319,3 +319,64 @@ fn permissions_match_goldens() {
         );
     }
 }
+
+/// A permission spelled as another's C# member, or as a member the record
+/// has, is diagnosed against the service, never renamed.
+#[test]
+fn colliding_permission_names_are_diagnosed() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let full = compiled.service.expect("the fixture compiles");
+    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    for (symbol, value) in [("Read", "graph:reread"), ("value", "graph:value")] {
+        let mut clash = graph.permissions[0].clone();
+        clash.symbol = symbol.into();
+        clash.value = value.into();
+        graph.permissions.push(clash);
+    }
+    let diagnostics = emit(&service, &options())
+        .err()
+        .expect("a collision is diagnosed")
+        .to_string();
+    assert!(
+        diagnostics.contains("is the C# member `Read`"),
+        "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("is the C# member `Value`"),
+        "{diagnostics}"
+    );
+}
+
+/// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
+/// starts a word of the constant's name, since no client language allows
+/// one in a name (`constant_symbol`).
+#[test]
+fn hyphenated_permission_symbols_spell_words() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let full = compiled.service.expect("the fixture compiles");
+    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut hyphenated = graph.permissions[0].clone();
+    hyphenated.symbol = "mail-send".into();
+    hyphenated.value = "graph:mail-send".into();
+    graph.permissions.push(hyphenated);
+    let files = emit(&service, &options()).unwrap();
+    let expected = r#"GraphPermission @MailSend = new("graph:mail-send")"#;
+    assert!(
+        files.iter().any(|file| file.contents.contains(expected)),
+        "no file spells `mail-send` as {expected}"
+    );
+}

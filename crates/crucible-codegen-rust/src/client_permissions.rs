@@ -6,54 +6,49 @@
 //! Internal permissions never appear, whatever the audience.
 
 use crucible_codegen_common::permissions::{
-    client_visible as visible, code_span, deprecated, effective_tier, grantable, notes, primary,
+    ClientResource, client_resources, code_span, notes, primary,
 };
-use crucible_smithy::ir::{Permission, ResourcePermissions, Service, Tier};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_smithy::Diagnostics;
+use crucible_smithy::ir::{Permission, ResourcePermissions, Service};
 
 use crate::names::{documented, literal, variant};
 
 const RT: &str = "::crucible_server_runtime_rust::__generated";
 
-fn tier(tier: Tier) -> &'static str {
-    match tier {
-        Tier::Public => "Public",
-        Tier::PermissionOnly => "PermissionOnly",
-        Tier::NotGrantable => "NotGrantable",
-        Tier::Internal => "Internal",
+/// The runtime's `Tier` variant for a registry entry's tier name.
+fn tier(name: &str) -> &'static str {
+    match name {
+        "permissionOnly" => "PermissionOnly",
+        "notGrantable" => "NotGrantable",
+        "public" => "Public",
+        other => unreachable!("a client registry has no `{other}` tier"),
     }
 }
 
 pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String {
-    let mut resources: Vec<(&ShapeId, &ResourcePermissions)> = service
-        .permissions
-        .iter()
-        .filter(|(_, resource)| resource.permissions.iter().any(|p| visible(resource, p)))
-        .collect();
+    let resources = client_resources(service);
     if resources.is_empty() {
         return String::new();
     }
-    resources.sort_by(|a, b| a.1.name.cmp(&b.1.name));
     let mut out = String::new();
     let mut registry = Vec::new();
-    for (id, resource) in resources {
-        let permissions: Vec<&Permission> = resource
-            .permissions
-            .iter()
-            .filter(|p| visible(resource, p))
-            .collect();
+    for client in &resources {
         crate::names::check_distinct(
-            id,
-            permissions.iter().map(|p| p.symbol.as_str()),
+            client.id,
+            client.permissions.iter().map(|p| p.symbol.as_str()),
             variant,
             "variant",
             diagnostics,
         );
-        out.push_str(&enumeration(service.name_of(id), resource, &permissions));
-        registry.push(entry(resource, &permissions));
+        out.push_str(&enumeration(
+            service.name_of(client.id),
+            client.resource,
+            &client.permissions,
+        ));
+        registry.push(entry(client));
     }
     out.push_str(&format!(
-        "\n/// Every permission this client knows, by resource type and value,\n/// deprecated aliases included. A grant picker offers only the\n/// `grantable` ones.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
+        "\n/// Every permission this client knows, by resource type and value,\n/// deprecated aliases included. A grant picker offers only the\n/// `grantable` ones that are not `deprecated`.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
         registry.join(",\n    ")
     ));
     format!(
@@ -145,31 +140,28 @@ fn enumeration(shape: &str, resource: &ResourcePermissions, permissions: &[&Perm
 }
 
 /// The resource's `PERMISSIONS` entry, its permissions sorted by value.
-fn entry(resource: &ResourcePermissions, permissions: &[&Permission]) -> String {
-    let mut sorted = permissions.to_vec();
-    sorted.sort_by(|a, b| a.value.cmp(&b.value));
-    let entries: Vec<String> = sorted
+fn entry(client: &ClientResource<'_>) -> String {
+    let entries: Vec<String> = client
+        .entries()
         .iter()
-        .map(|p| {
-            let primary = primary(resource, p);
-            let alias_of = if p.alias_of.is_some() {
-                format!("::std::option::Option::Some({})", literal(&primary.value))
-            } else {
-                "::std::option::Option::None".to_owned()
+        .map(|e| {
+            let alias_of = match e.alias_of {
+                Some(primary) => format!("::std::option::Option::Some({})", literal(primary)),
+                None => "::std::option::Option::None".to_owned(),
             };
             format!(
                 "{RT}::permissions::PermissionDescription {{ value: {}, description: {}, tier: {RT}::permissions::Tier::{}, grantable: {}, deprecated: {}, alias_of: {alias_of} }}",
-                literal(&p.value),
-                literal(p.docs.as_deref().map(str::trim).unwrap_or_default()),
-                tier(effective_tier(resource, p)),
-                grantable(resource, p),
-                deprecated(p),
+                literal(e.value),
+                literal(e.description),
+                tier(e.tier),
+                e.grantable,
+                e.deprecated,
             )
         })
         .collect();
     format!(
         "{RT}::permissions::ResourcePermissions {{\n        resource_type: {},\n        permissions: &[\n            {},\n        ],\n    }}",
-        literal(&resource.name),
+        literal(&client.resource.name),
         entries.join(",\n            ")
     )
 }

@@ -1,5 +1,6 @@
 //! Native R package generation from the shared lowered Smithy IR.
 mod markdown;
+mod permissions;
 use crucible_smithy::{
     Diagnostics,
     ir::{Service, Shape},
@@ -434,6 +435,26 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: out,
         });
     }
+    // The permission exports share the package namespace with the models
+    // and the runtime: a model `GraphPermission` would be what a resource
+    // `Graph`'s permission list is. Collected, never renamed.
+    let permission_exports = permissions::exports(service);
+    for name in &permission_exports {
+        if !exported.insert(name.clone()) {
+            diagnostics.push(
+                &service.id,
+                format!("the R permission export `{name}` collides with a model or runtime export"),
+            );
+        }
+    }
+    if !permission_exports.is_empty() && model_files.contains("permissions") {
+        diagnostics.push(
+            &service.id,
+            "a model named `permissions` takes the help page the R permissions are documented on",
+        );
+    }
+    permissions::diagnose(service, &mut diagnostics);
+    files.extend(permissions::emit(service));
     let mut methods = BTreeSet::from([
         "close".to_owned(),
         "call".to_owned(),
@@ -587,7 +608,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     files.push(File{path:"inst/crucible.json".into(),contents:serde_json::to_string_pretty(&json!({"generator":"crucible-codegen-r","generatorVersion":env!("CARGO_PKG_VERSION"),"packageVersion":options.package_version,"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema_text.as_bytes())),"contentSha256":options.content_sha256})).expect("metadata")});
     let aliases = exported
         .iter()
-        .filter(|s| !model_files.contains(&s.to_ascii_lowercase()))
+        .filter(|s| {
+            !model_files.contains(&s.to_ascii_lowercase()) && !permission_exports.contains(s)
+        })
         .map(|s| format!("\\alias{{{s}}}\n"))
         .collect::<String>();
     files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Smithy Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use {client_name}(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});

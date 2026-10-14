@@ -2,6 +2,7 @@
 mod client;
 mod models;
 mod names;
+mod permissions;
 
 use crucible_smithy::{
     Diagnostics,
@@ -122,6 +123,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             next = target;
         }
     }
+    permissions::check_names(service, &mut result);
     let mut methods = BTreeSet::from(["close".to_string()]);
     for op in &service.operations {
         let name = names::method(op.name());
@@ -200,11 +202,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     {
         require["ext-openssl"] = serde_json::json!("*");
     }
+    let mut autoload = serde_json::json!({"psr-4":{format!("{}\\",options.namespace):"src/"}});
+    if permissions::present(service) {
+        autoload["files"] = serde_json::json!([permissions::REGISTRY]);
+    }
     let manifest = serde_json::to_string_pretty(&serde_json::json!({
         "name":options.package_name, "version":options.package_version, "type":"library",
         "description":format!("Generated {} client", service.name_of(&service.id)),
         "require":require,
-        "autoload":{"psr-4":{format!("{}\\",options.namespace):"src/"}}
+        "autoload":autoload
     }))
     .expect("manifest");
     let provenance = serde_json::to_string_pretty(&serde_json::json!({
@@ -349,6 +355,18 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: crucible_codegen_common::service_exception_runtime(service, source)
                 .replace("CrucibleGenerated", namespace),
         });
+    }
+    // Their own namespace, so a model named `GraphPermission` cannot
+    // collide with a permission class; the registry's record types, only
+    // for a client that has a registry.
+    if permissions::present(service) {
+        files.extend(permissions::emit(service, namespace));
+        for (name, source) in permissions::RUNTIME {
+            files.push(File {
+                path: format!("src/Runtime/{name}.php"),
+                contents: source.replace("CrucibleGenerated", namespace),
+            });
+        }
     }
     files.push(File {
         path: format!("src/{}Client.php", service.id.name()),

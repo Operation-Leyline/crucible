@@ -4,6 +4,7 @@
 
 mod client;
 mod models;
+mod permissions;
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, SimpleKind};
@@ -402,7 +403,8 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
-    let diagnostics = diagnose(service, options);
+    let mut diagnostics = diagnose(service, options);
+    permissions::check(service, &options.package_name, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -459,6 +461,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         files.push(File {
             path: format!("lib/src/runtime/{name}.dart"),
             contents: crucible_codegen_common::service_exception_runtime(service, contents),
+        });
+    }
+    if let Some(contents) = permissions::emit(service) {
+        files.push(File {
+            path: permissions::LIBRARY.into(),
+            contents,
+        });
+        files.push(File {
+            path: "lib/src/runtime/permissions.dart".into(),
+            contents: permissions::RUNTIME.into(),
         });
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));

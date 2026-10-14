@@ -296,3 +296,86 @@ fn permissions_match_goldens() {
         );
     }
 }
+
+/// The permissions fixture as a client sees it.
+fn permissions_service() -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let rendered = compiled.render();
+    let full = compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
+    crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
+}
+
+/// `READ` names the same constant as `read`: one resource's permissions
+/// must stay distinct after the language's naming, or one would vanish.
+#[test]
+fn permission_constant_collisions_are_diagnosed() {
+    let mut service = permissions_service();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut twin = graph.permissions[0].clone();
+    assert_eq!(twin.symbol, "read");
+    twin.symbol = "READ".into();
+    twin.value = "graph:read-again".into();
+    graph.permissions.push(twin);
+    let errors = emit(&service, &options()).err().expect("a collision fails");
+    assert!(
+        errors.to_string().contains("`READ` of `Graph` shares"),
+        "{errors}"
+    );
+}
+
+/// No `permissions.py` without permissions; with them, the module and the
+/// registry's record types in the bundled runtime.
+#[test]
+fn permissions_module_ships_only_with_permissions() {
+    let weather = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let files = emit(&weather, &options()).unwrap();
+    assert!(!files.iter().any(|f| f.path.ends_with("permissions.py")));
+    let files = emit(&permissions_service(), &options()).unwrap();
+    assert!(
+        files
+            .iter()
+            .any(|f| f.path == "src/weather_client/permissions.py")
+    );
+    let runtime = &files
+        .iter()
+        .find(|f| f.path.ends_with("/runtime.py"))
+        .unwrap()
+        .contents;
+    assert!(runtime.contains("class PermissionDescription:"));
+    assert!(runtime.contains("class ResourcePermissions:"));
+}
+
+/// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
+/// starts a word of the constant's name, since no client language allows
+/// one in a name (`constant_symbol`).
+#[test]
+fn hyphenated_permission_symbols_spell_words() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let full = compiled.service.expect("the fixture compiles");
+    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut hyphenated = graph.permissions[0].clone();
+    hyphenated.symbol = "mail-send".into();
+    hyphenated.value = "graph:mail-send".into();
+    graph.permissions.push(hyphenated);
+    let files = emit(&service, &options()).unwrap();
+    let expected = r#"MAIL_SEND = "graph:mail-send""#;
+    assert!(
+        files.iter().any(|file| file.contents.contains(expected)),
+        "no file spells `mail-send` as {expected}"
+    );
+}

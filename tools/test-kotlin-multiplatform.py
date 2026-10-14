@@ -166,6 +166,14 @@ def qualify(output, native=False):
         "--package-version", "0.0.0-test")
     run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
         *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=policy_sdk, timeout=3600)
+    # Typed permissions: the open permission types and the registry, in common code for every target.
+    permissions_sdk = output / "permissions"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
+        str(ROOT / "tests/fixtures/permissions"), "--out", str(permissions_sdk),
+        "--group-id", "example", "--artifact-id", "permissions-kotlin-mpp", "--package-name", "example.leyline",
+        "--package-version", "0.0.0-test")
+    run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
+        *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=permissions_sdk, timeout=3600)
     consumer = output / "consumer"
     shutil.copytree(ROOT / "crates/crucible-codegen-kotlin/tests/multiplatform", consumer, dirs_exist_ok=True)
     # Common tests cannot read files on every target, so the vectors are compiled in.

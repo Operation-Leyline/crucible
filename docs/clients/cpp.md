@@ -97,6 +97,50 @@ intervening structure or union produce a generator diagnostic.
 HEAD operations with request body or payload bindings also produce a diagnostic
 because libcurl does not transmit those request bytes.
 
+## Permissions
+
+A model with typed permissions ([docs/permissions.md](../permissions.md))
+also generates the header-only `<package>/permissions.hpp`; a model without
+them does not. Its namespace, `<namespace>::permissions`, keeps the names
+apart from the models. Per resource there is an open permission type shaped
+like a model enum: a `value` string and one `known_` factory per permission
+the client may see, in declaration order. A deprecated alias's documentation
+names its primary and carries `@deprecated`, as a deprecated enum value's does.
+
+```cpp
+#include <leyline_client/permissions.hpp>
+
+namespace permissions = leyline::permissions;
+
+auto read = permissions::GraphPermission::known_read();          // "graph:read"
+permissions::GraphPermission stored{"graph:export"};              // kept as it is
+auto primary = permissions::GraphPermission::known_view().canonical(); // graph:read
+```
+
+Any other string is a value too: a grant a newer server wrote, or one naming a
+permission this client never sees, keeps its text. `canonical()` maps a
+deprecated alias to its primary and returns any other value, unknown ones
+included, unchanged.
+
+`permissions::registry` is a `constexpr std::array` of `ResourcePermissions`,
+one per resource type sorted by authorization name, each with a
+`std::span<const PermissionDescription>` sorted by value: `value`,
+`description`, `tier` (`"public"`, `"permissionOnly"` or `"notGrantable"`, a
+string because a newer server may add tiers), `grantable`, `deprecated`, and
+`alias_of` (a `std::optional`, set only for an alias). Every view refers to
+static storage. A grant picker offers the grantable permissions that are not
+deprecated:
+
+```cpp
+for (const auto& resource : permissions::registry)
+    for (const auto& p : resource.permissions)
+        if (p.grantable && !p.deprecated) offer(resource.resource_type, p.value);
+```
+
+Internal permissions never appear in the header or anywhere else in the
+package. Two permissions of one resource with the same `known_` name are a
+generator diagnostic, never a silent rename.
+
 ## Protocols
 
 Generated clients speak the model's selected protocol: Crucible JSON,

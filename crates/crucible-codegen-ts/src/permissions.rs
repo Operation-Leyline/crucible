@@ -8,57 +8,27 @@
 use std::collections::BTreeSet;
 
 use crucible_codegen_common::permissions::{
-    client_visible as visible, code_span, deprecated, effective_tier, grantable, notes, primary,
-    tier_name,
+    ClientResource, client_resources, code_span, notes, primary,
 };
 use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{Permission, ResourcePermissions, Service};
+use crucible_smithy::ir::Service;
 
 use crate::HEADER;
 use crate::names::{doc, documented, literal};
 
-/// `mailSend`, `READ` and `api-key` are `MAIL_SEND`, `READ` and `API_KEY`.
+/// `mailSend`, `READ` and `api-key` are `MAIL_SEND`, `READ` and `API_KEY`:
+/// the upper-snake rule Java and Kotlin share.
 pub(crate) fn constant(symbol: &str) -> String {
-    let chars: Vec<char> = symbol.chars().collect();
-    let mut out = String::new();
-    for (index, &c) in chars.iter().enumerate() {
-        if !c.is_ascii_alphanumeric() {
-            if !out.ends_with('_') && !out.is_empty() {
-                out.push('_');
-            }
-            continue;
-        }
-        let previous = index.checked_sub(1).map(|p| chars[p]);
-        let next = chars.get(index + 1).copied();
-        let boundary = c.is_ascii_uppercase()
-            && previous.is_some_and(|p| {
-                p.is_ascii_lowercase()
-                    || p.is_ascii_digit()
-                    || (p.is_ascii_uppercase() && next.is_some_and(|n| n.is_ascii_lowercase()))
-            });
-        if boundary && !out.ends_with('_') {
-            out.push('_');
-        }
-        out.push(c.to_ascii_uppercase());
-    }
-    // `_` and `-` have no letter to keep: still a property name, and two
-    // such symbols are diagnosed as sharing it.
-    if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit()) {
-        out.insert(0, '_');
-    }
-    out
+    crucible_codegen_common::permissions::upper_snake(symbol)
 }
 
-/// The resources a client sees, sorted by authorization name.
-fn resources(service: &Service) -> Vec<(&str, &ResourcePermissions)> {
-    let mut resources: Vec<(&str, &ResourcePermissions)> = service
-        .permissions
-        .iter()
-        .filter(|(_, r)| r.permissions.iter().any(|p| visible(r, p)))
-        .map(|(id, r)| (service.name_of(id), r))
-        .collect();
-    resources.sort_by(|a, b| a.1.name.cmp(&b.1.name));
-    resources
+/// The resources a client sees, sorted by authorization name, each with
+/// its shape's name.
+fn resources(service: &Service) -> Vec<(&str, ClientResource<'_>)> {
+    client_resources(service)
+        .into_iter()
+        .map(|client| (service.name_of(client.id), client))
+        .collect()
 }
 
 /// Whether the client gets a `permissions.ts`.
@@ -164,14 +134,11 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     let mut out = String::from(HEADER);
     let mut registry = Vec::new();
     let mut aliases = Vec::new();
-    for (shape, resource) in resources(service) {
-        let permissions: Vec<&Permission> = resource
-            .permissions
-            .iter()
-            .filter(|p| visible(resource, p))
-            .collect();
+    for (shape, client) in resources(service) {
+        let resource = client.resource;
+        let permissions = &client.permissions;
         let mut seen = BTreeSet::new();
-        for permission in &permissions {
+        for permission in permissions {
             if !seen.insert(constant(&permission.symbol)) {
                 diagnostics.push(
                     &service.id,
@@ -192,7 +159,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             )),
         );
         out.push_str(&format!("export const {shape}Permission = {{\n"));
-        for permission in &permissions {
+        for permission in permissions {
             // Model text: `documented` escapes it (`escape_block`) like every
             // other JSDoc comment's, so a leading `@` is no tag.
             let mut docs = permission.docs.clone().unwrap_or_default();
@@ -202,7 +169,6 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 }
                 let primary = &primary(resource, permission).value;
                 docs.push_str(&format!("An alias of {}.", code_span(primary)));
-                aliases.push((resource.name.as_str(), &permission.value, primary.clone()));
             }
             documented(
                 &mut out,
@@ -227,27 +193,27 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         out.push_str(&format!(
             "export type {shape}PermissionValue = (typeof {shape}Permission)[keyof typeof {shape}Permission] | (string & {{}});\n\n"
         ));
-        let mut sorted = permissions.clone();
-        sorted.sort_by(|a, b| a.value.cmp(&b.value));
-        let entries: Vec<String> = sorted
+        let entries: Vec<String> = client
+            .entries()
             .iter()
-            .map(|p| {
-                let primary = primary(resource, p);
-                let alias = if p.alias_of.is_some() {
-                    format!(", aliasOf: {}", literal(&primary.value))
-                } else {
-                    String::new()
-                };
+            .map(|e| {
+                let alias = e
+                    .alias_of
+                    .map(|primary| format!(", aliasOf: {}", literal(primary)))
+                    .unwrap_or_default();
                 format!(
                     "      {{ value: {}, description: {}, tier: {}, grantable: {}, deprecated: {}{alias} }},\n",
-                    literal(&p.value),
-                    literal(p.docs.as_deref().map(str::trim).unwrap_or_default()),
-                    literal(tier_name(effective_tier(resource, p))),
-                    grantable(resource, p),
-                    deprecated(p),
+                    literal(e.value),
+                    literal(e.description),
+                    literal(e.tier),
+                    e.grantable,
+                    e.deprecated,
                 )
             })
             .collect();
+        for (alias, primary) in client.aliases() {
+            aliases.push((resource.name.as_str(), &alias.value, primary.value.clone()));
+        }
         registry.push(format!(
             "  {{\n    resourceType: {},\n    permissions: [\n{}    ],\n  }},\n",
             literal(&resource.name),
@@ -259,7 +225,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         &mut out,
         "",
         Some(
-            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.",
+            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.",
         ),
     );
     out.push_str(&format!(

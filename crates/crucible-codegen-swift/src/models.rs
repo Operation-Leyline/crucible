@@ -4,7 +4,7 @@ use crucible_smithy::ir::{DocNotes, Member, Service, Shape};
 
 /// Doc comment with the model's notes, then the native deprecation attribute
 /// so the compiler flags use sites.
-fn doc(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+pub(crate) fn doc(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
     let mut out = docs::annotated(text, notes)
         .map(|text| docs::line_comment(indent, "///", &text))
         .unwrap_or_default();

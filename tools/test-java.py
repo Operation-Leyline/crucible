@@ -164,6 +164,7 @@ def qualify(output):
         str(ROOT / "crates/crucible-codegen-java/tests/DisplayTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), docs_classpath]), "example.docs.DisplayTest")
     xml_protocols(output, classes)
+    permissions(output, classes)
     defaults = output / "defaults"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-codegen-java/tests/defaults.json"), "--out", str(defaults),
@@ -174,6 +175,22 @@ def qualify(output):
     run("javac", "-J-Xmx256m", "--release", "17", "-d", str(classes), "-cp", defaults_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/DefaultsTest.java"))
     run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), defaults_classpath]), "example.defaults.DefaultsTest")
+
+
+def permissions(output, classes):
+    """The typed permissions fixture: open permission types and the registry, read by a consumer."""
+    package = output / "permissions"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+        str(ROOT / "tests/fixtures/permissions"), "--out", str(package),
+        "--group-id", "example", "--artifact-id", "leyline", "--package-name", "example.leyline")
+    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=package)
+    classpath = os.pathsep.join([str(package / "target/classes"), str(package / "target/dependency/*")])
+    # Hostile permission docs must still be warning-free Javadoc.
+    run("javadoc", "-Xdoclint:all", "-Werror", "-quiet", "-d", str(output / "permissions-javadoc"), "-cp", classpath,
+        *map(str, sorted((package / "src/main/java/example/leyline/permissions").glob("*.java"))))
+    run("javac", "--release", "17", "-Xlint:all", "-Werror", "-d", str(classes), "-cp", classpath,
+        str(ROOT / "crates/crucible-codegen-java/tests/PermissionsTest.java"))
+    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.leyline.PermissionsTest")
 
 
 def waiter_identity(output, classes):

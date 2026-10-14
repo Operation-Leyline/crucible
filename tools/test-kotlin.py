@@ -119,6 +119,7 @@ public final class JavaEnumConsumer {
         generated = output / name
         generate(model, generated, "example." + name)
         run(MAVEN, "-q", REPO, "package", cwd=generated)
+    permissions(output)
     # A single giant decoder compiles for weather but exceeds the JVM method-size
     # limit for real services. Keep a public, synthetic full-size package in CI.
     shapes = {
@@ -140,6 +141,34 @@ public final class JavaEnumConsumer {
     generated = output / "large"
     generate(large, generated, "example.large")
     run(MAVEN, "-q", REPO, "package", cwd=generated)
+
+
+def permissions(output):
+    """The typed permissions package on the JVM: Java reads the constants and the registry as static fields.
+    tools/test-kotlin-multiplatform.py runs the full consumer test on every target."""
+    generated = output / "permissions"
+    generate(ROOT / "tests/fixtures/permissions", generated, "example.leyline")
+    run(MAVEN, "-q", REPO, "package", "dependency:copy-dependencies", cwd=generated)
+    classpath = os.pathsep.join([str(generated / "target/classes"), str(generated / "target/dependency/*")])
+    source = output / "permissions-java" / "JavaPermissionsConsumer.java"
+    source.parent.mkdir()
+    source.write_text("""import example.leyline.permissions.GraphPermission;
+import example.leyline.permissions.Permissions;
+public final class JavaPermissionsConsumer {
+    public static void main(String[] args) {
+        if (!GraphPermission.READ.getValue().equals("graph:read")
+                || !new GraphPermission("graph:view").canonical().equals(GraphPermission.READ)
+                || !new GraphPermission("graph:export").canonical().getValue().equals("graph:export")
+                || !Permissions.PERMISSIONS.get(2).getResourceType().equals("org")
+                || Permissions.PERMISSIONS.get(2).getPermissions().get(0).getGrantable())
+            throw new AssertionError("Generated permission static fields");
+    }
+}
+""", encoding="utf-8")
+    classes = output / "permissions-java-classes"
+    classes.mkdir()
+    run("javac", "--release", "17", "-Xlint:all", "-Werror", "-cp", classpath, "-d", str(classes), str(source))
+    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "JavaPermissionsConsumer")
 
 
 if __name__ == "__main__":

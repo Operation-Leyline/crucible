@@ -62,6 +62,12 @@ def qualify(package):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-codegen-python/tests/streaming.json", "--out", str(stream),
         "--package-name", "stream-client", "--module-name", "stream_client")
+    # Typed permissions: the open permission types and the registry
+    # (tests/test_permissions.py), from the shared .cru fixture.
+    permissions = package.parent / "permissions"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
+        "tests/fixtures/permissions", "--out", str(permissions),
+        "--package-name", "leyline-client", "--module-name", "leyline_client")
     protocols = []
     protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
     protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
@@ -88,7 +94,7 @@ def qualify(package):
             "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
         protocols.append(output)
         run(sys.executable, "-m", "mypy", str(output / "src"))
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, *protocols, *payload_bindings)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, permissions, *protocols, *payload_bindings)))
     run(sys.executable, "-m", "mypy", str(package / "src"))
     run(sys.executable, "-m", "mypy", str(dynamic / "src"))
     run(sys.executable, "-m", "mypy", str(extended / "src"))
@@ -98,6 +104,7 @@ def qualify(package):
     run(sys.executable, "-m", "mypy", str(behavior / "src"))
     run(sys.executable, "-m", "mypy", str(stream / "src"))
     run(sys.executable, "-m", "mypy", str(policy / "src"))
+    run(sys.executable, "-m", "mypy", str(permissions / "src"))
     vectors = package.parent / "protocol-tests"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance",
         "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", "--target", "python", "--out", str(vectors))

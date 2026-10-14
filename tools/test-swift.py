@@ -246,6 +246,59 @@ def qualify_features(output, scratch):
                         {"PROTOCOL": protocol}, "aws.protocols#" + protocol)
 
 
+def qualify_permissions(output, scratch):
+    """The typed permissions namespace, from a separate package, as a console would use it."""
+    generate(ROOT / "tests/fixtures/permissions", output / "leyline", "Leyline")
+    consumer = output / "permissions-consumer"
+    sources = consumer / "Sources/PermissionsConsumer"
+    sources.mkdir(parents=True, exist_ok=True)
+    (consumer / "Package.swift").write_text('''// swift-tools-version: 6.0
+import PackageDescription
+let package = Package(name: "PermissionsConsumer", platforms: [.macOS(.v12)],
+    dependencies: [.package(path: "../leyline")],
+    targets: [.executableTarget(name: "PermissionsConsumer", dependencies: [
+        .product(name: "Leyline", package: "leyline")])])
+''')
+    (sources / "Main.swift").write_text('''import Foundation
+import Leyline
+
+typealias GraphPermission = Leyline.Permissions.GraphPermission
+
+func check(_ ok: Bool, _ what: String) {
+    precondition(ok, what)
+}
+
+@main struct PermissionsConsumer {
+    static func main() throws {
+        check(GraphPermission.read.rawValue == "graph:read", "a known constant")
+        for value in ["graph:export", "organization:read"] {
+            let decoded = try JSONDecoder().decode([GraphPermission].self, from: Data("[\\"\\(value)\\"]".utf8))
+            check(decoded == [GraphPermission(rawValue: value)], "decoded \\(value)")
+            let encoded = String(decoding: try JSONEncoder().encode(decoded), as: UTF8.self)
+            check(encoded == "[\\"\\(value)\\"]", "\\(value) round-trips: \\(encoded)")
+            check(decoded[0].canonical() == decoded[0], "an unknown value is its own canonical")
+        }
+        check(GraphPermission.view.canonical() == .read, "an alias maps to its primary")
+        check(GraphPermission.write.canonical() == .write, "a primary is its own canonical")
+        check(Leyline.Permissions.HistoryPermission.restore.canonical() == .restore, "no aliases")
+        let registry = Leyline.Permissions.all
+        check(registry.map(\\.resourceType) == ["graph", "history", "org"], "resource types")
+        let known = Dictionary(uniqueKeysWithValues: registry.flatMap(\\.permissions).map { ($0.value, $0) })
+        let admin = known["organization:admin"]!
+        check(!admin.grantable && admin.tier == "notGrantable", "organization:admin is not grantable")
+        let view = known["graph:view"]!
+        check(view.aliasOf == "graph:read" && view.deprecated, "graph:view is a deprecated alias")
+        check(known["graph:read"]!.aliasOf == nil, "graph:read is a primary")
+        check(known["organization:read"] == nil, "an internal permission never appears")
+        // A grant picker's filter.
+        let picker = registry.flatMap(\\.permissions).filter { $0.grantable && !$0.deprecated }.map(\\.value)
+        check(picker == ["graph:audit", "graph:read", "graph:write", "history:read", "history:restore"], "picker \\(picker)")
+    }
+}
+''')
+    swift("run", consumer, scratch, "PermissionsConsumer")
+
+
 def qualify(output):
     package = output / "sdk"
     scratch = Path(os.environ.get("SWIFT_TEST_SCRATCH", output / "build")).resolve()
@@ -306,6 +359,7 @@ struct Fake: VoidSDK.HTTPTransport {
 }
 ''')
     swift("run", consumer, scratch, "Consumer")
+    qualify_permissions(output, scratch)
     renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
     renamed["shapes"]["example.weather#Weather"]["rename"] = {
         "example.weather#CitySummary": "String", "example.weather#CitySummaries": "OptionalValue",

@@ -1,4 +1,4 @@
-use crucible_codegen_go::{Options, emit};
+use crucible_codegen_go::{Options, emit, emit_without_permissions};
 use crucible_smithy::Model;
 
 #[test]
@@ -515,4 +515,100 @@ fn permissions_match_goldens() {
             "stale permission goldens {stale:?}; rerun with CRUCIBLE_BLESS=1"
         );
     }
+}
+
+/// The typed permissions fixture (`tests/fixtures/permissions`) projected for
+/// a client, as `crucible generate` lowers it.
+fn permissions_service() -> crucible_smithy::ir::Service {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let rendered = compiled.render();
+    let full = compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
+    crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
+}
+
+/// The fixture with a permission `{symbol}` added to `graph`, whose name
+/// the language spells like an existing one's.
+fn permissions_with(symbol: &str) -> crucible_smithy::ir::Service {
+    let mut service = permissions_service();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut twin = graph.permissions[0].clone();
+    twin.symbol = symbol.into();
+    twin.value = "graph:twin".into();
+    twin.alias_of = None;
+    graph.permissions.push(twin);
+    service
+}
+
+#[test]
+fn permission_constants_that_go_spells_alike_are_diagnosed() {
+    let options = Options {
+        module_path: "example.com/leyline".into(),
+        package_name: "leyline".into(),
+        endpoint: None,
+        content_sha256: false,
+    };
+    let constant = emit(&permissions_with("Read"), &options).err().unwrap();
+    assert!(
+        constant
+            .to_string()
+            .contains("spells the Go constant `GraphPermissionRead`"),
+        "{constant}"
+    );
+    // A package that embeds the client and never names a permission (the
+    // Terraform provider) neither checks the permissions nor ships them.
+    let embedded = emit_without_permissions(&permissions_with("Read"), &options).unwrap();
+    assert!(!embedded.iter().any(|f| f.path.starts_with("permissions/")));
+    // Without permissions there is no sub-package.
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/weather.json"
+    ))
+    .unwrap()
+    .lower(None)
+    .unwrap();
+    let files = emit(&service, &options).unwrap();
+    assert!(!files.iter().any(|f| f.path.starts_with("permissions/")));
+}
+
+/// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
+/// starts a word of the constant's name, since no client language allows
+/// one in a name (`constant_symbol`).
+#[test]
+fn hyphenated_permission_symbols_spell_words() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let full = compiled.service.expect("the fixture compiles");
+    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut hyphenated = graph.permissions[0].clone();
+    hyphenated.symbol = "mail-send".into();
+    hyphenated.value = "graph:mail-send".into();
+    graph.permissions.push(hyphenated);
+    let files = emit(
+        &service,
+        &Options {
+            module_path: "example.com/leyline".into(),
+            package_name: "leyline".into(),
+            endpoint: None,
+            content_sha256: false,
+        },
+    )
+    .unwrap();
+    let expected = r#"GraphPermissionMailSend"#;
+    assert!(
+        files.iter().any(|file| file.contents.contains(expected)),
+        "no file spells `mail-send` as {expected}"
+    );
 }

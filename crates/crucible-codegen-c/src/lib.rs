@@ -2,6 +2,7 @@
 mod client;
 pub mod models;
 mod names;
+mod permissions;
 
 use crucible_smithy::{
     Diagnostics,
@@ -125,6 +126,22 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             errors.push(&id, "C operation symbol collision");
         }
     }
+    // Permission symbols share C's one namespace with the models and
+    // operations: a model `GraphPermission` would declare what a resource
+    // `Graph`'s permission type does. Collected, never renamed.
+    for (id, symbol, what) in permissions::symbols(service, &options.prefix) {
+        if !names::identifier(&symbol) {
+            errors.push(
+                &id,
+                format!("{what} has no valid C symbol: `{symbol}` is not an identifier"),
+            );
+        } else if !symbols.insert(symbol.clone()) {
+            errors.push(
+                &id,
+                format!("{what} shares the C symbol `{symbol}` with another generated symbol"),
+            );
+        }
+    }
     for op in &service.operations {
         if op.method == "HEAD" && (!op.request.body.is_empty() || op.request.payload.is_some()) {
             errors.push(&op.id, "C transport cannot send a HEAD request body");
@@ -172,6 +189,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let schema = serde_json::to_string(&crucible_codegen_common::schema(service, names::field))
         .expect("schema");
     files.extend(client::emit(service, options, &schema));
+    files.extend(permissions::emit(service, options));
     for (name, source) in [
         ("types.h", include_str!("../runtime/types.h")),
         ("internal.h", include_str!("../runtime/internal.h")),
