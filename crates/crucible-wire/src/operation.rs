@@ -475,6 +475,10 @@ impl Protocol {
 pub struct Pagination {
     pub input_token: PaginationMember,
     pub page_size: Option<PaginationMember>,
+    /// Whether the input token is a map rather than a string (Smithy allows
+    /// either): a server extension that seals string tokens refuses such an
+    /// operation instead of reading its token as absent.
+    pub input_token_map: bool,
 }
 
 /// A top-level input member, named as the model names it (a validation

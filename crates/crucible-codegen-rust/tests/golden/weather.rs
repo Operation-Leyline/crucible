@@ -935,7 +935,7 @@ pub mod weather {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
         const OPTIONAL_AUTH: bool = false;
-        const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination { input_token: ::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "nextToken", wire_name: "nextToken" }, page_size: ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "maxResults", wire_name: "maxResults" }) });
+        const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination { input_token: ::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "nextToken", wire_name: "nextToken" }, page_size: ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "maxResults", wire_name: "maxResults" }), input_token_map: false });
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_CITIES_OPERATION;
         type Input = model::ListCitiesInput;
         type Output = model::ListCitiesOutput;

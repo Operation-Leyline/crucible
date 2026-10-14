@@ -133,3 +133,35 @@ fn scaffold_aliases_all_conflicting_runtime_and_implementation_imports() {
             .contains("input: Result) -> ServerResult_2<ServerResult>")
     );
 }
+
+#[test]
+fn pagination_says_whether_the_input_token_is_a_map() {
+    // Smithy allows a map token (a composite database key); a server
+    // extension that seals string tokens refuses one at build.
+    let marker = |ast: &Value| {
+        let service = Model::from_json(&ast.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let code = generate(&service, &Options::default()).unwrap();
+        let start = code.find("Pagination { input_token").unwrap();
+        code[start..start + code[start..].find('\n').unwrap()].to_owned()
+    };
+    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
+    assert!(marker(&ast).contains("input_token_map: false"));
+
+    let shapes = &mut ast["shapes"];
+    shapes["example.weather#TokenMap"] = json!({
+        "type": "map",
+        "key": {"target": "smithy.api#String"},
+        "value": {"target": "smithy.api#String"}
+    });
+    let list = &mut shapes["example.weather#ListCities"]["traits"];
+    list["smithy.api#http"] = json!({"method": "POST", "uri": "/cities/search"});
+    list.as_object_mut().unwrap().remove("smithy.api#examples");
+    shapes["example.weather#ListCitiesInput"]["members"]["nextToken"] =
+        json!({"target": "example.weather#TokenMap"});
+    shapes["example.weather#ListCitiesOutput"]["members"]["nextToken"] =
+        json!({"target": "example.weather#TokenMap"});
+    assert!(marker(&ast).contains("input_token_map: true"));
+}

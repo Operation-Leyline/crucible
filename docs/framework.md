@@ -478,10 +478,20 @@ let next_token = last.map(|key| page_tokens::issue(&key)).transpose()?;
   whichever protocol or binding carried them. The page size may change
   between pages.
 - **Expiring.** The expiry is sealed inside: 24 hours, or
-  `PageTokens::ttl`. A change applies to tokens issued after it.
+  `PageTokens::ttl`, from one second to 30 days in whole seconds (`build`
+  refuses any other). A change applies to tokens issued after it, so
+  lowering it revokes nothing already issued.
 - **Rotatable.** A token names its key. `PageKeys::accept` keeps a retired
   key opening the tokens it sealed while the current key seals new ones;
-  drop it after one token lifetime.
+  drop it after one token lifetime. Rotating means a new secret: a key
+  whose secret another key already uses is refused (`ReusedSecret`), since
+  it would be the same key under a new name. Dropping a key is the only way
+  to revoke the tokens it sealed. The secret must be random (32 bytes from
+  a CSPRNG), not a password: its length is checked, its randomness cannot
+  be.
+- **Bounded.** A cursor is at most 4096 bytes (`issue` of a longer one is
+  an internal error), and a token longer than the longest one `issue`
+  writes is refused before it is decoded.
 
 The interceptor opens the request's token before the operation runs; with
 typed permissions, register it after `Permissions`, so a refused request is
@@ -492,7 +502,13 @@ naming the token member (`fieldValidationFailed`), never echoing the token.
 of its own. Operations that are not `@paginated` pass through untouched;
 `resume` and `issue` called from one are an internal error. The generated
 `Operation::PAGINATION` (on `OperationMetadata::pagination`) names the
-token and page size members it reads.
+token and page size members it reads, and says whether the token is a map:
+Smithy allows one, but a sealed token is a string, so `build` refuses
+`PageTokens` for an operation whose token is a map (leave it out of the
+interceptor's scope). At an older API version the interceptor reads the
+current version's input, so the members are the current ones: a token a
+migration renamed still resumes the listing, and a version from before the
+operation was paginated gets its first page.
 
 ### Idempotency tokens
 

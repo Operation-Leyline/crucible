@@ -627,8 +627,13 @@ fn pagination_items(service: &Service, op: &Operation) -> String {
         .map_or("::std::option::Option::None".to_owned(), |name| {
             format!("::std::option::Option::Some({})", member(name))
         });
+    // crucible-smithy accepts a string or a map token.
+    let token_map = input
+        .and_then(|s| s.member(&paginated.input_token))
+        .and_then(|m| service.shape(&m.target))
+        .is_some_and(|shape| matches!(shape, Shape::Map(_)));
     format!(
-        "    const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination {{ input_token: {}, page_size: {page_size} }});
+        "    const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination {{ input_token: {}, page_size: {page_size}, input_token_map: {token_map} }});
 ",
         member(&paginated.input_token)
     )

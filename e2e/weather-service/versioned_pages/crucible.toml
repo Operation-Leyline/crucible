@@ -1,0 +1,15 @@
+# Sealed page tokens across API versions: v1 is frozen under releases/; v2
+# renames ListThings' token and pages ListTags, which v1 did not.
+[model]
+namespace = "test.versioned_pages"
+imports = ["crucible.errors"]
+
+[model.baseline]
+path = "releases/v1.json"
+
+# Renaming a token changes the pagination contract, which no migration step
+# declares; the rename step converts the member itself.
+[[exceptions]]
+rule = "compatibility.pagination"
+shape = "test.versioned_pages#ListThings"
+reason = "v2 renamed the token; the migration converts it for v1 callers"

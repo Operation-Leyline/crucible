@@ -358,8 +358,12 @@ where
         // reads the current version's output, which converts down as the
         // operation's own would. A version whose model had no token cannot
         // send one, so its requests run unclaimed. Requirements bind the
-        // current input, so they are the current version's too.
+        // current input, so they are the current version's too, and so are
+        // the pagination members: an older request's token arrives under
+        // the current member's name, and a version from before the
+        // operation was paginated still reaches an operation that is.
         metadata: OperationMetadata {
+            pagination: serving.metadata.pagination,
             idempotency_token: serving.metadata.idempotency_token,
             idempotency_token_sent: Old::IDEMPOTENCY_TOKEN.is_some()
                 && serving.metadata.idempotency_token.is_some(),
@@ -393,7 +397,7 @@ mod tests {
     use super::{entry, versioned_entry};
     use crate::error::ModelledError;
     use crate::operation::{
-        Operation, OperationInfo, OutputFromJson, PaginationMember, ServiceInfo, Unit,
+        Operation, OperationInfo, OutputFromJson, Pagination, PaginationMember, ServiceInfo, Unit,
     };
     use crate::permissions::{Checks, Requirements};
 
@@ -487,6 +491,52 @@ mod tests {
         // operation's own would.
         assert!(since.metadata.replays_output);
         assert!(since.output_from_json.is_some());
+    }
+
+    /// The current version pages by `pageToken`.
+    struct Paged;
+    impl Operation for Paged {
+        const INFO: &'static OperationInfo = &INFO;
+        const PAGINATION: Option<Pagination> = Some(Pagination {
+            input_token: PaginationMember {
+                name: "pageToken",
+                wire_name: "pageToken",
+            },
+            page_size: None,
+            input_token_map: false,
+        });
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    /// An older version that called the token `nextToken` (a migration
+    /// renamed it).
+    struct Renamed;
+    impl Operation for Renamed {
+        const INFO: &'static OperationInfo = &INFO;
+        const PAGINATION: Option<Pagination> = Some(Pagination {
+            input_token: PaginationMember {
+                name: "nextToken",
+                wire_name: "nextToken",
+            },
+            page_size: None,
+            input_token_map: false,
+        });
+        type Input = Unit;
+        type Output = Unit;
+    }
+
+    #[test]
+    fn an_older_version_pages_by_the_current_members() {
+        let current = entry::<Paged, (), _>(Arc::new(()), |_, _| std::future::ready(Ok(Unit {})));
+        // The interceptors read the token from the upgraded input, which
+        // names it as the current version does.
+        let renamed = versioned_entry::<Renamed, Paged>(&current, &SERVICE, &[], Arc::default());
+        assert_eq!(renamed.metadata.pagination, Paged::PAGINATION);
+        // A version from before the operation paged still reaches one that
+        // does, whose implementation asks for its cursor.
+        let unpaged = versioned_entry::<Untokened, Paged>(&current, &SERVICE, &[], Arc::default());
+        assert_eq!(unpaged.metadata.pagination, Paged::PAGINATION);
     }
 
     #[test]
