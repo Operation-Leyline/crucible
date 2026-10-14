@@ -33,7 +33,8 @@ impl MemoryIdempotencyStore {
         self.unavailable.store(unavailable, Ordering::SeqCst);
     }
 
-    /// The records kept, expired ones included until a claim replaces them.
+    /// The records kept. Expired ones are swept by the next claim, as a
+    /// store's TTL deletes them.
     pub fn len(&self) -> usize {
         self.lock().len()
     }
@@ -100,6 +101,9 @@ impl IdempotencyStore for MemoryIdempotencyStore {
     ) -> Result<Claim> {
         self.available()?;
         let mut records = self.lock();
+        // Expired records are as good as absent; dropping them keeps a
+        // long-running test process from growing without bound.
+        records.retain(|_, record| record.expires > now);
         if let Some(record) = records.get(key)
             && record.expires > now
         {
@@ -282,6 +286,24 @@ mod tests {
         store.forget(&key("u"));
         let deleted = store.hold(&key("u"), "a4", at(500)).await;
         assert_eq!(deleted.unwrap(), Ownership::Lost);
+    }
+
+    #[tokio::test]
+    async fn a_claim_sweeps_expired_records() {
+        let store = MemoryIdempotencyStore::new();
+        let print = Fingerprint::of(&json!({}));
+        for token in ["t", "u"] {
+            store
+                .claim(&key(token), &print, "a1", at(0), at(60))
+                .await
+                .unwrap();
+        }
+        assert_eq!(store.len(), 2);
+        store
+            .claim(&key("v"), &print, "a2", at(60), at(120))
+            .await
+            .unwrap();
+        assert_eq!(store.len(), 1, "only the unexpired record is kept");
     }
 
     #[tokio::test]

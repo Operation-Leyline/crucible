@@ -36,6 +36,11 @@ use crate::Result;
 ///   condition is `Ownership::Lost`, not an error.
 /// - `expires`, in epoch seconds, doubles as the TTL attribute.
 ///
+/// A method may run outside the request's task: the settlement of a request
+/// that was dropped, and retries of a settlement that failed, run on tasks
+/// of their own, where [`Context::try_current`](crate::Context::try_current)
+/// is `None`. A store must not depend on the request context.
+///
 /// An `Err` from any method is an outage: the request fails with the
 /// service's sanitized internal error, never as if the claim had succeeded.
 /// Errors reach the service log, so they must not carry the token.

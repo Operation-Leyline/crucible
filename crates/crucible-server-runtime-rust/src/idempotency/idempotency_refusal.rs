@@ -17,17 +17,24 @@ pub enum IdempotencyRefusal {
     /// with other input.
     Mismatch,
     /// The token's first request is still running, so there is nothing to
-    /// replay yet.
+    /// replay yet. Also the answer while a request's outcome could not be
+    /// recorded (the store failed), until its claim expires.
     InFlight,
-    /// This request's own claim lapsed before it reached its point of no
+    /// This request's own claim lapsed before it reached a point of no
     /// return ([`commit`](super::commit)): it ran longer than the lease, and
     /// another attempt may have taken the token. It must not take the
-    /// irreversible step.
+    /// irreversible step; what it did before may have taken effect.
     Lapsed,
     /// The token's first request succeeded, but its response cannot be
-    /// replayed: the operation's response changed since (a deploy changed
-    /// the API version or the output's shape).
+    /// replayed: it was too large to keep, or could not be written, or the
+    /// operation's response changed since (a deploy changed the API version
+    /// or the output's shape).
     Unreplayable,
+    /// The token's first request failed, or stopped, after its point of no
+    /// return ([`commit`](super::commit)), so it may have taken effect and
+    /// is not run again: the caller checks whether it did before sending a
+    /// new token.
+    Failed,
 }
 
 impl IdempotencyRefusal {
@@ -47,10 +54,13 @@ impl IdempotencyRefusal {
                 "a request with this idempotency token is still in progress, so its response cannot be replayed yet; retry after it finishes"
             }
             Self::Lapsed => {
-                "this request took longer than its idempotency claim lasts, so it stopped before changing anything; retry with the same token"
+                "this request took longer than its idempotency claim lasts, so it was stopped before its irreversible step; retry with the same token"
             }
             Self::Unreplayable => {
-                "a request with this idempotency token succeeded, but its response cannot be replayed because the operation's response has changed since; send a new token for a new request"
+                "a request with this idempotency token succeeded, but its response cannot be replayed (it was not kept, or the operation's response has changed since); send a new token for a new request"
+            }
+            Self::Failed => {
+                "a request with this idempotency token failed after it may have taken effect, so it is not run again; check whether it took effect before sending a new token"
             }
         }
     }
@@ -65,7 +75,7 @@ impl IdempotencyRefusal {
             Self::Missing { member } | Self::Invalid { member } => {
                 Rejection::constraint(member, self.message()).into()
             }
-            Self::Mismatch | Self::InFlight | Self::Lapsed | Self::Unreplayable => {
+            Self::Mismatch | Self::InFlight | Self::Lapsed | Self::Unreplayable | Self::Failed => {
                 FrameworkError::Conflict {
                     message: self.message(),
                 }
@@ -100,6 +110,7 @@ mod tests {
             IdempotencyRefusal::InFlight,
             IdempotencyRefusal::Lapsed,
             IdempotencyRefusal::Unreplayable,
+            IdempotencyRefusal::Failed,
         ] {
             let error = refusal.default_error();
             let conflict = error.downcast_ref::<FrameworkError>().expect("a conflict");

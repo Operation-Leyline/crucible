@@ -552,14 +552,17 @@ For every operation with a token, before the operation runs:
   409 saying the response changed, not a 500.
 - **Refused.** The same token with a different fingerprint is a 409
   `ConflictException`, and so is the same request while the first is still
-  running: it cannot be replayed yet, and the message says so.
+  running (it cannot be replayed yet), or after the first failed past its
+  point of no return (it may have taken effect, so it is not run again).
+  The message says which.
 - **Released.** When the operation fails before its point of no return (or
   after abandoning it, below), its claim is removed and a retry runs it
-  again.
+  again. So is the claim of a request that ends without finishing before
+  that point, such as one dropped when its client disconnects.
 
 `Idempotency::refusal_factory` builds a service's own errors from an
 `IdempotencyRefusal` (`Missing`, `Invalid`, `Mismatch`, `InFlight`, `Lapsed`,
-`Unreplayable`), say a modelled `ConflictException` with a `reason`;
+`Unreplayable`, `Failed`), say a modelled `ConflictException` with a `reason`;
 `IdempotencyRefusal::default_error` answers the cases a factory leaves alone.
 The error must be declared by the operation or the service. Without a factory
 the conflicts are `FrameworkError::Conflict`, a framework error like
@@ -578,14 +581,18 @@ mailer.send(&message).await?;      // failing from here: the claim stays, a retr
 outbox.record(&message).await?;
 ```
 
-From then on a failure keeps the claim in flight for the whole retention, so
-a retry is a 409 rather than a second email, and the failure is logged. The
-claim is extended in the store before `commit` returns, so a crash after the
-step is covered too. An error from `commit` means the step must not be taken:
-the store could not record the claim (an internal error), or the request ran
-past its lease and no longer holds its claim (`IdempotencyRefusal::Lapsed`, a
-409), since a retry may have taken the token over and be running the
-operation itself.
+From then on a failure is recorded for the whole retention, so a retry is a
+409 saying the first request failed after it may have taken effect
+(`IdempotencyRefusal::Failed`) rather than a second email, and the failure is
+logged. The client checks whether it took effect before sending a new token.
+The claim is extended in the store before `commit` returns, so a crash after
+the step is covered too. An error from `commit` means the step must not be
+taken: the store could not record the claim (an internal error), or the
+request ran past its lease and no longer holds its claim
+(`IdempotencyRefusal::Lapsed`, a 409), since a retry may have taken the token
+over and be running the operation itself. Call `commit` before each such
+step: every call writes to the store, so each finds out whether the claim is
+still the request's.
 
 **Abandoning the step.** Sometimes the step fails in a way that proves it
 did not happen: the provider answered with an explicit refusal (throttled,
@@ -610,52 +617,113 @@ if let Err(error) = mailer.send(&message).await {
 outbox.record(&message).await?;
 ```
 
+`abandon` takes back only the latest `commit`. An operation with several
+irreversible steps commits before each; when the second is refused and
+abandoned, the first still happened, so its commit stands and a failure
+keeps the claim:
+
+```rust
+idempotency::commit().await?;
+mailer.send(&receipt).await?;        // happened
+idempotency::commit().await?;
+if let Err(error) = billing.charge(&card).await {
+    if error.nothing_charged() {
+        idempotency::abandon()?;     // takes back the charge's commit only
+    }
+    return Err(error.into());        // the receipt went out: a retry is refused
+}
+```
+
 `abandon` changes only what a failure does: an operation that succeeds after
 it completes as usual, and its retries replay the success. It makes no store
 call; the claim is released when the request finishes, so a retry that
 arrives while the operation still runs is refused as in flight. If the
 process stops after `abandon` but before the request finishes, the claim
 stays held as committed and retries are refused until the retention ends,
-the conservative outcome. `abandon` without a prior `commit` does nothing (a
+the conservative outcome. `abandon` with no commit standing does nothing (a
 failure releases the claim anyway), and a `commit` after it commits again.
 Both do nothing for a request that runs unclaimed (no token where
 `optional_tokens` allows it, or an API version without one), and both are an
 internal error when `Idempotency` is not installed or the operation has no
 token.
 
-**Leases, cancellation and the window.** A claim that is never settled stays
-in flight until its lease lapses: 15 minutes (`Idempotency::lease`), and
-never past the request's deadline plus a minute, since the framework stops
-the operation at its deadline. That happens when the process stops, and on
-the HTTP host whenever the client disconnects: hyper drops the request's
-future, and with it the operation, wherever it was. (A Lambda invocation is
-not cancelled by its client disconnecting.) Until the lease lapses a retry is
-refused as in flight; after it, the retry runs the operation again. So the
-lease bounds the window in which a dropped attempt's work can be repeated,
-and a write made before `commit` is the work that can be: put `commit` before
-every step that must not happen twice. Set the lease above the longest an
-operation runs. One that outlives its lease is stopped at its `commit`, and
-whatever it does after a lapsed claim (completing a success, releasing a
-failure) changes nothing in the store and is logged.
+**Cancellation.** On the HTTP host a client that disconnects ends its
+request: hyper drops the request's future, and with it the operation,
+wherever it was. (A Lambda invocation is not cancelled by its client
+disconnecting.) The claim is the request's drop guard: when the request
+ends without settling it, the claim is settled in the background, as a
+failure would have settled it. With no commit standing it is released, so
+the SDK's retry with the same token runs at once; past a `commit` it is
+recorded as failed. So is a claim whose own store call failed or timed out:
+the write may have landed, so it is released (each settlement is
+conditional on the attempt, so a claim another attempt holds is never
+touched). A panic in the operation, or the request's deadline, is a failure
+like any other: the after phases settle the claim. The guard knows only the
+commits, not the outcome: a request dropped after its operation returned a
+success but before `Idempotency`'s after hook stored it settles as a failure
+would, so an operation that never committed runs again on the retry. One
+more reason to `commit` before every write that must not happen twice.
+
+**Leases and the window.** A claim that is never settled stays in flight
+until its lease lapses: 15 minutes (`Idempotency::lease`), and never past
+the request's deadline plus a minute, since the framework stops the
+operation at its deadline. That happens when the process stops, or when the
+background settlement of a dropped request cannot reach the store. Until the
+lease lapses a retry is refused as in flight; after it, the retry runs the
+operation again. So the lease bounds the window in which a lost attempt's
+work can be repeated, and a write made before `commit` is the work that can
+be: put `commit` before every step that must not happen twice. Set the lease
+above the longest an operation runs. One that outlives its lease is stopped
+at its `commit`, and whatever it does after a lapsed claim (completing a
+success, releasing a failure) changes nothing in the store and is logged.
+
+**Store calls are bounded.** Each store call may take 5 seconds
+(`Idempotency::store_timeout`); past that it counts as failed. A claim that
+times out is the service's internal error, and its record, should the write
+have landed, is released. The settlement after the operation runs in the
+after phases, outside the request's deadline, so the bound is what keeps a
+store that stops answering from holding the response; it falls back as a
+failed write does.
 
 **Retention.** A success replays for 24 hours (`Idempotency::retention`), the
 API standard's minimum being the lesser of 8 hours and the resource's
-lifetime plus an hour. A success the store cannot keep is held in flight for
-the retention instead, so a retry is refused rather than run again, and the
-service log says why: when the completion write fails (the success still
-stands), or when the response's JSON form is larger than
+lifetime plus an hour. A success whose response the store cannot keep is
+recorded without it for the retention, so a retry is refused as
+`Unreplayable` (it succeeded, and cannot be replayed) rather than run again,
+and the service log says why: when the completion write fails (the success
+still stands), or when the response's JSON form is larger than
 `Idempotency::max_stored_response` (256 KiB by default; DynamoDB items stop at
-400 KB). Any other store error is an outage: the service's sanitized internal
-error, never a duplicate run and never a refusal.
+400 KB). When that record cannot be written either, the claim is held in
+flight for the retention, and when even that fails, both are tried again in
+the background for up to half a minute inside the claim's lease, best effort
+(a Lambda environment frozen after its response does not run them); only
+then can a retry after the lease run the succeeded operation again. A
+failure past a commit whose note cannot be written is retried the same way
+(the commit already holds the claim). Any other store error is an outage: the
+service's sanitized internal error, never a duplicate run and never a
+refusal.
 
-**What is stored.** The stored output is the whole output, `@sensitive`
-members included: a secret shown once (an API key at creation, say) sits in
-the store for the retention and is shown again to a retry. Protect the store
-accordingly, or leave such an operation without a token (or out of
-`Idempotency` with `.except(&[..])`). When `Permissions` covers the
+**What is stored.** The stored output is the whole output as JSON text,
+`@sensitive` members included, in plaintext: a secret shown once (an API key
+at creation, say) sits in the store for the retention and is shown again to
+a retry. Protect the store accordingly (encryption at rest, narrow access),
+or leave such an operation without a token (or out of `Idempotency` with
+`.except(&[..])`). When `Permissions` covers the
 operation, the record also keeps (as `authorization`) the handler checks
 the Authorizer allowed: each check's permission, resource and identifiers,
 no grants or principals.
+
+**What a replay is not.** A replay is the stored output encoded afresh, not
+the first response's bytes. Headers an extension added outside the output
+(a middleware's or interceptor's own response headers) are what the
+retry's extensions add, not the first response's: an interceptor registered
+after `Idempotency` does not run for a replay at all. And the record is written in `Idempotency`'s own
+after hook, from the current version's outcome: extensions registered before
+it unwind afterwards, and an older API version's conversion runs after
+that, so an outer after hook or a conversion that turns the success into an
+error does not change the record, and a retry replays the success. Do such
+checks in the operation, or in an interceptor registered after
+`Idempotency`.
 
 **Ordering.** The claim is taken in the interceptor phase. Authentication
 middleware runs before it, and so does any authorization interceptor
@@ -683,7 +751,10 @@ record wins, else this attempt's in-flight record is written, answering
 `Claim::Fresh`, `Claim::Replay { fingerprint, response }` or
 `Claim::InFlight { fingerprint }`), `hold` (extend an in-flight claim),
 `complete` (keep the `StoredResponse` until the retention ends) and
-`release`. Each claim names its attempt; `hold`, `complete` and `release`
+`release`. The `StoredResponse` is usually the success's output, and
+otherwise a note that there is nothing to replay (the attempt failed past its
+point of no return, or its response was not kept); it is opaque to the
+store, which keeps its text. Each claim names its attempt; `hold`, `complete` and `release`
 change a record only while it is still that attempt's in-flight record, and
 answer `Ownership::Lost` otherwise, so an attempt whose claim lapsed never
 settles a later one's. On DynamoDB, `claim` is a single conditional
@@ -692,7 +763,10 @@ settles a later one's. On DynamoDB, `claim` is a single conditional
 record in the same call; reading it afterwards with `GetItem` is not atomic.
 The other three are conditional on the attempt, and a failed condition is
 `Lost`, not an error. `IdempotencyKey::digest` is a fixed-length partition
-key; `Fingerprint::to_hex` and `from_hex` store the fingerprint as text. The
+key; `Fingerprint::to_hex` and `from_hex` store the fingerprint as text. A store
+method may run outside the request's task (a dropped request's settlement,
+and retries of a failed one, run on tasks of their own, logging in the
+request's span), so a store must not depend on `Context::current()`. The
 `test-support` feature adds `MemoryIdempotencyStore` for tests.
 
 **What it covers.** Operations without a token pass through untouched. An
@@ -704,7 +778,10 @@ output that does not stream get. A streaming input cannot be fingerprinted
 (its bytes are not in the decoded input), so a retry with other bytes would
 replay the first; building a service whose `Idempotency` covers an operation
 with a streaming input or output therefore fails, naming it: leave it out
-with `.except(&[..])`. `DecodedJob::replay_output` is the framework hook the
+with `.except(&[..])`. One request has one idempotency claim: two
+`Idempotency` interceptors whose scopes both cover an operation answer its
+requests with the service's internal error (scope them apart with
+`.only(&[..])` and `.except(&[..])`). `DecodedJob::replay_output` is the framework hook the
 replay uses: it ends an invocation with an output read from its JSON form,
 which the protocol then encodes as if the operation had returned it.
 

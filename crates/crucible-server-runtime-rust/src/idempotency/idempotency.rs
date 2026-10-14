@@ -1,11 +1,11 @@
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant, SystemTime};
 
 use serde_json::Value;
 
-use super::attempt::{Attempt, Clock, HeldClaim, RefusalFactory, after};
+use super::attempt::{Attempt, ClaimConfig, Clock, HeldClaim, RefusalFactory, after, bounded};
 use super::store_unavailable::StoreUnavailable;
+use super::stored_response::Recorded;
 use super::{Claim, Fingerprint, IdempotencyKey, IdempotencyRefusal, IdempotencyStore};
 use crate::operation::{Location, OperationInfo};
 use crate::{Context, DecodedJob, Hook, Interceptor, OperationJob, Outcome, Prepare, Result};
@@ -16,7 +16,7 @@ use crate::{Context, DecodedJob, Hook, Interceptor, OperationJob, Outcome, Prepa
 const DEFAULT_RETENTION: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// How long a claim stays in flight when its request never settles it (the
-/// process stopped, or the request was dropped): Lambda's longest
+/// process stopped, or a dropped request's settlement failed): Lambda's longest
 /// invocation, so no attempt still running loses its claim to a retry.
 const DEFAULT_LEASE: Duration = Duration::from_secs(15 * 60);
 
@@ -27,6 +27,10 @@ const DEADLINE_GRACE: Duration = Duration::from_secs(60);
 /// The largest response an idempotency record keeps by default: well under
 /// DynamoDB's 400 KB item limit, with room for the record's other fields.
 const DEFAULT_MAX_STORED: usize = 256 * 1024;
+
+/// How long one store call may take before it counts as an outage: well
+/// above a database's ordinary latency, well below a request's patience.
+const DEFAULT_STORE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The longest token accepted. SDKs send a UUID (36 characters); a longer
 /// token only costs storage and log space.
@@ -52,6 +56,7 @@ pub struct Idempotency {
     retention: Duration,
     lease: Duration,
     max_stored: usize,
+    store_timeout: Duration,
     required: bool,
     clock: Clock,
 }
@@ -76,21 +81,23 @@ impl Idempotency {
             retention: DEFAULT_RETENTION,
             lease: DEFAULT_LEASE,
             max_stored: DEFAULT_MAX_STORED,
+            store_timeout: DEFAULT_STORE_TIMEOUT,
             required: true,
             clock: Arc::new(SystemTime::now),
         }
     }
 
     /// How long a completed request's output answers its retries, and how
-    /// long a claim past its point of no return, or a success that could not
-    /// be stored, stays in flight. 24 hours by default.
+    /// long a failure past its point of no return, or a success whose
+    /// response could not be stored, is refused. 24 hours by default.
     pub fn retention(mut self, retention: Duration) -> Self {
         self.retention = retention;
         self
     }
 
-    /// How long a claim stays in flight when nothing settles it: a request
-    /// dropped mid-operation, or a process that stopped. A retry is refused
+    /// How long a claim stays in flight when nothing settles it: a process
+    /// that stopped, or a dropped request whose background settlement could
+    /// not reach the store. A retry is refused
     /// as in flight until then. 15 minutes by default, and never past the
     /// request's deadline plus a minute, since the framework stops the
     /// operation at its deadline. Set it above the longest an operation
@@ -103,11 +110,23 @@ impl Idempotency {
     }
 
     /// The largest response a record keeps, in bytes of its JSON form;
-    /// 256 KiB by default. A larger success is not stored: its claim is held
-    /// in flight for the retention, so a retry is refused rather than run
-    /// again, and the service log says why.
+    /// 256 KiB by default. A larger success is not stored: the record notes
+    /// the success without it for the retention, so a retry is refused as
+    /// [`IdempotencyRefusal::Unreplayable`] rather than run again, and the
+    /// service log says why.
     pub fn max_stored_response(mut self, bytes: usize) -> Self {
         self.max_stored = bytes;
+        self
+    }
+
+    /// How long one store call may take; 5 seconds by default. Past it the
+    /// call counts as failed: a claim is the service's internal error (and
+    /// its record, should the write have landed, is released in the
+    /// background), and a settlement after the operation is logged and
+    /// falls back as a failed write does. It bounds the after phases too,
+    /// which run outside the request's deadline.
+    pub fn store_timeout(mut self, timeout: Duration) -> Self {
+        self.store_timeout = timeout;
         self
     }
 
@@ -158,40 +177,58 @@ impl Idempotency {
         fingerprint: Fingerprint,
     ) -> Result<()> {
         let now = (self.clock)();
-        let attempt = uuid::Uuid::new_v4().to_string();
-        let expires = after(now, self.lease_for(job.context()));
-        let claim = self
-            .store
-            .claim(&key, &fingerprint, &attempt, now, expires)
-            .await
-            .map_err(|error| crate::Error::new(StoreUnavailable(error)))?;
         let api_version = job.service().version;
+        let lease = self.lease_for(job.context());
+        let expires = after(now, lease);
+        // Made before the store is asked, so a claim whose call fails, times
+        // out or is dropped with the request is released by its drop guard:
+        // the write may have landed.
+        let held = Arc::new(HeldClaim::new(
+            ClaimConfig {
+                store: self.store.clone(),
+                retention: self.retention,
+                max_stored: self.max_stored,
+                timeout: self.store_timeout,
+                lease,
+                refusal: self.refusal.clone(),
+                clock: self.clock.clone(),
+            },
+            key,
+            uuid::Uuid::new_v4().to_string(),
+            api_version,
+        ));
+        let claim = bounded(
+            self.store_timeout,
+            self.store
+                .claim(held.key(), &fingerprint, held.attempt(), now, expires),
+        )
+        .await
+        .map_err(|error| crate::Error::new(StoreUnavailable(error)))?;
+        if claim == Claim::Fresh {
+            job.context().set_attribute(Attempt { claim: Some(held) });
+            return Ok(());
+        }
+        held.disown();
         match claim {
-            Claim::Fresh => {
-                job.context().set_attribute(Attempt {
-                    claim: Some(Arc::new(HeldClaim {
-                        store: self.store.clone(),
-                        key,
-                        attempt,
-                        retention: self.retention,
-                        max_stored: self.max_stored,
-                        api_version,
-                        refusal: self.refusal.clone(),
-                        clock: self.clock.clone(),
-                        committed: AtomicBool::new(false),
-                    })),
-                });
-                Ok(())
-            }
             Claim::Replay {
                 fingerprint: earlier,
                 response,
             } if earlier == fingerprint => {
-                // A response written before a deploy that changed the
-                // operation's response cannot be replayed faithfully; the
-                // caller is told so rather than given a 500.
-                let Some((output, authorization)) = response.unwrap(api_version) else {
-                    return Err((self.refusal)(IdempotencyRefusal::Unreplayable));
+                let (output, authorization) = match response.read(api_version) {
+                    Recorded::Output {
+                        output,
+                        authorization,
+                    } => (output, authorization),
+                    Recorded::Failed => {
+                        return Err((self.refusal)(IdempotencyRefusal::Failed));
+                    }
+                    // A response not kept, or written before a deploy that
+                    // changed the operation's response, cannot be replayed
+                    // faithfully; the caller is told so rather than given a
+                    // 500.
+                    Recorded::Unkept | Recorded::Unreadable => {
+                        return Err((self.refusal)(IdempotencyRefusal::Unreplayable));
+                    }
                 };
                 // The declared checks were made again by `Permissions`,
                 // which runs first; the handler checks the first success
@@ -215,6 +252,7 @@ impl Idempotency {
                 fingerprint: earlier,
             } if earlier != fingerprint => Err((self.refusal)(IdempotencyRefusal::Mismatch)),
             Claim::InFlight { .. } => Err((self.refusal)(IdempotencyRefusal::InFlight)),
+            Claim::Fresh => unreachable!("a fresh claim is held above"),
         }
     }
 }
@@ -243,6 +281,15 @@ impl Interceptor for Idempotency {
         let Some(member) = metadata.idempotency_token else {
             return Hook::Ready(Ok(()));
         };
+        // One request has one idempotency state: a second `Idempotency`
+        // covering the operation would take it over, and the first's claim
+        // would never be settled.
+        if job.context().attribute::<Attempt>().is_some() {
+            return Hook::Ready(Err(crate::Error::internal(format!(
+                "two Idempotency interceptors cover {}; scope them apart with `.only(&[..])` or `.except(&[..])`",
+                job.operation().name
+            ))));
+        }
         if !metadata.idempotency_token_sent {
             // An older API version without the token: its clients cannot
             // send one, so its requests run as they always did.
@@ -303,15 +350,17 @@ impl Interceptor for Idempotency {
             Some(Outcome::Output(output)) => Some(output.to_json()),
             _ => None,
         };
-        Hook::wait(async move { claim.finish(output, authorization).await })
+        Hook::wait(claim.finish(output, authorization))
     }
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         // Records the registration order for `Permissions`, which refuses
         // to follow.
         prepare.builtin("idempotency", "permissions");
-        if self.retention.is_zero() || self.lease.is_zero() {
-            return Err("an idempotency retention and lease must be positive".to_owned());
+        if self.retention.is_zero() || self.lease.is_zero() || self.store_timeout.is_zero() {
+            return Err(
+                "an idempotency retention, lease and store timeout must be positive".to_owned(),
+            );
         }
         let tokened = |operation: &&'static OperationInfo| {
             prepare
