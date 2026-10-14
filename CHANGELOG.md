@@ -55,8 +55,15 @@ version's section when it is prepared.
   rotation), bound to the service, operation, caller and filters, and expire
   after 24 hours (`ttl`). Nothing is stored. A token that does not open is
   the service's validation error naming the token member, or what
-  `PageTokens::refusal` builds. Generated server operations carry
-  `Operation::PAGINATION`, the token and page size members, also on
+  `PageTokens::refusal` builds. The lifetime is from one second to 30
+  days; a cursor is at most 4096 bytes, and a longer token is refused
+  before it is decoded. Rotating needs a new secret: `PageKeys::accept`
+  refuses one another key uses (`PageKeyError::ReusedSecret`;
+  `PageKeyError` is `#[non_exhaustive]`). `build` refuses `PageTokens` for
+  an operation whose token is a map. At an older API version the token is
+  read from the current version's input members. Generated server
+  operations carry `Operation::PAGINATION`, the token and page size
+  members and whether the token is a map, also on
   `OperationMetadata::pagination`. See
   [docs/framework.md](docs/framework.md#pagination-tokens).
 

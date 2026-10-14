@@ -22,6 +22,20 @@ const NONCE: usize = 24;
 const TAG: usize = 16;
 const EXPIRY: usize = 8;
 
+/// The largest cursor a token carries: room for a composite database key
+/// (DynamoDB's `LastEvaluatedKey` of a table and an index), small enough
+/// that its token still fits a query string.
+pub(crate) const MAX_CURSOR: usize = 4096;
+
+/// The longest token [`Sealer::seal`] writes, and so the longest
+/// [`Sealer::open`] reads: anything longer is refused before it is decoded.
+const MAX_TOKEN: usize = VERSION.len()
+    + 1
+    + super::page_keys::MAX_ID
+    + 1
+    // Unpadded base64: four characters per three bytes, rounded up.
+    + ((NONCE + EXPIRY + MAX_CURSOR + TAG) * 4).div_ceil(3);
+
 pub(crate) type Clock = Arc<dyn Fn() -> SystemTime + Send + Sync>;
 
 /// What every token a service issues is sealed with.
@@ -38,7 +52,11 @@ pub(crate) struct Sealer {
 pub(crate) struct Invalid;
 
 impl Sealer {
+    /// `None` when the cursor is longer than [`MAX_CURSOR`].
     pub(crate) fn seal(&self, binding: &[u8; 32], cursor: &[u8]) -> Option<String> {
+        if cursor.len() > MAX_CURSOR {
+            return None;
+        }
         let key = self.keys.current();
         let expires = self.now().saturating_add(self.ttl.as_secs());
         let mut plain = Vec::with_capacity(EXPIRY + cursor.len());
@@ -65,6 +83,9 @@ impl Sealer {
     }
 
     pub(crate) fn open(&self, binding: &[u8; 32], token: &str) -> Result<Vec<u8>, Invalid> {
+        if token.len() > MAX_TOKEN {
+            return Err(Invalid);
+        }
         let mut parts = token.splitn(3, '.');
         let (Some(VERSION), Some(id), Some(payload)) = (parts.next(), parts.next(), parts.next())
         else {
@@ -214,6 +235,25 @@ mod tests {
         assert!(sealer.open(&BINDING, &token).is_ok());
         now.store(1_000_061, Ordering::Relaxed);
         assert!(sealer.open(&BINDING, &token).is_err());
+    }
+
+    #[test]
+    fn the_longest_cursor_seals_and_a_longer_one_does_not() {
+        let sealer = sealer(keys("sixteen-chars-id", SECRET));
+        let longest = vec![b'x'; MAX_CURSOR];
+        let token = sealer.seal(&BINDING, &longest).unwrap();
+        // The cap on what `open` reads is exactly what `seal` writes.
+        assert_eq!(token.len(), MAX_TOKEN);
+        assert_eq!(sealer.open(&BINDING, &token).unwrap(), longest);
+        assert!(sealer.seal(&BINDING, &[b'x'; MAX_CURSOR + 1]).is_none());
+    }
+
+    #[test]
+    fn an_overlong_token_is_refused_before_it_is_read() {
+        let sealer = sealer(keys("k1", SECRET));
+        let token = sealer.seal(&BINDING, b"c").unwrap();
+        let padded = format!("{token}{}", "A".repeat(MAX_TOKEN));
+        assert!(sealer.open(&BINDING, &padded).is_err());
     }
 
     #[test]

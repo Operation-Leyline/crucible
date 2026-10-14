@@ -24,6 +24,8 @@ pub struct OperationMetadata {
     pub input_events: Option<&'static crate::event_stream::EventStreamInfo>,
     pub output_events: Option<&'static crate::event_stream::EventStreamInfo>,
     /// Where a `@paginated` operation's input carries its token and page size.
+    /// At an older API version the input is the current version's, so these
+    /// are the current members.
     pub pagination: Option<Pagination>,
     /// Where the decoded input carries the operation's idempotency token. At
     /// an older API version the input is the current version's, so this is

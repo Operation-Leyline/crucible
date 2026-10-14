@@ -12,9 +12,13 @@
 //!   operation, the caller and every input member except the token and the
 //!   page size, so a token opens only for the same caller, listing and
 //!   filters. Nothing about the binding travels in the token.
-//! - **Expiring.** The expiry is sealed inside (24 hours by default).
+//! - **Expiring.** The expiry is sealed inside (24 hours by default, at most
+//!   30 days).
 //! - **Versioned and rotatable.** The token names its format and its key, and
-//!   [`PageKeys`] can accept retired keys while sealing with the current one.
+//!   [`PageKeys`] can accept retired keys, each from its own secret, while
+//!   sealing with the current one.
+//! - **Bounded.** A cursor is at most 4096 bytes, and a token longer than
+//!   the longest one issued is refused unread.
 //!
 //! Nothing is stored: a token is checked by opening it. A token that does not
 //! open is the service's validation error naming the token member, unless

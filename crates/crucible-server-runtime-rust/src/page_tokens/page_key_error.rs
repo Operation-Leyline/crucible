@@ -2,6 +2,7 @@ use std::fmt;
 
 /// Why a page token key was refused at construction.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PageKeyError {
     /// The secret is shorter than 32 bytes.
     SecretTooShort,
@@ -10,6 +11,9 @@ pub enum PageKeyError {
     InvalidId,
     /// Two keys share an id, so a token could not say which one sealed it.
     DuplicateId,
+    /// Two keys share a secret, so they are one key under two names:
+    /// rotating means a new secret.
+    ReusedSecret,
 }
 
 impl fmt::Display for PageKeyError {
@@ -20,6 +24,9 @@ impl fmt::Display for PageKeyError {
                 "a page token key id is 1 to 16 characters of A-Z, a-z, 0-9, '_' and '-'"
             }
             Self::DuplicateId => "two page token keys share an id",
+            Self::ReusedSecret => {
+                "two page token keys share a secret: rotating a key means a new secret"
+            }
         })
     }
 }

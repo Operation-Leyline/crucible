@@ -128,6 +128,16 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Sealed page tokens across releases: a renamed token and an operation
+    // paged only since v2, both reached by v1 callers.
+    std::fs::write(
+        out.join("versioned_pages.rs"),
+        crucible_build::model("versioned_pages")
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     // A client of the current release, which names it in `Crucible-Version`.
     std::fs::write(
         out.join("versioned_client.rs"),

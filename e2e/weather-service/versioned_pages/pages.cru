@@ -1,0 +1,50 @@
+/// Listings paged by sealed tokens across API versions.
+service Pages {
+    version "v2"
+    protocol json
+    operations [ListThings, ListTags]
+    errors [ValidationException, InternalServerException]
+}
+
+list Names: string
+
+readonly operation ListThings {
+    http GET "/things"
+    paginated(inputToken: pageToken, outputToken: pageToken, pageSize: maxResults)
+    input {
+        @query
+        pageToken?: string
+        @query
+        maxResults?: integer
+        @query
+        prefix?: string
+    }
+    output {
+        things: Names
+        pageToken?: string
+    }
+}
+
+readonly operation ListTags {
+    http GET "/tags"
+    paginated(inputToken: token, outputToken: token, pageSize: limit)
+    input {
+        @query
+        prefix?: string
+        @query
+        token?: string
+        @query
+        limit?: integer
+    }
+    output {
+        tags: Names
+        token?: string
+    }
+}
+
+// v2 renamed ListThings' token and pages ListTags, which v1 callers reach
+// without a token.
+migration "v2" from "v1" {
+    rename ListThings.input.nextToken -> pageToken
+    rename ListThings.output.nextToken -> pageToken
+}
