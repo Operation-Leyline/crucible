@@ -30,18 +30,32 @@ pub mod legacy {
             }
         }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct Input {
             #[serde(rename = "color")]
             pub color: Color,
         }
+        impl ::std::fmt::Debug for Input {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("Input");
+                debug.field("color", &self.color);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct Output {
             #[serde(rename = "color")]
             pub color: Color,
+        }
+        impl ::std::fmt::Debug for Output {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("Output");
+                debug.field("color", &self.color);
+                debug.finish()
+            }
         }
 
         impl ::crucible_server_runtime_rust::__generated::validate::Validate for Input {

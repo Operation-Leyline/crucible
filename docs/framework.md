@@ -1392,7 +1392,10 @@ and modelled-error fields. `@sensitive` members and targets are removed
 recursively through structures, unions, lists, maps, and recursive shapes.
 A map with sensitive keys is omitted completely. Sensitive list elements
 become null. The generated metadata drives redaction; wire payloads are
-unchanged. Arbitrary application messages and internal error text are the
+unchanged. The generated models' `Debug` reads the same traits, so a
+handler that logs `?input` prints `*** Sensitive Data Redacted ***` in place
+of a sensitive member, union arm or enum, and of a whole list or map that
+holds sensitive keys or values. Arbitrary application messages and internal error text are the
 application's responsibility: model annotations cannot redact those strings.
 
 The default `TracingSink` emits core fields individually under the target

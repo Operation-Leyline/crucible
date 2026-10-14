@@ -75,13 +75,9 @@ pub(crate) fn emit(
         }
         out.push('\n');
         match shape {
-            Shape::IntEnum(values) => crate::open::int_enumeration(
-                &mut out,
-                name,
-                values,
-                client,
-                !(client && shape.sensitive()),
-            ),
+            Shape::IntEnum(values) => {
+                crate::open::int_enumeration(&mut out, name, values, client, !shape.sensitive())
+            }
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
                 documented(&mut out, "", simple.docs.as_deref(), &simple.notes);
@@ -128,11 +124,7 @@ pub(crate) fn emit(
             ),
             Shape::Structure(structure) => {
                 documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
-                out.push_str(&if client {
-                    crate::DERIVE.replace("Debug, ", "")
-                } else {
-                    crate::DERIVE.to_owned()
-                });
+                out.push_str(crate::DERIVE);
                 if strict.contains(id) {
                     out.push_str("#[serde(deny_unknown_fields)]\n");
                 }
@@ -155,8 +147,8 @@ pub(crate) fn emit(
                     );
                 }
                 out.push_str("}\n");
+                crate::debug::structure(&mut out, service, name, structure);
                 if client {
-                    crate::debug::structure(&mut out, service, name, structure);
                     crate::builders::emit(
                         &mut out,
                         service,
@@ -204,9 +196,10 @@ pub(crate) fn emit(
                     ));
                 }
                 out.push_str("}\n");
+                crate::debug::union(&mut out, service, name, union, None);
             }
         }
-        if client && shape.sensitive() && matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
+        if shape.sensitive() && matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
             out.push_str(&format!("impl ::std::fmt::Debug for {name} {{ fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{ f.write_str(\"{name}(*** Sensitive Data Redacted ***)\") }} }}\n"));
         }
         if validated.contains(id) {
@@ -273,7 +266,11 @@ fn enumeration(
         return;
     }
     documented(out, "", values.docs.as_deref(), &values.notes);
-    out.push_str(crate::DERIVE_ENUM);
+    out.push_str(&if debug {
+        crate::DERIVE_ENUM.to_owned()
+    } else {
+        crate::DERIVE_ENUM.replace("Debug, ", "")
+    });
     out.push_str(&format!("pub enum {name} {{\n"));
     for value in &values.values {
         documented(out, "    ", value.docs.as_deref(), &value.notes);

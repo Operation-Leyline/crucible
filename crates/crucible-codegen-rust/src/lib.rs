@@ -58,7 +58,9 @@ pub fn source_revision() -> Option<&'static str> {
     crucible_revision::source_revision()
 }
 
-pub(crate) const DERIVE: &str = "#[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__generated::serde\")]\n";
+/// Structures and unions: `debug.rs` writes their `Debug` on server and
+/// client alike, so a handler logging `?input` cannot print `@sensitive` data.
+pub(crate) const DERIVE: &str = "#[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]\n#[serde(crate = \"::crucible_server_runtime_rust::__generated::serde\")]\n";
 /// On every client type: a consumer in another crate builds structures
 /// through their builders and matches with a `_` arm, so a member, union
 /// arm or enum value a newer model adds breaks no consumer's source.

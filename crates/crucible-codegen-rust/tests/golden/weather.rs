@@ -13,7 +13,7 @@ pub mod weather {
 
         pub type CitySummaries = ::std::vec::Vec<CitySummary>;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct CitySummary {
             #[serde(rename = "id")]
@@ -29,8 +29,19 @@ pub mod weather {
             #[serde(rename = "createdAt", default, skip_serializing_if = "::std::option::Option::is_none", with = "::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::Optional<::crucible_server_runtime_rust::__generated::codec::EpochSeconds>>")]
             pub created_at: ::std::option::Option<::crucible_server_runtime_rust::__generated::time::Timestamp>,
         }
+        impl ::std::fmt::Debug for CitySummary {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("CitySummary");
+                debug.field("id", &self.id);
+                debug.field("name", &self.name);
+                debug.field("population", &self.population);
+                debug.field("updatedAt", &self.updated_at);
+                debug.field("createdAt", &self.created_at);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct Coordinates {
             #[serde(rename = "latitude")]
@@ -38,8 +49,16 @@ pub mod weather {
             #[serde(rename = "longitude")]
             pub longitude: f64,
         }
+        impl ::std::fmt::Debug for Coordinates {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("Coordinates");
+                debug.field("latitude", &self.latitude);
+                debug.field("longitude", &self.longitude);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         #[serde(deny_unknown_fields)]
         pub struct CreateCityInput {
@@ -52,19 +71,36 @@ pub mod weather {
             #[serde(rename = "expectedRevision", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub expected_revision: ::std::option::Option<i64>,
         }
+        impl ::std::fmt::Debug for CreateCityInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("CreateCityInput");
+                debug.field("name", &self.name);
+                debug.field("location", &self.location);
+                debug.field("clientToken", &self.client_token);
+                debug.field("expectedRevision", &self.expected_revision);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct CreateCityOutput {
             #[serde(rename = "city")]
             pub city: CitySummary,
+        }
+        impl ::std::fmt::Debug for CreateCityOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("CreateCityOutput");
+                debug.field("city", &self.city);
+                debug.finish()
+            }
         }
 
         pub type DateTime = ::crucible_server_runtime_rust::__generated::time::Timestamp;
 
         pub type Forecast = ::std::collections::BTreeMap<Sky, ::crucible_server_runtime_rust::__generated::serde_json::Value>;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetCityInput {
             #[serde(rename = "cityId")]
@@ -72,8 +108,16 @@ pub mod weather {
             #[serde(rename = "at", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub at: ::std::option::Option<DateTime>,
         }
+        impl ::std::fmt::Debug for GetCityInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetCityInput");
+                debug.field("cityId", &self.city_id);
+                debug.field("at", &self.at);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetCityOutput {
             #[serde(rename = "city")]
@@ -83,15 +127,31 @@ pub mod weather {
             #[serde(rename = "requestId", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub request_id: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for GetCityOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetCityOutput");
+                debug.field("city", &self.city);
+                debug.field("forecast", &self.forecast);
+                debug.field("requestId", &self.request_id);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetCityPhotoInput {
             #[serde(rename = "cityId")]
             pub city_id: CityId,
         }
+        impl ::std::fmt::Debug for GetCityPhotoInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetCityPhotoInput");
+                debug.field("cityId", &self.city_id);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct GetCityPhotoOutput {
             #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -99,8 +159,16 @@ pub mod weather {
             #[serde(rename = "photo", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub photo: ::std::option::Option<Photo>,
         }
+        impl ::std::fmt::Debug for GetCityPhotoOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("GetCityPhotoOutput");
+                debug.field("caption", &self.caption);
+                debug.field("photo", &self.photo);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ListCitiesInput {
             #[serde(rename = "nextToken", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -110,8 +178,17 @@ pub mod weather {
             #[serde(rename = "tags", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub tags: ::std::option::Option<Tags>,
         }
+        impl ::std::fmt::Debug for ListCitiesInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ListCitiesInput");
+                debug.field("nextToken", &self.next_token);
+                debug.field("maxResults", &self.max_results);
+                debug.field("tags", &self.tags);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ListCitiesOutput {
             #[serde(rename = "cities")]
@@ -119,14 +196,30 @@ pub mod weather {
             #[serde(rename = "nextToken", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub next_token: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for ListCitiesOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ListCitiesOutput");
+                debug.field("cities", &self.cities);
+                debug.field("nextToken", &self.next_token);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub enum Location {
             #[serde(rename = "coordinates")]
             Coordinates(Coordinates),
             #[serde(rename = "unknown")]
             Unknown(::crucible_server_runtime_rust::__generated::operation::Unit),
+        }
+        impl ::std::fmt::Debug for Location {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                match self {
+                    Self::Coordinates(value) => f.debug_tuple("Location::Coordinates").field(value).finish(),
+                    Self::Unknown(value) => f.debug_tuple("Location::Unknown").field(value).finish(),
+                }
+            }
         }
 
         /// A photo, carried unparsed.
@@ -135,7 +228,7 @@ pub mod weather {
         /// Unstable.
         ///
         /// Since 2026-10.
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PhotoSummary {
             #[serde(rename = "size")]
@@ -145,8 +238,17 @@ pub mod weather {
             #[serde(rename = "caption", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub caption: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for PhotoSummary {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PhotoSummary");
+                debug.field("size", &self.size);
+                debug.field("thumbnail", &self.thumbnail);
+                debug.field("caption", &self.caption);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PutCityPhotoInput {
             #[serde(rename = "cityId")]
@@ -156,12 +258,28 @@ pub mod weather {
             #[serde(rename = "photo")]
             pub photo: Photo,
         }
+        impl ::std::fmt::Debug for PutCityPhotoInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PutCityPhotoInput");
+                debug.field("cityId", &self.city_id);
+                debug.field("caption", &self.caption);
+                debug.field("photo", &self.photo);
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct PutCityPhotoOutput {
             #[serde(rename = "photo")]
             pub photo: PhotoSummary,
+        }
+        impl ::std::fmt::Debug for PutCityPhotoOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("PutCityPhotoOutput");
+                debug.field("photo", &self.photo);
+                debug.finish()
+            }
         }
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
@@ -184,14 +302,26 @@ pub mod weather {
             }
         }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct StatusInput {
         }
+        impl ::std::fmt::Debug for StatusInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("StatusInput");
+                debug.finish()
+            }
+        }
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct StatusOutput {
+        }
+        impl ::std::fmt::Debug for StatusOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("StatusOutput");
+                debug.finish()
+            }
         }
 
         pub type Tags = ::std::vec::Vec<::std::string::String>;
@@ -199,13 +329,21 @@ pub mod weather {
         /// The photo's first bytes: base64 in JSON.
         pub type Thumbnail = ::crucible_server_runtime_rust::__generated::Blob;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationField {
             #[serde(rename = "path")]
             pub path: ::std::string::String,
             #[serde(rename = "message")]
             pub message: ::std::string::String,
+        }
+        impl ::std::fmt::Debug for ValidationField {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ValidationField");
+                debug.field("path", &self.path);
+                debug.field("message", &self.message);
+                debug.finish()
+            }
         }
 
         pub type ValidationFieldList = ::std::vec::Vec<ValidationField>;
@@ -345,13 +483,20 @@ pub mod weather {
     mod errors {
         use super::__redaction;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ConflictError {
             #[serde(rename = "message")]
             pub message: ::std::string::String,
         }
 
+        impl ::std::fmt::Debug for ConflictError {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ConflictError");
+                debug.field("message", &self.message);
+                debug.finish()
+            }
+        }
         pub(super) static CONFLICT_ERROR_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "ConflictError",
             409,
@@ -395,7 +540,7 @@ pub mod weather {
 
         impl ::std::error::Error for ConflictError {}
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct NotFoundError {
             #[serde(rename = "message")]
@@ -404,6 +549,14 @@ pub mod weather {
             pub resource_id: ::std::option::Option<::std::string::String>,
         }
 
+        impl ::std::fmt::Debug for NotFoundError {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("NotFoundError");
+                debug.field("message", &self.message);
+                debug.field("resourceId", &self.resource_id);
+                debug.finish()
+            }
+        }
         pub(super) static NOT_FOUND_ERROR_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "NotFoundError",
             404,
@@ -448,7 +601,7 @@ pub mod weather {
 
         impl ::std::error::Error for NotFoundError {}
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ThrottlingError {
             #[serde(rename = "message")]
@@ -457,6 +610,14 @@ pub mod weather {
             pub retry_after: ::std::option::Option<i32>,
         }
 
+        impl ::std::fmt::Debug for ThrottlingError {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ThrottlingError");
+                debug.field("message", &self.message);
+                debug.field("retryAfter", &self.retry_after);
+                debug.finish()
+            }
+        }
         pub(super) static THROTTLING_ERROR_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "ThrottlingError",
             429,
@@ -501,7 +662,7 @@ pub mod weather {
 
         impl ::std::error::Error for ThrottlingError {}
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationError {
             #[serde(rename = "message")]
@@ -514,6 +675,16 @@ pub mod weather {
             pub request_id: ::std::option::Option<::std::string::String>,
         }
 
+        impl ::std::fmt::Debug for ValidationError {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ValidationError");
+                debug.field("message", &self.message);
+                debug.field("reason", &self.reason);
+                debug.field("fieldList", &self.field_list);
+                debug.field("requestId", &self.request_id);
+                debug.finish()
+            }
+        }
         pub(super) static VALIDATION_ERROR_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "ValidationError",
             400,

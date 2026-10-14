@@ -41,11 +41,7 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
         );
         out.push('\n');
         documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
-        out.push_str(&if client {
-            crate::DERIVE.replace("Debug, ", "")
-        } else {
-            crate::DERIVE.to_owned()
-        });
+        out.push_str(crate::DERIVE);
         if client {
             out.push_str(crate::NON_EXHAUSTIVE);
         }
@@ -65,8 +61,8 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
             );
         }
         out.push_str("}\n\n");
+        crate::debug::structure(&mut out, service, name, structure);
         if client {
-            crate::debug::structure(&mut out, service, name, structure);
             crate::builders::emit(
                 &mut out,
                 service,
@@ -104,7 +100,9 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
             .member("message")
             .filter(|m| simple_kind(service, &m.target) == Some(SimpleKind::String));
         let display = match message {
-            Some(m) if client && (structure.sensitive() || service.sensitive(m)) => {
+            // Handlers and the service log print errors through Display; the
+            // response body is written from the fields, never from it.
+            Some(m) if structure.sensitive() || service.sensitive(m) => {
                 "\"*** Sensitive Data Redacted ***\"".to_owned()
             }
             Some(m)

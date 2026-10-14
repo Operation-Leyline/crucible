@@ -7,7 +7,7 @@ pub mod auth_weather {
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct Identity {
             #[serde(rename = "subject", default, skip_serializing_if = "::std::option::Option::is_none")]
@@ -15,19 +15,34 @@ pub mod auth_weather {
             #[serde(rename = "kind", default, skip_serializing_if = "::std::option::Option::is_none")]
             pub kind: ::std::option::Option<::std::string::String>,
         }
+        impl ::std::fmt::Debug for Identity {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("Identity");
+                debug.field("subject", &self.subject);
+                debug.field("kind", &self.kind);
+                debug.finish()
+            }
+        }
     }
 
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod errors {
         use super::__redaction;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct AccessDeniedException {
             #[serde(rename = "message")]
             pub message: ::std::string::String,
         }
 
+        impl ::std::fmt::Debug for AccessDeniedException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("AccessDeniedException");
+                debug.field("message", &self.message);
+                debug.finish()
+            }
+        }
         pub(super) static ACCESS_DENIED_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "AccessDeniedException",
             401,

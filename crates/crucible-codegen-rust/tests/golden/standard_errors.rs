@@ -7,13 +7,21 @@ pub mod empty {
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationExceptionField {
             #[serde(rename = "name")]
             pub name: ::std::string::String,
             #[serde(rename = "message")]
             pub message: ::std::string::String,
+        }
+        impl ::std::fmt::Debug for ValidationExceptionField {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ValidationExceptionField");
+                debug.field("name", &self.name);
+                debug.field("message", &self.message);
+                debug.finish()
+            }
         }
 
         pub type ValidationExceptionFieldList = ::std::vec::Vec<ValidationExceptionField>;
@@ -48,7 +56,7 @@ pub mod empty {
     mod errors {
         use super::__redaction;
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct InternalServerException {
             #[serde(rename = "message")]
@@ -57,6 +65,14 @@ pub mod empty {
             pub retry_after_seconds: ::std::option::Option<i32>,
         }
 
+        impl ::std::fmt::Debug for InternalServerException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("InternalServerException");
+                debug.field("message", &self.message);
+                debug.field("retryAfterSeconds", &self.retry_after_seconds);
+                debug.finish()
+            }
+        }
         pub(super) static INTERNAL_SERVER_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "InternalServerException",
             500,
@@ -101,13 +117,20 @@ pub mod empty {
 
         impl ::std::error::Error for InternalServerException {}
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct UnknownOperationException {
             #[serde(rename = "message")]
             pub message: ::std::string::String,
         }
 
+        impl ::std::fmt::Debug for UnknownOperationException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("UnknownOperationException");
+                debug.field("message", &self.message);
+                debug.finish()
+            }
+        }
         pub(super) static UNKNOWN_OPERATION_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "UnknownOperationException",
             404,
@@ -151,7 +174,7 @@ pub mod empty {
 
         impl ::std::error::Error for UnknownOperationException {}
 
-        #[derive(Debug, Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationException {
             #[serde(rename = "message")]
@@ -162,6 +185,15 @@ pub mod empty {
             pub field_list: ::std::option::Option<super::model::ValidationExceptionFieldList>,
         }
 
+        impl ::std::fmt::Debug for ValidationException {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("ValidationException");
+                debug.field("message", &self.message);
+                debug.field("reason", &self.reason);
+                debug.field("fieldList", &self.field_list);
+                debug.finish()
+            }
+        }
         pub(super) static VALIDATION_EXCEPTION_INFO: ::crucible_server_runtime_rust::__generated::operation::ErrorInfo = ::crucible_server_runtime_rust::__generated::error_info(
             "ValidationException",
             400,
