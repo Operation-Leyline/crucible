@@ -18,7 +18,9 @@ const golden = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", 
 const WEATHER = golden("weather-internal");
 const WEATHER_EXTERNAL = golden("weather-external");
 const CATALOG = golden("catalog-internal");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG };
+const PERMISSIONS = golden("permissions-internal");
+const PERMISSIONS_EXTERNAL = golden("permissions-external");
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -423,7 +425,37 @@ test("a throwing panel is contained and reported; non-functions are refused", ()
   x.operationPanels.length = 0;
 });
 
+test("an operation states what the caller must hold, and the overview lists the permissions", () => {
+  const m = x.index(PERMISSIONS);
+  const query = textOf(x.operationView(m, "example.leyline#ExecuteQuery", null));
+  assert.match(query, /Authorization/);
+  for (const value of ["graph:read", "graph:write", "history:read", "target.history.historyId", "has target.history"]) {
+    assert.ok(query.includes(value), value);
+  }
+  assert.ok(query.includes("Only when the parsed query writes."));
+  assert.ok(textOf(x.operationView(m, "example.leyline#GetUser", null)).includes("Requires no permission."));
+  assert.match(textOf(x.operationView(m, "example.leyline#RestoreBackup", null)), /history module moves/);
+  // Nothing declared, nothing said.
+  assert.ok(!textOf(x.operationView(m, "example.leyline#Health", null)).includes("Authorization"));
+  const overview = textOf(x.overviewView(m));
+  assert.ok(overview.includes("organization:read"), "the server audience lists internal permissions");
+  assert.ok(overview.includes("graph:view") && overview.includes("Deprecated alias of "));
+
+  // The client audience names no internal permission.
+  const external = x.index(PERMISSIONS_EXTERNAL);
+  assert.match(textOf(x.operationView(external, "example.leyline#GetOrganization", null)), /Requires permissions internal to the service\./);
+  assert.ok(!textOf(x.overviewView(external)).includes("organization:read"));
+  assert.match(htmlOf(x.operationView(external, "example.leyline#CreateGraph", null)), /<code>graph:write<\/code>/);
+});
+
 test("the test fixtures cover all goldens the generator ships", () => {
   const dirs = readdirSync(join(crate, "tests", "golden")).filter((d) => d !== "site").sort();
-  assert.deepEqual(dirs, ["catalog-external", "catalog-internal", "weather-external", "weather-internal"]);
+  assert.deepEqual(dirs, [
+    "catalog-external",
+    "catalog-internal",
+    "permissions-external",
+    "permissions-internal",
+    "weather-external",
+    "weather-internal",
+  ]);
 });
