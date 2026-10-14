@@ -412,7 +412,8 @@ fn colliding_permission_names_are_diagnosed() {
         "{diagnostics}"
     );
     assert!(
-        diagnostics.contains("`mail_send` of `GraphPermission` shares the Java constant `MAIL_SEND`"),
+        diagnostics
+            .contains("`mail_send` of `GraphPermission` shares the Java constant `MAIL_SEND`"),
         "{diagnostics}"
     );
 }

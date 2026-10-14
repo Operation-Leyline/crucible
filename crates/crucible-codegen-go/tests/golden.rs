@@ -524,11 +524,9 @@ fn permissions_service() -> crucible_smithy::ir::Service {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let rendered = compiled.render();
-    let full = compiled.service.unwrap_or_else(|| {
-        panic!(
-            "the fixture compiles:\n{rendered}"
-        )
-    });
+    let full = compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
     crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
 }
 

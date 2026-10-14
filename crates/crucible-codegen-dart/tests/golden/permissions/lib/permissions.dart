@@ -76,7 +76,7 @@ final class OrganizationPermission {
   core.String toString() => 'OrganizationPermission($value)';
 }
 
-/// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.
+/// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.
 const permissions = <ResourcePermissions>[
   ResourcePermissions(resourceType: "graph", permissions: <PermissionDescription>[
     PermissionDescription(value: "graph:audit", description: "", tier: "permissionOnly", grantable: true, deprecated: false),

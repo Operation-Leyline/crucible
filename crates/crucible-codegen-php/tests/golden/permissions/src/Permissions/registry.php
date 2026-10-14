@@ -3,7 +3,7 @@ declare(strict_types=1);
 namespace Example\Weather\Permissions;
 
 /**
- * Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.
+ * Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.
  *
  * @var list<\Example\Weather\Runtime\ResourcePermissions>
  */

@@ -71,7 +71,7 @@ static inline leyline_organization_permission leyline_organization_permission_kn
 /** Returns the permission value stands for: a deprecated alias's primary, or value itself, unknown values included. The result is value or a view of static storage. */
 leyline_organization_permission leyline_organization_permission_canonical(leyline_organization_permission value);
 
-/** Every permission this client knows, by resource type, deprecated aliases included; static storage, never freed. A grant picker offers only the grantable ones. */
+/** Every permission this client knows, by resource type, deprecated aliases included; static storage, never freed. A grant picker offers only the grantable ones that are not deprecated. */
 extern const leyline_resource_permissions leyline_permissions[3];
 /** The number of resource types in leyline_permissions. */
 extern const size_t leyline_permissions_count;

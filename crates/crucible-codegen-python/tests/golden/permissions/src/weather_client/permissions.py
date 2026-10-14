@@ -59,4 +59,4 @@ PERMISSIONS: tuple[ResourcePermissions, ...] = (
         PermissionDescription(value="organization:admin", description="Everything in the organization.", tier="notGrantable", grantable=False, deprecated=False),
     )),
 )
-"Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones."
+"Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones that are not deprecated."

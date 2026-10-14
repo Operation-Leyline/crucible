@@ -93,7 +93,7 @@ func (p OrganizationPermission) Canonical() OrganizationPermission {
 }
 
 // Permissions:
-// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones. Shared by every caller: read it, do not modify it.
+// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones that are not deprecated. Shared by every caller: read it, do not modify it.
 var Permissions = []ResourcePermissions{
 	{
 		ResourceType: "graph",

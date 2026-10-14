@@ -92,7 +92,7 @@ public enum Permissions {
         }
     }
 
-    /// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.
+    /// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.
     public static let all: Swift.Array<ResourcePermissions> = [
         ResourcePermissions(resourceType: "graph", permissions: [
             PermissionDescription(value: "graph:audit", description: "", tier: "permissionOnly", grantable: true, deprecated: false),

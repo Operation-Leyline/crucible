@@ -10,8 +10,8 @@
 
 use std::collections::BTreeSet;
 
-use crucible_codegen_common::permissions::{upper_snake, 
-    ClientResource, client_resources, constant_symbol, notes, primary,
+use crucible_codegen_common::permissions::{
+    ClientResource, client_resources, constant_symbol, notes, primary, upper_snake,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::Service;
