@@ -787,7 +787,9 @@ pub(crate) fn stored_checks(context: &Context) -> Option<Value> {
 /// set that grew is refused too). `Ok(false)` when the replay cannot be
 /// authorized: a recorded check no longer reads, or the listing is not
 /// covered (so the caller is told to send a new token, rather than served
-/// what it may no longer see). `Ok(true)` when it may be served, also when `Permissions` does
+/// what it may no longer see), also when the stored success showed only
+/// some ids and the request now has no listing to compare.
+/// `Ok(true)` when it may be served, also when `Permissions` does
 /// not cover the operation now. Shadow mode refuses nothing here either:
 /// what would have been refused, or could not be decided, is logged.
 #[cfg(feature = "idempotency")]
@@ -859,10 +861,14 @@ impl Session {
             }
             return Err(self.refuse(context, check, verdict));
         }
-        let now = shown(&self.lock()).as_ref().map(Shown::of);
-        if let Some(now) = now
-            && !now.covers(&listing)
-        {
+        // No listing now (the clause became conditional and did not apply,
+        // or the model dropped it): what the caller may see is unknown, so
+        // a stored restricted listing is not served.
+        let uncovered = match shown(&self.lock()).as_ref().map(Shown::of) {
+            Some(now) => !now.covers(&listing),
+            None => matches!(listing, Shown::Only(_)),
+        };
+        if uncovered {
             tracing::warn!(
                 target: TARGET,
                 operation = self.0.facts.id,
@@ -1262,7 +1268,9 @@ mod tests {
             // A record that does not say what its listing showed.
             (None, Some(only(&["i-1"])), false),
             (None, Some(Visibility::All), true),
-            (Some(only(&["i-1"])), None, true),
+            // No listing now: what the caller may see is unknown.
+            (Some(only(&["i-1"])), None, false),
+            (Some(Visibility::All), None, true),
         ];
         for (then, now, replayed) in cases {
             let record = stored(then.clone());
