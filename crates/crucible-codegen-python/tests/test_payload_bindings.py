@@ -21,7 +21,8 @@ class PayloadBindingTests(unittest.TestCase):
                         requests.append(request)
                         return httpx.Response(200)
                     with httpx.Client(transport=httpx.MockTransport(reply)) as http:
-                        sdk.PayloadBindingsClient(endpoint="https://example.test", http=http).put_document(input)
+                        sdk.PayloadBindingsClient(endpoint="https://example.test", http=http,
+                                                  headers={"Content-Type": "text/plain"}).put_document(input)
                     self.assertEqual(requests[0].content, expected)
                     if expected:
                         self.assertEqual(requests[0].headers["content-type"], "application/json")
@@ -39,18 +40,20 @@ class PayloadBindingTests(unittest.TestCase):
                     with httpx.Client(transport=httpx.MockTransport(reply)) as http:
                         sdk.PayloadBindingsClient(endpoint="https://example.test", http=http).put_record(input)
 
-    def test_payload_preserves_modeled_content_type_and_defaults_when_omitted(self):
+    def test_payload_content_type_prefers_modeled_header_then_media_type_then_config(self):
         for module, sdk in self.clients():
             for streaming in (False, True):
-                for content_type in (None, "image/png"):
-                    with self.subTest(protocol=module, streaming=streaming, content_type=content_type):
+                for content_type, configured in ((None, None), ("image/png", None),
+                                                 (None, "image/jpeg"), ("image/png", "image/jpeg")):
+                    with self.subTest(protocol=module, streaming=streaming, content_type=content_type, configured=configured):
                         def reply(request):
                             self.assertEqual(request.content, b"PNG")
-                            self.assertEqual(request.headers["content-type"], content_type or "application/octet-stream")
+                            self.assertEqual(request.headers.get_list("content-type"), [content_type or "application/octet-stream"])
                             return httpx.Response(200)
                         fields = {} if content_type is None else {"content_type": content_type}
+                        headers = {} if configured is None else {"Content-Type": configured}
                         with httpx.Client(transport=httpx.MockTransport(reply)) as http:
-                            client = sdk.PayloadBindingsClient(endpoint="https://example.test", http=http)
+                            client = sdk.PayloadBindingsClient(endpoint="https://example.test", http=http, headers=headers)
                             if streaming:
                                 source = sdk.ByteStream.from_factory(lambda: iter([b"P", b"NG"]), length=3)
                                 client.upload_stream(sdk.StreamInput(data=source, **fields))

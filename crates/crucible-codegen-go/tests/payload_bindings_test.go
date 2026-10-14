@@ -58,20 +58,25 @@ func TestRecordNullFollowsProtocolMemberPresence(t *testing.T) {
     }
 }
 
+// A modelled Content-Type member, then the payload's media type, then a
+// client-wide default (given in a non-canonical case).
 func TestPayloadContentType(t *testing.T) {
     for _, streaming := range []bool{false, true} {
         for _, mediaType := range []string{"", "image/png"} {
+          for _, configured := range []string{"", "image/jpeg"} {
             name := "buffered"; if streaming { name = "streaming" }
-            t.Run(name+"/"+mediaType, func(t *testing.T) {
+            t.Run(name+"/"+mediaType+"/"+configured, func(t *testing.T) {
                 expected := mediaType; if expected == "" { expected = "application/octet-stream" }
                 server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
                     body, err := io.ReadAll(r.Body)
                     if err != nil { t.Error(err) }
                     if string(body) != "PNG" { t.Errorf("body = %q", body) }
-                    if r.Header.Get("Content-Type") != expected { t.Errorf("Content-Type = %q, want %q", r.Header.Get("Content-Type"), expected) }
+                    if got := r.Header.Values("Content-Type"); len(got) != 1 || got[0] != expected { t.Errorf("Content-Type = %q, want %q", got, expected) }
                 }))
                 defer server.Close()
-                client, err := NewPayloadBindingsClient(Config{Endpoint: server.URL})
+                config := Config{Endpoint: server.URL}
+                if configured != "" { config.Headers = http.Header{"content-type": {configured}} }
+                client, err := NewPayloadBindingsClient(config)
                 if err != nil { t.Fatal(err) }
                 if streaming {
                     input := &StreamInput{}
@@ -86,6 +91,7 @@ func TestPayloadContentType(t *testing.T) {
                 }
                 if err != nil { t.Fatal(err) }
             })
+          }
         }
     }
 }

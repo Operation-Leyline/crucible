@@ -177,10 +177,16 @@ words, and TypeScript's predefined type names are diagnostics instead.
 ## Transport, middleware, and retries
 
 `ClientConfig.fetch` accepts a custom function from `Request` to
-`Promise<Response>`. The default uses global `fetch`, including its redirect
-behavior. The client creates no separate closable connection pool. Default
-headers come from `ClientConfig.headers`; per-call headers and `AbortSignal`
-come from `RequestOptions`.
+`Promise<Response>`. The default uses global `fetch`. Every request the client
+dispatches, including one a middleware rebuilt, carries `redirect: "manual"`,
+so a redirect is never followed with the request's credential headers: Node
+returns the 3xx response and a browser an opaque redirect (status 0), and
+either becomes a `ServiceError`. A custom `fetch` may choose another redirect
+mode for the requests it sends. The client creates no separate closable
+connection pool. Default headers come from `ClientConfig.headers`; per-call
+headers and `AbortSignal` come from `RequestOptions`. Neither replaces the
+`Content-Type` of a JSON body or a payload's media type; only a modeled
+`Content-Type` member overrides a payload's.
 
 Retries follow the [shared contract](../clients.md#http-retry-contract).
 `retry: false` disables them. `maxAttempts` includes the first attempt; defaults

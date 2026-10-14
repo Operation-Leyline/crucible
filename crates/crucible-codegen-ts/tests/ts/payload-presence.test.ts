@@ -32,15 +32,15 @@ for (const [sdk, protocol] of [[crucible, "Crucible JSON"], [rest, "REST JSON"]]
 
 const bytes = new Uint8Array([80, 78, 71]);
 const stream = () => new ReadableStream<Uint8Array>({start(controller) { controller.enqueue(bytes); controller.close(); }});
-type PayloadCall = (fetch: crucible.Fetch, streaming: boolean, contentType?: string) => Promise<void>;
+type PayloadCall = (fetch: crucible.Fetch, streaming: boolean, contentType?: string, headers?: Record<string, string>) => Promise<void>;
 const payloadCalls: readonly [string, PayloadCall][] = [
-  ["Crucible JSON", async (fetch, streaming, contentType) => {
-    const client = new crucible.PayloadBindingsClient({endpoint: "https://example.test", fetch});
+  ["Crucible JSON", async (fetch, streaming, contentType, headers) => {
+    const client = new crucible.PayloadBindingsClient({endpoint: "https://example.test", fetch, headers});
     if (streaming) await client.uploadStream({data: new crucible.ByteStream(stream(), {length: bytes.length}), contentType});
     else await client.upload({data: bytes, contentType});
   }],
-  ["REST JSON", async (fetch, streaming, contentType) => {
-    const client = new rest.PayloadBindingsClient({endpoint: "https://example.test", fetch});
+  ["REST JSON", async (fetch, streaming, contentType, headers) => {
+    const client = new rest.PayloadBindingsClient({endpoint: "https://example.test", fetch, headers});
     if (streaming) await client.uploadStream({data: new rest.ByteStream(stream(), {length: bytes.length}), contentType});
     else await client.upload({data: bytes, contentType});
   }],
@@ -58,4 +58,30 @@ for (const [protocol, call] of payloadCalls) {
       }
     });
   }
+}
+
+for (const [protocol, call] of payloadCalls) {
+  for (const streaming of [false, true]) {
+    test(`${protocol} ${streaming ? "streaming" : "buffered"} payload media type outranks a client Content-Type default`, async () => {
+      // A modeled Content-Type member, then the payload's media type, then the client default.
+      for (const [contentType, expected] of [[undefined, "application/octet-stream"], ["image/png", "image/png"]] as const) {
+        await call(async request => {
+          assert.equal(request.headers.get("content-type"), expected);
+          return new Response(null);
+        }, streaming, contentType, {"Content-Type": "text/plain"});
+      }
+    });
+  }
+}
+
+for (const [sdk, protocol] of [[crucible, "Crucible JSON"], [rest, "REST JSON"]] as const) {
+  test(`${protocol} document payload keeps its media type over a client Content-Type default`, async () => {
+    const types: (string | null)[] = [];
+    const client = new sdk.PayloadBindingsClient({endpoint: "https://example.test", headers: {"Content-Type": "text/plain"}, fetch: async request => {
+      types.push(request.headers.get("content-type"));
+      return new Response(null);
+    }});
+    await client.putDocument({document: {answer: 42}});
+    assert.deepEqual(types, ["application/json"]);
+  });
 }

@@ -660,6 +660,9 @@ class _Base:
                     if wire not in reserved_headers:
                         headers[wire] = self._codec.bound(item, entry, header=True,
                             encoding=op["request"].get("headerEncodings", {}).get(key))
+        # A Content-Type bound to an input member outranks the payload's media
+        # type, which outranks endpoint and client header defaults.
+        modelled_content_type = False
         for key, wire in op["request"]["headers"]:
             if members[key].get("sensitive"):
                 sensitive_headers.add(wire.lower())
@@ -667,6 +670,7 @@ class _Base:
             if value is not None and not isinstance(value, Unset):
                 headers[wire.lower()] = self._codec.bound(members[key], value, header=True,
                     encoding=op["request"].get("headerEncodings", {}).get(key), fmt=formats.get(key))
+                modelled_content_type = modelled_content_type or wire.lower() == "content-type"
         body: bytes | ByteStream | None = None
         if op["request"]["body"]:
             body = _json({json_name(k): values[json_name(k)] for k in op["request"]["body"] if json_name(k) in values}).encode()
@@ -684,7 +688,8 @@ class _Base:
             body = stream._data if stream._data is not None else stream
             if stream._data is None and stream.length is not None:
                 headers["content-length"] = str(stream.length)
-            headers.setdefault("content-type", payload[1])
+            if not modelled_content_type:
+                headers["content-type"] = payload[1]
         elif payload is not None:
             # The bytes go as they are: a body digest covers exactly these.
             value = original(payload[0])
@@ -701,7 +706,8 @@ class _Base:
                     if not isinstance(value, (bytes, bytearray, memoryview)):
                         raise TypeError(f"{payload[0]} must be bytes")
                     body = bytes(value)
-                headers.setdefault("content-type", payload[1])
+                if not modelled_content_type:
+                    headers["content-type"] = payload[1]
         protocol = self._codec.schema.get("protocol", "crucibleJson")
         if protocol in ("awsJson1_0", "awsJson1_1"):
             body = body if body is not None else b"{}"
