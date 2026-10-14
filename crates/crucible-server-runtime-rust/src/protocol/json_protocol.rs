@@ -12,7 +12,7 @@ use super::{Answers, BoundValue, Invocation, Protocol, ProtocolMatch, Route};
 use crate::error::{FrameworkError, Result};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
 use crate::operations::Operations;
-use crate::validate::{Rejection, Violation, ViolationKind};
+use crate::validate::{Rejection, Violation, ViolationKind, Violations};
 use crate::{Hook, Job};
 use crucible_wire::text::{percent_decode, query_values};
 
@@ -107,18 +107,9 @@ fn route_candidates(
     };
     let rest = rest.trim_end_matches('/');
     let query = request.uri.query().unwrap_or("");
-    let query_violations = query_violations(query);
     // The methods allowed at the path only matter when no operation answers
     // (a 405), so they are gathered by a second pass in that case alone.
-    let route = best_route(
-        request,
-        operations,
-        applies,
-        rest,
-        query,
-        &query_violations,
-        None,
-    );
+    let route = best_route(request, operations, applies, rest, query, None);
     if route.is_some() {
         return (route, Vec::new());
     }
@@ -129,7 +120,6 @@ fn route_candidates(
         applies,
         rest,
         query,
-        &query_violations,
         Some(&mut allowed),
     );
     allowed.sort_unstable();
@@ -185,11 +175,12 @@ fn best_route(
     applies: &dyn Fn(&OperationInfo) -> bool,
     rest: &str,
     query: &str,
-    query_violations: &[Violation],
     mut allowed: Option<&mut Vec<&'static str>>,
 ) -> Option<Route> {
     let segments = Segments::new(rest).count();
-    let mut best: Option<(&OperationInfo, Route, bool)> = None;
+    // The best candidate, its labels' violations (one at most per label, so
+    // few), and whether its literal query matched.
+    let mut best: Option<(&OperationInfo, Route, Vec<Violation>, bool)> = None;
     for &op in operations
         .routes(segments)
         .iter()
@@ -213,7 +204,7 @@ fn best_route(
             continue;
         }
         let mut labels = Vec::new();
-        let mut violations = query_violations.to_vec();
+        let mut violations = Vec::new();
         let mut parts = Segments::new(rest);
         let matched = op.path.iter().all(|segment| {
             let Some((start, end)) = parts.next() else {
@@ -267,24 +258,35 @@ fn best_route(
         if !method_matches {
             continue;
         }
-        if best.as_ref().is_none_or(|(most, _, most_query_matches)| {
-            let previous_exact = most.method == request.method.as_str();
-            (exact_method && !previous_exact)
-                || (exact_method == previous_exact
-                    && more_specific(op, most, query_matches, *most_query_matches))
-        }) {
+        if best
+            .as_ref()
+            .is_none_or(|(most, _, _, most_query_matches)| {
+                let previous_exact = most.method == request.method.as_str();
+                (exact_method && !previous_exact)
+                    || (exact_method == previous_exact
+                        && more_specific(op, most, query_matches, *most_query_matches))
+            })
+        {
             best = Some((
                 op,
                 Route {
                     operation: op.name,
                     labels,
-                    rejection: (!violations.is_empty()).then_some(Rejection { violations }),
+                    rejection: None,
                 },
+                violations,
                 query_matches,
             ));
         }
     }
-    best.map(|(_, route, _)| route)
+    // The query is the same for every candidate: it is checked once, for
+    // the operation chosen, which also says what its parameters are called.
+    best.map(|(op, mut route, labels, _)| {
+        let mut violations = query_violations(query, op);
+        violations.extend(labels);
+        route.rejection = violations.into_rejection();
+        route
+    })
 }
 
 // Decode within a segment so an encoded separator never changes path structure.
@@ -374,7 +376,7 @@ pub(super) fn bound_members<'a>(
 ) -> std::result::Result<Vec<(&'static str, BoundValue<'a>)>, Rejection> {
     let query = job.request().uri.query().unwrap_or("");
     let mut bound = Vec::new();
-    let mut violations = Vec::new();
+    let mut violations = Violations::default();
     for member in op.input {
         let wire = wire_name(member);
         let value = match (member.location, member.scalar) {
@@ -387,7 +389,7 @@ pub(super) fn bound_members<'a>(
                     let name = match percent_decode(name, true) {
                         Ok(name) => name.into_owned(),
                         Err(message) => {
-                            violations.push(malformed(member.name, &message));
+                            violations.push_with(|| malformed(&map_key(member), &message));
                             continue;
                         }
                     };
@@ -402,7 +404,7 @@ pub(super) fn bound_members<'a>(
                     let value = match percent_decode(value, true) {
                         Ok(value) => Value::String(value.into_owned()),
                         Err(message) => {
-                            violations.push(malformed(&name, &message));
+                            violations.push_with(|| malformed(&map_key(member), &message));
                             continue;
                         }
                     };
@@ -429,18 +431,16 @@ pub(super) fn bound_members<'a>(
                                     values.insert(key.to_owned(), Value::String(text.into_owned()));
                                 }
                                 Ok(_) => {
-                                    violations.push(malformed(
-                                        name.as_str(),
-                                        "prefix header must be text",
-                                    ));
+                                    violations.push_with(|| {
+                                        malformed(&map_key(member), "prefix header must be text")
+                                    });
                                 }
                                 Err(message) => {
-                                    violations.push(malformed(name.as_str(), &message));
+                                    violations.push_with(|| malformed(&map_key(member), &message));
                                 }
                             },
-                            Err(_) => {
-                                violations.push(malformed(name.as_str(), "is not visible ASCII"))
-                            }
+                            Err(_) => violations
+                                .push_with(|| malformed(&map_key(member), "is not visible ASCII")),
                         }
                     }
                 }
@@ -453,10 +453,9 @@ pub(super) fn bound_members<'a>(
                 _,
             ) => {
                 if requires_length && job.request().headers.get("content-length").is_none() {
-                    violations.push(malformed(
-                        member.name,
-                        "streaming payload requires content-length",
-                    ));
+                    violations.push_with(|| {
+                        malformed(member.name, "streaming payload requires content-length")
+                    });
                     continue;
                 }
                 Ok(BoundValue::Json(Value::Null))
@@ -518,7 +517,7 @@ pub(super) fn bound_members<'a>(
                     continue;
                 };
                 let Ok(text) = value.to_str() else {
-                    violations.push(malformed(name, "is not visible ASCII"));
+                    violations.push_with(|| malformed(name, "is not visible ASCII"));
                     continue;
                 };
                 BoundValue::parse(Cow::Borrowed(text), scalar)
@@ -527,14 +526,20 @@ pub(super) fn bound_members<'a>(
         };
         match value {
             Ok(value) => bound.push((member.name, value)),
-            Err(message) => violations.push(malformed(wire, &message)),
+            Err(message) => violations.push_with(|| malformed(wire, &message)),
         }
     }
-    if violations.is_empty() {
-        Ok(bound)
-    } else {
-        Err(Rejection { violations })
+    match violations.into_rejection() {
+        None => Ok(bound),
+        Some(rejection) => Err(rejection),
     }
+}
+
+/// The path of a violation in one entry of a map bound to the query or to
+/// prefixed headers. The key is the client's text, of any length, and may
+/// be sensitive: it is never named.
+fn map_key(member: &MemberInfo) -> String {
+    format!("{}/[key]", member.name)
 }
 
 /// The name a bound member goes by on the wire, for a violation's path.
@@ -608,23 +613,51 @@ fn literal_queries_match(query: &str, operation: &OperationInfo) -> Option<bool>
     fully_matched.then_some(true)
 }
 
-/// Validate every query component before routing on literal keys or values.
-/// Otherwise a malformed component could hide a more specific route.
-fn query_violations(query: &str) -> Vec<Violation> {
+/// Every query component, checked before routing on literal keys or
+/// values (a malformed component must not hide a more specific route), and
+/// reported against the operation chosen. A parameter it declares goes by
+/// the model's name; any other key is the client's text, so it is never
+/// named.
+fn query_violations(query: &str, op: &OperationInfo) -> Violations {
+    let mut violations = Violations::default();
     if !query.contains('%') {
-        return Vec::new();
+        return violations;
     }
-    let mut violations = Vec::new();
     for pair in query.split('&').filter(|pair| !pair.is_empty()) {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         match percent_decode(key, true) {
             Ok(key) => {
                 if let Err(message) = percent_decode(value, true) {
-                    violations.push(malformed(&key, &message));
+                    violations.push_with(|| malformed(&query_path(op, Some(&key)), &message));
                 }
             }
-            Err(message) => violations.push(malformed("query", &message)),
+            Err(message) => violations.push_with(|| malformed(&query_path(op, None), &message)),
         }
     }
     violations
+}
+
+/// The path naming query parameter `key` of `op`, or a key that does not
+/// decode (`None`): the map that takes undeclared keys, if any, has it.
+fn query_path(op: &OperationInfo, key: Option<&str>) -> Cow<'static, str> {
+    let declared = op
+        .literal_query
+        .iter()
+        .map(|(name, _)| *name)
+        .chain(op.input.iter().filter_map(|member| match member.location {
+            Location::Query(name) => Some(name),
+            _ => None,
+        }))
+        .find(|name| key == Some(*name));
+    if let Some(name) = declared {
+        return Cow::Borrowed(name);
+    }
+    match op
+        .input
+        .iter()
+        .find(|member| member.location == Location::QueryParams)
+    {
+        Some(member) => Cow::Owned(map_key(member)),
+        None => Cow::Borrowed("query"),
+    }
 }

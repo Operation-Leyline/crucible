@@ -586,7 +586,13 @@ version's section when it is prepared.
   response, the service log and the validation error's `fieldList` each
   copied every violation. So a body of a few megabytes of empty strings
   could build an error response, and a log record, of hundreds of
-  megabytes.
+  megabytes. The cap covers violations from the query string, labels and
+  headers too (`?a=%zz&a=%zz...` once listed one per pair): every
+  framework producer collects through the new `validate::Violations` or
+  `Rejection::new`. A `Rejection { violations }` built by hand (in a custom
+  protocol, say) is not capped; build it with those instead.
+  `Rejection::summary` counts the unlisted violations ("and 149 more" for
+  150), and `Rejection::count` says how many there were.
 - Rejections no longer quote the request's values, so a `@sensitive`
   member's value stays out of the response and the service log.
   - A JSON or CBOR value of the wrong type is named by its kind:
@@ -603,15 +609,27 @@ version's section when it is prepared.
     and says `[key]` for a map key (`/settings/[key]/limit`).
   - A value an API version hook cannot read becomes an internal error
     without quoting the value, so its logged cause carries no request data.
+  - Request text a client controls is not repeated either. An unsupported
+    `Crucible-Version` is refused by listing the versions served. An unknown
+    member of a strict structure is reported at `[key]` (JSON and CBOR
+    alike; a missing CBOR member is now `is required` at its name, as in
+    JSON). A malformed query value is reported at the model's parameter
+    name, at `<member>/[key]` for a key of an `@httpQueryParams` map, and at
+    `query` for an undeclared parameter; a malformed prefixed header at
+    `<member>/[key]`. Event stream frames and received events are refused
+    without the sender's `:message-type`, checksum bytes or values.
   - A violation's path names a map key `[key]` when the key is client data
     under a sensitivity rule: the map's keys are `@sensitive`, or the map is
     reached through a `@sensitive` member or structure (an ordinary
     structure behind a sensitive member included), or is the item of a list
     or map whose items are sensitive (`scoreMaps/outer/[key]`). Generated validation
     opens the new `Validator::sensitive` scope for them. Member names, list
-    indexes and public map keys still appear.
+    indexes and public map keys still appear. An enum map key is hidden the
+    same way: it used to be named like a member, so a sensitive scope let it
+    through.
 
-  Paths and the model's expectations are unchanged.
+  The model's expectations are unchanged. Paths are unchanged except where
+  they named client text: see *Migration*.
 
 ### Migration
 
@@ -644,6 +662,21 @@ version's section when it is prepared.
   setters for the fields it set (`.with_claims(claims)`, ...), and add `..`
   to any exhaustive destructuring. No shim is possible: the attribute is on
   the type. Reading fields is unchanged. See
+  [migrating](docs/migrating.md#unreleased).
+
+- **Rejections no longer name client text in a violation's path.** Since
+  0.7.0, a strict structure's unknown member is reported at `[key]`, not at
+  the member's name; a malformed value of a query parameter the operation
+  does not declare at `query`, not at the parameter's name; a malformed
+  entry of an `@httpQueryParams` or `@httpPrefixHeaders` map at
+  `<member>/[key]`, not at its query key or header name;
+  and a CBOR input missing a required member as a broken constraint
+  (`fieldValidationFailed`, `is required` at the member's name) instead of
+  an unreadable request (`cannotParse`), as JSON already was. An unsupported
+  `Crucible-Version` is refused without repeating it. Code or tests that
+  read those paths, messages or reasons, from the response's `fieldList`,
+  an `on_rejection` hook or the service log, need the new values. No shim
+  is possible: this is wire behaviour. See
   [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12

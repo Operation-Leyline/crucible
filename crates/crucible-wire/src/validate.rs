@@ -37,13 +37,22 @@ impl fmt::Display for Violation {
 }
 
 /// A request that could not become an operation's input, with every
-/// violation found.
+/// violation found, up to [`MAX_VIOLATIONS`]. Build one with
+/// [`Rejection::new`] or a [`Violations`] collector, which keep that cap.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rejection {
     pub violations: Vec<Violation>,
 }
 
 impl Rejection {
+    /// A rejection listing `violations`: the first [`MAX_VIOLATIONS`], then
+    /// one more counting the rest.
+    pub fn new(violations: impl IntoIterator<Item = Violation>) -> Self {
+        let mut collected = Violations::default();
+        collected.extend(violations);
+        collected.finish()
+    }
+
     pub fn constraint(path: impl Into<String>, message: impl Into<String>) -> Self {
         Self::of(ViolationKind::Constraint, path, message)
     }
@@ -68,13 +77,118 @@ impl Rejection {
             .any(|v| v.kind == ViolationKind::Malformed)
     }
 
+    /// How many violations the request had: those listed, and those the
+    /// last line counts when the list reached [`MAX_VIOLATIONS`].
+    pub fn count(&self) -> usize {
+        match self.violations.split_last() {
+            // Only a full list ends with the count of the rest.
+            Some((last, listed)) if listed.len() == MAX_VIOLATIONS => match unlisted(last) {
+                Some(unlisted) => listed.len() + unlisted,
+                None => self.violations.len(),
+            },
+            _ => self.violations.len(),
+        }
+    }
+
     /// One line for an error message: the first violation, and how many more.
     pub fn summary(&self) -> String {
-        match self.violations.as_slice() {
-            [] => "the request is invalid".to_owned(),
-            [only] => only.to_string(),
-            [first, rest @ ..] => format!("{first} (and {} more)", rest.len()),
+        match self.violations.first() {
+            None => "the request is invalid".to_owned(),
+            Some(first) => match self.count() {
+                0 | 1 => first.to_string(),
+                count => format!("{first} (and {} more)", count - 1),
+            },
         }
+    }
+}
+
+/// The words of the line that ends a capped list, after its count.
+const UNLISTED: &str = " more violations are not listed";
+
+/// The violations an overflow line counts, when `violation` is one.
+fn unlisted(violation: &Violation) -> Option<usize> {
+    if !violation.path.is_empty() || violation.kind != ViolationKind::Constraint {
+        return None;
+    }
+    violation.message.strip_suffix(UNLISTED)?.parse().ok()
+}
+
+/// Violations as they are found, at most [`MAX_VIOLATIONS`] of them listed
+/// and the rest counted. Every producer of a [`Rejection`] collects through
+/// one, so no request can make a rejection (and the response, log record
+/// and field list that copy it) grow with the request.
+#[derive(Debug, Default)]
+pub struct Violations {
+    listed: Vec<Violation>,
+    unlisted: usize,
+}
+
+impl Violations {
+    /// Whether another violation would only be counted: a caller can skip
+    /// building its path and message.
+    pub fn is_full(&self) -> bool {
+        self.listed.len() >= MAX_VIOLATIONS
+    }
+
+    pub fn push(&mut self, violation: Violation) {
+        if self.is_full() {
+            self.unlisted += 1;
+        } else {
+            self.listed.push(violation);
+        }
+    }
+
+    /// Records the violation `make` builds, or, once the list is full,
+    /// only counts it: a request past the cap costs no more strings.
+    pub fn push_with(&mut self, make: impl FnOnce() -> Violation) {
+        if self.is_full() {
+            self.unlisted += 1;
+        } else {
+            self.listed.push(make());
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.listed.is_empty()
+    }
+
+    /// The violations listed so far.
+    pub fn listed(&self) -> &[Violation] {
+        &self.listed
+    }
+
+    /// The rejection these violations make, or `None` for none.
+    pub fn into_rejection(self) -> Option<Rejection> {
+        (!self.is_empty()).then(|| self.finish())
+    }
+
+    fn finish(mut self) -> Rejection {
+        if self.unlisted > 0 {
+            self.listed.push(Violation {
+                path: String::new(),
+                message: format!("{}{UNLISTED}", self.unlisted),
+                kind: ViolationKind::Constraint,
+            });
+        }
+        Rejection {
+            violations: self.listed,
+        }
+    }
+}
+
+impl Extend<Violation> for Violations {
+    fn extend<I: IntoIterator<Item = Violation>>(&mut self, violations: I) {
+        for violation in violations {
+            self.push(violation);
+        }
+    }
+}
+
+impl FromIterator<Violation> for Violations {
+    fn from_iter<I: IntoIterator<Item = Violation>>(violations: I) -> Self {
+        let mut collected = Self::default();
+        collected.extend(violations);
+        collected
     }
 }
 
@@ -145,9 +259,7 @@ impl fmt::Display for Step {
 #[derive(Default)]
 pub struct Validator {
     path: Steps,
-    violations: Vec<Violation>,
-    /// Violations past [`MAX_VIOLATIONS`]: counted, not recorded.
-    unlisted: usize,
+    violations: Violations,
     /// How many [`Validator::sensitive`] scopes enclose the value checked.
     sensitive: usize,
 }
@@ -202,19 +314,9 @@ impl Validator {
     pub fn check<T: Validate>(value: &T) -> Result<(), Rejection> {
         let mut validator = Self::default();
         value.validate(&mut validator);
-        if validator.unlisted > 0 {
-            validator.violations.push(Violation {
-                path: String::new(),
-                message: format!("{} more violations are not listed", validator.unlisted),
-                kind: ViolationKind::Constraint,
-            });
-        }
-        if validator.violations.is_empty() {
-            Ok(())
-        } else {
-            Err(Rejection {
-                violations: validator.violations,
-            })
+        match validator.violations.into_rejection() {
+            None => Ok(()),
+            Some(rejection) => Err(rejection),
         }
     }
 
@@ -242,18 +344,14 @@ impl Validator {
     }
 
     pub fn fail(&mut self, message: impl Into<String>) {
-        if self.violations.len() >= MAX_VIOLATIONS {
-            self.unlisted += 1;
-            return;
-        }
-        let path = self
-            .path
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("/");
-        self.violations.push(Violation {
-            path,
+        let path = &self.path;
+        // The path is built into text only for a violation that is listed.
+        self.violations.push_with(|| Violation {
+            path: path
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("/"),
             message: message.into(),
             kind: ViolationKind::Constraint,
         });
@@ -371,12 +469,12 @@ mod tests {
             let regex = regex::Regex::new(&constraints.rust_pattern().unwrap().unwrap()).unwrap();
             let mut validator = Validator::default();
             validator.at("value", |v| v.pattern(accepted, &regex, pattern));
-            assert!(validator.violations.is_empty());
+            assert!(validator.violations.listed().is_empty());
             validator.at("value", |v| v.pattern(rejected, &regex, pattern));
-            assert_eq!(validator.violations.len(), 1);
-            assert_eq!(validator.violations[0].path, "value");
+            assert_eq!(validator.violations.listed().len(), 1);
+            assert_eq!(validator.violations.listed()[0].path, "value");
             assert_eq!(
-                validator.violations[0].message,
+                validator.violations.listed()[0].message,
                 format!("must match the pattern {pattern}")
             );
         }
@@ -403,6 +501,11 @@ mod tests {
         let last = rejection.violations.last().unwrap();
         assert_eq!(last.path, "");
         assert_eq!(last.message, "999900 more violations are not listed");
+        assert_eq!(rejection.count(), 1_000_000);
+        assert_eq!(
+            rejection.summary(),
+            "items/0: length must be at least 1 (and 999999 more)"
+        );
     }
 
     #[test]
@@ -417,6 +520,7 @@ mod tests {
         validator.at("after", |v| v.at(&key, |v| v.fail("broken")));
         let paths: Vec<_> = validator
             .violations
+            .listed()
             .iter()
             .map(|v| v.path.as_str())
             .collect();
@@ -427,23 +531,58 @@ mod tests {
     }
 
     #[test]
+    fn every_rejection_is_capped_and_its_summary_counts_the_unlisted() {
+        let violation = |index: usize| super::Violation {
+            path: format!("p{index}"),
+            message: "broken".to_owned(),
+            kind: super::ViolationKind::Malformed,
+        };
+        let rejection = super::Rejection::new((0..150).map(violation));
+        assert_eq!(rejection.violations.len(), super::MAX_VIOLATIONS + 1);
+        assert_eq!(rejection.count(), 150);
+        assert_eq!(rejection.summary(), "p0: broken (and 149 more)");
+        let last = rejection.violations.last().unwrap();
+        assert_eq!(last.message, "50 more violations are not listed");
+
+        let rejection = super::Rejection::new((0..3).map(violation));
+        assert_eq!(rejection.count(), 3);
+        assert_eq!(rejection.summary(), "p0: broken (and 2 more)");
+        let rejection = super::Rejection::new((0..1).map(violation));
+        assert_eq!(rejection.summary(), "p0: broken");
+        assert_eq!(
+            super::Rejection::new([]).summary(),
+            "the request is invalid"
+        );
+
+        let collected: super::Violations = (0..super::MAX_VIOLATIONS).map(violation).collect();
+        assert!(collected.is_full());
+        assert!(super::Violations::default().into_rejection().is_none());
+    }
+
+    #[test]
     fn f32_range_accepts_rounded_bounds_and_rejects_adjacent_values() {
         let mut validator = Validator::default();
         validator.range_float32(0.1, None, Some(0.1));
         validator.range_float32(0.7, Some(0.7), None);
-        assert!(validator.violations.is_empty());
+        assert!(validator.violations.listed().is_empty());
         validator.range_float32(f32::from_bits(0.1f32.to_bits() + 1), None, Some(0.1));
         validator.range_float32(f32::from_bits(0.7f32.to_bits() - 1), Some(0.7), None);
-        assert_eq!(validator.violations.len(), 2);
-        assert_eq!(validator.violations[0].message, "must be at most 0.1");
-        assert_eq!(validator.violations[1].message, "must be at least 0.7");
+        assert_eq!(validator.violations.listed().len(), 2);
+        assert_eq!(
+            validator.violations.listed()[0].message,
+            "must be at most 0.1"
+        );
+        assert_eq!(
+            validator.violations.listed()[1].message,
+            "must be at least 0.7"
+        );
         let mut double = Validator::default();
         double.range_float(f64::from_bits(0.1f64.to_bits() + 1), None, Some(0.1));
         double.range_float(f64::from_bits(0.7f64.to_bits() - 1), Some(0.7), None);
-        assert_eq!(double.violations.len(), 2);
+        assert_eq!(double.violations.listed().len(), 2);
         let mut non_finite = Validator::default();
         non_finite.range_float32(f32::INFINITY, None, Some(1e100));
         non_finite.range_float32(f32::NEG_INFINITY, Some(-1e100), None);
-        assert_eq!(non_finite.violations.len(), 2);
+        assert_eq!(non_finite.violations.listed().len(), 2);
     }
 }

@@ -1250,9 +1250,19 @@ plus `message`, and the standard `reason` enum (`cannotParse` for a request
 that does not read as its input, `fieldValidationFailed` for a broken
 constraint). The `fieldList` holds at most 100 violations
 (`validate::MAX_VIOLATIONS`) and then one more, with an empty path, counting
-the rest. Messages name the kind of a value that does not read, never the value
-itself, so a `@sensitive` member's value cannot reach the response or the
-service log. A declared `crucible.errors#UnknownOperationException` answers
+the rest, whichever part of the request they come from: the body, labels, the
+query string or headers. The framework collects every rejection it makes
+through `validate::Violations` (or `Rejection::new`), which keeps that cap;
+the message's "(and N more)" counts the unlisted ones too. A custom protocol
+or extension should build its rejections the same way: `Rejection.violations`
+is a public field, and a `Rejection { violations }` literal is not capped. Messages name the kind
+of a value that does not read, never the value itself, so a `@sensitive`
+member's value cannot reach the response or the service log. Nor do they
+repeat other request text a client controls: a query parameter the operation
+does not declare is reported at `query`, a key of a map bound to the query
+string or to prefixed headers at `<member>/[key]`, an unknown member of a
+strict structure at `[key]`, and an unsupported `Crucible-Version` by the
+versions the service serves. A declared `crucible.errors#UnknownOperationException` answers
 an unmatched route as a modelled 404. It takes precedence over the validation
 error's `unknownOperation` reason. A custom routing error can be selected with
 `.unknown_operation_error("namespace#Error")` in the build helper, or
@@ -1308,8 +1318,9 @@ the model, resolved once at `build`.
 Inputs ignore members the model does not define, unless the structure is
 strict: marked `@crucible.protocols#strict`, or every structure an input
 reaches when the service generates with `strict_inputs()`. A strict
-structure answers an unknown member with the validation error, its path
-naming the member. Clients never generate strict, so a newer service can add
+structure answers an unknown member with the validation error. Its path is
+the literal `[key]`, never the name the client sent, which is the client's
+text and of any length; MCP reports an undeclared argument the same way. Clients never generate strict, so a newer service can add
 members without breaking them.
 
 An error the generator fills (validation or internal) that has a string

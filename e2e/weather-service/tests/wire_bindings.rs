@@ -793,7 +793,8 @@ async fn malformed_uri_components_claim_their_route_and_reject_before_calling_it
         ("/greedy/a/%GG/tail", "Greedy", "x"),
         ("/flag?mode=%FF", "ZExact", "mode"),
         ("/flag?%GG=on", "ZExact", "query"),
-        ("/flag?mode=on&ignored=%FE", "ZExact", "ignored"),
+        // An undeclared key is the client's text: not named.
+        ("/flag?mode=on&ignored=%FE", "ZExact", "query"),
     ] {
         let response = service
             .handle(

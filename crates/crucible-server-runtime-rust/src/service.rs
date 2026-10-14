@@ -548,7 +548,7 @@ impl Crucible {
                 .iter()
                 .find(|older| older.version.name() == name)
                 .map(Some)
-                .ok_or_else(|| versioning::unsupported(name, &versions.supported()).into())
+                .ok_or_else(|| versioning::unsupported(&versions.supported()).into())
         };
         let header = job
             .request()

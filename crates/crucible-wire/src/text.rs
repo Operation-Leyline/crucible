@@ -189,11 +189,22 @@ pub fn without_values(message: &str) -> Cow<'_, str> {
             return Cow::Owned(format!("{prefix}{}{expected}", value_kind(unexpected)));
         }
     }
-    if let Some(rest) = message.strip_prefix("unknown variant `") {
-        for separator in ["`, expected ", "`, there are no variants"] {
-            if let Some(split) = rest.rfind(separator) {
-                return Cow::Owned(format!("unknown variant{}", &rest[split + 1..]));
-            }
+    // The name is the request's text: a variant it sent, or a field a
+    // strict structure does not define. What follows is the model's.
+    for (prefix, no_choices) in [
+        ("unknown variant `", "`, there are no variants"),
+        ("unknown field `", "`, there are no fields"),
+    ] {
+        // The name ends at the last separator of either kind: the request
+        // may spell one of its own, but the model's tail spells neither.
+        if let Some(rest) = message.strip_prefix(prefix)
+            && let Some(split) = ["`, expected ", no_choices]
+                .into_iter()
+                .filter_map(|separator| rest.rfind(separator))
+                .max()
+        {
+            let kind = &prefix[..prefix.len() - 2];
+            return Cow::Owned(format!("{kind}{}", &rest[split + 1..]));
         }
     }
     Cow::Borrowed(message)
@@ -349,9 +360,19 @@ mod tests {
             #[serde(rename = "clear")]
             Clear,
         }
+        #[derive(Debug, serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        #[allow(dead_code)]
+        struct Strict {
+            name: Option<String>,
+        }
+        #[derive(Debug, serde::Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Empty {}
         let secret = "123-45-6789";
         // A string that spells the separator must not move the cut.
         let spoof = format!("{secret}, expected nothing");
+        let field = format!("{secret}`, expected `name");
         let cases = [
             (
                 serde_json::from_value::<i64>(Value::from(secret)).unwrap_err(),
@@ -376,6 +397,27 @@ mod tests {
             (
                 serde_json::from_value::<Sky>(Value::from(secret)).unwrap_err(),
                 "unknown variant, expected `clear`",
+            ),
+            (
+                serde_json::from_value::<Strict>(serde_json::json!({ field.as_str(): 1 }))
+                    .unwrap_err(),
+                "unknown field, expected `name`",
+            ),
+            (
+                serde_json::from_value::<Empty>(serde_json::json!({ secret: 1 })).unwrap_err(),
+                "unknown field, there are no fields",
+            ),
+            // A structure without fields: the client's own `expected` must
+            // not end the name early.
+            (
+                serde_json::from_value::<Empty>(serde_json::json!({ field.as_str(): 1 }))
+                    .unwrap_err(),
+                "unknown field, there are no fields",
+            ),
+            (
+                serde_json::from_str::<Empty>(&format!("{{\"{secret}`, expected `x\": 1}}"))
+                    .unwrap_err(),
+                "unknown field, there are no fields at line 1 column 28",
             ),
         ];
         for (error, expected) in cases {
