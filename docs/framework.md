@@ -1302,9 +1302,9 @@ the model, resolved once at `build`.
 Inputs ignore members the model does not define, unless the structure is
 strict: marked `@crucible.protocols#strict`, or every structure an input
 reaches when the service generates with `strict_inputs()`. A strict
-structure answers an unknown member with the validation error, its path
-`[key]`: the name is the client's text, as MCP reports an undeclared
-argument. Clients never generate strict, so a newer service can add
+structure answers an unknown member with the validation error. Its path is
+the literal `[key]`, never the name the client sent, which is the client's
+text and of any length; MCP reports an undeclared argument the same way. Clients never generate strict, so a newer service can add
 members without breaking them.
 
 An error the generator fills (validation or internal) that has a string
