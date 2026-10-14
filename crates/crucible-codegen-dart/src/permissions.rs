@@ -12,7 +12,7 @@
 use std::collections::BTreeSet;
 
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{DocNotes, Service};
@@ -81,17 +81,22 @@ pub(crate) fn check(service: &Service, package: &str, diagnostics: &mut Diagnost
         let mut members: BTreeSet<String> = MEMBERS.map(str::to_owned).into();
         members.insert(name.clone());
         for permission in &client.permissions {
-            let constant = enum_constant(&permission.symbol);
-            if !identifier(&constant) || !members.insert(constant.clone()) {
-                diagnostics.push(
-                    &service.id,
-                    format!(
-                        "permission `{}` of `{}` spells the Dart constant `{constant}`, which `{name}` already declares",
-                        permission.symbol,
-                        service.name_of(client.id)
-                    ),
-                );
-            }
+            let constant = enum_constant(&constant_symbol(&permission.symbol));
+            let problem = if !identifier(&constant) {
+                "which is not a Dart identifier".to_owned()
+            } else if !members.insert(constant.clone()) {
+                format!("which `{name}` already declares")
+            } else {
+                continue;
+            };
+            diagnostics.push(
+                &service.id,
+                format!(
+                    "permission `{}` of `{}` spells the Dart constant `{constant}`, {problem}",
+                    permission.symbol,
+                    service.name_of(client.id)
+                ),
+            );
         }
     }
 }
@@ -140,7 +145,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             ));
             out.push_str(&format!(
                 "  static const {} = {name}({});\n",
-                enum_constant(&permission.symbol),
+                enum_constant(&constant_symbol(&permission.symbol)),
                 literal(&permission.value)
             ));
         }

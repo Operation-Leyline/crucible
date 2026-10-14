@@ -10,7 +10,9 @@
 use std::collections::BTreeSet;
 
 use crucible_codegen_common::documentation as docs;
-use crucible_codegen_common::permissions::{ClientResource, client_resources, notes, primary};
+use crucible_codegen_common::permissions::{
+    ClientResource, client_resources, constant_symbol, notes, primary,
+};
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{DocNotes, Service};
 
@@ -56,7 +58,7 @@ pub(crate) fn check(service: &Service, diagnostics: &mut Diagnostics) {
         .map(str::to_owned)
         .collect();
         for permission in &client.permissions {
-            let constant = constant(&permission.symbol);
+            let constant = constant(&constant_symbol(&permission.symbol));
             if !seen.insert(constant.clone()) {
                 diagnostics.push(
                     &service.id,
@@ -167,7 +169,7 @@ fn record(service: &Service, name: &str, client: &ClientResource<'_>) -> String 
             rendered.push(format!(
                 "<para>An alias of <c>{}</c>: <see cref=\"Canonical\"/> maps it to <see cref=\"{}\"/>.</para>",
                 docs::xmldoc_text(&primary.value),
-                constant(&primary.symbol)
+                constant(&constant_symbol(&primary.symbol))
             ));
         }
         out.push('\n');
@@ -181,7 +183,7 @@ fn record(service: &Service, name: &str, client: &ClientResource<'_>) -> String 
         ));
         out.push_str(&format!(
             "    public static readonly {name} @{} = new({});\n",
-            constant(&permission.symbol),
+            constant(&constant_symbol(&permission.symbol)),
             literal(&permission.value)
         ));
     }
@@ -207,7 +209,7 @@ fn record(service: &Service, name: &str, client: &ClientResource<'_>) -> String 
             out.push_str(&format!(
                 "        {} => @{},\n",
                 literal(&alias.value),
-                constant(&primary.symbol)
+                constant(&constant_symbol(&primary.symbol))
             ));
         }
         out.push_str("        _ => this,\n    };\n");

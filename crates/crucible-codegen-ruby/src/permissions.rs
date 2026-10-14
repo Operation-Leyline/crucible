@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use crucible_codegen_common::docs;
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{Service, Shape};
@@ -73,7 +73,7 @@ pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
     for (shape, client) in resources(service) {
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let name = constant(&permission.symbol);
+            let name = constant(&constant_symbol(&permission.symbol));
             if !seen.insert(name.clone()) {
                 diagnostics.push(
                     &service.id,
@@ -129,7 +129,7 @@ pub(crate) fn emit(service: &Service, module: &str) -> String {
             ));
             out.push_str(&format!(
                 "      {} = new({})\n",
-                constant(&permission.symbol),
+                constant(&constant_symbol(&permission.symbol)),
                 literal(&permission.value)
             ));
         }
@@ -144,8 +144,8 @@ pub(crate) fn emit(service: &Service, module: &str) -> String {
         for (alias, primary) in client.aliases() {
             out.push_str(&format!(
                 "        return {} if self == {}\n",
-                constant(&primary.symbol),
-                constant(&alias.symbol)
+                constant(&constant_symbol(&primary.symbol)),
+                constant(&constant_symbol(&alias.symbol))
             ));
         }
         out.push_str(&format!(

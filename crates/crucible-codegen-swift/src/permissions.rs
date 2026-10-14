@@ -11,7 +11,7 @@
 use std::collections::BTreeSet;
 
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{Service, Shape};
@@ -88,7 +88,7 @@ pub(crate) fn check(service: &Service, module: &str, diagnostics: &mut Diagnosti
         }
         let mut members: BTreeSet<String> = MEMBERS.map(str::to_owned).into();
         for permission in &client.permissions {
-            let constant = enum_constant(&permission.symbol);
+            let constant = enum_constant(&constant_symbol(&permission.symbol));
             let problem = if !identifier(&constant) {
                 "which is not a Swift identifier".to_owned()
             } else if !members.insert(constant.clone()) {
@@ -152,7 +152,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             ));
             out.push_str(&format!(
                 "        public static let `{}` = Self(rawValue: {})\n",
-                enum_constant(&permission.symbol),
+                enum_constant(&constant_symbol(&permission.symbol)),
                 literal(&permission.value)
             ));
         }

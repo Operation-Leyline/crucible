@@ -1091,11 +1091,16 @@ the types in a namespace of their own, away from the models:
 
 A constant's name follows the language's naming for enum members, so Java
 writes `mailSend` as `MAILSEND`, as it would an enum value. Python, PHP and
-Ruby write it `MAIL_SEND`. Two cases are a diagnostic, never a rename:
+Ruby write it `MAIL_SEND`. A hyphen in a symbol, which `.cru` allows
+(`mail-send`), starts a word, so it gets the same constants as `mailSend`
+(`crucible_codegen_common::permissions::constant_symbol`). Rust and
+TypeScript already spelled it that way. Three cases are a diagnostic,
+never a rename:
 - two permissions of one resource that a language spells alike;
 - a model whose name takes one the permissions need, where the two share
   a namespace (C, R, Swift's `Permissions`, a Python model named
-  `permissions`).
+  `permissions`);
+- a name the language reserves: `_` in Kotlin, Swift and Dart.
 
 An alias carries the language's deprecation marker. `canonical` compares
 values, which has two effects. It also maps an alias that arrived as an

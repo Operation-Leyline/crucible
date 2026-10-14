@@ -8,7 +8,9 @@
 
 use crate::names::{field, identifier, literal};
 use crate::{File, Options};
-use crucible_codegen_common::permissions::{client_resources, code_span, notes, primary};
+use crucible_codegen_common::permissions::{
+    client_resources, code_span, constant_symbol, notes, primary,
+};
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::Service;
 use std::collections::BTreeSet;
@@ -34,7 +36,7 @@ pub fn diagnose(service: &Service, diagnostics: &mut Diagnostics) {
         let shape = service.name_of(client.id);
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let name = factory(&permission.symbol);
+            let name = factory(&constant_symbol(&permission.symbol));
             if !identifier(&name) {
                 diagnostics.push(
                     client.id,
@@ -97,7 +99,7 @@ pub fn emit(service: &Service, options: &Options) -> Option<File> {
             ));
             out.push_str(&format!(
                 "    static {name} {}() {{ return {name}{{{}}}; }}\n",
-                factory(&permission.symbol),
+                factory(&constant_symbol(&permission.symbol)),
                 literal(&permission.value)
             ));
         }

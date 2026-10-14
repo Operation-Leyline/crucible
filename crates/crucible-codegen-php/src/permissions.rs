@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use crucible_codegen_common::docs;
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{DocNotes, Service};
@@ -64,7 +64,7 @@ pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
         }
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let name = screaming(&permission.symbol);
+            let name = screaming(&constant_symbol(&permission.symbol));
             if !seen.insert(name.clone()) {
                 diagnostics.push(
                     &service.id,
@@ -116,7 +116,7 @@ pub(crate) fn emit(service: &Service, namespace: &str) -> Vec<File> {
             ));
             out.push_str(&format!(
                 "    public const {} = {};\n",
-                screaming(&permission.symbol),
+                screaming(&constant_symbol(&permission.symbol)),
                 literal(&permission.value)
             ));
         }
@@ -137,8 +137,8 @@ pub(crate) fn emit(service: &Service, namespace: &str) -> Vec<File> {
             for (alias, primary) in aliases {
                 out.push_str(&format!(
                     "            self::{} => new self(self::{}),\n",
-                    screaming(&alias.symbol),
-                    screaming(&primary.symbol)
+                    screaming(&constant_symbol(&alias.symbol)),
+                    screaming(&constant_symbol(&primary.symbol))
                 ));
             }
             out.push_str("            default => $this,\n        };\n    }\n");

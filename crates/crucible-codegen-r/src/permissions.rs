@@ -11,7 +11,7 @@
 use crate::{File, field, function, literal, markdown, roxygen, roxygen_details};
 use crucible_codegen_common::documentation::with_notes;
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{Permission, Service};
@@ -66,7 +66,7 @@ pub fn diagnose(service: &Service, diagnostics: &mut Diagnostics) {
     for client in client_resources(service) {
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let name = field(&permission.symbol);
+            let name = field(&constant_symbol(&permission.symbol));
             if !seen.insert(name.clone()) {
                 diagnostics.push(
                     client.id,
@@ -102,7 +102,7 @@ pub fn emit(service: &Service) -> Vec<File> {
         details.push_str(&format!("{list}: {summary}\n\n"));
         let mut members = Vec::new();
         for permission in &client.permissions {
-            let name = field(&permission.symbol);
+            let name = field(&constant_symbol(&permission.symbol));
             let line = format!(
                 "{name} = {}: {}",
                 permission.value,

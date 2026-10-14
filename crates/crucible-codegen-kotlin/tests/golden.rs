@@ -440,6 +440,7 @@ fn colliding_permission_names_are_diagnosed() {
         ("READ", "graph:reread"),
         ("mailSend", "graph:mail"),
         ("mailsend", "graph:mail2"),
+        ("_", "graph:underscore"),
     ] {
         let mut clash = graph.permissions[0].clone();
         clash.symbol = symbol.into();
@@ -458,5 +459,36 @@ fn colliding_permission_names_are_diagnosed() {
         diagnostics
             .contains("`mailsend` of `GraphPermission` shares the Kotlin constant `MAILSEND`"),
         "{diagnostics}"
+    );
+    assert!(
+        diagnostics.contains("spells the Kotlin constant `_`, which Kotlin reserves"),
+        "{diagnostics}"
+    );
+}
+
+/// A hyphen in a permission's symbol (`mail-send`, which `.cru` allows)
+/// starts a word of the constant's name, since no client language allows
+/// one in a name (`constant_symbol`).
+#[test]
+fn hyphenated_permission_symbols_spell_words() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
+    let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
+    let full = compiled.service.expect("the fixture compiles");
+    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let graph = service
+        .permissions
+        .values_mut()
+        .find(|resource| resource.name == "graph")
+        .unwrap();
+    let mut hyphenated = graph.permissions[0].clone();
+    hyphenated.symbol = "mail-send".into();
+    hyphenated.value = "graph:mail-send".into();
+    graph.permissions.push(hyphenated);
+    let files = emit(&service, &options()).unwrap();
+    let expected = r#"val `MAILSEND` = GraphPermission("graph:mail-send")"#;
+    assert!(
+        files.iter().any(|file| file.contents.contains(expected)),
+        "no file spells `mail-send` as {expected}"
     );
 }

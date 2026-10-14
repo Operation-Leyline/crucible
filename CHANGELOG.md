@@ -255,7 +255,10 @@ version's section when it is prepared.
   `permissions` module, package, sub-package or library; `Permissions` in
   C#, PHP, Ruby and Swift; `permissions` in C++. In C and R they share the
   model namespace, so a model name they need is a diagnostic. So is a pair
-  of permissions that a language spells alike. Every language, Rust and
+  of permissions that a language spells alike, and `_` where the language
+  reserves it (Kotlin, Swift, Dart). A hyphen in a symbol (`mail-send`)
+  starts a word of the constant's name, as Rust and TypeScript already
+  spell it. Every language, Rust and
   TypeScript included, now generates from one rule,
   `crucible_codegen_common::permissions::client_resources`, so every
   registry lists the same permissions with the same flags. None names an

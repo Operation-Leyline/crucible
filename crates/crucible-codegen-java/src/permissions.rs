@@ -9,7 +9,9 @@
 
 use std::collections::BTreeSet;
 
-use crucible_codegen_common::permissions::{ClientResource, client_resources, notes, primary};
+use crucible_codegen_common::permissions::{
+    ClientResource, client_resources, constant_symbol, notes, primary,
+};
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{DocNotes, Service};
 
@@ -40,7 +42,7 @@ pub(crate) fn check(service: &Service, diagnostics: &mut Diagnostics) {
         }
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let constant = constant(&permission.symbol);
+            let constant = constant(&constant_symbol(&permission.symbol));
             if !seen.insert(constant.clone()) {
                 diagnostics.push(
                     &service.id,
@@ -163,7 +165,7 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
             notes.push(format!(
                 "An alias of {}: {{@link #canonical()}} maps it to {{@link #{}}}.",
                 code(&primary.value),
-                constant(&primary.symbol)
+                constant(&constant_symbol(&primary.symbol))
             ));
         }
         out.push('\n');
@@ -176,7 +178,7 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
         ));
         out.push_str(&format!(
             "    public static final {name} {} = new {name}({});\n",
-            constant(&permission.symbol),
+            constant(&constant_symbol(&permission.symbol)),
             literal(&permission.value)
         ));
     }
@@ -203,7 +205,7 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
             out.push_str(&format!(
                 "            case {} -> {};\n",
                 literal(&alias.value),
-                constant(&primary.symbol)
+                constant(&constant_symbol(&primary.symbol))
             ));
         }
         out.push_str("            default -> this;\n        };\n    }\n");

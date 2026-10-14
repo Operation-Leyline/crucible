@@ -9,7 +9,7 @@
 
 use crate::{File, Options, names};
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::Service;
@@ -64,7 +64,7 @@ pub fn symbols(service: &Service, prefix: &str) -> Vec<(ShapeId, String, String)
         for permission in &client.permissions {
             result.push((
                 client.id.clone(),
-                known(&native, &permission.symbol),
+                known(&native, &constant_symbol(&permission.symbol)),
                 format!("permission `{}` of `{shape}`", permission.symbol),
             ));
         }
@@ -124,7 +124,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             ));
             header.push_str(&format!(
                 "static inline {native} {}(void) {{ {native} result = {}; return result; }}\n",
-                known(&native, &permission.symbol),
+                known(&native, &constant_symbol(&permission.symbol)),
                 view(&permission.value)
             ));
         }

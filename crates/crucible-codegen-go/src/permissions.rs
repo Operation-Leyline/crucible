@@ -11,7 +11,7 @@
 use std::collections::BTreeSet;
 
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{DocNotes, Service};
@@ -83,7 +83,7 @@ pub(crate) fn check(service: &Service, diagnostics: &mut Diagnostics) {
             );
         }
         for permission in &client.permissions {
-            let constant = format!("{name}{}", exported(&permission.symbol));
+            let constant = format!("{name}{}", exported(&constant_symbol(&permission.symbol)));
             if !names.insert(constant.clone()) {
                 diagnostics.push(
                     &service.id,
@@ -128,7 +128,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
         ));
         let mut constants: Vec<(String, String, String)> = Vec::new();
         for permission in &client.permissions {
-            let constant = format!("{name}{}", exported(&permission.symbol));
+            let constant = format!("{name}{}", exported(&constant_symbol(&permission.symbol)));
             let mut docs = permission.docs.clone().unwrap_or_default();
             if permission.alias_of.is_some() {
                 if !docs.trim().is_empty() {
@@ -188,8 +188,8 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             for (alias, primary) in aliases {
                 out.push_str(&format!(
                     "\tcase {name}{}:\n\t\treturn {name}{}\n",
-                    exported(&alias.symbol),
-                    exported(&primary.symbol)
+                    exported(&constant_symbol(&alias.symbol)),
+                    exported(&constant_symbol(&primary.symbol))
                 ));
             }
             out.push_str("\tdefault:\n\t\treturn p\n\t}\n}\n\n");

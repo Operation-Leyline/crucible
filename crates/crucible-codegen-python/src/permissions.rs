@@ -9,7 +9,7 @@ use std::collections::BTreeSet;
 
 use crucible_codegen_common::documentation::with_notes;
 use crucible_codegen_common::permissions::{
-    ClientResource, client_resources, code_span, notes, primary,
+    ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::Service;
@@ -51,7 +51,7 @@ pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
     for (shape, client) in resources(service) {
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let member = enum_member(&permission.symbol);
+            let member = enum_member(&constant_symbol(&permission.symbol));
             if !seen.insert(member.clone()) {
                 diagnostics.push(
                     &service.id,
@@ -106,7 +106,7 @@ pub(crate) fn emit(service: &Service) -> String {
         for permission in &client.permissions {
             out.push_str(&format!(
                 "    {} = {}\n",
-                enum_member(&permission.symbol),
+                enum_member(&constant_symbol(&permission.symbol)),
                 literal(&permission.value)
             ));
             let mut docs = permission.docs.clone().unwrap_or_default();
@@ -137,8 +137,8 @@ pub(crate) fn emit(service: &Service) -> String {
         for (alias, primary) in client.aliases() {
             out.push_str(&format!(
                 "        if self is {name}.{}:\n            return {name}.{}\n",
-                enum_member(&alias.symbol),
-                enum_member(&primary.symbol)
+                enum_member(&constant_symbol(&alias.symbol)),
+                enum_member(&constant_symbol(&primary.symbol))
             ));
         }
         out.push_str("        return self\n\n\n");

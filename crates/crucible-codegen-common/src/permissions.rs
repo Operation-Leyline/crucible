@@ -572,6 +572,28 @@ pub fn requirements(service: &Service, op: &Operation) -> Option<Value> {
     })
 }
 
+/// The name a client language spells a permission's constant from: its
+/// symbol, where each hyphen (which `.cru` allows between word characters,
+/// `mail-send`) starts a camel-case word, `mailSend`. No client language
+/// allows a hyphen in a name, and each applies its own case to this one, so
+/// `mail-send` reads as `MAIL_SEND`, `MailSend` or `mail_send`, as the Rust
+/// and TypeScript clients already spell it. Two symbols that meet here
+/// (`mail-send` and `mailSend`) are each language's collision diagnostic.
+pub fn constant_symbol(symbol: &str) -> String {
+    let mut out = String::with_capacity(symbol.len());
+    let mut upper = false;
+    for c in symbol.chars() {
+        if c == '-' {
+            upper = true;
+        } else if std::mem::take(&mut upper) {
+            out.extend(c.to_uppercase());
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
 /// One resource type as a client's typed permissions and `PERMISSIONS`
 /// registry carry it (docs/permissions.md §6.3). Every client language
 /// generates from these, so they agree on which permissions appear, their
@@ -659,7 +681,15 @@ pub fn client_resources(service: &Service) -> Vec<ClientResource<'_>> {
 
 #[cfg(test)]
 mod tests {
-    use super::{noun, plural};
+    use super::{constant_symbol, noun, plural};
+
+    #[test]
+    fn hyphens_start_camel_case_words() {
+        assert_eq!(constant_symbol("mail-send"), "mailSend");
+        assert_eq!(constant_symbol("api-key-2"), "apiKey2");
+        assert_eq!(constant_symbol("read"), "read");
+        assert_eq!(constant_symbol("_"), "_");
+    }
 
     #[test]
     fn nouns_and_plurals_read_as_english() {

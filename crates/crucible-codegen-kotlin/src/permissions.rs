@@ -10,7 +10,9 @@
 
 use std::collections::BTreeSet;
 
-use crucible_codegen_common::permissions::{ClientResource, client_resources, notes, primary};
+use crucible_codegen_common::permissions::{
+    ClientResource, client_resources, constant_symbol, notes, primary,
+};
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::Service;
 
@@ -41,8 +43,18 @@ pub(crate) fn check(service: &Service, diagnostics: &mut Diagnostics) {
         }
         let mut seen = BTreeSet::new();
         for permission in &client.permissions {
-            let constant = constant(&permission.symbol);
-            if !seen.insert(constant.clone()) {
+            let constant = constant(&constant_symbol(&permission.symbol));
+            // Kotlin reserves names made only of underscores, backticked
+            // or not, so `_` cannot name a constant.
+            if constant.chars().all(|c| c == '_') {
+                diagnostics.push(
+                    &service.id,
+                    format!(
+                        "permission `{}` of `{name}` spells the Kotlin constant `{constant}`, which Kotlin reserves",
+                        permission.symbol
+                    ),
+                );
+            } else if !seen.insert(constant.clone()) {
                 diagnostics.push(
                     &service.id,
                     format!(
@@ -171,7 +183,7 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
             out.push_str(&format!(
                 "        {} -> `{}`\n",
                 literal(&alias.value),
-                constant(&primary.symbol)
+                constant(&constant_symbol(&primary.symbol))
             ));
         }
         out.push_str("        else -> this\n    }\n");
@@ -184,7 +196,7 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
             notes.push(format!(
                 "An alias of {}: [canonical] maps it to [{}].",
                 code(&primary.value),
-                constant(&primary.symbol)
+                constant(&constant_symbol(&primary.symbol))
             ));
         }
         if index > 0 {
@@ -200,7 +212,7 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
         ));
         out.push_str(&format!(
             "        @kotlin.jvm.JvmField val `{}` = {name}({})\n",
-            constant(&permission.symbol),
+            constant(&constant_symbol(&permission.symbol)),
             literal(&permission.value)
         ));
     }
