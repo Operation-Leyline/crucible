@@ -768,7 +768,8 @@ then can a retry after the lease run the succeeded operation again. A
 failure past a commit whose note cannot be written is retried the same way
 (the commit already holds the claim). Any other store error is an outage: the
 service's sanitized internal error, never a duplicate run and never a
-refusal.
+refusal. It is an `OpaqueError`, so the service's exception rules never see
+the store's error inside it.
 
 **What is stored.** The stored output is the whole output as JSON text,
 `@sensitive` members included, in plaintext: a secret shown once (an API key
@@ -993,7 +994,9 @@ workspace it is not a member of). `request.context` carries the principal
 as authentication left it, and `request.operation` the operation's id, its
 `readonly` and `idempotent` facts and its requirements, from which the
 Authorizer decides what it may cache. An `Err` is "could not tell": the
-service's sanitized internal error, never a refusal and never an allow.
+service's sanitized internal error, never a refusal and never an allow. It is
+an `OpaqueError`, so the service's exception rules never see the
+Authorizer's error inside it.
 `Authorizer::visible(request, listing)` answers a `filters` listing.
 
 For each operation it covers, `Permissions`:
@@ -1322,9 +1325,10 @@ with registered translations (`|e: &ThrottledByDependency| ThrottlingException
 {..}`). A rule matches its type anywhere in the failure's source chain, except
 inside an `OpaqueError`: an extension wraps a failure in one when its meaning
 is fixed whatever its cause, and rules may match the wrapper but never what it
-wraps. `crucible-auth`'s chain does this with a provider outage, so a rule that
-turns the service's own database-client errors into a 4xx cannot turn a key
-store outage on the same client into one. What nothing translates is answered
+wraps. `crucible-auth`'s chain does this with a provider outage, `Idempotency`
+with a store outage and `Permissions` with an Authorizer outage, so a rule that
+turns the service's own database-client errors into a 4xx cannot turn an
+outage of a store on the same client into one. What nothing translates is answered
 as the service's internal error (its one 500 server error, filled by the
 generator) or the protocol's own `InternalFailure`. Either way the response has a fixed message, never the
 error's text. An applicable `ServiceLog` with failure logging enabled records

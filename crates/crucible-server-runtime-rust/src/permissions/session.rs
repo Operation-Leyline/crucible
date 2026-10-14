@@ -190,7 +190,7 @@ impl Session {
             .authorizer
             .decide(&request, checks)
             .await
-            .map_err(|error| Error::new(AuthorizerUnavailable(error)))?;
+            .map_err(AuthorizerUnavailable::error)?;
         if verdicts.len() != checks.len() {
             return Err(Error::internal(format!(
                 "{}: the Authorizer answered {} verdicts for {} checks",
@@ -305,7 +305,7 @@ impl Session {
             .authorizer
             .visible(&request, listing)
             .await
-            .map_err(|error| Error::new(AuthorizerUnavailable(error)))?;
+            .map_err(AuthorizerUnavailable::error)?;
         self.edit(|record| {
             record.listing = Some((listing.clone(), visibility.clone()));
         });

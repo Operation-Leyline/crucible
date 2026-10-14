@@ -218,7 +218,7 @@ impl Idempotency {
                 .claim(held.key(), &fingerprint, held.attempt(), now, expires),
         )
         .await
-        .map_err(|error| crate::Error::new(StoreUnavailable(error)))?;
+        .map_err(StoreUnavailable::error)?;
         if claim == Claim::Fresh {
             job.context().set_attribute(Attempt { claim: Some(held) });
             return Ok(());

@@ -418,6 +418,13 @@ version's section when it is prepared.
 
 ### Fixed
 
+- An idempotency store outage, or an Authorizer outage, can no longer
+  become a modelled 4xx through the service's exception rules. Both are
+  wrapped in `OpaqueError`, as `AuthenticatorChain` wraps an authentication
+  outage, so a rule that answers the service's own database-client errors
+  with, say, a 409 no longer matches the store's error on the same client
+  inside the outage. They stay the service's internal error.
+
 - `AuthenticatorChain` checked a request at an older API version against
   the current version's authentication plan when its scope took both
   versions (an unscoped chain, say): plans were keyed by operation id, and

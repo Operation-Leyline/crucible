@@ -20,12 +20,15 @@ use crucible_server_runtime_rust::{Builder, Context, Crucible, Error};
 use serde_json::{Value, json};
 use tokio::sync::Notify;
 use weather_service::weather::{CitySummary, ConflictError};
-use weather_service::{CityStore, MemoryCities, NewCity, StoredPhoto};
+use weather_service::{CityStore, MemoryCities, NameTaken, NewCity, StoredPhoto};
 
 /// What the next `create` does, beyond counting itself.
 enum Step {
     /// Fails before the point of no return: a retry runs again.
     FailBeforeCommit,
+    /// Fails as the cities' client does for a name already taken, which the
+    /// service translates into its modelled 409.
+    NameTaken,
     /// Commits, then fails: a retry must not run again.
     FailAfterCommit,
     /// Commits, finds its step refused (nothing happened), abandons the
@@ -113,6 +116,7 @@ impl CityStore for Counted {
         let step = self.script.lock().unwrap().pop_front();
         match step {
             Some(Step::FailBeforeCommit) => return Err(Error::internal("the database is down")),
+            Some(Step::NameTaken) => return Err(NameTaken(city.name).into()),
             Some(Step::FailAfterCommit) => {
                 idempotency::commit().await?;
                 return Err(Error::internal("recorded nothing after the side effect"));
@@ -795,6 +799,72 @@ async fn a_store_outage_is_an_internal_error_and_never_runs_the_operation() {
     let refused = harness.create(Some("alice"), oslo("t-1")).await;
     assert_eq!(refused.status, 500);
     assert!(!String::from_utf8_lossy(&refused.body).contains("unavailable"));
+    assert_eq!(harness.cities.creates(), 0);
+}
+
+/// An idempotency store on the cities' client: every call fails with that
+/// client's error, which the service translates for its own operations.
+struct SharedClientDown;
+
+#[crucible_server_runtime_rust::async_trait]
+impl IdempotencyStore for SharedClientDown {
+    async fn claim(
+        &self,
+        _: &IdempotencyKey,
+        _: &Fingerprint,
+        _: &str,
+        _: SystemTime,
+        _: SystemTime,
+    ) -> crucible_server_runtime_rust::Result<Claim> {
+        Err(NameTaken("Oslo".to_owned()).into())
+    }
+
+    async fn hold(
+        &self,
+        _: &IdempotencyKey,
+        _: &str,
+        _: SystemTime,
+    ) -> crucible_server_runtime_rust::Result<Ownership> {
+        Err(NameTaken("Oslo".to_owned()).into())
+    }
+
+    async fn complete(
+        &self,
+        _: &IdempotencyKey,
+        _: &str,
+        _: &StoredResponse,
+        _: SystemTime,
+    ) -> crucible_server_runtime_rust::Result<Ownership> {
+        Err(NameTaken("Oslo".to_owned()).into())
+    }
+
+    async fn release(
+        &self,
+        _: &IdempotencyKey,
+        _: &str,
+    ) -> crucible_server_runtime_rust::Result<Ownership> {
+        Err(NameTaken("Oslo".to_owned()).into())
+    }
+}
+
+#[tokio::test]
+async fn a_rule_for_the_services_store_errors_never_translates_a_store_outage() {
+    // The operation's own `NameTaken` is the service's to translate...
+    let harness = serve(Idempotency::new(store(), caller)).await;
+    harness.cities.next(Step::NameTaken);
+    let taken = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(taken.status, 409);
+    assert_eq!(taken.json()["__type"], "ConflictError", "{}", taken.json());
+    // ...but the same error behind the idempotency store's outage is a
+    // server failure, never a refusal as a duplicate.
+    let harness = serve(Idempotency::new(Arc::new(SharedClientDown), caller)).await;
+    let failed = harness.create(Some("alice"), oslo("t-1")).await;
+    assert_eq!(
+        failed.status,
+        500,
+        "{}",
+        String::from_utf8_lossy(&failed.body)
+    );
     assert_eq!(harness.cities.creates(), 0);
 }
 

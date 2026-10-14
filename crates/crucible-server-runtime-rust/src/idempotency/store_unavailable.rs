@@ -1,11 +1,22 @@
 use std::fmt;
 
+use crate::OpaqueError;
+
 /// A store failure. The store's error stays the source for the service log;
 /// the caller sees only the service's internal error, since an outage is
 /// never a reason to run an operation twice or to refuse a request as a
 /// duplicate.
 #[derive(Debug)]
 pub(crate) struct StoreUnavailable(pub crate::Error);
+
+impl StoreUnavailable {
+    /// The request's failure for a store error. Opaque: a service rule for
+    /// its own client's errors must not answer a store outage as a modelled
+    /// error when the store uses the same client.
+    pub(crate) fn error(cause: crate::Error) -> crate::Error {
+        crate::Error::new(OpaqueError::new(Self(cause)))
+    }
+}
 
 impl fmt::Display for StoreUnavailable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
