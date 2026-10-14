@@ -169,6 +169,15 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
             (TokenKind::Ident, "http") => return Context::HttpMethods,
             (TokenKind::Ident, "protocol") => return Context::Protocols,
             (TokenKind::Ident, "auth") => return Context::AuthSchemes,
+            // `notFound X` in a service names one of its errors.
+            (TokenKind::Ident, "notFound")
+                if open.last().is_some_and(|&index| {
+                    before[index].kind == TokenKind::LBrace
+                        && block_context(&before, index, text) == Context::Service
+                }) =>
+            {
+                return Context::Errors;
+            }
             (TokenKind::Ident, "format") => return Context::TimestampFormats,
             (TokenKind::Ident, "retention") => return Context::Retention,
             (TokenKind::Ident, "include") => return Context::Structures,
@@ -463,6 +472,11 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "operations [$1]",
             );
             items.snippet("errors", "errors every operation can return", "errors [$1]");
+            items.snippet(
+                "notFound",
+                "the service's own 404 for permissions",
+                "notFound ${1:ResourceNotFoundException}",
+            );
             items.snippet("paginated", "default pagination members", "paginated(inputToken: ${1:nextToken}, outputToken: ${2:nextToken}, pageSize: ${3:maxResults})");
         }
         Context::Operation => {

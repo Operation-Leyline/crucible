@@ -12,11 +12,14 @@
 //! - **Declared checks** run before the operation, in one batched
 //!   `Authorizer::decide` call, and the first verdict in declaration order
 //!   that is not `Verdict::Allowed` refuses the request: `Verdict::Hidden`
-//!   is the framework's 404 (`FrameworkError::NotFound`),
+//!   is the framework's 404 (`FrameworkError::NotFound`), or the service's
+//!   own not-found error when the model designates one (`notFound` in the
+//!   service; `Permissions::not_found_factory` builds it), and
 //!   `Verdict::Denied` a 403 that may name the missing permission (never an
 //!   internal one), or what `Permissions::refusal_factory` builds.
 //! - **Listings that filter** ask `Authorizer::visible`, and the handler
-//!   reads the answer with `visible`.
+//!   reads the answer with `visible`; a hidden or denied listing is refused
+//!   as a Hidden or Denied verdict on its clause would be.
 //! - **Handler obligations** (`requires p on R by handler`) are opened before
 //!   the operation and must be closed by the handler, with `discharge` or
 //!   `not_applicable`, before `idempotency::commit()`
@@ -108,12 +111,74 @@ use crate::Result;
 #[cfg(feature = "permissions")]
 use session::Session;
 
-/// The framework's 404 for `resource`: what a handler returns when the
-/// resource is genuinely missing, so the answer is byte-identical to the one
-/// an authorization that hides it gets. It names the resource's type and
-/// nothing else.
+/// The 404 for `resource`: what a handler returns when the resource is
+/// genuinely missing, so the answer is byte-identical to the one an
+/// authorization that hides it gets. The framework's `NotFoundException`,
+/// naming the resource's type and nothing else; or, when the model
+/// designates the service's own not-found error, what the
+/// `Permissions::not_found_factory` builds from `resource`. The latter
+/// needs a request `Permissions` covers: elsewhere it is answered as an
+/// internal error and logged as a wiring error, never as an error the
+/// operation does not declare. (`ResourceRef::not_found` is answered the
+/// same way.)
 pub fn not_found(resource: &ResourceRef) -> Error {
+    #[cfg(feature = "permissions")]
+    if let Ok((_, session)) = Session::current() {
+        return session.not_found(resource);
+    }
     resource.not_found()
+}
+
+/// On a service that designates its own not-found error, a handler's (or
+/// an extension's) framework 404 is answered as that error: a
+/// [`MissingResource`](crucible_wire::permissions::MissingResource)
+/// through the not-found factory of the request's `Permissions`, so a
+/// genuine miss reads as a hidden one whichever constructor the handler
+/// used. Without a factory to build it (the request is outside what
+/// `Permissions` covers), or from a `FrameworkError::NotFound` that names no
+/// instance, it is a wiring error: the internal error, never a 404 of
+/// another shape that would tell the two apart.
+pub(crate) fn answer_not_found(job: &mut crate::Job) {
+    let Some(shape) = job.service.not_found else {
+        return;
+    };
+    let Some(crate::Outcome::Failed(error)) = &job.outcome else {
+        return;
+    };
+    let problem = if let Some(missing) =
+        error.downcast_ref::<crucible_wire::permissions::MissingResource>()
+    {
+        #[cfg(feature = "permissions")]
+        if let Some(session) = job.context.attribute::<Session>()
+            && session.builds_not_found()
+        {
+            let answer = session.not_found(missing.reference());
+            job.outcome = Some(crate::Outcome::Failed(answer));
+            return;
+        }
+        format!(
+            "{} is missing, but the request is not one Permissions with a not_found_factory covers, so `{shape}` cannot be built for it",
+            missing.reference()
+        )
+    } else if let Some(crate::FrameworkError::NotFound { resource }) =
+        error.downcast_ref::<crate::FrameworkError>()
+    {
+        format!(
+            "the framework's NotFound for `{}` names no instance, so `{shape}` cannot be built from it; answer with permissions::not_found(&resource) or ResourceRef::not_found",
+            resource.name
+        )
+    } else {
+        return;
+    };
+    let operation = job.operation().map_or("", |op| op.id);
+    tracing::error!(
+        target: "crucible_server_runtime_rust::permissions",
+        operation,
+        "a wiring error: {problem}"
+    );
+    job.outcome = Some(crate::Outcome::Failed(Error::internal(format!(
+        "{operation}: {problem}"
+    ))));
 }
 
 /// Requires `permission` on `resource`, through the service's Authorizer,
@@ -184,8 +249,9 @@ pub fn not_applicable(obligation: Obligation, reason: impl Into<String>) -> Resu
 
 /// What a `filters` listing may show, as the Authorizer answered it before
 /// the operation ran: [`Visibility::All`], or [`Visibility::Only`] the ids
-/// the handler filters to. An internal error for an operation without a
-/// `filters` clause.
+/// the handler filters to. (A Hidden or Denied listing was refused before
+/// the handler ran, except under `Permissions::shadow`, where it shows
+/// nothing.) An internal error for an operation without a `filters` clause.
 #[cfg(feature = "permissions")]
 pub fn visible() -> Result<Visibility> {
     let (_, session) = Session::current()?;

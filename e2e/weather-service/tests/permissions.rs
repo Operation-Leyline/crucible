@@ -521,6 +521,8 @@ struct Grants {
     short: AtomicBool,
     /// Callers whose listings are hidden although they are members.
     hidden_listings: Mutex<BTreeSet<String>>,
+    /// Callers who may list nothing (a suspended account), member or not.
+    denied_listings: Mutex<BTreeSet<String>>,
     /// Every `decide` call: the operation's facts and its checks.
     calls: Mutex<Vec<(OperationFacts, Vec<String>)>>,
 }
@@ -662,6 +664,9 @@ impl Authorizer for Shared {
         let caller = caller(request);
         if self.0.hidden_listings.lock().unwrap().contains(&caller) {
             return Ok(Visibility::Hidden);
+        }
+        if self.0.denied_listings.lock().unwrap().contains(&caller) {
+            return Ok(Visibility::Denied);
         }
         let workspace = listing.resource.identifiers()[0].to_string();
         if !self
@@ -1422,6 +1427,34 @@ async fn a_hidden_listing_declared_first_is_a_404_before_a_later_denied_check() 
     harness.grants.grant("bob", INBOX_READ, "w1/i2");
     let shown = harness.get("/w/w1/search", "bob").await;
     assert_eq!(shown.json()["value"], json!(["i2"]));
+}
+
+#[tokio::test]
+async fn a_denied_listing_declared_first_is_a_403_before_a_later_hidden_check() {
+    let harness = serve(|permissions| permissions).await;
+    harness
+        .grants
+        .denied_listings
+        .lock()
+        .unwrap()
+        .insert("carol".to_owned());
+    // Carol is no member: clause 1 (grant:manage on the workspace) is
+    // Hidden, but clause 0, the listing, refuses her outright first, with
+    // the listing's permission.
+    let denied = harness.get("/w/w1/search", "carol").await;
+    assert_eq!(denied.status, 403, "{}", denied.json());
+    assert_eq!(
+        denied.json()["message"],
+        "This principal does not hold inbox:read on that inbox."
+    );
+    assert_eq!(harness.audit.last().listing.unwrap().1, Visibility::Denied);
+    // A listing nobody may see is refused alike on its own.
+    let alone = harness.get("/w/w1/inboxes", "carol").await;
+    assert_eq!(alone.status, 403, "{}", alone.json());
+    // No longer refused outright, a non-member's listing is hidden.
+    harness.grants.denied_listings.lock().unwrap().clear();
+    let hidden = harness.get("/w/w1/search", "carol").await;
+    assert_eq!(hidden.status, 404, "{}", hidden.json());
 }
 
 #[tokio::test]

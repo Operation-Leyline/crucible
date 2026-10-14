@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::{ResourceInfo, Target};
+use super::{MissingResource, ResourceInfo, Target};
 use crate::error::Error;
 
 /// One resource instance a check is made against: the resource and its
@@ -73,10 +73,12 @@ impl ResourceRef {
         matches!(self.identifiers.as_slice(), [Target::All])
     }
 
-    /// The framework's 404 for this resource, identical whether the
-    /// instance is hidden or genuinely missing.
+    /// The 404 for this instance, identical whether it is hidden or
+    /// genuinely missing: a [`MissingResource`], which the server answers as
+    /// the framework's NotFound, or as the service's own not-found error
+    /// when the model designates one.
     pub fn not_found(&self) -> Error {
-        self.resource.not_found_error()
+        Error::new(MissingResource::new(self.clone()))
     }
 }
 
@@ -96,7 +98,7 @@ impl fmt::Display for ResourceRef {
 
 #[cfg(test)]
 mod tests {
-    use super::{ResourceInfo, ResourceRef, Target};
+    use super::{MissingResource, ResourceInfo, ResourceRef, Target};
     use crate::error::FrameworkError;
 
     static INBOX: ResourceInfo = ResourceInfo {
@@ -133,8 +135,14 @@ mod tests {
     #[test]
     fn not_found_names_only_the_resource_type() {
         let error = ResourceRef::new(&INBOX, ["w-1", "secret-id"]).not_found();
-        let framework = error.downcast_ref::<FrameworkError>().unwrap();
-        assert_eq!(*framework, FrameworkError::NotFound { resource: &INBOX });
+        let missing = error.downcast_ref::<MissingResource>().unwrap();
+        assert_eq!(
+            missing.reference().identifiers()[1],
+            Target::from("secret-id")
+        );
+        assert_eq!(error.to_string(), "No such inbox.");
+        let framework = missing.framework_error();
+        assert_eq!(framework, FrameworkError::NotFound { resource: &INBOX });
         assert!(!framework.message().contains("secret-id"));
     }
 }

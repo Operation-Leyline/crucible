@@ -8,6 +8,7 @@
 //! `Authorizer`.
 
 mod check;
+mod missing_resource;
 mod mode;
 mod obligation;
 mod origin;
@@ -21,6 +22,7 @@ mod target;
 mod tier;
 
 pub use check::Check;
+pub use missing_resource::MissingResource;
 pub use mode::Mode;
 pub use obligation::Obligation;
 pub use origin::Origin;

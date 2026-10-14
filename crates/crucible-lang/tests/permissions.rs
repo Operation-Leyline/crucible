@@ -1613,3 +1613,284 @@ fn advice_without_a_source_location_renders_as_advice() {
         "example.shop: advice: decide\nexample.shop: warning: look\n"
     );
 }
+
+// ---- a service's own not-found error ----------------------------------------
+
+/// A service with errors of its own, named like the bundled ones, so it
+/// cannot import `crucible.errors`: Pigeon's shape. `notFound` designates its
+/// 404, which check 17 attaches instead of the framework's.
+const OWN_ERRORS: &str = r#"
+service Shop {
+    version "1"
+    protocol json
+    auth bearer
+    notFound ResourceNotFoundException
+    resources [Store]
+    errors [ValidationException, InternalServerException]
+}
+
+string StoreId { pattern "^s_" }
+string OrderId { pattern "^o_" }
+
+enum ErrorResourceType {
+    STORE = "store"
+    ORDER = "order"
+}
+
+error ValidationException {
+    status 400
+    message: string
+}
+
+error InternalServerException {
+    status 500
+    message: string
+}
+
+/// The request names something that does not exist, or not for this caller.
+error ResourceNotFoundException {
+    status 404
+    message: string
+    resourceType: ErrorResourceType
+    resourceId: string
+    requestId?: string
+}
+
+resource Store {
+    id storeId: StoreId
+    permission read = "store:read"
+    permission manage = "store:manage"
+}
+
+resource Order in Store {
+    id orderId: OrderId
+    permission read = "order:read"
+}
+
+readonly operation GetOrder on Order {
+    http GET "/stores/{storeId}/orders/{orderId}"
+    requires read
+    input {
+        $storeId
+        $orderId
+    }
+    output { note?: string }
+}
+
+readonly operation ListOrders on Order collection {
+    http GET "/stores/{storeId}/orders"
+    filters read on Order
+    input { $storeId }
+    output { ids: OrderIds }
+}
+
+list OrderIds: OrderId
+
+operation CreateStore on Store collection {
+    http POST "/stores"
+    requires manage on Store(*)
+}
+
+readonly operation GetStore on Store {
+    http GET "/stores/{storeId}"
+    requires read
+    input { $storeId }
+}
+"#;
+
+/// `text` alone: no `crucible.errors` import.
+fn own(text: &str) -> Compiled {
+    compile(
+        &Package::new(
+            "example.shop",
+            vec![SourceFile {
+                path: "shop.cru".into(),
+                text: text.to_owned(),
+            }],
+        ),
+        None,
+    )
+}
+
+fn messages(compiled: &Compiled) -> Vec<String> {
+    compiled
+        .diagnostics
+        .iter()
+        .map(|d| d.diagnostic.message.clone())
+        .collect()
+}
+
+#[test]
+fn a_service_with_its_own_errors_designates_its_404_and_declares_requirements() {
+    let compiled = own(OWN_ERRORS);
+    assert!(compiled.diagnostics.is_empty(), "\n{}", compiled.render());
+    let service = compiled.service.expect("service");
+    let not_found = ShapeId::new("example.shop", "ResourceNotFoundException");
+    assert_eq!(service.not_found.as_ref(), Some(&not_found));
+    assert_eq!(service.not_found_error(), not_found);
+    let errors = |name: &str| -> Vec<String> {
+        service
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap()
+            .errors
+            .iter()
+            .map(ToString::to_string)
+            .collect()
+    };
+    // Check 17 attaches the service's own 404, after the operation's own
+    // errors and before the service's; nothing of `crucible.errors`.
+    for operation in ["GetOrder", "ListOrders"] {
+        assert_eq!(
+            errors(operation),
+            [
+                "example.shop#ResourceNotFoundException",
+                "example.shop#ValidationException",
+                "example.shop#InternalServerException",
+            ],
+            "{operation}"
+        );
+    }
+    // A root resource with `*` has nothing to hide.
+    assert!(!errors("CreateStore").iter().any(|e| e.contains("NotFound")));
+    assert!(
+        service
+            .shapes
+            .keys()
+            .all(|id| id.namespace() != "crucible.errors")
+    );
+    // The designation survives a snapshot, and the IR alone checks clean.
+    let json = serde_json::to_value(&service).unwrap();
+    assert_eq!(
+        json["not_found"],
+        json!("example.shop#ResourceNotFoundException")
+    );
+    let read: Service = serde_json::from_value(json).unwrap();
+    assert_eq!(read.not_found, service.not_found);
+    assert!(crucible_smithy::validate::permissions_from_ir(&read).is_empty());
+}
+
+#[test]
+fn an_operation_that_declares_the_designated_404_is_not_warned() {
+    let compiled = own(&OWN_ERRORS.replace(
+        "    output { note?: string }\n",
+        "    output { note?: string }\n    errors [ResourceNotFoundException]\n",
+    ));
+    assert!(compiled.diagnostics.is_empty(), "\n{}", compiled.render());
+    let service = compiled.service.unwrap();
+    let get = service
+        .operations
+        .iter()
+        .find(|op| op.id.name() == "GetOrder")
+        .unwrap();
+    let not_found = get
+        .errors
+        .iter()
+        .filter(|e| e.name() == "ResourceNotFoundException")
+        .count();
+    assert_eq!(not_found, 1, "{:?}", get.errors);
+    // Another 404 beside it is warned about, naming the designated one.
+    let compiled = own(&OWN_ERRORS.replace(
+        "    output { note?: string }\n",
+        "    output { note?: string }\n    errors [Gone]\n}\n\nerror Gone {\n    status 404\n    message: string\n",
+    ));
+    let found = messages(&compiled);
+    assert!(
+        found.iter().any(|m| m.starts_with(
+            "permissions.second-not-found: `GetOrder` also declares `Gone`, another 404; report genuine absence with the service's not-found error `ResourceNotFoundException`"
+        )),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn without_a_designation_a_service_that_imports_nothing_cannot_require() {
+    let compiled = own(&OWN_ERRORS.replace("    notFound ResourceNotFoundException\n", ""));
+    let found = messages(&compiled);
+    assert!(
+        found.iter().any(|m| m.starts_with(
+            "permissions.not-found: a requirement attaches `crucible.errors#NotFoundException`, which the model does not contain: import the `crucible.errors` package, or designate the service's own 404 with `notFound` in the service"
+        )),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn the_designated_error_is_a_404_client_error_of_the_package() {
+    let refused = |source: String, needle: &str| {
+        let compiled = own(&source);
+        assert!(compiled.service.is_none(), "{needle}");
+        let found = messages(&compiled);
+        assert!(
+            found.iter().any(|m| m.contains(needle)),
+            "no diagnostic contains {needle:?}:\n{found:#?}"
+        );
+    };
+    refused(
+        OWN_ERRORS.replace(
+            "    status 404\n    message: string\n    resourceType",
+            "    status 410\n    message: string\n    resourceType",
+        ),
+        "permissions.not-found-error: `ResourceNotFoundException` answers 410; the service's not-found error is a client error with status 404",
+    );
+    refused(
+        OWN_ERRORS.replace(
+            "notFound ResourceNotFoundException",
+            "notFound ErrorResourceType",
+        ),
+        "permissions.not-found-error: `ErrorResourceType` is not an error",
+    );
+    refused(
+        OWN_ERRORS.replace("notFound ResourceNotFoundException", "notFound Missing"),
+        "permissions.not-found-error: `Missing` is not an error",
+    );
+    refused(
+        OWN_ERRORS.replace(
+            "notFound ResourceNotFoundException",
+            "notFound ResourceNotFoundException\n    notFound ValidationException",
+        ),
+        "a service has one `notFound` clause",
+    );
+    // One of an imported package's errors is not the service's own.
+    let package = small(&BASE.replace(
+        "    auth bearer\n",
+        "    auth bearer\n    notFound NotFoundException\n",
+    ));
+    let compiled = compile(&package, None);
+    let found = messages(&compiled);
+    assert!(
+        found.iter().any(|m| m.contains(
+            "permissions.not-found-error: `NotFoundException` is declared in `crucible.errors`; the service's not-found error is an error of its own package"
+        )),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn an_ir_designation_is_checked_without_lowering() {
+    let mut service = own(OWN_ERRORS).service.unwrap();
+    service.not_found = Some(ShapeId::new("example.shop", "ValidationException"));
+    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+        .iter()
+        .map(|f| f.text())
+        .collect();
+    assert!(
+        found.iter().any(|m| m
+            == "permissions.not-found-error: `ValidationException` answers 400; the service's not-found error is a client error with status 404"),
+        "{found:#?}"
+    );
+    // The operations carry the 404 lowering attached; it is no longer the
+    // one the service names, and both say so.
+    service.not_found = Some(ShapeId::new("example.shop", "Elsewhere"));
+    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+        .iter()
+        .map(|f| f.text())
+        .collect();
+    assert_eq!(
+        found,
+        [
+            "permissions.not-found-error: `example.shop#Elsewhere`, the service's not-found error, is not in the model"
+        ]
+    );
+}

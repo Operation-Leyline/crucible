@@ -67,6 +67,7 @@ pub const fn service_info(
         internal,
         unknown,
         permissions: &[],
+        not_found: None,
     }
 }
 

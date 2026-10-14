@@ -241,6 +241,7 @@ impl Crucible {
             response_headers: Default::default(),
             wants_snapshot: false,
             input_snapshot: None,
+            designated_not_found: false,
         };
         context
             .scope(async move {
@@ -344,6 +345,12 @@ impl Crucible {
                 // does; the after phases have already seen the current
                 // version's outcome.
                 self.translate(&mut job, &mut translated);
+                crate::permissions::answer_not_found(&mut job);
+                job.designated_not_found = matches!(
+                    job.resolution(),
+                    Some(crate::Resolution::Modelled(error))
+                        if job.service.not_found == Some(error.shape_id())
+                );
                 job.outcome = match job.outcome.take() {
                     Some(Outcome::Failed(error)) => {
                         Some(Outcome::Failed(match &job.downgrade_error {
@@ -460,6 +467,23 @@ impl Crucible {
                         "Bearer"
                     },
                 ));
+        }
+        // The service's own not-found error is answered as the framework's
+        // NotFound is: never cached, whether a hidden resource's (built by
+        // the not-found factory) or a genuinely missing one's (the handler's),
+        // so the two cannot be told apart, and visibility changes with
+        // grants.
+        let designated = job.designated_not_found
+            || matches!(
+                job.resolution(),
+                Some(crate::Resolution::Modelled(error))
+                    if job.service().not_found == Some(error.shape_id())
+            );
+        if designated {
+            response.headers_mut().insert(
+                axum::http::header::CACHE_CONTROL,
+                HeaderValue::from_static("no-store"),
+            );
         }
         if !response.headers().contains_key("x-request-id") {
             response
@@ -990,6 +1014,15 @@ impl Builder {
         }
         for protocol in &mut self.protocols {
             protocol.prepare(&prepare).map_err(BuildError::Prepare)?;
+        }
+        // Only `Permissions` builds a designated not-found error: without it
+        // a hidden or missing resource would have no answer of that shape.
+        if let Some(shape) = self.operations.service.not_found
+            && !builtins.borrow().contains(&"permissions")
+        {
+            return Err(BuildError::Prepare(format!(
+                "the model answers a missing resource with `{shape}` (`notFound` in the service), which only Permissions builds: install Permissions with a not_found_factory"
+            )));
         }
         if self.protocols.is_empty() {
             return Err(BuildError::NoProtocol);

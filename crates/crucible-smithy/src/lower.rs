@@ -325,6 +325,7 @@ impl<'m> Lowerer<'m> {
             // Typed permissions are declared in .cru only.
             permissions: BTreeMap::new(),
             permission_types: None,
+            not_found: None,
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);

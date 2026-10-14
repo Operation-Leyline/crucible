@@ -53,6 +53,8 @@ value       = string | number | ident | "[" [ value { "," value } ] "]"
 field       = ( ident | string ) ":" value ;
 
 service     = "service" ident "{" { clause } "}" ;
+                 (* clauses: version, title, protocol, auth, paginated(..),
+                    operations, resources, errors, notFound Error *)
 protocol    = "protocol" ident "{" { clause } "}" ;
 clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
@@ -243,7 +245,10 @@ language's own checks include:
   member's own type; never a `bigInteger` or `bigDecimal`); `filters`
   appears once, on a `lists` or `on .. collection` operation; `by handler`
   takes no bindings or `when`; `@authorizationName` is on a resource
-  that declares permissions; and once a service declares any permission,
+  that declares permissions; the service's `notFound` error is an error of
+  its own package, a client error with status 404
+  (`permissions.not-found-error`), and without one a requirement needs
+  `crucible.errors` imported (`permissions.not-found`); and once a service declares any permission,
   every authenticated operation declares `requires`, `filters`, `requires
   none` or `requires pending` (`permissions.undeclared`).
 
@@ -252,7 +257,7 @@ permission nothing requires (`permissions.unrequired`), each `requires
 pending` with its reason (`permissions.pending`), `when has x` on a member
 that is always present, a `filters` beside a `requires` on the same
 resource, an operation that declares a 404 error besides the
-framework `NotFoundException` (`permissions.second-not-found`), and a
+service's not-found error (`permissions.second-not-found`), and a
 clause on the operation's own resource or an ancestor that binds one of
 its identifiers from another member than the operation is bound by, with
 no clause checking the bound instance (`permissions.other-instance`): the
@@ -330,13 +335,32 @@ operation SendMessage on Message collection {
   discharges; **`requires none`** says no permission is needed;
   **`requires pending because ".."`** suppresses the strict default during
   migration. Each operation with a `requires` or `filters` clause gets
-  `crucible.errors#NotFoundException` in its errors (import
-  `crucible.errors`), unless every clause is on a root resource with `*`.
+  the service's not-found error in its errors, unless every clause is on a
+  root resource with `*`: `crucible.errors#NotFoundException` (import
+  `crucible.errors`), or the service's own, which a `requires pending`
+  operation gets too.
+- **`notFound E`** in the service designates the service's own 404, `E`,
+  for a service with errors of its own that cannot import
+  `crucible.errors`. `E` is an `error` of the package with `status 404`;
+  its members are the service's (the runtime asks the service's
+  `not_found_factory` to build it, and handlers answer a genuine miss with
+  the same constructor), and every response carrying it is sent with
+  `Cache-Control: no-store`.
+
+  ```
+  service Pigeon {
+      version "2026-08-01"
+      protocol json
+      auth bearer
+      notFound ResourceNotFoundException
+      errors [AccessDeniedException, InternalServerException, ValidationException]
+  }
+  ```
 - **`@permissionTypes(exclude: [R])`** on the hand-written enum of
   resource types a grant names checks it against the resources both ways.
 
-The IR carries them as `Service::permissions`, `Service::permission_types`
-and `Operation::requirements` (permissions.md §6.1). Removing a
+The IR carries them as `Service::permissions`, `Service::permission_types`,
+`Service::not_found` and `Operation::requirements` (permissions.md §6.1). Removing a
 permission or alias, changing a value or an authorization name, and moving
 a permission to `internal` are breaking changes to the release guard;
 adding a requirement is reported as an authorization change.

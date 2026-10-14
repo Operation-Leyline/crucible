@@ -1,0 +1,5 @@
+# A service with errors of its own (docs/permissions.md, "A service's own
+# not-found error"): it imports no `crucible.errors`, its names would
+# collide, and it designates its own 404 for the permissions to attach.
+[model]
+namespace = "example.desk"

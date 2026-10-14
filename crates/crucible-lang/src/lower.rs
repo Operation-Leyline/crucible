@@ -61,6 +61,7 @@ pub(crate) fn lower(
         declared_permissions: BTreeMap::new(),
         permissions: BTreeMap::new(),
         permission_facts: crucible_smithy::validate::PermissionFacts::default(),
+        not_found: None,
         permission_sites: BTreeMap::new(),
         requirement_sites: BTreeMap::new(),
     };
@@ -384,6 +385,9 @@ struct Lowerer<'a> {
     /// The service's: its reachable resources' `declared_permissions`.
     permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
     permission_facts: crucible_smithy::validate::PermissionFacts,
+    /// The service's own not-found error (`notFound X`), which check 17
+    /// attaches instead of `crucible.errors#NotFoundException`.
+    not_found: Option<ShapeId>,
     /// Where resources, their permissions and `@permissionTypes` were
     /// declared, for the shared check's findings.
     permission_sites: BTreeMap<ShapeId, Location>,
@@ -4556,6 +4560,7 @@ impl<'a> Lowerer<'a> {
         let mut title = None;
         let mut protocol = None;
         let mut auth_scheme = None;
+        let mut not_found = None;
         let mut pagination = JsonMap::new();
         let mut operation_names: Vec<&Ident> = Vec::new();
         let mut resource_names: Vec<&Ident> = Vec::new();
@@ -4565,7 +4570,7 @@ impl<'a> Lowerer<'a> {
             let name = clause.name.name.as_str();
             if matches!(
                 name,
-                "version" | "title" | "protocol" | "auth" | "paginated"
+                "version" | "title" | "protocol" | "auth" | "paginated" | "notFound"
             ) && !clauses.insert(name)
             {
                 self.error(
@@ -4580,6 +4585,7 @@ impl<'a> Lowerer<'a> {
                 ("title", ClauseValue::Value(Value::Str(s))) => title = Some(s.value.clone()),
                 ("protocol", ClauseValue::Value(Value::Ident(p))) => protocol = Some(p),
                 ("auth", ClauseValue::Value(Value::Ident(a))) => auth_scheme = Some(a),
+                ("notFound", ClauseValue::Value(Value::Ident(e))) => not_found = Some(e),
                 ("paginated", ClauseValue::Args(args)) => {
                     pagination = self.pagination_args(file, args);
                 }
@@ -4619,6 +4625,9 @@ impl<'a> Lowerer<'a> {
                 block.name.span,
                 "a service declares its version: `version \"2026-01-01\"`",
             );
+        }
+        if let Some(name) = not_found {
+            self.designate_not_found(file, name);
         }
         match protocol {
             Some(p) if p.name == "json" => self.protocol = Protocol::CrucibleJson,
@@ -4831,6 +4840,7 @@ impl<'a> Lowerer<'a> {
             internal_traits: BTreeSet::new(),
             permissions: std::mem::take(&mut self.permissions),
             permission_types,
+            not_found: self.not_found.clone(),
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.
