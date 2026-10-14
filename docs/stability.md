@@ -68,7 +68,8 @@ Services extend the pipeline through `Middleware`, `OperationAwareMiddleware`,
 boxed async hooks for the corresponding extension interfaces. `Hook` supports
 synchronous completion or deferred work. `Prepare` supplies service and scoped
 operation metadata during construction, where extensions can validate and cache
-configuration. `OperationMiddlewareExt`, `InterceptorExt`, and `ProtocolExt`
+configuration; `ServedOperation` is one API version's entry for an operation,
+as `Prepare::served_operations()` lists it. `OperationMiddlewareExt`, `InterceptorExt`, and `ProtocolExt`
 provide scoping; `before_fn`, `after_fn`, `raw_before_fn`, and `for_operation`
 adapt application functions and typed interceptors.
 

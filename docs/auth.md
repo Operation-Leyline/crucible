@@ -54,6 +54,9 @@ keys, or register a custom authenticator when the service declares
 `@httpApiKeyAuth`. Construction fails with collected operation IDs when a modeled scheme
 has no configured authenticator. Bindings without explicit auth metadata also
 fail at construction; regenerate old bindings before installing the chain.
+At a service with [API versions](api-versions.md), the chain prepares a plan
+for each version's entry of an operation: a request is authenticated by the
+schemes its own version's release declared, not the current version's.
 
 The Cognito preset constructs
 `https://cognito-idp.REGION.amazonaws.com/POOL_ID` as the issuer and appends

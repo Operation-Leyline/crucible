@@ -105,7 +105,7 @@ pub use operation_metadata::OperationMetadata;
 pub use operation_middleware::OperationAwareMiddleware;
 pub use operations::{MissingOperations, Operations};
 pub use outcome::Outcome;
-pub use prepare::Prepare;
+pub use prepare::{Prepare, ServedOperation};
 pub use protocol::{
     AwsJsonProtocol, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch, RestJsonProtocol,
     RpcV2CborProtocol, RpcV2JsonProtocol,

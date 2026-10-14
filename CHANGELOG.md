@@ -359,6 +359,15 @@ version's section when it is prepared.
   `#[non_exhaustive]`, as is `crucible_smithy::validate::FindingSeverity`:
   a `match` on either needs a wildcard arm.
 
+- `Prepare::served_operations()` and `ServedOperation`: every entry a
+  request in the extension's scope can be served by, one per operation per
+  API version, with the description the request carries
+  (`OperationJob::operation()`) and the metadata it is served with. An
+  extension that prepares per operation and looks up per request prepares
+  per entry and selects by that description, since an older version's
+  entry keeps its own release's authentication facts.
+  `Prepare::operations()` is unchanged: each id once.
+
 ### Changed
 
 - An idempotency token member is described, in OpenAPI and MCP schemas,
@@ -391,6 +400,19 @@ version's section when it is prepared.
   several audiences is still refused.
 
 ### Fixed
+
+- `AuthenticatorChain` checked a request at an older API version against
+  the current version's authentication plan when its scope took both
+  versions (an unscoped chain, say): plans were keyed by operation id, and
+  `Prepare::operations()` lists an id once, by its current description. An
+  operation v1 required bearer auth on and v2 made `@optionalAuth` (or
+  dropped auth from) let a v1 request without credentials through; one v1
+  served without auth and v2 required it on refused v1's clients. The chain
+  now prepares one plan per served entry (`Prepare::served_operations()`)
+  and selects it by the description the request is served under, so each
+  version is authenticated by its own release's schemes, as
+  [API versions](docs/api-versions.md#limits) promise. A construction error
+  for an older version's entry names its API version.
 
 - Typed permissions in `.cru` (unreleased) check what they let through
   before. A resource that declares permissions declares an identifier of
