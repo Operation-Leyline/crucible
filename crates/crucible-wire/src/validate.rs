@@ -138,9 +138,14 @@ impl Violations {
         }
     }
 
-    /// Counts a violation without building it.
-    fn skip(&mut self) {
-        self.unlisted += 1;
+    /// Records the violation `make` builds, or, once the list is full,
+    /// only counts it: a request past the cap costs no more strings.
+    pub fn push_with(&mut self, make: impl FnOnce() -> Violation) {
+        if self.is_full() {
+            self.unlisted += 1;
+        } else {
+            self.listed.push(make());
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -339,18 +344,14 @@ impl Validator {
     }
 
     pub fn fail(&mut self, message: impl Into<String>) {
-        if self.violations.is_full() {
-            self.violations.skip();
-            return;
-        }
-        let path = self
-            .path
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("/");
-        self.violations.push(Violation {
-            path,
+        let path = &self.path;
+        // The path is built into text only for a violation that is listed.
+        self.violations.push_with(|| Violation {
+            path: path
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("/"),
             message: message.into(),
             kind: ViolationKind::Constraint,
         });

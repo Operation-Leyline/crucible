@@ -531,7 +531,8 @@ version's section when it is prepared.
     same way: it used to be named like a member, so a sensitive scope let it
     through.
 
-  Paths and the model's expectations are unchanged.
+  The model's expectations are unchanged. Paths are unchanged except where
+  they named client text: see *Migration*.
 
 ### Migration
 
@@ -564,6 +565,20 @@ version's section when it is prepared.
   setters for the fields it set (`.with_claims(claims)`, ...), and add `..`
   to any exhaustive destructuring. No shim is possible: the attribute is on
   the type. Reading fields is unchanged. See
+  [migrating](docs/migrating.md#unreleased).
+
+- **Rejections no longer name client text in a violation's path.** Since
+  0.7.0, a strict structure's unknown member is reported at `[key]`, not at
+  the member's name; a malformed value of a query parameter the operation
+  does not declare at `query`, not at the parameter's name; a malformed key
+  of an `@httpQueryParams` or `@httpPrefixHeaders` map at `<member>/[key]`;
+  and a CBOR input missing a required member as a broken constraint
+  (`fieldValidationFailed`, `is required` at the member's name) instead of
+  an unreadable request (`cannotParse`), as JSON already was. An unsupported
+  `Crucible-Version` is refused without repeating it. Code or tests that
+  read those paths, messages or reasons, from the response's `fieldList`,
+  an `on_rejection` hook or the service log, need the new values. No shim
+  is possible: this is wire behaviour. See
   [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12

@@ -26,7 +26,8 @@ The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
 authority. Only three kinds of code have to change: code that constructs or
 exhaustively destructures `crucible_auth::Principal` or `OperationMetadata`,
 and code that matches `FrameworkError` without a wildcard arm. Reading
-their fields does not.
+their fields does not. Tests or clients that read a rejection's paths may
+need new expected values.
 
 ### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
 
@@ -105,6 +106,25 @@ field needs `..`. A tenant that was carried in `claims` belongs in `tenant`
 now. If the custom authenticator checks bearer API keys against a table,
 consider replacing it with [`ApiKeyAuthenticator`](auth.md#api-keys) and an
 `ApiKeyStore` over that table.
+
+### Rejection paths do not name client text
+
+A violation's path no longer repeats text the client chose, which could be
+of any length or sensitive:
+
+| Rejection | 0.7 path | Now |
+|---|---|---|
+| Unknown member of a strict structure | the member's name (`nmae`) | `[key]` |
+| Malformed value of an undeclared query parameter | the parameter (`ignored`) | `query` |
+| Malformed entry of an `@httpQueryParams` map | the query key | `<member>/[key]` |
+| Malformed entry of an `@httpPrefixHeaders` map | the header name | `<member>/[key]` |
+| CBOR input missing a required member | `""`, `cannotParse` | the member, `is required`, `fieldValidationFailed` |
+
+A declared query parameter, a label, a header and a missing member keep the
+model's name. An unsupported `Crucible-Version` is refused with the versions
+the service serves, without repeating the one sent. Update assertions on
+`fieldList` paths, `on_rejection` handlers that match a path, and log
+queries that read these paths.
 
 ## 0.6.0 to 0.7.0
 

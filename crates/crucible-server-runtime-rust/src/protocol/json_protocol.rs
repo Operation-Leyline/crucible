@@ -389,7 +389,7 @@ pub(super) fn bound_members<'a>(
                     let name = match percent_decode(name, true) {
                         Ok(name) => name.into_owned(),
                         Err(message) => {
-                            violations.push(malformed(member.name, &message));
+                            violations.push_with(|| malformed(member.name, &message));
                             continue;
                         }
                     };
@@ -404,7 +404,7 @@ pub(super) fn bound_members<'a>(
                     let value = match percent_decode(value, true) {
                         Ok(value) => Value::String(value.into_owned()),
                         Err(message) => {
-                            violations.push(malformed(&map_key(member), &message));
+                            violations.push_with(|| malformed(&map_key(member), &message));
                             continue;
                         }
                     };
@@ -431,18 +431,16 @@ pub(super) fn bound_members<'a>(
                                     values.insert(key.to_owned(), Value::String(text.into_owned()));
                                 }
                                 Ok(_) => {
-                                    violations.push(malformed(
-                                        &map_key(member),
-                                        "prefix header must be text",
-                                    ));
+                                    violations.push_with(|| {
+                                        malformed(&map_key(member), "prefix header must be text")
+                                    });
                                 }
                                 Err(message) => {
-                                    violations.push(malformed(&map_key(member), &message));
+                                    violations.push_with(|| malformed(&map_key(member), &message));
                                 }
                             },
-                            Err(_) => {
-                                violations.push(malformed(&map_key(member), "is not visible ASCII"))
-                            }
+                            Err(_) => violations
+                                .push_with(|| malformed(&map_key(member), "is not visible ASCII")),
                         }
                     }
                 }
@@ -455,10 +453,9 @@ pub(super) fn bound_members<'a>(
                 _,
             ) => {
                 if requires_length && job.request().headers.get("content-length").is_none() {
-                    violations.push(malformed(
-                        member.name,
-                        "streaming payload requires content-length",
-                    ));
+                    violations.push_with(|| {
+                        malformed(member.name, "streaming payload requires content-length")
+                    });
                     continue;
                 }
                 Ok(BoundValue::Json(Value::Null))
@@ -520,7 +517,7 @@ pub(super) fn bound_members<'a>(
                     continue;
                 };
                 let Ok(text) = value.to_str() else {
-                    violations.push(malformed(name, "is not visible ASCII"));
+                    violations.push_with(|| malformed(name, "is not visible ASCII"));
                     continue;
                 };
                 BoundValue::parse(Cow::Borrowed(text), scalar)
@@ -529,7 +526,7 @@ pub(super) fn bound_members<'a>(
         };
         match value {
             Ok(value) => bound.push((member.name, value)),
-            Err(message) => violations.push(malformed(wire, &message)),
+            Err(message) => violations.push_with(|| malformed(wire, &message)),
         }
     }
     match violations.into_rejection() {
@@ -631,10 +628,10 @@ fn query_violations(query: &str, op: &OperationInfo) -> Violations {
         match percent_decode(key, true) {
             Ok(key) => {
                 if let Err(message) = percent_decode(value, true) {
-                    violations.push(malformed(&query_path(op, &key), &message));
+                    violations.push_with(|| malformed(&query_path(op, &key), &message));
                 }
             }
-            Err(message) => violations.push(malformed("query", &message)),
+            Err(message) => violations.push_with(|| malformed("query", &message)),
         }
     }
     violations

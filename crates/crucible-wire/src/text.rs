@@ -195,13 +195,16 @@ pub fn without_values(message: &str) -> Cow<'_, str> {
         ("unknown variant `", "`, there are no variants"),
         ("unknown field `", "`, there are no fields"),
     ] {
-        if let Some(rest) = message.strip_prefix(prefix) {
-            for separator in ["`, expected ", no_choices] {
-                if let Some(split) = rest.rfind(separator) {
-                    let kind = &prefix[..prefix.len() - 2];
-                    return Cow::Owned(format!("{kind}{}", &rest[split + 1..]));
-                }
-            }
+        // The name ends at the last separator of either kind: the request
+        // may spell one of its own, but the model's tail spells neither.
+        if let Some(rest) = message.strip_prefix(prefix)
+            && let Some(split) = ["`, expected ", no_choices]
+                .into_iter()
+                .filter_map(|separator| rest.rfind(separator))
+                .max()
+        {
+            let kind = &prefix[..prefix.len() - 2];
+            return Cow::Owned(format!("{kind}{}", &rest[split + 1..]));
         }
     }
     Cow::Borrowed(message)
@@ -403,6 +406,18 @@ mod tests {
             (
                 serde_json::from_value::<Empty>(serde_json::json!({ secret: 1 })).unwrap_err(),
                 "unknown field, there are no fields",
+            ),
+            // A structure without fields: the client's own `expected` must
+            // not end the name early.
+            (
+                serde_json::from_value::<Empty>(serde_json::json!({ field.as_str(): 1 }))
+                    .unwrap_err(),
+                "unknown field, there are no fields",
+            ),
+            (
+                serde_json::from_str::<Empty>(&format!("{{\"{secret}`, expected `x\": 1}}"))
+                    .unwrap_err(),
+                "unknown field, there are no fields at line 1 column 28",
             ),
         ];
         for (error, expected) in cases {
