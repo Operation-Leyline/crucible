@@ -439,6 +439,28 @@ private suspend fun payloads() {
         response(exchange, 200, """{"photo":{"size":0,"thumbnail":""}}""")
     }.use { server -> WeatherClient(server.config()).use { it.putCityPhoto(PutCityPhotoInput { this.cityId = "x"; this.photo = byteArrayOf() }) } }
 }
+/** A modelled Content-Type member, then the payload's media type, then a client-wide default. */
+private suspend fun payloadContentType() {
+    for (streaming in listOf(false, true)) for (modelled in listOf(null, "image/png")) for (configured in listOf(null, "image/jpeg")) {
+        val label = "${if (streaming) "streaming" else "buffered"} member=$modelled default=$configured"
+        val expected = modelled ?: "application/octet-stream"
+        val calls = AtomicInteger()
+        Server { exchange ->
+            check(exchange.requestBody.readBytes().decodeToString() == "PNG") { "$label: body" }
+            val seen = exchange.requestHeaders["Content-Type"]
+            check(seen == listOf(expected)) { "$label: Content-Type $seen, want $expected" }
+            calls.incrementAndGet()
+            exchange.sendResponseHeaders(200, -1)
+        }.use { server ->
+            val defaults = if (configured == null) emptyMap<String, String>() else mapOf("Content-Type" to configured)
+            WeatherClient(server.config().copy(maxAttempts = 1, headers = defaults)).use { client ->
+                if (streaming) client.typedUploadStream { data = ByteStream.fromBytes("PNG".encodeToByteArray()); if (modelled != null) contentType = modelled }
+                else client.typedUpload { data = "PNG".encodeToByteArray(); if (modelled != null) contentType = modelled }
+            }
+        }
+        check(calls.get() == 1) { "$label: one request" }
+    }
+}
 private suspend fun weather() {
     WeatherClient(ClientConfig(endpoint = System.getenv("WEATHER_URL"), token = { "test-token" })).use { client ->
         val input = CreateCityInput { this.name = "kotlin-http"; this.location = Location.Unknown(kotlin.Unit) }
@@ -555,6 +577,6 @@ private suspend fun streaming() = coroutineScope {
 fun main(args: Array<String>) = runBlocking {
     hardening()
     withTimeout(300000) { streaming() }
-    withTimeout(60000) { retries(args[0]); serialization(args[1]); httpBehavior(); failures(); deadlines(); payloads(); weather() }
+    withTimeout(60000) { retries(args[0]); serialization(args[1]); httpBehavior(); failures(); deadlines(); payloads(); payloadContentType(); weather() }
     println("Kotlin native package, conformance, and weather HTTP passed")
 }

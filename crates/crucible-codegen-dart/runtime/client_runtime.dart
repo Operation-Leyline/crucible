@@ -354,14 +354,19 @@ final class ClientRuntime {
     for (final entry in resolved?.headers.entries ?? const <MapEntry<String, List<String>>>[]) {
       headers[entry.key.toLowerCase()] = entry.value.join(', ');
     }
+    // A Content-Type bound to an input member outranks the payload's media
+    // type, which outranks endpoint and client header defaults.
+    var modelledContentType = false;
     for (final binding in wireArray(bindings['headers'])) {
       final pair = wireArray(binding);
       final value = bound(wireString(pair[0]));
       if (value == null) continue;
+      final wire = wireString(pair[1]).toLowerCase();
       // HTTP-date list members are joined without quoting their commas.
-      headers[wireString(pair[1]).toLowerCase()] = value is List && (bindings['timestampFormats'] as Map?)?[pair[0]] == 'http-date'
+      headers[wire] = value is List && (bindings['timestampFormats'] as Map?)?[pair[0]] == 'http-date'
           ? value.join(', ')
           : codec.bound(_media(value, bindings, wireString(pair[0]), true));
+      if (wire == 'content-type') modelledContentType = true;
     }
     Uint8List? body;
     final explicitHeaders = wireArray(bindings['headers']).map((pair) => wireString(wireArray(pair)[1]).toLowerCase()).toSet();
@@ -395,7 +400,7 @@ final class ClientRuntime {
         // An empty raw payload sends no body or content type.
         if (bytes.isNotEmpty || kind == 'document') {
           body = bytes;
-          headers['content-type'] = wireString(payload[1]);
+          if (!modelledContentType) headers['content-type'] = wireString(payload[1]);
         }
       }
     }

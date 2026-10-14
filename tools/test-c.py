@@ -193,6 +193,18 @@ def features():
 def models(output):
     for name, fixture_name, prefix in [("dynamic", "dynamic-bindings", "dynamic"), ("extended", "extended-types", "types"), ("wire", "error-payloads", "wire")]:
         generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", output / name, f"{prefix}_client", prefix)
+    # Payload Content-Type precedence under both protocols. C has no streaming
+    # input, so the streaming operation is dropped from the shared fixture.
+    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text(encoding="utf-8"))
+    bindings_shapes = bindings["shapes"]
+    service = bindings_shapes["example.payload#PayloadBindings"]
+    service["operations"] = [item for item in service["operations"] if item["target"] != "example.payload#UploadStream"]
+    for name in ["UploadStream", "StreamInput", "Stream"]:
+        del bindings_shapes["example.payload#" + name]
+    bindings_path = output / "payload-bindings.json"
+    bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
+    for prefix, protocol in [("payload", "crucible.protocols#json"), ("payload_rest", "aws.protocols#restJson1")]:
+        generate(bindings_path, output / prefix, prefix + "_client", prefix, "--protocol", protocol)
     source = qualification_model(output)
     model = json.loads(source.read_text(encoding="utf-8"))
     shapes = model["shapes"]
@@ -312,6 +324,9 @@ def qualify(output):
     tests = ROOT / "crates/crucible-codegen-c/tests"
     (consumer / "core.c").write_text((tests / "core.c").read_text(encoding="utf-8").replace("crucible_generated", "weather"), encoding="utf-8")
     (consumer / "recursive.c").write_text((tests / "models_recursive.c").read_text(encoding="utf-8").replace('"weather_client/models.h"', '"recursive_client/models.h"'), encoding="utf-8")
+    for prefix in ["payload", "payload_rest"]:
+        (consumer / f"{prefix}_content_type.c").write_text(
+            (tests / "payload_content_type.c").read_text(encoding="utf-8").replace("payload_", prefix + "_"), encoding="utf-8")
     (consumer / "edge.c").write_text('''#include "edge_client/client.h"
 #include "empty_client/client.h"
 #include <stdio.h>
@@ -334,6 +349,12 @@ add_subdirectory("{(output / 'extended').as_posix()}" extended-sdk)
 add_subdirectory("{(output / 'wire').as_posix()}" wire-sdk)
 add_executable(wire_test "{tests.as_posix()}/wire.c")
 target_link_libraries(wire_test PRIVATE wire_client)
+add_subdirectory("{(output / 'payload').as_posix()}" payload-sdk)
+add_subdirectory("{(output / 'payload_rest').as_posix()}" payload-rest-sdk)
+add_executable(payload_content_type payload_content_type.c)
+target_link_libraries(payload_content_type PRIVATE payload_client)
+add_executable(payload_rest_content_type payload_rest_content_type.c)
+target_link_libraries(payload_rest_content_type PRIVATE payload_rest_client)
 add_executable(extensions "{tests.as_posix()}/extensions.c")
 target_link_libraries(extensions PRIVATE dynamic_client types_client)
 add_executable(edge edge.c)
@@ -349,7 +370,7 @@ foreach(name core models runtime proxy serialization)
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
 endforeach()
-foreach(name core models runtime proxy serialization edge recursive extensions wire_test)
+foreach(name core models runtime proxy serialization edge recursive extensions wire_test payload_content_type payload_rest_content_type)
   target_compile_features(${{name}} PRIVATE c_std_17)
   set_target_properties(${{name}} PROPERTIES C_EXTENSIONS OFF)
   if(MSVC)
@@ -366,7 +387,7 @@ endforeach()
     if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
         dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
-    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test"]:
+    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "payload_content_type", "payload_rest_content_type"]:
         run(str(executable(consumer_build, name)), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))

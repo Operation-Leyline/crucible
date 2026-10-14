@@ -1,0 +1,35 @@
+import 'dart:convert';
+import 'dart:typed_data';
+import 'package:test/test.dart';
+import 'package:payload_bindings_client/payload_bindings_client.dart' as sdk;
+
+final class Fake implements sdk.HttpTransport {
+  final String expected;
+  Fake(this.expected);
+  @override
+  Future<sdk.HttpResponse> send(sdk.HttpRequest request, {required bool readBody, required sdk.CancellationToken cancellation}) async {
+    expect(utf8.decode(request.body!), 'PNG');
+    final names = request.headers.keys.where((name) => name.toLowerCase() == 'content-type').toList();
+    expect(names, hasLength(1));
+    expect(request.headers[names.single], expected);
+    return sdk.HttpResponse(status: 200, body: Uint8List(0));
+  }
+  @override
+  void close() {}
+}
+
+void main() {
+  // A modelled Content-Type member, then the payload's media type, then a
+  // client-wide default header.
+  for (final modelled in [null, 'image/png']) {
+    for (final configured in [null, 'image/jpeg']) {
+      test('payload Content-Type: member $modelled, default $configured', () async {
+        final client = sdk.PayloadBindingsClient(sdk.ClientConfig(
+            endpoint: 'http://127.0.0.1',
+            headers: {if (configured != null) 'Content-Type': configured},
+            transport: Fake(modelled ?? 'application/octet-stream')));
+        await client.upload(sdk.UploadInput(data: Uint8List.fromList(utf8.encode('PNG')), contentType: modelled));
+      });
+    }
+  }
+}

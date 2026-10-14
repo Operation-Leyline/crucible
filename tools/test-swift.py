@@ -21,10 +21,10 @@ from sdk_conformance_model import qualification_model
 SWIFT = os.environ.get("SWIFT", "swift")
 
 
-def generate(model, output, module="Weather"):
+def generate(model, output, module="Weather", *extra):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "swift",
         str(model), "--out", str(output), "--package-name", module, "--module-name", module,
-        "--content-sha256")
+        "--content-sha256", *extra)
 
 
 def swift(command, package, scratch, *args, **kwargs):
@@ -348,6 +348,29 @@ struct Fake: VoidSDK.HTTPTransport {
     tests.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/WireTests.swift", tests / "WireTests.swift")
     swift("test", wire, scratch)
+    # Payload Content-Type precedence under both payload-capable JSON protocols.
+    # Swift has no streaming request payloads, so the model drops UploadStream.
+    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text())
+    service = bindings["shapes"]["example.payload#PayloadBindings"]
+    service["operations"] = [op for op in service["operations"] if op["target"] != "example.payload#UploadStream"]
+    for shape in ("example.payload#UploadStream", "example.payload#StreamInput", "example.payload#Stream"):
+        del bindings["shapes"][shape]
+    bindings_path = output / "payload-bindings.json"
+    bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
+    # Distinct module names, since every package here shares one scratch path.
+    for protocol, module in (("crucible.protocols#json", "Payload"), ("aws.protocols#restJson1", "RestPayload")):
+        payload = output / module
+        generate(bindings_path, payload, module, "--protocol", protocol)
+        manifest = payload / "Package.swift"
+        manifest.write_text(manifest.read_text().replace(
+            'resources: [.process("Resources")])]',
+            'resources: [.process("Resources")]), .testTarget(name: "PayloadBindingsTests", dependencies: ["' + module + '"])]'))
+        tests = payload / "Tests/PayloadBindingsTests"
+        tests.mkdir(parents=True, exist_ok=True)
+        source = (ROOT / "crates/crucible-codegen-swift/tests/PayloadBindingsTests.swift").read_text(encoding="utf-8")
+        (tests / "PayloadBindingsTests.swift").write_text(
+            source.replace("@testable import Payload", "@testable import " + module, 1), encoding="utf-8")
+        swift("test", payload, scratch)
     # String representations hide sensitive members from description, debug
     # description and reflection alike.
     vault = output / "vault"

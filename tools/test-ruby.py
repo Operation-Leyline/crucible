@@ -87,6 +87,12 @@ def qualify(output):
         str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
         "--package-name", "wire_client", "--module-name", "WireSdk")
     run(RUBY, "-I", str(output / "wire/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/wire.rb"))
+    # Payload Content-Type precedence under both payload-capable JSON protocols.
+    for protocol in ("crucible.protocols#json", "aws.protocols#restJson1"):
+        payload = output / ("payload-" + protocol.split("#")[1])
+        generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", payload, "payload_client", "PayloadSdk",
+                 "--protocol", protocol)
+        run(RUBY, "-I", str(payload / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/payload_bindings.rb"))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
         str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
         "--package-name", "auth_client", "--module-name", "AuthSdk")

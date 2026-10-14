@@ -179,6 +179,21 @@ def qualify(output):
     shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Payloads.cs", wire_consumer / "Program.cs")
     run("dotnet", "restore", "--source", str(wire_feed), "--packages", str(output / "wire-installed"), cwd=wire_consumer)
     run("dotnet", "run", "--no-restore", "--project", str(wire_consumer), cwd=wire_consumer)
+    for protocol, label in (("crucible.protocols#json", "payload-bindings"), ("aws.protocols#restJson1", "rest-payload-bindings")):
+        bindings = output / label
+        generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", bindings,
+                 "Example.PayloadBindings", "Example.PayloadBindings", protocol=protocol, digest=False)
+        bindings_feed = output / (label + "-feed")
+        run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(bindings_feed), cwd=bindings)
+        bindings_consumer = output / (label + "-consumer")
+        bindings_consumer.mkdir()
+        (bindings_consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
+      <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+      <ItemGroup><PackageReference Include="Example.PayloadBindings" Version="0.0.0-test"/></ItemGroup>
+    </Project>''', encoding="utf-8")
+        shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/ContentType.cs", bindings_consumer / "Program.cs")
+        run("dotnet", "restore", "--source", str(bindings_feed), "--packages", str(output / (label + "-installed")), cwd=bindings_consumer)
+        run("dotnet", "run", "--no-restore", "--project", str(bindings_consumer), cwd=bindings_consumer)
     extended = output / "types"
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", extended, "Example.Types", "Example.Types")
     types_feed = output / "types-feed"

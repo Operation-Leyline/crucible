@@ -56,6 +56,15 @@ def qualify(output):
     streaming = json.loads((ROOT / "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json").read_text())
     model["shapes"]["example.weather#Weather"]["operations"].extend(streaming["shapes"].pop("example.stream#Streaming")["operations"])
     model["shapes"].update(streaming["shapes"])
+    # The shared payload-bindings uploads, renamed apart from the streaming
+    # fixture's shapes, for the Content-Type precedence test.
+    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text()
+                          .replace("example.payload#", "example.payload#Typed"))["shapes"]
+    for operation in ("Upload", "UploadStream"):
+        model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.payload#Typed" + operation})
+        bindings["example.payload#Typed" + operation]["traits"]["smithy.api#http"]["uri"] = "/typed-" + operation.lower()
+    model["shapes"].update({key: value for key, value in bindings.items() if key.split("#Typed")[1] in (
+        "Upload", "UploadInput", "UploadStream", "StreamInput", "Stream")})
     model_path.write_text(json.dumps(model), encoding="utf-8")
     generate(model_path, package)
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)

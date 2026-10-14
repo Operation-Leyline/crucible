@@ -163,7 +163,13 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     if (!all(vapply(entries, .crucible_query_is_string, TRUE))) stop('Endpoint header values must be strings', call. = FALSE)
     headers[[tolower(key)]] <- paste(unlist(entries), collapse = ', ')
   }
-  for (binding in bindings$headers) if (!is.null(values[[binding[[1L]]]])) headers[[tolower(binding[[2L]])]] <- .crucible_bound(.crucible_media(bound(binding[[1L]]), bindings, binding[[1L]], TRUE))
+  # A Content-Type bound to an input member outranks the payload's media type,
+  # which outranks endpoint and client header defaults.
+  modelled_content_type <- FALSE
+  for (binding in bindings$headers) if (!is.null(values[[binding[[1L]]]])) {
+    headers[[tolower(binding[[2L]])]] <- .crucible_bound(.crucible_media(bound(binding[[1L]]), bindings, binding[[1L]], TRUE))
+    if (identical(tolower(binding[[2L]]), 'content-type')) modelled_content_type <- TRUE
+  }
   body <- NULL
   explicit <- tolower(vapply(bindings$headers, function(pair) pair[[2L]], character(1L)))
   for (binding in bindings$prefixHeaders) {
@@ -182,7 +188,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   if (!is.null(payload) && !is.null(values[[payload[[1L]]]])) {
     value <- values[[payload[[1L]]]]; kind <- bindings$payloadKind
     body <- if (identical(kind, 'string')) charToRaw(enc2utf8(.crucible_string(value))) else if (identical(kind, 'document')) charToRaw(enc2utf8(json_encode(.crucible_document(value, .crucible_shape(op$input)$members[[payload[[1L]]]]$target, TRUE)))) else openssl::base64_decode(value)
-    headers[['content-type']] <- payload[[2L]]
+    if (!modelled_content_type) headers[['content-type']] <- payload[[2L]]
   }
   protocol <- .crucible_schema[['protocol']]
   if (!is.null(protocol) && protocol %in% c('awsJson1_0', 'awsJson1_1')) {
