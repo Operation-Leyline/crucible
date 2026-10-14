@@ -125,12 +125,15 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Requires <code>graph:write</code> on every graph in the organization.</p>\n",
           "markdown": "Requires `graph:write` on every graph in the organization.",
           "text": "Requires graph:write on every graph in the organization."
         }
+      ],
+      "requirementSentences": [
+        "Requires `graph:write` on every graph in the organization."
       ],
       "requirements": {
         "clauses": [
@@ -389,12 +392,15 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Requires <code>graph:read</code> on the graph; <code>graph:write</code> on the graph, checked by the service (only when the parsed query writes); <code>history:read</code> on the history, when <code>has target.history</code>.</p>\n",
           "markdown": "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`.",
           "text": "Requires graph:read on the graph; graph:write on the graph, checked by the service (only when the parsed query writes); history:read on the history, when has target.history."
         }
+      ],
+      "requirementSentences": [
+        "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`."
       ],
       "requirements": {
         "clauses": [
@@ -589,12 +595,15 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Requires <code>graph:read</code> on the graph.</p>\n",
           "markdown": "Requires `graph:read` on the graph.",
           "text": "Requires graph:read on the graph."
         }
+      ],
+      "requirementSentences": [
+        "Requires `graph:read` on the graph."
       ],
       "requirements": {
         "clauses": [
@@ -746,12 +755,15 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Requires <code>organization:read</code> on the org.</p>\n",
           "markdown": "Requires `organization:read` on the org.",
           "text": "Requires organization:read on the org."
         }
+      ],
+      "requirementSentences": [
+        "Requires `organization:read` on the org."
       ],
       "requirements": {
         "clauses": [
@@ -871,12 +883,15 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Requires no permission.</p>\n",
           "markdown": "Requires no permission.",
           "text": "Requires no permission."
         }
+      ],
+      "requirementSentences": [
+        "Requires no permission."
       ],
       "requirements": {
         "kind": "none"
@@ -1116,12 +1131,15 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Returns only the graphs the caller holds <code>graph:read</code> on in the organization.</p>\n",
           "markdown": "Returns only the graphs the caller holds `graph:read` on in the organization.",
           "text": "Returns only the graphs the caller holds graph:read on in the organization."
         }
+      ],
+      "requirementSentences": [
+        "Returns only the graphs the caller holds `graph:read` on in the organization."
       ],
       "requirements": {
         "clauses": [
@@ -1302,6 +1320,7 @@
         "responseCode": null,
         "timestampFormats": {}
       },
+      "requirementDocumentation": [],
       "requirementSentences": [],
       "requirements": {
         "kind": "pending",
@@ -1478,7 +1497,7 @@
         "responseCode": null,
         "timestampFormats": {}
       },
-      "requirementSentences": [
+      "requirementDocumentation": [
         {
           "html": "<p>Requires <code>graph:read</code> on the graph, when <code>mode == \"a`b\"</code>; <code>graph:write</code> on the graph, checked by the service (HTTP rewrites only, when <code>mode</code> is <code>a`b</code>); <code>history:read</code> on the history, checked by the service (see below).</p>\n",
           "markdown": "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).",
@@ -1489,6 +1508,10 @@
           "markdown": "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide).",
           "text": "history:read on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and the guide (https://example.com/guide)."
         }
+      ],
+      "requirementSentences": [
+        "Requires `graph:read` on the graph, when ``mode == \"a`b\"``; `graph:write` on the graph, checked by the service (HTTP rewrites only, when `mode` is ``a`b``); `history:read` on the history, checked by the service (see below).",
+        "`history:read` on the history, checked by the service:\n\nGraphQL plans are checked twice:\n\n- once when parsed, against */ and @param text;\n- once when run, see [bare] and [the guide](https://example.com/guide)."
       ],
       "requirements": {
         "clauses": [

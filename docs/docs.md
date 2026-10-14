@@ -228,6 +228,8 @@ provisioning member bindings or interpreting design-time resource references.
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
 | `pagination` | Null or `{inputToken, outputToken, items, pageSize}`; token strings and nullable item/page-size member paths |
 | `examples` | Ordered example objects described below |
+| `requirements` | Absent when the operation declares nothing; else `{kind}`: `none`, `internal`, `pending` with `reason`, or `list` with `clauses` (`mode`, `permission`, `resourceType`, `tier`, and optional `bindings`, `when`, `documentation`) |
+| `requirementSentences`, `requirementDocumentation` | Beside `requirements`: what the caller must hold as Markdown strings, and the same entries as common documentation objects (`markdown`, `html`, `text`), since they carry model text |
 
 The JSON Schemas come from `crucible-codegen-common::json_schema`, also used by
 OpenAPI and MCP. They describe logical document values rather than an HTTP

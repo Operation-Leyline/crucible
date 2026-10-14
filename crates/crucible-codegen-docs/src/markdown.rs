@@ -633,8 +633,8 @@ fn authorization(op: &Value) -> String {
         )),
         "internal" => out.push_str("Requires permissions internal to the service.\n\n"),
         _ => {
-            for sentence in list(&op["requirementSentences"]) {
-                out.push_str(&documentation::html(string(&sentence["markdown"])));
+            for sentence in list(&op["requirementDocumentation"]) {
+                out.push_str(string(&sentence["html"]));
                 out.push('\n');
             }
             out.push_str(

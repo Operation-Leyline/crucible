@@ -354,7 +354,7 @@
     else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
     else {
       // Markdown holding model text, rendered and sanitised at build time.
-      for (const s of list(op.requirementSentences)) body.push(rich(s.html));
+      for (const s of list(op.requirementDocumentation)) body.push(rich(s.html));
       const rows = list(r.clauses).map((c) => [
         c.mode,
         code(c.permission),

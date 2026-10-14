@@ -486,9 +486,10 @@ version's section when it is prepared.
   longer code-span fence. Authorization names read as words in refusals and
   prose, acronyms included (`No such HTTP request.`). Requirement sentences
   are rendered by each target's documentation dialect (KDoc, Javadoc, C#
-  XML) like model documentation, and `describe.json`'s
-  `requirementSentences` holds `{markdown, html, text}` objects, which the
-  explorer renders instead of splitting on backticks. The API reference's
+  XML) like model documentation, and `describe.json` adds
+  `requirementDocumentation`, the sentences as `{markdown, html, text}`
+  objects, which the explorer renders instead of splitting
+  `requirementSentences` on backticks. The API reference's
   Requirements table puts a clause's documentation in a new Notes column,
   not under When. One rule decides `deprecated` (the model's note, or an
   alias) and `grantable` (the primary's tier) for every registry, so

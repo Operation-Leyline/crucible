@@ -408,13 +408,17 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
     // every generated client's documentation carries.
     if let Some(requirements) = crate::permissions::requirements(service, op) {
         value["requirements"] = requirements;
-        // Markdown holding model text, so rendered like documentation.
-        value["requirementSentences"] = json!(
-            crate::permissions::requirement_sentences(service, op)
+        // The sentences as Markdown strings, and (additive, so format 1
+        // keeps its meaning) each rendered like documentation, since they
+        // hold model text.
+        let sentences = crate::permissions::requirement_sentences(service, op);
+        value["requirementDocumentation"] = json!(
+            sentences
                 .iter()
                 .map(|sentence| documentation(Some(sentence)))
                 .collect::<Vec<_>>()
         );
+        value["requirementSentences"] = json!(sentences);
     }
     if explorer {
         for (example, source) in value["examples"]
