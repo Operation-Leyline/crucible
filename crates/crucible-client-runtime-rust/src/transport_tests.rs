@@ -362,11 +362,12 @@ async fn upload_content_type<O: Operation<Output = Unit>>(
 }
 
 #[tokio::test]
-async fn buffered_upload_content_type_preserves_explicit_headers_and_defaults_when_absent() {
+async fn buffered_upload_content_type_prefers_modeled_header_then_media_type_then_config() {
     for (modeled, configured, expected) in [
         (Some("image/png"), None, "image/png"),
         (None, None, "application/octet-stream"),
-        (None, Some("image/jpeg"), "image/jpeg"),
+        // The payload's media type outranks a client-wide default.
+        (None, Some("image/jpeg"), "application/octet-stream"),
         (Some("image/png"), Some("image/jpeg"), "image/png"),
     ] {
         let input = UploadInput {
@@ -381,11 +382,12 @@ async fn buffered_upload_content_type_preserves_explicit_headers_and_defaults_wh
 }
 
 #[tokio::test]
-async fn streaming_upload_content_type_preserves_explicit_headers_and_defaults_when_absent() {
+async fn streaming_upload_content_type_prefers_modeled_header_then_media_type_then_config() {
     for (modeled, configured, expected) in [
         (Some("image/png"), None, "image/png"),
         (None, None, "application/octet-stream"),
-        (None, Some("image/jpeg"), "image/jpeg"),
+        // The payload's media type outranks a client-wide default.
+        (None, Some("image/jpeg"), "application/octet-stream"),
         (Some("image/png"), Some("image/jpeg"), "image/png"),
     ] {
         let input = UploadInput {

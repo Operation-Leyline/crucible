@@ -428,7 +428,13 @@ func newClient(config Config, schema *schemaDescription, digest bool) (*clientRu
 	if config.HTTPClient == nil {
 		config.HTTPClient = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
-	config.Headers = config.Headers.Clone()
+	// Canonical keys, so a modelled or protocol header replaces a default
+	// given as a map literal in another case instead of being sent beside it.
+	if config.Headers != nil {
+		headers := http.Header{}
+		for name, values := range config.Headers { for _, value := range values { headers.Add(name, value) } }
+		config.Headers = headers
+	}
 	config.Middleware = append([]func(context.Context, *http.Request) error(nil), config.Middleware...)
 	config.EndpointParameters, err = copyEndpointParameters(config.EndpointParameters); if err != nil { return nil,err }
 	config.EndpointBuiltIns, err = copyEndpointParameters(config.EndpointBuiltIns); if err != nil { return nil,err }
@@ -1198,6 +1204,9 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			}
 		}
 	}
+	// A Content-Type bound to an input member outranks the payload's media
+	// type, which outranks endpoint and client header defaults.
+	modelledContentType := false
 	for _, binding := range op.Request.Headers {
 		if traced && inputShape.Members[binding[0]].Sensitive { sensitiveHeaders[strings.ToLower(binding[1])] = true }
 		value := boundValues[inputShape.wireName(binding[0])]
@@ -1212,6 +1221,7 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			return nil, err
 		}
 		headers.Set(binding[1], text)
+		if strings.EqualFold(binding[1], "Content-Type") { modelledContentType = true }
 	}
 	var body []byte
 	if len(op.Request.Body) > 0 {
@@ -1230,7 +1240,7 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		headers.Set("Content-Type", "application/json")
 	}
 	if source != nil {
-		if _, present := headers["Content-Type"]; !present { headers.Set("Content-Type", op.Request.Payload[1]) }
+		if !modelledContentType { headers.Set("Content-Type", op.Request.Payload[1]) }
 		if source.sha256 != "" { headers.Set("X-Amz-Content-Sha256", source.sha256) }
 	} else if len(op.Request.Payload) == 2 && !op.Request.Streaming {
 		// The codec has already applied the protocol's null-member policy.
@@ -1240,7 +1250,7 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			case "document": var err error; body, err = json.Marshal(payload); if err != nil { return nil, err }
 			default: body = payload.([]byte)
 			}
-			if _, present := headers["Content-Type"]; !present { headers.Set("Content-Type", op.Request.Payload[1]) }
+			if !modelledContentType { headers.Set("Content-Type", op.Request.Payload[1]) }
 		}
 	}
 	if c.schema.Protocol == "awsJson1_0" || c.schema.Protocol == "awsJson1_1" {

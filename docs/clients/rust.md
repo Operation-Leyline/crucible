@@ -339,7 +339,9 @@ let options = CallOptions {
 let result = client.get_city_with_options(input, options).await;
 ```
 
-`Config::header` supplies default headers. `Config::interceptor` receives a
+`Config::header` supplies default headers. A default `Content-Type` never
+replaces a JSON document's or a payload's media type; only a modeled
+`Content-Type` member overrides a payload's. `Config::interceptor` receives a
 mutable reqwest request after credentials and headers on every attempt, in
 registration order. `Config::content_sha256(true)` adds `x-amz-content-sha256`
 before these interceptors, allowing a signing interceptor to consume it. The

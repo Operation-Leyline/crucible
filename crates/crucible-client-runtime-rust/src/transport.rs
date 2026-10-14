@@ -317,6 +317,9 @@ impl Transport {
                 ))
             };
         }
+        // A Content-Type bound to an input member outranks a payload's media
+        // type, which outranks endpoint and client header defaults.
+        let modelled_content_type = bound_headers.contains_key(http::header::CONTENT_TYPE);
         let mut headers = endpoint
             .as_ref()
             .map_or_else(HeaderMap::new, |endpoint| endpoint.headers.clone());
@@ -344,9 +347,13 @@ impl Transport {
                         "streaming payload requires a known length".into(),
                     ));
                 }
-                headers.entry(http::header::CONTENT_TYPE).or_insert(
-                    HeaderValue::from_str(media_type).map_err(|e| Error::Invalid(e.to_string()))?,
-                );
+                if !modelled_content_type {
+                    headers.insert(
+                        http::header::CONTENT_TYPE,
+                        HeaderValue::from_str(media_type)
+                            .map_err(|e| Error::Invalid(e.to_string()))?,
+                    );
+                }
             }
         }
         // Events are read from the caller's source once: never replayed.
@@ -364,7 +371,7 @@ impl Transport {
                     &url,
                     &headers,
                     body.clone(),
-                    Location::payload(info.input).is_some(),
+                    modelled_content_type && Location::payload(info.input).is_some(),
                     crate::auth::OperationAuth::of::<O>()
                         .with_properties(endpoint.as_ref().map(|endpoint| &endpoint.properties)),
                     stream.as_ref(),
@@ -752,7 +759,7 @@ impl Transport {
         url: &str,
         bound_headers: &HeaderMap,
         body: Option<Body>,
-        payload: bool,
+        modelled_content_type: bool,
         auth: crate::auth::OperationAuth<'_>,
         stream: Option<&ByteStream>,
         plan: &crate::checksum::Plan,
@@ -792,14 +799,10 @@ impl Transport {
                 media_type => HeaderValue::from_str(media_type)
                     .map_err(|error| Error::Invalid(error.to_string()))?,
             };
-            // Payload media types can be overridden; ordinary protocol
-            // documents must keep the media type matching their encoding.
-            if payload {
-                request
-                    .headers_mut()
-                    .entry(http::header::CONTENT_TYPE)
-                    .or_insert(content_type);
-            } else {
+            // Only a modelled Content-Type member overrides a payload's media
+            // type; ordinary protocol documents always keep the media type
+            // matching their encoding, whatever the configured defaults say.
+            if !modelled_content_type {
                 request
                     .headers_mut()
                     .insert(http::header::CONTENT_TYPE, content_type);

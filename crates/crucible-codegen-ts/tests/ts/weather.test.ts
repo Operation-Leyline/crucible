@@ -171,6 +171,29 @@ test("bodies carry body members only, with a digest and a filled idempotency tok
   assert.equal(out.city.population, 7n);
 });
 
+test("a JSON body keeps its media type over client and per-call Content-Type defaults", async () => {
+  const { sent, fetch } = fake(json(201, { city: { id: "c-1", name: "Oslo" } }), json(201, { city: { id: "c-2", name: "Bergen" } }));
+  const client = new WeatherClient({ fetch, headers: { "Content-Type": "text/plain" } });
+  await client.createCity({ name: "Oslo", location: { coordinates: { latitude: 1, longitude: 2 } } });
+  await client.createCity({ name: "Bergen", location: { coordinates: { latitude: 1, longitude: 2 } } }, { headers: { "content-type": "text/csv" } });
+  assert.deepEqual(sent.map(request => request.headers.get("content-type")), ["application/json", "application/json"]);
+});
+
+test("redirects are returned, never followed, even for a request a middleware rebuilt", async () => {
+  const modes: RequestRedirect[] = [];
+  const rebuild: Middleware = (request, next) => next(new Request(request.url, { method: request.method, headers: request.headers }));
+  for (const middleware of [[], [rebuild]]) {
+    const fetch = async (request: Request): Promise<Response> => {
+      modes.push(request.redirect);
+      return new Response(null, { status: 302, headers: { location: "https://elsewhere.example/" } });
+    };
+    const error = await new WeatherClient({ fetch, token: "secret", middleware, retry: quick }).ping().catch(e => e);
+    assert.ok(error instanceof ServiceError);
+    assert.equal(error.$metadata.status, 302);
+  }
+  assert.deepEqual(modes, ["manual", "manual"], "one attempt each, with the redirect mode set");
+});
+
 test("a frozen input gets a token on a copy", async () => {
   const { sent, fetch } = fake(json(201, { city: { id: "c-1", name: "Oslo" } }));
   await new WeatherClient({ fetch }).createCity(Object.freeze({ name: "Oslo" }));

@@ -212,7 +212,8 @@ does not replace the modeled type. Empty bodies may omit Content-Type.
 Nonempty requests with missing, duplicate or incompatible Content-Type headers
 receive HTTP 415. Payloads use their derived media type under REST JSON, unless
 an explicit modeled Content-Type header overrides it; Crucible raw blob and
-string payloads accept any media type. See the
+string payloads accept any media type. A default header from client
+configuration never replaces a document's or a payload's media type. See the
 [REST JSON Content-Type rules](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html#content-type).
 
 Protocol details owned here, with round-trip tests from the first emitter:

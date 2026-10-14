@@ -326,6 +326,25 @@ version's section when it is prepared.
   another origin. Applications can configure an explicit redirect policy
   with `Config::http_client`.
 
+- TypeScript clients no longer follow redirects, which forwarded bearer,
+  API-key and SigV4 headers to wherever the `Location` pointed. Every
+  request the client dispatches, including one a middleware rebuilt,
+  carries `redirect: "manual"`; the 3xx (an opaque redirect, status 0, in a
+  browser) surfaces as a `ServiceError`. A custom `fetch` may still choose
+  its own redirect mode.
+
+- A client-wide default `Content-Type` header no longer replaces a
+  payload's media type in the Rust, Python, Go and TypeScript clients, and
+  no longer replaces `application/json` on an ordinary TypeScript request
+  body (a mismatch the service answered with HTTP 415). A request's
+  Content-Type is the modeled Content-Type member if one is set, then the
+  payload's media type, then default headers; TypeScript per-call
+  `RequestOptions.headers` rank with the defaults. Go also canonicalizes
+  `Config.Headers` keys, so a default given as `content-type` is replaced
+  rather than sent beside the request's own. To send a payload under
+  another media type, model a Content-Type member or set the header in a
+  middleware or interceptor.
+
 - Rust clients ignore response JSON fields for members bound to HTTP
   headers, even when the corresponding header is absent. This also applies
   to modeled errors and the initial response of an event stream.

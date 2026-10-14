@@ -528,7 +528,7 @@ export interface ResponseMetadata {
   readonly status: number;
   /** Service request identifier when present. */
   readonly requestId?: string;
-  /** Additional HTTP headers; per-call values override client headers. */
+  /** HTTP response headers. */
   readonly headers: Headers;
 }
 
@@ -673,7 +673,7 @@ export interface ClientConfig {
   readonly signingName?: string;
   /** Custom fetch transport; otherwise global fetch is used. */
   readonly fetch?: Fetch;
-  /** Headers sent on every request. */
+  /** Headers sent on every request; a body's or payload's Content-Type takes precedence. */
   readonly headers?: Readonly<Record<string, string>>;
   /** Runs after the client's own middleware, nearest the network last. */
   readonly middleware?: readonly Middleware[];
@@ -695,7 +695,7 @@ export interface RequestOptions {
   readonly timeoutMs?: number | null;
   /** Abort this call or waiter when the signal is aborted. */
   readonly signal?: AbortSignal;
-  /** Additional HTTP headers; per-call values override client headers. */
+  /** Additional HTTP headers; per-call values override client headers, but not a body's or payload's Content-Type. */
   readonly headers?: Readonly<Record<string, string>>;
 }
 
@@ -910,7 +910,8 @@ export class Transport {
         if (signing) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
         else if (headers.get("x-amz-content-sha256") === STREAMING_EVENTS) headers.delete("x-amz-content-sha256");
       }
-      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), ...(headers ? { headers } : {}), ...(events ? { duplex: "half" } : {}) } as RequestInit);
+      // Also over a request a middleware rebuilt without the redirect mode.
+      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), redirect: "manual", ...(headers ? { headers } : {}), ...(events ? { duplex: "half" } : {}) } as RequestInit);
       const signed = signing ? await signSigV4(final, signing.credentials, signing.scope, signing.streaming) : final;
       if (events) {
         const seed = /Signature=([0-9a-f]+)/.exec(signed.headers.get("authorization") ?? "")?.[1];
@@ -970,9 +971,14 @@ export class Transport {
         if (!explicit.has(name.toLowerCase()) && value != null) headers.set(name, operation.headerEncodings?.[member]==="base64"?encodeMedia(value):String(value));
       }
     }
+    // A Content-Type bound to an input member outranks the payload's media
+    // type, which outranks client and per-call header defaults.
+    let modelledContentType = false;
     for (const [member, header, schema] of operation.headers ?? []) {
       const value = values[member];
-      if (value !== undefined && value !== null) headers.set(header, operation.headerEncodings?.[member]==="base64"?(Array.isArray(value)?value.map(encodeMedia).join(", "):encodeMedia(value)):headerValue(value, schema));
+      if (value === undefined || value === null) continue;
+      headers.set(header, operation.headerEncodings?.[member]==="base64"?(Array.isArray(value)?value.map(encodeMedia).join(", "):encodeMedia(value)):headerValue(value, schema));
+      if (header.toLowerCase() === "content-type") modelledContentType = true;
     }
     let body: BodyInit | undefined;
     if (operation.body !== undefined) {
@@ -982,7 +988,8 @@ export class Transport {
         if (encoded[name] !== undefined) picked[name] = encoded[name];
       }
       body = stringifyJson(picked);
-      if (!headers.has("content-type")) headers.set("content-type", "application/json");
+      // A protocol document keeps the media type of its encoding.
+      headers.set("content-type", "application/json");
     }
     if (operation.payload !== undefined) {
       // The bytes go as they are: a body digest covers exactly these.
@@ -1006,7 +1013,7 @@ export class Transport {
           if (!(value instanceof Uint8Array)) throw new TypeError(`${operation.name}: payload must be a Uint8Array`);
           body = value as BodyInit;
         }
-        if (!headers.has("content-type")) headers.set("content-type", operation.payload.mediaType);
+        if (!modelledContentType) headers.set("content-type", operation.payload.mediaType);
       }
     }
     if (operation.protocol==="awsJson1_0" || operation.protocol==="awsJson1_1") {
@@ -1025,7 +1032,9 @@ export class Transport {
       // Declared before middleware runs, so a digest middleware leaves the stream alone; removed again if no signature follows.
       if (sigV4) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
     }
-    const init: RequestInit & { duplex?: "half" } = { method: operation.method, headers, body, signal: options.signal };
+    // A followed redirect would resend credential headers to wherever the
+    // Location points; the 3xx is returned to the caller instead.
+    const init: RequestInit & { duplex?: "half" } = { method: operation.method, headers, body, signal: options.signal, redirect: "manual" };
     if (body instanceof ReadableStream) init.duplex = "half";
     return {request: new Request(url, init),properties:endpoint.properties};
   }
