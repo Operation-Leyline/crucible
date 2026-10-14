@@ -56,10 +56,10 @@ async fn lambda_http_v2_default_and_named_stages_preserve_query_bindings() {
     }
 }
 
-/// API Gateway passes the path as it has it, which may hold what a URI does
-/// not carry raw: a space, `<`, a `?` decoded from `%3F`, non-ASCII. The
-/// event is answered as the same request over HTTP with each of those
-/// percent-encoded, never as a failed invocation.
+/// API Gateway (and an ALB) passes the path as it has it, which may hold
+/// what a URI does not carry raw: a space, `<`, a `?` or `#` decoded from
+/// `%3F` or `%23`, non-ASCII. The event is answered as the same request over
+/// HTTP with each of those percent-encoded, never as a failed invocation.
 #[tokio::test]
 async fn a_path_with_characters_a_uri_does_not_carry_is_routed_as_sent() {
     use axum::body::Body;
@@ -79,6 +79,7 @@ async fn a_path_with_characters_a_uri_does_not_carry_is_routed_as_sent() {
         ("/cities/a b", "/cities/a%20b"),
         ("/cities/<b>", "/cities/%3Cb%3E"),
         ("/cities/a?b", "/cities/a%3Fb"),
+        ("/cities/a#b", "/cities/a%23b"),
         ("/cities/caf\u{e9}", "/cities/caf%C3%A9"),
         ("/pi ng", "/pi%20ng"),
     ] {
@@ -98,7 +99,27 @@ async fn a_path_with_characters_a_uri_does_not_carry_is_routed_as_sent() {
             "requestContext": { "stage": "prod", "requestId": "path-request", "httpMethod": "GET" },
             "isBase64Encoded": false
         });
-        for event in [rest, v2_event("prod", raw, "")] {
+        // With a Host, lambda_http builds an absolute URI from the path,
+        // where a raw `?` would start a query.
+        let mut rest_with_host = rest.clone();
+        rest_with_host["headers"] = json!({ "host": "api.example.com" });
+        let mut v2_with_host = v2_event("prod", raw, "");
+        v2_with_host["headers"] = json!({ "host": "api.example.com" });
+        let alb = json!({
+            "requestContext": { "elb": { "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/weather/0123456789abcdef" } },
+            "httpMethod": "GET",
+            "path": raw,
+            "queryStringParameters": {},
+            "headers": { "host": "api.example.com" },
+            "isBase64Encoded": false
+        });
+        for event in [
+            rest,
+            rest_with_host,
+            v2_event("prod", raw, ""),
+            v2_with_host,
+            alb,
+        ] {
             let answer = host::lambda_event(&service, event.clone())
                 .await
                 .unwrap_or_else(|error| panic!("{raw}: {error}"));

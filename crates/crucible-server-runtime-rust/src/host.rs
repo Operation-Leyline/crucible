@@ -425,6 +425,22 @@ mod lambda_event {
         {
             *query = uri_query(query);
         }
+        // The path is as the source passed it, which may hold what a URI
+        // does not carry raw: a space, `<`, non-ASCII, or a `?` or `#` API
+        // Gateway decoded, which lambda_http would read as the start of a
+        // query or fragment. Encoded the same way, before the conversion
+        // reads it: the request's URI and its raw path both carry it
+        // encoded, and decoding gives it back.
+        let path = match &mut request {
+            LambdaRequest::ApiGatewayV1(event) => event.path.as_mut(),
+            LambdaRequest::ApiGatewayV2(event) => event.raw_path.as_mut(),
+            LambdaRequest::Alb(event) => event.path.as_mut(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        };
+        if let Some(path) = path {
+            *path = uri_path(path);
+        }
         let origin = request.request_origin();
         // The event's own request id, as `event_request_id` reads it after
         // the conversion, for an answer when the conversion fails.
@@ -460,16 +476,13 @@ mod lambda_event {
             RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
         ) {
             // lambda_http adds the deployment stage to the URI; model routes
-            // describe the original path, independent of that deployment.
-            // That path is as API Gateway passed it, which may hold what a
-            // URI does not carry raw (a space, `<`, non-ASCII): encoded, as
-            // the query is, so the URI parses and decoding gives it back.
+            // describe the original path (encoded above), independent of
+            // that deployment.
             let path = parts.raw_http_path();
             let path = if path.is_empty() { "/" } else { path };
-            let path = uri_path(path);
             let path_and_query = match parts.uri.query() {
                 Some(query) => format!("{path}?{query}"),
-                None => path,
+                None => path.to_owned(),
             };
             let mut uri = parts.uri.clone().into_parts();
             let rebuilt = path_and_query.parse().ok().and_then(|path_and_query| {
