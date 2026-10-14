@@ -86,6 +86,21 @@ fn package_from(name: &str, baseline: &str, current: &str, migration: &str) -> P
     dir
 }
 
+/// An enum whose second value's wire value spells the first's symbol.
+const COLOR: &str = "\nenum Color { RED = \"r\", SPECIAL = \"RED\" }\n";
+
+/// COLOR reached directly, through a list and through a map.
+const PAINT: &str = r#"
+enum Color { RED = "r", SPECIAL = "RED" }
+list Colors: Color
+map Palette: string -> Color
+structure Paint {
+    color: Color
+    colors?: Colors
+    palette?: Palette
+}
+"#;
+
 fn requirement_package(name: &str, ty: &str, declarations: &str, default: &str) -> PathBuf {
     let baseline = V1
         .replace("http GET \"/items\"", "http POST \"/items\"")
@@ -135,6 +150,33 @@ fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
             "length bounds",
         ),
         ("enum", "Kind", "", "UNKNOWN", "not a value"),
+        // A quoted string is a wire value, never a symbol: `SPECIAL` is a
+        // symbol of Color, but no value of it is "SPECIAL".
+        (
+            "enum-quoted-symbol",
+            "Color",
+            COLOR,
+            "\"SPECIAL\"",
+            "not a value",
+        ),
+        // An optional document may be null; a required one may not, as in
+        // Smithy.
+        (
+            "null-required-document",
+            "Nested",
+            "\nstructure Nested { data: document }\n",
+            "{ data: null }",
+            "must not be null",
+        ),
+        // A symbol is resolved wherever an enum is expected, so a quoted
+        // symbol name is refused at depth too.
+        (
+            "nested-enum-quoted-symbol",
+            "Paint",
+            PAINT,
+            "{ color: \"SPECIAL\" }",
+            "not a value",
+        ),
         (
             "list-item",
             "Numbers",
@@ -205,6 +247,64 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
             "\nenum Size { SMALL = \"s\", LARGE = \"l\" }\n",
             "SMALL",
             serde_json::json!("s"),
+        ),
+        // A symbol names its wire value; a quoted string is the wire value
+        // itself, even when it spells another symbol's name.
+        (
+            "enum-symbol-shadowed",
+            "Color",
+            COLOR,
+            "RED",
+            serde_json::json!("r"),
+        ),
+        (
+            "enum-quoted-wire",
+            "Color",
+            COLOR,
+            "\"RED\"",
+            serde_json::json!("RED"),
+        ),
+        (
+            "document-null",
+            "document",
+            "",
+            "{ data: null, items: [null, { x: null }] }",
+            serde_json::json!({"data": null, "items": [null, {"x": null}]}),
+        ),
+        (
+            "nested-document-null",
+            "Nested",
+            "\nstructure Nested { data: document }\n",
+            "{ data: { inner: null } }",
+            serde_json::json!({"data": {"inner": null}}),
+        ),
+        // An explicit null is a document value, kept on the wire.
+        (
+            "null-optional-document",
+            "Nested",
+            "\nstructure Nested { data?: document }\n",
+            "{ data: null }",
+            serde_json::json!({"data": null}),
+        ),
+        // Symbols nested in structures, lists and maps are resolved against
+        // the shapes they sit in; quoted strings stay wire values.
+        (
+            "nested-enum",
+            "Paint",
+            PAINT,
+            r#"{ color: RED, colors: [RED, "RED"], palette: { a: RED, b: "RED" } }"#,
+            serde_json::json!({
+                "color": "r",
+                "colors": ["r", "RED"],
+                "palette": {"a": "r", "b": "RED"}
+            }),
+        ),
+        (
+            "nested-enum-quoted-wire",
+            "Paint",
+            PAINT,
+            r#"{ color: "RED" }"#,
+            serde_json::json!({"color": "RED"}),
         ),
         (
             "list",

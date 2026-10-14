@@ -134,6 +134,13 @@ impl Check<'_> {
     fn structure(&mut self, path: &str, shape: &Structure, members: &Map<String, Value>) {
         for (name, value) in members {
             match shape.member(name) {
+                // A document's null is a value of its own, distinct on the
+                // wire from leaving the member out, and Smithy accepts null
+                // for a nullable member. A required one stays refused.
+                Some(member)
+                    if value.is_null()
+                        && member.optional_on_server()
+                        && self.is_document(&member.target) => {}
                 Some(member) => self.member(&format!("{path}.{name}"), member, value, false),
                 None => self.problems.push(format!("{path}.{name} is not a member")),
             }
@@ -143,6 +150,13 @@ impl Check<'_> {
                 self.constraint(format!("{path}.{} is required", member.name));
             }
         }
+    }
+
+    fn is_document(&self, target: &ShapeId) -> bool {
+        matches!(
+            self.shapes.get(target),
+            Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Document
+        )
     }
 
     fn member(&mut self, path: &str, member: &Member, value: &Value, sparse: bool) {

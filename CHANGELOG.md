@@ -394,7 +394,18 @@ version's section when it is prepared.
   type and effective constraints before a migration can be generated.
   An invalid default can no longer pass the guard and break older requests.
   Valid timestamp and integer-enum defaults use the destination wire
-  representation.
+  representation. As in a member's default, an unquoted enum literal names
+  a symbol and a quoted string is the wire value itself, even when it
+  spells another symbol's name.
+
+- `.cru` member and migration defaults resolve enum symbols at any depth:
+  `[RED]` for a list of enums, or `{ color: RED }` in a structure, lowers
+  to RED's wire value instead of the text `"RED"`, which was refused or,
+  when another value's wire value spelled it, silently meant that value.
+
+- Examples and defaults may set an optional `document` member to `null`,
+  as Smithy allows; the null is kept as the document's value. A required
+  member, or a member of any other type, still may not be null.
 
 - The language server includes new unsaved buffers inside a package's
   source directories when checking diagnostics and resolving symbols.

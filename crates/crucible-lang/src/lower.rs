@@ -28,6 +28,7 @@ use crate::ast::{
 };
 use crate::compile::{FileDiagnostic, Location, Naming, Package, SourceMap};
 use crate::diagnostic::Diagnostic;
+use crate::literal::resolve_enum_symbols;
 use crate::span::Span;
 
 mod permissions;
@@ -2136,26 +2137,9 @@ impl<'a> Lowerer<'a> {
                 self.error(file, span, STRUCTURE_DEFAULT);
                 return json;
             }
-            Some(Shape::Enum(enumeration)) => {
-                if let Some(found) = enumeration
-                    .values
-                    .iter()
-                    .find(|v| matches!(value, Value::Ident(i) if i.name == v.name))
-                {
-                    json = Json::String(found.value.clone());
-                }
-            }
-            Some(Shape::IntEnum(enumeration)) => {
-                if let Some(found) = enumeration
-                    .values
-                    .iter()
-                    .find(|v| matches!(value, Value::Ident(i) if i.name == v.name))
-                {
-                    json = Json::Number(found.value.into());
-                }
-            }
             _ => {}
         }
+        resolve_enum_symbols(&self.shapes, target, value, &mut json);
         for problem in crucible_smithy::validate::value(
             &self.shapes,
             "the default",
