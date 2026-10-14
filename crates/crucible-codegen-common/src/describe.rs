@@ -406,7 +406,18 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
             })})).collect::<Vec<_>>()});
     // What the caller must hold: the clauses as data, and the sentences
     // every generated client's documentation carries.
-    if let Some(requirements) = crate::permissions::requirements(service, op) {
+    if let Some(mut requirements) = crate::permissions::requirements(service, op) {
+        // A clause's documentation is model Markdown: beside the raw string,
+        // (additive) the same text rendered like any other documentation, so
+        // a reader shows it as prose rather than as Markdown source.
+        let clauses = requirements
+            .get_mut("clauses")
+            .and_then(Value::as_array_mut);
+        for clause in clauses.into_iter().flatten() {
+            if let Some(docs) = clause["documentation"].as_str() {
+                clause["renderedDocumentation"] = documentation(Some(docs));
+            }
+        }
         value["requirements"] = requirements;
         // The sentences as Markdown strings, and (additive, so format 1
         // keeps its meaning) each rendered like documentation, since they

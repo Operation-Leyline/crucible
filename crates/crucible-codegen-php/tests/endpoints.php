@@ -38,6 +38,10 @@ foreach (['a.b', '-bad', 'x/y', 'x@evil', '', str_repeat('x', 64)] as $label) fa
 check(count($capture->requests) === 1, 'invalid host labels never dispatch');
 $client(['disableHostPrefix' => true])->read(new Input(account: 'ignored'));
 check(parse_url(end($capture->requests)->url, PHP_URL_HOST) === 'local.example.test', 'host prefix can be disabled');
+// The rule spells its header `X-Region` (test-php.py): it outranks a client
+// default of the same name in any case, and one is sent.
+$client(['headers' => ['x-region' => 'client']])->read(new Input(account: 'customer'));
+check(end($capture->requests)->headers['x-region'] === 'local' && !isset(end($capture->requests)->headers['X-Region']), 'endpoint header outranks a client default');
 fails('Unknown region missing', static fn() => $client(['region' => 'missing'])->read(new Input(account: 'customer')));
 fails('Region is missing', static fn() => $client(['region' => null])->read(new Input(account: 'customer')));
 $client(['region' => 'missing', 'endpointBuiltIns' => ['AWS::Region' => 'local']])->read(new Input(account: 'builtin'));

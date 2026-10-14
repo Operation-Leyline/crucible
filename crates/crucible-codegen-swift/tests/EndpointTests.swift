@@ -41,6 +41,15 @@ final class EndpointTests: XCTestCase, @unchecked Sendable {
         requests = await transport.requests
         XCTAssertEqual(requests.last?.url.host, "local.example.test")
 
+        // The rule spells its header `X-Region` (test-swift.py): it outranks
+        // a client default of the same name in any case, and one is sent.
+        var defaulted = try config(transport)
+        defaulted.headers = ["x-region": "client"]
+        _ = try await ServiceClient(defaulted).read(Input(account: "customer"))
+        requests = await transport.requests
+        XCTAssertEqual(requests.last?.headers["x-region"], "local")
+        XCTAssertNil(requests.last?.headers["X-Region"])
+
         let public_ = try await unprefixed.`public`()
         _ = public_
         requests = await transport.requests

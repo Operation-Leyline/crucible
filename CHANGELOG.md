@@ -660,8 +660,10 @@ version's section when it is prepared.
   exactly one Content-Type sent whatever case the default was given in.
   Kotlin and C++ streaming uploads, which sent no Content-Type unless a
   default supplied one, now carry the payload's media type. A Java header
-  member replaces a default of the same name in any case, and PHP and Swift
-  lowercase endpoint-rule header names, so neither sends a duplicate.
+  member, JSON body or XML body replaces a default of the same name in any
+  case, so it never sends a duplicate. A C# client sends an empty or
+  malformed modeled Content-Type as given, as the Python and Go clients do,
+  instead of throwing `FormatException`.
 
 - Rust clients ignore response JSON fields for members bound to HTTP
   headers, even when the corresponding header is absent. This also applies
@@ -768,8 +770,12 @@ version's section when it is prepared.
   (`docs::comment_text`), `*/` is defused in block-comment tags as well
   as prose, and double-quoted literals in C#, Go, Java, TypeScript,
   Python, Dart and R escape what JSON leaves raw (`quoted`); Kotlin,
-  Swift and C++ escape the same characters their own way. PHP keeps
-  single-quoted literals, which take every byte as written. Bidirectional
+  Swift and C++ escape the same characters their own way. A PHP literal
+  that carries a control character (CR, a line break), a line or paragraph
+  separator, a byte order mark or a bidirectional control is double-quoted
+  with `\u{...}` escapes, so a committed SDK keeps the value through
+  `git`'s line-ending normalisation; any other stays single-quoted.
+  Bidirectional
   controls (U+202A–U+202E, U+2066–U+2069, and the LRM, RLM and ALM marks)
   are dropped from documentation and escaped in literals, since rustc's
   deny-by-default `text_direction_codepoint_in_*` lints and GCC/Clang's
@@ -793,6 +799,16 @@ version's section when it is prepared.
   message, a waiter's documentation, the service version, enum values, a
   default, a pattern and a JSON name; the hostile-text test also runs the
   Rust server, its operation stubs, Terraform, CDK and the service CLI.
+
+- Rust server and client bindings escape every shape's, member's,
+  operation's and error's model documentation for rustdoc, as the
+  permission documentation already was: a bare `[name]` is no longer an
+  intra-doc link that cannot resolve.
+
+- `describe.json` requirement clauses add `renderedDocumentation`, the
+  clause's documentation as a `{markdown, html, text}` object, and the
+  explorer renders it in the Requirements table's Notes column instead of
+  showing the Markdown source.
 
 ### Security
 

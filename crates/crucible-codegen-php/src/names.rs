@@ -3,8 +3,44 @@ use crucible_smithy::{
     ir::{Service, Shape, SimpleKind},
 };
 
+/// A PHP string literal for `value`. Single-quoted unless `value` holds a
+/// character an editor, `git`'s `text=auto` or a reader could change or not
+/// see (a control character such as CR, a line or paragraph separator, a
+/// byte-order mark, a bidirectional control): those are written as
+/// `\u{...}` escapes in a double-quoted literal, so the committed SDK holds
+/// only visible text and the value survives line-ending normalisation.
 pub fn literal(value: &str) -> String {
-    format!("'{}'", value.replace('\\', "\\\\").replace('\'', "\\'"))
+    if !value.chars().any(invisible) {
+        return format!("'{}'", value.replace('\\', "\\\\").replace('\'', "\\'"));
+    }
+    let mut out = String::from("\"");
+    for c in value.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '$' => out.push_str("\\$"),
+            c if invisible(c) => out.push_str(&format!("\\u{{{:x}}}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// A character a literal must not hold raw.
+fn invisible(c: char) -> bool {
+    c.is_control()
+        || matches!(
+            c,
+            '\u{061c}'
+                | '\u{200e}'
+                | '\u{200f}'
+                | '\u{2028}'
+                | '\u{2029}'
+                | '\u{202a}'..='\u{202e}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{feff}'
+        )
 }
 pub fn identifier(value: &str) -> bool {
     value.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
@@ -252,6 +288,13 @@ mod tests {
         assert_eq!(literal("foo"), "'foo'");
         assert_eq!(literal("foo\\bar"), "'foo\\\\bar'");
         assert_eq!(literal("foo'bar"), "'foo\\'bar'");
+        // CR, CRLF, separators, a BOM and bidi controls are escaped in a
+        // double-quoted literal, with `$` and `"` escaped there too.
+        assert_eq!(literal("a\r\nb"), "\"a\\u{d}\\u{a}b\"");
+        assert_eq!(
+            literal("\u{feff}x\u{2028}\u{202e}$\"\\'"),
+            "\"\\u{feff}x\\u{2028}\\u{202e}\\$\\\"\\\\'\""
+        );
     }
 
     #[test]

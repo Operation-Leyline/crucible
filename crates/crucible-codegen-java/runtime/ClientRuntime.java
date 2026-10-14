@@ -714,6 +714,7 @@ final class ClientRuntime {
       headers.put("content-type", "application/x-www-form-urlencoded");
     } else if (xml != null && !bodyMembers.isEmpty()) {
       body = xml.document(text(op, "input"), bodyMembers, values);
+      headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
       headers.put("content-type", "application/xml");
     } else if (!request.getAsJsonArray("body").isEmpty()) {
       JsonObject object = new JsonObject();
@@ -722,6 +723,7 @@ final class ClientRuntime {
         if (values.has(key)) object.add(wireName(text(op, "input"), key), values.get(key));
       }
       body = JSON.toJson(object).getBytes(StandardCharsets.UTF_8);
+      headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
       headers.put("content-type", "application/json");
     }
     JsonElement payload = request.get("payload");
