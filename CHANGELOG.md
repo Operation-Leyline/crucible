@@ -47,7 +47,9 @@ version's section when it is prepared.
 - `OpaqueError`: a failure whose causes `ExceptionTranslator` rules never
   see. A rule may match the wrapper itself, but the translator does not walk
   into what it wraps; the service log still shows the whole chain.
-  `AuthenticatorChain` wraps an authentication provider's outage in it. See
+  `OpaqueError::new` wraps any error and `OpaqueError::from` a crucible
+  `Error`. `AuthenticatorChain` wraps an authentication provider's outage
+  in it. See
   [docs/framework.md](docs/framework.md#errors).
 
 - `Principal::tenant`: the workspace or organization a credential is bound
@@ -415,8 +417,9 @@ version's section when it is prepared.
 - A JWKS fetch whose key set holds one key that does not parse (a corrupt
   entry, or a key type `crucible-auth` cannot read) skips that key with a
   warning and keeps the others. It used to refuse the whole set, which was
-  an outage for every token. `JwtAuthenticator::with_jwks` refuses such a key
-  as a configuration error.
+  an outage for every token. A `kid` named twice is still refused, even when
+  one of the two entries does not parse. `JwtAuthenticator::with_jwks`
+  refuses a key that does not parse as a configuration error.
 
 - The `ScopeEnforcer::exempt_id_tokens` and `strict` docs said API keys are
   "checked": an API key carries no scopes, so both refuse it on every

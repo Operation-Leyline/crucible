@@ -15,7 +15,8 @@ pub(crate) struct JwksCache {
     /// When a successful fetch was found not to contain each key ID. Such a
     /// `kid` waits the full refresh interval before it may cause another
     /// fetch; one not seen yet waits only for the short floor, so a token
-    /// with a forged `kid` cannot hold a rotated key off for the interval.
+    /// with a forged `kid` cannot hold a rotated key off for the interval
+    /// (unless the rotated `kid` itself was looked up before it was published).
     pub absent: LruMap<Instant>,
     /// Configuration-owned keys are replaced by rebuilding the authenticator, never by fetching.
     pub pinned: bool,

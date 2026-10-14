@@ -174,6 +174,14 @@ mod tests {
         // Transparent to the log.
         assert_eq!(nested.to_string(), "provider down");
         assert_eq!(nested.chain(), "provider down: inner");
+        // A crucible Error wraps as it is, with the same opacity.
+        let held = Error::new(NestedError {
+            msg: "provider down",
+            source: Some(Box::new(CustomError("inner"))),
+        });
+        let wrapped = Error::new(OpaqueError::from(held));
+        assert!(translator.translation(&wrapped).is_none());
+        assert_eq!(wrapped.chain(), "provider down: inner");
     }
 
     #[test]

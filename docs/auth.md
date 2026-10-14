@@ -103,9 +103,15 @@ A token's `kid` is unverified until its signature checks out, so a token
 with a forged `kid` can make the authenticator fetch the key set. Each forged
 `kid` is remembered as missing and fetches nothing again for
 `min_refresh_interval`, and new ones together cause at most about one fetch a
-second. A forged `kid` therefore never holds the key set fixed for the whole
-interval: a key the provider rotates in is picked up at most one second after
-the last fetch, not 30.
+second. A forged `kid` therefore no longer holds the key set fixed for the
+whole interval: a key the provider rotates in is picked up at most one second
+after the last fetch, not 30. The exception is a `kid` that was looked up
+before the provider published it (a token signed with a key not yet in the
+JWKS): that lookup found it missing, so it waits the full
+`min_refresh_interval` like a forged one. The floor has a cost: forged key IDs
+can cause about one fetch a second instead of one per interval, which makes it
+more likely that the identity provider throttles the JWKS endpoint, and a
+failed fetch (throttled or not) holds every fetch off for the interval.
 
 A successful refresh replaces the key set, removing retired keys. A key in a
 fetched set that does not parse (a corrupt entry, or a key type this crate

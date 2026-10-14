@@ -535,6 +535,10 @@ fn parse_keys(value: &Value) -> std::result::Result<ParsedKeys, AuthError> {
         .ok_or_else(|| AuthError::Unavailable("JWKS keys must be an array".into()))?;
     let mut keys = BTreeMap::new();
     let mut malformed = Vec::new();
+    // Every kid a signing entry names, parsed or not: a duplicate is refused
+    // even when one of the two would be skipped as malformed, so which entry
+    // the set means is never decided by which one happens to parse.
+    let mut named = BTreeSet::new();
     for value in values {
         if value
             .get("use")
@@ -574,6 +578,9 @@ fn parse_keys(value: &Value) -> std::result::Result<ParsedKeys, AuthError> {
         else {
             continue;
         };
+        if !named.insert(kid.to_owned()) {
+            return Err(AuthError::Unavailable("JWKS contains duplicate kid".into()));
+        }
         let decoding = match serde_json::from_value::<Jwk>(value.clone())
             .map_err(|error| error.to_string())
             .and_then(|jwk| DecodingKey::from_jwk(&jwk).map_err(|error| error.to_string()))
@@ -584,18 +591,13 @@ fn parse_keys(value: &Value) -> std::result::Result<ParsedKeys, AuthError> {
                 continue;
             }
         };
-        if keys
-            .insert(
-                kid.to_owned(),
-                SigningKey {
-                    algorithm,
-                    decoding: Arc::new(decoding),
-                },
-            )
-            .is_some()
-        {
-            return Err(AuthError::Unavailable("JWKS contains duplicate kid".into()));
-        }
+        keys.insert(
+            kid.to_owned(),
+            SigningKey {
+                algorithm,
+                decoding: Arc::new(decoding),
+            },
+        );
     }
     if keys.is_empty() {
         return Err(AuthError::Unavailable(
@@ -686,9 +688,17 @@ mod tests {
         assert_eq!(cache.keys.keys().collect::<Vec<_>>(), ["known"]);
         drop(cache);
         assert!(matches!(
-            JwtAuthenticator::with_jwks(config, jwks),
+            JwtAuthenticator::with_jwks(config, jwks.clone()),
             Err(AuthError::Configuration(_))
         ));
+        // A malformed entry sharing a good key's kid still makes the set
+        // ambiguous, whichever comes first.
+        let good = issuer.jwks()["keys"][0].clone();
+        let twin = serde_json::json!({"kty":"EC","crv":"P-256","kid":"known","x":"***","y":"***"});
+        for keys in [vec![good.clone(), twin.clone()], vec![twin, good]] {
+            let jwks = serde_json::json!({ "keys": keys });
+            assert!(matches!(auth.install(jwks), Err(AuthError::Unavailable(_))));
+        }
     }
 
     #[test]

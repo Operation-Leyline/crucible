@@ -2,6 +2,8 @@
 
 use std::fmt;
 
+use crate::Error;
+
 /// A failure the [`ExceptionTranslator`](crate::ExceptionTranslator) does not
 /// look inside. Its rules may match the `OpaqueError` itself (to answer every
 /// opaque failure with a modelled 503, say), but the translator never walks
@@ -17,16 +19,27 @@ use std::fmt;
 /// It is transparent everywhere else: its message is the wrapped error's,
 /// and its sources are the wrapped error's sources, so the service log reads
 /// as if it were not there.
+///
+/// An extension already holding a crucible [`Error`] wraps it with
+/// `OpaqueError::from(error)`, without a newtype of its own.
 pub struct OpaqueError {
-    inner: Box<dyn std::error::Error + Send + Sync + 'static>,
+    inner: Error,
 }
 
 impl OpaqueError {
     /// Wraps `error`; its message and sources stay as they are in the log.
     pub fn new(error: impl std::error::Error + Send + Sync + 'static) -> Self {
         Self {
-            inner: Box::new(error),
+            inner: Error::new(error),
         }
+    }
+}
+
+/// Wraps a crucible [`Error`] as it is: the error it carries becomes the
+/// wrapped error, so the log reads the same as before.
+impl From<Error> for OpaqueError {
+    fn from(inner: Error) -> Self {
+        Self { inner }
     }
 }
 
@@ -44,6 +57,6 @@ impl fmt::Display for OpaqueError {
 
 impl std::error::Error for OpaqueError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.inner.source()
+        self.inner.get_ref().source()
     }
 }
