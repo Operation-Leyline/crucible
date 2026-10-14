@@ -14,6 +14,7 @@ mod lint;
 mod name_case;
 mod naming;
 mod paths;
+mod permissions;
 mod report;
 mod rules;
 mod severity;
@@ -61,4 +62,6 @@ pub const RULE_IDS: &[&str] = &[
     "compatibility.timestamp",
     "compatibility.sdk",
     "compatibility.unchecked",
+    "compatibility.permissions",
+    "compatibility.authorization",
 ];

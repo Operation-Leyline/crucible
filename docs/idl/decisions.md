@@ -741,6 +741,72 @@ trait when a project defines it.
     declaration pattern matches decision 35 so the language has one
     extension mechanism, not several.
 
+37a. **Typed permissions: resources declare them, operations require
+    them, a service `Authorizer` decides.** *(Implemented: language, IR
+    and checks; runtime and generators follow. The design and its prior-art
+    survey are [permissions.md](../permissions.md).)* A resource lists
+    `permission symbol = "value"` entries; an operation lists `requires p
+    on Target [when ..] [by handler]`, `filters p on R`, `requires none` or
+    `requires pending because ".."`. The IR carries `Service::permissions`,
+    `Service::permission_types` and `Operation::requirements`, every field
+    `#[serde(default)]`. *Replaces:* hand-written `guard::allow` calls and
+    copies of the permission registry. *Why:* both consumers authorize
+    every request against a permission on a typed resource, and the model
+    could not say which. The settled questions follow as 37b-37k.
+
+37b. **Implication stays in service policy** (permissions.md decision 1).
+    No implication syntax and no `*` permission; the per-resource enums
+    make a role table an exhaustive match. A `*` is only ever an instance
+    wildcard in a binding, `R(*)`, and only for the resource's own
+    identifier.
+
+37c. **The wire `ResourceType` enum stays hand-written and
+    `@permissionTypes` checks it both ways** (decision 2); permissions are
+    strings on the wire; a rename keeps the old value as a `@deprecated
+    @aliasOf(primary)` permission, and requirements name primaries.
+
+37d. **No freshness syntax** (decision 3): the Authorizer receives the
+    operation's facts and decides.
+
+37e. **Strict default** (decision 4): once a service declares any
+    permission, an authenticated operation without `requires`, `filters`,
+    `requires none` or `requires pending` is the error
+    `permissions.undeclared`, not a configurable policy finding. A pending
+    reason is required and warned about on every build.
+
+37f. **Hidden is the framework `crucible.errors#NotFoundException`**
+    (decision 5), which lowering adds to the errors of every operation with
+    a requirement, unless every clause is on a root resource with `*`; an
+    operation that also declares its own 404 is warned about.
+
+37g. **`by handler` is declared in the model** (decision 6): it names the
+    permission and resource, takes no bindings or `when`, and becomes an
+    obligation the handler discharges.
+
+37h. **No bindings into lists or maps** (decision 7): a batch operation
+    authorizes on a shared parent or `by handler`; per-element checks are
+    deferred.
+
+37i. **Names are declared or derived once** (decision 8): the value is
+    always written and follows a grammar (lowercase-led segments joined by
+    `:`, hyphens inside a segment); the authorization name is the shape
+    name in lowerCamelCase unless `@authorizationName` sets it; changing
+    either, or removing a permission or an alias, breaks the release
+    guard (`compatibility.permissions`).
+
+37j. **Four tiers** (decision 9): public, `@permissionOnly`,
+    `@notGrantable`, and `internal`, which the client audience projection
+    drops with its aliases and the requirements naming it.
+
+37k. **Scopes stay out of permission syntax and the order is fixed**
+    (decisions 10 and 11): adding a requirement to a released operation is
+    reported as an authorization change (`compatibility.authorization`, a
+    warning), not refused, because it is how holes get closed. Smithy
+    models use the `crucible.auth` traits (`permissionsOf`, `requires`,
+    `requiresNone`, `requiresPending` and the rest), whose binding and
+    `when` strings are read with the `.cru` grammar, and the same
+    `crucible_smithy::validate::permissions` checks both front ends.
+
 38. **Streaming payloads, event streams, host prefixes, endpoint rule
     sets, endpoint discovery, waiters, checksums, unsigned payloads and
     CORS have no syntax in v1.** IR fields remain. *Replaces:* those

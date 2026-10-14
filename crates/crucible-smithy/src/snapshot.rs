@@ -87,6 +87,16 @@ fn typed_contract(service: &mut Service) {
         for waiter in op.waiters.values_mut() {
             waiter.documentation = None;
         }
+        if let crate::ir::Requirements::List(clauses) = &mut op.requirements {
+            for clause in clauses {
+                clause.docs = None;
+            }
+        }
+    }
+    for resource in service.permissions.values_mut() {
+        for permission in &mut resource.permissions {
+            permission.docs = None;
+        }
     }
     for shape in service.shapes.values_mut() {
         match shape {

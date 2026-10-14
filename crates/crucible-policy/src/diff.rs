@@ -17,10 +17,12 @@ pub fn diff(old: &Service, new: &Service, config: &Config) -> Report {
     if compatibility.wire.value {
         checker.severity = compatibility.wire.severity_in(compatibility.severity);
         checker.wire();
+        checker.permissions_wire();
     }
     if compatibility.sdk_source.value {
         checker.severity = compatibility.sdk_source.severity_in(compatibility.severity);
         checker.sdk();
+        checker.permissions_sdk();
     }
     checker.report.finish(config)
 }

@@ -5,13 +5,14 @@
 //! declaration, so one run reports every problem in a file.
 
 use crate::ast::{
-    Annotation, Arg, Attachment, Block, Body, BodyKind, Call, Clause, ClauseValue, Constraint,
-    ConstraintValue, Conversion, Decl, Doc, Dotted, EnumDecl, EnumValue, ErrorDecl, ErrorEntry,
-    Example, ExamplePart, Except, Expr, ExprKind, Field, File, Hook, Http, Ident, Item, Key,
-    ListDecl, MapDecl, Member, MemberKind, MetaType, Metadata, Migration, NumLit, OpEntry, Operand,
-    Operation, Operator, Path, Quantifier, Ref, RequireHow, Resource, ResourceEntry,
-    ResourceEntryKind, Rule, RuleClause, Scalar, Step, StepKind, StrLit, Structure, Template,
-    TypeRef, Union, Value,
+    Annotation, Arg, Attachment, BindingArg, BindingValue, Block, Body, BodyKind, Call, Clause,
+    ClauseValue, Condition, ConditionKind, Constraint, ConstraintValue, Conversion, Decl, Doc,
+    Dotted, EnumDecl, EnumValue, ErrorDecl, ErrorEntry, Example, ExamplePart, Except, Expr,
+    ExprKind, Field, File, Hook, Http, Ident, Item, Key, ListDecl, MapDecl, Member, MemberKind,
+    MetaType, Metadata, Migration, NumLit, OpEntry, Operand, Operation, Operator, Path,
+    PermissionEntry, Quantifier, Ref, RequireHow, Requirement, RequirementKind, Resource,
+    ResourceEntry, ResourceEntryKind, Rule, RuleClause, Scalar, Step, StepKind, StrLit, Structure,
+    Target, Template, TypeRef, Union, Value,
 };
 use crate::diagnostic::Diagnostic;
 use crate::lexer::{Token, TokenKind, unescape};
@@ -72,6 +73,12 @@ const RULE_WORDS: &[&str] = &["where", "must", "every", "no", "and", "or"];
 /// the stack, which is not a panic the editor's server could survive; real
 /// models stay far below it.
 const MAX_DEPTH: usize = 64;
+
+/// A resource body entry: an identifier or property, or a permission.
+enum ResourceItem {
+    Entry(ResourceEntry),
+    Permission(PermissionEntry),
+}
 
 pub(crate) struct Parser<'s> {
     source: &'s str,
@@ -996,10 +1003,19 @@ impl<'s> Parser<'s> {
         let parent = self
             .eat_word("in")
             .then(|| self.ident("the parent resource"));
-        let entries = self.braced(|p| {
+        let items = self.braced(|p| {
             let doc = p.take_doc();
             let start = p.here();
             let annotations = p.annotations();
+            if p.at_word("permission")
+                || (p.at_word("internal") && p.at_word_ahead(1, "permission"))
+            {
+                return Some(ResourceItem::Permission(p.permission_entry(
+                    doc,
+                    start,
+                    annotations,
+                )));
+            }
             let mut modifiers = Vec::new();
             while p.at(TokenKind::Ident)
                 && ENTRY_MODIFIERS.contains(&p.text(0))
@@ -1020,7 +1036,7 @@ impl<'s> Parser<'s> {
             p.expect(TokenKind::Colon);
             let ty = p.type_ref("a type");
             let alias = p.eat_word("as").then(|| p.ident("a member name"));
-            Some(ResourceEntry {
+            Some(ResourceItem::Entry(ResourceEntry {
                 doc,
                 annotations,
                 modifiers,
@@ -1030,12 +1046,275 @@ impl<'s> Parser<'s> {
                 ty,
                 alias,
                 span: start.to(p.last_end()),
-            })
+            }))
         });
+        let mut entries = Vec::new();
+        let mut permissions = Vec::new();
+        for item in items {
+            match item {
+                ResourceItem::Entry(entry) => entries.push(entry),
+                ResourceItem::Permission(permission) => permissions.push(permission),
+            }
+        }
         Resource {
             name,
             parent,
             entries,
+            permissions,
+        }
+    }
+
+    /// `[internal] permission symbol = "value"`, after its documentation and
+    /// annotations.
+    fn permission_entry(
+        &mut self,
+        doc: Option<Doc>,
+        start: Span,
+        annotations: Vec<Annotation>,
+    ) -> PermissionEntry {
+        let mut modifiers = Vec::new();
+        if self.at_word("internal") {
+            modifiers.push(self.ident("`internal`"));
+        }
+        self.expect_word("permission");
+        let name = self.ident("the permission's symbol, such as `mailSend`");
+        self.expect(TokenKind::Eq);
+        let value = self.string("the permission's value in quotes, such as \"mail:send\"");
+        PermissionEntry {
+            doc,
+            annotations,
+            modifiers,
+            name,
+            value,
+            span: start.to(self.last_end()),
+        }
+    }
+
+    /// `requires ..` or `filters ..`, at its keyword.
+    fn requirement(&mut self, doc: Option<Doc>, start: Span) -> Requirement {
+        let kind = if self.eat_word("filters") {
+            let permission = self.ident("a permission symbol");
+            self.expect_word("on");
+            let resource = self.ident("the listed resource");
+            RequirementKind::Filters {
+                permission,
+                resource,
+            }
+        } else {
+            self.expect_word("requires");
+            if self.at_word("none") && !self.at_word_ahead(1, "on") {
+                let span = self.bump().expect("checked").span;
+                RequirementKind::None(span)
+            } else if self.at_word("pending") && self.at_word_ahead(1, "because") {
+                self.pos += 2;
+                RequirementKind::Pending(self.string("the reason, as a string"))
+            } else {
+                let permission =
+                    self.ident("a permission symbol, `none` or `pending because \"..\"`");
+                let target = self.eat_word("on").then(|| self.target());
+                let mut when = None;
+                let mut handler = None;
+                loop {
+                    if self.at_word("when") && when.is_none() {
+                        self.pos += 1;
+                        when = Some(self.condition());
+                    } else if self.at_word("by") && handler.is_none() {
+                        let start = self.here();
+                        self.pos += 1;
+                        self.expect_word("handler");
+                        handler = Some(start.to(self.last_end()));
+                    } else {
+                        break;
+                    }
+                }
+                RequirementKind::Requires {
+                    permission,
+                    target,
+                    when,
+                    handler,
+                }
+            }
+        };
+        Requirement {
+            doc,
+            kind,
+            span: start.to(self.last_end()),
+        }
+    }
+
+    fn target(&mut self) -> Target {
+        let resource = self.ident("a resource name");
+        let start = resource.span;
+        let bindings = if self.at(TokenKind::LParen) {
+            let mut out = Vec::new();
+            if self.enter() {
+                self.pos += 1;
+                loop {
+                    self.skip_separators();
+                    match self.kind(0) {
+                        None => {
+                            self.expected("`)`");
+                            break;
+                        }
+                        Some(TokenKind::RParen) => {
+                            self.pos += 1;
+                            break;
+                        }
+                        _ if self.list_interrupted(TokenKind::RParen) => break,
+                        _ => {}
+                    }
+                    let before = self.pos;
+                    if let Some(binding) = self.binding() {
+                        out.push(binding);
+                    }
+                    if self.pos == before {
+                        self.skip_group();
+                    }
+                }
+                self.leave();
+            } else {
+                self.skip_group();
+            }
+            Some(out)
+        } else {
+            None
+        };
+        Target {
+            resource,
+            bindings,
+            span: start.to(self.last_end()),
+        }
+    }
+
+    fn binding(&mut self) -> Option<BindingArg> {
+        let start = self.here();
+        let name =
+            (self.at(TokenKind::Ident) && self.kind(1) == Some(TokenKind::Colon)).then(|| {
+                let name = self.ident("an identifier");
+                self.pos += 1;
+                name
+            });
+        let value = if self.at(TokenKind::Star) {
+            BindingValue::All(self.bump().expect("checked").span)
+        } else if self.eat(TokenKind::Dollar) {
+            BindingValue::Label(self.ident("the identifier the input binds"))
+        } else if self.at(TokenKind::Ident) {
+            BindingValue::Path(self.dotted("an input member path"))
+        } else {
+            self.expected("`*`, `$identifier` or an input member path");
+            return None;
+        };
+        Some(BindingArg {
+            name,
+            value,
+            span: start.to(self.last_end()),
+        })
+    }
+
+    /// A `when` condition: `has`, `==` and `in` over member paths, with
+    /// `and`, `or`, `not` and parentheses.
+    fn condition(&mut self) -> Condition {
+        let start = self.here();
+        let mut parts = vec![self.condition_and()];
+        while self.eat_word("or") {
+            parts.push(self.condition_and());
+        }
+        Self::joined(parts, start.to(self.last_end()), ConditionKind::Or)
+    }
+
+    fn condition_and(&mut self) -> Condition {
+        let start = self.here();
+        let mut parts = vec![self.condition_not()];
+        while self.eat_word("and") {
+            parts.push(self.condition_not());
+        }
+        Self::joined(parts, start.to(self.last_end()), ConditionKind::And)
+    }
+
+    fn joined(
+        mut parts: Vec<Condition>,
+        span: Span,
+        join: fn(Vec<Condition>) -> ConditionKind,
+    ) -> Condition {
+        if parts.len() == 1 {
+            parts.pop().expect("one")
+        } else {
+            Condition {
+                kind: join(parts),
+                span,
+            }
+        }
+    }
+
+    fn condition_not(&mut self) -> Condition {
+        let mut starts = Vec::new();
+        while self.at_word("not") {
+            if starts.len() == MAX_DEPTH {
+                self.error(
+                    self.here(),
+                    format!("more than {MAX_DEPTH} `not`s in a row"),
+                );
+                while self.eat_word("not") {}
+                break;
+            }
+            starts.push(self.here());
+            self.pos += 1;
+        }
+        let mut condition = self.condition_atom();
+        while let Some(start) = starts.pop() {
+            let span = start.to(condition.span);
+            condition = Condition {
+                kind: ConditionKind::Not(Box::new(condition)),
+                span,
+            };
+        }
+        condition
+    }
+
+    fn condition_atom(&mut self) -> Condition {
+        let start = self.here();
+        if self.at(TokenKind::LParen) {
+            if !self.enter() {
+                self.skip_group();
+                return Condition {
+                    kind: ConditionKind::And(Vec::new()),
+                    span: start.to(self.last_end()),
+                };
+            }
+            self.pos += 1;
+            let inner = self.condition();
+            self.expect(TokenKind::RParen);
+            self.leave();
+            return Condition {
+                kind: inner.kind,
+                span: start.to(self.last_end()),
+            };
+        }
+        if self.eat_word("has") {
+            let path = self.dotted("the member that must be present");
+            return Condition {
+                kind: ConditionKind::Has(path),
+                span: start.to(self.last_end()),
+            };
+        }
+        let path = self.dotted("a condition: `has`, `==` or `in` over input members");
+        let kind = if self.eat(TokenKind::EqEq) {
+            match self.value() {
+                Some(value) => ConditionKind::Equals(path, value),
+                None => ConditionKind::Has(path),
+            }
+        } else if self.eat_word("in") {
+            match self.value() {
+                Some(value) => ConditionKind::In(path, value),
+                None => ConditionKind::Has(path),
+            }
+        } else {
+            self.expected("`==` or `in` after the member path, or `has` before it");
+            ConditionKind::Has(path)
+        };
+        Condition {
+            kind,
+            span: start.to(self.last_end()),
         }
     }
 
@@ -1114,6 +1393,12 @@ impl<'s> Parser<'s> {
                 span: start.to(self.last_end()),
             }));
         }
+        if (self.at_word("requires") || self.at_word("filters"))
+            && self.kind(1) == Some(TokenKind::Ident)
+        {
+            let doc = self.take_doc();
+            return Some(OpEntry::Requirement(self.requirement(doc, start)));
+        }
         if self.at(TokenKind::Ident) && self.kind(1) == Some(TokenKind::LParen) {
             let name = self.ident("a name");
             let args = self.call_args();
@@ -1129,7 +1414,9 @@ impl<'s> Parser<'s> {
         } else if self.eat_word("output") {
             BodyKind::Output
         } else {
-            self.expected("`http`, `input`, `output`, `errors`, `example` or a clause");
+            self.expected(
+                "`http`, `input`, `output`, `errors`, `example`, `requires`, `filters` or a clause",
+            );
             return None;
         };
         if let Some(doc) = &doc {

@@ -1845,6 +1845,8 @@ fn at_severity(range: Range, message: String, severity: crucible_lang::Severity)
         severity: Some(match severity {
             crucible_lang::Severity::Error => DiagnosticSeverity::ERROR,
             crucible_lang::Severity::Warning => DiagnosticSeverity::WARNING,
+            crucible_lang::Severity::Advice => DiagnosticSeverity::INFORMATION,
+            _ => DiagnosticSeverity::WARNING,
         }),
         ..error(range, message)
     }

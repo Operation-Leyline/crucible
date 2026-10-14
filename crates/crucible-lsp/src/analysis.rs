@@ -6,9 +6,10 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crucible_lang::ast::{
-    Annotation, Arg, Body, Clause, ClauseValue, ConstraintValue, Decl, Dotted, ErrorEntry,
-    ExamplePart, Expr, ExprKind, Ident, Item, Key, Member, MemberKind, MetaType, OpEntry, Operand,
-    Path, Ref, StepKind, TypeRef, Value,
+    Annotation, Arg, BindingValue, Body, Clause, ClauseValue, Condition, ConditionKind,
+    ConstraintValue, Decl, Dotted, ErrorEntry, ExamplePart, Expr, ExprKind, Ident, Item, Key,
+    Member, MemberKind, MetaType, OpEntry, Operand, Path, Ref, Requirement, RequirementKind,
+    StepKind, TypeRef, Value,
 };
 use crucible_lang::{Parsed, TokenKind};
 
@@ -384,7 +385,74 @@ impl Walker<'_> {
                         }
                     }
                 }
+                OpEntry::Requirement(requirement) => self.requirement(requirement),
             }
+        }
+    }
+
+    /// `requires` and `filters`: the permission is a resource's entry, the
+    /// target a resource, bindings and condition paths input members; the
+    /// remaining words (`on`, `when`, `has`, `by handler`) are keywords.
+    fn requirement(&mut self, requirement: &Requirement) {
+        match &requirement.kind {
+            RequirementKind::None(_) | RequirementKind::Pending(_) => {}
+            RequirementKind::Filters {
+                permission,
+                resource,
+            } => {
+                self.set(permission, Role::EnumMember, 0);
+                self.reference_kind(resource, Some(Role::Class), RESOURCE);
+            }
+            RequirementKind::Requires {
+                permission,
+                target,
+                when,
+                ..
+            } => {
+                self.set(permission, Role::EnumMember, 0);
+                if let Some(target) = target {
+                    self.reference_kind(&target.resource, Some(Role::Class), RESOURCE);
+                    for binding in target.bindings.iter().flatten() {
+                        if let Some(name) = &binding.name {
+                            self.set(name, Role::Property, 0);
+                        }
+                        match &binding.value {
+                            BindingValue::All(_) => {}
+                            BindingValue::Label(label) => self.set(label, Role::Property, 0),
+                            BindingValue::Path(path) => {
+                                for part in &path.parts {
+                                    self.set(part, Role::Property, 0);
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(when) = when {
+                    self.condition(when);
+                }
+            }
+        }
+    }
+
+    fn condition(&mut self, condition: &Condition) {
+        match &condition.kind {
+            ConditionKind::Has(path) => {
+                for part in &path.parts {
+                    self.set(part, Role::Property, 0);
+                }
+            }
+            ConditionKind::Equals(path, value) | ConditionKind::In(path, value) => {
+                for part in &path.parts {
+                    self.set(part, Role::Property, 0);
+                }
+                self.value(value, Role::EnumMember);
+            }
+            ConditionKind::And(parts) | ConditionKind::Or(parts) => {
+                for part in parts {
+                    self.condition(part);
+                }
+            }
+            ConditionKind::Not(inner) => self.condition(inner),
         }
     }
 
@@ -406,6 +474,10 @@ impl Walker<'_> {
                     if let Some(alias) = &entry.alias {
                         self.declare(alias, Role::Property);
                     }
+                }
+                for permission in &resource.permissions {
+                    self.annotations(&permission.annotations);
+                    self.declare(&permission.name, Role::EnumMember);
                 }
             }
             Decl::Operation(operation) => {
@@ -883,6 +955,50 @@ operation GetCity reads City {
         assert_eq!(doc.modifiers, DOCUMENTATION);
         assert!(highlights.iter().any(|h| h.role == Role::String));
         assert!(highlights.iter().any(|h| h.role == Role::Number));
+    }
+
+    #[test]
+    fn permissions_and_requirements_are_classified() {
+        let source = r#"
+resource Inbox {
+    id inboxId: string
+    internal permission mailSend = "mail:send"
+}
+operation SendMessage on Inbox {
+    requires mailSend on Inbox(inboxId: $inboxId) when has content.template
+    filters mailSend on Inbox
+}
+"#;
+        let parsed = crucible_lang::parse(source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let highlights = highlights(&parsed, &index);
+        let at = |word: &str, nth: usize| {
+            let start = source
+                .match_indices(word)
+                .filter(|(index, _)| {
+                    let before = source[..*index].chars().last();
+                    let after = source[index + word.len()..].chars().next();
+                    !before.is_some_and(char::is_alphanumeric)
+                        && !after.is_some_and(char::is_alphanumeric)
+                })
+                .nth(nth)
+                .unwrap()
+                .0 as u32;
+            let highlight = highlights.iter().find(|h| h.start == start).unwrap();
+            (highlight.role, highlight.modifiers)
+        };
+        assert_eq!(at("permission", 0), (Role::Keyword, 0));
+        assert_eq!(at("mailSend", 0), (Role::EnumMember, DECLARATION));
+        assert_eq!(at("requires", 0), (Role::Keyword, 0));
+        assert_eq!(at("mailSend", 1), (Role::EnumMember, 0));
+        assert_eq!(at("Inbox", 2), (Role::Class, RESOURCE));
+        assert_eq!(at("inboxId", 1), (Role::Property, 0));
+        assert_eq!(at("when", 0), (Role::Keyword, 0));
+        assert_eq!(at("has", 0), (Role::Keyword, 0));
+        assert_eq!(at("content", 0), (Role::Property, 0));
+        assert_eq!(at("filters", 0), (Role::Keyword, 0));
+        assert_eq!(at("Inbox", 3), (Role::Class, RESOURCE));
     }
 
     #[test]

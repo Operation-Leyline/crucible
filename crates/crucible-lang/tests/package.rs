@@ -616,7 +616,7 @@ fn smithy_errors() -> std::collections::BTreeMap<String, SmithyShape> {
 fn the_bundled_errors_match_smithy_errors_smithy() {
     use crucible_smithy::ir::Shape;
     let expected = smithy_errors();
-    assert_eq!(expected.len(), 8, "{expected:#?}");
+    assert_eq!(expected.len(), 9, "{expected:#?}");
     let errors: Vec<&str> = expected
         .iter()
         .filter(|(_, shape)| shape.status.is_some())

@@ -21,9 +21,11 @@ mod lower_checksums;
 mod lower_endpoints;
 mod lower_examples;
 mod lower_extensions;
+mod lower_permissions;
 mod lower_streams;
 mod names;
 mod pattern;
+mod permission_syntax;
 mod protocol;
 mod protocol_tests;
 mod recursion;
@@ -134,6 +136,22 @@ impl Model {
         self.lower_selected(service, &Capabilities::default(), Some(protocol), true)
     }
 
+    /// [`Model::lower_with_capabilities`] (or, with a protocol,
+    /// [`Model::lower_with_protocol`]), and what the permission checks warn
+    /// about or advise (docs/permissions.md §5): findings that do not stop
+    /// lowering, which a build prints. Each one's `Display` is
+    /// `shape: warning: code: message` (or `advice:`).
+    pub fn lower_with_warnings(
+        &self,
+        service: Option<&ShapeId>,
+        capabilities: &Capabilities,
+        protocol: Option<Protocol>,
+    ) -> Result<(ir::Service, Vec<validate::PermissionFinding>), Error> {
+        let id = self.service_id(service)?;
+        lower::lower(&self.shapes, &id, capabilities, protocol, false, false)
+            .map_err(Error::Unsupported)
+    }
+
     fn lower_selected(
         &self,
         service: Option<&ShapeId>,
@@ -150,6 +168,7 @@ impl Model {
             infrastructure,
             false,
         )
+        .map(|(service, _)| service)
         .map_err(Error::Unsupported)
     }
 
@@ -182,6 +201,7 @@ impl Model {
             false,
             true,
         )
+        .map(|(service, _)| service)
         .map_err(Error::Unsupported)
     }
 }

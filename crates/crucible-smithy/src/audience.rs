@@ -209,6 +209,7 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
             _ => {}
         }
     }
+    project_permissions(&mut result);
     for op in &mut result.operations {
         retain_bindings(&result.shapes, op.input.as_ref(), &mut op.request);
         retain_bindings(&result.shapes, op.output.as_ref(), &mut op.response);
@@ -832,5 +833,49 @@ fn expression_targets(
         }
         E::Identity => roots,
         E::Literal { .. } => vec![],
+    }
+}
+
+/// Internal permissions, aliases of them, and requirements that name them
+/// are server contract only (decision 9), as internal members are.
+fn project_permissions(result: &mut Service) {
+    use crate::ir::{Requirements, Tier};
+    for resource in result.permissions.values_mut() {
+        let internal: BTreeSet<String> = resource
+            .permissions
+            .iter()
+            .filter(|p| p.tier == Tier::Internal)
+            .map(|p| p.symbol.clone())
+            .collect();
+        resource.permissions.retain(|p| {
+            p.tier != Tier::Internal
+                && !p
+                    .alias_of
+                    .as_ref()
+                    .is_some_and(|primary| internal.contains(primary))
+        });
+    }
+    let permissions = result.permissions.clone();
+    for op in &mut result.operations {
+        if let Requirements::List(clauses) = &mut op.requirements {
+            clauses.retain(|clause| {
+                permissions
+                    .get(&clause.resource)
+                    .is_some_and(|r| r.permission(&clause.permission).is_some())
+            });
+            // Requirements the client may not see are still requirements:
+            // an empty list would read as a model that lists none.
+            if clauses.is_empty() {
+                op.requirements = Requirements::Internal;
+            }
+        }
+    }
+    result.permissions.retain(|_, r| !r.permissions.is_empty());
+    if result
+        .permission_types
+        .as_ref()
+        .is_some_and(|types| !result.shapes.contains_key(&types.shape))
+    {
+        result.permission_types = None;
     }
 }

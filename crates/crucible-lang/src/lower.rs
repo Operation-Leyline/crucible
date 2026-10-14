@@ -30,6 +30,8 @@ use crate::compile::{FileDiagnostic, Location, Naming, Package, SourceMap};
 use crate::diagnostic::Diagnostic;
 use crate::span::Span;
 
+mod permissions;
+
 /// `namespaces[i]` is the namespace of `parsed[i]`: the package's own, or a
 /// bundled import's.
 pub(crate) fn lower(
@@ -56,6 +58,11 @@ pub(crate) fn lower(
         http_outputs: BTreeSet::new(),
         unplaced: BTreeMap::new(),
         named_types: BTreeSet::new(),
+        declared_permissions: BTreeMap::new(),
+        permissions: BTreeMap::new(),
+        permission_facts: crucible_smithy::validate::PermissionFacts::default(),
+        permission_sites: BTreeMap::new(),
+        requirement_sites: BTreeMap::new(),
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
@@ -371,6 +378,17 @@ struct Lowerer<'a> {
     /// Types named outside any shape's members: metadata value types and
     /// resource identifier and property types.
     named_types: BTreeSet<ShapeId>,
+    /// Every resource's permission entries, by resource, whether or not the
+    /// service reaches it.
+    declared_permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
+    /// The service's: its reachable resources' `declared_permissions`.
+    permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
+    permission_facts: crucible_smithy::validate::PermissionFacts,
+    /// Where resources, their permissions and `@permissionTypes` were
+    /// declared, for the shared check's findings.
+    permission_sites: BTreeMap<ShapeId, Location>,
+    /// Each operation's clauses, by operation and index in its list.
+    requirement_sites: BTreeMap<(ShapeId, usize), Location>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -573,13 +591,19 @@ impl<'a> Lowerer<'a> {
             };
             let file = decl.file;
             self.modifiers(file, decl.item, &[]);
-            if let Some(annotation) = decl.item.annotations.first() {
+            if let Some(annotation) = decl
+                .item
+                .annotations
+                .iter()
+                .find(|a| !permissions::resource_annotation(a))
+            {
                 self.error(
                     file,
                     annotation.span,
-                    "annotations on a resource are not supported by the compiler yet",
+                    "annotations on a resource are not supported by the compiler yet, apart from `@authorizationName`",
                 );
             }
+            self.declare_permissions(*decl, resource);
             if let Some(parent) = &resource.parent {
                 match self.decl(&parent.name).map(|d| &d.item.decl) {
                     Some(Decl::Resource(_)) => {}
@@ -1483,6 +1507,16 @@ impl<'a> Lowerer<'a> {
                     self.no_args(file, annotation);
                     out.token = true;
                 }
+                // Its arguments are read with the service's permissions.
+                "permissionTypes" => {
+                    if position != Position::Shape("enum") {
+                        self.error(
+                            file,
+                            annotation.span,
+                            "`@permissionTypes` applies to an enum: the wire enum of resource types a grant names",
+                        );
+                    }
+                }
                 "mutability" => {
                     let value = match annotation.args.as_slice() {
                         [arg] if arg.key.is_none() => match &arg.value {
@@ -1610,6 +1644,11 @@ impl<'a> Lowerer<'a> {
             "payload",
             "token",
             "mutability",
+            "permissionTypes",
+            "authorizationName",
+            "permissionOnly",
+            "notGrantable",
+            "aliasOf",
         ];
         const MODIFIERS: &[&str] = &[
             "internal",
@@ -4072,6 +4111,8 @@ impl<'a> Lowerer<'a> {
                     format!("unknown clause `{}`", call.name.name),
                 ),
                 OpEntry::Example(example) => examples.push(example),
+                // Lowered with the service's permissions, below.
+                OpEntry::Requirement(_) => {}
             }
         }
 
@@ -4297,6 +4338,8 @@ impl<'a> Lowerer<'a> {
                 ),
             }
         }
+        let requirements = self.requirements(file, &id, operation);
+        self.attach_not_found(&requirements, errors.len(), &mut errors);
         for error in service_errors {
             if !errors.contains(error) {
                 errors.push(error.clone());
@@ -4425,6 +4468,7 @@ impl<'a> Lowerer<'a> {
             checksum: None,
             id,
             auth,
+            public: modifiers.contains("public"),
             scopes: Vec::new(),
             optional_auth: false,
             endpoint: None,
@@ -4447,6 +4491,7 @@ impl<'a> Lowerer<'a> {
             request,
             response,
             traits,
+            requirements,
         })
     }
 
@@ -4665,6 +4710,15 @@ impl<'a> Lowerer<'a> {
             }
             false
         };
+        let reached: BTreeSet<String> = self
+            .decls
+            .values()
+            .filter_map(|decl| match &decl.item.decl {
+                Decl::Resource(r) if reachable(self, &r.name.name) => Some(r.name.name.clone()),
+                _ => None,
+            })
+            .collect();
+        let permission_types = self.collect_permissions(&reached);
         let mut operations: Vec<DeclRef<'a>> = Vec::new();
         for name in &operation_names {
             match self.decl(&name.name) {
@@ -4775,6 +4829,8 @@ impl<'a> Lowerer<'a> {
             versions: Vec::new(),
             api_version: None,
             internal_traits: BTreeSet::new(),
+            permissions: std::mem::take(&mut self.permissions),
+            permission_types,
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.
@@ -4793,6 +4849,10 @@ impl<'a> Lowerer<'a> {
         for issue in issues.iter() {
             self.error_at(&issue.shape, &issue.message);
         }
+        self.check_permissions(&service);
+        // Unreached operations attach `NotFoundException` against the
+        // service's permissions too.
+        self.permissions = service.permissions.clone();
         let included: BTreeSet<&str> = operations
             .iter()
             .filter_map(|decl| decl_name(&decl.item.decl).map(|n| n.name.as_str()))

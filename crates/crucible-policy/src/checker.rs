@@ -1,6 +1,7 @@
 use crate::direction::Direction;
 use crate::{Report, Severity};
-use crucible_smithy::ir::{Bindings, Constraints, Member, Service, Shape, Structure};
+use crucible_smithy::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
+use crucible_smithy::validate::{needs_not_found, not_found_id};
 use crucible_smithy::{Feature, Protocol, ShapeId};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
@@ -14,7 +15,7 @@ pub(crate) struct Checker<'a> {
 }
 
 impl Checker<'_> {
-    fn push(&mut self, rule: &str, id: &ShapeId, message: impl Into<String>) {
+    pub(crate) fn push(&mut self, rule: &str, id: &ShapeId, message: impl Into<String>) {
         self.report.push(rule, id, self.severity, message);
     }
 
@@ -180,10 +181,16 @@ impl Checker<'_> {
                 .iter()
                 .filter_map(|id| error_code(self.old, id))
                 .collect();
+            let attached = attached_not_found(old_op, new_op, self.new);
             for new_error in &new_op.errors {
                 let Some(code) = error_code(self.new, new_error) else {
                     continue;
                 };
+                // The framework NotFound a new requirement brings is part of
+                // the authorization change, reported as such.
+                if attached && *new_error == not_found_id() {
+                    continue;
+                }
                 if !old_codes.contains(&code) {
                     self.push(
                         "compatibility.error",
@@ -585,9 +592,13 @@ impl Checker<'_> {
                 );
                 continue;
             };
+            let mut errors = new_op.errors.clone();
+            if attached_not_found(old_op, new_op, self.new) {
+                errors.retain(|e| *e != not_found_id());
+            }
             if old_op.input != new_op.input
                 || old_op.output != new_op.output
-                || old_op.errors != new_op.errors
+                || old_op.errors != errors
             {
                 self.push(
                     "compatibility.sdk",
@@ -776,6 +787,16 @@ fn error_info<'a>(
         Some(Shape::Structure(shape)) => shape.error.as_ref(),
         _ => None,
     }
+}
+
+/// The released operation gained `crucible.errors#NotFoundException`
+/// because a requirement now attaches it (docs/permissions.md check 17):
+/// that is the `compatibility.authorization` change, not a new error.
+fn attached_not_found(old: &Operation, new: &Operation, service: &Service) -> bool {
+    let id = not_found_id();
+    !old.errors.contains(&id)
+        && new.errors.contains(&id)
+        && needs_not_found(&new.requirements, &service.permissions)
 }
 
 fn error_code<'a>(service: &'a Service, id: &ShapeId) -> Option<&'a str> {

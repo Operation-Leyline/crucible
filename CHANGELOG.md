@@ -137,6 +137,58 @@ version's section when it is prepared.
   with either was already invalid Smithy; one assembled without Smithy's
   validators is now refused at lowering instead of reaching a generator.
 
+- Typed permissions, phase A1: the language, the Smithy traits, the IR and
+  the compiler checks ([docs/permissions.md](docs/permissions.md)). A `.cru`
+  resource declares `permission symbol = "value"` entries (`internal`,
+  `@permissionOnly`, `@notGrantable`, `@aliasOf(primary)`, and
+  `@authorizationName("..")` on the resource); an operation declares
+  `requires p [on Target(bindings)] [when condition] [by handler]`,
+  `filters p on R`, `requires none` or `requires pending because ".."`;
+  `@permissionTypes(exclude: [..])` checks a resource-type enum against the
+  resources both ways. Smithy models use the new `crucible.auth` traits
+  `permissionsOf`, `authorizationName`, `permissionOnly`, `notGrantable`,
+  `aliasOf`, `permissionTypes`, `requires`, `requiresNone` and
+  `requiresPending` in `smithy/auth.smithy`. Both lower to
+  `ir::Service::permissions`, `ir::Service::permission_types` and
+  `ir::Operation::requirements` (all `#[serde(default)]`, and not written
+  when empty, so existing release snapshots read and write unchanged), with
+  `Service::all_permissions()` for the registry, and both are checked once
+  by `crucible_smithy::validate::permissions`: once a service declares any
+  permission, an authenticated operation that says nothing about
+  authorization is the error `permissions.undeclared`. Lowering adds the new
+  `crucible.errors#NotFoundException` (404, `message` and `resourceType`;
+  in `smithy/errors.smithy` and the bundled `crucible.errors` package) to
+  every operation with a `requires` or `filters` clause, unless every
+  clause is on a root resource with `*`. The client audience projection
+  drops internal permissions; an operation whose requirements were all
+  internal becomes `Requirements::Internal`. `ir::Operation::public` says
+  an operation was declared public (`@auth([])`, or `.cru` `public`).
+  `crucible check` counts permissions and lists pending operations.
+  Generators do not read the new fields yet, but an operation with a
+  requirement has `NotFoundException` in its `errors`, so the code
+  generated for it changes: its error types gain the 404.
+
+- `crucible_smithy::Model::lower_with_warnings`: the permission checks'
+  warnings and advice for a Smithy model, which `crucible-build` prints as
+  Cargo warnings and `crucible` prints to stderr, as they already do for
+  `.cru` packages. `validate::permissions_from_ir` runs the checks that
+  need nothing but the IR.
+
+- Release guard and `crucible diff`: `compatibility.permissions` reports a
+  removed permission or alias, a changed value, a changed authorization
+  name, and a stored value that now satisfies another permission (a swap,
+  a reassignment, a retargeted alias, a merge), which break stored grants;
+  `compatibility.sdk` reports a removed permission constant or one moved
+  to `internal`; adding a requirement to a released operation, with the
+  `NotFoundException` it attaches, is a `compatibility.authorization`
+  warning.
+
+- `crucible_lang::Severity::Advice` and `Diagnostic::advice`: a question
+  for the author, never a failure; the language server shows it as
+  information, and builds print it beside warnings. `Severity` is now
+  `#[non_exhaustive]`, as is `crucible_smithy::validate::FindingSeverity`:
+  a `match` on either needs a wildcard arm.
+
 ### Changed
 
 - An idempotency token member is described, in OpenAPI and MCP schemas,

@@ -1,0 +1,164 @@
+string WorkspaceId { pattern "^ws_[a-z0-9]+$" }
+string KeyId { pattern "^key_[a-z0-9]+$" }
+string DomainId { pattern "^dom_[a-z0-9]+$" }
+string DomainName { length 1..253 }
+string ClientToken { length 1..64 }
+
+/// A tenant: everything else lives in one.
+resource Workspace {
+    id workspaceId: WorkspaceId
+    property name: string
+
+    /// Everything in the workspace: the service treats it as every other
+    /// permission on every resource the workspace owns.
+    @notGrantable
+    permission admin = "workspace:admin"
+    /// The workspace row and its settings.
+    permission read = "workspace:read"
+    /// Members and their roles.
+    permission memberRead = "member:read"
+    /// Invite and remove members.
+    permission memberManage = "member:manage"
+    /// API keys, without their secrets.
+    permission apiKeyRead = "api-key:read"
+    /// Mint and revoke API keys.
+    permission apiKeyManage = "api-key:manage"
+    /// Grants: who holds what on which resource.
+    permission grantRead = "grant:read"
+    /// Write and delete grants.
+    permission grantManage = "grant:manage"
+    /// Usage counters.
+    @permissionOnly
+    permission usageRead = "usage:read"
+}
+
+readonly operation GetWorkspace reads Workspace {
+    http GET "/v1/workspaces/{workspaceId}"
+    requires read
+    input { $workspaceId }
+    output { $name }
+}
+
+readonly operation ListMembers on Workspace {
+    http GET "/v1/workspaces/{workspaceId}/members"
+    requires memberRead
+    input { $workspaceId }
+    output { userIds: UserIds }
+}
+
+idempotent operation RemoveMember on Workspace {
+    http DELETE "/v1/workspaces/{workspaceId}/members/{userId}" -> 204
+    requires memberManage
+    input {
+        $workspaceId
+        userId: string
+    }
+}
+
+list UserIds: string
+
+operation UpdateWorkspace updates Workspace {
+    http PATCH "/v1/workspaces/{workspaceId}"
+    requires admin on Workspace
+    input {
+        $workspaceId
+        $name
+    }
+}
+
+// During migration: the handler still checks.
+readonly operation GetUsage on Workspace {
+    http GET "/v1/workspaces/{workspaceId}/usage"
+    requires pending because "guard::allow in get_usage.rs until the workspace folder moves"
+    input { $workspaceId }
+    output { messages: long }
+}
+
+/// An API key. It declares no permissions: the workspace's cover it.
+resource ApiKey in Workspace {
+    id keyId: KeyId
+    immutable property label: string
+}
+
+/// Mints a key. The caller must already hold every permission it hands the
+/// key, on the same resource: checked by the service, since the request
+/// names them.
+operation CreateApiKey creates ApiKey {
+    http POST "/v1/workspaces/{workspaceId}/api-keys" -> 201
+    requires apiKeyManage on Workspace
+    input {
+        $workspaceId
+        $label
+        @token
+        clientToken?: ClientToken
+    }
+    output {
+        $keyId
+        $label
+    }
+}
+
+readonly operation ListApiKeys lists ApiKey {
+    http GET "/v1/workspaces/{workspaceId}/api-keys"
+    requires apiKeyRead on Workspace
+    input { $workspaceId }
+    output { keys: ApiKeyViews }
+}
+
+structure ApiKeyView for ApiKey {
+    $*
+}
+
+list ApiKeyViews: ApiKeyView
+
+operation DeleteApiKey deletes ApiKey {
+    http DELETE "/v1/workspaces/{workspaceId}/api-keys/{keyId}" -> 204
+    requires apiKeyManage on Workspace
+    input {
+        $workspaceId
+        $keyId
+    }
+}
+
+/// A sending domain.
+resource Domain in Workspace {
+    id domainId: DomainId
+    immutable property name: DomainName
+
+    /// The domain and its verification state.
+    permission read = "domain:read"
+    /// Verify and delete domains.
+    permission manage = "domain:manage"
+}
+
+readonly operation GetDomain reads Domain {
+    http GET "/v1/workspaces/{workspaceId}/domains/{domainId}"
+    requires read
+    input {
+        $workspaceId
+        $domainId
+    }
+    output { $name }
+}
+
+// Authorized wholesale: every domain, including ones created later.
+readonly operation ListDomains lists Domain {
+    http GET "/v1/workspaces/{workspaceId}/domains"
+    requires read on Domain(*)
+    input { $workspaceId }
+    output { names: DomainNames }
+}
+
+list DomainNames: DomainName
+
+operation CreateDomain creates Domain {
+    http POST "/v1/workspaces/{workspaceId}/domains" -> 201
+    requires manage on Domain(*)
+    input {
+        $workspaceId
+        $name
+        @token
+        clientToken?: ClientToken
+    }
+    output { $domainId }
+}

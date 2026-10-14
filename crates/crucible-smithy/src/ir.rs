@@ -25,6 +25,12 @@ pub use serde_json::{Number, Value};
 
 use crate::shape_id::ShapeId;
 
+pub mod permissions;
+pub use permissions::{
+    Condition, Mode, Permission, PermissionTypes, Requirement, Requirements, ResourcePermissions,
+    Tier,
+};
+
 pub type Traits = BTreeMap<ShapeId, Value>;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -87,6 +93,14 @@ pub struct Service {
     /// their applications, as Smithy's projection does; nothing else reads it.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub internal_traits: BTreeSet<ShapeId>,
+    /// The permissions each resource declares, keyed by resource; only
+    /// resources that declare any (docs/permissions.md §6.1). Not under
+    /// `resources`, which the contract lowerings leave empty.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub permissions: BTreeMap<ShapeId, ResourcePermissions>,
+    /// The `@permissionTypes` enum, if the service has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permission_types: Option<PermissionTypes>,
 }
 
 /// An older API version: its release's model, and how a request or a
@@ -247,6 +261,18 @@ impl Service {
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()
             .collect()
+    }
+    /// Every permission the service declares, sorted by authorization name,
+    /// then value: the registry docs, SDKs and discovery publish. Aliases
+    /// are included; [`Permission::alias_of`] tells them apart.
+    pub fn all_permissions(&self) -> Vec<(&ResourcePermissions, &Permission)> {
+        let mut all: Vec<_> = self
+            .permissions
+            .values()
+            .flat_map(|resource| resource.permissions.iter().map(move |p| (resource, p)))
+            .collect();
+        all.sort_by(|(ra, a), (rb, b)| (&ra.name, &a.value).cmp(&(&rb.name, &b.value)));
+        all
     }
     /// Emitters must check their own capabilities even for externally lowered IR.
     pub fn require_capabilities(
@@ -756,6 +782,13 @@ pub struct Operation {
     pub id: ShapeId,
     /// Effective authentication schemes, after service and operation overrides.
     pub auth: Vec<ShapeId>,
+    /// Declared public: Smithy `@auth([])` on the operation (or on the
+    /// service, which the operation does not override), or the `.cru`
+    /// `public` modifier. Empty `auth` alone does not say so: a service that
+    /// declares no scheme leaves every operation without one
+    /// (docs/permissions.md §6.1).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub public: bool,
     /// OAuth scopes a caller must hold, all of them: the operation's own
     /// `@crucible.auth#scopes`, else the service default. Empty when public.
     pub scopes: Vec<String>,
@@ -786,6 +819,10 @@ pub struct Operation {
     pub request: Bindings,
     pub response: Bindings,
     pub traits: Traits,
+    /// What the operation requires, beside `readonly`, `idempotent` and
+    /// `errors` (docs/permissions.md §6.1).
+    #[serde(default, skip_serializing_if = "Requirements::is_undeclared")]
+    pub requirements: Requirements,
 }
 
 /// One `@examples` entry. `input`, `output` and `error.content` are model

@@ -1,0 +1,41 @@
+// A cut-down Operation Pigeon (docs/permissions.md §3.1, §4.10): workspaces
+// own inboxes, domains, templates and grants; inboxes own messages. Every
+// authenticated operation says something about authorization.
+
+/// Disposable inboxes for tests and agents.
+service Pigeon {
+    version "2026-10-01"
+    protocol json
+    auth bearer
+    paginated(inputToken: nextToken, outputToken: nextToken, pageSize: maxResults)
+
+    operations [GetMe, ListMyWorkspaces]
+    resources [Workspace]
+    errors [ValidationException, InternalServerException]
+}
+
+/// The caller, from its credential.
+structure Caller {
+    subject: string
+    workspaceId?: WorkspaceId
+}
+
+/// Answers about the caller's own credential; there is nothing to authorize.
+readonly operation GetMe {
+    http GET "/v1/me"
+    requires none
+    output {
+        caller: Caller
+    }
+}
+
+/// The workspaces the caller is a member of: scoped to the caller itself.
+readonly operation ListMyWorkspaces {
+    http GET "/v1/me/workspaces"
+    requires none
+    output {
+        workspaceIds: WorkspaceIds
+    }
+}
+
+list WorkspaceIds: WorkspaceId

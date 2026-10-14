@@ -1,0 +1,71 @@
+/// The kinds of resource a grant can name.
+@permissionTypes
+enum ResourceType {
+    workspace = "workspace"
+    inbox = "inbox"
+    domain = "domain"
+    template = "template"
+}
+
+enum PrincipalType {
+    user = "user"
+    apiKey = "apiKey"
+}
+
+string PrincipalId { length 1..128 }
+string ResourceId { length 1..128 }
+list PermissionValues: string { length 1..20 }
+
+/// Who holds which permissions on one resource.
+resource Grant in Workspace {
+    id principalType: PrincipalType
+    id principalId: PrincipalId
+    id resourceType: ResourceType
+    id resourceId: ResourceId
+    property permissions: PermissionValues
+}
+
+/// Replaces a principal's grant on one resource. The caller must already
+/// hold each permission it hands out, on the same resource: checked by the
+/// service, since the request names them.
+operation PutGrant puts Grant {
+    http PUT "/v1/workspaces/{workspaceId}/grants/{principalType}/{principalId}/{resourceType}/{resourceId}"
+    requires grantManage on Workspace
+    /// Only when the grant hands out `workspace:admin`.
+    requires admin on Workspace by handler
+    input {
+        $workspaceId
+        $principalType
+        $principalId
+        $resourceType
+        $resourceId
+        $permissions
+    }
+}
+
+readonly operation ListGrants lists Grant {
+    http GET "/v1/workspaces/{workspaceId}/grants"
+    requires grantRead on Workspace
+    input { $workspaceId }
+    output { grants: GrantViews }
+}
+
+structure GrantView for Grant {
+    $*
+}
+
+list GrantViews: GrantView
+
+operation DeleteGrant deletes Grant {
+    http DELETE "/v1/workspaces/{workspaceId}/grants/{principalType}/{principalId}/{resourceType}/{resourceId}" -> 204
+    requires grantManage on Workspace
+    /// Only when the grant being deleted holds `workspace:admin`.
+    requires admin on Workspace by handler
+    input {
+        $workspaceId
+        $principalType
+        $principalId
+        $resourceType
+        $resourceId
+    }
+}

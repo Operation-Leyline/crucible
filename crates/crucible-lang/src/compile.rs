@@ -147,10 +147,10 @@ impl Compiled {
                     out.push_str(&item.diagnostic.render(&file.path, &file.text, lines));
                 }
                 None => {
-                    let prefix = if item.diagnostic.is_error() {
-                        ""
-                    } else {
-                        "warning: "
+                    let prefix = match item.diagnostic.severity {
+                        crate::diagnostic::Severity::Error => "",
+                        crate::diagnostic::Severity::Advice => "advice: ",
+                        _ => "warning: ",
                     };
                     out.push_str(&format!(
                         "{}: {prefix}{}\n",

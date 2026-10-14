@@ -161,6 +161,22 @@ pub struct Resource {
     /// `in Organization`
     pub parent: Option<Ident>,
     pub entries: Vec<ResourceEntry>,
+    /// `permission mailSend = "mail:send"`, in source order.
+    pub permissions: Vec<PermissionEntry>,
+}
+
+/// `[internal] permission symbol = "value"` in a resource
+/// (docs/permissions.md §4.1).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PermissionEntry {
+    pub doc: Option<Doc>,
+    /// `@permissionOnly`, `@notGrantable`, `@aliasOf(p)`, `@deprecated`, `@since`.
+    pub annotations: Vec<Annotation>,
+    /// `internal`.
+    pub modifiers: Vec<Ident>,
+    pub name: Ident,
+    pub value: StrLit,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -219,6 +235,79 @@ pub enum OpEntry {
     Body(Body),
     Errors(Vec<Ident>, Span),
     Example(Example),
+    /// `requires ..` or `filters ..` (docs/permissions.md §4.2).
+    Requirement(Requirement),
+}
+
+/// One authorization clause of an operation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Requirement {
+    /// Says why, or when a handler requirement applies.
+    pub doc: Option<Doc>,
+    pub kind: RequirementKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RequirementKind {
+    /// `requires none`; the span covers `none`.
+    None(Span),
+    /// `requires pending because "reason"`.
+    Pending(StrLit),
+    /// `requires p [on Target] [when cond] [by handler]`.
+    Requires {
+        permission: Ident,
+        target: Option<Target>,
+        when: Option<Condition>,
+        /// `by handler`, its span.
+        handler: Option<Span>,
+    },
+    /// `filters p on Resource`.
+    Filters { permission: Ident, resource: Ident },
+}
+
+/// `Template(content.template.templateId)`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Target {
+    pub resource: Ident,
+    /// `None` without parentheses: every identifier binds by name.
+    pub bindings: Option<Vec<BindingArg>>,
+    pub span: Span,
+}
+
+/// `[identifier:] (* | $label | member.path)`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BindingArg {
+    pub name: Option<Ident>,
+    pub value: BindingValue,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BindingValue {
+    /// `*`: every instance.
+    All(Span),
+    /// `$inboxId`: the input member that binds that identifier.
+    Label(Ident),
+    /// `content.template.templateId`
+    Path(Dotted),
+}
+
+/// A `when` condition: the boolean subset of the rule grammar.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Condition {
+    pub kind: ConditionKind,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConditionKind {
+    Has(Dotted),
+    Equals(Dotted, Value),
+    In(Dotted, Value),
+    And(Vec<Condition>),
+    Or(Vec<Condition>),
+    Not(Box<Condition>),
 }
 
 #[derive(Debug, Clone, PartialEq)]

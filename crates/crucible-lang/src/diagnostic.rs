@@ -8,9 +8,13 @@ use crate::span::{LineIndex, Span};
 /// Whether a diagnostic stops compilation. Warnings report something
 /// probably unintended (decisions 33, 41, 47f) without withholding the IR.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub enum Severity {
     Error,
     Warning,
+    /// Something worth deciding that the model is silent about, such as an
+    /// identifier no requirement covers (docs/permissions.md, check 18).
+    Advice,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +43,15 @@ impl Diagnostic {
         }
     }
 
+    /// Advice: a question for the author, never a failure.
+    pub fn advice(span: Span, message: impl Into<String>) -> Self {
+        Self {
+            span,
+            message: message.into(),
+            severity: Severity::Advice,
+        }
+    }
+
     pub fn is_error(&self) -> bool {
         self.severity == Severity::Error
     }
@@ -50,6 +63,7 @@ impl Diagnostic {
         let prefix = match self.severity {
             Severity::Error => "",
             Severity::Warning => "warning: ",
+            Severity::Advice => "advice: ",
         };
         let mut out = format!("{path}:{line}:{column}: {prefix}{}\n", self.message);
         if let Some(text) = source.lines().nth(line - 1) {

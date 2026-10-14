@@ -9,6 +9,13 @@ error UnknownOperationException {
     message: string
 }
 
+/// The resource does not exist, or the caller may not know that it does.
+error NotFoundException {
+    status 404
+    message: string
+    resourceType: string
+}
+
 /// A request cannot be parsed or does not satisfy the service's input model.
 error ValidationException {
     status 400
