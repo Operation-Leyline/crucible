@@ -6,9 +6,10 @@
 //! [`FENCE`], so an editor highlights it as Crucible; prose stays outside.
 
 use crucible_lang::ast::{
-    Annotation, Arg, Body, BodyKind, Clause, ClauseValue, Constraint, ConstraintValue, Decl,
-    EnumValue, ErrorEntry, Ident, Item, Key, Member, MemberKind, MetaType, NumLit, OpEntry,
-    ResourceEntry, ResourceEntryKind, TypeRef, Value,
+    Annotation, Arg, BindingValue, Body, BodyKind, Clause, ClauseValue, Condition, ConditionKind,
+    Constraint, ConstraintValue, Decl, EnumValue, ErrorEntry, Ident, Item, Key, Member, MemberKind,
+    MetaType, NumLit, OpEntry, PermissionEntry, Requirement, RequirementKind, ResourceEntry,
+    ResourceEntryKind, TypeRef, Value,
 };
 use crucible_lang::{Parsed, TokenKind};
 
@@ -290,6 +291,24 @@ const KEYWORDS: &[Row] = &[
         SERVICE,
         "Pagination defaults every paginated operation inherits; an operation's own values win.",
         "service Weather {\n    paginated(inputToken: nextToken, outputToken: nextToken)\n}",
+    ),
+    (
+        "requires",
+        OPERATION,
+        "What the caller must hold before the operation runs: a permission on the resource instance the bindings identify (`on Inbox`, `on Template(content.template.templateId)`, `on Inbox(*)`), optionally `when` a condition on the input holds. Every clause must hold. `requires none` says no permission is needed, `requires pending because \"..\"` defers to the handler during migration, and `by handler` declares a check the handler discharges.",
+        "operation SendMessage on Message collection {\n    requires mailSend on Inbox\n    requires read on Template(content.template.templateId) when has content.template\n}",
+    ),
+    (
+        "filters",
+        OPERATION,
+        "Answers a listing with only the instances the caller holds the permission on: the service's authorizer says what is visible under the bound parent, and the handler filters to it.",
+        "operation ListInboxes lists Inbox {\n    filters read on Inbox\n}",
+    ),
+    (
+        "permission",
+        RESOURCE,
+        "A permission the resource accepts: its symbol in generated code, and its value, stored in grants and audit records with the resource's authorization name. `internal` keeps it out of client SDKs, docs and 403 bodies.",
+        "resource Inbox {\n    /// Send from this address.\n    permission mailSend = \"mail:send\"\n}",
     ),
     (
         "creates",
@@ -627,6 +646,36 @@ const KEYWORDS: &[Row] = &[
         ANYWHERE,
         "Links to further documentation, as name and URL pairs.",
         "@externalDocs(\"Guide\" = \"https://example.com/guide\")\nstructure CityData {}",
+    ),
+    (
+        "@permissionOnly",
+        ANYWHERE,
+        "A permission no operation requires: the service's policy checks it (a role bundle, a delegation rule). Docs list it in its own table.",
+        "resource Inbox {\n    @permissionOnly\n    permission export = \"inbox:export\"\n}",
+    ),
+    (
+        "@notGrantable",
+        ANYWHERE,
+        "A permission the service's policy confers whole, such as an administrator bundle: never offered for composition in a grant picker.",
+        "resource Workspace {\n    @notGrantable\n    permission admin = \"workspace:admin\"\n}",
+    ),
+    (
+        "@aliasOf",
+        ANYWHERE,
+        "Keeps a renamed permission's old value as a deprecated alias of the named primary: a grant stored under it still satisfies a check of the primary. Requirements name the primary.",
+        "resource Inbox {\n    @deprecated @aliasOf(mailSend)\n    permission emailSend = \"email:send\"\n}",
+    ),
+    (
+        "@authorizationName",
+        ANYWHERE,
+        "The resource's name in grants and audit records, instead of its shape name in lowerCamelCase. Set it before renaming a shape whose permissions are released: the name is stored data.",
+        "@authorizationName(\"inbox\")\nresource Mailbox {\n    id inboxId: string\n}",
+    ),
+    (
+        "@permissionTypes",
+        ANYWHERE,
+        "Checks the hand-written wire enum of resource types a grant names, both ways: every value is the authorization name of a resource with permissions, and every resource with grantable permissions is a value or listed in `exclude`.",
+        "@permissionTypes(exclude: [Webhook])\nenum ResourceType {\n    inbox = \"inbox\"\n}",
     ),
     (
         "@mutability",
@@ -1565,7 +1614,15 @@ fn render_item(item: &Item) -> String {
             if let Some(parent) = &resource.parent {
                 head.push_str(&format!(" in {}", parent.name));
             }
-            braces(&head, resource.entries.iter().map(render_entry).collect())
+            braces(
+                &head,
+                resource
+                    .entries
+                    .iter()
+                    .map(render_entry)
+                    .chain(resource.permissions.iter().map(render_permission))
+                    .collect(),
+            )
         }
         Decl::Operation(operation) => {
             let mut head = format!("operation {}", operation.name.name);
@@ -1759,8 +1816,86 @@ fn render_entries(entries: &[OpEntry]) -> Vec<String> {
             }
             OpEntry::Errors(errors, _) => Some(format!("errors [{}]", names(errors, ", "))),
             OpEntry::Example(_) => None,
+            OpEntry::Requirement(requirement) => Some(render_requirement(requirement)),
         })
         .collect()
+}
+
+fn render_requirement(requirement: &Requirement) -> String {
+    match &requirement.kind {
+        RequirementKind::None(_) => "requires none".to_owned(),
+        RequirementKind::Pending(reason) => {
+            format!("requires pending because {}", quote(&reason.value))
+        }
+        RequirementKind::Filters {
+            permission,
+            resource,
+        } => format!("filters {} on {}", permission.name, resource.name),
+        RequirementKind::Requires {
+            permission,
+            target,
+            when,
+            handler,
+        } => {
+            let mut out = format!("requires {}", permission.name);
+            if let Some(target) = target {
+                out.push_str(&format!(" on {}", target.resource.name));
+                if let Some(bindings) = &target.bindings {
+                    let bindings: Vec<String> = bindings
+                        .iter()
+                        .map(|b| {
+                            let value = match &b.value {
+                                BindingValue::All(_) => "*".to_owned(),
+                                BindingValue::Label(label) => format!("${}", label.name),
+                                BindingValue::Path(path) => names(&path.parts, "."),
+                            };
+                            match &b.name {
+                                Some(name) => format!("{}: {value}", name.name),
+                                None => value,
+                            }
+                        })
+                        .collect();
+                    out.push_str(&format!("({})", bindings.join(", ")));
+                }
+            }
+            if let Some(when) = when {
+                out.push_str(&format!(" when {}", render_condition(when)));
+            }
+            if handler.is_some() {
+                out.push_str(" by handler");
+            }
+            out
+        }
+    }
+}
+
+fn render_condition(condition: &Condition) -> String {
+    let group = |c: &Condition| match c.kind {
+        ConditionKind::And(_) | ConditionKind::Or(_) => format!("({})", render_condition(c)),
+        _ => render_condition(c),
+    };
+    match &condition.kind {
+        ConditionKind::Has(path) => format!("has {}", names(&path.parts, ".")),
+        ConditionKind::Equals(path, value) => {
+            format!("{} == {}", names(&path.parts, "."), render_value(value))
+        }
+        ConditionKind::In(path, value) => {
+            format!("{} in {}", names(&path.parts, "."), render_value(value))
+        }
+        ConditionKind::And(parts) => parts.iter().map(group).collect::<Vec<_>>().join(" and "),
+        ConditionKind::Or(parts) => parts.iter().map(group).collect::<Vec<_>>().join(" or "),
+        ConditionKind::Not(inner) => format!("not {}", group(inner)),
+    }
+}
+
+fn render_permission(entry: &PermissionEntry) -> String {
+    let mut out = render_prefix(&entry.annotations, &entry.modifiers);
+    out.push_str(&format!(
+        "permission {} = {}",
+        entry.name.name,
+        quote(&entry.value.value)
+    ));
+    out
 }
 
 fn render_clause(clause: &Clause) -> String {

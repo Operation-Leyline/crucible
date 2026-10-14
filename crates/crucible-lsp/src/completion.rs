@@ -476,6 +476,26 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
             items.snippet("errors", "errors this operation returns", "errors [$1]");
             items.snippet("paginated", "pagination", "paginated(items: ${1:items})");
             items.snippet(
+                "requires",
+                "a permission the caller must hold, and on which resource",
+                "requires ${1:permission} on ${2:Resource}",
+            );
+            items.snippet(
+                "requires none",
+                "authenticated, and no permission is needed",
+                "requires none",
+            );
+            items.snippet(
+                "requires pending",
+                "the handler still checks, for now",
+                "requires pending because \"${1:reason}\"",
+            );
+            items.snippet(
+                "filters",
+                "a listing answered with what the caller may see",
+                "filters ${1:permission} on ${2:Resource}",
+            );
+            items.snippet(
                 "example",
                 "example request and response",
                 "example \"${1:title}\" {\n    input { $2 }\n    output { $0 }\n}",
@@ -511,6 +531,11 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
         }
         Context::ResourceEntries => {
             items.snippet("id", "identifier member", "id ${1:name}: ${2:Type}");
+            items.snippet(
+                "permission",
+                "a permission the resource accepts",
+                "permission ${1:symbol} = \"${2:resource:verb}\"",
+            );
             items.snippet(
                 "property",
                 "resource property",
@@ -601,6 +626,22 @@ pub fn complete(context: Context, index: &Index, snippets: bool) -> Vec<Completi
                 "mutability",
                 "resource property lifecycle",
                 "mutability(${1|full,create,createAndRead,read,write|})",
+            );
+            items.keyword("permissionOnly", "a permission no operation requires");
+            items.keyword("notGrantable", "a permission the service confers whole");
+            items.snippet(
+                "aliasOf",
+                "a deprecated alias of a renamed permission",
+                "aliasOf(${1:primary})",
+            );
+            items.snippet(
+                "authorizationName",
+                "the resource's name in grants",
+                "authorizationName(\"${1:name}\")",
+            );
+            items.keyword(
+                "permissionTypes",
+                "the wire enum of grantable resource types",
             );
             items.declarations(index, |d| d.keyword == "metadata");
         }
@@ -971,6 +1012,38 @@ mod tests {
         let offset = source.find('|').expect("a caret");
         let text = source.replace('|', "");
         context(&crucible_lang::parse(&text), &text, offset)
+    }
+
+    #[test]
+    fn operations_and_resources_offer_the_permission_clauses() {
+        let labels = |context: Context| -> Vec<String> {
+            complete(context, &Index::new(&[]), true)
+                .into_iter()
+                .map(|item| item.label)
+                .collect()
+        };
+        let operation = labels(Context::Operation);
+        for word in ["requires", "requires none", "requires pending", "filters"] {
+            assert!(operation.iter().any(|l| l == word), "{word}: {operation:?}");
+        }
+        assert!(
+            labels(Context::ResourceEntries)
+                .iter()
+                .any(|l| l == "permission")
+        );
+        let annotations = labels(Context::Annotation);
+        for word in [
+            "permissionOnly",
+            "notGrantable",
+            "aliasOf",
+            "authorizationName",
+            "permissionTypes",
+        ] {
+            assert!(
+                annotations.iter().any(|l| l == word),
+                "{word}: {annotations:?}"
+            );
+        }
     }
 
     #[test]

@@ -1,0 +1,174 @@
+string InboxId { pattern "^inb_[a-z0-9]+$" }
+string MessageId { pattern "^msg_[a-z0-9]+$" }
+string TemplateId { pattern "^tpl_[a-z0-9]+$" }
+string LocalPart { length 1..64 }
+
+/// A disposable address.
+resource Inbox in Workspace {
+    id inboxId: InboxId
+    immutable property localPart: LocalPart
+
+    /// The inbox row, its counts, its last code.
+    permission read = "inbox:read"
+    /// Rename and delete. Creating one needs it on every inbox: `Inbox(*)`.
+    permission manage = "inbox:manage"
+    /// Messages, threads, bodies, attachments.
+    permission mailRead = "mail:read"
+    /// Send, reply and forward from this address. Does not imply `mailRead`.
+    permission mailSend = "mail:send"
+    /// Archive, trash, star and delete messages.
+    permission mailManage = "mail:manage"
+    /// Renamed to `mail:send`.
+    @deprecated(message: "Renamed to mail:send.")
+    @aliasOf(mailSend)
+    permission emailSend = "email:send"
+}
+
+readonly operation GetInbox reads Inbox {
+    http GET "/v1/workspaces/{workspaceId}/inboxes/{inboxId}"
+    requires read
+    input {
+        $workspaceId
+        $inboxId
+    }
+    output { $localPart }
+}
+
+operation CreateInbox creates Inbox {
+    http POST "/v1/workspaces/{workspaceId}/inboxes" -> 201
+    requires manage on Inbox(*)
+    input {
+        $workspaceId
+        @token
+        clientToken?: ClientToken
+        $localPart
+        // A domain of the workspace; no `domain:read` is required (check 18).
+        domainId: DomainId
+    }
+    output { $inboxId }
+}
+
+/// Returns only the inboxes the caller holds `inbox:read` on.
+readonly operation ListInboxes lists Inbox {
+    http GET "/v1/workspaces/{workspaceId}/inboxes"
+    paginated(items: inboxIds)
+    filters read on Inbox
+    input {
+        $workspaceId
+        @query
+        nextToken?: string
+        @query
+        maxResults?: integer
+    }
+    output {
+        inboxIds: InboxIds
+        nextToken?: string
+    }
+}
+
+list InboxIds: InboxId
+
+operation DeleteInbox deletes Inbox {
+    http DELETE "/v1/workspaces/{workspaceId}/inboxes/{inboxId}" -> 204
+    requires manage
+    input {
+        $workspaceId
+        $inboxId
+    }
+}
+
+/// A message in an inbox: authorized on its inbox.
+resource Message in Inbox {
+    id messageId: MessageId
+    readonly property subject: string
+}
+
+readonly operation GetMessage reads Message {
+    http GET "/v1/workspaces/{workspaceId}/inboxes/{inboxId}/messages/{messageId}"
+    requires mailRead on Inbox
+    input {
+        $workspaceId
+        $inboxId
+        $messageId
+    }
+    output { $subject }
+}
+
+/// Archive or star several messages of one inbox: one check on the shared
+/// parent, and lookups scoped to it.
+idempotent operation UpdateMessages on Message collection {
+    http PATCH "/v1/workspaces/{workspaceId}/inboxes/{inboxId}/messages"
+    requires mailManage on Inbox
+    input {
+        $workspaceId
+        $inboxId
+        messageIds: MessageIds
+        starred: boolean
+    }
+}
+
+list MessageIds: MessageId
+
+/// Raw text, or a template rendered with variables.
+union MessageContent {
+    text: TextContent
+    template: TemplateContent
+}
+
+structure TextContent {
+    body: string
+}
+
+structure TemplateContent {
+    templateId: TemplateId
+    variables?: Variables
+}
+
+map Variables: string -> string
+
+operation SendMessage on Message collection {
+    http POST "/v1/workspaces/{workspaceId}/inboxes/{inboxId}/messages"
+    requires mailSend on Inbox
+    /// The rendered wording is what the recipient reads.
+    requires read on Template(content.template.templateId) when has content.template
+    input {
+        $workspaceId
+        $inboxId
+        @token
+        clientToken?: ClientToken
+        to: string
+        content: MessageContent
+    }
+    output { $messageId }
+}
+
+/// A reusable message body.
+resource Template in Workspace {
+    id templateId: TemplateId
+    property body: string
+
+    /// The template and its versions.
+    permission read = "template:read"
+    /// Edit and delete templates.
+    permission manage = "template:manage"
+}
+
+readonly operation GetTemplate reads Template {
+    http GET "/v1/workspaces/{workspaceId}/templates/{templateId}"
+    requires read
+    input {
+        $workspaceId
+        $templateId
+    }
+    output { $body }
+}
+
+operation UpdateTemplate updates Template {
+    http PATCH "/v1/workspaces/{workspaceId}/templates/{templateId}"
+    requires manage
+    input {
+        $workspaceId
+        $templateId
+        $body
+    }
+}

@@ -49,6 +49,8 @@ pub(crate) fn lower(
         requirements: BTreeSet::new(),
         http_inputs: BTreeSet::new(),
         http_outputs: BTreeSet::new(),
+        permissions: BTreeMap::new(),
+        permission_facts: crate::validate::PermissionFacts::default(),
     };
     let service = lowerer.service(service_id, infrastructure, documentation);
     if lowerer.diagnostics.is_empty() {
@@ -75,6 +77,10 @@ pub(crate) struct Lowerer<'m> {
     requirements: BTreeSet<FeatureUse>,
     http_inputs: BTreeSet<ShapeId>,
     http_outputs: BTreeSet<ShapeId>,
+    /// `@permissionsOf` enums, lowered before any operation, which binds
+    /// against them.
+    pub(crate) permissions: BTreeMap<ShapeId, crate::ir::ResourcePermissions>,
+    pub(crate) permission_facts: crate::validate::PermissionFacts,
 }
 
 impl<'m> Lowerer<'m> {
@@ -145,6 +151,7 @@ impl<'m> Lowerer<'m> {
             }
         }
         self.http_outputs.extend(service_errors.iter().cloned());
+        let permission_types = self.lower_permissions(shape);
         let mut operations: Vec<Operation> = self
             .operation_ids(shape)
             .into_iter()
@@ -294,9 +301,23 @@ impl<'m> Lowerer<'m> {
                 })
                 .map(|(id, _)| id.clone())
                 .collect(),
+            permissions: std::mem::take(&mut self.permissions),
+            permission_types,
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);
+        // The Smithy front end has no warnings: only errors stop it.
+        for finding in crate::validate::permissions(&service, &self.permission_facts) {
+            if finding.severity == crate::validate::FindingSeverity::Error {
+                let message = match finding.requirement {
+                    Some(index) => {
+                        format!("{}: @requires[{index}]: {}", finding.code, finding.message)
+                    }
+                    None => finding.text(),
+                };
+                self.diagnostics.push(&finding.shape, message);
+            }
+        }
         service
     }
 
@@ -607,6 +628,8 @@ impl<'m> Lowerer<'m> {
         }
 
         let mut errors: Vec<ShapeId> = shape.errors.iter().map(|r| r.target.clone()).collect();
+        let requirements = self.requirements_of(id, &shape.traits, input.as_ref(), &request);
+        self.attach_not_found(&requirements, shape.errors.len(), &mut errors);
         for error in service_errors {
             if !errors.contains(error) {
                 errors.push(error.clone());
@@ -696,6 +719,7 @@ impl<'m> Lowerer<'m> {
             request,
             response,
             traits: shape.traits.clone(),
+            requirements,
         })
     }
 
@@ -1346,7 +1370,7 @@ impl<'m> Lowerer<'m> {
             .collect()
     }
 
-    fn visit(&mut self, id: &ShapeId) {
+    pub(crate) fn visit(&mut self, id: &ShapeId) {
         if self.shapes.contains_key(id) || self.visiting.contains(id) {
             return;
         }

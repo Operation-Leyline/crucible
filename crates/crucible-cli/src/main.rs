@@ -1678,11 +1678,52 @@ fn summary(service: &Service) -> String {
         service.shapes.len(),
         kinds.join(", "),
     );
+    out.push_str(&permissions_summary(service));
     let custom = custom_traits(service);
     if !custom.is_empty() {
         out.push_str("  custom traits:\n");
         for (id, uses) in custom {
             out.push_str(&format!("    {id} ×{uses}\n"));
+        }
+    }
+    out
+}
+
+/// The permission registry's size and how operations declare requirements;
+/// every pending operation is listed with its reason (docs/permissions.md
+/// §4.7). Empty for a service that says nothing about authorization.
+fn permissions_summary(service: &Service) -> String {
+    use crucible_smithy::ir::Requirements;
+    let declared = service
+        .operations
+        .iter()
+        .filter(|op| !op.requirements.is_undeclared())
+        .count();
+    if service.permissions.is_empty() && declared == 0 {
+        return String::new();
+    }
+    let count = |test: fn(&Requirements) -> bool| {
+        service
+            .operations
+            .iter()
+            .filter(|op| test(&op.requirements))
+            .count()
+    };
+    let mut out = format!(
+        "  {} permissions on {} resources; {} operations require some, {} none, {} pending\n",
+        service
+            .permissions
+            .values()
+            .map(|r| r.permissions.len())
+            .sum::<usize>(),
+        service.permissions.len(),
+        count(|r| matches!(r, Requirements::List(_))),
+        count(|r| matches!(r, Requirements::None)),
+        count(|r| matches!(r, Requirements::Pending { .. })),
+    );
+    for op in &service.operations {
+        if let Requirements::Pending { reason } = &op.requirements {
+            out.push_str(&format!("  pending {}: {reason}\n", op.id));
         }
     }
     out
@@ -1713,6 +1754,30 @@ fn custom_traits(service: &Service) -> BTreeMap<&ShapeId, usize> {
 
 #[cfg(test)]
 mod summary_tests {
+    #[test]
+    fn the_summary_counts_permissions_and_lists_pending_operations() {
+        let service = crucible_smithy::Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/permissions.json"
+        ))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+        let summary = super::summary(&service);
+        assert!(
+            summary.contains(
+                "  8 permissions on 3 resources; 5 operations require some, 1 none, 1 pending\n  pending example.leyline#RestoreBackup: guard::allow in the handler until the history module moves.\n"
+            ),
+            "{summary}"
+        );
+        let weather = crucible_smithy::Model::from_json(include_str!(
+            "../../crucible-smithy/tests/fixtures/weather.json"
+        ))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+        assert!(!super::summary(&weather).contains("permissions"));
+    }
+
     #[test]
     fn custom_trait_counts_use_the_multiplication_sign() {
         let service = crucible_smithy::Model::from_json(include_str!(

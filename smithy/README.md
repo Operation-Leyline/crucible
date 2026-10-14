@@ -32,7 +32,7 @@ assembly and validation remain separate build steps. Include the written file
 as an import when assembling a model that uses these traits.
 
 `ERRORS` supplies `crucible.errors#ValidationException`, `InternalServerException`,
-and `UnknownOperationException`. The earlier `ValidationError` and `InternalError`
+`UnknownOperationException` and `NotFoundException`. The earlier `ValidationError` and `InternalError`
 shapes remain available for existing service contracts;
 `write_models(directory)` writes both the protocol and error definitions for
 assembly. Write them under `OUT_DIR`. The one-crate build helper does this
@@ -43,3 +43,15 @@ generated clients retain the server's actual error contract.
 (or, on the service, the default for operations that declare none). It is
 imported with the other definitions; enforcement is opt-in at runtime, see
 [docs/auth.md](../docs/auth.md).
+
+`AUTH` also supplies the typed permission traits
+([docs/permissions.md](../docs/permissions.md) §4.11): `@permissionsOf(Resource)`
+on an enum lists the permissions a resource accepts (member names are
+symbols, values are the stored identity; `@internal`, `@permissionOnly`,
+`@notGrantable` and `@aliasOf` per member), `@authorizationName` names a
+resource in grants, `@permissionTypes` checks a resource-type enum,
+`@requires([{ permission, resource, bind?, when?, mode?, documentation? }])`
+declares what an operation requires, and `@requiresNone` and
+`@requiresPending` say it needs nothing or is not converted yet. An
+operation with a requirement gets `crucible.errors#NotFoundException` from
+`ERRORS` in its error contract, so a model that uses `@requires` imports both.

@@ -19,6 +19,13 @@ use crate::ir::{
 use crate::lower_examples::Check;
 use crate::shape_id::ShapeId;
 
+mod authorization;
+
+pub use authorization::{
+    FindingSeverity, PermissionFacts, PermissionFinding, derived_authorization_name,
+    needs_not_found, not_found_id, permission_value_valid, permissions,
+};
+
 /// Headers the HTTP layer owns: framing and hop-by-hop headers (decision
 /// 35c). A modelled member could only corrupt them.
 const RESERVED_HEADERS: &[&str] = &[

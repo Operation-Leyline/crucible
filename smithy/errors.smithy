@@ -10,6 +10,17 @@ structure UnknownOperationException {
     message: String
 }
 
+/// The resource does not exist, or the caller may not know that it does.
+@error("client")
+@httpError(404)
+structure NotFoundException {
+    @required
+    message: String
+
+    @required
+    resourceType: String
+}
+
 /// A request cannot be parsed or does not satisfy the service's input model.
 @error("client")
 @httpError(400)

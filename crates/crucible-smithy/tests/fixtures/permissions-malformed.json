@@ -1,0 +1,117 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.malformed#Malformed": {
+      "type": "service", "version": "1",
+      "traits": {"crucible.protocols#json": {}, "smithy.api#httpBearerAuth": {}},
+      "resources": [{"target": "example.malformed#Thing"}],
+      "operations": [
+        {"target": "example.malformed#NotAList"}, {"target": "example.malformed#NotAnObject"},
+        {"target": "example.malformed#Missing"}, {"target": "example.malformed#NotAnId"},
+        {"target": "example.malformed#BindNotAnObject"}, {"target": "example.malformed#BindNotAString"},
+        {"target": "example.malformed#BindSyntax"}, {"target": "example.malformed#WhenNotAString"},
+        {"target": "example.malformed#NoneNotAString"}, {"target": "example.malformed#Empty"},
+        {"target": "example.malformed#FilterWhen"}
+      ]
+    },
+    "crucible.protocols#json": {"type": "structure", "traits": {"smithy.api#trait": {}, "smithy.api#protocolDefinition": {}}},
+
+    "example.malformed#ThingId": {"type": "string"},
+    "example.malformed#Thing": {
+      "type": "resource",
+      "identifiers": {"thingId": {"target": "example.malformed#ThingId"}},
+      "list": {"target": "example.malformed#FilterWhen"},
+      "traits": {"crucible.auth#authorizationName": 5}
+    },
+    "example.malformed#ThingPermission": {
+      "type": "enum",
+      "traits": {"crucible.auth#permissionsOf": "example.malformed#Thing"},
+      "members": {
+        "READ": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "thing:read"}},
+        "ALIAS": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "thing:alias", "crucible.auth#aliasOf": 1,
+          "crucible.auth#permissionOnly": {}}}
+      }
+    },
+    "example.malformed#NotAnIdPermission": {
+      "type": "enum",
+      "traits": {"crucible.auth#permissionsOf": 5},
+      "members": {"X": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "x:y"}}}
+    },
+    "example.malformed#TypesOnStructure": {
+      "type": "structure",
+      "traits": {"crucible.auth#permissionTypes": {}}
+    },
+    "example.malformed#BadExclude": {
+      "type": "enum",
+      "traits": {"crucible.auth#permissionTypes": {"exclude": "example.malformed#Thing"}},
+      "members": {"THING": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "thing"}}}
+    },
+
+    "example.malformed#ThingInput": {"type": "structure", "members": {
+      "thingId": {"target": "example.malformed#ThingId", "traits": {"smithy.api#required": {}, "smithy.api#httpLabel": {}}}
+    }},
+    "example.malformed#ListInput": {"type": "structure", "members": {
+      "kind": {"target": "smithy.api#String", "traits": {"smithy.api#httpQuery": "kind"}}
+    }},
+
+    "example.malformed#NotAList": {
+      "type": "operation",
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/a"}, "crucible.auth#requires": "thing:read"}
+    },
+    "example.malformed#NotAnObject": {
+      "type": "operation",
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/b"}, "crucible.auth#requires": [5]}
+    },
+    "example.malformed#Missing": {
+      "type": "operation",
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/c"}, "crucible.auth#requires": [{}]}
+    },
+    "example.malformed#NotAnId": {
+      "type": "operation",
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/d"},
+        "crucible.auth#requires": [{"permission": "thing:read", "resource": "not an id"}]}
+    },
+    "example.malformed#BindNotAnObject": {
+      "type": "operation", "input": {"target": "example.malformed#ThingInput"},
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/e/{thingId}"},
+        "crucible.auth#requires": [{"permission": "thing:read", "resource": "example.malformed#Thing", "bind": "thingId"}]}
+    },
+    "example.malformed#BindNotAString": {
+      "type": "operation", "input": {"target": "example.malformed#ThingInput"},
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/f/{thingId}"},
+        "crucible.auth#requires": [{"permission": "thing:read", "resource": "example.malformed#Thing", "bind": {"thingId": 5}}]}
+    },
+    "example.malformed#BindSyntax": {
+      "type": "operation", "input": {"target": "example.malformed#ThingInput"},
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/g/{thingId}"},
+        "crucible.auth#requires": [{"permission": "thing:read", "resource": "example.malformed#Thing", "bind": {"thingId": "ids[]"}}]}
+    },
+    "example.malformed#WhenNotAString": {
+      "type": "operation", "input": {"target": "example.malformed#ThingInput"},
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/h/{thingId}"},
+        "crucible.auth#requires": [{"permission": "thing:read", "resource": "example.malformed#Thing", "when": true}]}
+    },
+    "example.malformed#NoneNotAString": {
+      "type": "operation",
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/i"}, "crucible.auth#requiresNone": {}}
+    },
+    "example.malformed#Empty": {
+      "type": "operation",
+      "traits": {"smithy.api#http": {"method": "POST", "uri": "/j"}, "crucible.auth#requires": []}
+    },
+    "example.malformed#FilterWhen": {
+      "type": "operation", "input": {"target": "example.malformed#ListInput"},
+      "traits": {"smithy.api#http": {"method": "GET", "uri": "/things"}, "smithy.api#readonly": {},
+        "crucible.auth#requires": [{"permission": "thing:read", "resource": "example.malformed#Thing", "mode": "filter", "when": "has kind"}]}
+    },
+
+    "crucible.errors#NotFoundException": {
+      "type": "structure",
+      "members": {
+        "message": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}},
+        "resourceType": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
+      },
+      "traits": {"smithy.api#error": "client", "smithy.api#httpError": 404}
+    }
+  }
+}

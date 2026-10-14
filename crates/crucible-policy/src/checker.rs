@@ -14,7 +14,7 @@ pub(crate) struct Checker<'a> {
 }
 
 impl Checker<'_> {
-    fn push(&mut self, rule: &str, id: &ShapeId, message: impl Into<String>) {
+    pub(crate) fn push(&mut self, rule: &str, id: &ShapeId, message: impl Into<String>) {
         self.report.push(rule, id, self.severity, message);
     }
 
