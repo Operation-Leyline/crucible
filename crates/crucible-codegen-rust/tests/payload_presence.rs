@@ -19,13 +19,15 @@ fn generated_document_payloads_preserve_presence_and_structure_omission() {
         let model = json!({
             "smithy": "2.0",
             "shapes": {
-                "test.payloads#Payloads": {"type": "service", "version": "1", "traits": {protocol: {}}, "operations": [{"target": "test.payloads#Document"}, {"target": "test.payloads#Structure"}]},
+                "test.payloads#Payloads": {"type": "service", "version": "1", "traits": {protocol: {}}, "operations": [{"target": "test.payloads#Document"}, {"target": "test.payloads#Structure"}, {"target": "test.payloads#Required"}]},
                 "test.payloads#Document": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/document", "code": 200}}, "input": {"target": "test.payloads#DocumentInput"}, "output": {"target": "test.payloads#DocumentOutput"}},
                 "test.payloads#Structure": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/structure", "code": 200}}, "input": {"target": "test.payloads#StructureInput"}, "output": {"target": "test.payloads#StructureOutput"}},
                 "test.payloads#DocumentInput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
                 "test.payloads#DocumentOutput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
                 "test.payloads#StructureInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
                 "test.payloads#StructureOutput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
+                "test.payloads#Required": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/required", "code": 200}}, "input": {"target": "test.payloads#RequiredInput"}},
+                "test.payloads#RequiredInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}}}}},
                 "test.payloads#Record": {"type": "structure", "members": {"name": {"target": "smithy.api#String"}}}
             }
         });
@@ -154,6 +156,15 @@ mod tests {
         let input: payloads::StructureInput =
             read_http(b"", record, payloads::Structure::INFO.input).unwrap();
         assert_eq!(input.payload.unwrap().name.as_deref(), Some("present"));
+        // A required structure payload has no null: `null` is still refused.
+        assert!(
+            read_http::<payloads::RequiredInput>(b"", null(), payloads::Required::INFO.input)
+                .is_err()
+        );
+        let record = vec![("payload", BoundValue::RawJson(br#"{"name":"present"}"#))];
+        let input: payloads::RequiredInput =
+            read_http(b"", record, payloads::Required::INFO.input).unwrap();
+        assert_eq!(input.payload.name.as_deref(), Some("present"));
     }
 }
 "##;

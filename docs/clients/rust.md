@@ -615,8 +615,10 @@ decimal values rather than converting to floating point.
 
 An `@httpPayload` member is the whole HTTP body. A blob is raw bytes. A string
 or enum is UTF-8 text; an empty body reads as an empty string. A structure,
-union, or document is one JSON value; an absent or explicitly null value sends
-no body, and an empty response body reads as absent. Each payload is sent under
+union, or document is one JSON value; an absent value sends no body, and an
+empty response body reads as absent. An explicit null follows the protocol:
+Crucible JSON sends the body `null`, and AWS REST JSON omits a null structure
+or union. A `null` response payload reads as `Field::Null`. Each payload is sent under
 its target's `@mediaType`, or the protocol default. Modeled errors may also
 bind a payload: the error is named by the `x-crucible-error` header
 (`X-Amzn-Errortype` for AWS protocols) because the body is no longer a JSON
