@@ -12,15 +12,6 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     // The examples are projected natively below; repeating them raw is noise.
     if let Some(raw) = raw_traits.as_object_mut() {
         raw.remove("smithy.api#examples");
-        // So are the requirements (`x-crucible-requires`), which the raw
-        // traits would state with internal permissions included.
-        for id in [
-            "crucible.auth#requires",
-            "crucible.auth#requiresNone",
-            "crucible.auth#requiresPending",
-        ] {
-            raw.remove(id);
-        }
     }
     let mut value = json!({
         "operationId": service.name_of(&op.id),

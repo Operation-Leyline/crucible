@@ -888,8 +888,8 @@ parsed or looked up by name at request time.
 
 *As built (phase B).* The enums, references and statics live in a
 `permissions` submodule of the service module (`pigeon::permissions::InboxPermission`),
-so they never collide with a model shape such as a Smithy `@permissionsOf`
-enum named `GraphPermission`. The typed reference over all resources is
+so they never collide with a model shape, such as an enum the model names
+`GraphPermission`. The typed reference over all resources is
 `permissions::Resource` (it would shadow the runtime's `ResourceRef` under
 the spec's name), built with `TryFrom<&ResourceRef>`. Per-resource enums have
 `parse(value) -> Option<Self>` rather than `FromStr`, which would need an
