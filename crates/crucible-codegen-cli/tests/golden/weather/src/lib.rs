@@ -25,22 +25,22 @@ pub async fn dispatch(invocation: Invocation) -> Result<(), Error> {
     let client = client::WeatherClient::new(invocation.config);
     match invocation.operation.as_str() {
         "CreateCity" => {
-            let input: client::CreateCityInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::CreateCityInput = crucible_client_runtime_rust::__generated::object::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#create_city(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "GetCity" => {
-            let input: client::GetCityInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::GetCityInput = crucible_client_runtime_rust::__generated::object::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#get_city(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "GetCityPhoto" => {
-            let input: client::GetCityPhotoInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::GetCityPhotoInput = crucible_client_runtime_rust::__generated::object::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#get_city_photo(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "ListCities" => {
-            let input: client::ListCitiesInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::ListCitiesInput = crucible_client_runtime_rust::__generated::object::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             if invocation.paginate {
                 let mut pages = client.list_cities_pages(input);
                 let mut collected = Vec::new();
@@ -65,12 +65,12 @@ pub async fn dispatch(invocation: Invocation) -> Result<(), Error> {
             write_json(&())
         }
         "PutCityPhoto" => {
-            let input: client::PutCityPhotoInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::PutCityPhotoInput = crucible_client_runtime_rust::__generated::object::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#put_city_photo(input).await.map_err(Error::request)?;
             write_json(&output)
         }
         "Status" => {
-            let input: client::StatusInput = serde_json::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
+            let input: client::StatusInput = crucible_client_runtime_rust::__generated::object::from_value(invocation.input).map_err(|_| Error::input("input does not match the operation's modeled types"))?;
             let output = client.r#status(input).await.map_err(Error::request)?;
             write_json(&output)
         }
@@ -83,22 +83,22 @@ async fn call(config: crucible_client_runtime_rust::Config, operation: String, i
     let client = client::WeatherClient::new(config);
     match operation.as_str() {
         "CreateCity" => {
-            let input: client::CreateCityInput = serde_json::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
+            let input: client::CreateCityInput = crucible_client_runtime_rust::__generated::object::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
             let output = client.r#create_city(input).await.map_err(|_| Error::request("service call failed"))?;
             serde_json::to_value(output).map_err(|_| Error::request("invalid tool output"))
         }
         "GetCity" => {
-            let input: client::GetCityInput = serde_json::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
+            let input: client::GetCityInput = crucible_client_runtime_rust::__generated::object::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
             let output = client.r#get_city(input).await.map_err(|_| Error::request("service call failed"))?;
             serde_json::to_value(output).map_err(|_| Error::request("invalid tool output"))
         }
         "GetCityPhoto" => {
-            let input: client::GetCityPhotoInput = serde_json::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
+            let input: client::GetCityPhotoInput = crucible_client_runtime_rust::__generated::object::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
             let output = client.r#get_city_photo(input).await.map_err(|_| Error::request("service call failed"))?;
             serde_json::to_value(output).map_err(|_| Error::request("invalid tool output"))
         }
         "ListCities" => {
-            let input: client::ListCitiesInput = serde_json::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
+            let input: client::ListCitiesInput = crucible_client_runtime_rust::__generated::object::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
             let output = client.r#list_cities(input).await.map_err(|_| Error::request("service call failed"))?;
             serde_json::to_value(output).map_err(|_| Error::request("invalid tool output"))
         }
@@ -107,12 +107,12 @@ async fn call(config: crucible_client_runtime_rust::Config, operation: String, i
             Ok(serde_json::json!({}))
         }
         "PutCityPhoto" => {
-            let input: client::PutCityPhotoInput = serde_json::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
+            let input: client::PutCityPhotoInput = crucible_client_runtime_rust::__generated::object::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
             let output = client.r#put_city_photo(input).await.map_err(|_| Error::request("service call failed"))?;
             serde_json::to_value(output).map_err(|_| Error::request("invalid tool output"))
         }
         "Status" => {
-            let input: client::StatusInput = serde_json::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
+            let input: client::StatusInput = crucible_client_runtime_rust::__generated::object::from_value(input).map_err(|_| Error::input("invalid tool input"))?;
             let output = client.r#status(input).await.map_err(|_| Error::request("service call failed"))?;
             serde_json::to_value(output).map_err(|_| Error::request("invalid tool output"))
         }

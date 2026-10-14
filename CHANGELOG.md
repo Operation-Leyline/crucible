@@ -460,7 +460,8 @@ version's section when it is prepared.
   structure `@httpPayload` or a nested member sent as `[]` or
   `["Oslo", 1]` was accepted as that structure, under every JSON protocol
   (Crucible JSON, AWS REST JSON, AWS JSON 1.0/1.1, RPC v2 JSON, direct
-  invocation and input events) and in the Rust client's response reader.
+  invocation and input events), in the Rust client's response reader and
+  in a generated service CLI's `--input-json` and MCP `tools/call` input.
   It is now a malformed request (or an unreadable response), as RPC v2
   CBOR already treated it. A document member still takes any JSON value.
   (#292)
