@@ -1,6 +1,8 @@
 //! What the compiler refuses, and how it says so.
 
 use crucible_lang::{Package, SourceFile, compile};
+use crucible_smithy::ir::Shape;
+use serde_json::json;
 
 const SERVICE: &str = r#"
 service Shop {
@@ -339,6 +341,66 @@ fn defaults_fit_their_type() {
     assert_eq!(
         messages("enum Size { SMALL = \"s\" }\nstructure Note { size: Size = SMALL }"),
         Vec::<String>::new()
+    );
+}
+
+/// `SPECIAL`'s wire value spells RED's symbol, so a symbol and a quoted
+/// string lower differently.
+const COLOR: &str = r#"
+enum Color { RED = "r", SPECIAL = "RED" }
+list Colors: Color
+map Palette: string -> Color
+"#;
+
+#[test]
+fn enum_symbols_in_defaults_lower_to_wire_values_at_any_depth() {
+    // Note is an operation's input, so the service keeps it.
+    let model = r#"
+service Studio {
+    version "1"
+    protocol json
+    operations [Paint]
+}
+
+operation Paint {
+    http POST "/paint"
+    input { note: Note }
+}
+
+structure Note {
+    colors: Colors = [RED, "RED"]
+    palette: Palette = { a: RED, b: "RED" }
+    symbol: Color = RED
+    wire: Color = "RED"
+}
+"#;
+    let package = Package {
+        namespace: "example.shop".to_owned(),
+        files: vec![SourceFile {
+            path: "shop.cru".to_owned(),
+            text: format!("{model}{COLOR}"),
+        }],
+        naming: Default::default(),
+        imports: Vec::new(),
+        baseline: None,
+    };
+    let compiled = compile(&package, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let service = compiled.service.unwrap();
+    let Some(Shape::Structure(note)) = service.shape(&"example.shop#Note".parse().unwrap()) else {
+        panic!("Note is a structure");
+    };
+    let default = |name: &str| note.member(name).unwrap().default.clone();
+    assert_eq!(default("colors"), Some(json!(["r", "RED"])));
+    assert_eq!(default("palette"), Some(json!({"a": "r", "b": "RED"})));
+    assert_eq!(default("symbol"), Some(json!("r")));
+    assert_eq!(default("wire"), Some(json!("RED")));
+    // A quoted symbol name is no wire value.
+    assert_mentions(
+        &messages(&format!(
+            r#"{COLOR}structure Note {{ colors: Colors = ["SPECIAL"] }}"#
+        )),
+        "is not a value",
     );
 }
 

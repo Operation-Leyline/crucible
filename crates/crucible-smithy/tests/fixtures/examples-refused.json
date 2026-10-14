@@ -43,6 +43,9 @@
         },
         {
           "target": "test.examples#NoShape"
+        },
+        {
+          "target": "test.examples#NullDocument"
         }
       ]
     },
@@ -586,6 +589,44 @@
       },
       "traits": {
         "smithy.api#output": {}
+      }
+    },
+    "test.examples#NullDocument": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/nulldocument"
+        },
+        "smithy.api#examples": [
+          {
+            "title": "null documents",
+            "input": {
+              "required": null,
+              "optional": null
+            }
+          }
+        ]
+      },
+      "input": {
+        "target": "test.examples#NullDocumentInput"
+      }
+    },
+    "test.examples#NullDocumentInput": {
+      "type": "structure",
+      "members": {
+        "required": {
+          "target": "smithy.api#Document",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "optional": {
+          "target": "smithy.api#Document"
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
       }
     }
   }

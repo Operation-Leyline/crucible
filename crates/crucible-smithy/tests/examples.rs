@@ -62,6 +62,9 @@ fn accepted_examples_lower_in_model_order_with_their_values() {
     assert_eq!(first.input.as_ref().unwrap()["choice"], json!({"b": 2}));
     assert_eq!(first.output, Some(json!({"code": "ABC"})));
     assert!(good.examples[1].allow_constraint_errors);
+    // An optional document's null is a value, kept rather than dropped.
+    let epoch = good.examples[2].input.as_ref().unwrap();
+    assert_eq!(epoch.get("doc"), Some(&Value::Null));
     let error = good.examples[3].error.as_ref().unwrap();
     assert_eq!(error.shape.to_string(), "test.examples#Problem");
     assert_eq!(error.content, json!({"message": "no"}));
@@ -126,6 +129,21 @@ fn examples_are_checked_against_the_shapes_they_exercise() {
             "input.scores key \"abc\" does not match the pattern",
             "input.inner must not be null",
         ],
+    );
+}
+
+#[test]
+fn only_an_optional_document_member_may_be_null() {
+    let found = diagnostics("NullDocument");
+    assert!(
+        found
+            .iter()
+            .any(|d| d.contains("input.required must not be null")),
+        "{found:#?}"
+    );
+    assert!(
+        !found.iter().any(|d| d.contains("input.optional")),
+        "{found:#?}"
     );
 }
 

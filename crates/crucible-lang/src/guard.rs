@@ -16,6 +16,7 @@ use serde_json::Value as Json;
 use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
 use crate::compile::{Compiled, FileDiagnostic, Package, load_baseline};
 use crate::diagnostic::Diagnostic;
+use crate::literal::resolve_enum_symbols;
 
 /// What the guard found for one package.
 #[derive(Debug, Clone)]
@@ -401,28 +402,14 @@ impl Context<'_> {
     }
 
     fn require_default(&self, target: &Target, value: &Value) -> Json {
-        // An unquoted enum literal names its symbol; validation and the
-        // runtime conversion must see the same corresponding wire value. A
-        // quoted string is already a wire value, as in a member's default:
-        // with `SPECIAL = "RED"`, `default "RED"` means SPECIAL, not RED.
-        let default = json(value);
-        if let Value::Ident(symbol) = value
-            && let Some(Shape::Structure(owner)) = self.new.shapes.get(&target.shape)
+        // Enum symbols, at any depth, become their wire values, as in a
+        // member's default: validation and the runtime conversion must see
+        // the same value.
+        let mut default = json(value);
+        if let Some(Shape::Structure(owner)) = self.new.shapes.get(&target.shape)
             && let Some(member) = target.member.as_ref().and_then(|name| owner.member(name))
         {
-            match self.new.shapes.get(&member.target) {
-                Some(Shape::Enum(enumeration)) => {
-                    if let Some(found) = enumeration.values.iter().find(|v| v.name == symbol.name) {
-                        return Json::String(found.value.clone());
-                    }
-                }
-                Some(Shape::IntEnum(enumeration)) => {
-                    if let Some(found) = enumeration.values.iter().find(|v| v.name == symbol.name) {
-                        return Json::Number(found.value.into());
-                    }
-                }
-                _ => {}
-            }
+            resolve_enum_symbols(&self.new.shapes, &member.target, value, &mut default);
         }
         default
     }

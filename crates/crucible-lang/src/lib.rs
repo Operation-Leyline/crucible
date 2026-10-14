@@ -13,6 +13,7 @@ pub mod diagnostic;
 pub mod format;
 pub mod guard;
 pub mod lexer;
+mod literal;
 mod lower;
 pub mod package;
 mod parser;
