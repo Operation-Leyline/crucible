@@ -683,7 +683,10 @@ async fn invalid_success_error_and_stream_headers_become_observable_internal_fai
 fn assert_capped(body: &Value, total: usize, path: &str) {
     let fields = body["fieldList"].as_array().unwrap();
     assert_eq!(fields.len(), 101, "{body}");
-    assert!(fields[..100].iter().all(|field| field["path"] == path), "{body}");
+    assert!(
+        fields[..100].iter().all(|field| field["path"] == path),
+        "{body}"
+    );
     assert_eq!(fields[100]["path"], "", "{body}");
     assert_eq!(
         fields[100]["message"],
