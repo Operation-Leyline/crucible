@@ -336,10 +336,11 @@ version's section when it is prepared.
 - A client-wide default `Content-Type` header no longer replaces a
   payload's media type in the Rust, Python, Go and TypeScript clients, and
   no longer replaces `application/json` on an ordinary TypeScript request
-  body (a mismatch the service answered with HTTP 415). A request's
+  body (a mismatch the service answered with HTTP 415). A payload request's
   Content-Type is the modeled Content-Type member if one is set, then the
   payload's media type, then default headers; TypeScript per-call
-  `RequestOptions.headers` rank with the defaults. Go also canonicalizes
+  `RequestOptions.headers` rank with the defaults. An ordinary JSON document
+  body always carries its protocol's media type. Go also canonicalizes
   `Config.Headers` keys, so a default given as `content-type` is replaced
   rather than sent beside the request's own. To send a payload under
   another media type, model a Content-Type member or set the header in a
