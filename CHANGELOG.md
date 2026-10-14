@@ -492,8 +492,10 @@ version's section when it is prepared.
   copied every violation. So a body of a few megabytes of empty strings
   could build an error response, and a log record, of hundreds of
   megabytes. The cap covers violations from the query string, labels and
-  headers too (`?a=%zz&a=%zz...` once listed one per pair): every producer
-  collects through the new `validate::Violations` or `Rejection::new`.
+  headers too (`?a=%zz&a=%zz...` once listed one per pair): every
+  framework producer collects through the new `validate::Violations` or
+  `Rejection::new`. A `Rejection { violations }` built by hand (in a custom
+  protocol, say) is not capped; build it with those instead.
   `Rejection::summary` counts the unlisted violations ("and 149 more" for
   150), and `Rejection::count` says how many there were.
 - Rejections no longer quote the request's values, so a `@sensitive`
