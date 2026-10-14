@@ -3,9 +3,11 @@ use serde_json::{Value, json};
 /// What a finished attempt leaves for its retries. Usually the operation's
 /// successful output, in its JSON form, labelled with the API version it
 /// was written at, and, when `Permissions` covered the request, the handler
-/// checks the Authorizer allowed (`authorization`), which a replay asks for
-/// again. A record from before this field replays with the operation's
-/// declared checks alone. A retry gets it encoded afresh, by the protocol and at
+/// checks the Authorizer allowed and what a `filters` listing showed (as a
+/// digest of its ids), as `authorization`: a replay asks for the checks
+/// again, and is refused when the caller now sees less of the listing. A
+/// record from before this field replays with the operation's declared
+/// checks alone. A retry gets it encoded afresh, by the protocol and at
 /// the API version the retry uses, with the retry's own request id, so the
 /// output reads the same way whichever way the retry came.
 ///

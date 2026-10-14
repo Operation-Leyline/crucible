@@ -1,5 +1,6 @@
 /// The Authorizer's answer to one [`Check`](super::Check).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Verdict {
     Allowed,
     /// The caller can see the resource and lacks the permission: a 403,

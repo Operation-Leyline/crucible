@@ -975,7 +975,21 @@ For each operation it covers, `Permissions`:
   factory. The listing's refusal takes its clause's place in declaration
   order: a Hidden listing declared before a Denied check is a 404, a Denied
   listing declared before a Hidden check a 403, and a listing declared
-  after a refused check is not asked.
+  after a refused check is not asked. A listing of a root resource
+  (`filters read on Workspace`) binds nothing of the request, so it has no
+  parent to hide: a Hidden answer there is a 403, as a Hidden verdict on a
+  root check with `*` is (check 17 attaches no 404 to it). A hidden
+  listing's 404 names the listed resource (`No such inbox.`, `resourceType`
+  `inbox`, from `Inbox(w1, *)`), so a handler answering a genuinely missing
+  parent answers with the same reference, `InboxRef::all(&workspace_id)
+  .not_found()`, and the two read alike; a service's own not-found factory
+  may map `Inbox(*)` to the parent, as the example below does. The handler
+  must read the answer: a success whose listing shows less than everything
+  and was never read with `visible()` fails as an unsatisfied obligation
+  does (below), since nothing was filtered. A replay of a stored success
+  is refused (409, as an unreplayable one, so the caller sends a new token)
+  when the caller now sees less of the listing than it showed; the
+  idempotency record keeps a digest of what it showed, not the ids.
 - **Opens obligations** for `requires p on R by handler` clauses (below).
 - **Records everything** in an `AuthorizationRecord` on the request
   context, for audit middleware that runs later: each check with its origin
@@ -1102,12 +1116,16 @@ past) is a handler bug. `idempotency::commit()` refuses it in every build,
 so the step after it is not taken, and the claim is released with the
 failure; since nothing can commit with an obligation unsatisfied, a refused
 `discharge` is always before the point of no return. A success with one is
-the internal error in debug builds and with `test-support`
-(`Permissions::assert_obligations`), before `Idempotency` could store it;
-release builds log it and record it, keeping the response, since what the
-handler did has happened. `permissions::require` refuses like a declared
-check for a permission the model cannot declare, and
-`permissions::decide(&checks)` returns one verdict per `Check::handler` for
+the internal error, in every build, before `Idempotency` could store it:
+a handler that forgets a check must not serve its success in production
+either. `Permissions::assert_obligations(false)` is the deliberate
+opt-out, which logs it and records it (`Undischarged`) and keeps the
+response. A `discharge` holds its obligation while it asks the Authorizer,
+so a concurrent `discharge` or `not_applicable` of it is the internal error
+rather than a race that could close it past a refusal.
+`permissions::require` refuses like a declared check for a permission the
+model cannot declare, and `permissions::decide(&checks)` returns
+`Verdicts`, one per `Check::handler` (`#[must_use]`, read as a slice), for
 a handler that maps refusals itself (delegation refusing with its own
 error). Every handler check runs before any write, so its refusal releases
 the idempotency claim. All of them are an internal error when `Permissions`
@@ -1116,9 +1134,15 @@ is not installed.
 `Permissions::shadow()` evaluates and records everything but refuses
 nothing, logging `would_deny`, `would_hide`, `would_refuse_undeclared`, and
 `would_fail` for an Authorizer error or a wiring error in the descriptions;
-`commit` logs an unsatisfied obligation rather than refusing it. For moving
-a service's own checks onto the model with the log showing that both agree.
-Handler checks still refuse, since the handler asked for them.
+`commit` logs an unsatisfied obligation rather than refusing it, and a
+success with one keeps its response. A `filters` listing it could not get
+answered shows nothing to `permissions::visible()` (as a hidden one does)
+rather than failing the handler, and a replay is served whatever asking
+again says, an Authorizer error included. Identifiers in its log lines
+(and in every permissions log line and internal error) are escaped and
+cut short: they come from the request. For moving a service's own checks
+onto the model with the log showing that both agree. Handler checks still
+refuse, since the handler asked for them.
 
 ## Protocols
 

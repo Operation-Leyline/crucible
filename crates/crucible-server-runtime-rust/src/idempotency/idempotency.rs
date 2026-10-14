@@ -333,10 +333,6 @@ impl Interceptor for Idempotency {
         // first, so it unwinds after this).
         #[cfg(feature = "permissions")]
         crate::permissions::settle(job);
-        #[cfg(feature = "permissions")]
-        let authorization = crate::permissions::stored_checks(job.context());
-        #[cfg(not(feature = "permissions"))]
-        let authorization = None;
         let Some(claim) = job
             .context()
             .attribute::<Attempt>()
@@ -350,6 +346,14 @@ impl Interceptor for Idempotency {
             Some(Outcome::Output(output)) => Some(output.to_json()),
             _ => None,
         };
+        // What a replay of the success must be authorized for again: only
+        // a stored success needs it.
+        #[cfg(feature = "permissions")]
+        let authorization = output
+            .as_ref()
+            .and_then(|_| crate::permissions::stored_checks(job.context()));
+        #[cfg(not(feature = "permissions"))]
+        let authorization = None;
         Hook::wait(claim.finish(output, authorization))
     }
 

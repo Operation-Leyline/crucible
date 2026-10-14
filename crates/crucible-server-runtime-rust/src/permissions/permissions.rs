@@ -1,8 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use super::session::{
-    NotFound, NotFoundFactory, RefusalFactory, Registry, Session, Settings, TARGET,
-};
+use super::loggable;
+use super::session::{NotFound, NotFoundFactory, Session, Settings, TARGET};
 use super::{
     Authorizer, Check, ErasedChecks, Listing, Mode, Obligation, ObligationOutcome,
     ObligationRecord, OperationFacts, Origin, PermissionInfo, PermissionRefusal, RequirementInfo,
@@ -47,16 +46,12 @@ use crate::{
 /// replay is authorized again, its declared checks and the handler checks
 /// its success was allowed.
 pub struct Permissions {
-    authorizer: Arc<dyn Authorizer>,
-    refusal: RefusalFactory,
+    /// What every request's session shares, one `Arc` per request: the
+    /// Authorizer, the factories, and (once the service is built) the
+    /// model's not-found error and the registry.
+    settings: Arc<Settings>,
     not_found_factory: Option<NotFoundFactory>,
-    /// The model's not-found error with the factory, once the service is
-    /// built.
-    not_found: Option<NotFound>,
-    registry: Registry,
     allow_undeclared: bool,
-    shadow: bool,
-    assert_obligations: bool,
     undeclared: UndeclaredOperations,
 }
 
@@ -81,14 +76,16 @@ impl UndeclaredOperations {
 impl Permissions {
     pub fn new(authorizer: impl Authorizer) -> Self {
         Self {
-            authorizer: Arc::new(authorizer),
-            refusal: Arc::new(PermissionRefusal::default_error),
+            settings: Arc::new(Settings {
+                authorizer: Arc::new(authorizer),
+                refusal: Arc::new(PermissionRefusal::default_error),
+                not_found: None,
+                registry: Arc::default(),
+                shadow: false,
+                assert_obligations: true,
+            }),
             not_found_factory: None,
-            not_found: None,
-            registry: Arc::default(),
             allow_undeclared: false,
-            shadow: false,
-            assert_obligations: cfg!(any(debug_assertions, feature = "test-support")),
             undeclared: UndeclaredOperations::default(),
         }
     }
@@ -115,7 +112,7 @@ impl Permissions {
         mut self,
         factory: impl Fn(&PermissionRefusal) -> Error + Send + Sync + 'static,
     ) -> Self {
-        self.refusal = Arc::new(factory);
+        Arc::make_mut(&mut self.settings).refusal = Arc::new(factory);
         self
     }
 
@@ -161,36 +158,31 @@ impl Permissions {
     /// or a wiring error) and the record says `shadow`. An unsatisfied
     /// obligation at `idempotency::commit()` is logged, not refused. For
     /// moving a service's own checks onto the model one operation at a
-    /// time, with the log showing that both agree. Handler checks
-    /// ([`require`](super::require), [`discharge`](super::discharge)) still
-    /// refuse: the handler asked for them.
+    /// time, with the log showing that both agree. Nothing it decides
+    /// refuses: an Authorizer that cannot answer a `filters` listing leaves
+    /// [`visible`](super::visible) showing nothing rather than failing the
+    /// handler, and a replay is served whatever its re-authorization says.
+    /// Handler checks ([`require`](super::require),
+    /// [`discharge`](super::discharge)) still refuse: the handler asked for
+    /// them.
     pub fn shadow(mut self) -> Self {
-        self.shadow = true;
+        Arc::make_mut(&mut self.settings).shadow = true;
         self
     }
 
     /// Whether a success with an obligation unsatisfied (left open, or
-    /// discharged with a refusal the handler went on past) fails the
-    /// request, as an internal failure. On in debug builds and with the
-    /// `test-support` feature, so tests catch a handler that forgets one;
-    /// off in release builds, which log it and record it as `Undischarged`
-    /// but keep the response, since what the handler did has happened.
-    /// `idempotency::commit()` refuses an unsatisfied obligation in every
-    /// build, whatever this says: the step after it has not happened yet.
+    /// discharged with a refusal the handler went on past), or with a
+    /// `filters` listing that shows less than everything the handler never
+    /// read with [`visible`](super::visible), fails the request as an
+    /// internal failure. On by default, in every build: a handler that
+    /// forgets a check must not serve its success. `false` is the
+    /// deliberate opt-out: the request is then logged and recorded
+    /// (`Undischarged`) but keeps its response. Shadow mode never fails it.
+    /// `idempotency::commit()` refuses an unsatisfied obligation whatever
+    /// this says: the step after it has not happened yet.
     pub fn assert_obligations(mut self, assert: bool) -> Self {
-        self.assert_obligations = assert;
+        Arc::make_mut(&mut self.settings).assert_obligations = assert;
         self
-    }
-
-    fn settings(&self) -> Settings {
-        Settings {
-            authorizer: self.authorizer.clone(),
-            refusal: self.refusal.clone(),
-            not_found: self.not_found.clone(),
-            registry: self.registry.clone(),
-            shadow: self.shadow,
-            assert_obligations: self.assert_obligations,
-        }
     }
 
     fn undeclared(
@@ -201,7 +193,7 @@ impl Permissions {
         metadata: &OperationMetadata,
     ) -> Result<()> {
         if !public(metadata) && !self.allow_undeclared {
-            if !self.shadow {
+            if !self.settings.shadow {
                 tracing::error!(
                     target: TARGET,
                     operation = operation.id,
@@ -242,10 +234,12 @@ impl Permissions {
                 Ok(bound) => bound,
                 // Shadow mode refuses nothing, its own wiring errors included:
                 // the obligations still open, so a handler written for
-                // enforcing mode closes them unchanged.
-                Err(error) if self.shadow => {
+                // enforcing mode closes them unchanged, and its listing
+                // shows nothing.
+                Err(error) if self.settings.shadow => {
                     shadow_failure(operation, &error);
-                    open_obligations(&context, &session, operation, requirements);
+                    session.listing_unanswered();
+                    open_obligations(&session, operation, requirements);
                     return Ok(());
                 }
                 Err(error) => return Err(error),
@@ -258,7 +252,7 @@ impl Permissions {
                 .zip(verdicts)
                 .find(|(_, verdict)| *verdict != Verdict::Allowed)
                 .map(|(check, verdict)| (check.clone(), verdict)),
-            Err(error) if self.shadow => {
+            Err(error) if self.settings.shadow => {
                 shadow_failure(operation, &error);
                 None
             }
@@ -275,7 +269,7 @@ impl Permissions {
             let earlier = refusal
                 .as_ref()
                 .is_some_and(|(check, _)| clause(check) < index);
-            if self.shadow || !earlier {
+            if self.settings.shadow || !earlier {
                 match session.visible(&context, &listing).await {
                     Ok(Visibility::Hidden) if !earlier => {
                         let verdict = session.something_to_hide(&listing.resource, Verdict::Hidden);
@@ -287,7 +281,10 @@ impl Permissions {
                         refusal = Some((check, Verdict::Denied));
                     }
                     Ok(_) => {}
-                    Err(error) if self.shadow => shadow_failure(operation, &error),
+                    Err(error) if self.settings.shadow => {
+                        shadow_failure(operation, &error);
+                        session.listing_unanswered();
+                    }
                     Err(error) => return Err(error),
                 }
             }
@@ -296,7 +293,7 @@ impl Permissions {
             self.refuse(&context, &session, &check, verdict)?;
         }
 
-        open_obligations(&context, &session, operation, requirements);
+        open_obligations(&session, operation, requirements);
         Ok(())
     }
 
@@ -308,12 +305,12 @@ impl Permissions {
         check: &Check,
         verdict: Verdict,
     ) -> Result<()> {
-        if self.shadow {
+        if self.settings.shadow {
             tracing::warn!(
                 target: TARGET,
                 operation = session.facts().id,
                 permission = check.permission.value,
-                resource = %check.resource,
+                resource = %loggable(&check.resource),
                 outcome = if verdict == Verdict::Hidden { "would_hide" } else { "would_deny" },
                 "the declared requirements would refuse this request"
             );
@@ -366,7 +363,6 @@ fn probe_not_found(
 
 /// Opens the operation's `by handler` obligations on its record.
 fn open_obligations(
-    context: &Context,
     session: &Session,
     operation: &OperationInfo,
     requirements: &'static [RequirementInfo],
@@ -384,7 +380,7 @@ fn open_obligations(
             outcome: ObligationOutcome::Open,
         })
         .collect();
-    session.update(context, |record| record.obligations = obligations);
+    session.edit(|record| record.obligations = obligations);
 }
 
 /// Whether the model marks the operation public: it has no authentication,
@@ -558,7 +554,7 @@ impl Interceptor for Permissions {
         let metadata = *job.metadata();
         let operation = job.operation();
         let session = Session::new(
-            &self.settings(),
+            self.settings.clone(),
             OperationFacts {
                 id: operation.id,
                 readonly: operation.readonly,
@@ -586,9 +582,13 @@ impl Interceptor for Permissions {
                 session.update(&context, |record| record.pending = Some(reason));
                 Hook::Ready(Ok(()))
             }
-            Requirements::List(requirements) => {
-                Hook::wait(self.enforce(job, session, requirements))
-            }
+            // Every step records; the record is published once, refused
+            // or not, for audit middleware that reads it afterwards.
+            Requirements::List(requirements) => Hook::wait(async move {
+                let result = self.enforce(job, session.clone(), requirements).await;
+                session.publish(&context);
+                result
+            }),
         }
     }
 
@@ -613,7 +613,7 @@ impl Interceptor for Permissions {
         // without the other would answer a hidden resource unlike a missing
         // one.
         let service = prepare.service();
-        self.not_found = match (service.not_found, &self.not_found_factory) {
+        let not_found = match (service.not_found, &self.not_found_factory) {
             (Some(shape), Some(factory)) => {
                 probe_not_found(service, shape, factory)?;
                 Some(NotFound {
@@ -688,7 +688,9 @@ impl Interceptor for Permissions {
                 "these operations have no requirement metadata, and Permissions refuses them with an internal error; declare their requirements (or `requires pending`), or opt out with allow_undeclared()"
             );
         }
-        self.registry = Arc::new(registry);
+        let settings = Arc::make_mut(&mut self.settings);
+        settings.not_found = not_found;
+        settings.registry = Arc::new(registry);
         if problems.is_empty() {
             return Ok(());
         }
@@ -714,14 +716,12 @@ mod tests {
     }
 
     #[test]
-    fn obligations_are_asserted_by_default_in_debug_builds_and_tests() {
+    fn obligations_are_asserted_by_default_in_every_build() {
+        // Not a debug-build default: a release build that forgets a
+        // discharge must fail the request too, unless it opts out.
         let permissions = Permissions::new(Nobody);
-        assert_eq!(
-            permissions.assert_obligations,
-            cfg!(any(debug_assertions, feature = "test-support"))
-        );
-        // This crate's own tests are debug builds.
-        assert!(permissions.assert_obligations);
-        assert!(!permissions.assert_obligations(false).assert_obligations);
+        assert!(permissions.settings.assert_obligations);
+        let opted_out = permissions.assert_obligations(false);
+        assert!(!opted_out.settings.assert_obligations);
     }
 }

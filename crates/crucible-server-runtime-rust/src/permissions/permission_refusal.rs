@@ -31,8 +31,12 @@ impl PermissionRefusal {
         self.check.permission
     }
 
-    /// The instance the caller lacks it on. Its identifiers came from the
-    /// request, so echoing them reveals nothing the caller did not send.
+    /// The instance the caller lacks it on. A declared check's identifiers
+    /// came from the request ([`Origin::Declared`], or a `filters` listing),
+    /// but a handler check's ([`Origin::Handler`], from `require`) or an
+    /// obligation's ([`Origin::Obligation`], from `discharge`) are whatever
+    /// the handler bound, perhaps an id it looked up: echo only an
+    /// identifier the request named.
     pub fn resource(&self) -> &ResourceRef {
         &self.check.resource
     }
