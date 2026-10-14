@@ -780,12 +780,12 @@ pub(crate) fn stored_checks(context: &Context) -> Option<Value> {
 /// Before a stored success is replayed: asks the Authorizer again for the
 /// handler-side checks it recorded, the first that is not Allowed refusing
 /// the replay as it would have refused the request, and requires the
-/// listing, if the operation filters one, to show now at least what the
-/// stored success showed. `Ok(false)` when the replay cannot be
-/// authorized: a recorded check no longer reads, or the caller now sees
-/// less of the listing than the stored response shows (so the caller is
-/// told to send a new token, rather than served what it may no longer
-/// see). `Ok(true)` when it may be served, also when `Permissions` does
+/// listing, if the operation filters one, to show now everything, or the
+/// same ids the stored success showed (only a digest of them is kept, so a
+/// set that grew is refused too). `Ok(false)` when the replay cannot be
+/// authorized: a recorded check no longer reads, or the listing is not
+/// covered (so the caller is told to send a new token, rather than served
+/// what it may no longer see). `Ok(true)` when it may be served, also when `Permissions` does
 /// not cover the operation now. Shadow mode refuses nothing here either:
 /// what would have been refused, or could not be decided, is logged.
 #[cfg(feature = "idempotency")]
@@ -865,7 +865,7 @@ impl Session {
                 target: TARGET,
                 operation = self.0.facts.id,
                 outcome,
-                "the caller now sees less of the listing than the stored success shows, so it is not replayed"
+                "the caller's listing no longer covers what the stored success shows, so it is not replayed"
             );
             return Ok(false);
         }

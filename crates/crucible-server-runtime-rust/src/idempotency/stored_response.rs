@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 /// was written at, and, when `Permissions` covered the request, the handler
 /// checks the Authorizer allowed and what a `filters` listing showed (as a
 /// digest of its ids), as `authorization`: a replay asks for the checks
-/// again, and is refused when the caller now sees less of the listing. A
+/// again, and is refused unless the caller sees as much of the listing. A
 /// record from before this field replays with the operation's declared
 /// checks alone. A retry gets it encoded afresh, by the protocol and at
 /// the API version the retry uses, with the retry's own request id, so the

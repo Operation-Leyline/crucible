@@ -988,8 +988,9 @@ For each operation it covers, `Permissions`:
   and was never read with `visible()` fails as an unsatisfied obligation
   does (below), since nothing was filtered. A replay of a stored success
   is refused (409, as an unreplayable one, so the caller sends a new token)
-  when the caller now sees less of the listing than it showed; the
-  idempotency record keeps a digest of what it showed, not the ids.
+  unless the caller now sees the whole listing, or the same ids it showed
+  (or it showed nothing): the idempotency record keeps a digest of the
+  ids, not the ids, so a changed set of ids is refused even when it grew.
 - **Opens obligations** for `requires p on R by handler` clauses (below).
 - **Records everything** in an `AuthorizationRecord` on the request
   context, for audit middleware that runs later: each check with its origin

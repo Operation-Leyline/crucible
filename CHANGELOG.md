@@ -435,8 +435,8 @@ version's section when it is prepared.
   defaults to `true`, and `false` is the deliberate opt-out. So does a
   success whose `filters` listing shows less than everything and was never
   read with `visible()`, which `idempotency::commit()` also refuses. A
-  replay of a filtered listing is refused as unreplayable (409) when the
-  caller now sees less of it than the stored success showed; the
+  replay of a filtered listing is refused as unreplayable (409) unless the
+  caller now sees all of it, or the same ids the stored success showed; the
   idempotency record's `authorization` becomes `{ "checks", "listing" }`
   (a digest of the ids), and a record in the earlier array form still
   reads. A `discharge` holds its obligation while it asks the Authorizer,
