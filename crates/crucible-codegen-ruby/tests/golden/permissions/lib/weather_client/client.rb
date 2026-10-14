@@ -15,6 +15,23 @@ module Weather
     end
     # Releases the HTTP connection this client created. A transport passed in the configuration is left open.
     def close = @runtime.close
+    # A mixed list: clients see the public clause and that more are internal,
+    # never the internal clause or the internal member its `when` reads.
+    #
+    # Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+    #
+    # Requires `graph:write` on the graph; and further permissions internal to the service.
+    #
+    # @param input [ArchiveGraphInput] the request to send
+    # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled
+    # @return [ArchiveGraphOutput] the service's response
+    # @raise [InternalServerException]
+    # @raise [NotFoundException]
+    # @raise [ValidationException]
+    # @raise [Runtime::LeylineException] for any other error response
+    def archive_graph(input, cancellation: nil)
+      @runtime.call('ArchiveGraph', input, cancellation: cancellation)
+    end
     # Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
     #
     # Requires `graph:write` on every graph in the organization.
@@ -58,6 +75,8 @@ module Weather
       @runtime.call('GetGraph', input, cancellation: cancellation)
     end
     # Read-only: retried automatically after transient failures.
+    #
+    # Requires permissions internal to the service.
     #
     # @param input [GetOrganizationInput] the request to send
     # @param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled

@@ -23,6 +23,19 @@ final class LeylineClient {
   /// Releases the HTTP client this client created. A transport passed in the
   /// configuration is left open. Calls made after closing throw a `StateError`.
   void close() => _runtime.close();
+  /// A mixed list: clients see the public clause and that more are internal,
+  /// never the internal clause or the internal member its `when` reads.
+  ///
+  /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+  ///
+  /// Requires `graph:write` on the graph; and further permissions internal to the service.
+  ///
+  /// Throws:
+  ///
+  /// - [models.InternalServerException]
+  /// - [models.NotFoundException]
+  /// - [models.ValidationException]
+  Future<models.ArchiveGraphOutput> archiveGraph(models.ArchiveGraphInput input, {CancellationToken? cancellation}) => _runtime.call("ArchiveGraph", input, cancellation: cancellation);
   /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
   ///
   /// Requires `graph:write` on every graph in the organization.
@@ -54,6 +67,8 @@ final class LeylineClient {
   /// - [models.ValidationException]
   Future<models.GetGraphOutput> getGraph(models.GetGraphInput input, {CancellationToken? cancellation}) => _runtime.call("GetGraph", input, cancellation: cancellation);
   /// Read-only: retried automatically after transient failures.
+  ///
+  /// Requires permissions internal to the service.
   ///
   /// Throws:
   ///

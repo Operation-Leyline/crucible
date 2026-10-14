@@ -16,6 +16,23 @@ extern "C" {
 leyline_status leyline_client_new(const leyline_client_config *config, leyline_client **output, leyline_error *error);
 
 /** Zero-initialize results. Free before reuse; value borrows base.arena. */
+typedef struct { leyline_result base; const leyline_models_archive_graph_output *value; } leyline_operations_archive_graph_result;
+/**
+ * A mixed list: clients see the public clause and that more are internal,
+ * never the internal clause or the internal member its `when` reads.
+ *
+ * Requires `graph:write` on the graph; and further permissions internal to the service.
+ *
+ * Input: ArchiveGraphInput.
+ *
+ * Returns: ArchiveGraphOutput.
+ *
+ * Modeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+ */
+leyline_status leyline_operations_archive_graph(leyline_client *client, const leyline_models_archive_graph_input *input, leyline_cancelled_fn cancelled, void *cancel_user, leyline_operations_archive_graph_result *result, leyline_error *error);
+void leyline_operations_archive_graph_result_free(leyline_operations_archive_graph_result *result);
+
+/** Zero-initialize results. Free before reuse; value borrows base.arena. */
 typedef struct { leyline_result base; const leyline_models_create_graph_output *value; } leyline_operations_create_graph_result;
 /**
  * Call CreateGraph.
@@ -69,6 +86,8 @@ void leyline_operations_get_graph_result_free(leyline_operations_get_graph_resul
 typedef struct { leyline_result base; const leyline_models_get_organization_output *value; } leyline_operations_get_organization_result;
 /**
  * Call GetOrganization.
+ *
+ * Requires permissions internal to the service.
  *
  * Input: GetOrganizationInput.
  *

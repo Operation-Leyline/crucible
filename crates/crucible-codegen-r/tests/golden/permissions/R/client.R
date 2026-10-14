@@ -6,6 +6,19 @@
 `LeylineClient` <- function(config = client_config()) {
   client <- .crucible_client(config, NULL, TRUE)
 #' @description
+#' A mixed list: clients see the public clause and that more are internal,
+#' never the internal clause or the internal member its `when` reads.
+#'
+#' Requires `graph:write` on the graph; and further permissions internal to the service.
+#'
+#' Input: ArchiveGraphInput.
+#'
+#' Returns: ArchiveGraphOutput.
+#'
+#' Modeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+#' @md
+  client$`archive_graph` <- function(input, cancellation = NULL) client$call("ArchiveGraph", input, cancellation)
+#' @description
 #' Call CreateGraph.
 #'
 #' Requires `graph:write` on every graph in the organization.
@@ -45,6 +58,8 @@
   client$`get_graph` <- function(input, cancellation = NULL) client$call("GetGraph", input, cancellation)
 #' @description
 #' Call GetOrganization.
+#'
+#' Requires permissions internal to the service.
 #'
 #' Input: GetOrganizationInput.
 #'

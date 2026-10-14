@@ -1,7 +1,19 @@
 \name{operations}
 \alias{operations}
 \title{Operation contracts}
-\description{create_graph
+\description{archive_graph
+A mixed list: clients see the public clause and that more are internal,
+never the internal clause or the internal member its \code{when} reads.
+
+Requires \code{graph:write} on the graph; and further permissions internal to the service.
+
+Input: ArchiveGraphInput.
+
+Returns: ArchiveGraphOutput.
+
+Modeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+
+create_graph
 Call CreateGraph.
 
 Requires \code{graph:write} on every graph in the organization.
@@ -38,6 +50,8 @@ This operation is safe to retry under the configured retry policy.
 
 get_organization
 Call GetOrganization.
+
+Requires permissions internal to the service.
 
 Input: GetOrganizationInput.
 

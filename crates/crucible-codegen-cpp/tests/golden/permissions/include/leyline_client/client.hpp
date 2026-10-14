@@ -15,6 +15,19 @@ public:
     /** Closes the shared runtime; finish active calls first. */
     void close() { runtime_->close(); }
     /**
+     * A mixed list: clients see the public clause and that more are internal,
+     * never the internal clause or the internal member its `when` reads.
+     *
+     * Requires `graph:write` on the graph; and further permissions internal to the service.
+     *
+     * Input: ArchiveGraphInput.
+     *
+     * Returns: ArchiveGraphOutput.
+     *
+     * Modeled errors: NotFoundException, ValidationException, InternalServerException. Transport, timeout and decoding failures can also occur.
+     */
+    [[nodiscard]] ::leyline::models::ArchiveGraphOutput archive_graph(const ::leyline::models::ArchiveGraphInput& input, std::stop_token stop = {}) const;
+    /**
      * Call CreateGraph.
      *
      * Requires `graph:write` on every graph in the organization.
@@ -54,6 +67,8 @@ public:
     [[nodiscard]] ::leyline::models::GetGraphOutput get_graph(const ::leyline::models::GetGraphInput& input, std::stop_token stop = {}) const;
     /**
      * Call GetOrganization.
+     *
+     * Requires permissions internal to the service.
      *
      * Input: GetOrganizationInput.
      *

@@ -17,6 +17,19 @@ public final class LeylineClient: Sendable {
     /// Releases the HTTP session this client created. A transport passed in the
     /// configuration is left open. Calls made after closing fail.
     public func close() { runtime.close() }
+    /// A mixed list: clients see the public clause and that more are internal,
+    /// never the internal clause or the internal member its `when` reads.
+    ///
+    /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
+    ///
+    /// Requires `graph:write` on the graph; and further permissions internal to the service.
+    ///
+    /// - Parameter input: The ``ArchiveGraphInput`` to send.
+    /// - Returns: The ``ArchiveGraphOutput`` the service returned.
+    /// - Throws: ``InternalServerException``, ``NotFoundException``, ``ValidationException``, or another ``LeylineException`` when the service responds with an error.
+    public func `archiveGraph`(_ input: `ArchiveGraphInput`) async throws -> `ArchiveGraphOutput` {
+        try await runtime.call("ArchiveGraph", input: input, as: `ArchiveGraphOutput`.self)
+    }
     /// Not idempotent: not retried after a network failure or server error, since repeating it could repeat its effect. Throttling responses are still retried.
     ///
     /// Requires `graph:write` on every graph in the organization.
@@ -48,6 +61,8 @@ public final class LeylineClient: Sendable {
         try await runtime.call("GetGraph", input: input, as: `GetGraphOutput`.self)
     }
     /// Read-only: retried automatically after transient failures.
+    ///
+    /// Requires permissions internal to the service.
     ///
     /// - Parameter input: The ``GetOrganizationInput`` to send.
     /// - Returns: The ``GetOrganizationOutput`` the service returned.
