@@ -827,6 +827,31 @@ permissions, aliases of them, and requirements that name them, as it drops
 internal members. `Undeclared` survives lowering only for a service that
 declares no permission.
 
+Additions to the contract above, made in phase A1:
+
+```rust
+// ir::Operation
+#[serde(default, skip_serializing_if = "std::ops::Not::not")]
+pub public: bool,      // declared public: Smithy `@auth([])` on the operation, or on the
+                       // service when the operation has no `@auth`; `.cru` `public`.
+                       // `auth.is_empty()` alone is not: a service that declares no
+                       // scheme leaves every operation without one.
+
+// ir::Requirements
+Internal,              // client audience only: every clause named an internal permission,
+                       // and the projection removed them. A `List` is never empty.
+```
+
+The checks of §5 run once, in `crucible_smithy::validate::permissions`,
+with facts lowering knows and the IR does not keep (`PermissionFacts`:
+identifier types, collection operations, the input member that binds each
+identifier of an operation's resource). So the binding types of check 10,
+check 14's "`filters` is on a collection operation" and
+`permissions.other-instance` are front-end checks.
+`validate::permissions_from_ir` runs the rest on an IR alone, such as a
+release snapshot, and skips those rather than reporting them; generators
+read only the IR.
+
 ### 6.2 The Rust server
 
 Generated code stays thin: types and `'static` data. The runtime defines
