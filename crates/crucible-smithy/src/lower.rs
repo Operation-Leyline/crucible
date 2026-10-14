@@ -29,9 +29,12 @@ fn explicitly_public(traits: &Traits) -> bool {
         .is_some_and(Vec::is_empty)
 }
 
-/// The typed permission traits, which only `.cru` models declare
-/// (docs/permissions.md).
-const PERMISSION_TRAITS: &[&str] = &[
+/// The typed permission traits (`crucible.auth#<name>`), which only `.cru`
+/// models declare (docs/permissions.md §4.11). `crucible-traits` no longer
+/// defines them, so a Smithy model that uses one is refused: here at
+/// lowering, or by the Smithy compiler first (`Model.UnresolvedTrait`),
+/// whose failure `crucible-build` explains with [`permission_trait_refusal`].
+pub const PERMISSION_TRAITS: &[&str] = &[
     "permissionsOf",
     "authorizationName",
     "permissionOnly",
@@ -42,6 +45,14 @@ const PERMISSION_TRAITS: &[&str] = &[
     "requiresNone",
     "requiresPending",
 ];
+
+/// Why a Smithy model may not use the permission trait `name`, one of
+/// [`PERMISSION_TRAITS`], and what to do instead.
+pub fn permission_trait_refusal(name: &str) -> String {
+    format!(
+        "@crucible.auth#{name} is not supported: typed permissions are declared in .cru models (docs/permissions.md); migrate the model to .cru to declare them"
+    )
+}
 
 const PRELUDE_AUTH: &[&str] = &[
     "httpBasicAuth",
@@ -1235,10 +1246,7 @@ impl<'m> Lowerer<'m> {
             for (at, traits) in std::iter::once((id.clone(), &shape.traits)).chain(members) {
                 for name in PERMISSION_TRAITS {
                     if traits.contains_key(&ShapeId::new("crucible.auth", name)) {
-                        self.diagnostics.push(
-                            &at,
-                            format!("@crucible.auth#{name} is not supported: typed permissions are declared in .cru models (docs/permissions.md); migrate the model to .cru to declare them"),
-                        );
+                        self.diagnostics.push(&at, permission_trait_refusal(name));
                     }
                 }
             }

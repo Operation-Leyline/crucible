@@ -1,0 +1,61 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "example.leyline#Leyline": {
+      "type": "service", "version": "1",
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {}
+      },
+      "operations": [
+        {"target": "example.leyline#GetUser"},
+        {"target": "example.leyline#ListOrgs"},
+        {"target": "example.leyline#DeleteOrg"}
+      ],
+      "resources": [{"target": "example.leyline#Org"}]
+    },
+    "crucible.protocols#json": {"type": "structure", "traits": {"smithy.api#trait": {}, "smithy.api#protocolDefinition": {}}},
+    "example.leyline#Org": {
+      "type": "resource",
+      "identifiers": {"orgId": {"target": "smithy.api#String"}},
+      "traits": {"crucible.auth#authorizationName": "org"}
+    },
+    "example.leyline#GetUser": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {"method": "GET", "uri": "/user", "code": 200},
+        "crucible.auth#requiresNone": "the caller's own credential"
+      }
+    },
+    "example.leyline#ListOrgs": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {"method": "GET", "uri": "/orgs", "code": 200},
+        "crucible.auth#requiresPending": "checked in the handler"
+      }
+    },
+    "example.leyline#DeleteOrg": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {"method": "DELETE", "uri": "/org", "code": 200},
+        "crucible.auth#requires": [{"permission": "manage", "resource": "example.leyline#Org"}]
+      }
+    },
+    "example.leyline#OrgPermission": {
+      "type": "enum",
+      "traits": {"crucible.auth#permissionsOf": "example.leyline#Org"},
+      "members": {
+        "READ": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "org:read", "crucible.auth#permissionOnly": {}}},
+        "ADMIN": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "org:admin", "crucible.auth#notGrantable": {}}},
+        "VIEW": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "org:view", "crucible.auth#aliasOf": "READ"}}
+      }
+    },
+    "example.leyline#ResourceType": {
+      "type": "enum",
+      "traits": {"crucible.auth#permissionTypes": {}},
+      "members": {
+        "ORG": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "org"}}
+      }
+    }
+  }
+}

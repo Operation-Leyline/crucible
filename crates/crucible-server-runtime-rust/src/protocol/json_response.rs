@@ -298,20 +298,7 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
         return not_found(error, resource.name, format);
     }
     let type_name = if format.rpc_v2() {
-        match error {
-            FrameworkError::Unauthenticated => "smithy.framework#UnauthenticatedException",
-            FrameworkError::Forbidden | FrameworkError::PermissionDenied { .. } => {
-                "smithy.framework#ForbiddenException"
-            }
-            FrameworkError::Conflict { .. } => "smithy.framework#ConflictException",
-            FrameworkError::NotFound { .. } => NOT_FOUND_SHAPE,
-            FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
-            FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
-            FrameworkError::UnsupportedMediaType => {
-                "smithy.framework#UnsupportedMediaTypeException"
-            }
-            FrameworkError::InternalFailure => "smithy.framework#InternalFailureException",
-        }
+        error.shape_id()
     } else {
         error.name()
     };

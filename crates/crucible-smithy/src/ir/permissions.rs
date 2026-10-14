@@ -1,5 +1,6 @@
 //! Typed permissions (docs/permissions.md §6.1): what a resource accepts and
-//! what an operation requires. Both front ends lower to these types and
+//! what an operation requires. Only the `.cru` front end declares them (a
+//! Smithy model that uses a permission trait is refused at lowering), and
 //! `crate::validate::permissions` checks them once.
 //!
 //! The serde names are part of the release snapshot format: every field is
@@ -101,7 +102,10 @@ pub struct PermissionTypes {
 /// What an operation says about authorization.
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum Requirements {
-    /// Nothing: a compile error once the service declares any permission.
+    /// Nothing: a compile error on an authenticated operation once the
+    /// service declares any permission. What a public operation, and every
+    /// operation of a service without permissions, lowers to; the client
+    /// projection also turns `Pending` into it.
     #[default]
     Undeclared,
     /// `requires none`: authenticated, and no permission is needed.

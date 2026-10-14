@@ -23,18 +23,54 @@ tag.
 ## Unreleased
 
 The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
-authority. Only code that constructs or exhaustively destructures
-`crucible_auth::Principal`, or matches `FrameworkError` without a wildcard
-arm, has to change; reading `Principal`'s fields does not.
+authority. Only three kinds of code have to change: code that constructs or
+exhaustively destructures `crucible_auth::Principal` or `OperationMetadata`,
+and code that matches `FrameworkError` without a wildcard arm. Reading
+their fields does not.
 
-### `FrameworkError::Conflict`, `NotFound` and `PermissionDenied`
+### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
 
 `FrameworkError` gained `Conflict { message }`, the 409 that idempotency
 answers by default, and `NotFound { resource }` (404) and
-`PermissionDenied { permission }` (403), which typed permissions answer. A `match` naming every variant needs an arm for each (or
-`_`), in server code and in client code that names it through
-`crucible_client_runtime_rust`, which re-exports it; `name()`, `status()` and
-`message()` cover it, so code that only calls those is unaffected.
+`PermissionDenied { permission }` (403), which typed permissions answer.
+It is now `#[non_exhaustive]`, so variants added later are not breaking. A
+`match` on it outside `crucible-wire` needs a `_` arm. That applies to
+server code and to client code that names it through
+`crucible_client_runtime_rust`, which re-exports it:
+
+```rust
+// 0.7
+match error {
+    FrameworkError::Unauthenticated => ..,
+    FrameworkError::Forbidden => ..,
+    FrameworkError::UnknownOperation
+    | FrameworkError::MethodNotAllowed { .. }
+    | FrameworkError::UnsupportedMediaType
+    | FrameworkError::InternalFailure => ..,
+}
+
+// next
+match error {
+    FrameworkError::Unauthenticated => ..,
+    FrameworkError::Forbidden | FrameworkError::PermissionDenied { .. } => ..,
+    _ => ..,
+}
+```
+
+`name()`, `status()`, `message()` and the new `shape_id()` cover every
+variant, so code that only calls those is unaffected.
+
+### `OperationMetadata` is non-exhaustive
+
+`OperationMetadata` gained `pagination`, `idempotency_token`,
+`idempotency_token_sent`, `replays_output`, `requirements`, `checks` and
+`public`, and is `#[non_exhaustive]`, so fields added later are not
+breaking. The runtime builds it when an operation is registered. Code
+outside the runtime reads it from `OperationJob::metadata`,
+`DecodedJob::metadata`, `Operations::metadata` or `Prepare::metadata`, and
+can no longer build one with a struct literal. A test that built one to
+stand in for registration should register the operation and read the value
+back instead. A pattern that names every field needs `..`.
 
 ### `Principal` is non-exhaustive
 

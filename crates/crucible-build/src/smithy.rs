@@ -171,13 +171,31 @@ pub fn compile_smithy_with(
     }))?;
     write_changed(&config, &contents)?;
     let output = root.join("compiled");
-    compiler(&config, &output)?;
+    compiler(&config, &output).map_err(explain_permission_traits)?;
     // Smithy rewrites its output even when the model is unchanged. Publish a
     // stable copy so Cargo dependents can reuse their generated contracts.
     let model = root.join("model.json");
     let contents = std::fs::read(output.join("crucible/model/model.json"))?;
     write_changed(&model, &contents)?;
     Ok(model)
+}
+
+/// The typed permission traits are `.cru`-only (docs/permissions.md §4.11)
+/// and `crucible-traits` no longer defines them, so the Smithy compiler
+/// fails on a source that uses one (`Model.UnresolvedTrait`) before
+/// lowering could say why. Put lowering's explanation, once per trait the
+/// report names, ahead of the compiler's own report.
+fn explain_permission_traits(error: io::Error) -> io::Error {
+    let report = error.to_string();
+    let advice: Vec<String> = crucible_smithy::PERMISSION_TRAITS
+        .iter()
+        .filter(|name| report.contains(&format!("`crucible.auth#{name}`")))
+        .map(|name| crucible_smithy::permission_trait_refusal(name))
+        .collect();
+    if advice.is_empty() {
+        return error;
+    }
+    io::Error::new(error.kind(), format!("{}\n\n{report}", advice.join("\n")))
 }
 
 fn write_changed(path: &Path, contents: &[u8]) -> io::Result<()> {

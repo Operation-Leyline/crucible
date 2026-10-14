@@ -7,7 +7,11 @@ pub type ErasedChecks = fn(&dyn Input, &mut Vec<Check>) -> bool;
 
 /// Effective wire and authentication settings retained after type-erased registration.
 /// These describe the model; middleware remains responsible for enforcing authentication.
+///
+/// Non-exhaustive: the runtime builds it at registration, and new model facts
+/// join it as fields. Read the fields; a pattern that names them needs `..`.
 #[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
 pub struct OperationMetadata {
     pub protocol: Protocol,
     pub auth_schemes: Option<&'static [AuthScheme]>,

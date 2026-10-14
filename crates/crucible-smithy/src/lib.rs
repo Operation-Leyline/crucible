@@ -40,6 +40,7 @@ use std::collections::BTreeMap;
 pub use audience::{Audience, project};
 pub use capabilities::{Capabilities, Feature, FeatureUse};
 pub use diagnostics::{Diagnostic, Diagnostics};
+pub use lower::{PERMISSION_TRAITS, permission_trait_refusal};
 pub use protocol::{Protocol, ProtocolSettings};
 pub use shape_id::{ShapeId, ShapeIdError};
 
