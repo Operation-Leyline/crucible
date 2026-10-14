@@ -279,8 +279,21 @@ protocol families, streaming, checksums, endpoint rules/discovery, and other
 unassessed advanced features produce `compatibility.unchecked` findings.
 They require an explicit assessment or exception; they do not silently pass.
 
+Permissions ([permissions.md](permissions.md) §5) are stored data: grants and
+audit records carry a resource's authorization name and a permission's
+value. Removing a permission or an alias, changing a value, and changing an
+authorization name (a resource shape renamed without `@authorizationName`
+keeping the old one) are `compatibility.permissions` findings. Renaming a
+permission by adding the new primary and keeping the old value as a
+deprecated `@aliasOf` alias is additive. Adding or tightening a requirement
+on a released operation, including replacing `requires none` or `requires
+pending`, is a `compatibility.authorization` warning: reported, never
+refused, because it is how holes get closed.
+
 `sdk_source` checks model-level public types, operations, members, enums,
-service-local renames, collection representations, and service/client identity.
+service-local renames, collection representations, service/client identity,
+and permission constants: one removed, or moved to `internal`, is a
+`compatibility.sdk` finding.
 A new optional member (not required, no default) added after a structure's
 existing members passes, unless the structure is an error: generated clients
 accept it without a source change (Rust models are `#[non_exhaustive]` and

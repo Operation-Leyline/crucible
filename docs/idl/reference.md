@@ -57,22 +57,41 @@ protocol    = "protocol" ident "{" { clause } "}" ;
 clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
+                 (* annotation on a resource: @authorizationName("name") *)
 resource_entry = [ doc ] { annotation } { entry_modifier } ( "id" | "property" )
-                 ident [ "?" ] ":" type_ref [ "as" ident ] ;
+                 ident [ "?" ] ":" type_ref [ "as" ident ]
+               | permission_entry ;
                  (* `?` on a property, `as` on an identifier: its name in views *)
 entry_modifier = "readonly" | "immutable" | "writeonly" ;
                  (* properties only; `immutable writeonly` is the one combination *)
+permission_entry = [ doc ] { annotation } [ "internal" ] "permission" ident "=" string ;
+                 (* annotations: @permissionOnly, @notGrantable, @aliasOf(symbol),
+                    @deprecated, @since *)
 
 operation   = "operation" ident [ role ident [ "collection" ] ] "{" { op_entry } "}" ;
 role        = ident ;          (* creates | puts | reads | updates | deletes | lists | on;
                                   lowering reports any other word; collection follows on *)
-op_entry    = http | clause_call | body | errors | example ;
+op_entry    = http | clause_call | body | errors | example | requirement ;
 http        = "http" ident string [ "->" number ] ;
 clause_call = ident "(" args ")" ;                         (* paginated(..) *)
 body        = [ doc ] { modifier } ( "input" | "output" ) "{" { member } "}" ;
 errors      = "errors" "[" ident { "," ident } "]" ;
 example     = [ doc ] "example" string "{" { example_part } "}" ;
 example_part = ( "input" | "output" ) value | "error" ident value ;
+requirement = [ doc ] "requires" ( "none"
+                                 | "pending" "because" string
+                                 | ident [ "on" target ] [ "when" condition ] [ "by" "handler" ] )
+            | [ doc ] "filters" ident "on" ident ;
+target      = ident [ "(" binding { "," binding } ")" ] ;
+binding     = [ ident ":" ] ( "*" | "$" ident | dotted ) ;
+                 (* an unnamed binding binds the resource's own identifier *)
+condition   = cond_and { "or" cond_and } ;
+cond_and    = cond_not { "and" cond_not } ;
+cond_not    = "not" cond_not | cond_atom ;
+cond_atom   = "(" condition ")" | "has" dotted | dotted "==" value | dotted "in" value ;
+                 (* values: strings, numbers, true, false; `in` takes a list *)
+permission_value = segment { ":" segment } ;   (* the string of a permission entry *)
+segment     = lower { lower | upper | digit } { "-" ( lower | digit ) { lower | upper | digit } } ;
 
 structure   = "structure" ident [ "for" ident ] "{" { member } "}" ;
 union       = "union" ident "{" { member } "}" ;
@@ -200,8 +219,40 @@ language's own checks include:
   role's implied keyword is not contradicted;
 - service, operation, error and example clauses, list entries, object
   keys and annotations are given once; a service declares its version.
+- permissions ([permissions.md](../permissions.md) §5, checks 1-18): they
+  run on the IR in `crucible_smithy::validate::permissions`, shared with
+  the Smithy traits, and each diagnostic starts with its code
+  (`permissions.undeclared` and the like). A resource's permission symbols
+  and values are unique, values follow `permission_value` and do not
+  differ only in case, and authorization names are lowerCamelCase and
+  unique; a permission is in one tier (`internal`, `@permissionOnly`,
+  `@notGrantable`), and a `@permissionOnly` one is required by nothing;
+  an alias is `@deprecated`, names a primary of its resource and tier, and
+  is never required; a `@permissionTypes` enum is unique, every value is
+  the authorization name of a resource with permissions, and every
+  resource with grantable permissions is a value or excluded;
+  `requires p on R` names a permission `R` declares; a public operation
+  declares no requirement, `requires none` and `requires pending` stand
+  alone, and a pending reason is nonempty; every identifier of the target
+  is bound once, by a member of the identifier's own type (a different
+  string type with the same constraints is a warning), `*` binds only the
+  resource's own identifier, and no binding passes through a list or map;
+  a path through an optional member or union arm is guarded by `when`,
+  which reads input members and compares like with like; `filters`
+  appears once, on a `lists` or `on .. collection` operation; `by handler`
+  takes no bindings or `when`; and once a service declares any permission,
+  every authenticated operation declares `requires`, `filters`, `requires
+  none` or `requires pending` (`permissions.undeclared`).
 
-Warnings never withhold the IR. The compiler warns about a plain member
+Warnings never withhold the IR. Permissions add these: a public
+permission nothing requires (`permissions.unrequired`), each `requires
+pending` with its reason (`permissions.pending`), `when has x` on a member
+that is always present, a `filters` beside a `requires` on the same
+resource, and an operation that declares a 404 error besides the
+framework `NotFoundException` (`permissions.second-not-found`). An input
+member that binds another permissioned resource's identifier that no
+requirement covers is *advice* (`permissions.unchecked-reference`). The
+compiler also warns about a plain member
 whose name is a resource identifier or property ("did you mean
 `$name`?", decision 33), a property that is neither `readonly` nor
 `immutable` and that no `updates`, `puts` or instance `on` input binds
@@ -215,6 +266,64 @@ to a resource the service does not reach, a member constraint that loosens its t
 it, so `length ..40` on a `1..100` type drops the minimum), a `[Name]`
 doc link that names nothing (decision 41), and a `///` comment that
 documents nothing.
+
+## Permissions
+
+A resource lists the permissions it accepts; an operation says what it
+requires and on which resource. Crucible never decides: the service's
+`Authorizer` does ([permissions.md](../permissions.md)).
+
+```
+resource Inbox in Workspace {
+    id inboxId: InboxId
+    /// Send, reply and forward from this address.
+    permission mailSend = "mail:send"
+    /// Renamed to `mail:send`.
+    @deprecated @aliasOf(mailSend)
+    permission emailSend = "email:send"
+}
+
+operation SendMessage on Message collection {
+    http POST "/v1/workspaces/{workspaceId}/inboxes/{inboxId}/messages"
+    requires mailSend on Inbox
+    /// The rendered wording is what the recipient reads.
+    requires read on Template(content.template.templateId) when has content.template
+    input { $workspaceId; $inboxId; content: MessageContent }
+}
+```
+
+- **Values and names.** The symbol (`mailSend`) is what generated code
+  calls it; the value (`"mail:send"`) is its identity in grants, always
+  written, compared case-sensitively. A resource's authorization name is
+  its shape name in lowerCamelCase (`ApiKey` is `apiKey`) unless
+  `@authorizationName("..")` says otherwise; the pair (name, value)
+  identifies a permission in grants and audit records.
+- **Tiers.** `internal permission` reaches the server only;
+  `@permissionOnly` is required by no operation (a policy checks it);
+  `@notGrantable` is a bundle the service confers whole. `@aliasOf(p)`
+  keeps a renamed permission's old value; requirements name `p`.
+- **Targets.** `requires p` alone is on the operation's own resource
+  (instance operations only); `on R` binds each identifier of `R` from the
+  input member that binds it (`$name`); `R(*)` binds the resource's own
+  identifier to every instance; `R(path)` binds it from an input member
+  path; `R(id: $x)` names one. A path never crosses a list or map.
+- **`when`** holds the clause to the input: `has a.b` is true when the
+  optional member is present or the union arm selected.
+- **`filters p on R`** answers a listing with only the instances the
+  caller holds `p` on; **`by handler`** declares a check the handler
+  discharges; **`requires none`** says no permission is needed;
+  **`requires pending because ".."`** suppresses the strict default during
+  migration. Each operation with a `requires` or `filters` clause gets
+  `crucible.errors#NotFoundException` in its errors (import
+  `crucible.errors`), unless every clause is on a root resource with `*`.
+- **`@permissionTypes(exclude: [R])`** on the hand-written enum of
+  resource types a grant names checks it against the resources both ways.
+
+The IR carries them as `Service::permissions`, `Service::permission_types`
+and `Operation::requirements` (permissions.md §6.1). Removing a
+permission or alias, changing a value or an authorization name, and moving
+a permission to `internal` are breaking changes to the release guard;
+adding a requirement is reported as an authorization change.
 
 ## Semantics, briefly
 

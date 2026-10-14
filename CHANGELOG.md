@@ -137,6 +137,42 @@ version's section when it is prepared.
   with either was already invalid Smithy; one assembled without Smithy's
   validators is now refused at lowering instead of reaching a generator.
 
+- Typed permissions, phase A1: the language, the Smithy traits, the IR and
+  the compiler checks ([docs/permissions.md](docs/permissions.md)). A `.cru`
+  resource declares `permission symbol = "value"` entries (`internal`,
+  `@permissionOnly`, `@notGrantable`, `@aliasOf(primary)`, and
+  `@authorizationName("..")` on the resource); an operation declares
+  `requires p [on Target(bindings)] [when condition] [by handler]`,
+  `filters p on R`, `requires none` or `requires pending because ".."`;
+  `@permissionTypes(exclude: [..])` checks a resource-type enum against the
+  resources both ways. Smithy models use the new `crucible.auth` traits
+  `permissionsOf`, `authorizationName`, `permissionOnly`, `notGrantable`,
+  `aliasOf`, `permissionTypes`, `requires`, `requiresNone` and
+  `requiresPending` in `smithy/auth.smithy`. Both lower to
+  `ir::Service::permissions`, `ir::Service::permission_types` and
+  `ir::Operation::requirements` (all `#[serde(default)]`, and not written
+  when empty, so existing release snapshots read and write unchanged), with
+  `Service::all_permissions()` for the registry, and both are checked once
+  by `crucible_smithy::validate::permissions`: once a service declares any
+  permission, an authenticated operation that says nothing about
+  authorization is the error `permissions.undeclared`. Lowering adds the new
+  `crucible.errors#NotFoundException` (404, `message` and `resourceType`;
+  in `smithy/errors.smithy` and the bundled `crucible.errors` package) to
+  every operation with a requirement. The client audience projection drops
+  internal permissions. `crucible check` counts permissions and lists
+  pending operations. Generators do not read the new fields yet: their
+  output is unchanged.
+
+- Release guard and `crucible diff`: `compatibility.permissions` reports a
+  removed permission or alias, a changed value and a changed authorization
+  name, which break stored grants; `compatibility.sdk` reports a removed
+  permission constant or one moved to `internal`; adding a requirement to a
+  released operation is a `compatibility.authorization` warning.
+
+- `crucible_lang::Severity::Advice` and `Diagnostic::advice`: a question
+  for the author, never a failure; the language server shows it as
+  information.
+
 ### Changed
 
 - An idempotency token member is described, in OpenAPI and MCP schemas,
