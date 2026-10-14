@@ -236,7 +236,8 @@ body is an absent payload. An explicitly null structure, union or document
 payload follows the protocol's null-member policy: Crucible JSON sends the body
 `null`, AWS REST JSON omits a null structure or union. Readers take a `null`
 payload as the member's explicit null, exactly as a JSON body member, never as
-a structure built from null. Error
+a structure built from null. A structure is only ever a JSON object, never an
+array of positional values. Error
 payloads require a discriminator outside the body: `X-Crucible-Error` for
 Crucible or `X-Amzn-Errortype` for AWS restJson1. These are separate target
 capabilities, so lowering support does not imply client or server support.

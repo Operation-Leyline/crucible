@@ -14,6 +14,7 @@ pub mod event_stream;
 pub mod field;
 pub mod mcp;
 pub mod number;
+pub mod object;
 pub mod open;
 pub mod operation;
 pub mod permissions;

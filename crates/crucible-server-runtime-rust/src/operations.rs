@@ -213,7 +213,7 @@ pub(crate) fn unreadable_message(message: &str) -> Rejection {
 }
 
 pub(crate) fn decode<O: Operation>(value: Value) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let input: O::Input = serde_json::from_value(value).map_err(unreadable)?;
+    let input: O::Input = crucible_wire::object::from_value(value).map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -228,7 +228,7 @@ pub(crate) fn decode_json<O: Operation>(
     } else {
         bytes
     };
-    let input: O::Input = serde_json::from_slice(bytes).map_err(unreadable)?;
+    let input: O::Input = crucible_wire::object::from_slice(bytes).map_err(unreadable)?;
     Validator::check(&input)?;
     Ok(Box::new(input))
 }

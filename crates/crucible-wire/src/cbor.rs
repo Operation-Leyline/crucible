@@ -69,10 +69,11 @@ pub fn write_typed<T: Serialize + ?Sized>(
 
 /// Event streams carry a shared JSON view between framing and typed receivers.
 /// Restore the model type before writing CBOR so native wire values survive.
+/// The view is read as any model JSON is: a structure only from an object.
 pub fn event_encode<T: Serialize + DeserializeOwned>(
     value: &serde_json::Value,
 ) -> Result<bytes::Bytes, String> {
-    let value: T = serde_json::from_value(value.clone()).map_err(|error| error.to_string())?;
+    let value: T = crate::object::from_value(value.clone()).map_err(|error| error.to_string())?;
     let mut bytes = Vec::new();
     write(&value, &mut bytes)?;
     Ok(bytes.into())
@@ -239,3 +240,27 @@ macro_rules! string_number {
 }
 string_number!(BigInteger, true);
 string_number!(BigDecimal, false);
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+    use serde_json::json;
+
+    #[derive(Serialize, Deserialize)]
+    struct Point {
+        x: f64,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Event {
+        point: Point,
+    }
+
+    // A structure in an event's JSON view is an object, as in a body (#292).
+    #[test]
+    fn an_event_view_reads_a_structure_only_from_an_object() {
+        assert!(super::event_encode::<Event>(&json!({"point": {"x": 1}})).is_ok());
+        assert!(super::event_encode::<Event>(&json!({"point": [1]})).is_err());
+        assert!(super::event_encode::<Event>(&json!([[1]])).is_err());
+    }
+}

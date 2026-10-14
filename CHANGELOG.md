@@ -455,6 +455,17 @@ version's section when it is prepared.
   [API versions](docs/api-versions.md#limits) promise. A construction error
   for an older version's entry names its API version.
 
+- A structure is read only from a JSON object. serde's derived struct
+  reader also takes an array of positional values, so a JSON body, a
+  structure `@httpPayload` or a nested member sent as `[]` or
+  `["Oslo", 1]` was accepted as that structure, under every JSON protocol
+  (Crucible JSON, AWS REST JSON, AWS JSON 1.0/1.1, RPC v2 JSON, direct
+  invocation and input events), in the Rust client's response reader and
+  in a generated service CLI's `--input-json` and MCP `tools/call` input.
+  It is now a malformed request (or an unreadable response), as RPC v2
+  CBOR already treated it. A document member still takes any JSON value.
+  (#292)
+
 - A Crucible service accepts an explicitly null structure or union
   `@httpPayload`. Rust, TypeScript, Python and Go clients send one under
   Crucible JSON as the body `null`, which the server refused with a 400

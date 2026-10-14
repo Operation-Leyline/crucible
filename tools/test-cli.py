@@ -205,6 +205,8 @@ def transport(cli, output):
         error = cli.call(*options, "probe", "--input-json", '{"count":"secret-value"}', code=2)
         assert "secret-value" not in error.stderr, error.stderr
         cli.call(*options, "create-city", "--input-json", '{"location":{"coordinates":{"latitude":0,"longitude":0,"typo":1}}}', code=2)
+        # A structure is a JSON object, never positional values (#292).
+        cli.call(*options, "create-city", "--input-json", '{"name":"n","location":{"coordinates":[59.9,10.7]}}', code=2)
         assert len(calls) == before, "Invalid local input performed HTTP requests"
 
         request = {"name": "from-json", "location": {"coordinates": {"latitude": 59.9, "longitude": 10.7}}}
@@ -313,7 +315,9 @@ def stdio_mcp(cli, output):
                     rpc(8, "tools/call", name="GetCity", arguments={"cityId": "c-missing0"}),
                     "{", [], {"jsonrpc": "2.0", "id": True, "method": "ping"},
                     rpc(9, "missing"), rpc(10, "tools/list", cursor="next"),
-                    rpc(11, "tools/call", name="Probe", arguments=[])]
+                    rpc(11, "tools/call", name="Probe", arguments=[]),
+                    rpc(12, "tools/call", name="CreateCity",
+                        arguments={"name": "n", "location": {"coordinates": [59.9, 10.7]}})]
         responses = mcp_messages(cli, options, messages)
         by_id = {item["id"]: item for item in responses if item["id"] is not None}
         assert len(responses) == len(messages) - 2, responses
@@ -325,7 +329,7 @@ def stdio_mcp(cli, output):
         assert all(tool["inputSchema"]["type"] == "object" for tool in tools)
         assert by_id[4]["result"]["structuredContent"]["observed"] == {"count": 12345, "text": "agent"}
         assert by_id[5]["result"]["isError"] is False
-        for identifier in [6, 7, 10, 11]:
+        for identifier in [6, 7, 10, 11, 12]:
             assert by_id[identifier]["error"]["code"] == -32602, by_id[identifier]
         assert by_id[8]["result"]["isError"] is True
         assert by_id[9]["error"]["code"] == -32601

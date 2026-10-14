@@ -403,3 +403,45 @@ fn received_frames_and_events_are_refused_without_repeating_the_senders_text() {
         }
     }
 }
+
+// A received JSON event reads a structure only from an object, as a body
+// does (#292): serde's derived struct visitor would take `[1, 2]` too.
+#[test]
+fn a_received_event_reads_a_structure_only_from_an_object() {
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    struct Point {
+        x: i64,
+        y: i64,
+    }
+    #[derive(Debug, PartialEq, serde::Deserialize)]
+    struct Moved {
+        to: Point,
+    }
+    impl crucible_wire::validate::Validate for Moved {
+        fn validate(&self, _: &mut crucible_wire::validate::Validator) {}
+    }
+    fn receive(validated: bool, event: Value) -> Result<Option<Moved>, EventStreamError<Moved>> {
+        let events: crucible_wire::event_stream::Incoming =
+            Box::pin(futures_util::stream::iter([Ok(event)]));
+        let stream = if validated {
+            EventStream::<Moved>::incoming_validated(events)
+        } else {
+            EventStream::<Moved>::incoming(events)
+        };
+        stream.open().unwrap().recv().now_or_never().unwrap()
+    }
+    for validated in [false, true] {
+        assert_eq!(
+            receive(validated, json!({"to": {"x": 1, "y": 2}})).unwrap(),
+            Some(Moved {
+                to: Point { x: 1, y: 2 }
+            })
+        );
+        for event in [json!({"to": [1, 2]}), json!([[1, 2]])] {
+            match receive(validated, event.clone()) {
+                Err(EventStreamError::Decode(_)) => {}
+                other => panic!("{validated} {event}: {other:?}"),
+            }
+        }
+    }
+}

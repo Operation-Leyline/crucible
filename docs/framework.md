@@ -1405,7 +1405,10 @@ union or document payload of JSON `null` is the member's explicit null, read
 as the same member would be from a JSON body: Crucible JSON clients send an
 explicitly null payload that way. An optional structure or union is then
 absent; a document is absent, or `Some(Value::Null)` where the protocol keeps
-document nulls (AWS REST JSON). Other whitespace
+document nulls (AWS REST JSON). A structure, as the whole body, a payload
+or a member at any depth, is read only from a JSON object: an array of
+positional values is malformed under every JSON protocol, as it is under
+RPC v2 CBOR. Other whitespace
 bytes are invalid JSON. Raw text and blob payloads retain every byte.
 
 A buffered request body over the limit is refused during reading, as the

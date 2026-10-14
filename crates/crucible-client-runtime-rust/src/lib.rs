@@ -94,8 +94,8 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, field, number, open, operation, permissions, time,
-        validate,
+        cbor, codec, error, event_stream, field, number, object, open, operation, permissions,
+        time, validate,
     };
 
     pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {
