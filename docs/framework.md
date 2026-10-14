@@ -990,7 +990,12 @@ For each operation it covers, `Permissions`:
   is refused (409, as an unreplayable one, so the caller sends a new token)
   unless the caller now sees the whole listing, or the same ids it showed
   (or it showed nothing): the idempotency record keeps a digest of the
-  ids, not the ids, so a changed set of ids is refused even when it grew.
+  ids, not the ids, so any change to the set refuses the replay, even
+  one that only grew it. A record kept while `Permissions` did not cover
+  the operation counts as having shown everything. The new token the
+  caller sends runs the operation again: for a `filters` operation that
+  changes state, that is a second execution, so make its handler
+  idempotent if a caller may retry it that way.
 - **Opens obligations** for `requires p on R by handler` clauses (below).
 - **Records everything** in an `AuthorizationRecord` on the request
   context, for audit middleware that runs later: each check with its origin
@@ -1136,10 +1141,15 @@ is not installed.
 nothing, logging `would_deny`, `would_hide`, `would_refuse_undeclared`, and
 `would_fail` for an Authorizer error or a wiring error in the descriptions;
 `commit` logs an unsatisfied obligation rather than refusing it, and a
-success with one keeps its response. A `filters` listing it could not get
-answered shows nothing to `permissions::visible()` (as a hidden one does)
-rather than failing the handler, and a replay is served whatever asking
-again says, an Authorizer error included. Identifiers in its log lines
+success with one keeps its response. During an Authorizer outage (or a
+wiring error) it answers a read-only operation's `filters` listing as
+empty: `permissions::visible()` shows nothing (as for a hidden one)
+rather than failing the handler, and that success is never replayed. An
+operation that changes state fails instead, as it would without shadow
+mode: on an empty listing it would be a no-op success, which its
+idempotency claim would then keep for every retry; failing releases the
+claim, so a retry after the outage does the work. Otherwise a replay is
+served whatever asking again says, an Authorizer error included. Identifiers in its log lines
 (and in every permissions log line and internal error) are escaped and
 cut short: they come from the request. For moving a service's own checks
 onto the model with the log showing that both agree. Handler checks still

@@ -1681,6 +1681,19 @@ async fn shadow_mode_refuses_nothing_when_the_authorizer_is_down() {
     assert_eq!(replay.status, 200, "{}", replay.json());
     assert_eq!(replay.body, first.body);
     assert_eq!(harness.state.deletes.load(Ordering::SeqCst), 1);
+
+    // A listing that changes state is not run on an empty answer: it
+    // fails, so its claim is released rather than keeping a no-op success,
+    let archive = || harness.post("/w/w1/archive", "alice", json!({ "clientToken": "a-1" }));
+    assert_internal(&archive().await);
+    assert_eq!(harness.state.archives.load(Ordering::SeqCst), 0);
+    // and the same token does the work once the Authorizer answers.
+    harness.grants.fail.store(false, Ordering::SeqCst);
+    let archived = archive().await;
+    assert_eq!(archived.status, 200, "{}", archived.json());
+    assert_eq!(archived.json()["value"], json!(["i1"]));
+    assert_eq!(archive().await.body, archived.body);
+    assert_eq!(harness.state.archives.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

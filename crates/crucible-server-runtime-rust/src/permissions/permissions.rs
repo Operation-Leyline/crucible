@@ -159,9 +159,13 @@ impl Permissions {
     /// obligation at `idempotency::commit()` is logged, not refused. For
     /// moving a service's own checks onto the model one operation at a
     /// time, with the log showing that both agree. Nothing it decides
-    /// refuses: an Authorizer that cannot answer a `filters` listing leaves
-    /// [`visible`](super::visible) showing nothing rather than failing the
-    /// handler, and a replay is served whatever its re-authorization says.
+    /// refuses, with one exception: during an Authorizer outage (or a wiring
+    /// error) a read-only `filters` listing is answered as empty, so
+    /// [`visible`](super::visible) shows nothing rather than failing the
+    /// handler, and such a success is never replayed; an operation that
+    /// changes state fails instead, as it would without shadow mode, since
+    /// on an empty listing it would be a no-op success. A replay is
+    /// otherwise served whatever its re-authorization says.
     /// Handler checks ([`require`](super::require),
     /// [`discharge`](super::discharge)) still refuse: the handler asked for
     /// them.
@@ -234,11 +238,11 @@ impl Permissions {
                 Ok(bound) => bound,
                 // Shadow mode refuses nothing, its own wiring errors included:
                 // the obligations still open, so a handler written for
-                // enforcing mode closes them unchanged, and its listing
-                // shows nothing.
+                // enforcing mode closes them unchanged, and a read-only
+                // listing shows nothing (one that changes state fails).
                 Err(error) if self.settings.shadow => {
                     shadow_failure(operation, &error);
-                    session.listing_unanswered();
+                    session.listing_unanswered(error)?;
                     open_obligations(&session, operation, requirements);
                     return Ok(());
                 }
@@ -283,7 +287,7 @@ impl Permissions {
                     Ok(_) => {}
                     Err(error) if self.settings.shadow => {
                         shadow_failure(operation, &error);
-                        session.listing_unanswered();
+                        session.listing_unanswered(error)?;
                     }
                     Err(error) => return Err(error),
                 }

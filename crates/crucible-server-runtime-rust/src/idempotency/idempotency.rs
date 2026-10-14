@@ -232,11 +232,17 @@ impl Idempotency {
                 };
                 // The declared checks were made again by `Permissions`,
                 // which runs first; the handler checks the first success
-                // was allowed are asked again here. A caller who lost
-                // access is refused rather than served the stored success.
+                // was allowed are asked again here, and the listing it
+                // showed compared. A caller who lost access is refused
+                // rather than served the stored success. A record kept
+                // without an authorization (the operation was outside
+                // `Permissions` then) has no checks and an unknown listing.
                 #[cfg(feature = "permissions")]
-                if let Some(authorization) = authorization
-                    && !crate::permissions::reauthorize(job.context(), &authorization).await?
+                if !crate::permissions::reauthorize(
+                    job.context(),
+                    &authorization.unwrap_or(Value::Null),
+                )
+                .await?
                 {
                     return Err((self.refusal)(IdempotencyRefusal::Unreplayable));
                 }

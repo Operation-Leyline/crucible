@@ -91,6 +91,11 @@ enum Shown {
     Nothing,
     /// A digest of the ids, so a long listing does not grow the record.
     Only(String),
+    /// Shadow mode could not get the listing answered, and showed nothing
+    /// for want of an answer: nothing covers it, so the success is never
+    /// replayed, and a retry with a new token runs once the Authorizer
+    /// answers.
+    Unanswered,
 }
 
 impl Session {
@@ -307,13 +312,28 @@ impl Session {
         Ok(visibility)
     }
 
-    /// Shadow mode: the operation's listing could not be answered, so
+    /// Shadow mode, after `error` kept the operation's listing from being
+    /// answered. A read-only operation goes on, and
     /// [`visibility`](Self::visibility) shows nothing instead of failing the
-    /// handler that reads it.
-    pub fn listing_unanswered(&self) {
-        if self.shadow() && has_filters(self.0.facts.requirements) {
-            self.lock().listing_unanswered = true;
+    /// handler that reads it. An operation that changes state fails with
+    /// `error`, as it would without shadow mode: run on an empty listing it
+    /// would do nothing and succeed, and its claim would keep that no-op
+    /// for every retry, where failing releases it so a retry after the
+    /// outage does the work.
+    pub fn listing_unanswered(&self, error: Error) -> Result<()> {
+        if !self.shadow() || !has_filters(self.0.facts.requirements) {
+            return Ok(());
         }
+        if !self.0.facts.readonly {
+            tracing::error!(
+                target: TARGET,
+                operation = self.0.facts.id,
+                "the `filters` listing of an operation that changes state could not be answered; failing it even in shadow mode, since an empty listing would make it a no-op success"
+            );
+            return Err(error);
+        }
+        self.lock().listing_unanswered = true;
+        Ok(())
     }
 
     /// What the handler's [`visible`](super::visible) answers, read.
@@ -493,8 +513,14 @@ impl Session {
                 })
             })
             .collect();
-        let listing = match shown(&inner).as_ref().map(Shown::of) {
+        let listing = if inner.listing_unanswered {
+            Some(Shown::Unanswered)
+        } else {
+            shown(&inner).as_ref().map(Shown::of)
+        };
+        let listing = match listing {
             None => Value::Null,
+            Some(Shown::Unanswered) => json!("unanswered"),
             Some(Shown::All) => json!("all"),
             Some(Shown::Nothing) => json!("none"),
             Some(Shown::Only(digest)) => json!({ "only": digest }),
@@ -510,7 +536,11 @@ impl Session {
     /// checks.
     #[cfg(feature = "idempotency")]
     fn read_stored(&self, stored: &Value) -> Option<(Vec<Check>, Shown)> {
+        // Kept without an `authorization` (the operation was outside
+        // `Permissions` then): no handler checks, and a listing unknown.
+        static NONE: Vec<Value> = Vec::new();
         let (checks, listing) = match stored {
+            Value::Null => (&NONE, &Value::Null),
             Value::Array(checks) => (checks, &Value::Null),
             Value::Object(stored) => (
                 stored.get("checks")?.as_array()?,
@@ -522,6 +552,7 @@ impl Session {
             Value::Null => Shown::All,
             Value::String(shown) if shown == "all" => Shown::All,
             Value::String(shown) if shown == "none" => Shown::Nothing,
+            Value::String(shown) if shown == "unanswered" => Shown::Unanswered,
             Value::Object(only) => Shown::Only(only.get("only")?.as_str()?.to_owned()),
             _ => return None,
         };
@@ -596,7 +627,11 @@ impl Shown {
     /// showed `stored`: the replay shows everything, the stored success
     /// showed nothing, or both show exactly the same ids. Only a digest is
     /// kept, so a current listing that is a strict superset is refused too.
+    /// A success shadow mode served without an answer is never covered.
     fn covers(&self, stored: &Self) -> bool {
+        if *stored == Self::Unanswered {
+            return false;
+        }
         *self == Self::All || *stored == Self::Nothing || self == stored
     }
 }
@@ -797,6 +832,17 @@ pub(crate) async fn reauthorize(context: &Context, stored: &Value) -> Result<boo
     let Some(session) = context.attribute::<Session>() else {
         return Ok(true);
     };
+    // Shadow mode served it on an empty listing for want of an answer:
+    // never replayed, whatever the mode, or a retry would get that empty
+    // answer for the retention instead of a real one.
+    if stored.get("listing").and_then(Value::as_str) == Some("unanswered") {
+        tracing::warn!(
+            target: TARGET,
+            operation = session.0.facts.id,
+            "a stored success was served on a `filters` listing shadow mode could not get answered, so it is not replayed"
+        );
+        return Ok(false);
+    }
     let result = session.reauthorize(context, stored).await;
     session.publish(context);
     match result {
@@ -1166,16 +1212,50 @@ mod tests {
 
     #[test]
     fn shadow_shows_nothing_of_a_listing_it_could_not_answer() {
-        let shadow = Session::new(settings(Failing, true), facts(&FILTERS));
-        shadow.listing_unanswered();
+        let outage = || crate::Error::internal("the grants table is unreachable");
+        let reading = OperationFacts {
+            readonly: true,
+            ..facts(&FILTERS)
+        };
+        let shadow = Session::new(settings(Failing, true), reading);
+        shadow.listing_unanswered(outage()).unwrap();
         assert_eq!(
             shadow.visibility().unwrap(),
             Visibility::Only(BTreeSet::new())
         );
+        // An operation that changes state fails instead: on an empty
+        // listing it would be a no-op success.
+        let writing = Session::new(settings(Failing, true), facts(&FILTERS));
+        assert!(writing.listing_unanswered(outage()).is_err());
         // Enforcing, there is no listing to read: the request was refused.
-        let enforcing = Session::new(settings(Failing, false), facts(&FILTERS));
-        enforcing.listing_unanswered();
+        let enforcing = Session::new(settings(Failing, false), reading);
+        enforcing.listing_unanswered(outage()).unwrap();
         assert!(enforcing.visibility().is_err());
+    }
+
+    #[cfg(feature = "idempotency")]
+    #[tokio::test]
+    async fn a_success_served_on_an_unanswered_listing_is_never_replayed() {
+        let reading = OperationFacts {
+            readonly: true,
+            ..facts(&FILTERS)
+        };
+        let first = Session::new(settings(Failing, true), reading);
+        first
+            .listing_unanswered(crate::Error::internal("down"))
+            .unwrap();
+        let stored = first.stored();
+        assert_eq!(stored["listing"], "unanswered");
+        for (shadow, now) in [(true, Visibility::All), (false, Visibility::All)] {
+            let session = Session::new(settings(Answering(Verdict::Allowed), shadow), reading);
+            let context = context();
+            context.set_attribute(session.clone());
+            listing(&session, now);
+            assert!(
+                !super::reauthorize(&context, &stored).await.unwrap(),
+                "shadow {shadow}"
+            );
+        }
     }
 
     #[test]
@@ -1233,6 +1313,10 @@ mod tests {
         // A record from before listings were kept is a bare array.
         let legacy = stored["checks"].clone();
         assert_eq!(session.read_stored(&legacy).unwrap().0, read);
+        // One kept without an authorization: no checks, a listing unknown.
+        let (none, listing) = session.read_stored(&serde_json::Value::Null).unwrap();
+        assert!(none.is_empty());
+        assert_eq!(listing, super::Shown::All);
         // A permission the registry no longer has cannot be asked again.
         let dropped = serde_json::json!([{
             "resource": "workspace", "permission": "workspace:gone",

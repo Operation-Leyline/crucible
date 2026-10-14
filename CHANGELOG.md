@@ -428,9 +428,12 @@ version's section when it is prepared.
 
 - Typed permissions, the request's session (unreleased since #246):
   `Permissions::shadow()` refuses nothing, also when the Authorizer cannot
-  answer a `filters` listing (the handler's `permissions::visible()` shows
-  nothing instead of failing) or a replay's handler checks (the replay is
-  served). A success with a `by handler` obligation unsatisfied now fails
+  answer a read-only operation's `filters` listing (the handler's
+  `permissions::visible()` shows nothing instead of failing, and that
+  success is never replayed) or a replay's handler checks (the replay is
+  served). An operation that changes state still fails when its listing
+  cannot be answered, since on an empty listing it would succeed as a
+  no-op. A success with a `by handler` obligation unsatisfied now fails
   in release builds too, not only in debug builds: `assert_obligations`
   defaults to `true`, and `false` is the deliberate opt-out. So does a
   success whose `filters` listing shows less than everything and was never

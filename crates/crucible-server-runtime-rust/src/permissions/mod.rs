@@ -306,8 +306,15 @@ pub fn not_applicable(obligation: Obligation, reason: impl Into<String>) -> Resu
 /// the operation ran: [`Visibility::All`], or [`Visibility::Only`] the ids
 /// the handler filters to. (A Hidden or Denied listing was refused before
 /// the handler ran, except under `Permissions::shadow`, where it shows
-/// nothing, as does a listing shadow mode could not get answered.) An
-/// internal error for an operation without a `filters` clause.
+/// nothing, as does a read-only listing shadow mode could not get
+/// answered.) An internal error for an operation without a `filters`
+/// clause.
+///
+/// With an idempotency token, a retry is replayed only to a caller who
+/// now sees the whole listing or exactly the ids the first success
+/// showed: any change to the set, even growth, refuses the replay as
+/// unreplayable, and the new token the caller then sends runs the
+/// operation again.
 ///
 /// A handler of a `filters` operation must read it: a success whose
 /// listing shows less than everything, never read here, fails as an

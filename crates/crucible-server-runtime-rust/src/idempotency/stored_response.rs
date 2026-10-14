@@ -7,7 +7,8 @@ use serde_json::{Value, json};
 /// digest of its ids), as `authorization`: a replay asks for the checks
 /// again, and is refused unless the caller sees as much of the listing. A
 /// record from before this field replays with the operation's declared
-/// checks alone. A retry gets it encoded afresh, by the protocol and at
+/// checks alone, and a filtered listing only to a caller who sees all of
+/// it. A retry gets it encoded afresh, by the protocol and at
 /// the API version the retry uses, with the retry's own request id, so the
 /// output reads the same way whichever way the retry came.
 ///
