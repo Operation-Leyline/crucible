@@ -12,6 +12,15 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     // The examples are projected natively below; repeating them raw is noise.
     if let Some(raw) = raw_traits.as_object_mut() {
         raw.remove("smithy.api#examples");
+        // So are the requirements (`x-crucible-requires`), which the raw
+        // traits would state with internal permissions included.
+        for id in [
+            "crucible.auth#requires",
+            "crucible.auth#requiresNone",
+            "crucible.auth#requiresPending",
+        ] {
+            raw.remove(id);
+        }
     }
     let mut value = json!({
         "operationId": service.name_of(&op.id),
@@ -20,7 +29,18 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         "x-smithy-shape": op.id.to_string(),
         "x-smithy-traits": raw_traits,
     });
-    description(&mut value, op.docs.as_deref());
+    // What the caller must hold (docs/permissions.md §6.3, decision 10): a
+    // sentence in the description and the clauses as `x-crucible-requires`.
+    // Never OAuth scopes: a scope list cannot name the resource.
+    let requires = crucible_codegen_common::permissions::requirement_paragraph(service, op);
+    let docs = match (op.docs.as_deref(), requires) {
+        (Some(docs), Some(requires)) => Some(format!("{docs}\n\n{requires}")),
+        (docs, requires) => docs.map(str::to_owned).or(requires),
+    };
+    description(&mut value, docs.as_deref());
+    if let Some(requirements) = crucible_codegen_common::permissions::requirements(service, op) {
+        value["x-crucible-requires"] = requirements;
+    }
     annotate(&mut value, &op.notes, Slot::Native);
     if let Some(resource) = &op.resource {
         value["tags"] = json!([service.name_of(resource)]);

@@ -20,6 +20,7 @@ mod client;
 mod client_api;
 mod client_options;
 mod client_package;
+mod client_permissions;
 mod conformance;
 mod debug;
 mod errors;
@@ -31,6 +32,7 @@ mod models;
 mod names;
 mod open;
 mod operations;
+mod permissions;
 mod runtime_dependency;
 mod scaffold;
 mod server_api;
@@ -268,10 +270,11 @@ pub(crate) fn body_with(
         internal: internal_fn,
     };
     let operations = format!(
-        "{}{}{}",
+        "{}{}{}{}",
         info::redactions(service),
         operations::emit(service, functions, options.mcp, diagnostics),
-        events::statics(service, diagnostics, false)
+        events::statics(service, diagnostics, false),
+        permissions::module(service, diagnostics),
     );
     let exports = server_api::exports(service, diagnostics);
     let mcp = if options.mcp {
@@ -327,9 +330,10 @@ pub fn generate_client(service: &Service) -> Result<String, Diagnostics> {
     let errors = errors::emit(service, true, &mut diagnostics);
     check_patterns(service, &mut diagnostics);
     let client = format!(
-        "{}{}",
+        "{}{}{}",
         info::redactions(service),
-        client::emit(service, &mut diagnostics)
+        client::emit(service, &mut diagnostics),
+        client_permissions::module(service, &mut diagnostics),
     );
     let exports = client_api::exports(service, &mut diagnostics);
     if !diagnostics.is_empty() {

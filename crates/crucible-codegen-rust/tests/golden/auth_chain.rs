@@ -263,6 +263,7 @@ pub mod auth_weather {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
         const OPTIONAL_AUTH: bool = false;
+        const PUBLIC: bool = true;
         const HAS_INPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUBLIC_OPERATION;
         type Input = ::crucible_server_runtime_rust::__generated::operation::Unit;

@@ -27,6 +27,7 @@ pub(crate) fn exports(service: &Service, diagnostics: &mut Diagnostics) -> Strin
         "__redaction",
         "runtime",
         "__CRUCIBLE_CLIENT_METADATA",
+        "permissions",
     ] {
         declared.insert(reserved.to_owned(), service.id.clone());
     }

@@ -105,6 +105,15 @@ pub fn operation_notes(op: &Operation, token_member: Option<&str>) -> Vec<String
     notes
 }
 
+/// What the caller must hold for `op`, as the model states it
+/// (docs/permissions.md §6.3), escaped like [`operation_notes`]' text.
+pub fn requirement_notes(service: &Service, op: &Operation) -> Vec<String> {
+    crate::permissions::requirement_sentences(service, op)
+        .iter()
+        .map(|sentence| escape(sentence))
+        .collect()
+}
+
 /// Neutralises what in Smithy-authored Markdown a doc tool would misread:
 /// `@tag` at the start of a line and bare `[reference]` lookalikes, which
 /// would be tags or unresolvable symbol links. Fenced and inline code is left

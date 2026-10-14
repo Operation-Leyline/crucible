@@ -203,7 +203,8 @@ fn operation_kdoc(
     returns: &str,
     throws: bool,
 ) -> String {
-    let mut notes = vec![];
+    // What the caller must hold, as the model states it (docs/permissions.md §6.3).
+    let mut notes = crucible_codegen_common::permissions::requirement_sentences(service, op);
     if op.docs.is_none() {
         notes.push(format!("Calls the {} operation.", code(op.name())));
     }

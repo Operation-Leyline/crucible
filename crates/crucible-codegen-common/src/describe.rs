@@ -328,6 +328,16 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         operations,
         shapes,
     };
+    // The permission registry (docs/permissions.md §8): internal entries
+    // only when the caller described the server audience, whose IR keeps
+    // them. Absent for a service that declares none.
+    let registry = crate::permissions::registry(service, true);
+    if registry
+        .as_array()
+        .is_some_and(|entries| !entries.is_empty())
+    {
+        description.service["permissions"] = registry;
+    }
     sort_objects(&mut description.service);
     for value in description
         .resources
@@ -394,6 +404,13 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
                 json!({"shape":e.shape.to_string(),"status":info.status,"wireCode":info.body_discriminator.as_ref().unwrap_or(&info.wire_code),
                     "message":message})
             })})).collect::<Vec<_>>()});
+    // What the caller must hold: the clauses as data, and the sentences
+    // every generated client's documentation carries.
+    if let Some(requirements) = crate::permissions::requirements(service, op) {
+        value["requirements"] = requirements;
+        value["requirementSentences"] =
+            json!(crate::permissions::requirement_sentences(service, op));
+    }
     if explorer {
         for (example, source) in value["examples"]
             .as_array_mut()

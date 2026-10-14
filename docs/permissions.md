@@ -932,6 +932,20 @@ type-erased `checks` that downcasts `&dyn Input` (the pattern
 it. Every per-request cost is the binding clones and one `Vec`. Nothing is
 parsed or looked up by name at request time.
 
+*As built (phase B).* The enums, references and statics live in a
+`permissions` submodule of the service module (`pigeon::permissions::InboxPermission`),
+so they never collide with a model shape such as a Smithy `@permissionsOf`
+enum named `GraphPermission`. The typed reference over all resources is
+`permissions::Resource` (it would shadow the runtime's `ResourceRef` under
+the spec's name), built with `TryFrom<&ResourceRef>`. Per-resource enums have
+`parse(value) -> Option<Self>` rather than `FromStr`, which would need an
+error type of its own. Obligation constants are associated with the
+operation's marker type (`ExecuteQuery::WRITE_ON_GRAPH`): `ExecuteQueryOperation`
+is the trait the service implements, which cannot carry an inherent
+constant. A typed reference converts with `.into()` where the handler API
+takes a `ResourceRef` (`discharge(ExecuteQuery::WRITE_ON_GRAPH,
+GraphRef::new(&org, &graph).into())`).
+
 ### 6.3 Clients, docs and OpenAPI
 
 - **SDKs.** Each client gets the registry as constants of its language,

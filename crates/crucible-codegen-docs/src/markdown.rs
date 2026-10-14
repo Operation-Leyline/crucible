@@ -132,6 +132,12 @@ pub(super) fn render(d: &Description) -> Vec<File> {
             code(&d.service["scopes"].to_string())
         ));
     }
+    if !list(&d.service["permissions"]).is_empty() {
+        index.push_str(&format!(
+            "\nOperations name what the caller must hold on which resource; {} lists every permission.\n",
+            link("Permissions", "permissions.md")
+        ));
+    }
     index.push_str("\n## Service errors\n\n");
     index.push_str(&errors(d, &d.service["errors"], ""));
     index.push_str("## Operations\n\n");
@@ -190,8 +196,15 @@ pub(super) fn render(d: &Description) -> Vec<File> {
         }
         index.push('\n');
     }
-    summary.push_str("- Data types\n");
     let mut files = Vec::new();
+    if let Some(page) = permissions_page(d) {
+        summary.push_str("- [Permissions](permissions.md)\n");
+        files.push(File {
+            path: "src/permissions.md".into(),
+            contents: page,
+        });
+    }
+    summary.push_str("- Data types\n");
     for op in d.operations.values() {
         files.push(File {
             path: format!("src/{}", operation_path(op)),
@@ -536,6 +549,7 @@ fn operation(d: &Description, op: &Value) -> String {
             code(&op["scopes"].to_string())
         ));
     }
+    out.push_str(&authorization(op));
     out.push_str(&message(d, op, true));
     out.push_str(&message(d, op, false));
     out.push_str("## Errors\n\n");
@@ -593,6 +607,137 @@ fn operation(d: &Description, op: &Value) -> String {
     }
     out
 }
+/// Markdown generated from the model (a requirement sentence, a
+/// permission's description) as one table cell.
+fn cell(markdown: &str) -> String {
+    documentation::html(markdown)
+        .trim()
+        .replace('|', "&#124;")
+        .replace('\n', " ")
+}
+
+/// What the caller must hold (docs/permissions.md §6.3), or nothing for an
+/// operation that declares nothing.
+fn authorization(op: &Value) -> String {
+    let requirements = &op["requirements"];
+    let Some(kind) = requirements["kind"].as_str() else {
+        return String::new();
+    };
+    let mut out = "## Authorization\n\n".to_owned();
+    match kind {
+        "none" => out.push_str("Requires no permission.\n\n"),
+        // Only the server audience keeps a pending operation's reason.
+        "pending" => out.push_str(&format!(
+            "Requirements not declared yet; the service checks them itself: {}\n\n",
+            escaped(string(&requirements["reason"]))
+        )),
+        "internal" => out.push_str("Requires permissions internal to the service.\n\n"),
+        _ => {
+            for sentence in list(&op["requirementSentences"]) {
+                out.push_str(&documentation::html(string(sentence)));
+                out.push('\n');
+            }
+            out.push_str(
+                "| Mode | Permission | Resource type | Bindings | When |\n|---|---|---|---|---|\n",
+            );
+            for clause in list(&requirements["clauses"]) {
+                let bindings: Vec<String> = list(&clause["bindings"])
+                    .iter()
+                    .map(|b| {
+                        format!(
+                            "{} = {}",
+                            code(string(&b["identifier"])),
+                            code(string(&b["value"]))
+                        )
+                    })
+                    .collect();
+                let when = match (clause["when"].as_str(), clause["documentation"].as_str()) {
+                    (Some(when), _) => code(when),
+                    (None, Some(docs)) if clause["mode"] == "handler" => cell(docs),
+                    _ => String::new(),
+                };
+                out.push_str(&format!(
+                    "| {} | {} | {} | {} | {} |\n",
+                    string(&clause["mode"]),
+                    code(string(&clause["permission"])),
+                    code(string(&clause["resourceType"])),
+                    bindings.join(", "),
+                    when
+                ));
+            }
+            out.push('\n');
+        }
+    }
+    out
+}
+
+/// `permissions.md`: the registry by resource type, a table per tier
+/// (docs/permissions.md §6.3). Internal entries exist only in a
+/// server-audience description.
+fn permissions_page(d: &Description) -> Option<String> {
+    let registry = list(&d.service["permissions"]);
+    if registry.is_empty() {
+        return None;
+    }
+    let mut out = "# Permissions\n\nWhat a grant names: a resource type and a permission value. Values are compared case-sensitively; a deprecated alias means the same as the value it names.\n\n".to_owned();
+    for resource in registry {
+        out.push_str(&format!(
+            "## {}\n\nIdentifiers: {}.\n\n",
+            code(string(&resource["resourceType"])),
+            list(&resource["identifiers"])
+                .iter()
+                .map(|id| code(string(id)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        let permissions = list(&resource["permissions"]);
+        for (tier, title, intro) in [
+            ("public", "Permissions", ""),
+            (
+                "permissionOnly",
+                "Permission-only",
+                "Required by no operation: the service's policy checks them.\n\n",
+            ),
+            (
+                "notGrantable",
+                "Bundles",
+                "Not grantable on their own: the service's policy confers them whole.\n\n",
+            ),
+            (
+                "internal",
+                "Internal",
+                "The server's own vocabulary: never in a client, a public reference or a refusal.\n\n",
+            ),
+        ] {
+            let rows: Vec<&Value> = permissions.iter().filter(|p| p["tier"] == tier).collect();
+            if rows.is_empty() {
+                continue;
+            }
+            out.push_str(&format!(
+                "### {title}\n\n{intro}| Permission | Description |\n|---|---|\n"
+            ));
+            for p in rows {
+                let mut description = cell(string(&p["description"]));
+                if let Some(primary) = p["aliasOf"].as_str() {
+                    description.push_str(&format!(
+                        " <strong>Deprecated</strong> alias of {}.",
+                        code(primary)
+                    ));
+                } else if p["deprecated"] == true {
+                    description.push_str(" <strong>Deprecated</strong>");
+                }
+                out.push_str(&format!(
+                    "| {} | {} |\n",
+                    code(string(&p["value"])),
+                    description.trim()
+                ));
+            }
+            out.push('\n');
+        }
+    }
+    Some(out)
+}
+
 fn shape_page(d: &Description, shape: &Value) -> String {
     let mut out = format!(
         "# {}\n\n{}{}Type: {}.\n\n",

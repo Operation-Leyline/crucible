@@ -183,6 +183,14 @@ pub(crate) fn emit(
         // `versions` table's, not one of its own.
         let mut module = old.clone();
         module.api_version = None;
+        // An older version is authorized by the current requirements, which
+        // bind the current input its requests are converted to; its own
+        // module states none (docs/permissions.md §7.3).
+        module.permissions.clear();
+        module.permission_types = None;
+        for operation in &mut module.operations {
+            operation.requirements = Default::default();
+        }
         let mut body = crate::body_with(&module, &old_options, &module, false, diagnostics);
         if !methods[index].is_empty()
             && (old.shapes.keys().any(|id| id.name() == "Migration")

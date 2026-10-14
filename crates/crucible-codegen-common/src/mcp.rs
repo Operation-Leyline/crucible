@@ -79,6 +79,15 @@ pub fn emit(
             .collect::<Vec<_>>()
             .join(", ");
         let mut description = op.notes.prose(op.docs.as_deref()).unwrap_or_default();
+        // What the caller must hold, so an agent knows before it calls
+        // (docs/permissions.md §6.3); the External projection names no
+        // internal permission.
+        if let Some(requirements) = crate::permissions::requirement_paragraph(service, op) {
+            if !description.is_empty() {
+                description.push_str("\n\n");
+            }
+            description.push_str(&requirements);
+        }
         if let Some(pagination) = &op.paginated {
             if !description.is_empty() {
                 description.push_str("\n\n");

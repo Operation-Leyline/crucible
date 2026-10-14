@@ -1,0 +1,30 @@
+# Summary
+
+- [Service overview](index.md)
+- Graph
+  - [CreateGraph](operations/API_CreateGraph.md)
+  - [ExecuteQuery](operations/API_ExecuteQuery.md)
+  - [GetGraph](operations/API_GetGraph.md)
+  - [ListGraphs](operations/API_ListGraphs.md)
+- History
+  - [RestoreBackup](operations/API_RestoreBackup.md)
+- Organization
+  - [GetOrganization](operations/API_GetOrganization.md)
+- Service operations
+  - [GetUser](operations/API_GetUser.md)
+- [Permissions](permissions.md)
+- Data types
+  - [NotFoundException](shapes/NotFoundException.md)
+  - [CreateGraphInput](shapes/CreateGraphInput.md)
+  - [ExecuteQueryInput](shapes/ExecuteQueryInput.md)
+  - [GetGraphInput](shapes/GetGraphInput.md)
+  - [GetOrganizationInput](shapes/GetOrganizationInput.md)
+  - [GetUserOutput](shapes/GetUserOutput.md)
+  - [GraphId](shapes/GraphId.md)
+  - [HistoryId](shapes/HistoryId.md)
+  - [HistoryRef](shapes/HistoryRef.md)
+  - [ListGraphsInput](shapes/ListGraphsInput.md)
+  - [OrganizationId](shapes/OrganizationId.md)
+  - [QueryTarget](shapes/QueryTarget.md)
+  - [ResourceKind](shapes/ResourceKind.md)
+  - [RestoreBackupInput](shapes/RestoreBackupInput.md)

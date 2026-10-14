@@ -1,0 +1,1142 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Leyline",
+    "version": "2026-10-01"
+  },
+  "paths": {
+    "/orgs/{organizationId}/graphs": {
+      "post": {
+        "operationId": "CreateGraph",
+        "responses": {
+          "201": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#CreateGraph",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "POST",
+            "uri": "/orgs/{organizationId}/graphs",
+            "code": 201
+          }
+        },
+        "description": "Requires `graph:write` on every graph in the organization.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "graph:write",
+              "resourceType": "graph",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "organizationId"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "*"
+                }
+              ]
+            }
+          ]
+        },
+        "tags": [
+          "Graph"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "$ref": "#/components/schemas/smithy.api.String",
+                    "x-smithy-traits": {
+                      "smithy.api#required": {}
+                    }
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/orgs/{organizationId}/graphs/{graphId}/query": {
+      "post": {
+        "operationId": "ExecuteQuery",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#ExecuteQuery",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "POST",
+            "uri": "/orgs/{organizationId}/graphs/{graphId}/query",
+            "code": 200
+          }
+        },
+        "description": "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "graph:read",
+              "resourceType": "graph",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "organizationId"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "graphId"
+                }
+              ]
+            },
+            {
+              "mode": "handler",
+              "permission": "graph:write",
+              "resourceType": "graph",
+              "tier": "public",
+              "documentation": "Only when the parsed query writes."
+            },
+            {
+              "mode": "check",
+              "permission": "history:read",
+              "resourceType": "history",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "organizationId"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "graphId"
+                },
+                {
+                  "identifier": "historyId",
+                  "value": "target.history.historyId"
+                }
+              ],
+              "when": "has target.history"
+            }
+          ]
+        },
+        "tags": [
+          "Graph"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "$ref": "#/components/schemas/smithy.api.String",
+                    "x-smithy-traits": {
+                      "smithy.api#required": {}
+                    }
+                  },
+                  "target": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/example.leyline.QueryTarget"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "graphId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^g_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/orgs/{organizationId}/graphs/{graph}": {
+      "get": {
+        "operationId": "GetGraph",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#GetGraph",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/orgs/{organizationId}/graphs/{graph}",
+            "code": 200
+          },
+          "smithy.api#readonly": {}
+        },
+        "description": "Requires `graph:read` on the graph.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "check",
+              "permission": "graph:read",
+              "resourceType": "graph",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "organizationId"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "graph"
+                }
+              ]
+            }
+          ]
+        },
+        "tags": [
+          "Graph"
+        ],
+        "x-smithy-readonly": true,
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "graph",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^g_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/orgs/{organizationId}": {
+      "get": {
+        "operationId": "GetOrganization",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#GetOrganization",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/orgs/{organizationId}",
+            "code": 200
+          },
+          "smithy.api#readonly": {}
+        },
+        "x-crucible-requires": {
+          "kind": "internal"
+        },
+        "tags": [
+          "Organization"
+        ],
+        "x-smithy-readonly": true,
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/user": {
+      "get": {
+        "operationId": "GetUser",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "subject": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    }
+                  },
+                  "required": [
+                    "subject"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#GetUser",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/user",
+            "code": 200
+          },
+          "smithy.api#readonly": {}
+        },
+        "description": "Requires no permission.",
+        "x-crucible-requires": {
+          "kind": "none"
+        },
+        "x-smithy-readonly": true
+      }
+    },
+    "/orgs/{org}/graph-listing": {
+      "get": {
+        "operationId": "ListGraphs",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "404": {
+            "description": "NotFoundException",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "resourceType": {
+                      "$ref": "#/components/schemas/smithy.api.String",
+                      "x-smithy-traits": {
+                        "smithy.api#required": {}
+                      }
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "NotFoundException"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "resourceType",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "NotFoundException"
+                }
+              }
+            },
+            "x-smithy-errors": [
+              "crucible.errors#NotFoundException"
+            ]
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#ListGraphs",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "GET",
+            "uri": "/orgs/{org}/graph-listing",
+            "code": 200
+          },
+          "smithy.api#readonly": {}
+        },
+        "description": "Returns only the graphs the caller holds `graph:read` on in the organization.",
+        "x-crucible-requires": {
+          "kind": "list",
+          "clauses": [
+            {
+              "mode": "filter",
+              "permission": "graph:read",
+              "resourceType": "graph",
+              "tier": "public",
+              "bindings": [
+                {
+                  "identifier": "organizationId",
+                  "value": "org"
+                },
+                {
+                  "identifier": "graphId",
+                  "value": "*"
+                }
+              ],
+              "documentation": "Returns only the graphs the caller may read."
+            }
+          ]
+        },
+        "tags": [
+          "Graph"
+        ],
+        "x-smithy-readonly": true,
+        "parameters": [
+          {
+            "name": "org",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore": {
+      "post": {
+        "operationId": "RestoreBackup",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          }
+        },
+        "security": [
+          {
+            "smithy.api.httpBearerAuth": []
+          }
+        ],
+        "x-smithy-shape": "example.leyline#RestoreBackup",
+        "x-smithy-traits": {
+          "smithy.api#http": {
+            "method": "POST",
+            "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore",
+            "code": 200
+          }
+        },
+        "tags": [
+          "History"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^org_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "graphId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^g_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "historyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "x-smithy-traits": {
+                "smithy.api#httpLabel": {},
+                "smithy.api#required": {}
+              },
+              "pattern": "^h_[a-z0-9]+$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "crucible.errors.NotFoundException": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          },
+          "resourceType": {
+            "$ref": "#/components/schemas/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "message",
+          "resourceType"
+        ],
+        "description": "The resource does not exist, or the caller may not know that it does.",
+        "x-smithy-traits": {
+          "smithy.api#documentation": "The resource does not exist, or the caller may not know that it does.",
+          "smithy.api#error": "client",
+          "smithy.api#httpError": 404
+        }
+      },
+      "example.leyline.CreateGraphInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^org_[a-z0-9]+$"
+          },
+          "name": {
+            "$ref": "#/components/schemas/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "organizationId",
+          "name"
+        ]
+      },
+      "example.leyline.ExecuteQueryInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^org_[a-z0-9]+$"
+          },
+          "graphId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^g_[a-z0-9]+$"
+          },
+          "query": {
+            "$ref": "#/components/schemas/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/example.leyline.QueryTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId",
+          "query"
+        ]
+      },
+      "example.leyline.GetGraphInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^org_[a-z0-9]+$"
+          },
+          "graph": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^g_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graph"
+        ]
+      },
+      "example.leyline.GetOrganizationInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^org_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "organizationId"
+        ]
+      },
+      "example.leyline.GetUserOutput": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "$ref": "#/components/schemas/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "subject"
+        ]
+      },
+      "example.leyline.GraphId": {
+        "type": "string",
+        "x-smithy-traits": {
+          "smithy.api#pattern": "^g_[a-z0-9]+$"
+        },
+        "pattern": "^g_[a-z0-9]+$"
+      },
+      "example.leyline.HistoryId": {
+        "type": "string",
+        "x-smithy-traits": {
+          "smithy.api#pattern": "^h_[a-z0-9]+$"
+        },
+        "pattern": "^h_[a-z0-9]+$"
+      },
+      "example.leyline.HistoryRef": {
+        "type": "object",
+        "properties": {
+          "historyId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            },
+            "pattern": "^h_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "historyId"
+        ]
+      },
+      "example.leyline.ListGraphsInput": {
+        "type": "object",
+        "properties": {
+          "org": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^org_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "org"
+        ]
+      },
+      "example.leyline.OrganizationId": {
+        "type": "string",
+        "x-smithy-traits": {
+          "smithy.api#pattern": "^org_[a-z0-9]+$"
+        },
+        "pattern": "^org_[a-z0-9]+$"
+      },
+      "example.leyline.QueryTarget": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "current": {
+                "$ref": "#/components/schemas/smithy.api.Unit"
+              }
+            },
+            "required": [
+              "current"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "history": {
+                "$ref": "#/components/schemas/example.leyline.HistoryRef"
+              }
+            },
+            "required": [
+              "history"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "example.leyline.RestoreBackupInput": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^org_[a-z0-9]+$"
+          },
+          "graphId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^g_[a-z0-9]+$"
+          },
+          "historyId": {
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            },
+            "pattern": "^h_[a-z0-9]+$"
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId",
+          "historyId"
+        ]
+      },
+      "smithy.api.String": {
+        "type": "string"
+      },
+      "smithy.api.Unit": {
+        "type": "object",
+        "maxProperties": 0
+      }
+    },
+    "securitySchemes": {
+      "smithy.api.httpBearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "x-smithy-service": "example.leyline#Leyline",
+  "x-smithy-protocol": "crucible.protocols#json",
+  "x-smithy-traits": {
+    "crucible.protocols#json": {},
+    "smithy.api#httpBearerAuth": {}
+  },
+  "x-crucible-permissions": [
+    {
+      "resourceType": "graph",
+      "identifiers": [
+        "organizationId",
+        "graphId"
+      ],
+      "permissions": [
+        {
+          "symbol": "AUDIT",
+          "value": "graph:audit",
+          "description": "",
+          "tier": "permissionOnly",
+          "grantable": true,
+          "deprecated": false
+        },
+        {
+          "symbol": "READ",
+          "value": "graph:read",
+          "description": "Read a graph and its catalog.",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        },
+        {
+          "symbol": "VIEW",
+          "value": "graph:view",
+          "description": "",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": true,
+          "aliasOf": "graph:read"
+        },
+        {
+          "symbol": "WRITE",
+          "value": "graph:write",
+          "description": "",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        }
+      ]
+    },
+    {
+      "resourceType": "history",
+      "identifiers": [
+        "organizationId",
+        "graphId",
+        "historyId"
+      ],
+      "permissions": [
+        {
+          "symbol": "READ",
+          "value": "history:read",
+          "description": "",
+          "tier": "public",
+          "grantable": true,
+          "deprecated": false
+        },
+        {
+          "symbol": "RESTORE",
+          "value": "history:restore",
+          "description": "",
+          "tier": "permissionOnly",
+          "grantable": true,
+          "deprecated": false
+        }
+      ]
+    },
+    {
+      "resourceType": "org",
+      "identifiers": [
+        "organizationId"
+      ],
+      "permissions": [
+        {
+          "symbol": "ADMIN",
+          "value": "organization:admin",
+          "description": "Everything in the organization.",
+          "tier": "notGrantable",
+          "grantable": false,
+          "deprecated": false
+        }
+      ]
+    }
+  ]
+}

@@ -112,6 +112,11 @@ pub fn operation(service: &Service, op: &Operation) -> String {
         .docs
         .clone()
         .unwrap_or_else(|| format!("Call {}.", op.name()));
+    // What the caller must hold (docs/permissions.md §6.3): a contract the
+    // client cannot check, so prose rather than data.
+    if let Some(requirements) = crate::permissions::requirement_paragraph(service, op) {
+        docs.push_str(&format!("\n\n{requirements}"));
+    }
     docs.push_str(&format!(
         "\n\nInput: {}.\n\nReturns: {}.",
         op.input

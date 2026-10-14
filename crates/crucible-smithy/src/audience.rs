@@ -857,6 +857,11 @@ fn project_permissions(result: &mut Service) {
     }
     let permissions = result.permissions.clone();
     for op in &mut result.operations {
+        // A pending reason is the server's migration note: the client
+        // contract says nothing about the operation yet (§6.3).
+        if matches!(op.requirements, Requirements::Pending { .. }) {
+            op.requirements = Requirements::Undeclared;
+        }
         if let Requirements::List(clauses) = &mut op.requirements {
             clauses.retain(|clause| {
                 permissions

@@ -39,6 +39,43 @@ fn scoped_server_metadata_matches_golden() {
     matches_golden(&code, "scopes.rs");
 }
 
+/// Typed permissions (docs/permissions.md §6.2): the descriptions, the
+/// closed enums and typed references, and per operation its requirements,
+/// the bindings' `CHECKS` and its handler obligations.
+#[test]
+fn permissions_server_bindings_match_golden() {
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/permissions.json"
+    ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
+    .unwrap();
+    matches_golden(
+        &generate(&service, &Options::default()).unwrap(),
+        "permissions.rs",
+    );
+    // The client sees the external audience: open constants, no internal
+    // permission, and the requirements in each method's documentation.
+    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let client = generate_client(&external).unwrap();
+    assert!(!client.contains("organization:read"), "{client}");
+    assert!(!client.contains("const REQUIREMENTS"), "{client}");
+    matches_golden(&client, "permissions_client.rs");
+    // MCP tools carry the sentence too, from the External projection (the
+    // fixture's one tool is `GetUser`; the rest have no output).
+    let mcp = generate(
+        &service,
+        &Options {
+            mcp: true,
+            ..Options::default()
+        },
+    )
+    .unwrap();
+    let tools = mcp.rsplit_once("pub static MCP_TOOLS").unwrap().1;
+    assert!(tools.contains("Requires no permission."), "{tools}");
+    assert!(!tools.contains("organization:read"), "{tools}");
+}
+
 #[test]
 fn cors_server_description_matches_golden() {
     let service = Model::from_json(include_str!(

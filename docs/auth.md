@@ -327,7 +327,11 @@ refusal, and `insufficient_scope` on a forbidden response, following
 [RFC 6750 section 3](https://www.rfc-editor.org/rfc/rfc6750#section-3).
 Authentication does not enforce scopes or groups; authorization interceptors
 can return `FrameworkError::Forbidden`. [`ScopeEnforcer`](#oauth-scopes) is the
-built-in one for model-declared scopes.
+built-in one for model-declared scopes. Permissions on resources (`requires
+mailSend on Inbox`) are a separate gate after scopes, enforced by the runtime's
+`Permissions` interceptor through a service `Authorizer` against generated
+descriptions ([framework.md](framework.md#typed-permissions)); a permission is
+never an OAuth scope, and a permission refusal sends no `insufficient_scope`.
 
 Use `AuthenticatorChain::refusal_factory` to preserve a service's modeled
 refusal body:

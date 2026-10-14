@@ -1,0 +1,5 @@
+# Typed permissions (docs/permissions.md): the model behind
+# tests/permissions.rs, whose generated bindings the runtime enforces.
+[model]
+namespace = "test.permissions"
+imports = ["crucible.errors"]

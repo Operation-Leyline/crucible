@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 const WEATHER: &str =
     include_str!("../../crucible-smithy/tests/fixtures/service-docs-weather.json");
 const CATALOG: &str = include_str!("../../crucible-smithy/tests/fixtures/service-docs.json");
+const PERMISSIONS: &str = include_str!("../../crucible-smithy/tests/fixtures/permissions.json");
 
 fn files(source: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
     let service = Model::from_json(source)
@@ -75,6 +76,35 @@ fn weather_external_and_internal_match_reviewed_goldens() {
 fn rpc_metadata_examples_and_shapes_match_reviewed_goldens() {
     golden("catalog-external", CATALOG, Audience::External);
     golden("catalog-internal", CATALOG, Audience::Internal);
+}
+
+/// Typed permissions (docs/permissions.md §6.3): a Permissions page with a
+/// table per tier, an Authorization section per operation, and the
+/// registry and requirements in `describe.json`. Internal permissions and
+/// pending reasons only in the server audience.
+#[test]
+fn permissions_match_reviewed_goldens() {
+    golden("permissions-external", PERMISSIONS, Audience::External);
+    golden("permissions-internal", PERMISSIONS, Audience::Internal);
+    let external = files(PERMISSIONS, Audience::External);
+    for file in &external {
+        assert!(
+            !file.contents.contains("organization:read"),
+            "{}",
+            file.path
+        );
+        assert!(
+            !file.contents.contains("history module moves"),
+            "{}",
+            file.path
+        );
+    }
+    let internal = files(PERMISSIONS, Audience::Internal);
+    let page = internal
+        .iter()
+        .find(|f| f.path == "src/permissions.md")
+        .unwrap();
+    assert!(page.contents.contains("### Internal"), "{}", page.contents);
 }
 
 #[test]
@@ -208,7 +238,7 @@ fn audience_filters_values_and_badges_are_visible_at_every_level() {
 
 #[test]
 fn all_links_point_to_generated_pages() {
-    for source in [WEATHER, CATALOG] {
+    for source in [WEATHER, CATALOG, PERMISSIONS] {
         let files = files(source, Audience::Internal);
         let paths: BTreeSet<_> = files.iter().map(|f| f.path.as_str()).collect();
         for file in files.iter().filter(|f| f.path.ends_with(".md")) {

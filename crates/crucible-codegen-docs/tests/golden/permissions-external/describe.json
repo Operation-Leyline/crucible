@@ -1,0 +1,2391 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.leyline#CreateGraph": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "id": "example.leyline#CreateGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#CreateGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.CreateGraphInput": {
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/smithy.api.String",
+                "x-smithy-traits": {
+                  "smithy.api#required": {}
+                }
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "organizationId",
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^org_[a-z0-9]+$"
+            }
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "name": {
+            "$ref": "#/$defs/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "organizationId",
+          "name"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "CreateGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "name"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [
+        "Requires `graph:write` on every graph in the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "*"
+              }
+            ],
+            "mode": "check",
+            "permission": "graph:write",
+            "resourceType": "graph",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "scopes": [],
+      "status": 201,
+      "uri": "/orgs/{organizationId}/graphs"
+    },
+    "example.leyline#ExecuteQuery": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "id": "example.leyline#ExecuteQuery",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#ExecuteQueryInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.ExecuteQueryInput": {
+            "properties": {
+              "graphId": {
+                "pattern": "^g_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              },
+              "query": {
+                "$ref": "#/$defs/smithy.api.String",
+                "x-smithy-traits": {
+                  "smithy.api#required": {}
+                }
+              },
+              "target": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.leyline.QueryTarget"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId",
+              "query"
+            ],
+            "type": "object"
+          },
+          "example.leyline.GraphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^g_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.HistoryId": {
+            "pattern": "^h_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^h_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.HistoryRef": {
+            "properties": {
+              "historyId": {
+                "pattern": "^h_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "historyId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^org_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.QueryTarget": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "current": {
+                    "$ref": "#/$defs/smithy.api.Unit"
+                  }
+                },
+                "required": [
+                  "current"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "history": {
+                    "$ref": "#/$defs/example.leyline.HistoryRef"
+                  }
+                },
+                "required": [
+                  "history"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "smithy.api.String": {
+            "type": "string"
+          },
+          "smithy.api.Unit": {
+            "maxProperties": 0,
+            "type": "object"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          },
+          "query": {
+            "$ref": "#/$defs/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.leyline.QueryTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId",
+          "query"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "ExecuteQuery",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "query",
+          "target"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [
+        "Requires `graph:read` on the graph; `graph:write` on the graph, checked by the service (only when the parsed query writes); `history:read` on the history, when `has target.history`."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              }
+            ],
+            "mode": "check",
+            "permission": "graph:read",
+            "resourceType": "graph",
+            "tier": "public"
+          },
+          {
+            "documentation": "Only when the parsed query writes.",
+            "mode": "handler",
+            "permission": "graph:write",
+            "resourceType": "graph",
+            "tier": "public"
+          },
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graphId"
+              },
+              {
+                "identifier": "historyId",
+                "value": "target.history.historyId"
+              }
+            ],
+            "mode": "check",
+            "permission": "history:read",
+            "resourceType": "history",
+            "tier": "public",
+            "when": "has target.history"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{organizationId}/graphs/{graphId}/query"
+    },
+    "example.leyline#GetGraph": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "id": "example.leyline#GetGraph",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#GetGraphInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GetGraphInput": {
+            "properties": {
+              "graph": {
+                "pattern": "^g_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "organizationId",
+              "graph"
+            ],
+            "type": "object"
+          },
+          "example.leyline.GraphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^g_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^org_[a-z0-9]+$"
+            }
+          }
+        },
+        "properties": {
+          "graph": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "organizationId",
+          "graph"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetGraph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graph"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [
+        "Requires `graph:read` on the graph."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "organizationId"
+              },
+              {
+                "identifier": "graphId",
+                "value": "graph"
+              }
+            ],
+            "mode": "check",
+            "permission": "graph:read",
+            "resourceType": "graph",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{organizationId}/graphs/{graph}"
+    },
+    "example.leyline#GetOrganization": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "id": "example.leyline#GetOrganization",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#GetOrganizationInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GetOrganizationInput": {
+            "properties": {
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "organizationId"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^org_[a-z0-9]+$"
+            }
+          }
+        },
+        "properties": {
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "organizationId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetOrganization",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [],
+      "requirements": {
+        "kind": "internal"
+      },
+      "resources": [
+        "example.leyline#Organization"
+      ],
+      "response": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{organizationId}"
+    },
+    "example.leyline#GetUser": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [],
+      "examples": [],
+      "id": "example.leyline#GetUser",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": null,
+      "inputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetUser",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": "example.leyline#GetUserOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.leyline.GetUserOutput": {
+            "properties": {
+              "subject": {
+                "$ref": "#/$defs/smithy.api.String",
+                "x-smithy-traits": {
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "subject"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "subject": {
+            "$ref": "#/$defs/smithy.api.String",
+            "x-smithy-traits": {
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "subject"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [
+        "Requires no permission."
+      ],
+      "requirements": {
+        "kind": "none"
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "subject"
+        ],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "scopes": [],
+      "status": 200,
+      "uri": "/user"
+    },
+    "example.leyline#ListGraphs": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "crucible.errors#NotFoundException"
+      ],
+      "examples": [],
+      "id": "example.leyline#ListGraphs",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#ListGraphsInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.ListGraphsInput": {
+            "properties": {
+              "org": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "org"
+            ],
+            "type": "object"
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^org_[a-z0-9]+$"
+            }
+          }
+        },
+        "properties": {
+          "org": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "org"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListGraphs",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "org"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "requirementSentences": [
+        "Returns only the graphs the caller holds `graph:read` on in the organization."
+      ],
+      "requirements": {
+        "clauses": [
+          {
+            "bindings": [
+              {
+                "identifier": "organizationId",
+                "value": "org"
+              },
+              {
+                "identifier": "graphId",
+                "value": "*"
+              }
+            ],
+            "documentation": "Returns only the graphs the caller may read.",
+            "mode": "filter",
+            "permission": "graph:read",
+            "resourceType": "graph",
+            "tier": "public"
+          }
+        ],
+        "kind": "list"
+      },
+      "resources": [
+        "example.leyline#Graph"
+      ],
+      "response": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{org}/graphs"
+    },
+    "example.leyline#RestoreBackup": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [],
+      "examples": [],
+      "id": "example.leyline#RestoreBackup",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.leyline#RestoreBackupInput",
+      "inputSchema": {
+        "$defs": {
+          "example.leyline.GraphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^g_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.HistoryId": {
+            "pattern": "^h_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^h_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.OrganizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#pattern": "^org_[a-z0-9]+$"
+            }
+          },
+          "example.leyline.RestoreBackupInput": {
+            "properties": {
+              "graphId": {
+                "pattern": "^g_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              },
+              "historyId": {
+                "pattern": "^h_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              },
+              "organizationId": {
+                "pattern": "^org_[a-z0-9]+$",
+                "type": "string",
+                "x-smithy-traits": {
+                  "smithy.api#httpLabel": {},
+                  "smithy.api#required": {}
+                }
+              }
+            },
+            "required": [
+              "organizationId",
+              "graphId",
+              "historyId"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "graphId": {
+            "pattern": "^g_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          },
+          "historyId": {
+            "pattern": "^h_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          },
+          "organizationId": {
+            "pattern": "^org_[a-z0-9]+$",
+            "type": "string",
+            "x-smithy-traits": {
+              "smithy.api#httpLabel": {},
+              "smithy.api#required": {}
+            }
+          }
+        },
+        "required": [
+          "organizationId",
+          "graphId",
+          "historyId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "RestoreBackup",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "optionalAuth": false,
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "organizationId",
+          "graphId",
+          "historyId"
+        ],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.leyline#History"
+      ],
+      "response": {
+        "body": [],
+        "eventStream": null,
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "prefixHeaders": [],
+        "query": [],
+        "queryParams": null,
+        "responseCode": null,
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "scopes": [],
+      "status": 200,
+      "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
+    }
+  },
+  "resources": {
+    "example.leyline#Graph": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.leyline#Graph",
+      "identifiers": {
+        "graphId": "example.leyline#GraphId",
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": "example.leyline#CreateGraph",
+        "delete": null,
+        "list": "example.leyline#ListGraphs",
+        "put": null,
+        "read": "example.leyline#GetGraph",
+        "update": null
+      },
+      "name": "Graph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#CreateGraph",
+        "example.leyline#ExecuteQuery",
+        "example.leyline#GetGraph",
+        "example.leyline#ListGraphs"
+      ],
+      "properties": {},
+      "resources": [
+        "example.leyline#History"
+      ]
+    },
+    "example.leyline#History": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.leyline#History",
+      "identifiers": {
+        "graphId": "example.leyline#GraphId",
+        "historyId": "example.leyline#HistoryId",
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "History",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#RestoreBackup"
+      ],
+      "properties": {},
+      "resources": []
+    },
+    "example.leyline#Organization": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.leyline#Organization",
+      "identifiers": {
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": "example.leyline#GetOrganization",
+        "update": null
+      },
+      "name": "Organization",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#GetOrganization"
+      ],
+      "properties": {},
+      "resources": [
+        "example.leyline#Graph"
+      ]
+    }
+  },
+  "service": {
+    "auth": [
+      "smithy.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "smithy.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "documentation": {
+      "html": "",
+      "markdown": "",
+      "text": ""
+    },
+    "errors": [],
+    "id": "example.leyline#Leyline",
+    "internal": false,
+    "name": "Leyline",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "permissions": [
+      {
+        "identifiers": [
+          "organizationId",
+          "graphId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "AUDIT",
+            "tier": "permissionOnly",
+            "value": "graph:audit"
+          },
+          {
+            "deprecated": false,
+            "description": "Read a graph and its catalog.",
+            "grantable": true,
+            "symbol": "READ",
+            "tier": "public",
+            "value": "graph:read"
+          },
+          {
+            "aliasOf": "graph:read",
+            "deprecated": true,
+            "description": "",
+            "grantable": true,
+            "symbol": "VIEW",
+            "tier": "public",
+            "value": "graph:view"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "WRITE",
+            "tier": "public",
+            "value": "graph:write"
+          }
+        ],
+        "resourceType": "graph"
+      },
+      {
+        "identifiers": [
+          "organizationId",
+          "graphId",
+          "historyId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "READ",
+            "tier": "public",
+            "value": "history:read"
+          },
+          {
+            "deprecated": false,
+            "description": "",
+            "grantable": true,
+            "symbol": "RESTORE",
+            "tier": "permissionOnly",
+            "value": "history:restore"
+          }
+        ],
+        "resourceType": "history"
+      },
+      {
+        "identifiers": [
+          "organizationId"
+        ],
+        "permissions": [
+          {
+            "deprecated": false,
+            "description": "Everything in the organization.",
+            "grantable": false,
+            "symbol": "ADMIN",
+            "tier": "notGrantable",
+            "value": "organization:admin"
+          }
+        ],
+        "resourceType": "org"
+      }
+    ],
+    "protocol": "crucibleJson",
+    "protocolSettings": {
+      "eventStreamHttp": [
+        "http/1.1"
+      ],
+      "http": [
+        "http/1.1"
+      ],
+      "ignoreUnknownUnionType": false,
+      "noErrorWrapping": false,
+      "nonFiniteFloatStrings": false,
+      "omitNullStructureMembers": false
+    },
+    "protocols": [
+      "crucible.protocols#json"
+    ],
+    "resourceRoots": [
+      "example.leyline#Organization"
+    ],
+    "scopes": [],
+    "title": "Leyline",
+    "version": "2026-10-01"
+  },
+  "shapes": {
+    "crucible.errors#NotFoundException": {
+      "documentation": {
+        "html": "<p>The resource does not exist, or the caller may not know that it does.</p>\n",
+        "markdown": "The resource does not exist, or the caller may not know that it does.",
+        "text": "The resource does not exist, or the caller may not know that it does."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "resourceType"
+          ],
+          "eventStream": null,
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "prefixHeaders": [],
+          "query": [],
+          "queryParams": null,
+          "responseCode": null,
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "NotFoundException",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "shape": "crucible.errors#NotFoundException",
+        "status": 404,
+        "wireCode": "NotFoundException"
+      },
+      "id": "crucible.errors#NotFoundException",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "resourceType",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "resourceType"
+        }
+      ],
+      "name": "NotFoundException",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#CreateGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#CreateGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        }
+      ],
+      "name": "CreateGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#ExecuteQueryInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#ExecuteQueryInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "query",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "query"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "target",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.leyline#QueryTarget",
+          "targetName": "QueryTarget",
+          "targetType": "union",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "target"
+        }
+      ],
+      "name": "ExecuteQueryInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#GetGraphInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#GetGraphInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "graph",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graph"
+        }
+      ],
+      "name": "GetGraphInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#GetOrganizationInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#GetOrganizationInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        }
+      ],
+      "name": "GetOrganizationInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#GetUserOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#GetUserOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "subject",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "subject"
+        }
+      ],
+      "name": "GetUserOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#GraphId": {
+      "constraints": {
+        "length": null,
+        "pattern": "^g_[a-z0-9]+$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.leyline#GraphId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "GraphId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#HistoryId": {
+      "constraints": {
+        "length": null,
+        "pattern": "^h_[a-z0-9]+$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.leyline#HistoryId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "HistoryId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#HistoryRef": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#HistoryRef",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^h_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "historyId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#HistoryId",
+          "targetName": "HistoryId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "historyId"
+        }
+      ],
+      "name": "HistoryRef",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#ListGraphsInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#ListGraphsInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "org",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "org"
+        }
+      ],
+      "name": "ListGraphsInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#OrganizationId": {
+      "constraints": {
+        "length": null,
+        "pattern": "^org_[a-z0-9]+$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.leyline#OrganizationId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "OrganizationId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#QueryTarget": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#QueryTarget",
+      "internal": false,
+      "kind": "union",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "current",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#Unit",
+          "targetName": "Unit",
+          "targetType": "unit",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "current"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "history",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.leyline#HistoryRef",
+          "targetName": "HistoryRef",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "history"
+        }
+      ],
+      "name": "QueryTarget",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "example.leyline#RestoreBackupInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.leyline#RestoreBackupInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^org_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "organizationId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#OrganizationId",
+          "targetName": "OrganizationId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "organizationId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^g_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "graphId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#GraphId",
+          "targetName": "GraphId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "graphId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^h_[a-z0-9]+$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "eventBinding": null,
+          "internal": false,
+          "name": "historyId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.leyline#HistoryId",
+          "targetName": "HistoryId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "historyId"
+        }
+      ],
+      "name": "RestoreBackupInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "streaming": false
+    },
+    "smithy.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "requiresLength": false,
+      "sensitive": false,
+      "streaming": false
+    },
+    "smithy.api#Unit": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#Unit",
+      "internal": false,
+      "kind": "unit",
+      "members": [],
+      "name": "Unit",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    }
+  }
+}

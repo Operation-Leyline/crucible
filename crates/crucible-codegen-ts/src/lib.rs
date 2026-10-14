@@ -15,6 +15,7 @@ mod client;
 mod errors;
 mod models;
 mod names;
+mod permissions;
 mod schemas;
 
 use crucible_smithy::Diagnostics;
@@ -297,7 +298,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     for problem in options.metadata.problems() {
         diagnostics.push(&service.id, format!("npm package metadata: {problem}"));
     }
+    permissions::check_names(service, &mut diagnostics);
     let errors = errors::emit(service, &mut diagnostics);
+    let permissions =
+        permissions::present(service).then(|| permissions::emit(service, &mut diagnostics));
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -343,11 +347,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
         file("src/client.ts", client::emit(service, options, &client)),
-        file("src/index.ts", index(&client)),
+        file("src/index.ts", index(&client, permissions.is_some())),
         file("package.json", package_json(service, options)),
         file("tsconfig.json", TSCONFIG.to_owned()),
     ]
     .into_iter()
+    .chain(permissions.map(|contents| file("src/permissions.ts", contents)))
     .chain(
         options
             .metadata
@@ -365,10 +370,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     .collect())
 }
 
-fn index(client: &str) -> String {
+fn index(client: &str, permissions: bool) -> String {
+    let permissions = if permissions {
+        "export * from \"./permissions.js\";\n"
+    } else {
+        ""
+    };
     format!(
         "{HEADER}export {{ credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials }} from \"./credentials.js\";\nexport type {{ AwsCredentials }} from \"./credentials.js\";\nexport {{ WaiterError, WaiterTimeout }} from \"./waiters.js\";\nexport {{ ChecksumError }} from \"./checksums.js\";\nexport type {{ ChecksumPolicy }} from \"./checksums.js\";\nexport type {{ WaiterOptions, WaiterResult }} from \"./waiters.js\";\nexport * from \"./models.js\";\n\
          export * from \"./errors.js\";\n\
+         {permissions}\
          export {{ {client} }} from \"./client.js\";\n\
          export {{ AuthenticationError, ByteStream, Decimal, EventStream, EventStreamError, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \

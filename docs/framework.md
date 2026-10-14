@@ -722,6 +722,92 @@ enforces them through the service's `Authorizer`, which alone decides:
 crucible-server-runtime-rust = { version = "=0.7.0", features = ["permissions"] }
 ```
 
+**What the bindings generate.** For a model with permissions, the server
+module gains `permissions`, beside `model` and `errors`:
+
+- per resource that declares permissions, a closed enum
+  (`permissions::InboxPermission`, a variant per permission of every tier,
+  with `ALL`, `value()`, `info()`, `parse(value)` that accepts aliases and
+  answers `None` for a value the model does not declare, and each deprecated
+  alias as a `#[deprecated]` constant of its primary, never a variant), and
+  a typed reference (`InboxRef { workspace_id, inbox_id: Target }`, with
+  `new`, `all`, `not_found()`, `Into<ResourceRef>` and
+  `TryFrom<&ResourceRef>`);
+- `Permission`, every resource's enum (`parse(resource, value)`,
+  `of(resource)`, `from_info(&PermissionInfo)`), and `Resource`, every
+  typed reference (`TryFrom<&ResourceRef>`), so an Authorizer's rules are
+  exhaustive `match`es and a new permission is a compile error there;
+- the `ResourceInfo` and `PermissionInfo` statics behind them, with their
+  404 and 403 messages, and `SERVICE.permissions`, every primary sorted by
+  resource and value.
+
+Per operation the marker carries `REQUIREMENTS` (the model's clauses in
+order), `CHECKS` (the binding function, only for an operation with a check
+or filter clause), and `PUBLIC` for one the model makes public; each
+`requires p on R by handler` clause is a constant on the marker, named
+`<PERMISSION>_ON_<RESOURCE>`. For
+
+```
+operation SendMessage on Inbox {
+    requires mailSend
+    requires read on Template(templateId) when has templateId
+    input { $workspaceId; $inboxId; templateId?: TemplateId }
+}
+```
+
+the bindings state, in essence:
+
+```rust
+const REQUIREMENTS: Requirements = Requirements::List(&[
+    RequirementInfo { mode: Mode::Check, permission: &permissions::INBOX__MAIL_SEND, conditional: false },
+    RequirementInfo { mode: Mode::Check, permission: &permissions::TEMPLATE__READ, conditional: true },
+]);
+const CHECKS: Option<Checks<Self::Input>> = Some(|input, out| {
+    out.push(Check::declared(0, &permissions::INBOX__MAIL_SEND,
+        ResourceRef::new(&permissions::INBOX, [Target::from(&input.workspace_id), Target::from(&input.inbox_id)])));
+    if input.template_id.as_ref().is_some() {
+        out.push(Check::declared(1, &permissions::TEMPLATE__READ, match input.template_id.as_ref() {
+            Some(b1) => ResourceRef::new(&permissions::TEMPLATE, [Target::from(&input.workspace_id), Target::from(b1)]),
+            // What the condition should have made present binds nothing: a wiring error.
+            _ => ResourceRef::new(&permissions::TEMPLATE, std::iter::empty::<Target>()),
+        }));
+    }
+});
+```
+
+Bindings and conditions read the typed input: a member path through
+optional members and union arms, `has`, `==`, `in`, `and`, `or` and `not`.
+Nothing is parsed or looked up by name per request. Older API versions'
+modules state no requirements: their requests are authorized by the
+current version's, on the converted input.
+
+```rust
+use mail::permissions::Permission;
+
+/// Whether workspace:admin on the check's workspace satisfies it: the
+/// service's implication rule, an exhaustive match over the closed enums.
+fn admin_covers(check: &Check) -> bool {
+    match Permission::from_info(check.permission) {
+        Permission::Workspace(_) | Permission::Inbox(_) | Permission::Template(_) => true,
+        Permission::Graph(_) => false, // graphs belong to no workspace
+    }
+}
+```
+
+Clients get the client-audience view: open per-resource types that keep a
+value they do not know (a Rust enum with an `UnknownValue(String)` variant
+and `canonical()`; TypeScript `InboxPermission.MAIL_SEND` constants, an
+`InboxPermissionValue` type and `canonicalPermission(resourceType, value)`),
+`PERMISSIONS`, the registry with tier, `grantable` and aliases, and each
+operation's requirements as a sentence in its documentation. No client
+output names an internal permission. Every bundled native runtime carries
+the registry as `"permissions"` in its schema; the other native clients
+document requirements but do not yet generate constants. The API reference
+gets a Permissions page and an Authorization section per operation, and
+OpenAPI `x-crucible-requires` per operation and `x-crucible-permissions`
+for the registry (internal entries only in the internal-audience
+document).
+
 ```rust
 use crucible_server_runtime_rust::permissions::Permissions;
 
@@ -809,6 +895,7 @@ use crucible_server_runtime_rust::{idempotency, permissions};
 // `requires admin on Workspace by handler`: only when the grant holds workspace:admin.
 let grant = store.grant(&input.grant_id).await?;
 if grant.is_admin() {
+    let workspace = WorkspaceRef::new(&input.workspace_id).into();
     permissions::discharge(DeleteGrant::ADMIN_ON_WORKSPACE, workspace).await?;
 } else {
     permissions::not_applicable(DeleteGrant::ADMIN_ON_WORKSPACE, "not an admin grant")?;

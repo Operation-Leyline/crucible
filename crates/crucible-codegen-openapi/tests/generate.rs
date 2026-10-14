@@ -41,6 +41,52 @@ fn weather_matches_reviewed_golden() {
     );
 }
 
+/// Typed permissions (docs/permissions.md §6.3): `x-crucible-requires` per
+/// operation, `x-crucible-permissions` for the registry, a requirement
+/// sentence in each description, and the framework's 404 among the
+/// responses. Internal permissions only in the server-audience document.
+#[test]
+fn permissions_match_reviewed_golden_per_audience() {
+    // The fixture's listing names its label differently from its siblings,
+    // which one OpenAPI path tree cannot hold.
+    let model = include_str!("../../crucible-smithy/tests/fixtures/permissions.json")
+        .replace("/orgs/{org}/graphs", "/orgs/{org}/graph-listing");
+    let service = Model::from_json(&model).unwrap().lower(None).unwrap();
+    for (audience, file) in [
+        (
+            crucible_smithy::Audience::Internal,
+            "permissions.openapi.json",
+        ),
+        (
+            crucible_smithy::Audience::External,
+            "permissions-external.openapi.json",
+        ),
+    ] {
+        let projected = crucible_smithy::project(&service, audience).unwrap();
+        let generated = generate(&projected, &Options::default()).unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden")
+            .join(file);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            std::fs::write(&path, &generated).unwrap();
+        }
+        assert_eq!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .replace("\r\n", "\n"),
+            generated,
+            "{file}"
+        );
+        let internal = generated.contains("organization:read");
+        assert_eq!(
+            internal,
+            audience == crucible_smithy::Audience::Internal,
+            "{file}"
+        );
+        assert!(!generated.contains("crucible.auth#requires"), "{file}");
+    }
+}
+
 #[test]
 fn http_members_are_projected_into_their_wire_locations() {
     let doc = document(&service(|_| {}));

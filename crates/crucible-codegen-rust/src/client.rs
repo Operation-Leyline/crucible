@@ -7,7 +7,7 @@ use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::errors::info_static;
 use crate::names::{doc, documented, field, function, literal, variant};
-use crate::operations::{input_type, marker, output_type, structure};
+use crate::operations::{input_type, marker_for, output_type, structure};
 use crate::types::simple_kind;
 
 const UNIT: &str = "::crucible_server_runtime_rust::__generated::operation::Unit";
@@ -49,7 +49,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         } else {
             UNIT.to_owned()
         };
-        out.push_str(&marker(service, op, &output, true));
+        out.push_str(&marker_for(service, op, &output, true, ""));
         out.push_str(&error_enum(service, op));
         if metadata_needed(service, op) {
             out.push_str(&format!("\n#[allow(non_upper_case_globals, deprecated)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::__generated::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
