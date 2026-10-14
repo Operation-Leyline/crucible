@@ -108,6 +108,9 @@ use attempt::Attempt;
 /// A step that then fails in a way that proves it did not happen is taken
 /// back with [`abandon`].
 pub async fn commit() -> Result<()> {
+    // The point of no return: no permission obligation may still be open.
+    #[cfg(feature = "permissions")]
+    crate::permissions::before_commit()?;
     match attempt()?.claim {
         Some(claim) => claim.commit().await,
         None => Ok(()),

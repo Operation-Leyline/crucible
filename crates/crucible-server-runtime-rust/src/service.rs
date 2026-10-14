@@ -977,7 +977,8 @@ impl Builder {
         if let Some(cors) = &cors {
             self.middleware.insert(0, Box::new(cors.clone()));
         }
-        let prepare = Prepare::new(&self.operations);
+        let builtins = std::cell::RefCell::new(Vec::new());
+        let prepare = Prepare::new(&self.operations, &builtins);
         for middleware in &mut self.middleware {
             middleware.prepare(&prepare).map_err(BuildError::Prepare)?;
         }

@@ -269,6 +269,11 @@ impl Interceptor for Idempotency {
     }
 
     fn after<'a>(&'a self, job: &'a mut OperationJob<'_>) -> Hook<'a, ()> {
+        // A success with a permission obligation open fails here, before
+        // it could be stored for replay (`Permissions` is registered first,
+        // so it unwinds after this).
+        #[cfg(feature = "permissions")]
+        crate::permissions::settle(job);
         let Some(claim) = job
             .context()
             .attribute::<Attempt>()
@@ -286,6 +291,9 @@ impl Interceptor for Idempotency {
     }
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        // Records the registration order for `Permissions`, which warns when
+        // it follows.
+        prepare.builtin("idempotency", "permissions");
         if self.retention.is_zero() || self.lease.is_zero() {
             return Err("an idempotency retention and lease must be positive".to_owned());
         }

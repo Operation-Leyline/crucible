@@ -49,6 +49,17 @@ pub trait Operation: Send + Sync + 'static {
     /// and an output that does not stream; `None` means the operation's
     /// output cannot be replayed.
     const OUTPUT_FROM_JSON: Option<OutputFromJson<Self::Output>> = None;
+    /// What the operation requires of its caller (`requires`, `filters`,
+    /// `requires none`, `requires pending`), for the server's `Permissions`
+    /// interceptor. Generated for server bindings; `Undeclared` otherwise.
+    const REQUIREMENTS: crate::permissions::Requirements =
+        crate::permissions::Requirements::Undeclared;
+    /// Evaluates the bindings and `when` conditions of
+    /// [`Operation::REQUIREMENTS`] against the decoded input: one
+    /// [`Check`](crate::permissions::Check) per `Check` or `Filter` clause
+    /// that applies, in clause order. Generated, so it reads fields rather
+    /// than JSON; `None` for an operation with no such clause.
+    const CHECKS: Option<crate::permissions::Checks<Self::Input>> = None;
     const HAS_INPUT: bool = true;
     const HAS_OUTPUT: bool = true;
     fn output_status(_output: &Self::Output) -> Option<u16> {

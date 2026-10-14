@@ -1,4 +1,9 @@
-use crate::operation::{AuthScheme, Operation, Pagination, PaginationMember, Protocol};
+use crate::operation::{AuthScheme, Input, Operation, Pagination, PaginationMember, Protocol};
+use crate::permissions::{Check, Requirements};
+
+/// [`Operation::CHECKS`] behind the type-erased input: `false` when the
+/// input is not the operation's.
+pub type ErasedChecks = fn(&dyn Input, &mut Vec<Check>) -> bool;
 
 /// Effective wire and authentication settings retained after type-erased registration.
 /// These describe the model; middleware remains responsible for enforcing authentication.
@@ -32,6 +37,13 @@ pub struct OperationMetadata {
     /// Whether a stored output can answer a retry
     /// ([`DecodedJob::replay_output`](crate::DecodedJob::replay_output)).
     pub replays_output: bool,
+    /// What the operation requires of its caller ([`Operation::REQUIREMENTS`]).
+    /// At an older API version, the current version's: requirements are
+    /// written against the current model, whose input interceptors see.
+    pub requirements: &'static Requirements,
+    /// Evaluates the requirements' bindings and conditions against the
+    /// decoded input ([`Operation::CHECKS`]).
+    pub checks: Option<ErasedChecks>,
 }
 
 impl OperationMetadata {
@@ -56,6 +68,21 @@ impl OperationMetadata {
             idempotency_token: O::IDEMPOTENCY_TOKEN,
             idempotency_token_sent: O::IDEMPOTENCY_TOKEN.is_some(),
             replays_output: O::OUTPUT_FROM_JSON.is_some(),
+            requirements: const { &O::REQUIREMENTS },
+            checks: match O::CHECKS {
+                Some(_) => Some(erased_checks::<O>),
+                None => None,
+            },
         }
+    }
+}
+
+fn erased_checks<O: Operation>(input: &dyn Input, out: &mut Vec<Check>) -> bool {
+    match (O::CHECKS, input.as_any().downcast_ref::<O::Input>()) {
+        (Some(checks), Some(input)) => {
+            checks(input, out);
+            true
+        }
+        _ => false,
     }
 }

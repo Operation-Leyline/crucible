@@ -357,12 +357,15 @@ where
         // The interceptors see the current version's input, and a replay
         // reads the current version's output, which converts down as the
         // operation's own would. A version whose model had no token cannot
-        // send one, so its requests run unclaimed.
+        // send one, so its requests run unclaimed. Requirements bind the
+        // current input, so they are the current version's too.
         metadata: OperationMetadata {
             idempotency_token: serving.metadata.idempotency_token,
             idempotency_token_sent: Old::IDEMPOTENCY_TOKEN.is_some()
                 && serving.metadata.idempotency_token.is_some(),
             replays_output: serving.metadata.replays_output,
+            requirements: serving.metadata.requirements,
+            checks: serving.metadata.checks,
             ..OperationMetadata::of::<Old>()
         },
         decode: decode::<Old>,

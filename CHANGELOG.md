@@ -103,6 +103,41 @@ version's section when it is prepared.
   `commit` after it commits again. See
   [docs/framework.md](docs/framework.md#idempotency-tokens).
 
+- Typed permissions, the runtime side. `permissions` holds the static
+  descriptions generated code will state, always present: `ResourceInfo`,
+  `PermissionInfo` (with `Tier` and aliases), `Requirements` (`Undeclared`,
+  `None`, `Pending { reason }`, `List` of `RequirementInfo` with a `Mode`),
+  `Obligation`, and the per-request `Check` on a `ResourceRef` (identifiers
+  root to leaf, the leaf possibly `Target::All`) with its `Origin`.
+  Generated operations carry them as `Operation::REQUIREMENTS` and
+  `Operation::CHECKS`, also on `OperationMetadata` (`requirements`,
+  `checks`). Behind the new `permissions` feature, `Permissions` is an
+  `Interceptor` enforcing them through a service-supplied `Authorizer`
+  (`decide` for a batch of checks, `visible` for a `filters` listing),
+  which answers `Verdict::Allowed`, `Denied` or `Hidden`: the first refusal
+  in declaration order is a 404 `NotFoundException` for Hidden and a 403
+  naming the permission (never an internal one) for Denied, or what
+  `refusal_factory` builds from a `PermissionRefusal`. An authenticated
+  operation without requirement metadata is refused as a wiring error unless
+  `allow_undeclared()`; `requires pending` passes; `shadow()` only records
+  and logs. Handlers check what the model cannot bind with
+  `permissions::require`, `decide`, `discharge` and `not_applicable` (for
+  `by handler` obligations, asserted at `idempotency::commit()` and after a
+  success in debug builds, `assert_obligations`), read a listing's
+  `permissions::visible()`, and report genuine absence with
+  `permissions::not_found`. Every request gets an `AuthorizationRecord` on
+  its context for audit. Registered before `Idempotency`, a refused request
+  never claims a token and every replay is authorized again; the other
+  order is warned at build. See
+  [docs/framework.md](docs/framework.md#typed-permissions).
+
+- `FrameworkError::NotFound { resource_type }`: HTTP 404, the modelled
+  `crucible.errors#NotFoundException` with `message` (`No such inbox.`) and
+  `resourceType`, sent with `Cache-Control: no-store` (a tool error in MCP).
+  `FrameworkError::PermissionDenied { resource_type, permission }`: HTTP 403
+  `ForbiddenException` naming the missing permission unless it is `None`,
+  without the `insufficient_scope` challenge `Forbidden` carries.
+
 - `FrameworkError::Conflict { message }`: HTTP 409 `ConflictException`
   (`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
   what `Idempotency` answers by default without a modelled conflict error.
@@ -273,10 +308,12 @@ version's section when it is prepared.
 
 ### Migration
 
-- **`FrameworkError` has a `Conflict` variant.** A `match` over
-  `FrameworkError` with no wildcard arm needs one for `Conflict { .. }`
-  (HTTP 409), including through `crucible-client-runtime-rust`, which
-  re-exports `FrameworkError`. No shim is possible for a new variant. See
+- **`FrameworkError` has `Conflict`, `NotFound` and `PermissionDenied`
+  variants.** A `match` over `FrameworkError` with no wildcard arm needs
+  arms for `Conflict { .. }` (HTTP 409), `NotFound { .. }` (404) and
+  `PermissionDenied { .. }` (403), including through
+  `crucible-client-runtime-rust`, which re-exports `FrameworkError`. No
+  shim is possible for a new variant. See
   [migrating](docs/migrating.md#unreleased).
 
 - **`crucible_auth::Principal` is non-exhaustive.** A custom `Authenticator`
