@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use crucible_smithy::ir::DocNotes;
+use crucible_smithy::ir::{DocNotes, Service};
 use crucible_smithy::{Diagnostics, ShapeId};
 
 /// `nextToken` → `next_token`, `HTTPStatus` → `http_status`, keywords escaped.
@@ -56,6 +56,22 @@ pub(crate) fn check_distinct<'a>(
             diagnostics.push(
                 &owner.with_member(name),
                 format!("members `{previous}` and `{name}` are both {what} `{rust}` in Rust"),
+            );
+        }
+    }
+}
+
+/// Diagnoses model types Rust cannot declare under their model names: a
+/// keyword (`type`, `match`) or `Self`. Valid Smithy, but a raw `r#type`
+/// would not survive the names built from it (`typeBuilder`), so the model
+/// renames the shape instead (a service `rename`).
+pub(crate) fn check_type_names(service: &Service, diagnostics: &mut Diagnostics) {
+    for id in service.shapes.keys() {
+        let name = service.name_of(id);
+        if escape(name) != name {
+            diagnostics.push(
+                id,
+                format!("`{name}` is a Rust keyword and cannot name a type; rename the shape"),
             );
         }
     }

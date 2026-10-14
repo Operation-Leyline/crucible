@@ -28,8 +28,12 @@ fn literal(text: &str) -> String {
             '\n' => result.push_str("\\n"),
             '\r' => result.push_str("\\r"),
             '\t' => result.push_str("\\t"),
-            // Line separators and a BOM are legal raw but invisible in a diff.
-            ch if ch.is_control() || matches!(ch, '\u{2028}' | '\u{2029}' | '\u{feff}') => {
+            // Line separators, a BOM and bidirectional controls are legal raw
+            // but invisible in a diff.
+            ch if ch.is_control()
+                || crucible_codegen_common::bidi(ch)
+                || matches!(ch, '\u{2028}' | '\u{2029}' | '\u{feff}') =>
+            {
                 result.push_str(&format!("\\u{:04x}", u32::from(ch)))
             }
             ch => result.push(ch),
@@ -150,9 +154,12 @@ pub(crate) fn kdoc_for(
     site: &str,
 ) -> String {
     let mut notes = notes.to_vec();
-    notes.extend(meta.lines());
+    // The model's own text (a `@since` version, a deprecation message) is
+    // escaped, so a line of it that starts with `@` is not a block tag.
+    let escape = crucible_codegen_common::docs::escape;
+    notes.extend(meta.lines().iter().map(|line| escape(line)));
     if let Some(deprecated) = &meta.deprecated {
-        notes.push(deprecated.sentence());
+        notes.push(escape(&deprecated.sentence()));
     }
     let notes = &notes[..];
     let mut blocks = model.map(docs::kdoc).unwrap_or_default();

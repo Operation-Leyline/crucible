@@ -91,7 +91,7 @@ pub fn emit(service: &Service, plan: &Plan, diagnostics: &mut Diagnostics) -> St
     writeln!(
         output,
         "const schemas = {};\n",
-        serde_json::to_string(&schemas).unwrap()
+        crucible_codegen_common::source_json(&serde_json::to_string(&schemas).unwrap())
     )
     .unwrap();
     for resource in &plan.resources {
@@ -180,7 +180,9 @@ pub fn emit(service: &Service, plan: &Plan, diagnostics: &mut Diagnostics) -> St
                 output,
                 "    validate(props.{}, {}, schemas, {}, {});",
                 public_name(name),
-                property_schema(service, property),
+                crucible_codegen_common::source_json(
+                    &property_schema(service, property).to_string()
+                ),
                 quote(&public_name(name)),
                 property.required
             )
@@ -268,7 +270,10 @@ fn docs(output: &mut String, text: Option<&str>, indent: &str, extra: Option<&st
         return;
     }
     writeln!(output, "{indent}/**").unwrap();
-    for line in text.unwrap_or_default().lines() {
+    // Model text as a comment carries it: line breaks normalised, BOM,
+    // control and bidirectional characters dropped.
+    let text = crucible_codegen_common::docs::comment_text(text.unwrap_or_default());
+    for line in text.lines() {
         writeln!(
             output,
             "{indent} * {}",
@@ -282,7 +287,7 @@ fn docs(output: &mut String, text: Option<&str>, indent: &str, extra: Option<&st
     writeln!(output, "{indent} */").unwrap();
 }
 fn quote(value: &str) -> String {
-    serde_json::to_string(value).unwrap()
+    crucible_codegen_common::quoted(value)
 }
 
 fn visit(

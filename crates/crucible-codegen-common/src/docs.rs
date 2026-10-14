@@ -159,12 +159,14 @@ fn normalise(text: &str, terminator: bool) -> String {
 }
 
 /// Model text as a source comment can carry it: every line break (CRLF,
-/// CR, NEL, U+2028, U+2029) becomes LF, and a byte order mark or any other
-/// control character but tab is dropped. Languages disagree on what ends a
-/// line comment (Java at CR, C# and JavaScript at U+2028) and Go refuses a
-/// BOM anywhere but a file's start, so model documentation is reduced to
-/// what every one of them reads the same way. Every comment helper here and
-/// in [`crate::documentation`] starts with it.
+/// CR, NEL, U+2028, U+2029) becomes LF, and a byte order mark, a
+/// bidirectional control ([`crate::bidi`]) or any other control character
+/// but tab is dropped. Languages disagree on what ends a line comment (Java
+/// at CR, C# and JavaScript at U+2028), Go refuses a BOM anywhere but a
+/// file's start, and rustc and GCC/Clang refuse bidirectional controls in
+/// comments, so model documentation is reduced to what every one of them
+/// reads the same way. Every comment helper here and in
+/// [`crate::documentation`] starts with it.
 pub fn comment_text(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
@@ -179,11 +181,17 @@ pub fn comment_text(text: &str) -> String {
             '\n' | '\u{85}' | '\u{2028}' | '\u{2029}' => out.push('\n'),
             '\t' => out.push(c),
             '\u{feff}' => {}
-            c if c.is_control() => {}
+            c if c.is_control() || crate::bidi(c) => {}
             c => out.push(c),
         }
     }
     out
+}
+
+/// Model text on one comment line, such as a header naming the service
+/// version: [`comment_text`] with each line break a space.
+pub fn comment_line(text: &str) -> String {
+    comment_text(text).replace('\n', " ")
 }
 
 fn escape_line(line: &str) -> String {
@@ -297,6 +305,15 @@ mod tests {
         let block = block_comment("", "a */ b", &[]);
         assert_eq!(block, "/**\n * a *\u{5c}/ b\n */\n");
         assert_eq!(line_comment("", "///", "a */ b"), "/// a */ b\n");
+    }
+
+    #[test]
+    fn comment_text_drops_bidirectional_controls() {
+        assert_eq!(
+            comment_text("a\u{202e}b\u{2066}c\u{2069}d\u{200f}e"),
+            "abcde"
+        );
+        assert_eq!(comment_line("1\r\n2\u{2028}3\r4"), "1 2 3 4");
     }
 
     #[test]

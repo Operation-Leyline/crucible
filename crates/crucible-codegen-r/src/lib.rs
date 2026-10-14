@@ -499,6 +499,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     client.push_str("  client\n}\n");
+    // The rest of the schema (auth schemes, endpoint rules, protocol settings
+    // and tests, the permission registry) also becomes R strings when the
+    // package loads, so a NUL anywhere in it is refused as well. The version
+    // was diagnosed above.
+    if schema.as_object().is_some_and(|fields| {
+        fields.iter().any(|(key, value)| {
+            !["shapes", "operations", "version"].contains(&key.as_str()) && contains_nul(value)
+        })
+    }) {
+        diagnostics.push(
+            &service.id,
+            "R strings cannot represent NUL in service metadata",
+        );
+    }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

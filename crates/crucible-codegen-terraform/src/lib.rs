@@ -28,8 +28,10 @@ pub struct TerraformBinding {
     pub not_found_errors: Vec<String>,
 }
 
+/// A Go string literal: JSON's quoting would leave a byte order mark raw,
+/// which Go refuses anywhere but a file's start.
 fn literal(value: &str) -> String {
-    serde_json::to_string(value).expect("string serializes")
+    crucible_codegen_common::quoted(value)
 }
 
 fn valid_name(name: &str) -> bool {

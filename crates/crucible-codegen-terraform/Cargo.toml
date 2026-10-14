@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 crucible-smithy.workspace = true
 crucible-codegen-go.workspace = true
+crucible-codegen-common.workspace = true
 crucible-codegen-infra = { path = "../crucible-codegen-infra" }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
