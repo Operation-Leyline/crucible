@@ -7,6 +7,7 @@ use super::attempt::{Attempt, ClaimConfig, Clock, HeldClaim, RefusalFactory, aft
 use super::store_unavailable::StoreUnavailable;
 use super::stored_response::Recorded;
 use super::{Claim, Fingerprint, IdempotencyKey, IdempotencyRefusal, IdempotencyStore};
+use crate::caller_binding::CallerBinding;
 use crate::operation::{Location, OperationInfo};
 use crate::{Context, DecodedJob, Hook, Interceptor, OperationJob, Outcome, Prepare, Result};
 
@@ -36,8 +37,6 @@ const DEFAULT_STORE_TIMEOUT: Duration = Duration::from_secs(5);
 /// token only costs storage and log space.
 const MAX_TOKEN: usize = 256;
 
-type Caller = Arc<dyn Fn(&Context) -> Option<String> + Send + Sync>;
-
 /// Server-side idempotency for every operation with an idempotency token
 /// (see the [module docs](super)): it requires the token, claims it in the
 /// service's [`IdempotencyStore`] before the operation runs, answers a retry
@@ -51,7 +50,7 @@ type Caller = Arc<dyn Fn(&Context) -> Option<String> + Send + Sync>;
 /// run for a replay or a refused duplicate, such as ones with side effects.
 pub struct Idempotency {
     store: Arc<dyn IdempotencyStore>,
-    caller: Caller,
+    caller: CallerBinding,
     refusal: RefusalFactory,
     retention: Duration,
     lease: Duration,
@@ -64,19 +63,24 @@ pub struct Idempotency {
 impl Idempotency {
     /// Claims tokens in `store`. `caller` names who is asking, from the
     /// request context, so one caller's token never replays or blocks
-    /// another's. Encode it unambiguously (a JSON array of the principal's
-    /// issuer and subject, say): two callers whose names encode alike share
-    /// one binding. `None` is an anonymous caller, and every anonymous
-    /// caller shares one binding, so return a name for every authenticated
-    /// request: an authenticated caller answered `None` replays and blocks
-    /// every other one.
+    /// another's. The name must carry everything that scopes what the
+    /// caller may see and is not in the operation's input (the principal's
+    /// issuer, subject and tenant), encoded unambiguously (a JSON array, as
+    /// `crucible_auth::Principal::caller_binding` writes): two callers whose
+    /// names encode alike share one binding.
+    ///
+    /// `None` names no one. A request it is returned for is refused as the
+    /// service's internal error, unless [`allow_anonymous`](Self::allow_anonymous)
+    /// lets it share the anonymous binding; on an operation that requires
+    /// authentication it is refused regardless, since its caller was
+    /// authenticated and the closure missed them.
     pub fn new(
         store: impl IdempotencyStore,
         caller: impl Fn(&Context) -> Option<String> + Send + Sync + 'static,
     ) -> Self {
         Self {
             store: Arc::new(store),
-            caller: Arc::new(caller),
+            caller: CallerBinding::new(caller),
             refusal: Arc::new(IdempotencyRefusal::default_error),
             retention: DEFAULT_RETENTION,
             lease: DEFAULT_LEASE,
@@ -85,6 +89,17 @@ impl Idempotency {
             required: true,
             clock: Arc::new(SystemTime::now),
         }
+    }
+
+    /// Lets every request the caller binding names no one for share one
+    /// anonymous binding, on operations that admit anonymous callers
+    /// (`@optionalAuth`, or no authentication): any anonymous caller's
+    /// retry replays any other's success. Without it `build` refuses an
+    /// operation in scope that admits anonymous callers, since its
+    /// anonymous requests would be refused.
+    pub fn allow_anonymous(mut self) -> Self {
+        self.caller.allow_anonymous();
+        self
     }
 
     /// How long a completed request's output answers its retries, and how
@@ -323,13 +338,17 @@ impl Interceptor for Idempotency {
                 member: member.name,
             })));
         }
+        let caller = match self.caller.bind(
+            "Idempotency",
+            job.context(),
+            job.operation(),
+            job.metadata(),
+        ) {
+            Ok(caller) => caller,
+            Err(error) => return Hook::Ready(Err(error)),
+        };
         let fingerprint = Fingerprint::of(&input);
-        let key = IdempotencyKey::new(
-            job.service().id,
-            job.operation().id,
-            (self.caller)(job.context()),
-            token,
-        );
+        let key = IdempotencyKey::new(job.service().id, job.operation().id, caller, token);
         Hook::wait(self.claim(job, key, fingerprint))
     }
 
@@ -378,6 +397,11 @@ impl Interceptor for Idempotency {
                 .is_some_and(|metadata| metadata.idempotency_token.is_some())
         };
         let mut problems = Vec::new();
+        if let Err(problem) = self.caller.prepare("Idempotency", prepare, |metadata| {
+            metadata.idempotency_token.is_some() && metadata.idempotency_token_sent
+        }) {
+            problems.push(problem);
+        }
         let streamed: Vec<&str> = prepare
             .operations()
             .filter(&tokened)

@@ -57,6 +57,13 @@ version's section when it is prepared.
   `None`, and no token claim sets it. `Principal::new(subject, issuer,
   token_kind)` with `with_client_id`, `with_scopes`, `with_groups`,
   `with_claims` and `with_tenant` construct one.
+  `Principal::caller_binding` names the principal for `Idempotency` and
+  `PageTokens` as the JSON array `[issuer, subject, tenant]`, and
+  `Principal::caller_binding_of(context)` is that binding for the request's
+  principal, a caller closure as it stands.
+
+- `OperationMetadata::requires_authentication`: whether the operation names
+  an authentication scheme and is not `@optionalAuth`.
 
 - Sealed pagination tokens, behind the runtime's `page-tokens` feature.
   `PageTokens` is an `Interceptor` that opens the token a `@paginated`
@@ -65,18 +72,21 @@ version's section when it is prepared.
   `page_tokens::issue(&cursor)`. Tokens are XChaCha20-Poly1305 under keys
   derived from a secret (`PageKeys`, with retired keys accepted for
   rotation), bound to the service, operation, caller and filters, and expire
-  after 24 hours (`ttl`). Nothing is stored. A token that does not open is
-  the service's validation error naming the token member, or what
-  `PageTokens::refusal` builds. The lifetime is from one second to 30
-  days; a cursor is at most 4096 bytes, and a longer token is refused
-  before it is decoded. Rotating needs a new secret: `PageKeys::accept`
-  refuses one another key uses (`PageKeyError::ReusedSecret`;
-  `PageKeyError` is `#[non_exhaustive]`). `build` refuses `PageTokens` for
-  an operation whose token is a map. At an older API version the token is
-  read from the current version's input members. Generated server
-  operations carry `Operation::PAGINATION`, the token and page size
-  members and whether the token is a map, also on
-  `OperationMetadata::pagination`. See
+  after 24 hours (`ttl`). The caller is named by the closure given to
+  `PageTokens::new`, as for `Idempotency` below: a request it names no one
+  for shares one anonymous binding only after `allow_anonymous()`, and never
+  on an operation that requires authentication. Nothing is stored. A token
+  that does not open is the service's validation error naming the token
+  member, or what `PageTokens::refusal` builds. The lifetime is from one
+  second to 30 days; a cursor is at most 4096 bytes, and a longer token is
+  refused before it is decoded. Rotating needs a new secret:
+  `PageKeys::accept` refuses one another key uses
+  (`PageKeyError::ReusedSecret`; `PageKeyError` is `#[non_exhaustive]`).
+  `build` refuses `PageTokens` for an operation whose token is a map, at any
+  API version that serves it. At an older API version the token is read from
+  the current version's input members. Generated server operations carry
+  `Operation::PAGINATION`, the token and page size members and whether the
+  token is a map, also on `OperationMetadata::pagination`. See
   [docs/framework.md](docs/framework.md#pagination-tokens).
 
 - Server-side idempotency (client tokens), behind the runtime's
@@ -88,7 +98,14 @@ version's section when it is prepared.
   the service's `IdempotencyStore` (`claim`, then `hold`, `complete` and
   `release`, which answer `Ownership::Held` or `Lost`), keyed by service,
   operation, caller binding and token, with a SHA-256 `Fingerprint` of the
-  canonical decoded input without its token. A retry with the same input
+  canonical decoded input without its token. The caller binding is the
+  closure given to `new`; one that names no one (`None`) is the service's
+  internal error unless `allow_anonymous()` lets every such request share
+  one binding, and on an operation that requires authentication it is
+  refused regardless, since the closure missed an authenticated caller.
+  `build` refuses `Idempotency` or `PageTokens` without `allow_anonymous`
+  over an operation that admits anonymous callers (`@optionalAuth`, no
+  authentication scheme), naming it. A retry with the same input
   gets the first success re-encoded for its own protocol, API version and
   request id, without the operation running; the same token with other
   input, or while the first request runs, is a 409, and so is a stored

@@ -162,8 +162,10 @@ fn builder() -> crucible_server_runtime_rust::Builder {
     Crucible::builder(operations).protocol(JsonProtocol)
 }
 
+/// The streaming operations here declare no authentication, so their
+/// anonymous callers share a binding, as `build` asks a service to choose.
 fn idempotency() -> Idempotency {
-    Idempotency::new(MemoryIdempotencyStore::new(), |_| None)
+    Idempotency::new(MemoryIdempotencyStore::new(), |_| None).allow_anonymous()
 }
 
 #[test]
@@ -198,5 +200,23 @@ fn operations_whose_streams_cannot_be_fingerprinted_or_replayed_are_refused_by_n
             .interceptor(idempotency().except(&["Upload", "Download"]))
             .build()
             .is_ok()
+    );
+}
+
+#[test]
+fn operations_that_admit_anonymous_callers_need_the_choice_to_share_a_binding() {
+    let refused = builder()
+        .interceptor(Idempotency::new(MemoryIdempotencyStore::new(), |_| None))
+        .build();
+    let Err(BuildError::Prepare(message)) = refused else {
+        panic!("anonymous callers must be a choice");
+    };
+    assert!(
+        message.contains("anonymous callers reach Download, Upload ("),
+        "{message}"
+    );
+    assert!(
+        message.contains("Idempotency::allow_anonymous"),
+        "{message}"
     );
 }

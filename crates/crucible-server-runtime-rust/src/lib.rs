@@ -33,6 +33,8 @@ mod async_middleware;
 mod async_operation_middleware;
 mod auth_refusal;
 #[cfg(any(feature = "page-tokens", feature = "idempotency"))]
+mod caller_binding;
+#[cfg(any(feature = "page-tokens", feature = "idempotency"))]
 mod canonical_json;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]

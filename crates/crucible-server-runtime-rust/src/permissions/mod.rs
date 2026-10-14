@@ -42,8 +42,8 @@
 //! builder
 //!     .operation_middleware(chain)
 //!     .interceptor(Permissions::new(authorizer).refusal_factory(refused))
-//!     .interceptor(PageTokens::new(keys, caller))
-//!     .interceptor(Idempotency::new(store, caller))
+//!     .interceptor(PageTokens::new(keys, Principal::caller_binding_of))
+//!     .interceptor(Idempotency::new(store, Principal::caller_binding_of))
 //! ```
 
 #[cfg(feature = "permissions")]

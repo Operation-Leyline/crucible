@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
+use crucible_auth::{Principal, TokenKind};
 use crucible_server_runtime_rust::idempotency::{
     self, Claim, Fingerprint, Idempotency, IdempotencyKey, IdempotencyRefusal, IdempotencyStore,
     MemoryIdempotencyStore, Ownership, StoredResponse,
@@ -207,13 +208,38 @@ impl CityStore for Counted {
     }
 }
 
-/// Who is asking. A real service names its authenticated principal.
+/// Who is asking. A real service names its authenticated principal; here
+/// it is the `x-caller` header. Every weather operation requires
+/// authentication, so a request without one (a direct invoke) is a default
+/// caller, not an anonymous one, which `Idempotency` would refuse.
 fn caller(context: &Context) -> Option<String> {
+    Some(named(context).unwrap_or_else(|| "default".to_owned()))
+}
+
+/// The `x-caller` header, `None` without one.
+fn named(context: &Context) -> Option<String> {
+    header(context, "x-caller")
+}
+
+fn header(context: &Context, name: &str) -> Option<String> {
     context
         .headers()
-        .get("x-caller")
+        .get(name)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned)
+}
+
+/// The principal an authenticator would have set, from the `x-caller` and
+/// `x-tenant` headers, bound as `crucible_auth` binds one.
+fn principal(context: &Context) -> Option<String> {
+    let subject = named(context)?;
+    let principal = Principal::new(subject, "https://issuer.example", TokenKind::ApiKey);
+    let principal = match header(context, "x-tenant") {
+        Some(tenant) => principal.with_tenant(tenant),
+        None => principal,
+    };
+    context.set_attribute(principal);
+    Principal::caller_binding_of(context)
 }
 
 struct Harness {
@@ -278,13 +304,19 @@ async fn serve_with(
 
 impl Harness {
     async fn create(&self, caller: Option<&str>, body: Value) -> Answer {
+        let caller = caller.map(|caller| ("x-caller", caller));
+        self.create_with(caller.as_slice(), body).await
+    }
+
+    /// `create`, with these headers.
+    async fn create_with(&self, headers: &[(&str, &str)], body: Value) -> Answer {
         let mut request = self
             .http
             .post(format!("{}/cities", self.endpoint))
             .header("x-expected-revision", "7")
             .json(&body);
-        if let Some(caller) = caller {
-            request = request.header("x-caller", caller);
+        for (name, value) in headers {
+            request = request.header(*name, *value);
         }
         let response = request.send().await.unwrap();
         let header = |name: &str| {
@@ -383,8 +415,46 @@ async fn a_retry_replays_the_first_success_without_running_again() {
 }
 
 #[tokio::test]
+async fn a_binding_that_names_no_one_never_shares_another_callers_token() {
+    // Every weather operation requires authentication: a request the
+    // binding names no one for is one whose caller it missed, refused
+    // whether or not anonymous callers may share a binding.
+    for idempotency in [
+        Idempotency::new(store(), named),
+        Idempotency::new(store(), named).allow_anonymous(),
+    ] {
+        let harness = serve(idempotency).await;
+        let first = harness.create(Some("alice"), oslo("t-1")).await;
+        assert_eq!(first.status, 201, "{}", first.json());
+        let missed = harness.create(None, oslo("t-1")).await;
+        assert_eq!(missed.status, 500, "{}", missed.json());
+        assert_ne!(missed.body, first.body, "not alice's stored success");
+        let fresh = harness.create(None, oslo("t-2")).await;
+        assert_eq!(fresh.status, 500, "{}", fresh.json());
+        assert_eq!(harness.cities.creates(), 1);
+    }
+}
+
+#[tokio::test]
+async fn a_token_is_bound_to_the_callers_tenant() {
+    // One subject with credentials bound to two tenants (two API keys):
+    // the same token from the other tenant is another request, not a retry.
+    let harness = serve(Idempotency::new(store(), principal)).await;
+    let as_tenant = |tenant| [("x-caller", "alice"), ("x-tenant", tenant)];
+    let first = harness.create_with(&as_tenant("t-a"), oslo("t-1")).await;
+    assert_eq!(first.status, 201, "{}", first.json());
+    let other = harness.create_with(&as_tenant("t-b"), oslo("t-1")).await;
+    assert_eq!(other.status, 201, "{}", other.json());
+    assert_ne!(other.body, first.body);
+    assert_eq!(harness.cities.creates(), 2);
+    let retry = harness.create_with(&as_tenant("t-a"), oslo("t-1")).await;
+    assert_eq!(retry.body, first.body);
+    assert_eq!(harness.cities.creates(), 2);
+}
+
+#[tokio::test]
 async fn a_direct_invoke_replays_what_http_created() {
-    // An invocation carries no caller header, so both are the anonymous caller.
+    // An invocation carries no caller header, so both are the default caller.
     let harness = serve(Idempotency::new(store(), caller)).await;
     let first = harness.create(None, oslo("t-1")).await;
     assert_eq!(first.status, 201);
@@ -1088,7 +1158,7 @@ async fn an_mcp_tool_call_reusing_a_token_gets_a_tool_error() {
     let cities = Arc::new(Counted::default());
     let service = weather_service::builder(cities.clone())
         .mcp(McpConfig::new())
-        .interceptor(Idempotency::new(store(), |_| None))
+        .interceptor(Idempotency::new(store(), caller))
         .build()
         .unwrap();
     let call = |arguments: Value| {
