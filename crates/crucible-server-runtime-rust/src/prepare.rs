@@ -11,17 +11,25 @@ pub struct Prepare<'a> {
     scope: Option<&'a (dyn Fn(&OperationInfo) -> bool + 'a)>,
     /// The scope this one narrows: an operation must pass both.
     outer: Option<&'a Prepare<'a>>,
-    /// The runtime's own extensions prepared so far, in registration order,
-    /// for the ordering rules between them (`Permissions` before
-    /// `Idempotency`). Never a service's extension: those are not named.
-    builtins: &'a RefCell<Vec<&'static str>>,
+    /// What the runtime's own extensions recorded while being prepared.
+    builtins: &'a RefCell<Builtins>,
+}
+
+/// What the runtime's own extensions record at `build`, for the rules
+/// between them and the checks `build` makes once all are prepared.
+#[derive(Default)]
+pub(crate) struct Builtins {
+    /// Prepared so far, in registration order, for the ordering rules
+    /// between them (`Permissions` before `PageTokens` and `Idempotency`).
+    /// Never a service's extension: those are not named.
+    pub(crate) order: Vec<&'static str>,
+    /// The operations a `Permissions` covers, by id: a served operation
+    /// declaring requirements outside all of them would run unchecked.
+    pub(crate) authorized: Vec<&'static str>,
 }
 
 impl<'a> Prepare<'a> {
-    pub(crate) fn new(
-        registry: &'a crate::Operations,
-        builtins: &'a RefCell<Vec<&'static str>>,
-    ) -> Self {
+    pub(crate) fn new(registry: &'a crate::Operations, builtins: &'a RefCell<Builtins>) -> Self {
         Self {
             service: registry.service(),
             registry,
@@ -34,14 +42,34 @@ impl<'a> Prepare<'a> {
     /// Records that the runtime's own extension `name` is registered here,
     /// answering whether `before` was registered ahead of it.
     #[cfg_attr(
-        not(any(feature = "idempotency", feature = "permissions")),
+        not(any(
+            feature = "idempotency",
+            feature = "page-tokens",
+            feature = "permissions"
+        )),
         allow(dead_code)
     )]
     pub(crate) fn builtin(&self, name: &'static str, before: &str) -> bool {
-        let mut builtins = self.builtins.borrow_mut();
-        let earlier = builtins.contains(&before);
-        builtins.push(name);
+        let earlier = self.registered(before);
+        self.builtins.borrow_mut().order.push(name);
         earlier
+    }
+
+    /// Whether the runtime's own extension `name` was registered ahead of
+    /// the one being prepared.
+    #[cfg_attr(not(feature = "permissions"), allow(dead_code))]
+    pub(crate) fn registered(&self, name: &str) -> bool {
+        self.builtins.borrow().order.contains(&name)
+    }
+
+    /// Records that `Permissions` covers `operation`, so `build` knows its
+    /// declared requirements are enforced.
+    #[cfg_attr(not(feature = "permissions"), allow(dead_code))]
+    pub(crate) fn authorizes(&self, operation: &'static OperationInfo) {
+        let mut builtins = self.builtins.borrow_mut();
+        if !builtins.authorized.contains(&operation.id) {
+            builtins.authorized.push(operation.id);
+        }
     }
 
     pub fn service(&self) -> &'static ServiceInfo {

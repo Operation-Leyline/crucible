@@ -20,6 +20,7 @@ use crucible_server_runtime_rust::idempotency::{
 use crucible_server_runtime_rust::operation::{
     AuthScheme, Location, MemberInfo, Redaction, Scalar, Segment, Unit,
 };
+use crucible_server_runtime_rust::page_tokens::{PageKeys, PageTokens};
 use crucible_server_runtime_rust::permissions::{
     self, AuthorizationRecord, AuthorizationRequest, Authorizer, Check, Checks, Listing, Mode,
     ObligationOutcome, ObligationRecord, OperationFacts, PermissionInfo, Permissions,
@@ -27,8 +28,8 @@ use crucible_server_runtime_rust::permissions::{
 };
 use crucible_server_runtime_rust::validate::{Validate, Validator};
 use crucible_server_runtime_rust::{
-    Builder, Crucible, Error, Hook, Interceptor, InvokeProtocol, JsonProtocol, Operation,
-    OperationInfo, OperationJob, Operations, Result, ServiceInfo,
+    BuildError, Builder, Crucible, Error, Hook, Interceptor, InterceptorExt, InvokeProtocol,
+    JsonProtocol, Operation, OperationInfo, OperationJob, Operations, Result, ServiceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -1679,7 +1680,7 @@ fn registering_permissions_after_idempotency_fails_the_build() {
         }
         .build()
     };
-    let Err(crucible_server_runtime_rust::BuildError::Prepare(message)) = build(false) else {
+    let Err(BuildError::Prepare(message)) = build(false) else {
         panic!("Permissions after Idempotency must not build");
     };
     assert!(
@@ -1687,6 +1688,90 @@ fn registering_permissions_after_idempotency_fails_the_build() {
         "{message}"
     );
     assert!(build(true).is_ok());
+}
+
+#[test]
+fn registering_permissions_after_page_tokens_fails_the_build() {
+    let build = |permissions_first: bool| {
+        let permissions = Permissions::new(Shared(Arc::default()));
+        let page_tokens = PageTokens::new(PageKeys::new("k1", &[7; 32]).unwrap(), |_| None);
+        let builder = Crucible::builder(operations(state())).protocol(JsonProtocol);
+        if permissions_first {
+            builder.interceptor(permissions).interceptor(page_tokens)
+        } else {
+            builder.interceptor(page_tokens).interceptor(permissions)
+        }
+        .build()
+    };
+    let Err(BuildError::Prepare(message)) = build(false) else {
+        panic!("Permissions after PageTokens must not build");
+    };
+    assert!(
+        message.contains("Permissions is registered after PageTokens"),
+        "{message}"
+    );
+    assert!(build(true).is_ok());
+}
+
+/// The operations of `permissions/mail.cru` that declare requirements, as
+/// opposed to `requires pending`, `requires none`, public or undeclared.
+const DECLARING: [&str; 9] = [
+    "GetInbox",
+    "SendMessage",
+    "CreateInbox",
+    "ListInboxes",
+    "DeleteGrant",
+    "Delegate",
+    "GetGraph",
+    "SearchInboxes",
+    "Miswired",
+];
+
+#[test]
+fn declared_requirements_without_permissions_fail_the_build() {
+    // Nothing would enforce them: every one would run unchecked.
+    let Err(BuildError::Prepare(message)) = Crucible::builder(operations(state()))
+        .protocol(JsonProtocol)
+        .build()
+    else {
+        panic!("declared requirements without Permissions must not build");
+    };
+    assert!(message.contains("no Permissions covers"), "{message}");
+    for name in DECLARING {
+        assert!(message.contains(name), "{name}: {message}");
+    }
+    for name in ["RenameInbox", "GetUsage", "GetMe", "Health", "Legacy"] {
+        assert!(!message.contains(name), "{name}: {message}");
+    }
+}
+
+#[test]
+fn permissions_scoped_away_from_a_declaring_operation_fails_the_build() {
+    let build = |except: &[&'static str]| {
+        Crucible::builder(operations(state()))
+            .protocol(JsonProtocol)
+            .interceptor(Permissions::new(Shared(Arc::default())).except(except))
+            .build()
+    };
+    let Err(BuildError::Prepare(message)) = build(&["SendMessage", "GetMe"]) else {
+        panic!("SendMessage declares requirements outside Permissions");
+    };
+    assert!(
+        message.contains("no Permissions covers SendMessage,"),
+        "{message}"
+    );
+    assert!(!message.contains("GetInbox"), "{message}");
+    // Two of them cover it between them.
+    let split = Crucible::builder(operations(state()))
+        .protocol(JsonProtocol)
+        .interceptor(Permissions::new(Shared(Arc::default())).except(&["SendMessage"]))
+        .interceptor(Permissions::new(Shared(Arc::default())).only(&["SendMessage"]))
+        .build();
+    assert!(split.is_ok());
+    // What declares nothing to enforce may be left out: `requires pending`
+    // and `requires none` pass anyway, and a public operation has nobody
+    // to authorize.
+    assert!(build(&["RenameInbox", "GetUsage", "GetMe", "Health", "Legacy"]).is_ok());
 }
 
 #[test]

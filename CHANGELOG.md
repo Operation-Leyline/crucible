@@ -131,8 +131,9 @@ version's section when it is prepared.
   `permissions::visible()`, and report genuine absence with
   `permissions::not_found` (a handler's modelled `NotFoundException` is
   answered identically). Every request gets an `AuthorizationRecord` on its
-  context for audit. Registered before `Idempotency` (the other order fails
-  the build), a refused request never claims a token, and a replay is
+  context for audit. Registered before `PageTokens` and `Idempotency` (the
+  other order fails the build), a refused request never has its page token
+  opened or claims an idempotency token, and a replay is
   authorized again: its declared checks, and the handler checks the first
   success was allowed, which the idempotency record now keeps
   (`StoredResponse` gains an `authorization` field; a record without it
@@ -318,6 +319,16 @@ version's section when it is prepared.
   host's less `DEADLINE_RESERVE`, or the `request_timeout`, whichever is
   earlier. Before, it reported the host's deadline unchanged, and nothing
   enforced it.
+
+- Building a service fails, naming the operations, when a served operation
+  (at any API version) declares requirements (`Requirements::List`) and no
+  `Permissions` covers it: none installed, the `permissions` feature off, or
+  `Permissions` scoped away with `only` or `except`. Before, such an
+  operation ran with its declared checks unchecked. `requires pending`,
+  `requires none`, public and undeclared operations may stay outside it;
+  `Permissions::shadow()` is the explicit way to record without refusing.
+  Registering `PageTokens` before `Permissions` now fails the build too, as
+  the documentation already said.
 
 ### Fixed
 

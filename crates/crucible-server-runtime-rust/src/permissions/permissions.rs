@@ -38,10 +38,14 @@ use crate::{
 ///   `by handler` clause opens an obligation the handler must close.
 ///
 /// Every request it covers gets an [`AuthorizationRecord`](super::AuthorizationRecord)
-/// on its context. Register it before `PageTokens` and `Idempotency` (the
-/// other order fails the build): a refused request then never claims a
-/// token, and a replay is authorized again, its declared checks and the
-/// handler checks its success was allowed.
+/// on its context. Every served operation that declares requirements must be
+/// covered (scope it with `only` or `except` and the build fails naming the
+/// operations left out); [`shadow`](Self::shadow) is the explicit way to
+/// record without refusing. Register it before `PageTokens` and
+/// `Idempotency` (the other order fails the build): a refused request then
+/// never has its page token opened or claims its idempotency token, and a
+/// replay is authorized again, its declared checks and the handler checks
+/// its success was allowed.
 pub struct Permissions {
     authorizer: Arc<dyn Authorizer>,
     refusal: RefusalFactory,
@@ -594,9 +598,15 @@ impl Interceptor for Permissions {
     }
 
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
+        let after_page_tokens = prepare.registered("page_tokens");
         if prepare.builtin("permissions", "idempotency") {
             return Err(
                 "Permissions is registered after Idempotency, so a refused request would claim its idempotency token and a replay would be answered without authorization; register Permissions first".to_owned(),
+            );
+        }
+        if after_page_tokens {
+            return Err(
+                "Permissions is registered after PageTokens, so a request it refuses would have its pagination token opened first, and a token that does not open answered before the refusal; register Permissions first".to_owned(),
             );
         }
         // A designated not-found error and its factory come together: one
@@ -630,6 +640,7 @@ impl Interceptor for Permissions {
         let mut problems = Vec::new();
         let mut undeclared = Vec::new();
         for operation in prepare.operations() {
+            prepare.authorizes(operation);
             let Some(metadata) = prepare.metadata(operation) else {
                 continue;
             };

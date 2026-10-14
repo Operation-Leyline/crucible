@@ -112,6 +112,37 @@ inspect string enum values, including unknown values from a newer service.
 handling. These consumer types are re-exported directly by the client runtime;
 their serialization machinery belongs to `__generated`.
 
+## Typed permissions
+
+The `permissions` module is part of the documented surface. Its static
+descriptions are always present, since generated bindings state them:
+`ResourceInfo`, `PermissionInfo`, `RequirementInfo`, `Requirements`,
+`Obligation`, `Check`, `ResourceRef` and `Target`, with the non-exhaustive
+`Mode`, `Origin` and `Tier`. Generated bindings own the `'static`
+descriptions; services read them, and build `ResourceRef` and
+`Check::handler` values for handler checks. `Checks` and `ErasedChecks` are
+generated-code support.
+
+Behind the `permissions` feature, `Authorizer` (`decide`, and `visible` with
+an erroring default; a later provided method keeps a default) is the
+interface a service implements, and `Permissions::{new, refusal_factory,
+not_found_factory, allow_undeclared, shadow, assert_obligations,
+undeclared_operations}` installs it as an interceptor.
+`UndeclaredOperations::get`, `PermissionRefusal::{public_permission,
+permission_for_logging, resource, origin, default_error}`, `Verdict` and
+`Visibility` complete that configuration. `AuthorizationRequest`,
+`OperationFacts`, `Listing`, `AuthorizationRecord`, `Decision`,
+`ObligationRecord` and `ObligationOutcome` are non-exhaustive: the runtime
+constructs them and services read them. Handlers use `require`, `decide`,
+`discharge`, `not_applicable`, `visible` and `not_found`.
+
+Building a service enforces the wiring: every served operation that
+declares requirements must be covered by a `Permissions`, and `Permissions`
+must be registered before `page_tokens::PageTokens` and
+`idempotency::Idempotency`. A service that breaks either rule gets a
+`BuildError::Prepare` naming it. See
+[typed permissions](framework.md#typed-permissions).
+
 ## Reading generated metadata
 
 `explorer::{Explorer, Description}` is an additive service-author API behind the
