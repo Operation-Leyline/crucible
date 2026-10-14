@@ -350,7 +350,8 @@ shared input/context references first.
 - `OperationMiddlewareExt`, `InterceptorExt`, and `ProtocolExt` provide
   `.only`, `.except`, `.when`, and `.when_trait`. Raw middleware can inspect
   headers before identification; operation scoping belongs to later stages.
-  Nested scopes only narrow `prepare.operations()` and request selection.
+  Nested scopes only narrow `prepare.operations()`,
+  `prepare.served_operations()` and request selection.
 - `before_fn` and `after_fn` construct synchronous operation-aware middleware;
   `raw_before_fn` constructs a synchronous transport check.
 - `for_operation` adapts `TypedInterceptor<O>` to the interceptor registry.
@@ -360,7 +361,14 @@ shared input/context references first.
   methods. A bundle retains the phase guarantees.
 - Every extension can read model traits once in `prepare`. Invalid required
   configuration fails service construction. `prepare.service()` exposes the
-  whole model; `prepare.operations()` exposes only its scope.
+  whole model; `prepare.operations()` exposes only its scope, each operation
+  id once. `prepare.served_operations()` lists the same scope per API
+  version: one `ServedOperation` per entry, with the description a request
+  at that version carries and the metadata it is served with. Prepare what
+  an older release may declare differently (authentication schemes and
+  flags) per entry, and select it per request by
+  `std::ptr::eq(served.operation(), job.operation())`, not by id: the
+  authenticator chain does.
 
 ### Bodies and responses
 

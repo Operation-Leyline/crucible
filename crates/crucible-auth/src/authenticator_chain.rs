@@ -5,14 +5,16 @@ use crate::{
 use axum::http::header;
 use crucible_server_runtime_rust::{
     AsyncOperationAwareMiddleware, FrameworkError, OpaqueError, OperationJob, Prepare, Result,
-    operation::AuthScheme,
+    operation::{AuthScheme, OperationInfo},
 };
 use std::{collections::HashMap, sync::Arc};
 
 /// Resolves schemes and authenticators once during `prepare`, before serving requests.
 pub struct AuthenticatorChain {
     authenticators: Vec<Arc<dyn Authenticator>>,
-    plans: HashMap<&'static str, AuthenticationPlan>,
+    /// Plans by operation id, then by the description a request carries:
+    /// one per API version that serves the operation, usually one.
+    plans: HashMap<&'static str, Vec<(&'static OperationInfo, AuthenticationPlan)>>,
     refusal: Arc<dyn Fn(FrameworkError) -> crucible_server_runtime_rust::Error + Send + Sync>,
 }
 
@@ -40,14 +42,19 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         self.plans.clear();
         let mut errors = Vec::new();
-        for operation in prepare.operations() {
-            let Some(metadata) = prepare.metadata(operation) else {
-                continue;
+        // One plan per served entry, not per operation id: an older API
+        // version's entry carries its own release's schemes, and a request
+        // at that version is authenticated by them.
+        for served in prepare.served_operations() {
+            let operation = served.operation();
+            let metadata = served.metadata();
+            let label = match served.api_version() {
+                Some(version) => format!("{} (API version {version})", operation.id),
+                None => operation.id.to_owned(),
             };
             let Some(schemes) = metadata.auth_schemes else {
                 errors.push(format!(
-                    "{}: authentication metadata missing; regenerate bindings",
-                    operation.id
+                    "{label}: authentication metadata missing; regenerate bindings"
                 ));
                 continue;
             };
@@ -60,11 +67,11 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
                     }
                 }
                 if before == attempts.len() {
-                    errors.push(format!("{}: no authenticator for {scheme:?}", operation.id));
+                    errors.push(format!("{label}: no authenticator for {scheme:?}"));
                 }
             }
-            self.plans.insert(
-                operation.id,
+            self.plans.entry(operation.id).or_default().push((
+                operation,
                 AuthenticationPlan {
                     attempts,
                     optional: metadata.optional_auth || schemes.is_empty(),
@@ -72,7 +79,7 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
                         .iter()
                         .any(|scheme| matches!(scheme, AuthScheme::Bearer)),
                 },
-            );
+            ));
         }
         if errors.is_empty() {
             Ok(())
@@ -82,9 +89,19 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
     }
 
     async fn before(&self, job: &mut OperationJob<'_>) -> Result<()> {
-        let plan = self.plans.get(job.operation().id).ok_or_else(|| {
-            crucible_server_runtime_rust::Error::internal("authentication plan missing")
-        })?;
+        let operation = job.operation();
+        let plan = self
+            .plans
+            .get(operation.id)
+            .and_then(|plans| {
+                plans
+                    .iter()
+                    .find(|(description, _)| std::ptr::eq(*description, operation))
+            })
+            .map(|(_, plan)| plan)
+            .ok_or_else(|| {
+                crucible_server_runtime_rust::Error::internal("authentication plan missing")
+            })?;
         let mut refused = false;
         for (index, scheme) in &plan.attempts {
             if !self.authenticators[*index].has_credentials(job.request(), scheme) {

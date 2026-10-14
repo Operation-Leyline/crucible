@@ -24,21 +24,45 @@ pub(crate) struct Builtins {
     /// between them (`Permissions` before `PageTokens` and `Idempotency`).
     /// Never a service's extension: those are not named.
     pub(crate) order: Vec<&'static str>,
-    /// The served entries a `Permissions` covers, by [`Served::key`]: one
-    /// declaring requirements outside all of them would run unchecked.
+    /// The served entries a `Permissions` covers, by
+    /// [`ServedOperation::key`]: one declaring requirements outside all of
+    /// them would run unchecked.
     pub(crate) authorized: Vec<(Option<ApiVersion>, &'static str)>,
 }
 
 /// One operation as a request at one API version reaches it: the table's
-/// version (`None` for the current one), the description a scope's
-/// predicate sees for that request, and its effective metadata.
-pub(crate) struct Served<'r> {
+/// version (`None` for the current one), the description the request
+/// carries (what a scope's predicate and `OperationJob::operation()` see),
+/// and the metadata it is served with.
+#[derive(Clone, Copy)]
+pub struct ServedOperation<'r> {
     pub(crate) version: Option<ApiVersion>,
     pub(crate) info: &'static OperationInfo,
     pub(crate) metadata: &'r crate::OperationMetadata,
 }
 
-impl Served<'_> {
+impl<'r> ServedOperation<'r> {
+    /// The older API version this entry serves; `None` for the current
+    /// version (or a service without versions).
+    pub fn api_version(&self) -> Option<ApiVersion> {
+        self.version
+    }
+
+    /// The description a request served by this entry carries: the same
+    /// reference `OperationJob::operation()` returns for it. An operation
+    /// id is shared across API versions; the description is not.
+    pub fn operation(&self) -> &'static OperationInfo {
+        self.info
+    }
+
+    /// The metadata the entry is served with, its own release's
+    /// authentication schemes and flags included: what
+    /// `OperationJob::metadata()` returns for its requests.
+    pub fn metadata(&self) -> &'r crate::OperationMetadata {
+        self.metadata
+    }
+
+    /// What identifies the entry: an operation name is unique in its table.
     /// What identifies the entry: an operation name is unique in its table.
     pub(crate) fn key(&self) -> (Option<ApiVersion>, &'static str) {
         (self.version, self.info.name)
@@ -109,24 +133,44 @@ impl<'a> Prepare<'a> {
 
     /// Every served entry, whatever this scope: the current version's
     /// table, then each older version's, oldest first.
-    pub(crate) fn served(&self) -> impl Iterator<Item = Served<'a>> + 'a {
-        let current = self.registry.entries.values().map(|entry| Served {
+    pub(crate) fn served(&self) -> impl Iterator<Item = ServedOperation<'a>> + 'a {
+        let current = self.registry.entries.values().map(|entry| ServedOperation {
             version: None,
             info: entry.info,
             metadata: &entry.metadata,
         });
         let older = self.registry.versions.older.iter().flat_map(|older| {
-            older.operations.entries.values().map(move |entry| Served {
-                version: Some(older.version),
-                info: entry.info,
-                metadata: &entry.metadata,
-            })
+            older
+                .operations
+                .entries
+                .values()
+                .map(move |entry| ServedOperation {
+                    version: Some(older.version),
+                    info: entry.info,
+                    metadata: &entry.metadata,
+                })
         });
         current.chain(older)
     }
 
     pub fn service(&self) -> &'static ServiceInfo {
         self.service
+    }
+
+    /// Every entry a request in this scope can be served by, one per
+    /// operation per API version: the current version's, then each older
+    /// version's, oldest first. The scope is asked of each entry's own
+    /// description, as a request at that version asks it.
+    ///
+    /// An extension that prepares something per operation and looks it up
+    /// per request (an authentication plan) prepares it per entry here and
+    /// selects it by the description the request carries
+    /// (`std::ptr::eq(served.operation(), job.operation())`), not by
+    /// operation id alone: an older version's entry keeps its own release's
+    /// facts (its authentication schemes), which a plan keyed by id would
+    /// replace with another version's.
+    pub fn served_operations(&self) -> impl Iterator<Item = ServedOperation<'a>> + '_ {
+        self.served().filter(|served| self.applies(served.info))
     }
 
     /// Effective metadata for an operation in this extension's scope.
@@ -146,7 +190,13 @@ impl<'a> Prepare<'a> {
     /// version's, then those only an older API version serves (an operation
     /// a later release removed), newest version first. A request for one
     /// passes the same extensions, so whatever an extension prepares per
-    /// operation (an authentication plan) must cover it.
+    /// operation must cover it.
+    ///
+    /// One description stands for every API version that serves the id, so
+    /// this suits facts every version shares. What an older version's
+    /// release may declare differently (its authentication schemes and
+    /// flags) is prepared per entry from
+    /// [`served_operations`](Self::served_operations) instead.
     ///
     /// The scope is asked of each version's own description, as a request
     /// at that version asks it, before an id is taken: an operation whose
