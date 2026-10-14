@@ -10,11 +10,11 @@ fn docblock(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
     let tags: Vec<String> = notes
         .deprecated
         .iter()
-        .map(|d| format!("@deprecated {}", docs::escape(&d.note())))
+        .map(|d| format!("@deprecated {}", docs::escape_block(&d.note())))
         .collect();
     docs::block_comment(
         indent,
-        &docs::annotated(text, notes).unwrap_or_default(),
+        &docs::annotated_block(text, notes).unwrap_or_default(),
         &tags,
     )
 }
@@ -111,7 +111,8 @@ pub fn emit(service: &Service, namespace: &str) -> Vec<File> {
                         value
                     };
                     let mut tag = format!("@param {value} ${}", field(&member.name));
-                    if let Some(text) = docs::annotated(member.docs.as_deref(), &member.notes) {
+                    if let Some(text) = docs::annotated_block(member.docs.as_deref(), &member.notes)
+                    {
                         // This docblock is assembled here, not by
                         // `docs::block_comment`: `*/` in the member's docs
                         // would end it and the rest would be PHP.

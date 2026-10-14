@@ -103,11 +103,18 @@ fn stub(service: &Service, operation: &Operation, options: &ScaffoldOptions) -> 
     let output = output_type(service, operation)
         .trim_start_matches("model::")
         .to_owned();
+    // The first line of the model's docs, as `//!` can carry it: rustc
+    // refuses a bare CR or a bidirectional control there.
     let summary = operation
         .docs
         .as_deref()
-        .and_then(|docs| docs.lines().map(str::trim).find(|line| !line.is_empty()))
-        .map(|line| format!(": {}", line.trim_end_matches('.')))
+        .map(crucible_codegen_common::docs::comment_text)
+        .and_then(|docs| {
+            docs.lines()
+                .map(str::trim)
+                .find(|line| !line.is_empty())
+                .map(|line| format!(": {}", line.trim_end_matches('.')))
+        })
         .unwrap_or_default();
     let input = operation.input.is_some().then(|| {
         input_type(service, operation)

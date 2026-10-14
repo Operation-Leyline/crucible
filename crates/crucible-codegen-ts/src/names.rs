@@ -154,18 +154,27 @@ pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
 /// A JSDoc block with the model's "Unstable."/"Since X." notes and a
 /// `@deprecated` tag, which editors strike through at the use site.
 pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, notes: &DocNotes) {
-    let mut text = docs.map(str::trim).unwrap_or_default().to_owned();
+    // Model text is escaped, so a line of it that starts with `@` stays
+    // prose rather than becoming a JSDoc tag: the `@deprecated` written here
+    // is the only tag.
+    let mut text = docs
+        .map(str::trim)
+        .map(crucible_codegen_common::docs::escape_block)
+        .unwrap_or_default();
     for line in notes.lines() {
         if !text.is_empty() {
             text.push_str("\n\n");
         }
-        text.push_str(&line);
+        text.push_str(&crucible_codegen_common::docs::escape_block(&line));
     }
     if let Some(deprecated) = &notes.deprecated {
         if !text.is_empty() {
             text.push_str("\n\n");
         }
-        text.push_str(&format!("@deprecated {}", deprecated.note()));
+        text.push_str(&format!(
+            "@deprecated {}",
+            crucible_codegen_common::docs::escape_block(&deprecated.note())
+        ));
     }
     let text = crucible_codegen_common::docs::comment_text(&text);
     let docs = text.as_str();
@@ -212,5 +221,12 @@ mod tests {
             out,
             "  /**\n   * Ends *\\/ here.\n   *\n   * Second.\n   */\n"
         );
+    }
+
+    #[test]
+    fn model_docs_cannot_add_tags() {
+        let mut out = String::new();
+        doc(&mut out, "", Some("Summary.\n@returns nothing"));
+        assert_eq!(out, "/**\n * Summary.\n * \\@returns nothing\n */\n");
     }
 }

@@ -18,20 +18,42 @@ use serde_json::{Value, json};
 /// include JSON's (C#, Go, Java, JavaScript, Python, Dart): JSON's quoting,
 /// and `\uXXXX` for what JSON leaves raw but a lexer may not accept. C#
 /// ends a line at U+0085, U+2028 and U+2029 (not allowed in a string), Go
-/// refuses a byte order mark anywhere but a file's start, and the rest are
-/// invisible in a reviewed diff.
+/// refuses a byte order mark anywhere but a file's start, and the rest
+/// (with the [`bidi`] controls) are invisible in a reviewed diff.
 pub fn quoted(text: &str) -> String {
-    let json = serde_json::to_string(text).expect("a string serializes");
+    source_json(&serde_json::to_string(text).expect("a string serializes"))
+}
+
+/// JSON text as source code can carry it, whole or inside a string literal:
+/// what [`quoted`] escapes beyond JSON is escaped here too. Those characters
+/// only occur inside JSON strings, so `\uXXXX` keeps the JSON's meaning.
+pub fn source_json(json: &str) -> String {
     let mut out = String::with_capacity(json.len());
     for c in json.chars() {
-        match c {
-            '\u{7f}'..='\u{9f}' | '\u{2028}' | '\u{2029}' | '\u{feff}' => {
-                out.push_str(&format!("\\u{:04x}", u32::from(c)));
-            }
-            c => out.push(c),
+        if matches!(
+            c,
+            '\u{7f}'..='\u{9f}' | '\u{2028}' | '\u{2029}' | '\u{feff}'
+        ) || bidi(c)
+        {
+            out.push_str(&format!("\\u{:04x}", u32::from(c)));
+        } else {
+            out.push(c);
         }
     }
     out
+}
+
+/// The bidirectional formatting characters: the embeddings, overrides and
+/// isolates that rustc's deny-by-default `text_direction_codepoint_in_comment`
+/// and `text_direction_codepoint_in_literal` lints and GCC/Clang's
+/// `-Wbidi-chars` refuse, and the directional marks beside them. Invisible,
+/// they make reviewed source read differently from what compiles, so
+/// documentation drops them and literals escape them.
+pub fn bidi(c: char) -> bool {
+    matches!(
+        c,
+        '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}' | '\u{200e}' | '\u{200f}' | '\u{061c}'
+    )
 }
 
 /// Public service identity shared by exception classes, protocols and interfaces.
@@ -294,6 +316,20 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
 #[cfg(test)]
 mod quoted_tests {
     use super::quoted;
+
+    #[test]
+    fn escapes_bidirectional_controls() {
+        let controls: String = [0x202a, 0x202e, 0x2066, 0x2069, 0x200e, 0x200f, 0x061c]
+            .into_iter()
+            .filter_map(char::from_u32)
+            .collect();
+        assert_eq!(
+            quoted(&format!("{controls}é")),
+            r#""\u202a\u202e\u2066\u2069\u200e\u200f\u061cé""#
+        );
+        let json = format!("{{\"a{}\":\"{}\"}}", '\u{2028}', '\u{202e}');
+        assert_eq!(super::source_json(&json), r#"{"a\u2028":"\u202e"}"#);
+    }
 
     #[test]
     fn escapes_what_json_leaves_raw() {

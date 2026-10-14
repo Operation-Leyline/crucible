@@ -14,7 +14,7 @@ fn client_docs(service: &Service, client_name: &str) -> String {
             .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
-        text.push_str(&docs::escape(service_docs));
+        text.push_str(&docs::escape_block(service_docs));
         text.push_str("\n\n");
     }
     text.push_str(&format!(
@@ -35,7 +35,7 @@ fn operation_docs(
     let token = op.idempotency_token.as_deref().map(names::field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
-        text.push_str(&docs::escape(summary));
+        text.push_str(&docs::escape_block(summary));
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
@@ -43,7 +43,7 @@ fn operation_docs(
         text.push_str("\n\n");
         text.push_str(&sentence);
     }
-    for note in docs::note_paragraphs(&op.notes) {
+    for note in docs::note_paragraphs_block(&op.notes) {
         text.push_str("\n\n");
         text.push_str(&note);
     }
@@ -54,7 +54,10 @@ fn operation_docs(
     }
     let mut tags = Vec::new();
     if let Some(deprecated) = &op.notes.deprecated {
-        tags.push(format!("@deprecated {}", docs::escape(&deprecated.note())));
+        tags.push(format!(
+            "@deprecated {}",
+            docs::escape_block(&deprecated.note())
+        ));
     }
     if let Some(input) = input {
         tags.push(format!("@param {input} $input the request to send"));
@@ -129,17 +132,24 @@ pub fn emit(service: &Service, options: &Options) -> String {
             out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation);\n    }}\n"));
         }
         for (waiter, description) in &op.waiters {
-            let mut docs = String::new();
+            let mut comment = String::new();
             if let Some(text) = &description.documentation {
-                for line in text.replace("*/", "*\\/").lines() {
-                    docs.push_str(&format!("\n     * {line}"));
+                // Model text, escaped like every other docblock: a line that
+                // starts with `@` is not a tag, and `*/` cannot end the block.
+                for line in docs::escape_block(text).lines() {
+                    let line = line.trim_end().replace("*/", "*\\/");
+                    if line.is_empty() {
+                        comment.push_str("\n     *");
+                    } else {
+                        comment.push_str(&format!("\n     * {line}"));
+                    }
                 }
             }
             if description.deprecated {
-                docs.push_str("\n     * @deprecated");
+                comment.push_str("\n     * @deprecated");
             }
             out.push_str(&format!(
-                "    /**{docs}\n     * Polls {} until the {waiter} waiter succeeds; null when an error acceptor succeeds.\n     * @throws Runtime\\WaiterException when a failure acceptor matches\n     * @throws Runtime\\WaiterTimeoutException when $timeout seconds pass first\n     */\n    public function {}({input}float $timeout, ?float $minDelay = null, ?float $maxDelay = null, ?Runtime\\CancellationToken $cancellation = null): ?{output}\n    {{\n        return $this->runtime->wait({operation}, {}, {argument}, $timeout, $minDelay, $maxDelay, $cancellation);\n    }}\n",
+                "    /**{comment}\n     * Polls {} until the {waiter} waiter succeeds; null when an error acceptor succeeds.\n     * @throws Runtime\\WaiterException when a failure acceptor matches\n     * @throws Runtime\\WaiterTimeoutException when $timeout seconds pass first\n     */\n    public function {}({input}float $timeout, ?float $minDelay = null, ?float $maxDelay = null, ?Runtime\\CancellationToken $cancellation = null): ?{output}\n    {{\n        return $this->runtime->wait({operation}, {}, {argument}, $timeout, $minDelay, $maxDelay, $cancellation);\n    }}\n",
                 op.name(),
                 names::waiter(waiter),
                 literal(waiter),

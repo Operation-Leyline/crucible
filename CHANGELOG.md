@@ -540,10 +540,31 @@ version's section when it is prepared.
   (`docs::comment_text`), `*/` is defused in block-comment tags as well
   as prose, and double-quoted literals in C#, Go, Java, TypeScript,
   Python, Dart and R escape what JSON leaves raw (`quoted`); Kotlin,
-  Swift and C++ escape the same characters their own way. PHP and Ruby
-  keep single-quoted literals, which take every byte as written.
-  `fixtures/hostile-text.json` covers documentation, a deprecation
-  message, enum values, a default, a pattern and a JSON name.
+  Swift and C++ escape the same characters their own way. PHP keeps
+  single-quoted literals, which take every byte as written. Bidirectional
+  controls (U+202A–U+202E, U+2066–U+2069, and the LRM, RLM and ALM marks)
+  are dropped from documentation and escaped in literals, since rustc's
+  deny-by-default `text_direction_codepoint_in_*` lints and GCC/Clang's
+  `-Wbidi-chars` refuse them. The Terraform provider and CDK constructs
+  escape their embedded literals and descriptors the same way (a BOM broke
+  `go build`). A model line starting with `@` no longer becomes a tag in
+  TypeScript JSDoc, a Kotlin deprecation note or a PHP waiter's docblock,
+  whose documentation is now escaped like the rest; in TypeScript, PHP and
+  Ruby, whose doc tools read such a line as a tag even inside a code fence,
+  it is escaped there too (`docs::escape_block`). Ruby literals that
+  carry a line break or an invisible character are double-quoted with
+  escapes: Ruby's lexer read a raw CRLF as LF even in a single-quoted
+  literal, so an enum value of `a`, CRLF, `b` was sent with LF alone. The
+  Rust headers that name the service version, and the scaffold's `//!`
+  summary, carry model text on one comment line. The R client refuses a
+  NUL anywhere in
+  its embedded schema, not only in shapes and operations. And the Rust
+  generators diagnose a model type named for a Rust keyword (`type`,
+  `match`, `Self`), which previously generated uncompilable code: rename the
+  shape. `fixtures/hostile-text.json` covers documentation, a deprecation
+  message, a waiter's documentation, the service version, enum values, a
+  default, a pattern and a JSON name; the hostile-text test also runs the
+  Rust server, its operation stubs, Terraform, CDK and the service CLI.
 
 ### Security
 

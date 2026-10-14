@@ -728,6 +728,7 @@ dependencies = [
 name = "crucible-codegen-cdk"
 version = "0.7.0"
 dependencies = [
+ "crucible-codegen-common",
  "crucible-codegen-infra",
  "crucible-smithy",
  "serde",
@@ -918,6 +919,7 @@ dependencies = [
 name = "crucible-codegen-terraform"
 version = "0.7.0"
 dependencies = [
+ "crucible-codegen-common",
  "crucible-codegen-go",
  "crucible-codegen-infra",
  "crucible-smithy",

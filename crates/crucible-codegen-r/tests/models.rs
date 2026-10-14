@@ -316,3 +316,20 @@ fn model_names_cannot_collide_with_package_documentation() {
         );
     }
 }
+
+#[test]
+fn nul_in_service_metadata_is_diagnosed() {
+    // Auth scheme settings reach the schema the package parses on load.
+    let mut model = weather();
+    model["shapes"]["example.weather#Weather"]["traits"]["smithy.api#httpApiKeyAuth"] =
+        serde_json::json!({"name": "X-Api-Key", "in": "header", "scheme": "Key\u{0}"});
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_r::capabilities())
+        .unwrap();
+    let diagnostic = emit(&service, &options()).err().unwrap().to_string();
+    assert!(
+        diagnostic.contains("NUL in service metadata"),
+        "{diagnostic}"
+    );
+}

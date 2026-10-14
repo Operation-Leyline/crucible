@@ -1,6 +1,34 @@
+/// A Ruby string literal. Single-quoted when every character can stand as
+/// written; otherwise double-quoted with escapes, since Ruby's lexer reads a
+/// raw CRLF as LF even inside a single-quoted literal, and line separators,
+/// a BOM and bidirectional controls would be invisible in a reviewed diff.
 pub fn literal(value: &str) -> String {
-    format!("'{}'", value.replace('\\', "\\\\").replace('\'', "\\'"))
+    let escaped = |c: char| {
+        c.is_control()
+            || matches!(c, '\u{2028}' | '\u{2029}' | '\u{feff}')
+            || crucible_codegen_common::bidi(c)
+    };
+    if !value.chars().any(escaped) {
+        return format!("'{}'", value.replace('\\', "\\\\").replace('\'', "\\'"));
+    }
+    let mut out = String::from("\"");
+    for c in value.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            // `#{`, `#@` and `#$` interpolate in a double-quoted literal.
+            '#' => out.push_str("\\#"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if escaped(c) => out.push_str(&format!("\\u{{{:x}}}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
+
 pub fn constant(value: &str) -> bool {
     value.starts_with(|c: char| c.is_ascii_uppercase())
         && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
@@ -191,4 +219,22 @@ pub fn field(value: &str) -> String {
 pub fn method(value: &str) -> bool {
     value.starts_with(|c: char| c.is_ascii_lowercase() || c == '_')
         && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+}
+
+#[cfg(test)]
+mod literal_tests {
+    use super::literal;
+
+    #[test]
+    fn plain_text_stays_single_quoted() {
+        assert_eq!(literal("it's #{x} \\"), "'it\\'s #{x} \\\\'");
+    }
+
+    #[test]
+    fn line_breaks_and_invisible_characters_are_escaped() {
+        assert_eq!(
+            literal("a\r\nb\"#{x}\\\u{0}\u{2028}\u{202e}é"),
+            "\"a\\r\\nb\\\"\\#{x}\\\\\\u{0}\\u{2028}\\u{202e}é\""
+        );
+    }
 }

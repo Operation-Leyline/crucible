@@ -18,7 +18,7 @@ fn client_docs(service: &Service, client_name: &str) -> String {
             .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
-        text.push_str(&docs::escape(service_docs));
+        text.push_str(&docs::escape_block(service_docs));
         text.push_str("\n\n");
     }
     text.push_str(&format!(
@@ -45,7 +45,7 @@ fn operation_docs(
     let token = op.idempotency_token.as_deref().map(field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
-        text.push_str(&docs::escape(summary));
+        text.push_str(&docs::escape_block(summary));
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
@@ -53,7 +53,7 @@ fn operation_docs(
         text.push_str("\n\n");
         text.push_str(&sentence);
     }
-    for note in docs::note_paragraphs(&op.notes) {
+    for note in docs::note_paragraphs_block(&op.notes) {
         text.push_str("\n\n");
         text.push_str(&note);
     }
@@ -66,7 +66,7 @@ fn operation_docs(
     if let Some(deprecated) = &op.notes.deprecated {
         text.push_str(&format!(
             "\n@deprecated {}",
-            docs::escape(&deprecated.note())
+            docs::escape_block(&deprecated.note())
         ));
     }
     if let Some(input) = input {
@@ -407,7 +407,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         "{}
 
 ",
-                        docs::escape(text)
+                        docs::escape_block(text)
                     )
                 })
                 .unwrap_or_default();

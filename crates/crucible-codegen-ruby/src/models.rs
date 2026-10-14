@@ -10,11 +10,11 @@ use crucible_smithy::{
 
 /// A YARD comment for model text; empty when the model has none.
 fn yard(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
-    let mut text = docs::annotated(text, notes).unwrap_or_default();
+    let mut text = docs::annotated_block(text, notes).unwrap_or_default();
     if let Some(deprecated) = &notes.deprecated {
         text.push_str(&format!(
             "\n\n@deprecated {}",
-            docs::escape(&deprecated.note())
+            docs::escape_block(&deprecated.note())
         ));
     }
     docs::line_comment(indent, "#", text.trim_start())
@@ -125,15 +125,15 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 out.push_str(&yard(structure.docs.as_deref(), &structure.notes, "    "));
                 out.push_str(&format!("    class {name}{parent}\n"));
                 for member in &structure.members {
-                    let mut text =
-                        docs::annotated(member.docs.as_deref(), &member.notes).unwrap_or_default();
+                    let mut text = docs::annotated_block(member.docs.as_deref(), &member.notes)
+                        .unwrap_or_default();
                     if !text.is_empty() {
                         text.push_str("\n\n");
                     }
                     if let Some(deprecated) = &member.notes.deprecated {
                         text.push_str(&format!(
                             "@deprecated {}\n",
-                            docs::escape(&deprecated.note())
+                            docs::escape_block(&deprecated.note())
                         ));
                     }
                     let kind = yard_type(service, &member.target);
