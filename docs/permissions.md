@@ -1,6 +1,6 @@
 # Typed permissions
 
-**Status: accepted; phases A1, A2 and B are implemented, C is pending.**
+**Status: accepted; phases A1, A2 and B are implemented, C is under way.**
 A1 (the `.cru` language, the IR and the checks; #245, made `.cru`-only by
 #247) is built: its syntax is in [idl/reference.md](idl/reference.md) and
 its decisions are 37a-37k in [idl/decisions.md](idl/decisions.md). The A2
@@ -1084,10 +1084,10 @@ pub enum Visibility { All, Only(BTreeSet<String>), Hidden, Denied }   // Denied:
   operation is read-only or idempotent, so it can decide what to cache and
   what to read fresh without a model marker. The framework caches no
   decision; any cache is the service's. Both consumers read grants
-  with strongly consistent reads. Pigeon's Authorizer keeps its own
-  30-second decision cache, keyed on (principal, permission, resource),
-  never on the operation alone, so a revoked grant converges within 30
-  seconds. That is the same trade as its API-key cache, which Pigeon sets to
+  with strongly consistent reads. *As built (Pigeon):* Pigeon's
+  Authorizer keeps its own 30-second decision cache, keyed on (principal,
+  permission, resource), never on the operation alone, so a revoked grant
+  converges within 30 seconds. That is the same trade as its API-key cache, which Pigeon sets to
   one minute (`valid_ttl(60 s)`, below `ApiKeyAuthenticator`'s 5-minute
   default; [auth.md](auth.md#migrating-leyline-and-pigeon)). The cache is
   never trusted for the 11 operations whose `guard` calls passed

@@ -325,9 +325,6 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
     )
 }
 
-/// The modelled error a hidden or missing resource is answered with.
-const NOT_FOUND_SHAPE: &str = "crucible.errors#NotFoundException";
-
 /// [`FrameworkError::NotFound`], encoded as the modelled
 /// `crucible.errors#NotFoundException` the compiler attaches to every
 /// resource-bound operation, so an SDK reads it as that typed error: named
@@ -336,7 +333,7 @@ const NOT_FOUND_SHAPE: &str = "crucible.errors#NotFoundException";
 /// grants.
 fn not_found(error: &FrameworkError, resource_type: &str, format: Format) -> Response {
     let type_name = match format {
-        Format::AwsJson10 | Format::RpcV2Json | Format::RpcV2Cbor => NOT_FOUND_SHAPE,
+        Format::AwsJson10 | Format::RpcV2Json | Format::RpcV2Cbor => error.shape_id(),
         Format::Crucible | Format::RestJson | Format::AwsJson11 => error.name(),
     };
     let body = serde_json::json!({
