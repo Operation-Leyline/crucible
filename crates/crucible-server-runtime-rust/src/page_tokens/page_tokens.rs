@@ -176,26 +176,32 @@ impl Interceptor for PageTokens {
         // as absent would restart every listing on its first page. Asked per
         // served entry: an older API version served by a handler of its own
         // has that handler's token.
-        let mapped = prepare
+        let mut problems: Vec<String> = prepare
             .served()
             .filter(|served| prepare.applies(served.info))
-            .find_map(|served| {
-                served
+            .filter_map(|served| {
+                let pagination = served
                     .metadata
                     .pagination
-                    .filter(|pagination| pagination.input_token_map)
-                    .map(|pagination| (served.label(), pagination))
-            });
-        if let Some((label, pagination)) = mapped {
-            return Err(format!(
-                "{label}: PageTokens seals string tokens, and the page token `{}` is a map; \
-                 leave the operation out of its scope",
-                pagination.input_token.name
-            ));
-        }
-        self.caller.prepare("PageTokens", prepare, |metadata| {
+                    .filter(|pagination| pagination.input_token_map)?;
+                Some(format!(
+                    "{}: PageTokens seals string tokens, and the page token `{}` is a map; \
+                     leave the operation out of its scope",
+                    served.label(),
+                    pagination.input_token.name
+                ))
+            })
+            .collect();
+        if let Err(problem) = self.caller.prepare("PageTokens", prepare, |metadata| {
             metadata.pagination.is_some()
-        })
+        }) {
+            problems.push(problem);
+        }
+        if problems.is_empty() {
+            Ok(())
+        } else {
+            Err(problems.join("; "))
+        }
     }
 }
 
@@ -505,6 +511,92 @@ mod tests {
             why.contains("List (API version v1)") && why.contains("`token` is a map"),
             "{why}"
         );
+    }
+
+    /// v1's List, public before a migration made it require authentication.
+    struct PublicV1;
+    impl Operation for PublicV1 {
+        const INFO: &'static OperationInfo = &LIST_V1;
+        const PAGINATION: Option<Pagination> = pagination(false);
+        const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    /// v1's List, authenticated before a migration made it public.
+    struct BearerV1;
+    impl Operation for BearerV1 {
+        const INFO: &'static OperationInfo = &LIST_V1;
+        const PAGINATION: Option<Pagination> = pagination(false);
+        const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    /// `Current` at v2, with `Old` serving v1 through it, under `tokens`.
+    fn versioned<Current, Old>(tokens: PageTokens) -> Result<Crucible, BuildError>
+    where
+        Current: Operation<Input = Loose, Output = Value>,
+        Old: Operation<Output = Value>,
+    {
+        let ok = |_: Arc<()>, _| std::future::ready(Ok(json!({})));
+        let operations = Operations::builder(&SERVICE)
+            .add::<Current, _, _>(Arc::new(()), ok)
+            .versions(ApiVersion::new(2, "v2"), &OLDER)
+            .add_versioned::<Old, Current>(V1, &[], None)
+            .build()
+            .unwrap();
+        Crucible::builder(operations)
+            .protocol(InvokeProtocol)
+            .interceptor(tokens)
+            .build()
+    }
+
+    // The caller binding reads authentication from the entry a request's
+    // API version serves, as `job.metadata()` gives it, not from the current
+    // entry: a migration that changes an operation's authentication is
+    // judged by the version the request names. (Until #288, the
+    // AuthenticatorChain plans per operation from the current entry, so the
+    // two can disagree for such a migration; #288 makes the chain per
+    // version too.)
+    #[test]
+    fn anonymous_callers_are_judged_by_each_api_versions_authentication() {
+        // v1 was public, v2 requires authentication: only v1's anonymous
+        // callers need the choice.
+        let Err(BuildError::Prepare(why)) =
+            versioned::<Authenticated, PublicV1>(PageTokens::new(keys(), |_| None))
+        else {
+            panic!("built");
+        };
+        assert!(
+            why.contains("anonymous callers reach List (API version v1) ("),
+            "{why}"
+        );
+        assert!(
+            versioned::<Authenticated, PublicV1>(
+                PageTokens::new(keys(), |_| None).allow_anonymous()
+            )
+            .is_ok()
+        );
+        // v1 required authentication, v2 is public: only v2's.
+        let Err(BuildError::Prepare(why)) =
+            versioned::<StringToken, BearerV1>(PageTokens::new(keys(), |_| None))
+        else {
+            panic!("built");
+        };
+        assert!(why.contains("anonymous callers reach List ("), "{why}");
+        assert!(!why.contains("API version v1"), "{why}");
+    }
+
+    #[test]
+    fn a_map_token_and_anonymous_callers_are_both_reported() {
+        let Err(BuildError::Prepare(why)) =
+            service::<MapToken>(PageTokens::new(keys(), |_| None)).0
+        else {
+            panic!("built");
+        };
+        assert!(why.contains("`token` is a map"), "{why}");
+        assert!(why.contains("anonymous callers reach List ("), "{why}");
     }
 
     #[test]

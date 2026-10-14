@@ -554,13 +554,17 @@ Option<String>`, given to `new`:
   (`@optionalAuth`, `@auth([])`, or bindings without authentication
   metadata), naming it, and a nameless request is the service's internal
   error.
-- **An authenticated caller is never anonymous.** On an operation that
-  requires authentication (`OperationMetadata::requires_authentication`: an
-  authentication scheme, not `@optionalAuth`), `None` means the closure
-  missed an authenticated caller (a new scheme, API keys beside JWTs).
-  The request is refused as the service's internal error, whether or not
-  `allow_anonymous` was called, rather than share a binding with every
-  other caller the closure misses.
+- **On an operation that requires authentication, an authenticated caller
+  is never anonymous.** On such an operation
+  (`OperationMetadata::requires_authentication`: an authentication scheme,
+  not `@optionalAuth`, as the API version the request names declares it),
+  `None` means the closure missed an authenticated caller (a new scheme,
+  API keys beside JWTs). The request is refused as the service's internal
+  error, whether or not `allow_anonymous` was called, rather than share a
+  binding with every other caller the closure misses. Both this and the
+  build check read authentication per API version, so a migration that
+  changes an operation's authentication is judged by the version a request
+  names.
 
 ### Idempotency tokens
 
