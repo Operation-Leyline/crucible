@@ -122,6 +122,12 @@ func handler(o *observed) http.HandlerFunc {
 				if err := http.NewResponseController(w).EnableFullDuplex(); err != nil {
 					panic(err)
 				}
+				// The test releases the answer once the client holds an open body.
+				select {
+				case <-release:
+				case <-r.Context().Done():
+					return
+				}
 				w.Header().Set("Content-Length", "0")
 				w.WriteHeader(400)
 				w.(http.Flusher).Flush()
@@ -392,10 +398,20 @@ func TestStreamingUploadEarlyResponse(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			o, client, _ := setup(t)
 			o.set("early")
+			_, release, _ := o.snapshot()
 			reader, writer := io.Pipe()
 			var body io.Reader = reader
 			if name == "replayable" {
-				body = NewByteStream(func() (io.ReadCloser, error) { return reader, nil }, -1)
+				// The server answers only once the factory has opened the pipe: a
+				// response that came first would leave the call nothing to close.
+				var opened sync.Once
+				body = NewByteStream(func() (io.ReadCloser, error) {
+					opened.Do(func() { close(release) })
+					return reader, nil
+				}, -1)
+			} else {
+				// A one-shot pipe is the caller's own closer, closed whether or not it was read.
+				close(release)
 			}
 			done := make(chan error, 1)
 			go func() {
