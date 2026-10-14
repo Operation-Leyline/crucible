@@ -43,7 +43,19 @@ resource Room {
     permission light = "room:light"
     permission cool = "room:cool"
     permission clean = "room:clean"
+    /// Its lock: with `lock` on `OnRoom` below, the two handler clauses
+    /// of Wire spell the same constant name.
+    permission lockOn = "room:lock-on"
 }
+
+/// A room's annex, named so its handler clause collides with `lockOn`'s.
+resource OnRoom in Room {
+    id annexId: AnnexId
+
+    permission lock = "annex:lock"
+}
+
+string AnnexId
 
 resource Seat in Room {
     id seatId: SeatId
@@ -51,6 +63,20 @@ resource Seat in Room {
     permission sit = "seat:sit"
     permission swap = "seat:swap"
     permission reserve = "seat:reserve"
+}
+
+/// Two `by handler` clauses whose obligation constants spell the same
+/// name: the first keeps `LOCK_ON_ON_ROOM`, the second is `.._2`.
+operation Wire on Room {
+    http POST "/rooms/{roomId}/wire"
+    requires enter
+    requires lockOn by handler
+    requires lock on OnRoom by handler
+    input {
+        $roomId
+        annexId: AnnexId
+    }
+    output { done: boolean }
 }
 
 operation Configure on Room {

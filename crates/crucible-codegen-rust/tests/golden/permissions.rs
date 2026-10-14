@@ -646,6 +646,8 @@ pub mod leyline {
 
     /// The obligations its `by handler` clauses open: discharge each with
     /// `permissions::discharge`, or close it with `permissions::not_applicable`.
+    /// Each is named `<PERMISSION>_ON_<RESOURCE>`; a later clause whose name
+    /// an earlier one already spells gets `_2`, `_3`, in declaration order.
     impl ExecuteQuery {
         /// `graph:write` on Graph, checked by the handler: Only when the parsed query writes.
         pub const WRITE_ON_GRAPH: ::crucible_server_runtime_rust::__generated::permissions::Obligation = ::crucible_server_runtime_rust::__generated::permissions::Obligation { operation: "example.leyline#ExecuteQuery", index: 1, permission: &permissions::GRAPH__WRITE };

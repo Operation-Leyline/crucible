@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use axum::body::Body;
 use axum::http::Request;
 use crucible_server_runtime_rust::permissions::{
-    AuthorizationRequest, Authorizer, Check, Permissions, Verdict,
+    self, AuthorizationRequest, Authorizer, Check, Permissions, Verdict,
 };
 use crucible_server_runtime_rust::{Crucible, Result};
 use serde_json::{Value, json};
@@ -22,6 +22,25 @@ struct Desk;
 impl desk::ConfigureOperation for Desk {
     async fn configure(&self, _: desk::ConfigureInput) -> Result<desk::ConfigureOutput> {
         Ok(desk::ConfigureOutput { done: true })
+    }
+}
+
+impl desk::WireOperation for Desk {
+    async fn wire(&self, input: desk::WireInput) -> Result<desk::WireOutput> {
+        use desk::permissions::{OnRoomRef, RoomRef};
+        // The first clause keeps the plain name; the second, which spells
+        // the same, is `_2`.
+        permissions::discharge(
+            desk::Wire::LOCK_ON_ON_ROOM,
+            RoomRef::new(&input.room_id).into(),
+        )
+        .await?;
+        permissions::discharge(
+            desk::Wire::LOCK_ON_ON_ROOM_2,
+            OnRoomRef::new(&input.room_id, &input.annex_id).into(),
+        )
+        .await?;
+        Ok(desk::WireOutput { done: true })
     }
 }
 
@@ -181,6 +200,35 @@ async fn every_clause_at_once_in_declaration_order() {
             "seat:sit on seat(r1, s1)",
             "seat:swap on seat(r2, s9)",
             "seat:reserve on seat(r1, s2)",
+        ]
+    );
+}
+
+#[tokio::test]
+async fn obligation_constants_that_spell_alike_are_numbered() {
+    assert_eq!(desk::Wire::LOCK_ON_ON_ROOM.index, 1);
+    assert_eq!(desk::Wire::LOCK_ON_ON_ROOM.permission.value, "room:lock-on");
+    assert_eq!(desk::Wire::LOCK_ON_ON_ROOM_2.index, 2);
+    assert_eq!(desk::Wire::LOCK_ON_ON_ROOM_2.permission.value, "annex:lock");
+    let recorded = Recorded::default();
+    let service = Crucible::builder(desk::operations(Arc::new(Desk)))
+        .defaults()
+        .interceptor(Permissions::new(recorded.clone()))
+        .build()
+        .unwrap();
+    let request = Request::post("/rooms/r1/wire")
+        .header("content-type", "application/json")
+        .body(Body::from(json!({ "annexId": "a1" }).to_string()))
+        .unwrap();
+    let response = service.handle(request).await;
+    assert_eq!(response.status(), 200);
+    // The declared check, then each handler check in its own batch.
+    assert_eq!(
+        recorded.0.lock().unwrap()[..],
+        [
+            vec![ENTER.to_owned()],
+            vec!["room:lock-on on room(r1)".to_owned()],
+            vec!["annex:lock on onRoom(r1, a1)".to_owned()],
         ]
     );
 }

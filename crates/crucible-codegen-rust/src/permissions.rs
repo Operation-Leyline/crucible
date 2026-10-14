@@ -577,9 +577,14 @@ fn mode(mode: Mode) -> &'static str {
 }
 
 /// `impl ExecuteQuery { pub const WRITE_ON_GRAPH: Obligation = .. }`: a
-/// constant per `by handler` clause, for `permissions::discharge`.
+/// constant per `by handler` clause, for `permissions::discharge`, named
+/// `<PERMISSION>_ON_<RESOURCE>`. Two clauses can spell the same name
+/// (`lockOn` on `Room` and `lock` on `OnRoom`): the first keeps it and each
+/// later one gets its ordinal among them, `_2`, `_3`, in declaration order,
+/// so adding a clause never renames one a handler already uses.
 pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
     let mut body = String::new();
+    let mut spelled: BTreeMap<String, usize> = BTreeMap::new();
     for (index, clause) in op.requirements.clauses().iter().enumerate() {
         if clause.mode != Mode::Handler {
             continue;
@@ -602,12 +607,20 @@ pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
         {
             text.push_str(&format!(": {docs}"));
         }
+        let base = format!("{}_ON_{}", constant(&clause.permission), constant(resource));
+        let ordinal = spelled.entry(base.clone()).or_default();
+        *ordinal += 1;
+        let name = if *ordinal == 1 {
+            base
+        } else {
+            text.push_str(&format!(
+                "\n\nNamed `_{ordinal}`: an earlier clause of this operation is `{base}`."
+            ));
+            format!("{base}_{ordinal}")
+        };
         doc(&mut body, "    ", Some(&text));
         body.push_str(&format!(
-            "    pub const {}_ON_{}: {P}::Obligation = {P}::Obligation {{ operation: {}, index: {index}, permission: &{path} }};
-",
-            constant(&clause.permission),
-            constant(resource),
+            "    pub const {name}: {P}::Obligation = {P}::Obligation {{ operation: {}, index: {index}, permission: &{path} }};\n",
             literal(&op.id.to_string()),
         ));
     }
@@ -615,18 +628,12 @@ pub(crate) fn obligations(service: &Service, op: &Operation) -> String {
         return String::new();
     }
     let allow = if op.notes.deprecated.is_some() {
-        "#[allow(deprecated)]
-"
+        "#[allow(deprecated)]\n"
     } else {
         ""
     };
     format!(
-        "/// The obligations its `by handler` clauses open: discharge each with
-/// `permissions::discharge`, or close it with `permissions::not_applicable`.
-{allow}impl {} {{
-{body}}}
-
-",
+        "/// The obligations its `by handler` clauses open: discharge each with\n/// `permissions::discharge`, or close it with `permissions::not_applicable`.\n/// Each is named `<PERMISSION>_ON_<RESOURCE>`; a later clause whose name\n/// an earlier one already spells gets `_2`, `_3`, in declaration order.\n{allow}impl {} {{\n{body}}}\n\n",
         op.name()
     )
 }
@@ -701,10 +708,7 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
             names.info
         );
         let push = match optional.as_slice() {
-            [] => format!(
-                "out.push({P}::Check::declared({index}, &{permission}, {complete}));
-"
-            ),
+            [] => format!("out.push({P}::Check::declared({index}, &{permission}, {complete}));\n"),
             _ => {
                 let (patterns, values): (Vec<String>, Vec<String>) = optional
                     .iter()
@@ -726,11 +730,7 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
                 // A binding the condition should have made present binds
                 // nothing: the runtime refuses that as a wiring error.
                 format!(
-                    "out.push({P}::Check::declared({index}, &{permission}, match {value} {{
-    {pattern} => {complete},
-    _ => {P}::ResourceRef::new(&permissions::{}, ::std::iter::empty::<{P}::Target>()),
-}}));
-",
+                    "out.push({P}::Check::declared({index}, &{permission}, match {value} {{\n    {pattern} => {complete},\n    _ => {P}::ResourceRef::new(&permissions::{}, ::std::iter::empty::<{P}::Target>()),\n}}));\n",
                     names.info
                 )
             }
@@ -739,15 +739,9 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
             None => out.push_str(&indent_lines(&push, "        ")),
             Some(condition) => {
                 let test = reader.condition(condition, diagnostics, &op.id)?;
-                out.push_str(&format!(
-                    "        if {test} {{
-"
-                ));
+                out.push_str(&format!("        if {test} {{\n"));
                 out.push_str(&indent_lines(&push, "            "));
-                out.push_str(
-                    "        }
-",
-                );
+                out.push_str("        }\n");
             }
         }
     }
@@ -756,12 +750,7 @@ fn checks(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) -> O
 
 fn indent_lines(text: &str, indent: &str) -> String {
     text.lines()
-        .map(|line| {
-            format!(
-                "{indent}{line}
-"
-            )
-        })
+        .map(|line| format!("{indent}{line}\n"))
         .collect()
 }
 

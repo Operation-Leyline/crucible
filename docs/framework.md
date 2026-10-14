@@ -745,7 +745,8 @@ Per operation the marker carries `REQUIREMENTS` (the model's clauses in
 order), `CHECKS` (the binding function, only for an operation with a check
 or filter clause), and `PUBLIC` for one the model makes public; each
 `requires p on R by handler` clause is a constant on the marker, named
-`<PERMISSION>_ON_<RESOURCE>`. For
+`<PERMISSION>_ON_<RESOURCE>` (a later clause that spells an earlier one's
+name gets `_2`, `_3`, in declaration order). For
 
 ```
 operation SendMessage on Inbox {
