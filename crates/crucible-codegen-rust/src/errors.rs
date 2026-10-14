@@ -353,7 +353,7 @@ fn field_list(service: &Service, member: &Member) -> Option<String> {
         .map(|max| format!(".take({max})"))
         .unwrap_or_default();
     Some(format!(
-        "rejection.violations.iter(){cap}.map(|violation| model::{} {{ {} }}).collect()",
+        "rejection.violations().iter(){cap}.map(|violation| model::{} {{ {} }}).collect()",
         service.name_of(&list.member.target),
         fields.join(", ")
     ))

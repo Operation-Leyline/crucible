@@ -5,7 +5,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { test } from "node:test";
 import { ChecksumError, EventStream, EventStreamError, EventsClient, EventsException, NetworkError, ThrottledError, TimeoutError, UnavailableError } from "./generated-events/src/index.js";
 import type { ClientEvents, ServerEvents } from "./generated-events/src/index.js";
-import { EventMessageDecoder, EventSigner, crc32, decodeEventMessage, encodeEventMessage, encodeHeaders, type EventHeaderValue, type EventMessage } from "./generated-events/src/events.js";
+import { EventMessageDecoder, EventSigner, crc32, decodeEvent, decodeEventMessage, encodeEventMessage, encodeHeaders, type EventHeaderValue, type EventMessage } from "./generated-events/src/events.js";
 import { EventStream as RpcEventStream, EventsClient as RpcClient } from "./generated-events-rpc/src/index.js";
 import { EventStream as SignedEventStream, EventsClient as SignedClient } from "./generated-events-signed/src/index.js";
 
@@ -50,6 +50,20 @@ test("published messages decode and re-encode byte for byte", () => {
 
 test("published invalid messages are rejected", () => {
   for (const vector of vectors.negative) assert.throws(() => decodeEventMessage(hexBytes(vector.hex)), /invalid event stream message/, vector.name);
+});
+
+test("refusals of a received message do not repeat the sender's text", () => {
+  const sent = "<script>".repeat(1000);
+  const unknown = { headers: [{ name: ":message-type", value: { type: "string", value: sent } as EventHeaderValue }], payload: new Uint8Array() };
+  assert.throws(() => decodeEvent({ member: "events", events: {} }, unknown), /^TypeError: unknown :message-type$/);
+  // A header whose value type byte (here 200) no message defines.
+  const header = Uint8Array.of(1, 0x78, 200);
+  const frame = new Uint8Array(16 + header.length);
+  const view = new DataView(frame.buffer);
+  view.setUint32(0, frame.length); view.setUint32(4, header.length); view.setUint32(8, crc32(frame.subarray(0, 8)));
+  frame.set(header, 12);
+  view.setUint32(frame.length - 4, crc32(frame.subarray(0, frame.length - 4)));
+  assert.throws(() => decodeEventMessage(frame), /^TypeError: invalid event stream message: unknown header value type$/);
 });
 
 test("messages reassemble from any chunking", () => {

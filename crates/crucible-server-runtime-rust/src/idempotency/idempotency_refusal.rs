@@ -103,7 +103,7 @@ mod tests {
         ] {
             let error = refusal.default_error();
             let rejection = error.downcast_ref::<Rejection>().expect("a rejection");
-            assert_eq!(rejection.violations[0].path, "clientToken");
+            assert_eq!(rejection.violations()[0].path, "clientToken");
         }
         for refusal in [
             IdempotencyRefusal::Mismatch,

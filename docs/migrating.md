@@ -23,11 +23,12 @@ tag.
 ## Unreleased
 
 The [CHANGELOG](../CHANGELOG.md#unreleased) *Migration* section is the
-authority. Only three kinds of code have to change: code that constructs or
+authority. Only four kinds of code have to change: code that constructs or
 exhaustively destructures `crucible_auth::Principal` or `OperationMetadata`,
-and code that matches `FrameworkError` without a wildcard arm. Reading
-their fields does not. Tests or clients that read a rejection's paths may
-need new expected values.
+code that matches `FrameworkError` without a wildcard arm, and code that
+touches `Rejection`'s `violations` field. Reading the fields of the first
+two does not. Tests or clients that read a rejection's paths may need new
+expected values.
 
 ### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
 
@@ -125,6 +126,28 @@ model's name. An unsupported `Crucible-Version` is refused with the versions
 the service serves, without repeating the one sent. Update assertions on
 `fieldList` paths, `on_rejection` handlers that match a path, and log
 queries that read these paths.
+
+### `Rejection::violations` is a method
+
+`Rejection`'s field is private, so every rejection keeps the
+`validate::MAX_VIOLATIONS` cap. Reads call the method; a rejection is built
+with a constructor or a `Violations` collector:
+
+```rust
+// 0.7
+let first = &rejection.violations[0];
+let rejection = Rejection { violations: found };
+
+// next
+let first = &rejection.violations()[0];
+let rejection = Rejection::new(found);
+```
+
+`into_violations()` returns the owned list. `Rejection::new` lists the first
+100 violations and adds one, with an empty path, counting the rest. A code
+path that pushed onto the field should collect into a `validate::Violations`
+and call `into_rejection()`. There is no deprecated shim: a public field kept
+for a minor would keep the uncapped path open.
 
 ## 0.6.0 to 0.7.0
 

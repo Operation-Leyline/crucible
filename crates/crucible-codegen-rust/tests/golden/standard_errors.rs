@@ -278,7 +278,7 @@ pub mod empty {
         ::std::boxed::Box::new(errors::ValidationException {
             message: rejection.summary(),
             reason: if rejection.is_malformed() { model::ValidationExceptionReason::CannotParse } else { model::ValidationExceptionReason::FieldValidationFailed },
-            field_list: Some(rejection.violations.iter().map(|violation| model::ValidationExceptionField { name: violation.path.clone(), message: violation.message.clone() }).collect())
+            field_list: Some(rejection.violations().iter().map(|violation| model::ValidationExceptionField { name: violation.path.clone(), message: violation.message.clone() }).collect())
         })
     }
 
