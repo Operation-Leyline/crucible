@@ -181,9 +181,14 @@ mod tests {
         redacted(&text);
         assert!(text.contains("visible-arm"), "{text}");
         redacted(&format!("{:?}", PutOutput { ticket: "SECRET-OUTPUT".to_owned() }));
-        let text = format!("{:?}", Leak { message: "SECRET-MESSAGE".to_owned(), code: "visible-code".to_owned() });
+        let leak = Leak { message: "SECRET-MESSAGE".to_owned(), code: "visible-code".to_owned() };
+        let text = format!("{leak:?}");
         redacted(&text);
         assert!(text.contains("visible-code"), "{text}");
+        // Handlers and the service log's source chain print errors through Display.
+        let text = format!("{leak}");
+        redacted(&text);
+        assert!(text.starts_with("Leak: "), "{text}");
         redacted(&format!("{:?}", Level::Known));
         redacted(&format!("{:?}", Tier::SecretTier));
     }

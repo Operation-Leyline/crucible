@@ -100,7 +100,9 @@ pub(crate) fn emit(service: &Service, client: bool, diagnostics: &mut Diagnostic
             .member("message")
             .filter(|m| simple_kind(service, &m.target) == Some(SimpleKind::String));
         let display = match message {
-            Some(m) if client && (structure.sensitive() || service.sensitive(m)) => {
+            // Handlers and the service log print errors through Display; the
+            // response body is written from the fields, never from it.
+            Some(m) if structure.sensitive() || service.sensitive(m) => {
                 "\"*** Sensitive Data Redacted ***\"".to_owned()
             }
             Some(m)

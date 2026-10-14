@@ -412,8 +412,10 @@ version's section when it is prepared.
   `@sensitive` member, a member whose target is sensitive, a member of a
   sensitive structure, a list or map of sensitive values, or a sensitive
   union arm; a sensitive enum or intEnum prints as
-  `Name(*** Sensitive Data Redacted ***)`. Before, server models derived
-  `Debug` and printed every value. The `Debug` output now names fields by
+  `Name(*** Sensitive Data Redacted ***)`. A modelled error's `Display`
+  redacts a sensitive `message` too, so the service log's source chain no
+  longer prints it; the response body still carries it. Before, server
+  models derived `Debug` and printed every value. The `Debug` output now names fields by
   their model member name (`cityId`), as the client's does, instead of the
   Rust field name (`city_id`); `Debug` output is not a stable format.
 - A rejection lists at most 100 violations
