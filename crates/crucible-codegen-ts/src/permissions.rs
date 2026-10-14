@@ -228,8 +228,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                     .map(|primary| format!(", aliasOf: {}", literal(primary)))
                     .unwrap_or_default();
                 format!(
-                    "      {{ value: {}, description: {}, tier: {}, grantable: {}, deprecated: {}{alias} }},
-",
+                    "      {{ value: {}, description: {}, tier: {}, grantable: {}, deprecated: {}{alias} }},\n",
                     literal(e.value),
                     literal(e.description),
                     literal(e.tier),

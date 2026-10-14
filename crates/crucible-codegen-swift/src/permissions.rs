@@ -89,16 +89,21 @@ pub(crate) fn check(service: &Service, module: &str, diagnostics: &mut Diagnosti
         let mut members: BTreeSet<String> = MEMBERS.map(str::to_owned).into();
         for permission in &client.permissions {
             let constant = enum_constant(&permission.symbol);
-            if !identifier(&constant) || !members.insert(constant.clone()) {
-                diagnostics.push(
-                    &service.id,
-                    format!(
-                        "permission `{}` of `{}` spells the Swift constant `{constant}`, which `Permissions.{name}` already declares",
-                        permission.symbol,
-                        service.name_of(client.id)
-                    ),
-                );
-            }
+            let problem = if !identifier(&constant) {
+                "which is not a Swift identifier".to_owned()
+            } else if !members.insert(constant.clone()) {
+                format!("which `Permissions.{name}` already declares")
+            } else {
+                continue;
+            };
+            diagnostics.push(
+                &service.id,
+                format!(
+                    "permission `{}` of `{}` spells the Swift constant `{constant}`, {problem}",
+                    permission.symbol,
+                    service.name_of(client.id)
+                ),
+            );
         }
     }
 }
@@ -133,11 +138,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             let mut docs = permission.docs.clone().unwrap_or_default();
             if permission.alias_of.is_some() {
                 if !docs.trim().is_empty() {
-                    docs.push_str(
-                        "
-
-",
-                    );
+                    docs.push_str("\n\n");
                 }
                 docs.push_str(&format!(
                     "An alias of {}.",

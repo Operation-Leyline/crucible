@@ -160,16 +160,8 @@ fn entry(client: &ClientResource<'_>) -> String {
         })
         .collect();
     format!(
-        "{RT}::permissions::ResourcePermissions {{
-        resource_type: {},
-        permissions: &[
-            {},
-        ],
-    }}",
+        "{RT}::permissions::ResourcePermissions {{\n        resource_type: {},\n        permissions: &[\n            {},\n        ],\n    }}",
         literal(&client.resource.name),
-        entries.join(
-            ",
-            "
-        )
+        entries.join(",\n            ")
     )
 }
