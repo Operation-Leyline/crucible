@@ -11,7 +11,7 @@ use crucible_codegen_common::permissions::{
 use crucible_smithy::Diagnostics;
 use crucible_smithy::ir::{Permission, ResourcePermissions, Service};
 
-use crate::names::{documented, literal, variant};
+use crate::names::{documented_text, literal, variant};
 
 const RT: &str = "::crucible_server_runtime_rust::__generated";
 
@@ -85,7 +85,7 @@ fn enumeration(shape: &str, resource: &ResourcePermissions, permissions: &[&Perm
         } else {
             docs.push_str(&format!("{value}."));
         }
-        documented(&mut out, "    ", Some(&docs), &notes(permission));
+        documented_text(&mut out, "    ", Some(&docs), &notes(permission));
         out.push_str(&format!("    {},\n", variant(&permission.symbol)));
     }
     let all = permissions

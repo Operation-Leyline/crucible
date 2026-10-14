@@ -522,7 +522,10 @@ internal sealed partial class ClientRuntime : IDisposable
         if (contentHeader || !request.Headers.TryAddWithoutValidation(key, value))
         {
             request.Content ??= new ByteArrayContent([]);
-            request.Content.Headers.Remove(key); request.Content.Headers.Add(key, value);
+            // Sent as given, as other clients send it: a modelled Content-Type
+            // that is empty or not a media type is the caller's to choose.
+            request.Content.Headers.Remove(key);
+            if (!request.Content.Headers.TryAddWithoutValidation(key, value)) throw new ArgumentException("Invalid header " + key);
         }
     }
     internal Task<T> CallAsync<T>(string name, object? input, CancellationToken cancellationToken) => TracedAsync(name, async trace =>

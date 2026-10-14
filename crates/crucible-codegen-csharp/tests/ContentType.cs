@@ -25,7 +25,9 @@ static class Program
     static async Task Main()
     {
         foreach (var streaming in new[] { false, true })
-        foreach (var modelled in new string?[] { null, "image/png" })
+        // An empty or malformed modelled value is sent as given, as the
+        // other clients send it, never refused by .NET's header parser.
+        foreach (var modelled in new string?[] { null, "image/png", "", "not a media type" })
         foreach (var configured in new string?[] { null, "image/jpeg" })
         {
             var handler = new Handler { Expected = modelled ?? "application/octet-stream" };

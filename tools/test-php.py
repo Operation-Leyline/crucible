@@ -122,9 +122,17 @@ $client->close();
     composer("install", cwd=permissions)
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/permissions.php"),
         env=dict(os.environ, PHP_PERMISSIONS_PACKAGE=str(permissions)))
+
+    # An endpoint rule's header name keeps the model's case; the client
+    # lowercases it, so it replaces a client default of the same name.
+    behaviors = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json").read_text())
+    endpoint = behaviors["shapes"]["example.behavior#Service"]["traits"]["smithy.rules#endpointRuleSet"]["rules"][0]["endpoint"]
+    endpoint["headers"] = {"X-Region": endpoint["headers"].pop("x-region")}
+    behaviors_path = output / "behaviors.json"
+    behaviors_path.write_text(json.dumps(behaviors), encoding="utf-8")
     for name, model, namespace, test, variable, extra in [
         ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "JobsSdk", "waiters.php", "PHP_JOBS_PACKAGE", {}),
-        ("behavior", "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "BehaviorSdk", "endpoints.php", "PHP_BEHAVIOR_PACKAGE", {}),
+        ("behavior", behaviors_path, "BehaviorSdk", "endpoints.php", "PHP_BEHAVIOR_PACKAGE", {}),
         ("checksum", "crates/crucible-smithy/tests/fixtures/checksums.json", "ChecksumSdk", "checksums.php", "PHP_CHECKSUM_PACKAGE",
          {"CHECKSUM_VECTORS": str(ROOT / "tests/conformance/checksums.json")}),
     ]:

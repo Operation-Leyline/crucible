@@ -361,7 +361,8 @@
         code(c.resourceType),
         list(c.bindings).map((b, i) => [i ? ", " : "", code(b.identifier), " = ", code(b.value)]),
         c.when ? code(c.when) : "",
-        c.documentation || "",
+        // Model Markdown, rendered and sanitised at build time like the rest.
+        (c.renderedDocumentation && rich(c.renderedDocumentation.html)) || c.documentation || "",
       ]);
       body.push(table(["Mode", "Permission", "Resource type", "Bindings", "When", "Notes"], rows, "Requirements"));
     }

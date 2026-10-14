@@ -266,21 +266,18 @@ fn comment(line: &str) -> bool {
 fn raw(language: &str, files: &[File], problems: &mut Vec<String>) {
     for file in files.iter().filter(|file| source(file)) {
         for (number, line) in file.contents.split('\n').enumerate() {
+            // PHP is no exception: a single-quoted literal takes every byte
+            // as written, but `git`'s `text=auto` rewrites a CR in a
+            // committed SDK, so such a value is double-quoted with escapes.
             let Some(c) = line.chars().find(|c| forbidden(*c)) else {
                 continue;
             };
-            // A single-quoted PHP literal takes every byte as written, by
-            // definition; there it is not an escaping gap. (Ruby's does not:
-            // its lexer reads CRLF as LF even there.)
-            let verbatim = file.path.ends_with(".php") && !comment(line);
-            if !verbatim {
-                problems.push(format!(
-                    "{language} {}:{}: U+{:04X} in {line:?}",
-                    file.path,
-                    number + 1,
-                    u32::from(c)
-                ));
-            }
+            problems.push(format!(
+                "{language} {}:{}: U+{:04X} in {line:?}",
+                file.path,
+                number + 1,
+                u32::from(c)
+            ));
         }
     }
 }

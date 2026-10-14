@@ -19,7 +19,7 @@ use crucible_smithy::ir::{
 use crucible_smithy::{Diagnostics, ShapeId};
 
 use crate::info::constant;
-use crate::names::{doc, documented, field, literal, variant};
+use crate::names::{doc, documented_text, field, literal, variant};
 
 const P: &str = "::crucible_server_runtime_rust::__generated::permissions";
 const ERROR: &str = "::crucible_server_runtime_rust::__generated::error::Error";
@@ -219,7 +219,7 @@ fn permission_enum(names: &Names<'_>) -> String {
     for permission in names.primaries() {
         let mut docs = model_docs(permission);
         docs.push_str(&format!("{}.", code_span(&permission.value)));
-        documented(&mut out, "    ", Some(&docs), &permission.notes);
+        documented_text(&mut out, "    ", Some(&docs), &permission.notes);
         out.push_str(&format!("    {},\n", variant(&permission.symbol)));
     }
     out.push_str("}\n\n");
@@ -242,7 +242,7 @@ fn permission_enum(names: &Names<'_>) -> String {
             code_span(&primary.value),
             variant(&primary.symbol)
         ));
-        documented(&mut out, "    ", Some(&docs), &notes(alias));
+        documented_text(&mut out, "    ", Some(&docs), &notes(alias));
         out.push_str(&format!(
             "    pub const {}: Self = Self::{};\n",
             constant(&alias.symbol),

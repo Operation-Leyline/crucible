@@ -234,8 +234,14 @@ def qualify_features(output, scratch):
     feature_package(output, scratch, ROOT / "crates/crucible-codegen-python/tests/auth.json", "Auth", ["AuthTests.swift"])
     feature_package(output, scratch, ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", "ChecksumSDK",
                     ["ChecksumTests.swift"], {"CHECKSUM_CASES": str(conformance / "checksums.json")})
-    feature_package(output, scratch, ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "Behavior",
-                    ["EndpointTests.swift"])
+    # An endpoint rule's header name keeps the model's case; the client
+    # lowercases it, so it replaces a client default of the same name.
+    behaviors = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json").read_text())
+    endpoint = behaviors["shapes"]["example.behavior#Service"]["traits"]["smithy.rules#endpointRuleSet"]["rules"][0]["endpoint"]
+    endpoint["headers"] = {"X-Region": endpoint["headers"].pop("x-region")}
+    behaviors_path = output / "behaviors.json"
+    behaviors_path.write_text(json.dumps(behaviors), encoding="utf-8")
+    feature_package(output, scratch, behaviors_path, "Behavior", ["EndpointTests.swift"])
     feature_package(output, scratch, ROOT / "crates/crucible-codegen-java/tests/waiters.json", "Jobs", ["WaiterTests.swift"])
     protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
     protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}

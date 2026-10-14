@@ -107,6 +107,18 @@ test("raw blob payload examples show decoded bytes as base64 text", () => {
   if (example) assert.match(x.exampleMessage(example.output, false, op.status), /<binary payload, base64: /);
 });
 
+test("a requirement clause's documentation renders as prose, not Markdown source", () => {
+  const m = x.index(PERMISSIONS);
+  const [id, op] = Object.entries(PERMISSIONS.operations).find(([, o]) =>
+    ((o.requirements || {}).clauses || []).some((c) => c.documentation && c.documentation.includes("`")),
+  );
+  const clause = op.requirements.clauses.find((c) => c.documentation && c.documentation.includes("`"));
+  const cells = elements(x.operationView(m, id, null), "td");
+  // The Notes cell holds the build-time HTML, and never the raw backticks.
+  assert.ok(cells.some((td) => nodes(td).some((n) => typeof n === "object" && n.html === clause.renderedDocumentation.html)), id);
+  assert.ok(!cells.some((td) => nodes(td).includes(clause.documentation)), id);
+});
+
 // ---- badges ---------------------------------------------------------------
 
 test("internal, deprecated and unstable badges follow the description", () => {
@@ -432,7 +444,8 @@ test("an operation states what the caller must hold, and the overview lists the 
   for (const value of ["graph:read", "graph:write", "history:read", "target.history.historyId", "has target.history"]) {
     assert.ok(query.includes(value), value);
   }
-  assert.ok(query.includes("Only when the parsed query writes."));
+  // A clause's own documentation is model Markdown, rendered in its Notes cell.
+  assert.ok(htmlOf(x.operationView(m, "example.leyline#ExecuteQuery", null)).includes("<p>Only when the parsed query writes.</p>"));
   assert.ok(textOf(x.operationView(m, "example.leyline#GetUser", null)).includes("Requires no permission."));
   assert.match(textOf(x.operationView(m, "example.leyline#RestoreBackup", null)), /history module moves/);
   // Nothing declared, nothing said.

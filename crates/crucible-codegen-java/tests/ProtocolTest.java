@@ -27,6 +27,8 @@ public final class ProtocolTest {
         if(!rest) check(exchange.getRequestHeaders().getFirst("x-amz-target").equals("JsonService."+(mode.equals("empty")?"Empty":"Echo")),"RPC target");
         if(mode.equals("echo")) {
           check(exchange.getRequestHeaders().getFirst("content-type").startsWith(content),"protocol content type");
+          // The client-wide default is replaced, not sent beside the body's.
+          check(exchange.getRequestHeaders().get("content-type").size()==1,"one Content-Type: "+exchange.getRequestHeaders().get("content-type"));
           var body=JsonParser.parseString(request).getAsJsonObject();
           check(body.get(rest?"wire-name":"renamed").getAsString().equals("value"),"jsonName policy");
           check(body.get("when").getAsBigDecimal().compareTo(new java.math.BigDecimal("-0.25"))==0,"epoch timestamp");
@@ -56,7 +58,7 @@ public final class ProtocolTest {
     });
     server.start();
     try {
-      var config=new ClientConfig();config.endpoint="http://127.0.0.1:"+server.getAddress().getPort();config.maxAttempts=1;
+      var config=new ClientConfig();config.endpoint="http://127.0.0.1:"+server.getAddress().getPort();config.maxAttempts=1;config.headers.put("Content-Type","text/plain");
       var client=new JsonServiceClient(config);var negative=Instant.ofEpochSecond(-1,750000000);var zero=Instant.EPOCH;
       var result=client.echo(b->b.renamed("value").when(negative).iso(negative).date(zero).dates(List.of(zero,zero.plusSeconds(1))).query(zero).queries(List.of(zero)).choice(Choice.builder().time(zero).build()).floatValue(Float.NaN).doubleValue(Double.POSITIVE_INFINITY).nullable(null).document(JsonNull.INSTANCE));
       check(result.when().equals(negative) && result.iso().equals(negative),"decoded timestamp defaults");

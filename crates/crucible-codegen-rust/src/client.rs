@@ -285,11 +285,13 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .iter()
             .find(|id| service.name_of(id) == *error)
             .and_then(|id| service.shape(id))
-            .and_then(crucible_codegen_common::documentation::shape);
+            .and_then(crucible_codegen_common::documentation::shape)
+            .map(crucible_codegen_common::docs::escape);
         doc(
             &mut out,
             "    ",
-            docs.or(Some("A modeled error returned by this operation.")),
+            docs.as_deref()
+                .or(Some("A modeled error returned by this operation.")),
         );
         out.push_str(&format!("    {error}(errors::{error}),\n"));
     }

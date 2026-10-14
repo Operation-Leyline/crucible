@@ -107,7 +107,9 @@ fn sensitive_enum_debug_does_not_rewrite_documentation() {
         .unwrap();
     let code = generate_client(&service).unwrap();
     assert_eq!(
-        code.matches("/// Debug, for example #[derive(Debug, Clone)]")
+        // Model docs are escaped for rustdoc (a bare `[x]` is no link), and
+        // otherwise left as written.
+        code.matches(r"/// Debug, for example #\[derive(Debug, Clone)]")
             .count(),
         2
     );

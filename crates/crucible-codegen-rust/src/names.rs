@@ -112,6 +112,10 @@ fn words(name: &str) -> Vec<String> {
     words
 }
 
+// Every edition's keywords, `gen` (reserved from edition 2024) included:
+// generated client packages are edition 2024, and server bindings are
+// `include!`d into a service crate of whichever edition it uses, so a name
+// must be valid in 2024 even where a 2021 consumer would have accepted it.
 const KEYWORDS: &[&str] = &[
     "as", "async", "await", "break", "const", "continue", "dyn", "else", "enum", "extern", "false",
     "fn", "for", "gen", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub",
@@ -166,7 +170,22 @@ pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
 /// "Since X.") and a `#[deprecated]` attribute, so callers see it at the use
 /// site. The generated modules `allow(deprecated)`: only code outside them is
 /// warned.
+///
+/// `docs` is model text, so it is escaped: rustdoc reads it as Markdown, and
+/// a bare `[name]` in it would be an intra-doc link that cannot resolve.
 pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, notes: &DocNotes) {
+    let docs = docs.map(crucible_codegen_common::docs::escape);
+    documented_text(out, indent, docs.as_deref(), notes);
+}
+
+/// [`documented`] for text Crucible composed, whose model parts are already
+/// escaped and whose intra-doc links (``[`Self::Read`]``) must resolve.
+pub(crate) fn documented_text(
+    out: &mut String,
+    indent: &str,
+    docs: Option<&str>,
+    notes: &DocNotes,
+) {
     let mut text = docs.map(str::trim).unwrap_or_default().to_owned();
     for line in notes.lines() {
         if !text.is_empty() {

@@ -639,6 +639,11 @@
             "documentation": "Only when the parsed query writes.",
             "mode": "handler",
             "permission": "graph:write",
+            "renderedDocumentation": {
+              "html": "<p>Only when the parsed query writes.</p>\n",
+              "markdown": "Only when the parsed query writes.",
+              "text": "Only when the parsed query writes."
+            },
             "resourceType": "graph",
             "tier": "public"
           },
@@ -1751,6 +1756,11 @@
             "documentation": "HTTP rewrites only, when `mode` is ``a`b``, and [ops] approve.",
             "mode": "handler",
             "permission": "graph:write",
+            "renderedDocumentation": {
+              "html": "<p>HTTP rewrites only, when <code>mode</code> is <code>a`b</code>, and [ops] approve.</p>\n",
+              "markdown": "HTTP rewrites only, when `mode` is ``a`b``, and [ops] approve.",
+              "text": "HTTP rewrites only, when mode is a`b, and [ops] approve."
+            },
             "resourceType": "graph",
             "tier": "public"
           },
@@ -1758,6 +1768,11 @@
             "documentation": "GraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see [bare] and [the guide](https://example.com/guide).\n\n@see the runbook; @param is no tag either.",
             "mode": "handler",
             "permission": "history:read",
+            "renderedDocumentation": {
+              "html": "<p>GraphQL plans are checked twice:</p>\n<ul>\n<li>once when parsed, against */ text;</li>\n<li>once when run, see [bare] and <a href=\"https://example.com/guide\">the guide</a>.</li>\n</ul>\n<p>@see the runbook; @param is no tag either.</p>\n",
+              "markdown": "GraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see [bare] and [the guide](https://example.com/guide).\n\n@see the runbook; @param is no tag either.",
+              "text": "GraphQL plans are checked twice:\n\n- once when parsed, against */ text;\n- once when run, see [bare] and the guide (https://example.com/guide).\n\n@see the runbook; @param is no tag either."
+            },
             "resourceType": "history",
             "tier": "public"
           }
