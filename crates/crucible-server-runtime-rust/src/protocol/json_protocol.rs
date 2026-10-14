@@ -628,17 +628,18 @@ fn query_violations(query: &str, op: &OperationInfo) -> Violations {
         match percent_decode(key, true) {
             Ok(key) => {
                 if let Err(message) = percent_decode(value, true) {
-                    violations.push_with(|| malformed(&query_path(op, &key), &message));
+                    violations.push_with(|| malformed(&query_path(op, Some(&key)), &message));
                 }
             }
-            Err(message) => violations.push_with(|| malformed("query", &message)),
+            Err(message) => violations.push_with(|| malformed(&query_path(op, None), &message)),
         }
     }
     violations
 }
 
-/// The path naming query parameter `key` of `op`.
-fn query_path(op: &OperationInfo, key: &str) -> Cow<'static, str> {
+/// The path naming query parameter `key` of `op`, or a key that does not
+/// decode (`None`): the map that takes undeclared keys, if any, has it.
+fn query_path(op: &OperationInfo, key: Option<&str>) -> Cow<'static, str> {
     let declared = op
         .literal_query
         .iter()
@@ -647,7 +648,7 @@ fn query_path(op: &OperationInfo, key: &str) -> Cow<'static, str> {
             Location::Query(name) => Some(name),
             _ => None,
         }))
-        .find(|name| *name == key);
+        .find(|name| key == Some(*name));
     if let Some(name) = declared {
         return Cow::Borrowed(name);
     }

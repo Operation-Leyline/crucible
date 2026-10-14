@@ -715,9 +715,14 @@ async fn query_and_prefix_header_rejections_are_capped_and_name_no_client_key() 
     let (status, body) = answer(&service, &format!("/body?{}", query("hunter")), b"").await;
     assert_eq!(status, 400, "{body}");
     assert_capped(&body, 250, "query");
-    // A declared parameter keeps the model's name.
+    // A declared parameter keeps the model's name; a key that does not
+    // decode belongs to the map too.
     let (_, body) = answer(&service, "/queries?tag=%zz", b"").await;
     assert_eq!(body["fieldList"][0]["path"], "tag", "{body}");
+    let (_, body) = answer(&service, "/queries?hunter%zz=1", b"").await;
+    assert_eq!(body["fieldList"][0]["path"], "queries/[key]", "{body}");
+    let (_, body) = answer(&service, "/body?hunter%zz=1", b"").await;
+    assert_eq!(body["fieldList"][0]["path"], "query", "{body}");
 
     let mut request = Request::get("/prefix-in");
     for index in 0..150 {
