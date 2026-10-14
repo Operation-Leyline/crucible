@@ -455,8 +455,13 @@ version's section when it is prepared.
   caller got a bare 502. The host percent-encodes those bytes first, which
   query decoding undoes, so the service reads what the client sent. Any
   other event `lambda_http` cannot convert (a body that claims base64 but
-  is not) is answered 400 with the request id instead of failing the
-  invocation.
+  is not, from any event source, or a `Host` or `X-Forwarded-Proto` no
+  URI can be built from) is answered 400 with the request id instead of
+  failing the invocation. The host refuses those before the conversion
+  rather than catching its panic, so a `panic = "abort"` build answers
+  them too. A REST or HTTP API path with such characters (a space, `<`,
+  non-ASCII, a `?` API Gateway decoded) is percent-encoded the same way:
+  it failed the invocation with a bare 502.
 
 - An answer larger than a Lambda invocation returns (6 MB, the event's
   shape and base64 included) was handed to the platform, which refused it
@@ -464,7 +469,9 @@ version's section when it is prepared.
   got a bare 502 from the Function URL or CloudFront and nothing said
   why. The Lambda host now answers 500 `InternalFailure` in the event's
   shape with the request id (the failure envelope for a direct invoke)
-  and logs the size through `tracing`.
+  and logs the size through `tracing`: the body's own length when it is
+  known ahead, else `at_least`, never the limit plus one. An ALB event's
+  answer is held to the load balancer's 1 MB limit, not Lambda's 6.
 
 - An operation that only an older API version serves (a later release
   removed it) answered 500 once any operation-aware middleware was
@@ -472,7 +479,11 @@ version's section when it is prepared.
   operations alone, so the authentication chain had no plan for it and
   failed with "authentication plan missing". It now lists those operations
   too, after the current ones, and `Prepare::metadata` returns their own
-  release's metadata. An operation in both keeps the current version's.
+  release's metadata. An operation in both keeps the current version's,
+  unless the extension's scope excludes the current description and
+  includes an older one (a scope on a member a later release renamed):
+  it is then listed by the older one, so that version's requests find
+  their plan.
 
 - Model text with unusual characters no longer breaks generated clients.
   Each of these was a compile error before: a CR in documentation (rustc

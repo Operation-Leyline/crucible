@@ -318,15 +318,39 @@ mod lambda_event {
     /// sees a bare 502 from the Function URL or CloudFront in front of it.
     const RESPONSE_LIMIT: usize = 6 * 1024 * 1024;
 
+    /// The most an Application Load Balancer takes back from a Lambda
+    /// target: "The maximum size of the response JSON that the Lambda
+    /// function can send is 1 MB" (Elastic Load Balancing, "Use Lambda
+    /// functions as targets of an Application Load Balancer", Limits).
+    /// Read in the same 1,048,576-byte MB as Lambda's own quota. A larger
+    /// answer is the load balancer's bare 502, though Lambda returned it.
+    const ALB_RESPONSE_LIMIT: usize = 1024 * 1024;
+
+    /// The most an answer to an event from `origin` may be.
+    fn response_limit(origin: &RequestOrigin) -> usize {
+        match origin {
+            RequestOrigin::Alb => ALB_RESPONSE_LIMIT,
+            _ => RESPONSE_LIMIT,
+        }
+    }
+
+    /// How large a replaced answer was: exactly, or only that it passed the
+    /// limit, for a body read up to the limit whose length was not known
+    /// ahead (a stream is not read to its end just to measure it).
+    #[derive(Clone, Copy)]
+    enum Size {
+        Exactly(usize),
+        Over,
+    }
+
     /// Says why an answer was replaced, in the function's logs: the service
     /// log has already recorded the request as served.
-    fn too_large(request_id: &str, size: usize) {
-        tracing::error!(
-            request_id,
-            size,
-            limit = RESPONSE_LIMIT,
-            "the response is larger than a Lambda invocation returns; answered 500 instead"
-        );
+    fn too_large(request_id: &str, size: Size, limit: usize) {
+        const MESSAGE: &str = "the response is larger than its event source takes back from Lambda; answered 500 instead";
+        match size {
+            Size::Exactly(size) => tracing::error!(request_id, size, limit, "{MESSAGE}"),
+            Size::Over => tracing::error!(request_id, at_least = limit + 1, limit, "{MESSAGE}"),
+        }
     }
 
     /// What tells a direct invoke from an HTTP event, read without building
@@ -373,7 +397,11 @@ mod lambda_event {
                 .invoke_json_with(&operation, Bytes::copy_from_slice(input.as_bytes()), meta)
                 .await;
             if answer.len() > RESPONSE_LIMIT {
-                too_large(&request_id(meta_id.as_ref()), answer.len());
+                too_large(
+                    &request_id(meta_id.as_ref()),
+                    Size::Exactly(answer.len()),
+                    RESPONSE_LIMIT,
+                );
                 return Ok(
                     RawValue::from_string(crate::service::INVOKE_FAILURE.to_owned())
                         .expect("the failure envelope is JSON"),
@@ -406,41 +434,58 @@ mod lambda_event {
             _ => None,
         }
         .and_then(|id| HeaderValue::from_str(id).ok());
-        // The conversion panics on what it cannot read (a body that claims
-        // base64 but is not); that is the client's malformed request.
+        // lambda_http panics on what it cannot convert, and a panic only
+        // unwinds into `catch_unwind` below in a build that unwinds: under
+        // `panic = "abort"` it ends the process. So what is known to panic
+        // is refused here first, as the client's malformed request: a body
+        // that claims base64 but is not (decoded here, so lambda_http has
+        // none to decode), and a path or Host the URI cannot be built from.
+        let Some(body) = take_body(&mut request) else {
+            return malformed(origin, event_id.or(meta.request_id));
+        };
+        if !uri_builds(&request) {
+            return malformed(origin, event_id.or(meta.request_id));
+        }
+        // The backstop for whatever else a later lambda_http panics on, in
+        // a build that unwinds.
         let converted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             axum::http::Request::<lambda_http::Body>::from(request)
         }));
         let Ok(converted) = converted else {
             return malformed(origin, event_id.or(meta.request_id));
         };
-        let (mut parts, body) = converted.into_parts();
+        let (mut parts, _) = converted.into_parts();
         if matches!(
             origin,
             RequestOrigin::ApiGatewayV1 | RequestOrigin::ApiGatewayV2
         ) {
             // lambda_http adds the deployment stage to the URI; model routes
             // describe the original path, independent of that deployment.
+            // That path is as API Gateway passed it, which may hold what a
+            // URI does not carry raw (a space, `<`, non-ASCII): encoded, as
+            // the query is, so the URI parses and decoding gives it back.
             let path = parts.raw_http_path();
             let path = if path.is_empty() { "/" } else { path };
+            let path = uri_path(path);
             let path_and_query = match parts.uri.query() {
                 Some(query) => format!("{path}?{query}"),
-                None => path.to_owned(),
+                None => path,
             };
             let mut uri = parts.uri.clone().into_parts();
-            uri.path_and_query = Some(path_and_query.parse()?);
-            parts.uri = axum::http::Uri::from_parts(uri)?;
+            let rebuilt = path_and_query.parse().ok().and_then(|path_and_query| {
+                uri.path_and_query = Some(path_and_query);
+                axum::http::Uri::from_parts(uri).ok()
+            });
+            let Some(rebuilt) = rebuilt else {
+                return malformed(origin, event_id.or(meta.request_id));
+            };
+            parts.uri = rebuilt;
         }
         let event_id = event_request_id(&parts.extensions).or(meta.request_id);
         parts.extensions.insert(crate::RequestMeta {
             request_id: event_id.clone(),
             deadline: meta.deadline,
         });
-        let body = match body {
-            lambda_http::Body::Text(text) => text.into_bytes(),
-            lambda_http::Body::Binary(bytes) => bytes,
-            _ => Vec::new(),
-        };
         let response = service
             .handle(Request::from_parts(parts, Body::from(body)))
             .await;
@@ -448,14 +493,20 @@ mod lambda_event {
         // A layer that answers by itself skips the pipeline's `x-request-id`;
         // the event's id still names the request.
         let id = parts.headers.get("x-request-id").cloned().or(event_id);
+        let limit = response_limit(&origin);
         // A body over the limit makes an answer over it: stop reading there.
-        let bytes = match axum::body::to_bytes(body, RESPONSE_LIMIT).await {
+        // Its length, when known ahead, is what the log reports.
+        let known = axum::body::HttpBody::size_hint(&body)
+            .exact()
+            .and_then(|size| usize::try_from(size).ok());
+        let bytes = match axum::body::to_bytes(body, limit).await {
             Ok(bytes) => bytes.to_vec(),
             Err(error)
                 if std::error::Error::source(&error)
                     .is_some_and(|cause| cause.is::<http_body_util::LengthLimitError>()) =>
             {
-                return oversized(origin, id, RESPONSE_LIMIT + 1);
+                let size = known.map_or(Size::Over, Size::Exactly);
+                return oversized(origin, id, size, limit);
             }
             Err(error) => return Err(error.into()),
         };
@@ -473,10 +524,10 @@ mod lambda_event {
             base64,
             parts.status.canonical_reason(),
         )?;
-        if answer.get().len() <= RESPONSE_LIMIT {
+        if answer.get().len() <= limit {
             return Ok(answer);
         }
-        oversized(origin, id, answer.get().len())
+        oversized(origin, id, Size::Exactly(answer.get().len()), limit)
     }
 
     /// The framework's internal failure with the request id to quote, in the
@@ -485,9 +536,10 @@ mod lambda_event {
     fn oversized(
         origin: RequestOrigin,
         id: Option<HeaderValue>,
-        size: usize,
+        size: Size,
+        limit: usize,
     ) -> Result<Box<RawValue>, BoxError> {
-        too_large(&request_id(id.as_ref()), size);
+        too_large(&request_id(id.as_ref()), size, limit);
         let failure = FrameworkError::InternalFailure;
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -513,15 +565,106 @@ mod lambda_event {
     /// malformed one still reaches the protocol, which rejects it as the
     /// client's. Decoding gives back exactly what the client sent.
     fn uri_query(query: &str) -> String {
-        let mut out = String::with_capacity(query.len());
-        for byte in query.bytes() {
-            if byte.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=:@/?%".contains(&byte) {
+        encode(query, b"-._~!$&'()*+,;=:@/?%")
+    }
+
+    /// `path` as [`uri_query`] treats a query: every byte a URI path does
+    /// not carry raw percent-encoded, `?` and `#` included (in a path they
+    /// would start a query or a fragment), existing `%` escapes kept.
+    fn uri_path(path: &str) -> String {
+        encode(path, b"-._~!$&'()*+,;=:@/%")
+    }
+
+    /// `text` with every byte but ASCII letters, digits and `keep`
+    /// percent-encoded.
+    fn encode(text: &str, keep: &[u8]) -> String {
+        let mut out = String::with_capacity(text.len());
+        for byte in text.bytes() {
+            if byte.is_ascii_alphanumeric() || keep.contains(&byte) {
                 out.push(char::from(byte));
             } else {
                 out.push_str(&format!("%{byte:02X}"));
             }
         }
         out
+    }
+
+    /// Takes the body out of the event, decoded as lambda_http would
+    /// decode it, so the conversion has none to decode: `None` for a body
+    /// that claims base64 but is not, on which the conversion panics.
+    fn take_body(request: &mut LambdaRequest) -> Option<Vec<u8>> {
+        use base64::Engine;
+
+        let (body, base64) = match request {
+            LambdaRequest::ApiGatewayV1(event) => (&mut event.body, &mut event.is_base64_encoded),
+            LambdaRequest::ApiGatewayV2(event) => (&mut event.body, &mut event.is_base64_encoded),
+            LambdaRequest::Alb(event) => (&mut event.body, &mut event.is_base64_encoded),
+            // The sources lambda_http's features here do not include.
+            #[allow(unreachable_patterns)]
+            _ => return Some(Vec::new()),
+        };
+        let encoded = std::mem::take(base64);
+        match body.take() {
+            None => Some(Vec::new()),
+            Some(text) if encoded => base64::engine::general_purpose::STANDARD.decode(text).ok(),
+            Some(text) => Some(text.into_bytes()),
+        }
+    }
+
+    /// Whether lambda_http (1.3, `build_request_uri`) can build the URI of
+    /// `request`: it parses `{scheme}://{host}{path}` with `url`, the scheme
+    /// from `X-Forwarded-Proto` and the host from `Host` (else the domain
+    /// name), and panics where that fails or the result is not an
+    /// `http::Uri`. The query is no part of it: lambda_http writes the
+    /// REST and ALB ones form-encoded, and the HTTP API's raw one was
+    /// encoded already.
+    fn uri_builds(request: &LambdaRequest) -> bool {
+        let (path, headers, domain, stage) = match request {
+            LambdaRequest::ApiGatewayV1(event) => (
+                event.path.as_deref(),
+                &event.headers,
+                event.request_context.domain_name.as_deref(),
+                event.request_context.stage.as_deref(),
+            ),
+            LambdaRequest::ApiGatewayV2(event) => (
+                event.raw_path.as_deref(),
+                &event.headers,
+                event.request_context.domain_name.as_deref(),
+                event.request_context.stage.as_deref(),
+            ),
+            LambdaRequest::Alb(event) => (event.path.as_deref(), &event.headers, None, None),
+            #[allow(unreachable_patterns)]
+            _ => return true,
+        };
+        let path = path.unwrap_or_default();
+        // API Gateway's stage prefix, as lambda_http adds it.
+        let path = match stage {
+            Some(stage)
+                if stage != "$default"
+                    && std::env::var_os("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH").is_none()
+                    && !path.starts_with(&format!("/{stage}/")) =>
+            {
+                Cow::Owned(format!("/{stage}{path}"))
+            }
+            _ => Cow::Borrowed(path),
+        };
+        let host = headers
+            .get(axum::http::header::HOST)
+            .and_then(|host| host.to_str().ok())
+            .or(domain);
+        let url = match host {
+            None => {
+                url::Url::parse(&format!("http://localhost{path}")).map(|url| url.path().to_owned())
+            }
+            Some(host) => {
+                let scheme = headers
+                    .get("x-forwarded-proto")
+                    .and_then(|scheme| scheme.to_str().ok())
+                    .unwrap_or("https");
+                url::Url::parse(&format!("{scheme}://{host}{path}")).map(String::from)
+            }
+        };
+        url.is_ok_and(|url| url.parse::<axum::http::Uri>().is_ok())
     }
 
     /// A 400 in the event's shape for an event lambda_http cannot convert.

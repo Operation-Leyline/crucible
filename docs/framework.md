@@ -1490,12 +1490,20 @@ authentication, audience selection and browser limits.
   APIs, ALB) are answered in their source's response shape. Direct JSON
   invokes go to `InvokeProtocol`. One function can receive both. Lambda
   returns at most 6 MB (6,291,456 bytes) from a synchronous invocation,
-  the event's shape and base64 for a binary body included; a larger
-  answer becomes the framework's 500 `InternalFailure` (with its request
-  id), or the failure envelope for a direct invoke, and the host logs
-  why through `tracing`. The service log has already recorded the
-  request as served by then. Return large objects through a presigned
-  S3 URL rather than in the body.
+  and an ALB takes back at most 1 MB (read as 1,048,576 bytes) from a
+  Lambda target, the event's shape and base64 for a binary body
+  included; a larger answer becomes the framework's 500
+  `InternalFailure` (with its request id), or the failure envelope for a
+  direct invoke, and the host logs why and the size through `tracing`.
+  The service log has already recorded the request as served by then.
+  Return large objects through a presigned S3 URL rather than in the
+  body. An HTTP event the host cannot read as a request (a body that
+  claims base64 but is not, a `Host` no URI is built from) is answered
+  400 with its request id. It refuses those before `lambda_http`
+  converts the event, since the conversion panics on them and a
+  `panic = "abort"` build cannot recover a panic; a path or query with
+  characters a URI does not carry raw is percent-encoded instead, which
+  decoding undoes.
 - **Elsewhere** (ECS, a VM, a laptop): it serves HTTP on `CRUCIBLE_ADDR`,
   else `0.0.0.0:$PORT`, else `0.0.0.0:8080`. On SIGTERM or Ctrl-C it stops
   accepting and finishes the requests in flight.

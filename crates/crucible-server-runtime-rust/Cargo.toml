@@ -14,7 +14,7 @@ default = ["http", "lambda"]
 # A dedicated HTTP server: containers, ECS, a laptop.
 http = ["dep:hyper", "dep:hyper-util", "tokio/net", "tokio/signal", "tokio/sync"]
 # AWS Lambda: HTTP events (Function URLs, API Gateway, ALB) and direct JSON invokes.
-lambda = ["dep:lambda_http", "dep:lambda_runtime"]
+lambda = ["dep:lambda_http", "dep:lambda_runtime", "dep:base64"]
 logging = ["dep:tracing-subscriber"]
 # Embedded local-development API explorer; never enabled by default.
 explorer = []

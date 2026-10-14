@@ -142,11 +142,18 @@ impl<'a> Prepare<'a> {
             && self.scope.is_none_or(|scope| scope(operation))
     }
 
-    /// The operations the extension runs for: the current version's, then
-    /// those only an older API version serves (an operation a later release
-    /// removed), newest version first. A request for one passes the same
-    /// extensions, so whatever an extension prepares per operation (an
-    /// authentication plan) must cover it.
+    /// The operations the extension runs for, each id once: the current
+    /// version's, then those only an older API version serves (an operation
+    /// a later release removed), newest version first. A request for one
+    /// passes the same extensions, so whatever an extension prepares per
+    /// operation (an authentication plan) must cover it.
+    ///
+    /// The scope is asked of each version's own description, as a request
+    /// at that version asks it, before an id is taken: an operation whose
+    /// current description is outside the scope but whose older one is
+    /// inside (a scope on a member a later release renamed) is listed by
+    /// the older description, so the requests the extension runs for at
+    /// that version find what it prepared.
     pub fn operations(&self) -> impl Iterator<Item = &'static OperationInfo> + '_ {
         let mut seen: Vec<&'static str> = Vec::new();
         let older = self
@@ -161,12 +168,12 @@ impl<'a> Prepare<'a> {
             .iter()
             .copied()
             .chain(older)
+            .filter(|op| self.applies(op))
             .filter(move |op| {
                 let first = !seen.contains(&op.id);
                 seen.push(op.id);
                 first
             })
-            .filter(|op| self.applies(op))
     }
 
     /// The same service, narrowed to the operations `scope` accepts too: for

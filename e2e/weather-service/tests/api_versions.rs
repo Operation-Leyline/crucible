@@ -308,6 +308,29 @@ async fn a_removed_operation_passes_operation_aware_extensions() {
     assert_eq!(status, StatusCode::OK, "{body}");
 }
 
+/// An extension scoped by a member a later release renamed runs for the
+/// older version only; it still prepares a plan for that version's
+/// requests, though the current version is outside its scope.
+#[tokio::test]
+async fn an_extension_scoped_to_an_older_description_prepares_for_it() {
+    use crucible_server_runtime_rust::OperationMiddlewareExt;
+
+    let service = Crucible::builder(shop::operations(Arc::new(Shop)))
+        .defaults()
+        .api_version(Unversioned::Oldest)
+        .operation_middleware(
+            crucible_auth::AuthenticatorChain::new(Vec::new())
+                // v1's GetItem answers `name`, which v2 renamed `title`.
+                .when(|op| op.output.iter().any(|member| member.name == "name")),
+        )
+        .build()
+        .unwrap();
+    for (version, uri) in [("v1", "/items/a"), ("v3", "/things/a")] {
+        let (status, _, body) = call(&service, "GET", uri, Some(version)).await;
+        assert_eq!(status, StatusCode::OK, "{version}: {body}");
+    }
+}
+
 #[tokio::test]
 async fn a_request_without_a_version_is_settled_by_the_builder() {
     // By default: the oldest supported version.

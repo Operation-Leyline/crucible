@@ -141,3 +141,40 @@ async fn an_oversized_answer_from_a_layer_keeps_the_events_request_id() {
     assert_eq!(answer["statusCode"], 500, "{answer}");
     assert_eq!(answer["headers"]["x-request-id"], "big-request", "{answer}");
 }
+
+fn alb_event(bytes: usize) -> Value {
+    json!({
+        "requestContext": { "elb": { "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/weather/0123456789abcdef" } },
+        "httpMethod": "GET",
+        "path": "/big",
+        "queryStringParameters": { "bytes": bytes.to_string() },
+        "headers": {},
+        "isBase64Encoded": false,
+        "body": ""
+    })
+}
+
+/// An Application Load Balancer takes back at most 1 MB from a Lambda
+/// target, not Lambda's 6: above it the load balancer answered a bare 502,
+/// though the invocation succeeded.
+#[tokio::test]
+async fn an_alb_answer_over_its_1_mb_limit_is_a_500() {
+    let service = service();
+    let answer = host::lambda_event(&service, alb_event(2 * 1024 * 1024))
+        .await
+        .unwrap();
+    assert_eq!(answer["statusCode"], 500, "{answer}");
+    assert_eq!(answer["statusDescription"], "500 Internal Server Error");
+    assert!(answer.to_string().len() < 64 * 1024);
+    // The body fits but the answer around it does not.
+    let answer = host::lambda_event(&service, alb_event(1024 * 1024 - 16))
+        .await
+        .unwrap();
+    assert_eq!(answer["statusCode"], 500, "{answer}");
+    // Just under the limit is served as it was.
+    let answer = host::lambda_event(&service, alb_event(1_000_000))
+        .await
+        .unwrap();
+    assert_eq!(answer["statusCode"], 200);
+    assert!(answer.to_string().len() > 1_000_000);
+}
