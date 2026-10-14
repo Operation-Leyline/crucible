@@ -376,3 +376,131 @@ fn served_operations_lists_each_versions_own_entry_within_the_scope() {
         ]
     );
 }
+
+/// An operation v3 removed, which v1 and v2 still serve through v2's legacy
+/// handler (`served_by`): v1 required bearer auth on it, v2 dropped auth.
+const L1: ApiVersion = ApiVersion::new(0, "v1");
+const L2: ApiVersion = ApiVersion::new(1, "v2");
+const L3: ApiVersion = ApiVersion::new(2, "v3");
+
+static RETIRED_V1: OperationInfo = generated::operation_info(
+    "example.legacy#Retired",
+    "Retired",
+    None,
+    "GET",
+    &[Segment::Literal("retired")],
+    &[],
+    200,
+    &[],
+    &[],
+    &[],
+    true,
+    false,
+    false,
+    None,
+    &[],
+);
+static RETIRED_V2: OperationInfo = generated::operation_info(
+    "example.legacy#Retired",
+    "Retired",
+    None,
+    "GET",
+    &[Segment::Literal("retired")],
+    &[],
+    200,
+    &[],
+    &[],
+    &[],
+    true,
+    false,
+    false,
+    None,
+    &[],
+);
+static LEGACY_SERVICE: ServiceInfo = generated::service_info(
+    "example.legacy#Legacy",
+    "v3",
+    None,
+    None,
+    &[],
+    &[],
+    |_| None,
+    None,
+    None,
+    None,
+);
+static LEGACY_RELEASE_V1: ServiceInfo = generated::service_info(
+    "example.legacy#Legacy",
+    "v1",
+    None,
+    None,
+    &[&RETIRED_V1],
+    &[],
+    |_| None,
+    None,
+    None,
+    None,
+);
+static LEGACY_RELEASE_V2: ServiceInfo = generated::service_info(
+    "example.legacy#Legacy",
+    "v2",
+    None,
+    None,
+    &[&RETIRED_V2],
+    &[],
+    |_| None,
+    None,
+    None,
+    None,
+);
+static LEGACY_OLDER: [(ApiVersion, Option<&str>, &ServiceInfo); 2] = [
+    (L1, None, &LEGACY_RELEASE_V1),
+    (L2, None, &LEGACY_RELEASE_V2),
+];
+
+struct RetiredV1;
+impl Operation for RetiredV1 {
+    const INFO: &'static OperationInfo = &RETIRED_V1;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
+    const HAS_INPUT: bool = false;
+    const HAS_OUTPUT: bool = false;
+    type Input = Unit;
+    type Output = Unit;
+}
+
+struct RetiredV2;
+impl Operation for RetiredV2 {
+    const INFO: &'static OperationInfo = &RETIRED_V2;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
+    const HAS_INPUT: bool = false;
+    const HAS_OUTPUT: bool = false;
+    type Input = Unit;
+    type Output = Unit;
+}
+
+/// Each legacy entry is authenticated by its own release's schemes, though
+/// both are served by v2's handler and the current version has no entry
+/// for the operation to describe it by.
+#[tokio::test]
+async fn a_legacy_served_by_entry_keeps_its_own_releases_authentication() {
+    let operations = Operations::builder(&LEGACY_SERVICE)
+        .versions(L3, &LEGACY_OLDER)
+        .add_legacy::<RetiredV2, _, _>(L2, &LEGACY_RELEASE_V2, Arc::new(()), |_, _| async {
+            Ok(Unit {})
+        })
+        .add_versioned::<RetiredV2, RetiredV2>(L2, &[], Some((L2, "RetiredV2")))
+        .add_versioned::<RetiredV1, RetiredV2>(L1, &[], Some((L2, "RetiredV2")))
+        .build()
+        .unwrap();
+    let service = Crucible::builder(operations)
+        .defaults()
+        .api_version(Unversioned::Oldest)
+        .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
+        .operation_middleware(crucible_auth::AuthenticatorChain::new(vec![Arc::new(
+            Bearer,
+        )]))
+        .build()
+        .unwrap();
+    assert_eq!(call(&service, "/retired", "v1").await, 401);
+    assert_eq!(call(&service, "/retired", "v2").await, 200);
+}

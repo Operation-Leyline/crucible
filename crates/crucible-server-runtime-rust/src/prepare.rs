@@ -63,7 +63,6 @@ impl<'r> ServedOperation<'r> {
     }
 
     /// What identifies the entry: an operation name is unique in its table.
-    /// What identifies the entry: an operation name is unique in its table.
     pub(crate) fn key(&self) -> (Option<ApiVersion>, &'static str) {
         (self.version, self.info.name)
     }
@@ -119,8 +118,7 @@ impl<'a> Prepare<'a> {
     #[cfg_attr(not(feature = "permissions"), allow(dead_code))]
     pub(crate) fn authorize_scope(&self) {
         let covered: Vec<_> = self
-            .served()
-            .filter(|served| self.applies(served.info))
+            .served_operations()
             .map(|served| served.key())
             .collect();
         let mut builtins = self.builtins.borrow_mut();

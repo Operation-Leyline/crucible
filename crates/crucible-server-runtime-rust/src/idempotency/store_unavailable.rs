@@ -7,7 +7,7 @@ use crate::OpaqueError;
 /// never a reason to run an operation twice or to refuse a request as a
 /// duplicate.
 #[derive(Debug)]
-pub(crate) struct StoreUnavailable(pub crate::Error);
+pub(crate) struct StoreUnavailable(crate::Error);
 
 impl StoreUnavailable {
     /// The request's failure for a store error. Opaque: a service rule for

@@ -1626,17 +1626,19 @@ async fn an_authorizer_that_cannot_tell_is_a_sanitized_500_never_an_allow() {
 
 #[tokio::test]
 async fn a_rule_for_the_services_store_errors_never_translates_an_authorizer_outage() {
-    // What the translator is shown, so the test sees it ran.
+    // Everything the translator's rules are shown. The recorder is the
+    // first rule, so it sees each error the translator walks to, a cause
+    // the next rule would answer included.
     let seen = Arc::new(Mutex::new(Vec::new()));
     let translator = ExceptionTranslator::new()
-        .translate(|_: &GrantsDown| FrameworkError::Forbidden.into())
         .translate_with({
             let seen = seen.clone();
             move |error| {
                 seen.lock().unwrap().push(error.to_string());
                 None
             }
-        });
+        })
+        .translate(|_: &GrantsDown| FrameworkError::Forbidden.into());
     let harness = serve_with(|builder, permissions, idempotency| {
         builder
             .exception_translator(translator)

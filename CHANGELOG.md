@@ -453,7 +453,10 @@ version's section when it is prepared.
   and selects it by the description the request is served under, so each
   version is authenticated by its own release's schemes, as
   [API versions](docs/api-versions.md#limits) promise. A construction error
-  for an older version's entry names its API version.
+  for an older version's entry names its API version. The chain now needs
+  an authenticator for every scheme an older version's entry declares, so
+  a service whose older release used a scheme no installed authenticator
+  supports, which built before, now fails to construct until one is added.
 
 - A structure is read only from a JSON object. serde's derived struct
   reader also takes an array of positional values, so a JSON body, a
