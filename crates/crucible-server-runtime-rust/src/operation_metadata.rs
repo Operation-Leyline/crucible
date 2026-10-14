@@ -56,6 +56,15 @@ pub struct OperationMetadata {
 }
 
 impl OperationMetadata {
+    /// Whether every request the operation serves has been authenticated:
+    /// it names an authentication scheme and is not `@optionalAuth`. An
+    /// operation with no scheme (`@auth([])`, a public one) or without
+    /// authentication metadata (bindings older than it) admits anonymous
+    /// callers.
+    pub fn requires_authentication(&self) -> bool {
+        self.auth_schemes.is_some_and(|schemes| !schemes.is_empty()) && !self.optional_auth
+    }
+
     pub(crate) fn of<O: Operation>() -> Self {
         Self {
             protocol: O::PROTOCOL,

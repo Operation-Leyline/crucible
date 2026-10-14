@@ -161,6 +161,14 @@ outside this crate builds one with
 `Principal::new(subject, issuer, token_kind)` and the `with_client_id`,
 `with_scopes`, `with_groups`, `with_claims` and `with_tenant` setters.
 
+`Principal::caller_binding` names the principal as the runtime's
+`Idempotency` and `PageTokens` bind a token to its caller: the JSON array
+`[issuer, subject, tenant]`. `Principal::caller_binding_of` is that binding
+for the request's principal (`None` without one), a caller closure as it
+stands. A service whose callers are scoped by more than these, where the
+operation's input does not carry it, binds its own array
+([framework.md](framework.md#binding-a-token-to-its-caller)).
+
 For a credential other than a bearer API key, implement `Authenticator`:
 
 - `supports` selects modeled schemes at service construction.

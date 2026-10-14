@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crucible_auth::{Principal, TokenKind};
 use crucible_server_runtime_rust::page_tokens::{self, PageKeys, PageTokens};
 use crucible_server_runtime_rust::{Context, Crucible, InvokeProtocol, JsonProtocol};
 use serde_json::{Value, json};
@@ -38,11 +39,28 @@ impl model::ListCitiesOperation for SealedCities {
 }
 
 fn caller(context: &Context) -> Option<String> {
+    header(context, "x-caller")
+}
+
+fn header(context: &Context, name: &str) -> Option<String> {
     context
         .headers()
-        .get("x-caller")
+        .get(name)
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned)
+}
+
+/// The principal an authenticator would have set, from the `x-caller` and
+/// `x-tenant` headers, bound as `crucible_auth` binds one.
+fn principal(context: &Context) -> Option<String> {
+    let subject = caller(context)?;
+    let principal = Principal::new(subject, "https://issuer.example", TokenKind::ApiKey);
+    let principal = match header(context, "x-tenant") {
+        Some(tenant) => principal.with_tenant(tenant),
+        None => principal,
+    };
+    context.set_attribute(principal);
+    Principal::caller_binding_of(context)
 }
 
 #[allow(deprecated)]
@@ -81,10 +99,16 @@ async fn seeded(tokens: PageTokens) -> Crucible {
 }
 
 async fn list(service: &Crucible, caller: &str, query: &str) -> (u16, Value) {
-    let request = axum::http::Request::get(format!("/cities?{query}"))
-        .header("x-caller", caller)
-        .body(axum::body::Body::empty())
-        .unwrap();
+    list_with(service, &[("x-caller", caller)], query).await
+}
+
+/// `list`, with these headers.
+async fn list_with(service: &Crucible, headers: &[(&str, &str)], query: &str) -> (u16, Value) {
+    let mut request = axum::http::Request::get(format!("/cities?{query}"));
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let request = request.body(axum::body::Body::empty()).unwrap();
     let response = service.handle(request).await;
     let status = response.status().as_u16();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -159,6 +183,47 @@ async fn a_token_opens_only_for_its_caller_and_filters() {
         let (status, body) = list(&service, caller, &query).await;
         refused(status, &body);
         assert!(!body.to_string().contains(&token), "the token is echoed");
+    }
+}
+
+#[tokio::test]
+async fn a_token_is_bound_to_the_callers_tenant() {
+    // One subject with credentials bound to two tenants (two API keys):
+    // a token issued for one tenant does not open for the other.
+    let service = seeded(PageTokens::new(
+        PageKeys::new("k1", SECRET).unwrap(),
+        principal,
+    ))
+    .await;
+    let as_tenant = |tenant| [("x-caller", "alice"), ("x-tenant", tenant)];
+    let (status, first) = list_with(&service, &as_tenant("t-a"), "maxResults=1").await;
+    assert_eq!(status, 200, "{first}");
+    let token = first["nextToken"].as_str().unwrap().to_owned();
+    let resume = format!("maxResults=1&nextToken={token}");
+    let (status, body) = list_with(&service, &as_tenant("t-b"), &resume).await;
+    refused(status, &body);
+    let (status, body) = list_with(&service, &[("x-caller", "alice")], &resume).await;
+    refused(status, &body);
+    let (status, page) = list_with(&service, &as_tenant("t-a"), &resume).await;
+    assert_eq!(status, 200, "{page}");
+}
+
+#[tokio::test]
+async fn a_binding_that_names_no_one_is_refused() {
+    // ListCities requires authentication, so a request the binding names
+    // no one for is one whose caller it missed: an internal error, not the
+    // anonymous binding, whether or not anonymous callers may share one.
+    for tokens in [tokens(), tokens().allow_anonymous()] {
+        let service = seeded(tokens).await;
+        let (_, first) = list(&service, "alice", "maxResults=1").await;
+        let token = first["nextToken"].as_str().unwrap().to_owned();
+        for query in [
+            "maxResults=1".to_owned(),
+            format!("maxResults=1&nextToken={token}"),
+        ] {
+            let (status, body) = list_with(&service, &[], &query).await;
+            assert_eq!(status, 500, "{body}");
+        }
     }
 }
 

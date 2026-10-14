@@ -55,7 +55,9 @@ fn service() -> Crucible {
     let keys = PageKeys::new("k1", b"a page token secret of 32+ bytes").unwrap();
     Crucible::builder(pages::operations(Arc::new(Pages)))
         .defaults()
-        .interceptor(PageTokens::new(keys, |_| Some("alice".to_owned())))
+        // The model declares no authentication, so its listings admit
+        // anonymous callers: `build` asks for the choice to share a binding.
+        .interceptor(PageTokens::new(keys, |_| Some("alice".to_owned())).allow_anonymous())
         .build()
         .unwrap()
 }

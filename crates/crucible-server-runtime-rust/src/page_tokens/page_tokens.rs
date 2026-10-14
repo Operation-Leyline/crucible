@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 use super::PageKeys;
 use super::scope::PageScope;
 use super::token::Sealer;
+use crate::caller_binding::CallerBinding;
 use crate::canonical_json::write_canonical;
 use crate::validate::Rejection;
 use crate::{Context, DecodedJob, Error, Hook, Interceptor, Prepare, Result};
@@ -20,7 +21,6 @@ const DEFAULT_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 /// liability; a longer lifetime is almost always a unit slip.
 const MAX_TTL: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 
-type Caller = Arc<dyn Fn(&Context) -> Option<String> + Send + Sync>;
 type Refusal = Arc<dyn Fn(Rejection) -> Error + Send + Sync>;
 
 /// Seals the pagination tokens of every `@paginated` operation it serves, and
@@ -34,16 +34,23 @@ type Refusal = Arc<dyn Fn(Rejection) -> Error + Send + Sync>;
 /// before its token is opened.
 pub struct PageTokens {
     sealer: Arc<Sealer>,
-    caller: Caller,
+    caller: CallerBinding,
     refusal: Refusal,
 }
 
 impl PageTokens {
-    /// `caller` names who is asking, from the request context (an
-    /// authenticated principal's issuer and subject, say), so one caller's
-    /// token does not open for another. `None` is an anonymous caller, and
-    /// every anonymous caller shares one binding: return a name for every
-    /// authenticated request.
+    /// `caller` names who is asking, from the request context, so one
+    /// caller's token does not open for another. The name must carry
+    /// everything that scopes what the caller may see and is not in the
+    /// operation's input (the principal's issuer, subject and tenant),
+    /// encoded unambiguously (a JSON array, as
+    /// `crucible_auth::Principal::caller_binding` writes).
+    ///
+    /// `None` names no one. A request it is returned for is refused as the
+    /// service's internal error, unless [`allow_anonymous`](Self::allow_anonymous)
+    /// lets it share the anonymous binding; on an operation that requires
+    /// authentication it is refused regardless, since its caller was
+    /// authenticated and the closure missed them.
     pub fn new(
         keys: PageKeys,
         caller: impl Fn(&Context) -> Option<String> + Send + Sync + 'static,
@@ -54,9 +61,20 @@ impl PageTokens {
                 ttl: DEFAULT_TTL,
                 clock: Arc::new(SystemTime::now),
             }),
-            caller: Arc::new(caller),
+            caller: CallerBinding::new(caller),
             refusal: Arc::new(Error::new),
         }
+    }
+
+    /// Lets every request the caller binding names no one for share one
+    /// anonymous binding, on operations that admit anonymous callers
+    /// (`@optionalAuth`, or no authentication): any anonymous caller's
+    /// token opens for any other with the same filters. Without it `build`
+    /// refuses an operation in scope that admits anonymous callers, since
+    /// its anonymous requests would be refused.
+    pub fn allow_anonymous(mut self) -> Self {
+        self.caller.allow_anonymous();
+        self
     }
 
     /// How long a token opens after it is issued: 24 hours by default, from
@@ -102,7 +120,9 @@ impl PageTokens {
             members.remove(size.wire_name);
         }
         let token = members.remove(pagination.input_token.wire_name);
-        let caller = (self.caller)(job.context());
+        let caller =
+            self.caller
+                .bind("PageTokens", job.context(), job.operation(), job.metadata())?;
         let binding = binding(
             job.service().id,
             job.operation().id,
@@ -153,21 +173,34 @@ impl Interceptor for PageTokens {
         }
         // A sealed token is a string, so an operation whose token is a map
         // (which Smithy allows) cannot resume from one; reading its token
-        // as absent would restart every listing on its first page.
-        for operation in prepare.operations() {
-            let token = prepare
-                .metadata(operation)
-                .and_then(|metadata| metadata.pagination)
-                .filter(|pagination| pagination.input_token_map);
-            if let Some(pagination) = token {
-                return Err(format!(
+        // as absent would restart every listing on its first page. Asked per
+        // served entry: an older API version served by a handler of its own
+        // has that handler's token.
+        let mut problems: Vec<String> = prepare
+            .served_operations()
+            .filter_map(|served| {
+                let pagination = served
+                    .metadata
+                    .pagination
+                    .filter(|pagination| pagination.input_token_map)?;
+                Some(format!(
                     "{}: PageTokens seals string tokens, and the page token `{}` is a map; \
                      leave the operation out of its scope",
-                    operation.id, pagination.input_token.name
-                ));
-            }
+                    served.label(),
+                    pagination.input_token.name
+                ))
+            })
+            .collect();
+        if let Err(problem) = self.caller.prepare("PageTokens", prepare, |metadata| {
+            metadata.pagination.is_some()
+        }) {
+            problems.push(problem);
         }
-        Ok(())
+        if problems.is_empty() {
+            Ok(())
+        } else {
+            Err(problems.join("; "))
+        }
     }
 }
 
@@ -208,9 +241,11 @@ mod tests {
     use super::{PageTokens, binding};
     use crate::error::ModelledError;
     use crate::operation::{
-        ErrorInfo, Fault, Operation, OperationInfo, Pagination, PaginationMember, ServiceInfo,
+        AuthScheme, ErrorInfo, Fault, Operation, OperationInfo, Pagination, PaginationMember,
+        ServiceInfo,
     };
     use crate::validate::{Validate, Validator};
+    use crate::versioning::ApiVersion;
     use crate::{BuildError, Crucible, InvokeProtocol, Operations};
 
     static LIST: OperationInfo = operation_info(
@@ -325,9 +360,31 @@ mod tests {
         type Output = Value;
     }
 
+    fn keys() -> super::PageKeys {
+        super::PageKeys::new("k1", b"0123456789abcdef0123456789abcdef").unwrap()
+    }
+
     fn tokens() -> PageTokens {
-        let keys = super::PageKeys::new("k1", b"0123456789abcdef0123456789abcdef").unwrap();
-        PageTokens::new(keys, |_| None)
+        PageTokens::new(keys(), |_| None).allow_anonymous()
+    }
+
+    /// A listing only authenticated callers reach.
+    struct Authenticated;
+    impl Operation for Authenticated {
+        const INFO: &'static OperationInfo = &LIST;
+        const PAGINATION: Option<Pagination> = pagination(false);
+        const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    /// The caller named by the request's `x-caller` header.
+    fn header_caller(context: &crate::Context) -> Option<String> {
+        context
+            .headers()
+            .get("x-caller")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned)
     }
 
     /// The service serving `O`, and whether its implementation ran.
@@ -382,9 +439,212 @@ mod tests {
             panic!("built");
         };
         assert!(
-            why.contains("t#List") && why.contains("`token` is a map"),
+            why.starts_with("List: ") && why.contains("`token` is a map"),
             "{why}"
         );
+    }
+
+    static LIST_V1: OperationInfo = operation_info(
+        "t#List",
+        "List",
+        None,
+        "POST",
+        &[],
+        &[],
+        200,
+        &[],
+        &[],
+        &[],
+        true,
+        false,
+        false,
+        None,
+        &[],
+    );
+
+    static RELEASE_V1: ServiceInfo = service_info(
+        "t#Service",
+        "v1",
+        None,
+        None,
+        &[&LIST_V1],
+        &[],
+        classify,
+        Some(|_| Box::new(Invalid)),
+        None,
+        None,
+    );
+
+    const V1: ApiVersion = ApiVersion::new(1, "v1");
+    static OLDER: [(ApiVersion, Option<&str>, &ServiceInfo); 1] = [(V1, None, &RELEASE_V1)];
+
+    /// v1's List, whose token was a map, kept by a handler of its own.
+    struct LegacyMapToken;
+    impl Operation for LegacyMapToken {
+        const INFO: &'static OperationInfo = &LIST_V1;
+        const PAGINATION: Option<Pagination> = pagination(true);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    #[test]
+    fn an_older_version_served_with_a_map_token_is_refused() {
+        // The current List seals a string token; v1's, served by its own
+        // handler, has a map, which the current entry does not show.
+        let ok = |_: Arc<()>, _| std::future::ready(Ok(json!({})));
+        let operations = Operations::builder(&SERVICE)
+            .add::<StringToken, _, _>(Arc::new(()), ok)
+            .versions(ApiVersion::new(2, "v2"), &OLDER)
+            .add_legacy::<LegacyMapToken, _, _>(V1, &RELEASE_V1, Arc::new(()), ok)
+            .add_versioned::<LegacyMapToken, LegacyMapToken>(V1, &[], Some((V1, "List v1")))
+            .build()
+            .unwrap();
+        let built = Crucible::builder(operations)
+            .protocol(InvokeProtocol)
+            .interceptor(tokens())
+            .build();
+        let Err(BuildError::Prepare(why)) = built else {
+            panic!("built");
+        };
+        assert!(
+            why.contains("List (API version v1)") && why.contains("`token` is a map"),
+            "{why}"
+        );
+    }
+
+    /// v1's List, public before a migration made it require authentication.
+    struct PublicV1;
+    impl Operation for PublicV1 {
+        const INFO: &'static OperationInfo = &LIST_V1;
+        const PAGINATION: Option<Pagination> = pagination(false);
+        const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    /// v1's List, authenticated before a migration made it public.
+    struct BearerV1;
+    impl Operation for BearerV1 {
+        const INFO: &'static OperationInfo = &LIST_V1;
+        const PAGINATION: Option<Pagination> = pagination(false);
+        const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    /// `Current` at v2, with `Old` serving v1 through it, under `tokens`.
+    fn versioned<Current, Old>(tokens: PageTokens) -> Result<Crucible, BuildError>
+    where
+        Current: Operation<Input = Loose, Output = Value>,
+        Old: Operation<Output = Value>,
+    {
+        let ok = |_: Arc<()>, _| std::future::ready(Ok(json!({})));
+        let operations = Operations::builder(&SERVICE)
+            .add::<Current, _, _>(Arc::new(()), ok)
+            .versions(ApiVersion::new(2, "v2"), &OLDER)
+            .add_versioned::<Old, Current>(V1, &[], None)
+            .build()
+            .unwrap();
+        Crucible::builder(operations)
+            .protocol(InvokeProtocol)
+            .interceptor(tokens)
+            .build()
+    }
+
+    // The caller binding reads authentication from the entry a request's
+    // API version serves, as `job.metadata()` gives it, not from the current
+    // entry: a migration that changes an operation's authentication is
+    // judged by the version the request names. The
+    // AuthenticatorChain plans per served entry the same way.
+    #[test]
+    fn anonymous_callers_are_judged_by_each_api_versions_authentication() {
+        // v1 was public, v2 requires authentication: only v1's anonymous
+        // callers need the choice.
+        let Err(BuildError::Prepare(why)) =
+            versioned::<Authenticated, PublicV1>(PageTokens::new(keys(), |_| None))
+        else {
+            panic!("built");
+        };
+        assert!(
+            why.contains("anonymous callers reach List (API version v1) ("),
+            "{why}"
+        );
+        assert!(
+            versioned::<Authenticated, PublicV1>(
+                PageTokens::new(keys(), |_| None).allow_anonymous()
+            )
+            .is_ok()
+        );
+        // v1 required authentication, v2 is public: only v2's.
+        let Err(BuildError::Prepare(why)) =
+            versioned::<StringToken, BearerV1>(PageTokens::new(keys(), |_| None))
+        else {
+            panic!("built");
+        };
+        assert!(why.contains("anonymous callers reach List ("), "{why}");
+        assert!(!why.contains("API version v1"), "{why}");
+    }
+
+    #[test]
+    fn a_map_token_and_anonymous_callers_are_both_reported() {
+        let Err(BuildError::Prepare(why)) =
+            service::<MapToken>(PageTokens::new(keys(), |_| None)).0
+        else {
+            panic!("built");
+        };
+        assert!(why.contains("`token` is a map"), "{why}");
+        assert!(why.contains("anonymous callers reach List ("), "{why}");
+    }
+
+    #[test]
+    fn sharing_one_anonymous_binding_is_an_explicit_choice() {
+        // The listing admits anonymous callers, whom the binding cannot tell
+        // apart: the service must choose to let them share one binding.
+        let why = refusal(PageTokens::new(keys(), |_| None));
+        assert!(why.contains("anonymous callers reach List ("), "{why}");
+        assert!(why.contains("PageTokens::allow_anonymous"), "{why}");
+        assert!(
+            service::<StringToken>(PageTokens::new(keys(), |_| None).allow_anonymous())
+                .0
+                .is_ok()
+        );
+        // An operation that requires authentication has no anonymous callers.
+        assert!(
+            service::<Authenticated>(PageTokens::new(keys(), |_| None))
+                .0
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn a_binding_that_names_no_one_is_refused_on_an_authenticated_operation() {
+        // Anonymous callers allowed, a nameless request to a listing that
+        // admits them shares the anonymous binding.
+        let (open, ran) = service::<StringToken>(tokens());
+        let answer = open.unwrap().invoke("List", json!({})).await;
+        assert!(answer["output"].is_object(), "{answer}");
+        assert!(ran.load(Ordering::Relaxed));
+        // A listing that requires authentication has no anonymous callers,
+        // so a binding that names no one missed an authenticated caller:
+        // the service's internal error, never the anonymous binding.
+        let (closed, ran) = service::<Authenticated>(PageTokens::new(keys(), |_| None));
+        let answer = closed.unwrap().invoke("List", json!({})).await;
+        assert_eq!(answer["error"]["__type"], "InternalFailure", "{answer}");
+        assert!(!ran.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn an_authenticated_caller_the_binding_misses_is_refused() {
+        // With anonymous callers allowed, a request to an operation that
+        // requires authentication still never falls into the shared binding:
+        // its caller was authenticated, and the binding did not recognise
+        // them.
+        let (built, ran) =
+            service::<Authenticated>(PageTokens::new(keys(), header_caller).allow_anonymous());
+        let built = built.unwrap();
+        let answer = built.invoke("List", json!({})).await;
+        assert_eq!(answer["error"]["__type"], "InternalFailure", "{answer}");
+        assert!(!ran.load(Ordering::Relaxed));
     }
 
     #[tokio::test]

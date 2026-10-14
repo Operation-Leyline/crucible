@@ -460,16 +460,17 @@ use crucible_server_runtime_rust::page_tokens::{PageKeys, PageTokens};
 
 // Any secret of 32 bytes or more, from wherever the service keeps secrets.
 let keys = PageKeys::new("k1", secret.as_bytes())?;
-let builder = builder.interceptor(PageTokens::new(keys, |context| {
-    // Who is asking, so one caller's token does not open for another.
-    context
-        .attribute::<crucible_auth::Principal>()
-        .map(|principal| format!("{}
-{}", principal.issuer, principal.subject))
-}));
+let builder = builder.interceptor(PageTokens::new(
+    keys,
+    // Who is asking, so one caller's token does not open for another:
+    // the principal's issuer, subject and tenant, as a JSON array.
+    crucible_auth::Principal::caller_binding_of,
+));
 ```
 
-The operation keeps its own cursor bytes and never sees a token:
+The caller binding is the same for `PageTokens` and `Idempotency`: see
+[Binding a token to its caller](#binding-a-token-to-its-caller). The
+operation keeps its own cursor bytes and never sees a token:
 
 ```rust
 let start = page_tokens::resume()?; // the cursor the request's token sealed; None on the first page
@@ -518,6 +519,53 @@ current version's input, so the members are the current ones: a token a
 migration renamed still resumes the listing, and a version from before the
 operation was paginated gets its first page.
 
+### Binding a token to its caller
+
+`PageTokens` and `Idempotency` bind every token to the caller who sent it,
+so one caller's page token does not open for another and one caller's
+idempotency token never replays or blocks another's. The service names the
+caller with a closure over the request context, `Fn(&Context) ->
+Option<String>`, given to `new`:
+
+- **Every scope, unambiguously.** The name must carry everything that
+  scopes what the caller may see and that the operation's input does not:
+  the principal's issuer and subject, and its tenant (an API key bound to
+  one workspace), plus any organization the service reads from a claim. A
+  value in the input (a `workspaceId` member) is already bound. Encode the
+  parts so no two callers encode alike: a JSON array, not the parts joined
+  by a separator one of them may contain. In `crucible_auth`,
+  `Principal::caller_binding` writes `[issuer, subject, tenant]`, and
+  `Principal::caller_binding_of` reads the request's principal and is a
+  closure as it stands; a service scoped by more builds its own array:
+
+  ```rust
+  |context: &Context| {
+      let principal = context.attribute::<Principal>()?;
+      let organization = principal.claims.get("org_id")?.as_str()?;
+      let parts = (&principal.issuer, &principal.subject, &principal.tenant, organization);
+      Some(serde_json::to_string(&parts).expect("strings serialize"))
+  }
+  ```
+
+- **Anonymous callers share one binding, by choice.** `None` names no one.
+  Every request it is returned for would share one binding, so that is a
+  choice the service makes with `allow_anonymous()`; without it `build`
+  refuses an operation in scope that admits anonymous callers
+  (`@optionalAuth`, `@auth([])`, or bindings without authentication
+  metadata), naming it, and a nameless request is the service's internal
+  error.
+- **On an operation that requires authentication, an authenticated caller
+  is never anonymous.** On such an operation
+  (`OperationMetadata::requires_authentication`: an authentication scheme,
+  not `@optionalAuth`, as the API version the request names declares it),
+  `None` means the closure missed an authenticated caller (a new scheme,
+  API keys beside JWTs). The request is refused as the service's internal
+  error, whether or not `allow_anonymous` was called, rather than share a
+  binding with every other caller the closure misses. Both this and the
+  build check read authentication per API version, so a migration that
+  changes an operation's authentication is judged by the version a request
+  names.
+
 ### Idempotency tokens
 
 An operation whose input has an idempotency token (`@idempotencyToken` in
@@ -535,20 +583,15 @@ crucible-server-runtime-rust = { version = "=0.7.0", features = ["idempotency"] 
 use crucible_server_runtime_rust::idempotency::Idempotency;
 
 // `store` implements IdempotencyStore over the service's table.
-let builder = builder.interceptor(Idempotency::new(store, |context| {
-    // Who is asking, encoded unambiguously, so one caller's token never
-    // replays or blocks another's.
-    context
-        .attribute::<crucible_auth::Principal>()
-        .map(|principal| serde_json::json!([principal.issuer, principal.subject]).to_string())
-}));
+let builder = builder.interceptor(Idempotency::new(
+    store,
+    // Who is asking, so one caller's token never replays or blocks another's.
+    crucible_auth::Principal::caller_binding_of,
+));
 ```
 
-The caller binding must name every authenticated caller, and encode the name
-unambiguously (the JSON array above, not `issuer` and `subject` joined by a
-separator either may contain). `None` is the anonymous caller, and every
-request it is returned for shares one binding: an authenticated caller
-answered `None` can replay or block every other one's tokens.
+The caller binding is the same as `PageTokens`' ([Binding a token to its
+caller](#binding-a-token-to-its-caller)).
 
 For every operation with a token, before the operation runs:
 
@@ -920,8 +963,8 @@ use crucible_server_runtime_rust::permissions::Permissions;
 let builder = builder
     .operation_middleware(chain)                         // authentication
     .interceptor(Permissions::new(authorizer))           // after decoding, before the claim
-    .interceptor(PageTokens::new(keys, caller))
-    .interceptor(Idempotency::new(store, caller));
+    .interceptor(PageTokens::new(keys, Principal::caller_binding_of))
+    .interceptor(Idempotency::new(store, Principal::caller_binding_of));
 ```
 
 Only `Permissions` enforces declared requirements, so it must cover every
