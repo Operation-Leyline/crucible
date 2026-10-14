@@ -102,8 +102,7 @@ fn permissions_service() -> crucible_smithy::ir::Service {
     let rendered = compiled.render();
     let full = compiled.service.unwrap_or_else(|| {
         panic!(
-            "the fixture compiles:
-{rendered}"
+            "the fixture compiles:\n{rendered}"
         )
     });
     crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()

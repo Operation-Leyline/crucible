@@ -283,8 +283,8 @@ A model that declares typed permissions ([permissions](../permissions.md))
 gets a `<package>.permissions` package of its own, in common code for every
 target, so no model name collides with it. Each resource type with permissions
 a client may see has an open permission class named for the resource,
-`GraphPermission`, in the enum classes' convention: one companion constant per
-permission, in declaration order, whose `value` is what grants store,
+`GraphPermission`, in the enum classes' convention: one upper-snake companion
+constant per permission (`mailSend` is `MAIL_SEND`), in declaration order, whose `value` is what grants store,
 documented with the permission's own documentation (Java reads the constants
 as static fields). Any string is accepted (`GraphPermission("graph:export")`):
 a value this client does not know, from a newer server, is kept and written

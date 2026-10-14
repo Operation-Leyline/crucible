@@ -9,7 +9,7 @@
 
 use std::collections::BTreeSet;
 
-use crucible_codegen_common::permissions::{
+use crucible_codegen_common::permissions::{upper_snake, 
     ClientResource, client_resources, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
@@ -17,10 +17,11 @@ use crucible_smithy::ir::{DocNotes, Service};
 
 use super::{File, code, field, identifier, javadoc_for, literal};
 
-/// A permission's constant: the open-enum convention's
-/// (`field(name).to_uppercase()`), so `read` is `READ`.
+/// A permission's constant: Java's upper snake case (`upper_snake`), so
+/// `read` is `READ` and `mailSend` is `MAIL_SEND`, as TypeScript spells
+/// them; `field` keeps `_`, a keyword, out.
 fn constant(symbol: &str) -> String {
-    field(symbol).to_uppercase()
+    field(&upper_snake(symbol))
 }
 
 /// The resources a client sees, each with its type's name.

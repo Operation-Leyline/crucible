@@ -10,7 +10,7 @@
 
 use std::collections::BTreeSet;
 
-use crucible_codegen_common::permissions::{
+use crucible_codegen_common::permissions::{upper_snake, 
     ClientResource, client_resources, constant_symbol, notes, primary,
 };
 use crucible_smithy::Diagnostics;
@@ -18,10 +18,11 @@ use crucible_smithy::ir::Service;
 
 use super::{File, code, identifier, kdoc, kdoc_for, literal};
 
-/// A permission's constant: the open-enum convention's
-/// (`name.to_uppercase()`), so `read` is `READ`.
+/// A permission's constant: Kotlin's upper snake case (`upper_snake`), so
+/// `read` is `READ` and `mailSend` is `MAIL_SEND`, as TypeScript spells
+/// them.
 fn constant(symbol: &str) -> String {
-    symbol.to_uppercase()
+    upper_snake(symbol)
 }
 
 /// The resources a client sees, each with its type's name.

@@ -163,7 +163,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
         ));
     }
     let count = resources.len();
-    header.push_str(&format!("\n/** Every permission this client knows, by resource type, deprecated aliases included; static storage, never freed. A grant picker offers only the grantable ones. */\nextern const {p}_resource_permissions {p}_permissions[{count}];\n/** The number of resource types in {p}_permissions. */\nextern const size_t {p}_permissions_count;\n\n#ifdef __cplusplus\n}}\n#endif\n#endif\n"));
+    header.push_str(&format!("\n/** Every permission this client knows, by resource type, deprecated aliases included; static storage, never freed. A grant picker offers only the grantable ones that are not deprecated. */\nextern const {p}_resource_permissions {p}_permissions[{count}];\n/** The number of resource types in {p}_permissions. */\nextern const size_t {p}_permissions_count;\n\n#ifdef __cplusplus\n}}\n#endif\n#endif\n"));
     source.push_str(&format!(
         "const {p}_resource_permissions {p}_permissions[{count}] = {{\n{registry}}};\nconst size_t {p}_permissions_count = {count};\n"
     ));

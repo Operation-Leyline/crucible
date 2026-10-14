@@ -177,7 +177,7 @@ pub(crate) fn emit(service: &Service, module: &str) -> String {
     out.push_str(&docs::line_comment(
         "    ",
         "#",
-        "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.\n\n@return [Array<Runtime::ResourcePermissions>]",
+        "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.\n\n@return [Array<Runtime::ResourcePermissions>]",
     ));
     out.push_str(&format!(
         "    PERMISSIONS = [\n{registry}    ].freeze\n  end\nend\n"

@@ -219,7 +219,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
         "",
         "Permissions",
         Some(
-            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones. Shared by every caller: read it, do not modify it.",
+            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones that are not deprecated. Shared by every caller: read it, do not modify it.",
         ),
     );
     out.push_str(&format!(

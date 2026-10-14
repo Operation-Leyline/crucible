@@ -1089,10 +1089,12 @@ the types in a namespace of their own, away from the models:
 | C | `<p>_graph_permission_known_read()` (a `<p>_string`) | `<p>_graph_permission_canonical(value)` | `<p>_permissions`, `<p>_permissions_count` |
 | R | `GraphPermission$read` (a character value) | `graph_permission_canonical(value)` | `PERMISSIONS` |
 
-A constant's name follows the language's naming for enum members, so Java
-writes `mailSend` as `MAILSEND`, as it would an enum value. Python, PHP and
-Ruby write it `MAIL_SEND`. A hyphen in a symbol, which `.cru` allows
-(`mail-send`), starts a word, so it gets the same constants as `mailSend`
+A constant's name follows the language's naming for constants. TypeScript,
+Java, Kotlin, Python, PHP and Ruby write `mailSend` as `MAIL_SEND`; the
+first three share `crucible_codegen_common::permissions::upper_snake`. C#
+writes `MailSend`, Go `GraphPermissionMailSend`, and so on. A hyphen in
+a symbol, which `.cru` allows (`mail-send`), starts a word, so it gets the
+same constants as `mailSend`
 (`crucible_codegen_common::permissions::constant_symbol`). Rust and
 TypeScript already spelled it that way. Three cases are a diagnostic,
 never a rename:
@@ -1102,9 +1104,11 @@ never a rename:
   `permissions`);
 - a name the language reserves: `_` in Kotlin, Swift and Dart.
 
-An alias carries the language's deprecation marker. `canonical` compares
-values, which has two effects. It also maps an alias that arrived as an
-unknown value. And the generated code never names a deprecated constant.
+An alias carries the language's deprecation marker, and `canonical` maps
+it whether it was built from the constant or read from the wire. Using a
+deprecated name warns in Java, Kotlin, C#, Swift and Dart. There,
+`canonical` compares the raw value instead of naming the alias constant,
+so the generated code builds without deprecation warnings.
 
 Each language has two record types, `PermissionDescription` and
 `ResourcePermissions` (in its own case):

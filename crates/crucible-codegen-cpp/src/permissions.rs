@@ -134,7 +134,7 @@ pub fn emit(service: &Service, options: &Options) -> Option<File> {
             view(&client.resource.name)
         ));
     }
-    out.push_str(&format!("\nnamespace detail {{\n{entries}}}\n\n/** Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones. */\ninline constexpr std::array<ResourcePermissions, {}> registry{{{{\n{registry}}}}};\n\n}}\n", resources.len()));
+    out.push_str(&format!("\nnamespace detail {{\n{entries}}}\n\n/** Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones that are not deprecated. */\ninline constexpr std::array<ResourcePermissions, {}> registry{{{{\n{registry}}}}};\n\n}}\n", resources.len()));
     Some(File {
         path: format!("include/{}/permissions.hpp", options.package_name),
         contents: out,

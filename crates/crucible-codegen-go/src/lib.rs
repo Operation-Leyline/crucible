@@ -138,6 +138,24 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 }
 
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    emit_package(service, options, true)
+}
+
+/// [`emit`] without the `permissions` sub-package or its name checks, for
+/// a package that embeds the client and never names a permission (the
+/// Terraform provider): a permission Go could not spell must not stop it.
+pub fn emit_without_permissions(
+    service: &Service,
+    options: &Options,
+) -> Result<Vec<File>, Diagnostics> {
+    emit_package(service, options, false)
+}
+
+fn emit_package(
+    service: &Service,
+    options: &Options,
+    with_permissions: bool,
+) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
     let mut errors = Diagnostics::default();
@@ -337,7 +355,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             errors.push(&op.id, "Go paginator name collision");
         }
     }
-    permissions::check(service, &mut errors);
+    if with_permissions {
+        permissions::check(service, &mut errors);
+    }
     if !errors.is_empty() {
         return Err(errors);
     }
@@ -754,7 +774,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: provenance,
         },
     ];
-    if let Some(contents) = permissions::emit(service) {
+    if let Some(contents) = permissions::emit(service).filter(|_| with_permissions) {
         files.push(File {
             path: permissions::PATH.into(),
             contents,

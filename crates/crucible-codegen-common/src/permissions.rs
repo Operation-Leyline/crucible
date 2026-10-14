@@ -594,6 +594,41 @@ pub fn constant_symbol(symbol: &str) -> String {
     out
 }
 
+/// A permission symbol as an upper-snake constant, for the languages that
+/// spell constants so (TypeScript, Java, Kotlin): `mailSend`, `READ`,
+/// `mail-send` and `HTTPRequest` are `MAIL_SEND`, `READ`, `MAIL_SEND` and
+/// `HTTP_REQUEST`. A word break survives, so `mailSend` and `mailsend`
+/// stay apart. A symbol with no letter or digit (`_`) is `_`, and one that
+/// starts with a digit gains a leading `_`, for the language to judge.
+pub fn upper_snake(symbol: &str) -> String {
+    let chars: Vec<char> = symbol.chars().collect();
+    let mut out = String::new();
+    for (index, &c) in chars.iter().enumerate() {
+        if !c.is_ascii_alphanumeric() {
+            if !out.ends_with('_') && !out.is_empty() {
+                out.push('_');
+            }
+            continue;
+        }
+        let previous = index.checked_sub(1).map(|p| chars[p]);
+        let next = chars.get(index + 1).copied();
+        let boundary = c.is_ascii_uppercase()
+            && previous.is_some_and(|p| {
+                p.is_ascii_lowercase()
+                    || p.is_ascii_digit()
+                    || (p.is_ascii_uppercase() && next.is_some_and(|n| n.is_ascii_lowercase()))
+            });
+        if boundary && !out.ends_with('_') {
+            out.push('_');
+        }
+        out.push(c.to_ascii_uppercase());
+    }
+    if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit()) {
+        out.insert(0, '_');
+    }
+    out
+}
+
 /// One resource type as a client's typed permissions and `PERMISSIONS`
 /// registry carry it (docs/permissions.md §6.3). Every client language
 /// generates from these, so they agree on which permissions appear, their

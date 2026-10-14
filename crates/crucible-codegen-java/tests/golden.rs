@@ -396,7 +396,7 @@ fn colliding_permission_names_are_diagnosed() {
     for (symbol, value) in [
         ("READ", "graph:reread"),
         ("mailSend", "graph:mail"),
-        ("mailsend", "graph:mail2"),
+        ("mail_send", "graph:mail2"),
     ] {
         let mut clash = graph.permissions[0].clone();
         clash.symbol = symbol.into();
@@ -412,7 +412,7 @@ fn colliding_permission_names_are_diagnosed() {
         "{diagnostics}"
     );
     assert!(
-        diagnostics.contains("`mailsend` of `GraphPermission` shares the Java constant `MAILSEND`"),
+        diagnostics.contains("`mail_send` of `GraphPermission` shares the Java constant `MAIL_SEND`"),
         "{diagnostics}"
     );
 }
@@ -437,7 +437,7 @@ fn hyphenated_permission_symbols_spell_words() {
     hyphenated.value = "graph:mail-send".into();
     graph.permissions.push(hyphenated);
     let files = emit(&service, &options()).unwrap();
-    let expected = r#"GraphPermission MAILSEND = new GraphPermission("graph:mail-send")"#;
+    let expected = r#"GraphPermission MAIL_SEND = new GraphPermission("graph:mail-send")"#;
     assert!(
         files.iter().any(|file| file.contents.contains(expected)),
         "no file spells `mail-send` as {expected}"

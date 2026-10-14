@@ -201,7 +201,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             entries.concat()
         ));
     }
-    out.push_str("\n    /// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.\n    public static let all: Swift.Array<ResourcePermissions> = [\n");
+    out.push_str("\n    /// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.\n    public static let all: Swift.Array<ResourcePermissions> = [\n");
     out.push_str(&registry.concat());
     out.push_str("    ]\n}\n");
     Some(out)

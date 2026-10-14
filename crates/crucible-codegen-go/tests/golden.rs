@@ -1,4 +1,4 @@
-use crucible_codegen_go::{Options, emit};
+use crucible_codegen_go::{Options, emit, emit_without_permissions};
 use crucible_smithy::Model;
 
 #[test]
@@ -526,8 +526,7 @@ fn permissions_service() -> crucible_smithy::ir::Service {
     let rendered = compiled.render();
     let full = compiled.service.unwrap_or_else(|| {
         panic!(
-            "the fixture compiles:
-{rendered}"
+            "the fixture compiles:\n{rendered}"
         )
     });
     crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
@@ -565,6 +564,10 @@ fn permission_constants_that_go_spells_alike_are_diagnosed() {
             .contains("spells the Go constant `GraphPermissionRead`"),
         "{constant}"
     );
+    // A package that embeds the client and never names a permission (the
+    // Terraform provider) neither checks the permissions nor ships them.
+    let embedded = emit_without_permissions(&permissions_with("Read"), &options).unwrap();
+    assert!(!embedded.iter().any(|f| f.path.starts_with("permissions/")));
     // Without permissions there is no sub-package.
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"

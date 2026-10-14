@@ -191,7 +191,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             entries.concat()
         ));
     }
-    out.push_str("\n/// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.\nconst permissions = <ResourcePermissions>[\n");
+    out.push_str("\n/// Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.\nconst permissions = <ResourcePermissions>[\n");
     out.push_str(&registry.concat());
     out.push_str("];\n");
     Some(out)

@@ -16,36 +16,10 @@ use crucible_smithy::ir::Service;
 use crate::HEADER;
 use crate::names::{doc, documented, literal};
 
-/// `mailSend`, `READ` and `api-key` are `MAIL_SEND`, `READ` and `API_KEY`.
+/// `mailSend`, `READ` and `api-key` are `MAIL_SEND`, `READ` and `API_KEY`:
+/// the upper-snake rule Java and Kotlin share.
 pub(crate) fn constant(symbol: &str) -> String {
-    let chars: Vec<char> = symbol.chars().collect();
-    let mut out = String::new();
-    for (index, &c) in chars.iter().enumerate() {
-        if !c.is_ascii_alphanumeric() {
-            if !out.ends_with('_') && !out.is_empty() {
-                out.push('_');
-            }
-            continue;
-        }
-        let previous = index.checked_sub(1).map(|p| chars[p]);
-        let next = chars.get(index + 1).copied();
-        let boundary = c.is_ascii_uppercase()
-            && previous.is_some_and(|p| {
-                p.is_ascii_lowercase()
-                    || p.is_ascii_digit()
-                    || (p.is_ascii_uppercase() && next.is_some_and(|n| n.is_ascii_lowercase()))
-            });
-        if boundary && !out.ends_with('_') {
-            out.push('_');
-        }
-        out.push(c.to_ascii_uppercase());
-    }
-    // `_` and `-` have no letter to keep: still a property name, and two
-    // such symbols are diagnosed as sharing it.
-    if out.is_empty() || out.starts_with(|c: char| c.is_ascii_digit()) {
-        out.insert(0, '_');
-    }
-    out
+    crucible_codegen_common::permissions::upper_snake(symbol)
 }
 
 /// The resources a client sees, sorted by authorization name, each with
@@ -251,7 +225,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         &mut out,
         "",
         Some(
-            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.",
+            "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.",
         ),
     );
     out.push_str(&format!(

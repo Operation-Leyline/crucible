@@ -171,7 +171,7 @@ pub(crate) fn emit(service: &Service) -> String {
     python_doc(
         &mut out,
         "",
-        "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones.",
+        "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones that are not deprecated.",
     );
     out
 }

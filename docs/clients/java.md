@@ -336,7 +336,8 @@ A model that declares typed permissions ([permissions](../permissions.md))
 gets a `<package>.permissions` package of its own, so no model name collides
 with it. Each resource type with permissions a client may see has an open
 permission record named for the resource, `GraphPermission`, in the enum
-records' convention: one constant per permission, in declaration order, whose
+records' convention: one upper-snake constant per permission (`mailSend` is
+`MAIL_SEND`), in declaration order, whose
 `value()` is what grants store, documented with the permission's own
 documentation. Any string is accepted (`new GraphPermission("graph:export")`):
 a value this client does not know, from a newer server, is kept and written

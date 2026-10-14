@@ -48,7 +48,7 @@ pub(crate) fn module(service: &Service, diagnostics: &mut Diagnostics) -> String
         registry.push(entry(client));
     }
     out.push_str(&format!(
-        "\n/// Every permission this client knows, by resource type and value,\n/// deprecated aliases included. A grant picker offers only the\n/// `grantable` ones.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
+        "\n/// Every permission this client knows, by resource type and value,\n/// deprecated aliases included. A grant picker offers only the\n/// `grantable` ones that are not `deprecated`.\npub static PERMISSIONS: &[{RT}::permissions::ResourcePermissions] = &[\n    {},\n];\n",
         registry.join(",\n    ")
     ));
     format!(

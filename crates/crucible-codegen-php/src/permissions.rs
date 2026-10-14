@@ -176,7 +176,7 @@ pub(crate) fn emit(service: &Service, namespace: &str) -> Vec<File> {
     let mut out = header;
     out.push_str(&docs::block_comment(
         "",
-        "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones.",
+        "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the `grantable` ones that are not `deprecated`.",
         &[format!("@var list<{runtime}\\ResourcePermissions>")],
     ));
     out.push_str(&format!("const PERMISSIONS = [\n{registry}];\n"));

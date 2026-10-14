@@ -264,8 +264,9 @@ version's section when it is prepared.
   registry lists the same permissions with the same flags. None names an
   internal permission. Clients of a model without client-visible
   permissions get no new file, except that Python's bundled `runtime.py`
-  gains the two record types. A Terraform provider leaves the Go
-  permissions sub-package out. The R client renders a documentation code
+  gains the two record types. A Terraform provider embeds the Go client
+  through the new `crucible_codegen_go::emit_without_permissions`, without
+  the permissions sub-package or its name checks. The R client renders a documentation code
   span that holds a quote or backtick as `\verb{}`, which `R CMD INSTALL`
   parses, rather than `\code{}`. See
   [docs/permissions.md](docs/permissions.md#63-clients-docs-and-openapi)

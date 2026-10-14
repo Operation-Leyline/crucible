@@ -439,7 +439,7 @@ fn colliding_permission_names_are_diagnosed() {
     for (symbol, value) in [
         ("READ", "graph:reread"),
         ("mailSend", "graph:mail"),
-        ("mailsend", "graph:mail2"),
+        ("mail_send", "graph:mail2"),
         ("_", "graph:underscore"),
     ] {
         let mut clash = graph.permissions[0].clone();
@@ -457,7 +457,7 @@ fn colliding_permission_names_are_diagnosed() {
     );
     assert!(
         diagnostics
-            .contains("`mailsend` of `GraphPermission` shares the Kotlin constant `MAILSEND`"),
+            .contains("`mail_send` of `GraphPermission` shares the Kotlin constant `MAIL_SEND`"),
         "{diagnostics}"
     );
     assert!(
@@ -486,7 +486,7 @@ fn hyphenated_permission_symbols_spell_words() {
     hyphenated.value = "graph:mail-send".into();
     graph.permissions.push(hyphenated);
     let files = emit(&service, &options()).unwrap();
-    let expected = r#"val `MAILSEND` = GraphPermission("graph:mail-send")"#;
+    let expected = r#"val `MAIL_SEND` = GraphPermission("graph:mail-send")"#;
     assert!(
         files.iter().any(|file| file.contents.contains(expected)),
         "no file spells `mail-send` as {expected}"

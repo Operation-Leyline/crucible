@@ -116,8 +116,7 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
     let rendered = compiled.render();
     let service = compiled.service.unwrap_or_else(|| {
         panic!(
-            "the fixture compiles:
-{rendered}"
+            "the fixture compiles:\n{rendered}"
         )
     });
     crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap()
