@@ -242,10 +242,11 @@ func (b *streamBody) Read(p []byte) (int, error) {
 
 // Close may run while a transport goroutine is blocked in Read, so it closes
 // the opened reader without waiting, which ends that read. A rewound seeker is
-// shared between attempts, so closing waits for an in-flight read instead.
+// shared between attempts and the caller's, so every Close, not only the first
+// of racing ones, waits for an in-flight read: none returns while one runs.
 func (b *streamBody) Close() error {
-    if b.closed.Swap(true) { return nil }
     if b.source.shared { b.mu.Lock(); defer b.mu.Unlock() }
+    if b.closed.Swap(true) { return nil }
     if b.source.oneShot != nil { b.source.release(); return nil }
     if reader := b.opened.Load(); reader != nil { return (*reader).Close() }
     return nil

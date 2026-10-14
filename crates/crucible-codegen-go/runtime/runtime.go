@@ -1297,6 +1297,20 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		if source != nil {
 			stream = newStreamBody(source, streamMember)
 			stream.install(request)
+			// On cancellation net/http closes the connection but then waits for its
+			// write loop, which may be blocked reading the caller's stream, so Do
+			// would never return: closing the body ends that read.
+			stop := context.AfterFunc(ctx, func() { stream.Close() })
+			// Every return closes the attempt's body too: one that failed before Do,
+			// and one the transport is still reading after an early response. A
+			// streamed response keeps the request body open, as a full-duplex
+			// exchange needs, until that response ends and releases the context.
+			defer func() {
+				if !streamed {
+					stop()
+					stream.Close()
+				}
+			}()
 		}
 		request.Header = headers.Clone()
 		credentials, sign, err := c.authenticate(ctx, request, op)
