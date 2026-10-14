@@ -156,6 +156,14 @@ mod tests {
         let input: payloads::StructureInput =
             read_http(b"", record, payloads::Structure::INFO.input).unwrap();
         assert_eq!(input.payload.unwrap().name.as_deref(), Some("present"));
+        // A structure payload is a JSON object, never an array of
+        // positional values (#292), on the server and in the client.
+        for json in [&b"[]"[..], br#"["present"]"#] {
+            let array = || vec![("payload", BoundValue::RawJson(json))];
+            assert!(read_http::<payloads::StructureInput>(b"", array(), payloads::Structure::INFO.input).is_err());
+            assert!(read_http::<sdk::StructureOutput>(b"", array(), sdk::Structure::INFO.output).is_err());
+            assert!(read_http::<payloads::RequiredInput>(b"", array(), payloads::Required::INFO.input).is_err());
+        }
         // A required structure payload has no null: `null` is still refused.
         assert!(
             read_http::<payloads::RequiredInput>(b"", null(), payloads::Required::INFO.input)

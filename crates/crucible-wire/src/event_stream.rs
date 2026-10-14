@@ -879,7 +879,7 @@ impl<T: Send + 'static> EventStream<T> {
     where
         T: DeserializeOwned,
     {
-        let typed = |value: Value| serde_json::from_value::<T>(value).map_err(unreadable);
+        let typed = |value: Value| crate::object::from_value::<T>(value).map_err(unreadable);
         Self::from_source(Box::pin(events.map(move |event| match event {
             Ok(value) => typed(value).map_err(EventStreamError::Decode),
             Err(error) => Err(error.map(typed)),
@@ -893,7 +893,7 @@ impl<T: Send + 'static> EventStream<T> {
         T: DeserializeOwned + crate::validate::Validate,
     {
         let typed = |value: Value| {
-            let value: T = serde_json::from_value(value).map_err(unreadable)?;
+            let value: T = crate::object::from_value(value).map_err(unreadable)?;
             crate::validate::Validator::check(&value).map_err(|error| error.summary())?;
             Ok(value)
         };

@@ -743,3 +743,81 @@ async fn query_and_prefix_header_rejections_are_capped_and_name_no_client_key() 
     let logs = serde_json::to_string(&*logs.0.lock().unwrap()).unwrap();
     assert!(!logs.contains("hunter"), "{logs}");
 }
+
+// serde's derived struct visitor also takes a sequence, so `[59.9, 10.7]`
+// once read as `Coordinates` (#292). Smithy encodes a structure as a JSON
+// object: every JSON protocol refuses an array in its place, at any depth.
+#[tokio::test]
+async fn every_json_protocol_refuses_an_array_where_a_structure_is_modelled() {
+    let service = Crucible::builder(weather::operations(Arc::new(
+        weather_service::Weather::new(Arc::new(weather_service::MemoryCities::default())),
+    )))
+    .protocol(crucible_server_runtime_rust::AwsJsonProtocol::v10())
+    .protocol(crucible_server_runtime_rust::RpcV2JsonProtocol)
+    .protocol(JsonProtocol)
+    .protocol(InvokeProtocol)
+    .build()
+    .unwrap();
+    let rest = Crucible::builder(weather::operations(Arc::new(
+        weather_service::Weather::new(Arc::new(weather_service::MemoryCities::default())),
+    )))
+    .protocol(crucible_server_runtime_rust::RestJsonProtocol)
+    .build()
+    .unwrap();
+    let send = |protocol: &'static str, body: String| {
+        let request = match protocol {
+            "aws-json" => Request::post("/")
+                .header("content-type", "application/x-amz-json-1.0")
+                .header("x-amz-target", "Weather.CreateCity"),
+            "rpc-v2-json" => Request::post("/service/Weather/operation/CreateCity")
+                .header("content-type", "application/json")
+                .header("smithy-protocol", "rpc-v2-json"),
+            _ => Request::post("/cities").header("content-type", "application/json"),
+        };
+        let service = if protocol == "rest-json" {
+            &rest
+        } else {
+            &service
+        };
+        async move {
+            let response = service
+                .handle(request.body(Body::from(body)).unwrap())
+                .await;
+            let status = response.status().as_u16();
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (
+                status,
+                serde_json::from_slice::<Value>(&bytes).unwrap_or(Value::Null),
+            )
+        }
+    };
+    let invoke = |body: String| {
+        let service = &service;
+        async move {
+            let answer = service.invoke_json("CreateCity", body).await;
+            serde_json::from_slice::<Value>(&answer).unwrap()
+        }
+    };
+    // Each protocol creates its own city: a name is taken once.
+    let city = |name: &str, coordinates: &str| {
+        format!(r#"{{"name":"{name}","location":{{"coordinates":{coordinates}}}}}"#)
+    };
+    for protocol in ["crucible-json", "rest-json", "aws-json", "rpc-v2-json"] {
+        let valid = city(protocol, r#"{"latitude":59.9,"longitude":10.7}"#);
+        let (status, body) = send(protocol, valid).await;
+        assert!((200..300).contains(&status), "{protocol}: {status} {body}");
+        for coordinates in ["[59.9, 10.7]", "[]"] {
+            let (status, body) = send(protocol, city(protocol, coordinates)).await;
+            assert_eq!(status, 400, "{protocol} {coordinates}: {body}");
+        }
+        // The whole input as an array is no structure either.
+        let (status, body) = send(protocol, r#"["Oslo"]"#.to_owned()).await;
+        assert_eq!(status, 400, "{protocol}: {body}");
+    }
+    let answer = invoke(city("invoke", r#"{"latitude":59.9,"longitude":10.7}"#)).await;
+    assert!(answer.get("output").is_some(), "{answer}");
+    for body in [city("invoke", "[59.9, 10.7]"), r#"["Oslo"]"#.to_owned()] {
+        let answer = invoke(body.clone()).await;
+        assert!(answer.get("error").is_some(), "{body}: {answer}");
+    }
+}

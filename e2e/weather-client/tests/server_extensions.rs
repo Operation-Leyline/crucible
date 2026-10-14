@@ -230,8 +230,9 @@ async fn an_explicitly_null_structure_payload_reaches_the_server_as_absent() {
         &response.bytes().await.unwrap()[..],
         br#"{"name":"record"}"#
     );
-    // Anything else that is not the structure is still malformed.
-    for body in ["nul", "null null", "\"record\""] {
+    // Anything else that is not the structure is still malformed, an array
+    // too: a structure is a JSON object, never positional values (#292).
+    for body in ["nul", "null null", "\"record\"", "[]", "[\"record\"]"] {
         let response = post(body).await.unwrap();
         assert_eq!(response.status(), 422, "{body:?}");
     }

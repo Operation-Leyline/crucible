@@ -14,6 +14,7 @@ use serde::de::{
     SeqAccess, Visitor,
 };
 
+use crate::object::Objects;
 use crate::operation::{Location, MemberInfo, Scalar, TimestampFormat};
 use crate::{blob, text, time};
 
@@ -148,8 +149,9 @@ fn read_excluding<'a, T: DeserializeOwned>(
     bound: Vec<(&'static str, BoundValue<'a>)>,
     members: &[MemberInfo],
 ) -> Result<T, serde_json::Error> {
+    // A structure is read only from an object, in the body or a payload.
     if text::empty_json_body(body) {
-        return T::deserialize(BoundOnly { bound });
+        return T::deserialize(Objects(BoundOnly { bound }));
     }
     let mut json = serde_json::Deserializer::from_slice(body);
     let value = json.deserialize_map(Bridge {
@@ -177,7 +179,7 @@ impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, '_, T> {
     }
 
     fn visit_map<A: MapAccess<'de>>(self, json: A) -> Result<T, A::Error> {
-        T::deserialize(Merged {
+        T::deserialize(Objects(Merged {
             access: Chain {
                 bound: self.bound,
                 next: 0,
@@ -185,7 +187,7 @@ impl<'de, T: DeserializeOwned> Visitor<'de> for Bridge<'de, '_, T> {
                 value: None,
                 json: Some(json),
             },
-        })
+        }))
     }
 }
 
@@ -817,6 +819,50 @@ mod tests {
                 "{json:?}"
             );
         }
+    }
+
+    // serde's derived struct visitor also takes a sequence (#292): a
+    // structure, in a body member or as a whole payload, is only an object.
+    #[test]
+    fn a_structure_from_a_json_array_is_refused_in_a_body_and_a_payload() {
+        #[derive(Debug, Deserialize)]
+        struct Payloads {
+            nested: Option<Nested>,
+            #[serde(default)]
+            field: crate::field::Field<Nested>,
+            document: Option<serde_json::Value>,
+        }
+        for json in [&b"[]"[..], b"[1]", b" [ 1 ] "] {
+            for name in ["nested", "field"] {
+                assert!(
+                    read::<Payloads>(b"", vec![(name, BoundValue::RawJson(json))]).is_err(),
+                    "{name}: {json:?}"
+                );
+            }
+            // A document payload is any JSON value, arrays included.
+            let payloads: Payloads =
+                read(b"", vec![("document", BoundValue::RawJson(json))]).unwrap();
+            assert!(payloads.document.unwrap().is_array());
+            // The same structure as a body member, with and without bound
+            // members beside it.
+            let body = [&br#"{"cityId":"c","nested":"#[..], json, b"}"].concat();
+            assert!(read::<Input>(&body, vec![]).is_err(), "{json:?}");
+            let body = [&br#"{"nested":"#[..], json, b"}"].concat();
+            assert!(
+                read::<Input>(&body, vec![("cityId", BoundValue::Text("c".into()))]).is_err(),
+                "{json:?}"
+            );
+        }
+        let payloads: Payloads = read(
+            b"",
+            vec![
+                ("nested", BoundValue::RawJson(br#"{"x":1}"#)),
+                ("field", BoundValue::RawJson(br#"{"x":2}"#)),
+            ],
+        )
+        .unwrap();
+        assert_eq!(payloads.nested, Some(Nested { x: 1.0 }));
+        assert_eq!(payloads.field.value(), Some(&Nested { x: 2.0 }));
     }
 
     #[test]

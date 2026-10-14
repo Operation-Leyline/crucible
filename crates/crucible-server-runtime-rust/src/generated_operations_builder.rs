@@ -293,8 +293,8 @@ where
                 for conversion in chain {
                     versioning::apply_with(&mut value, conversion.upgrade, &hooks).await?;
                 }
-                let input: Current::Input =
-                    serde_json::from_value(value).map_err(crate::operations::unreadable)?;
+                let input: Current::Input = crucible_wire::object::from_value(value)
+                    .map_err(crate::operations::unreadable)?;
                 Validator::check(&input)?;
                 Ok(Box::new(input) as Box<dyn Input>)
             })
