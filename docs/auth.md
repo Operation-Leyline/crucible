@@ -499,16 +499,24 @@ authenticator, and its custom `ApiKeys` authenticator with
 `ApiKeyAuthenticator::new("pgn_", store)`, where the store reads its DynamoDB
 table by `api_key_digest` and maps the row's status, workspace and key ID into
 an `ApiKeyRecord` (with `ConsistentRead`). Mint keys with `api_key_digest`
-too. Pigeon's requirements
-promise immediate revocation, so use the
+too. Pigeon states a revocation bound rather than promising immediate
+revocation: a revoked key stops working within a minute (its requirement
+SEC-13). It therefore sets `valid_ttl(Duration::from_secs(60))`, below the
+5-minute default, and its delete path calls `forget` once the delete commits,
+so the instance that revoked a key refuses it at once. This is the same
+trade it makes with its 30-second permission-decision cache
+([typed permissions](permissions.md#71-the-authorizer)). A service that must
+apply revocation immediately uses the
 [immediate revocation](#immediate-revocation) configuration
-(`valid_ttl(Duration::ZERO)`). Send `Authorization: Bearer TOKEN` explicitly:
-Pigeon's current verifier accepts bare tokens, while both authenticators require
-the scheme by default. Select a separately scoped access-token authenticator
-only for operations deliberately accepting access tokens. Map `Principal` into
-Pigeon's domain principal: an API key's workspace is `Principal::tenant`; a
-token caller's workspace membership is still checked in authorization.
+(`valid_ttl(Duration::ZERO)`) instead. Send `Authorization: Bearer TOKEN`
+explicitly: Pigeon's old verifier accepted bare tokens, while both
+authenticators require the scheme by default. Select a separately scoped
+access-token authenticator only for operations deliberately accepting access
+tokens. Map `Principal` into Pigeon's domain principal: an API key's workspace
+is `Principal::tenant`; a token caller's workspace membership is still checked
+in authorization.
 
-Neither consumer repository is changed by this feature. Adopt the new crate,
+This feature changed neither consumer repository. Pigeon has since adopted it
+as described above; Leyline has not yet. To adopt, take the new crate,
 regenerate server contracts with effective auth metadata, and update each
 service's model and tests together.

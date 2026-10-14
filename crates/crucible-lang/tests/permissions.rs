@@ -1894,3 +1894,30 @@ fn an_ir_designation_is_checked_without_lowering() {
         ]
     );
 }
+
+/// `.cru` cannot write an empty requirement list, and the client projection
+/// turns one emptied of internal clauses into `Internal`, so only an IR
+/// built some other way (a hand-edited release snapshot) carries one. The
+/// IR checks still refuse it rather than read it as `requires none`.
+#[test]
+fn an_empty_requirement_list_in_the_ir_is_refused() {
+    let (mut service, _) = pigeon();
+    let operation = service
+        .operations
+        .iter_mut()
+        .find(|op| matches!(op.requirements, Requirements::List(_)))
+        .expect("an operation with requirements");
+    let name = operation.id.name().to_owned();
+    operation.requirements = Requirements::List(Vec::new());
+    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+        .iter()
+        .map(|f| f.text())
+        .filter(|text| text.starts_with("permissions.requires:"))
+        .collect();
+    assert_eq!(
+        found,
+        [format!(
+            "permissions.requires: `{name}` lists no requirement; an operation that needs no permission says `requires none`"
+        )]
+    );
+}

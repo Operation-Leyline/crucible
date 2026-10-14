@@ -1,16 +1,17 @@
 # Typed permissions
 
-**Status: accepted; phases A1, A2 and B are implemented, C is pending.**
+**Status: accepted; phases A1, A2 and B are implemented, C is under way.**
 A1 (the `.cru` language, the IR and the checks; #245, made `.cru`-only by
 #247) is built: its syntax is in [idl/reference.md](idl/reference.md) and
 its decisions are 37a-37k in [idl/decisions.md](idl/decisions.md). The A2
 runtime (#246) and the B generators (#248: server bindings, client
 constants, the API reference and OpenAPI) are in
 [framework.md](framework.md#typed-permissions); the "As built" notes in
-§6.2 and §7.4 say where they differ from this document. Adopting in Pigeon
-added a service's own not-found error and a Denied listing (the addendum
-to decision 5). Phase C, the consumers'
-adoption (Pigeon first, then Leyline; §10), has not started.
+§6.1, §6.2, §6.3, §7.1, §7.4 and §7.5 say where they differ from this
+document. Adopting in Pigeon added a service's own not-found error and a
+Denied listing (the addendum to decision 5). Phase C, the consumers'
+adoption (§10), has begun: Pigeon enforces its declared requirements
+through the interceptor. Leyline has not started.
 
 **Permissions are declared in `.cru` models only.** A Smithy model cannot
 declare them: a consumer whose model is Smithy, such as Leyline, migrates
@@ -133,8 +134,10 @@ permission (`:400-403`). Nothing else implies anything.
 | ListWebhooks / CreateWebhook | `webhook:read` / `webhook:manage` | webhook | `*` |
 | GetMe, ListMyWorkspaces | nothing (caller-scoped) | none | none |
 
-\* passes `fresh = true`. There are 14 such call sites across 12
-operations: every delete and every change to access.
+\* passes `fresh = true`. There are 14 such call sites across 11
+operations: each delete of something a grant names, and each change to
+access (keys, grants, members, audit settings). Not every delete is
+among them: `DeleteMessage` reads the cache.
 
 ### 3.2 The awkward cases, counted
 
@@ -423,10 +426,11 @@ The declaration generates an **obligation**. The handler must, before any
 write, either discharge it through the Authorizer
 (`permissions::discharge`) or record that it does not apply to this
 request (`permissions::not_applicable`, with a reason). The runtime checks
-this twice: a call to `idempotency::commit()` while an obligation is open,
-and a success returned with one open, are assertion failures in tests and
-debug builds (§7.5). A refusal releases any idempotency claim, so the
-client can retry the same token once it holds the permission.
+this twice. A call to `idempotency::commit()` while an obligation is open
+is refused in every build, and a success returned with one open is an
+assertion failure in tests and debug builds (§7.5). A refusal releases any
+idempotency claim, so the client can retry the same token once it holds
+the permission.
 
 ```
 operation ExecuteQuery on Graph {
@@ -614,8 +618,11 @@ permissions and no requirements, and it refuses a model that uses a
 `crucible.auth` permission trait (`permissionsOf`, `requires`,
 `requiresNone`, `requiresPending` and the like) with a diagnostic that
 says permissions are declared in `.cru` models, rather than lowering it as
-if it declared none. Leyline, the one Smithy consumer, migrates its model
-to `.cru` before it adopts them (§8.2).
+if it declared none. `crucible-traits` no longer defines those traits, so
+the official Smithy compiler fails first on `.smithy` sources
+(`Model.UnresolvedTrait`); `crucible-build` adds the same migrate-to-`.cru`
+explanation to that failure for each of the nine names. Leyline, the one
+Smithy consumer, migrates its model to `.cru` before it adopts them (§8.2).
 
 Two pieces are shared all the same. `@auth([])` still marks an operation
 `public` in the IR (§6.1): that is authentication, not permissions. And
@@ -685,8 +692,8 @@ All of these are errors unless marked. Everything that holds of the IR
 
 **Errors and references**
 
-17. Lowering adds `crucible.errors#NotFoundException` to the error list of
-    every operation with a `requires` or `filters` clause, unless every
+17. `.cru` lowering adds `crucible.errors#NotFoundException` to the error
+    list of every operation with a `requires` or `filters` clause, unless every
     clause targets a root resource with `*`, which leaves nothing to hide
     (decision 5). A service that designates its own not-found error
     (`notFound E` in the service, the addendum to decision 5) gets `E`
@@ -756,7 +763,8 @@ pub struct PermissionTypes {
 pub requirements: Requirements,
 
 pub enum Requirements {
-    Undeclared,                           // the default; a compile error once permissions exist
+    Undeclared,                           // the default; a compile error on an authenticated
+                                          // operation once permissions exist
     None,                                 // `requires none`
     Pending { reason: String },           // `requires pending because`
     List(Vec<Requirement>),               // source order, which is the refusal order
@@ -793,8 +801,14 @@ And two facts carried in existing fields:
 `Service::all_permissions()` returns the sorted registry, the way
 `all_scopes()` does. Client audience projection drops `Internal`
 permissions, aliases of them, and requirements that name them, as it drops
-internal members. `Undeclared` survives lowering only for a service that
-declares no permission.
+internal members.
+
+*As built.* `Undeclared` survives lowering in two cases: every operation
+of a service that declares no permission, and an operation with no caller
+to authorize (declared `public`, or without an authentication scheme
+because its service declares none), which may not declare requirements
+(check 8). The client audience projection also turns `Pending` into
+`Undeclared`, since a pending reason is the server's migration note.
 
 Additions to the contract above, made in phase A1:
 
@@ -963,7 +977,7 @@ that type (`float` as `f32`).
   TypeScript gets
   `export const InboxPermission = { MAIL_SEND: "mail:send", .. } as const`
   with `type InboxPermissionValue = (typeof InboxPermission)[keyof typeof InboxPermission] | (string & {})`;
-  Rust clients get an `Unknown(String)` variant; the other languages
+  Rust clients get an `UnknownValue(String)` variant; the other languages
   follow their open-enum convention for string enums. Aliases are
   deprecated constants, and each type has `canonical()` that maps an alias
   to its primary. `PERMISSIONS: { resourceType, permissions: { value,
@@ -998,6 +1012,25 @@ that type (`float` as `f32`).
   them from Cognito. Internal permissions appear only in the
   server-audience document.
 - **MCP.** Tool descriptions include the "Requires" sentence.
+
+*As built (phase B).* Only the Rust and TypeScript clients have the open
+permission types, the alias constants with `canonical()`, and
+`PERMISSIONS`. The Rust variant is `UnknownValue(String)`, renamed
+`UnknownValue2` and so on if a permission's symbol already takes the name, as
+for the client's other open enums. The other client languages carry only
+the requirement sentences in each operation's doc comment and the registry
+in their bundled runtime's `schema()`. Their constants and registry are a
+known gap, not yet scheduled. The API reference differs from the layout
+above: one `permissions.md` page has a section per resource type (its
+identifiers, then a table each for "Permissions", "Permission-only",
+"Bundles" and, server audience only, "Internal"). Each operation page gets
+an "Authorization" section with the requirement sentences ("Requires …",
+"Returns only …") and a table of its clauses (mode, permission, resource
+type, bindings, `when` or the handler clause's documentation). A
+`requires none` operation says "Requires no permission." An operation
+whose requirements are all internal says "Requires permissions internal to
+the service." A pending operation's reason appears in the server audience
+only.
 
 ## 7. Runtime
 
@@ -1049,16 +1082,25 @@ pub enum Visibility { All, Only(BTreeSet<String>), Hidden, Denied }   // Denied:
 - **Freshness is the Authorizer's** (decision 3). It receives the
   operation id and its full requirement metadata, including whether the
   operation is read-only or idempotent, so it can decide what to cache and
-  what to read fresh without a model marker. Both consumers read grants
-  with strongly consistent reads. Pigeon's Authorizer keeps its 30-second
-  decision cache, keyed on (principal, permission, resource), never on the
-  operation alone, so a revoked grant converges within 30 seconds, the same
-  trade its one-minute API-key cache makes. The cache is never trusted for
-  the operations that read fresh today (deletes and access-changing
-  operations, which `guard` calls with `fresh = true`): the Authorizer
-  bypasses it for them, identified from `OperationFacts`, so a revoked
-  principal can't delete or change access on a cached decision. Other
-  checks may reuse the (principal, permission, resource) entry.
+  what to read fresh without a model marker. The framework caches no
+  decision; any cache is the service's. Both consumers read grants
+  with strongly consistent reads. *As built (Pigeon):* Pigeon's
+  Authorizer keeps its own 30-second decision cache, keyed on (principal,
+  permission, resource), never on the operation alone, so a revoked grant
+  converges within 30 seconds. That is the same trade as its API-key cache, which Pigeon sets to
+  one minute (`valid_ttl(60 s)`, below `ApiKeyAuthenticator`'s 5-minute
+  default; [auth.md](auth.md#migrating-leyline-and-pigeon)). The cache is
+  never trusted for the 11 operations whose `guard` calls passed
+  `fresh = true` (§3.1): each delete of something a grant names, and each
+  change to access. Not every
+  delete is among them, since `DeleteMessage` reads cached, and not every
+  change is a delete, since `UpdateMember` is a PATCH. No fact in
+  `OperationFacts` separates them, so Pigeon's Authorizer bypasses the cache
+  by a hand-kept list of operation names (`FRESH`), matched against
+  `OperationFacts::id` for an operation that is not read-only. A test holds
+  the list to those call sites. A revoked principal therefore can't delete
+  or change access on a cached decision. Other checks may reuse the
+  (principal, permission, resource) entry.
 - **The principal is the service's to read.** The Authorizer reads
   `context.attribute::<Principal>()` and maps it to its own `Caller`, as
   Pigeon's handlers already do.
@@ -1313,9 +1355,11 @@ idempotency::commit().await?;   // the point of no return; no obligation may be 
   reason. It is how a handler says "this request is not the case the
   clause covers".
 - **Before any write.** The runtime cannot see a database write, but it
-  sees the point of no return: `idempotency::commit()` with an obligation
-  open is an assertion failure in tests and debug builds and a logged
-  error in release builds.
+  sees the point of no return. *As built:* `idempotency::commit()` refuses,
+  in every build, while an obligation is unsatisfied (still open, or
+  discharged with a refusal the handler went on past). The refusal is an
+  internal error that is logged, and the step after `commit` does not run.
+  Only `shadow` logs it and lets `commit` go on.
 - **After the handler.** In tests (the `test-support` harness) and debug
   builds, `after` asserts that every obligation was discharged or closed:
   a success with one open becomes `InternalFailure` and the test fails.
@@ -1325,9 +1369,11 @@ idempotency::commit().await?;   // the point of no return; no obligation may be 
 - **A refusal releases the claim.** A refusal before `commit` fails the
   request, and `Idempotency` releases the claim as for any failure before
   the point of no return, so a retry with the same token runs again once
-  the caller holds the permission. If `commit` already ran (the bug the
-  assertion catches), `discharge` calls `idempotency::abandon()` before
-  returning the refusal, so the claim is released anyway.
+  the caller holds the permission. *As built:* since `commit` refuses with
+  an obligation open, a `discharge` refusal always comes before the point
+  of no return, so `discharge` never calls `idempotency::abandon()`. The
+  one exception is `shadow`, which lets `commit` go on. A refusal after
+  that leaves the claim committed.
 
 **Undeclared handler checks**, for permissions the request chooses:
 
@@ -1384,9 +1430,11 @@ Each step ships alone and changes no behaviour until the step that says so.
    - Add `@permissionTypes` to `ResourceType`.
 2. **Implement `Authorizer`** over `authorization::decide`,
    `guard::belongs` and `data::grants::readable`, with strongly consistent
-   reads behind the existing 30-second decision cache, bypassed for the
-   operations `guard` checks with `fresh = true`. Answer `Hidden` for
-   non-members. Install
+   reads behind Pigeon's existing 30-second decision cache (its own; the
+   framework caches nothing). The Authorizer bypasses that cache for the
+   operations `guard` checks with `fresh = true`, which it names in a
+   hand-kept list matched against `OperationFacts::id` (§7.1). Answer
+   `Hidden` for non-members. Install
    `Permissions::shadow` before `Idempotency`, alongside the existing
    guards. Nothing is refused by the interceptor yet.
 3. **Declare requirements, one resource folder at a time.** Each operation
@@ -1493,7 +1541,8 @@ streams.
   diagnostics for them.
 - Smithy: no permission traits; `crucible-smithy` refuses them (§4.11).
 - `crucible.errors#NotFoundException` in `smithy/errors.smithy`, attached
-  by lowering (check 17).
+  by `.cru` lowering (check 17; a Smithy model declares no requirement, so
+  its lowering attaches nothing).
 - The IR fields of §6.1, all `#[serde(default)]`, and the client audience
   projection.
 - Checks 1-18 in `crucible_smithy::validate`, with a fixture for every
@@ -1520,9 +1569,10 @@ ones):
 - Ordering: `Idempotency::prepare` warns when `Permissions` follows it;
   `docs/framework.md` updated.
 - Handler API: `require`, `decide`, `discharge`, `not_applicable`;
-  obligations opened by `before`, the open-obligation assertion in
-  `idempotency::commit()`, the `after` assertion in tests and debug builds,
-  and `abandon()` on a refusal after commit.
+  obligations opened by `before`, the open-obligation refusal in
+  `idempotency::commit()` (every build), and the `after` assertion in tests
+  and debug builds. *As built:* no `abandon()` path is needed, because
+  `commit` refuses first (§7.5).
 
 **Phase B: generators**, against the A1 IR and the A2 types:
 
@@ -1536,6 +1586,8 @@ ones):
   registry with tier and `grantable`, `"permissions"` in bundled
   `schema()`, requirement doc comments; internal permissions filtered by
   the client audience projection. A TS case for unknown-value round trips.
+  *As built:* the types and `PERMISSIONS` exist for Rust and TypeScript
+  only (§6.3).
 - Docs and OpenAPI: permissions tables, permission-only tables and
   bundles, "Requires" and "Returns only…" sections, `x-crucible-requires`
   and `x-crucible-permissions`, server-audience-only internal entries; MCP
@@ -1617,17 +1669,19 @@ service frameworks.
    [SpiceDB consistency](https://authzed.com/docs/spicedb/concepts/consistency);
    [OpenFGA consistency](https://openfga.dev/docs/interacting/consistency)).
    ASVS 5.0 asks that authorization changes be "applied immediately"
-   ([ASVS 5.0 V8](https://raw.githubusercontent.com/OWASP/ASVS/master/5.0/en/0x17-V8-Authorization.md)),
-   which a strongly consistent read with no cache satisfies, and API
-   Gateway's authorizer cache shows why any later cache must be keyed on
-   the resource, not reused across methods ([API Gateway Lambda
+   ([ASVS 5.0 V8](https://raw.githubusercontent.com/OWASP/ASVS/master/5.0/en/0x17-V8-Authorization.md)).
+   The framework caches no decision, so an Authorizer that reads strongly
+   with no cache of its own satisfies that. API Gateway's authorizer cache
+   shows why a service's cache must be keyed on the resource, not reused
+   across methods ([API Gateway Lambda
    authorizers](https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-use-lambda-authorizer.html)).
    *Changed from the draft:* `OperationFacts` is passed explicitly rather
-   than left to `context.operation_metadata()`. Pigeon keeps its 30-second
-   decision cache, keyed on the resource as above: revocation converges
-   within 30 seconds rather than applying immediately, a deliberate trade
-   of ASVS's "applied immediately" for one grants read per 30 seconds, as
-   its API keys already do.
+   than left to `context.operation_metadata()`. Pigeon keeps its own
+   30-second decision cache, keyed on the resource as above. It knowingly
+   departs from ASVS's "applied immediately": a revoked grant converges
+   within 30 seconds, and a (principal, permission, resource) entry is read
+   at most once per 30 seconds outside the operations that read fresh
+   (§7.1). Its API keys make the same trade with a one-minute cache.
 
 4. **Strict default.** Once a service declares any permission or installs
    an Authorizer, an authenticated operation without `requires`, `filters`

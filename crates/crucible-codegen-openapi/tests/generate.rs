@@ -99,7 +99,50 @@ fn permissions_match_reviewed_golden_per_audience() {
             audience == crucible_smithy::Audience::Internal,
             "{file}"
         );
-        assert!(!generated.contains("crucible.auth#requires"), "{file}");
+        // Requirements reach the document as `x-crucible-requires` alone:
+        // exactly the operations whose projected requirements say something
+        // carry it (the pending one only for the internal audience, whose
+        // projection keeps its reason), and no requirement leaks into
+        // `x-smithy-traits`, which carries the model's own traits.
+        let document: Value = serde_json::from_str(&generated).unwrap();
+        let mut documented = std::collections::BTreeMap::new();
+        for item in document["paths"].as_object().unwrap().values() {
+            for operation in item.as_object().unwrap().values() {
+                let traits = operation["x-smithy-traits"].as_object().unwrap();
+                assert!(
+                    traits.keys().all(|key| !key.starts_with("crucible.auth#")),
+                    "{file}: {traits:?}"
+                );
+                documented.insert(
+                    operation["operationId"].as_str().unwrap().to_owned(),
+                    operation
+                        .get("x-crucible-requires")
+                        .map(|requires| requires["kind"].as_str().unwrap().to_owned()),
+                );
+            }
+        }
+        let expected: std::collections::BTreeMap<String, Option<String>> = projected
+            .operations
+            .iter()
+            .map(|op| {
+                use crucible_smithy::ir::Requirements;
+                let kind = match &op.requirements {
+                    Requirements::Undeclared => None,
+                    Requirements::None => Some("none"),
+                    Requirements::Pending { .. } => Some("pending"),
+                    Requirements::Internal => Some("internal"),
+                    Requirements::List(_) => Some("list"),
+                };
+                (op.id.name().to_owned(), kind.map(str::to_owned))
+            })
+            .collect();
+        assert_eq!(documented, expected, "{file}");
+        let pending = expected.values().flatten().any(|kind| kind == "pending");
+        assert_eq!(
+            pending,
+            audience == crucible_smithy::Audience::Internal,
+            "{file}"
+        );
     }
 }
 

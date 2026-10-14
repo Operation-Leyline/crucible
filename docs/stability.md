@@ -76,14 +76,18 @@ adapt application functions and typed interceptors.
 pipeline phases. Use their methods to inspect headers, body, context, operation,
 input, and outcome, or to reject and respond. Their private construction and
 phase transitions belong to the runtime. `Context`, `WithContext`, `RequestMeta`,
-`Resolution`, `Outcome`, and `OperationMetadata` support these views. `ApiVersion` and
+`Resolution`, `Outcome`, and `OperationMetadata` support these views.
+`OperationMetadata` is non-exhaustive: the runtime builds it at
+registration, and services read its fields. `ApiVersion` and
 `Unversioned` (from `versioning`) name a request's API version; the rest of
 `versioning` is generated-code support.
 See [the framework pipeline](framework.md#the-request-pipeline) for phase and
 unwind guarantees.
 
 `Result`, `Error`, `ModelledError`, `FrameworkError`, and `ExceptionTranslator`
-are the error contract. Modeled exceptions come from the generated service API.
+are the error contract. `FrameworkError` is non-exhaustive: a `match` on it
+needs a wildcard arm, and `name`, `status`, `message` and `shape_id` cover
+every variant. Modeled exceptions come from the generated service API.
 Applications can inspect errors and translate application failures without
 calling generated serialization helpers.
 

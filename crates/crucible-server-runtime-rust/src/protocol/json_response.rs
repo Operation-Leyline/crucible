@@ -298,20 +298,7 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
         return not_found(error, resource.name, format);
     }
     let type_name = if format.rpc_v2() {
-        match error {
-            FrameworkError::Unauthenticated => "smithy.framework#UnauthenticatedException",
-            FrameworkError::Forbidden | FrameworkError::PermissionDenied { .. } => {
-                "smithy.framework#ForbiddenException"
-            }
-            FrameworkError::Conflict { .. } => "smithy.framework#ConflictException",
-            FrameworkError::NotFound { .. } => NOT_FOUND_SHAPE,
-            FrameworkError::UnknownOperation => "smithy.framework#UnknownOperationException",
-            FrameworkError::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
-            FrameworkError::UnsupportedMediaType => {
-                "smithy.framework#UnsupportedMediaTypeException"
-            }
-            FrameworkError::InternalFailure => "smithy.framework#InternalFailureException",
-        }
+        error.shape_id()
     } else {
         error.name()
     };
@@ -338,9 +325,6 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
     )
 }
 
-/// The modelled error a hidden or missing resource is answered with.
-const NOT_FOUND_SHAPE: &str = "crucible.errors#NotFoundException";
-
 /// [`FrameworkError::NotFound`], encoded as the modelled
 /// `crucible.errors#NotFoundException` the compiler attaches to every
 /// resource-bound operation, so an SDK reads it as that typed error: named
@@ -349,7 +333,7 @@ const NOT_FOUND_SHAPE: &str = "crucible.errors#NotFoundException";
 /// grants.
 fn not_found(error: &FrameworkError, resource_type: &str, format: Format) -> Response {
     let type_name = match format {
-        Format::AwsJson10 | Format::RpcV2Json | Format::RpcV2Cbor => NOT_FOUND_SHAPE,
+        Format::AwsJson10 | Format::RpcV2Json | Format::RpcV2Cbor => error.shape_id(),
         Format::Crucible | Format::RestJson | Format::AwsJson11 => error.name(),
     };
     let body = serde_json::json!({

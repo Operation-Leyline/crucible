@@ -116,42 +116,53 @@ version's section when it is prepared.
   `Idempotency`. A `commit` after it commits again. See
   [docs/framework.md](docs/framework.md#idempotency-tokens).
 
-- Typed permissions, the runtime side. `permissions` holds the static
-  descriptions generated code will state, always present: `ResourceInfo`
-  (with its fixed 404 message), `PermissionInfo` (with `Tier`, aliases and
-  its fixed 403 message), `Requirements` (`Undeclared`,
-  `None`, `Pending { reason }`, `List` of `RequirementInfo` with a `Mode`),
-  `Obligation`, and the per-request `Check` on a `ResourceRef` (identifiers
-  root to leaf, the leaf possibly `Target::All`) with its `Origin`.
-  Generated operations carry them as `Operation::REQUIREMENTS`,
-  `Operation::CHECKS` and `Operation::PUBLIC` (an operation the model
-  explicitly makes public), also on `OperationMetadata` (`requirements`,
-  `checks`, `public`), and a service its permission registry as
-  `ServiceInfo::permissions` (`service_info(..).with_permissions(&[..])`). Behind the new `permissions` feature, `Permissions` is an
-  `Interceptor` enforcing them through a service-supplied `Authorizer`
-  (`decide` for a batch of checks, `visible` for a `filters` listing),
-  which answers `Verdict::Allowed`, `Denied` or `Hidden`: the first refusal
-  in declaration order is a 404 `NotFoundException` for Hidden and a 403
-  naming the permission (never an internal one) for Denied, or what
-  `refusal_factory` builds from a `PermissionRefusal`. An authenticated
-  operation without requirement metadata is refused as a wiring error unless
-  `allow_undeclared()`; `requires pending` passes; `shadow()` only records
-  and logs. Handlers check what the model cannot bind with
-  `permissions::require`, `decide`, `discharge` and `not_applicable` (for
-  `by handler` obligations, each closed once; `idempotency::commit()`
-  refuses an unsatisfied one in every build, and a success with one fails in
-  debug builds, `assert_obligations`), read a listing's
-  `permissions::visible()`, and report genuine absence with
-  `permissions::not_found` (a handler's modelled `NotFoundException` is
-  answered identically). Every request gets an `AuthorizationRecord` on its
-  context for audit. Registered before `PageTokens` and `Idempotency` (the
-  other order fails the build), a refused request never has its page token
-  opened or claims an idempotency token, and a replay is
-  authorized again: its declared checks, and the handler checks the first
-  success was allowed, which the idempotency record now keeps
-  (`StoredResponse` gains an `authorization` field; a record without it
-  replays with the declared checks alone). See
-  [docs/framework.md](docs/framework.md#typed-permissions).
+- Typed permissions, the runtime side.
+  - **Descriptions.** The `permissions` module, always present, holds the
+    static descriptions generated code states: `ResourceInfo` (with its
+    fixed 404 message), `PermissionInfo` (with `Tier`, aliases and its
+    fixed 403 message), `Requirements` (`Undeclared`, `None`,
+    `Pending { reason }`, `List` of `RequirementInfo` with a `Mode`) and
+    `Obligation`. Each request gets `Check`s on a `ResourceRef`
+    (identifiers root to leaf, the leaf possibly `Target::All`), each with
+    its `Origin`.
+  - **Where they appear.** Generated operations carry them as
+    `Operation::REQUIREMENTS`, `Operation::CHECKS` and `Operation::PUBLIC`
+    (an operation the model explicitly makes public), and
+    `OperationMetadata` repeats them (`requirements`, `checks`, `public`).
+    A service carries its permission registry as `ServiceInfo::permissions`
+    (`service_info(..).with_permissions(&[..])`).
+  - **Enforcement.** `Permissions`, behind the new `permissions` feature,
+    is an `Interceptor` that enforces them through a service-supplied
+    `Authorizer`: `decide` for a batch of checks, `visible` for a
+    `filters` listing. The Authorizer answers `Verdict::Allowed`, `Denied`
+    or `Hidden`. The first refusal in declaration order wins: Hidden is a
+    404 `NotFoundException`, and Denied is a 403 naming the permission
+    (never an internal one) or what `refusal_factory` builds from a
+    `PermissionRefusal`.
+  - **Undeclared and pending operations.** An authenticated operation
+    without requirement metadata is refused as a wiring error unless the
+    service calls `allow_undeclared()`. `requires pending` passes.
+    `shadow()` only records and logs.
+  - **Handler checks.** Handlers check what the model cannot bind with
+    `permissions::require` and `decide`, and close each `by handler`
+    obligation exactly once with `discharge` or `not_applicable`.
+    `idempotency::commit()` refuses an unsatisfied obligation in every
+    build (`shadow()` only logs it). A success with one fails the request
+    in debug builds and with `test-support` (`assert_obligations`). Handlers read a listing's
+    `permissions::visible()` and report genuine absence with
+    `permissions::not_found`, which is answered exactly as a handler's own
+    modelled `NotFoundException` would be.
+  - **Audit and idempotency.** Every request gets an `AuthorizationRecord`
+    on its context for audit. `Permissions` must be registered before
+    `PageTokens` and `Idempotency`; the other order fails the build. A
+    refused request therefore never has its page token opened or claims an
+    idempotency token, and a replay is authorized again: its
+    declared checks run, and so do the handler checks that allowed the
+    first success. The idempotency record now keeps those
+    (`StoredResponse` gains an `authorization` field; a record without it
+    replays with the declared checks alone).
+
+  See [docs/framework.md](docs/framework.md#typed-permissions).
 
 - Typed permissions, phase B: the generators. Rust server bindings of a
   model with permissions gain a `permissions` module: per resource a closed
@@ -188,8 +199,8 @@ version's section when it is prepared.
   `requirementSentences`; OpenAPI gains `x-crucible-requires` per operation,
   a requirement sentence in its description and `x-crucible-permissions`
   (internal entries only in an internal-audience document). The client
-  projection drops a pending operation's reason, which is the server's
-  migration note. See
+  projection turns a pending operation into an undeclared one, since its
+  reason is the server's migration note. See
   [docs/framework.md](docs/framework.md#typed-permissions).
 
 - A service's own not-found error for typed permissions. A `.cru` service
@@ -235,6 +246,11 @@ version's section when it is prepared.
   one for an internal permission, without the `insufficient_scope`
   challenge `Forbidden` carries.
 
+- `FrameworkError::shape_id()`: the absolute shape id the RPC v2 protocols
+  name a framework error by (`smithy.framework#ForbiddenException`,
+  `crucible.errors#NotFoundException`), beside `name()`, `status()` and
+  `message()`.
+
 - `FrameworkError::Conflict { message }`: HTTP 409 `ConflictException`
   (`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
   what `Idempotency` answers by default without a modelled conflict error.
@@ -279,14 +295,18 @@ version's section when it is prepared.
   `@permissionTypes(exclude: [..])` checks a resource-type enum against the
   resources both ways. Permissions are declared in `.cru` only: a Smithy
   model cannot declare them, and one that uses a `crucible.auth`
-  permission trait is refused at lowering. They lower to
+  permission trait is refused at lowering. `crucible-traits` does not
+  define those traits, so the Smithy compiler fails first on `.smithy`
+  sources with `Model.UnresolvedTrait`. `crucible-build` puts the same
+  migrate-to-`.cru` message for each of the nine names before the
+  compiler's report. They lower to
   `ir::Service::permissions`, `ir::Service::permission_types` and
   `ir::Operation::requirements` (all `#[serde(default)]`, and not written
   when empty, so existing release snapshots read and write unchanged), with
   `Service::all_permissions()` for the registry, and are checked by
   `crucible_smithy::validate::permissions`: once a service declares any
   permission, an authenticated operation that says nothing about
-  authorization is the error `permissions.undeclared`. Lowering adds the new
+  authorization is the error `permissions.undeclared`. `.cru` lowering adds the new
   `crucible.errors#NotFoundException` (404, `message` and `resourceType`;
   in `smithy/errors.smithy` and the bundled `crucible.errors` package) to
   every operation with a `requires` or `filters` clause, unless every
@@ -296,9 +316,10 @@ version's section when it is prepared.
   an operation was declared public (`.cru` `public`, or Smithy
   `@auth([])`).
   `crucible check` counts permissions and lists pending operations.
-  Generators do not read the new fields yet, but an operation with a
-  requirement has `NotFoundException` in its `errors`, so the code
-  generated for it changes: its error types gain the 404.
+  An operation that gets `NotFoundException` in its `errors` this way
+  (or, since the not-found-error entry above, the service's designated
+  404) has the 404 in its generated error types too. The phase B entry
+  covers the generators reading the rest.
 
 - `crucible-build` and `crucible` print a `.cru` package's advice beside
   its warnings. `crucible_smithy::validate::permissions_from_ir` runs the
@@ -500,11 +521,25 @@ version's section when it is prepared.
 ### Migration
 
 - **`FrameworkError` has `Conflict`, `NotFound` and `PermissionDenied`
-  variants.** A `match` over `FrameworkError` with no wildcard arm needs
-  arms for `Conflict { .. }` (HTTP 409), `NotFound { .. }` (404) and
-  `PermissionDenied { .. }` (403), including through
-  `crucible-client-runtime-rust`, which re-exports `FrameworkError`. No
-  shim is possible for a new variant. See
+  variants, and is `#[non_exhaustive]`.** A `match` over `FrameworkError`
+  outside `crucible-wire` now needs a wildcard arm. This includes code that
+  names it through `crucible-client-runtime-rust`, which re-exports it. Add
+  `_ => ..`, after arms for `Conflict { .. }` (HTTP 409), `NotFound { .. }`
+  (404) and `PermissionDenied { .. }` (403) if the code treats them
+  differently. Variants added later are then not breaking. Code that only
+  calls `name()`, `status()`, `message()` or the new `shape_id()` is
+  unaffected. No shim is possible: the attribute is on the type. See
+  [migrating](docs/migrating.md#unreleased).
+
+- **`OperationMetadata` is `#[non_exhaustive]` and has new fields.** Since
+  0.7.0 it has gained `pagination`, `idempotency_token`,
+  `idempotency_token_sent`, `replays_output`, `requirements`, `checks` and
+  `public`. A struct literal no longer compiles outside the runtime, which
+  builds the value at registration. Read it from `OperationJob::metadata`,
+  `DecodedJob::metadata`, `Operations::metadata` or `Prepare::metadata`
+  instead. A pattern that names every field needs `..`. Fields added later
+  are then not breaking. Reading fields is unchanged. No shim is possible:
+  the attribute is on the type. See
   [migrating](docs/migrating.md#unreleased).
 
 - **`crucible_auth::Principal` is non-exhaustive.** A custom `Authenticator`

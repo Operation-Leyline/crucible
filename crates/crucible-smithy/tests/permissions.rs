@@ -2,6 +2,8 @@
 //! a Smithy model that uses their traits is refused, and an explicit
 //! `@auth([])` still marks an operation public in the IR.
 
+use std::collections::BTreeSet;
+
 use crucible_smithy::{Error, Model, ShapeId};
 use serde_json::{Value, json};
 
@@ -19,37 +21,46 @@ fn model(get_user_traits: Value, extra: Value) -> String {
     json!({"smithy": "2.0", "shapes": shapes}).to_string()
 }
 
+/// Each of the nine traits, on the kind of shape a model would put it on,
+/// is its own diagnostic against that shape: one run lists all of them.
 #[test]
 fn permission_traits_are_refused_in_smithy_models() {
-    let source = model(
-        json!({"crucible.auth#requiresNone": "the caller's own credential"}),
-        json!({
-            "example.leyline#Color": {"type": "enum", "traits": {"crucible.auth#permissionsOf": "example.leyline#Org"}, "members": {
-                "READ": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "org:read", "crucible.auth#permissionOnly": {}}}
-            }}
-        }),
-    );
+    let source = include_str!("fixtures/permission-traits-refused.json");
     let Error::Unsupported(diagnostics) =
-        Model::from_json(&source).unwrap().lower(None).unwrap_err()
+        Model::from_json(source).unwrap().lower(None).unwrap_err()
     else {
         panic!("unsupported")
     };
-    for (shape, name) in [
-        (ShapeId::new("example.leyline", "GetUser"), "requiresNone"),
-        (ShapeId::new("example.leyline", "Color"), "permissionsOf"),
-        (
-            ShapeId::new("example.leyline", "Color").with_member("READ"),
-            "permissionOnly",
-        ),
-    ] {
+    let id = |name: &str| ShapeId::new("example.leyline", name);
+    let expected = [
+        (id("Org"), "authorizationName"),
+        (id("GetUser"), "requiresNone"),
+        (id("ListOrgs"), "requiresPending"),
+        (id("DeleteOrg"), "requires"),
+        (id("OrgPermission"), "permissionsOf"),
+        (id("OrgPermission").with_member("READ"), "permissionOnly"),
+        (id("OrgPermission").with_member("ADMIN"), "notGrantable"),
+        (id("OrgPermission").with_member("VIEW"), "aliasOf"),
+        (id("ResourceType"), "permissionTypes"),
+    ];
+    let named: BTreeSet<&str> = expected.iter().map(|(_, name)| *name).collect();
+    let all: BTreeSet<&str> = crucible_smithy::PERMISSION_TRAITS.iter().copied().collect();
+    assert_eq!(named, all, "the fixture covers every permission trait");
+    for (shape, name) in &expected {
         assert!(
-            diagnostics.iter().any(|d| d.shape == shape
+            diagnostics.iter().any(|d| &d.shape == shape
+                && d.message == crucible_smithy::permission_trait_refusal(name)
                 && d.message
                     .starts_with(&format!("@crucible.auth#{name} is not supported"))
                 && d.message.contains("declared in .cru models")),
             "missing {name} on {shape}: {diagnostics}"
         );
     }
+    let refusals = diagnostics
+        .iter()
+        .filter(|d| d.message.contains("declared in .cru models"))
+        .count();
+    assert_eq!(refusals, expected.len(), "{diagnostics}");
 }
 
 #[test]

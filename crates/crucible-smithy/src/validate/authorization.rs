@@ -1,14 +1,15 @@
 //! Checks 1-18 of docs/permissions.md §5: what holds of a lowered service's
-//! permissions and requirements, whichever front end built it.
+//! permissions and requirements. Only the `.cru` front end declares them;
+//! the Smithy front end refuses the permission traits at lowering.
 //!
 //! Facts the contract IR does not carry are passed in [`PermissionFacts`]:
 //! each resource's identifier types, which operations are collection
 //! operations, and which input member binds each identifier of an
-//! operation's resource. Every front end knows them while lowering, so the
-//! checks that need them (the binding types of check 10, `filters` on a
-//! collection operation in check 14, and `permissions.other-instance`) run
-//! in the front ends only. [`permissions_from_ir`] runs the rest on an IR
-//! alone and skips those.
+//! operation's resource. `.cru` lowering knows them, so the checks that
+//! need them (the binding types of check 10, `filters` on a collection
+//! operation in check 14, and `permissions.other-instance`) run there only.
+//! [`permissions_from_ir`] runs the rest on an IR alone, such as a release
+//! snapshot, and skips those.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
