@@ -1,0 +1,12 @@
+structure OrganizationData for Organization {
+    $organizationId
+    $name
+}
+
+string OrganizationName { length 1..64 }
+
+/// An organization.
+resource Organization {
+    id organizationId: OrganizationId as id
+    readonly property name: OrganizationName
+}

@@ -1,0 +1,25 @@
+/// Create a graph.
+///
+/// Safe to repeat with the same `clientToken`.
+@operationClass(controlWrite)
+@auditCategory(management)
+@ownRequestLimit
+operation CreateGraph creates Graph {
+    http POST "/v1/organizations/{organizationId}/graphs" -> 201
+    strict input {
+        $organizationId
+        /// What to call it.
+        @auditField
+        $name
+        /// Where it lives.
+        $homeRegion?
+        @token
+        clientToken?: ClientToken
+        sensitive password?: string { length 8..64 }
+        sample?: Sample
+    }
+    output {
+        graph: GraphData
+    }
+    errors [ResourceNotFoundException]
+}

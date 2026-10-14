@@ -1,0 +1,26 @@
+@tier("write")
+operation CreateCity creates City {
+    http POST "/cities" -> 201
+    strict input {
+        @audited
+        name: CityName { length ..40 }
+        location?: Location
+        @token
+        clientToken?: string
+        @header("X-Expected-Revision")
+        expectedRevision?: long
+    }
+    output {
+        city: CitySummary
+    }
+    errors [ConflictError]
+    /// Creates Lisbon with coordinates.
+    example "Create a city" {
+        input { name: "Lisbon", location: { coordinates: { latitude: 38.72, longitude: -9.14 } }, expectedRevision: 7 }
+        output { city: { id: "c-0a1b2c3d", name: "Lisbon", population: 545000, updatedAt: "2026-01-02T03:04:05Z", createdAt: 1767323045 } }
+    }
+    example "Create a duplicate city" {
+        input { name: "Lisbon" }
+        error ConflictError { message: "Lisbon already exists" }
+    }
+}

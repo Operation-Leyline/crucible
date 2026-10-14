@@ -1,0 +1,1100 @@
+{
+  "smithy": "2.0",
+  "shapes": {
+    "com.example#Leyline": {
+      "type": "service",
+      "version": "2026-09-04",
+      "operations": [
+        {
+          "target": "com.example#Ping"
+        },
+        {
+          "target": "com.example#GetUsage"
+        }
+      ],
+      "resources": [
+        {
+          "target": "com.example#Organization"
+        },
+        {
+          "target": "com.example#Graph"
+        }
+      ],
+      "errors": [
+        {
+          "target": "com.example#ValidationException"
+        },
+        {
+          "target": "com.example#ThrottlingException"
+        }
+      ],
+      "traits": {
+        "crucible.protocols#json": {},
+        "smithy.api#httpBearerAuth": {},
+        "smithy.api#title": "Leyline",
+        "smithy.api#paginated": {
+          "inputToken": "nextToken",
+          "outputToken": "nextToken",
+          "pageSize": "maxResults"
+        },
+        "smithy.api#documentation": "A graph database.\n\nOrganizations hold graphs."
+      }
+    },
+    "com.example#Organization": {
+      "type": "resource",
+      "identifiers": {
+        "organizationId": {
+          "target": "com.example#OrganizationId"
+        }
+      },
+      "properties": {
+        "name": {
+          "target": "com.example#OrganizationName"
+        }
+      },
+      "read": {
+        "target": "com.example#GetOrganization"
+      },
+      "traits": {
+        "smithy.api#documentation": "An organization."
+      }
+    },
+    "com.example#Graph": {
+      "type": "resource",
+      "identifiers": {
+        "organizationId": {
+          "target": "com.example#OrganizationId"
+        },
+        "graphId": {
+          "target": "com.example#GraphId"
+        }
+      },
+      "properties": {
+        "name": {
+          "target": "com.example#GraphName"
+        },
+        "createdAt": {
+          "target": "com.example#DateTime"
+        },
+        "homeRegion": {
+          "target": "com.example#Region"
+        }
+      },
+      "create": {
+        "target": "com.example#CreateGraph"
+      },
+      "read": {
+        "target": "com.example#GetGraph"
+      },
+      "list": {
+        "target": "com.example#ListGraphs"
+      },
+      "delete": {
+        "target": "com.example#DeleteGraph"
+      },
+      "operations": [
+        {
+          "target": "com.example#RevertGraph"
+        }
+      ],
+      "collectionOperations": [
+        {
+          "target": "com.example#BatchGetGraph"
+        }
+      ],
+      "traits": {
+        "smithy.api#documentation": "One graph."
+      }
+    },
+    "com.example#Ping": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/ping"
+        },
+        "smithy.api#readonly": {},
+        "smithy.api#auth": [],
+        "com.example#operationClass": "controlRead",
+        "smithy.api#documentation": "Is the service up."
+      },
+      "input": {
+        "target": "smithy.api#Unit"
+      },
+      "output": {
+        "target": "smithy.api#Unit"
+      }
+    },
+    "com.example#GetUsage": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v1/usage"
+        },
+        "smithy.api#readonly": {},
+        "com.example#operationClass": "controlRead",
+        "com.example#auditExcluded": "personal"
+      },
+      "input": {
+        "target": "com.example#GetUsageInput"
+      },
+      "output": {
+        "target": "com.example#GetUsageOutput"
+      },
+      "errors": [
+        {
+          "target": "com.example#ThrottlingException"
+        }
+      ]
+    },
+    "com.example#GetUsageInput": {
+      "type": "structure",
+      "members": {
+        "nextToken": {
+          "target": "com.example#NextToken",
+          "traits": {
+            "smithy.api#httpQuery": "nextToken"
+          }
+        },
+        "maxResults": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpQuery": "maxResults",
+            "smithy.api#range": {
+              "min": 1,
+              "max": 100
+            }
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.example#GetUsageOutput": {
+      "type": "structure",
+      "members": {
+        "days": {
+          "target": "com.example#UsageDays",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "nextToken": {
+          "target": "com.example#NextToken",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#UsageDays": {
+      "type": "list",
+      "member": {
+        "target": "com.example#UsageDay"
+      },
+      "traits": {
+        "smithy.api#length": {
+          "max": 31
+        }
+      }
+    },
+    "com.example#UsageDay": {
+      "type": "structure",
+      "members": {
+        "day": {
+          "target": "com.example#DateTime",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "queries": {
+          "target": "smithy.api#PrimitiveLong",
+          "traits": {}
+        },
+        "tier": {
+          "target": "com.example#Tier",
+          "traits": {
+            "smithy.api#default": "free"
+          }
+        },
+        "priority": {
+          "target": "com.example#Priority",
+          "traits": {}
+        }
+      },
+      "traits": {}
+    },
+    "com.example#Tier": {
+      "type": "enum",
+      "members": {
+        "FREE": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "free"
+          }
+        },
+        "PRO": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "pro",
+            "smithy.api#documentation": "Paid."
+          }
+        },
+        "LEGACY": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "legacy",
+            "smithy.api#deprecated": {
+              "message": "Use pro.",
+              "since": "2026-01"
+            }
+          }
+        }
+      }
+    },
+    "com.example#GetOrganization": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v1/organizations/{organizationId}"
+        },
+        "smithy.api#readonly": {},
+        "com.example#operationClass": "controlRead",
+        "com.example#auditCategory": "metadataRead"
+      },
+      "input": {
+        "target": "com.example#GetOrganizationInput"
+      },
+      "output": {
+        "target": "com.example#GetOrganizationOutput"
+      },
+      "errors": [
+        {
+          "target": "com.example#ResourceNotFoundException"
+        }
+      ]
+    },
+    "com.example#GetOrganizationInput": {
+      "type": "structure",
+      "members": {
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.example#GetOrganizationOutput": {
+      "type": "structure",
+      "members": {
+        "organization": {
+          "target": "com.example#OrganizationData",
+          "traits": {
+            "smithy.api#nestedProperties": {},
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#OrganizationData": {
+      "type": "structure",
+      "members": {
+        "id": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#resourceIdentifier": "organizationId",
+            "smithy.api#required": {}
+          }
+        },
+        "name": {
+          "target": "com.example#OrganizationName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.example#CreateGraph": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/v1/organizations/{organizationId}/graphs",
+          "code": 201
+        },
+        "smithy.api#idempotent": {},
+        "com.example#operationClass": "controlWrite",
+        "com.example#auditCategory": "management",
+        "com.example#ownRequestLimit": {},
+        "smithy.api#documentation": "Create a graph.\n\nSafe to repeat with the same `clientToken`."
+      },
+      "input": {
+        "target": "com.example#CreateGraphInput"
+      },
+      "output": {
+        "target": "com.example#CreateGraphOutput"
+      },
+      "errors": [
+        {
+          "target": "com.example#ResourceNotFoundException"
+        }
+      ]
+    },
+    "com.example#CreateGraphInput": {
+      "type": "structure",
+      "members": {
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "name": {
+          "target": "com.example#GraphName",
+          "traits": {
+            "smithy.api#documentation": "What to call it.",
+            "com.example#auditField": {},
+            "smithy.api#required": {}
+          }
+        },
+        "homeRegion": {
+          "target": "com.example#Region",
+          "traits": {
+            "smithy.api#documentation": "Where it lives."
+          }
+        },
+        "clientToken": {
+          "target": "com.example#ClientToken",
+          "traits": {
+            "smithy.api#idempotencyToken": {},
+            "smithy.api#notProperty": {}
+          }
+        },
+        "password": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#sensitive": {},
+            "smithy.api#notProperty": {},
+            "smithy.api#length": {
+              "min": 8,
+              "max": 64
+            }
+          }
+        },
+        "sample": {
+          "target": "com.example#Sample",
+          "traits": {
+            "smithy.api#notProperty": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {},
+        "crucible.protocols#strict": {}
+      }
+    },
+    "com.example#CreateGraphOutput": {
+      "type": "structure",
+      "members": {
+        "graph": {
+          "target": "com.example#GraphData",
+          "traits": {
+            "smithy.api#nestedProperties": {},
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#GraphData": {
+      "type": "structure",
+      "members": {
+        "id": {
+          "target": "com.example#GraphId",
+          "traits": {
+            "smithy.api#resourceIdentifier": "graphId",
+            "smithy.api#documentation": "Assigned by the service.",
+            "smithy.api#required": {}
+          }
+        },
+        "name": {
+          "target": "com.example#GraphName",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "createdAt": {
+          "target": "com.example#DateTime",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "homeRegion": {
+          "target": "com.example#Region",
+          "traits": {}
+        },
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.example#GraphList": {
+      "type": "list",
+      "member": {
+        "target": "com.example#GraphData"
+      },
+      "traits": {
+        "smithy.api#length": {
+          "max": 100
+        }
+      }
+    },
+    "com.example#Sample": {
+      "type": "union",
+      "members": {
+        "none": {
+          "target": "smithy.api#Unit"
+        },
+        "dataset": {
+          "target": "com.example#DatasetName",
+          "traits": {}
+        }
+      }
+    },
+    "com.example#GetGraph": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v1/organizations/{organizationId}/graphs/{graphId}"
+        },
+        "smithy.api#readonly": {},
+        "com.example#operationClass": "controlRead",
+        "com.example#auditCategory": "metadataRead"
+      },
+      "input": {
+        "target": "com.example#GetGraphInput"
+      },
+      "output": {
+        "target": "com.example#GetGraphOutput"
+      },
+      "errors": [
+        {
+          "target": "com.example#ResourceNotFoundException"
+        }
+      ]
+    },
+    "com.example#GetGraphInput": {
+      "type": "structure",
+      "members": {
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "graphId": {
+          "target": "com.example#GraphId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.example#GetGraphOutput": {
+      "type": "structure",
+      "members": {
+        "graph": {
+          "target": "com.example#GraphData",
+          "traits": {
+            "smithy.api#nestedProperties": {},
+            "smithy.api#required": {}
+          }
+        },
+        "etag": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "ETag"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#ListGraphs": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/v1/organizations/{organizationId}/graphs"
+        },
+        "smithy.api#readonly": {},
+        "smithy.api#paginated": {
+          "items": "graphs"
+        },
+        "com.example#operationClass": "controlRead",
+        "com.example#auditCategory": "metadataRead"
+      },
+      "input": {
+        "target": "com.example#ListGraphsInput"
+      },
+      "output": {
+        "target": "com.example#ListGraphsOutput"
+      }
+    },
+    "com.example#ListGraphsInput": {
+      "type": "structure",
+      "members": {
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "nextToken": {
+          "target": "com.example#NextToken",
+          "traits": {
+            "smithy.api#httpQuery": "nextToken"
+          }
+        },
+        "maxResults": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpQuery": "maxResults",
+            "smithy.api#range": {
+              "min": 1,
+              "max": 100
+            }
+          }
+        },
+        "homeRegion": {
+          "target": "com.example#Region",
+          "traits": {
+            "smithy.api#httpQuery": "region"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.example#ListGraphsOutput": {
+      "type": "structure",
+      "members": {
+        "graphs": {
+          "target": "com.example#GraphList",
+          "traits": {
+            "smithy.api#nestedProperties": {},
+            "smithy.api#required": {}
+          }
+        },
+        "nextToken": {
+          "target": "com.example#NextToken",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#DeleteGraph": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "DELETE",
+          "uri": "/v1/organizations/{organizationId}/graphs/{graphId}",
+          "code": 204
+        },
+        "smithy.api#idempotent": {},
+        "com.example#operationClass": "controlWrite",
+        "com.example#auditCategory": "management",
+        "com.example#permittedWhileSuspended": {}
+      },
+      "input": {
+        "target": "com.example#GetGraphInput"
+      },
+      "output": {
+        "target": "smithy.api#Unit"
+      },
+      "errors": [
+        {
+          "target": "com.example#ResourceNotFoundException"
+        }
+      ]
+    },
+    "com.example#RevertGraph": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/v1/organizations/{organizationId}/graphs/{graphId}/revert"
+        },
+        "com.example#operationClass": "asyncJob",
+        "com.example#auditCategory": "management"
+      },
+      "input": {
+        "target": "com.example#RevertGraphInput"
+      },
+      "output": {
+        "target": "com.example#RevertGraphOutput"
+      },
+      "errors": [
+        {
+          "target": "com.example#ResourceNotFoundException"
+        }
+      ]
+    },
+    "com.example#RevertGraphInput": {
+      "type": "structure",
+      "members": {
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "graphId": {
+          "target": "com.example#GraphId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "to": {
+          "target": "com.example#DateTime",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "dryRun": {
+          "target": "smithy.api#PrimitiveBoolean",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.example#RevertGraphOutput": {
+      "type": "structure",
+      "members": {
+        "jobId": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "attributes": {
+          "target": "com.example#Attributes",
+          "traits": {}
+        },
+        "payload": {
+          "target": "com.example#Blob",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#Attributes": {
+      "type": "map",
+      "key": {
+        "target": "com.example#AttributeName"
+      },
+      "value": {
+        "target": "smithy.api#Document"
+      }
+    },
+    "com.example#Blob": {
+      "type": "blob",
+      "traits": {
+        "smithy.api#length": {
+          "max": 1024
+        },
+        "smithy.api#mediaType": "application/octet-stream"
+      }
+    },
+    "com.example#BatchGetGraph": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/v1/organizations/{organizationId}/graphs:batchGet"
+        },
+        "smithy.api#readonly": {},
+        "com.example#operationClass": "dataPlane",
+        "com.example#auditCategory": "dataAccess"
+      },
+      "input": {
+        "target": "com.example#BatchGetGraphInput"
+      },
+      "output": {
+        "target": "com.example#BatchGetGraphOutput"
+      }
+    },
+    "com.example#BatchGetGraphInput": {
+      "type": "structure",
+      "members": {
+        "organizationId": {
+          "target": "com.example#OrganizationId",
+          "traits": {
+            "smithy.api#httpLabel": {},
+            "smithy.api#required": {}
+          }
+        },
+        "graphIds": {
+          "target": "com.example#GraphIds",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#input": {}
+      }
+    },
+    "com.example#GraphIds": {
+      "type": "list",
+      "member": {
+        "target": "com.example#GraphId"
+      },
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 100
+        },
+        "smithy.api#uniqueItems": {}
+      }
+    },
+    "com.example#BatchGetGraphOutput": {
+      "type": "structure",
+      "members": {
+        "graphs": {
+          "target": "com.example#GraphList",
+          "traits": {
+            "smithy.api#nestedProperties": {},
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#output": {}
+      }
+    },
+    "com.example#OrganizationId": {
+      "type": "string",
+      "traits": {
+        "smithy.api#pattern": "^org_[a-z0-9]{8}$",
+        "smithy.api#length": {
+          "min": 12,
+          "max": 12
+        }
+      }
+    },
+    "com.example#GraphId": {
+      "type": "string",
+      "traits": {
+        "smithy.api#pattern": "^g_[a-z0-9]{8}$"
+      }
+    },
+    "com.example#OrganizationName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 64
+        }
+      }
+    },
+    "com.example#GraphName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 64
+        },
+        "smithy.api#documentation": "What a graph is called."
+      }
+    },
+    "com.example#NextToken": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 2048
+        }
+      }
+    },
+    "com.example#ClientToken": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1,
+          "max": 128
+        }
+      }
+    },
+    "com.example#DatasetName": {
+      "type": "string",
+      "traits": {}
+    },
+    "com.example#AttributeName": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "max": 32
+        }
+      }
+    },
+    "com.example#DateTime": {
+      "type": "timestamp",
+      "traits": {
+        "smithy.api#timestampFormat": "date-time"
+      }
+    },
+    "com.example#Region": {
+      "type": "enum",
+      "members": {
+        "US_EAST_1": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "us-east-1"
+          }
+        },
+        "EU_WEST_1": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "eu-west-1"
+          }
+        }
+      }
+    },
+    "com.example#Priority": {
+      "type": "intEnum",
+      "members": {
+        "LOW": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 1
+          }
+        },
+        "HIGH": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": 2
+          }
+        }
+      }
+    },
+    "com.example#ValidationException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "fieldList": {
+          "target": "com.example#FieldList",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 400
+      }
+    },
+    "com.example#FieldList": {
+      "type": "list",
+      "member": {
+        "target": "com.example#Field"
+      }
+    },
+    "com.example#Field": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        }
+      },
+      "traits": {}
+    },
+    "com.example#ResourceNotFoundException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "resourceId": {
+          "target": "smithy.api#String",
+          "traits": {}
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 404
+      }
+    },
+    "com.example#ThrottlingException": {
+      "type": "structure",
+      "members": {
+        "message": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#required": {}
+          }
+        },
+        "retryAfter": {
+          "target": "smithy.api#Integer",
+          "traits": {
+            "smithy.api#httpHeader": "Retry-After"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#error": "client",
+        "smithy.api#httpError": 429,
+        "smithy.api#retryable": {
+          "throttling": true
+        }
+      }
+    },
+    "com.example#ownRequestLimit": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#trait": {
+          "selector": "operation"
+        },
+        "smithy.api#documentation": "Has a bucket of its own."
+      }
+    },
+    "com.example#permittedWhileSuspended": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#trait": {
+          "selector": "operation"
+        }
+      }
+    },
+    "com.example#auditCategory": {
+      "type": "string",
+      "traits": {
+        "smithy.api#pattern": "^(management|metadataRead|dataAccess)$",
+        "smithy.api#trait": {
+          "selector": "operation",
+          "conflicts": [
+            "com.example#auditExcluded"
+          ]
+        },
+        "smithy.api#documentation": "Audit class."
+      }
+    },
+    "com.example#auditExcluded": {
+      "type": "string",
+      "traits": {
+        "smithy.api#length": {
+          "min": 1
+        },
+        "smithy.api#trait": {
+          "selector": "operation",
+          "conflicts": [
+            "com.example#auditCategory"
+          ]
+        }
+      }
+    },
+    "com.example#auditField": {
+      "type": "structure",
+      "members": {},
+      "traits": {
+        "smithy.api#trait": {
+          "selector": "structure > member",
+          "conflicts": [
+            "smithy.api#sensitive"
+          ]
+        }
+      }
+    },
+    "com.example#operationClass": {
+      "type": "enum",
+      "members": {
+        "controlRead": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "controlRead"
+          }
+        },
+        "controlWrite": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "controlWrite"
+          }
+        },
+        "dataPlane": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "dataPlane"
+          }
+        },
+        "asyncJob": {
+          "target": "smithy.api#Unit",
+          "traits": {
+            "smithy.api#enumValue": "asyncJob"
+          }
+        }
+      },
+      "traits": {
+        "smithy.api#trait": {
+          "selector": "operation"
+        }
+      }
+    },
+    "com.example#Unused": {
+      "type": "string"
+    }
+  }
+}

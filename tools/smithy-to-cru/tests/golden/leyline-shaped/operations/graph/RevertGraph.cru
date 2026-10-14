@@ -1,0 +1,17 @@
+@operationClass(asyncJob)
+@auditCategory(management)
+operation RevertGraph on Graph {
+    http POST "/v1/organizations/{organizationId}/graphs/{graphId}/revert"
+    input {
+        $organizationId
+        $graphId
+        to: DateTime
+        dryRun: boolean = false
+    }
+    output {
+        jobId: string
+        attributes?: Attributes
+        payload?: Blob
+    }
+    errors [ResourceNotFoundException]
+}
