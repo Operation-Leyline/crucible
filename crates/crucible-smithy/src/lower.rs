@@ -29,6 +29,19 @@ fn explicitly_public(traits: &Traits) -> bool {
         .is_some_and(Vec::is_empty)
 }
 
+/// The protocols Crucible no longer serves. Matched by name as well as by
+/// `@protocolDefinition`, because a built model leaves out the prelude.
+const REFUSED_PROTOCOLS: &[(&str, &str)] = &[
+    ("aws.protocols", "restJson1"),
+    ("aws.protocols", "awsJson1_0"),
+    ("aws.protocols", "awsJson1_1"),
+    ("aws.protocols", "restXml"),
+    ("aws.protocols", "awsQuery"),
+    ("aws.protocols", "ec2Query"),
+    ("smithy.protocols", "rpcv2Cbor"),
+    ("smithy.protocols", "rpcv2Json"),
+];
+
 /// The typed permission traits (`crucible.auth#<name>`), which only `.cru`
 /// models declare (docs/permissions.md §4.11). `crucible-traits` no longer
 /// defines them, so a Smithy model that uses one is refused: here at
@@ -65,16 +78,13 @@ pub(crate) fn lower(
     shapes: &BTreeMap<ShapeId, ast::Shape>,
     service_id: &ShapeId,
     capabilities: &Capabilities,
-    selected_protocol: Option<Protocol>,
     infrastructure: bool,
     documentation: bool,
 ) -> Result<Service, Diagnostics> {
     let mut lowerer = Lowerer {
         model: shapes,
         protocol: Protocol::CrucibleJson,
-        service_name: service_id.name().to_owned(),
         default_scopes: Vec::new(),
-        selected_protocol,
         diagnostics: Diagnostics::default(),
         shapes: BTreeMap::new(),
         visiting: BTreeSet::new(),
@@ -94,11 +104,8 @@ pub(crate) fn lower(
 
 pub(crate) struct Lowerer<'m> {
     protocol: Protocol,
-    /// The service's shape name, which RPC v2 request paths carry.
-    service_name: String,
     /// The service's `@crucible.auth#scopes`, which operations inherit.
     default_scopes: Vec<String>,
-    selected_protocol: Option<Protocol>,
     pub(crate) model: &'m BTreeMap<ShapeId, ast::Shape>,
     pub(crate) diagnostics: Diagnostics,
     pub(crate) shapes: BTreeMap<ShapeId, Shape>,
@@ -118,41 +125,12 @@ impl<'m> Lowerer<'m> {
     pub(crate) fn reached_ids(&self) -> impl Iterator<Item = ShapeId> + '_ {
         self.shapes.keys().cloned()
     }
-    pub(crate) fn protocol_uses_http_bindings(&self) -> bool {
-        self.protocol.uses_http_bindings()
-    }
-    pub(crate) fn protocol(&self) -> Protocol {
-        self.protocol
-    }
-    /// `@timestampFormat`, unless the protocol fixes every timestamp's format.
     fn explicit_timestamp_format(&self, traits: &Traits) -> Option<TimestampFormat> {
-        if self.protocol.respects_timestamp_format() {
-            timestamp_format(traits)
-        } else {
-            None
-        }
+        timestamp_format(traits)
     }
     fn service(&mut self, id: &ShapeId, infrastructure: bool, documentation: bool) -> Service {
         let shape = &self.model[id];
         self.check_protocol(id, shape);
-        if self.protocol.is_rpc_v2() {
-            // RPC v2 errors are identified by their absolute shape ID, so they cannot be renamed.
-            for renamed in shape.rename.keys() {
-                if self
-                    .model
-                    .get(renamed)
-                    .is_some_and(|target| target.traits.contains_key(&smithy("error")))
-                {
-                    self.diagnostics.push(
-                        id,
-                        format!(
-                            "@{} services cannot rename error shape {renamed}",
-                            self.protocol.trait_id()
-                        ),
-                    );
-                }
-            }
-        }
         self.check_traits(id, &shape.traits);
         let auth = self.auth(id, shape);
         let auth_schemes = self.auth_configs(id, shape, &auth);
@@ -249,20 +227,6 @@ impl<'m> Lowerer<'m> {
         let endpoint_discovery = self.discovery(id, shape, &mut operations);
         let reached: Vec<_> = self.reached_ids().collect();
         let recursive_groups = crate::recursion::lower(self.model, &reached);
-        let xml_shapes =
-            crate::xml::lower(self.model, &reached, self.protocol, &mut self.diagnostics);
-        let xml_namespace = if matches!(
-            self.protocol,
-            Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query
-        ) {
-            crate::xml::namespace(id, &shape.traits, &mut self.diagnostics)
-        } else {
-            None
-        };
-        if self.protocol == Protocol::AwsQuery && xml_namespace.is_none() {
-            self.diagnostics
-                .push(id, "awsQuery requires service @xmlNamespace");
-        }
         let mut waiter_names = BTreeSet::new();
         for operation in &operations {
             for name in operation.waiters.keys() {
@@ -272,13 +236,10 @@ impl<'m> Lowerer<'m> {
             }
         }
         self.check_stream_references(&operations);
-        let protocol_tests =
-            crate::protocol_tests::lower(self.model, &operations, &mut self.diagnostics);
         let cors = shape.traits.get(&smithy("cors")).and_then(|value| {
             crate::cors::lower(
                 id,
                 value,
-                self.protocol,
                 &operations,
                 &self.shapes,
                 &auth_schemes,
@@ -290,18 +251,7 @@ impl<'m> Lowerer<'m> {
             internal: shape.traits.contains_key(&smithy("internal")),
             endpoint_discovery,
             recursive_groups,
-            xml_namespace,
-            xml_shapes,
             protocol: self.protocol,
-            protocols: {
-                let mut protocols: Vec<_> = Protocol::ALL
-                    .iter()
-                    .copied()
-                    .filter(|p| shape.traits.contains_key(&p.trait_id()))
-                    .collect();
-                protocols.sort_by_key(|p| p.trait_id());
-                protocols
-            },
             errors: service_errors,
             protocol_settings: self.protocol_settings(id, shape),
             requirements: std::mem::take(&mut self.requirements).into_iter().collect(),
@@ -314,7 +264,6 @@ impl<'m> Lowerer<'m> {
             scopes: std::mem::take(&mut self.default_scopes),
             auth_schemes,
             endpoint_rules,
-            protocol_tests,
             operations,
             resources,
             resource_roots,
@@ -343,74 +292,29 @@ impl<'m> Lowerer<'m> {
         service
     }
 
+    /// Crucible's JSON protocol is the only wire protocol. A model that
+    /// declares any other is refused rather than lowered as if it used JSON.
     fn check_protocol(&mut self, id: &ShapeId, shape: &ast::Shape) {
-        let declared: Vec<_> = Protocol::ALL
-            .iter()
-            .copied()
-            .filter(|protocol| shape.traits.contains_key(&protocol.trait_id()))
-            .collect();
-        let protocol = match self.selected_protocol {
-            Some(protocol) if declared.contains(&protocol) => protocol,
-            Some(protocol) => {
-                self.diagnostics.push(
-                    id,
-                    format!(
-                        "selected protocol @{} is not declared by the service",
-                        protocol.trait_id()
-                    ),
-                );
-                return;
+        let mut declared_json = false;
+        for trait_id in shape.traits.keys() {
+            if *trait_id == Protocol::CrucibleJson.trait_id() {
+                declared_json = true;
+            } else if REFUSED_PROTOCOLS.contains(&(trait_id.namespace(), trait_id.name()))
+                || self.is_definition(trait_id, "protocolDefinition")
+            {
+                self.diagnostics
+                    .push(id, format!("protocol {trait_id} is not supported; the service must use @crucible.protocols#json"));
             }
-            None if declared.contains(&Protocol::CrucibleJson) => Protocol::CrucibleJson,
-            None => match declared.as_slice() {
-                [only] => *only,
-                [] => {
-                    self.diagnostics.push(id, "the service must use the @crucible.protocols#json protocol or explicitly supported AWS protocol");
-                    return;
-                }
-                _ => {
-                    self.diagnostics.push(
-                        id,
-                        "the service declares several protocols; explicitly select a protocol",
-                    );
-                    return;
-                }
-            },
-        };
-        self.protocol = protocol;
-        if let Some(feature) = protocol.feature() {
-            self.require(id, feature, protocol.trait_id());
         }
+        if !declared_json {
+            self.diagnostics
+                .push(id, "the service must use the @crucible.protocols#json protocol");
+        }
+        self.protocol = Protocol::CrucibleJson;
     }
 
     fn protocol_settings(&mut self, id: &ShapeId, shape: &ast::Shape) -> crate::ProtocolSettings {
         let mut settings = crate::ProtocolSettings::default();
-        if matches!(
-            self.protocol,
-            Protocol::AwsRestJson1
-                | Protocol::AwsJson10
-                | Protocol::AwsJson11
-                | Protocol::SmithyRpcV2Json
-        ) {
-            settings.omit_null_structure_members = true;
-            settings.ignore_unknown_union_type = true;
-            settings.non_finite_float_strings = true;
-        }
-        if self.protocol == Protocol::SmithyRpcV2Json {
-            settings.arbitrary_precision_strings = true;
-        }
-        if self.protocol == Protocol::SmithyRpcV2Cbor {
-            // CBOR carries non-finite floats natively, so only null handling applies.
-            settings.omit_null_structure_members = true;
-            settings.ignore_unknown_union_type = true;
-        }
-        if matches!(
-            self.protocol,
-            Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query
-        ) {
-            // XML text and query values spell non-finite floats NaN, Infinity, -Infinity.
-            settings.non_finite_float_strings = true;
-        }
         let trait_id = self.protocol.trait_id();
         let Some(value) = shape.traits.get(&trait_id) else {
             return settings;
@@ -437,13 +341,6 @@ impl<'m> Lowerer<'m> {
                         }
                     } else {
                         self.diagnostics.push(id,format!("@{trait_id}.{key} must be a nonempty array of ALPN protocol strings"));
-                    }
-                }
-                "noErrorWrapping" if self.protocol == Protocol::AwsRestXml => {
-                    if let Some(enabled) = value.as_bool() {
-                        settings.no_error_wrapping = enabled;
-                    } else {
-                        self.diagnostics.push(id, "noErrorWrapping must be boolean");
                     }
                 }
                 _ => self
@@ -571,7 +468,7 @@ impl<'m> Lowerer<'m> {
             None if auth.is_empty() => Vec::new(),
             None => self.default_scopes.clone(),
         };
-        let (method, uri, status) = if self.protocol.uses_http_bindings() {
+        let (method, uri, status) = {
             let Some(http) = shape.traits.get(&smithy("http")) else {
                 self.diagnostics.push(id, "operation has no @http trait");
                 return None;
@@ -598,12 +495,6 @@ impl<'m> Lowerer<'m> {
                 self.uri(id, http["uri"].as_str().unwrap_or_default()),
                 http.get("code").and_then(Value::as_u64).unwrap_or(200),
             )
-        } else if self.protocol.is_rpc_v2() {
-            // Shape names, never namespaces or renames, identify the operation.
-            let path = format!("/service/{}/operation/{}", self.service_name, id.name());
-            ("POST".to_owned(), self.uri(id, &path), 200)
-        } else {
-            ("POST".to_owned(), self.uri(id, "/"), 200)
         };
 
         let input = self.io(id, shape.input.as_ref());
@@ -622,7 +513,7 @@ impl<'m> Lowerer<'m> {
         if let Some(output) = &output {
             self.event_stream_binding(output, &mut response);
         }
-        let mut protocol_headers = self.protocol.request_headers(&self.service_name, id.name());
+        let mut protocol_headers = BTreeMap::new();
         if let Some(payload) = &request.payload {
             protocol_headers.insert("Content-Type".into(), payload.media_type.clone());
         } else if request.event_stream.is_some() {
@@ -630,15 +521,8 @@ impl<'m> Lowerer<'m> {
                 "Content-Type".into(),
                 "application/vnd.amazon.eventstream".into(),
             );
-        } else if self.protocol.uses_http_bindings() && !request.body.is_empty() {
-            protocol_headers.insert(
-                "Content-Type".into(),
-                if self.protocol == Protocol::AwsRestXml {
-                    "application/xml".into()
-                } else {
-                    "application/json".into()
-                },
-            );
+        } else if !request.body.is_empty() {
+            protocol_headers.insert("Content-Type".into(), "application/json".into());
         }
         if request
             .headers
@@ -688,33 +572,16 @@ impl<'m> Lowerer<'m> {
             && shape
                 .traits
                 .contains_key(&ShapeId::new("aws.auth", "unsignedPayload"));
-        let unwrapped_xml_output = shape
-            .traits
-            .contains_key(&ShapeId::new("aws.customizations", "s3UnwrappedXmlOutput"));
-        if unwrapped_xml_output
-            && (self.protocol != Protocol::AwsRestXml
-                || response.body.len() != 1
-                || output
-                    .as_ref()
-                    .is_none_or(|output| self.model[output].members.len() != 1))
-        {
-            self.diagnostics.push(
-                id,
-                "@s3UnwrappedXmlOutput requires restXml and an output with exactly one body member",
-            );
-        }
         Some(Operation {
             protocol_headers,
             response_protocol_headers: self.protocol.response_headers(
                 &response,
                 output.is_some()
-                    && (!self.protocol.uses_http_bindings()
-                        || !response.body.is_empty()
+                    && (!response.body.is_empty()
                         || response.payload.is_some()
                         || response.event_stream.is_some()),
             ),
             internal: shape.traits.contains_key(&smithy("internal")),
-            unwrapped_xml_output,
             unsigned_payload,
             discovered_endpoint: None,
             checksum: self.checksum(id, shape, input.as_ref()),
@@ -829,12 +696,6 @@ impl<'m> Lowerer<'m> {
     }
 
     fn request_bindings(&mut self, operation: &ShapeId, input: &ShapeId, uri: &Uri) -> Bindings {
-        if !self.protocol.uses_http_bindings() {
-            return Bindings {
-                body: self.model[input].members.keys().cloned().collect(),
-                ..Bindings::default()
-            };
-        }
         let mut bindings = Bindings::default();
         let mut seen_payload = false;
         for (name, member) in &self.model[input].members {
@@ -912,12 +773,6 @@ impl<'m> Lowerer<'m> {
     }
 
     fn response_bindings(&mut self, output: &ShapeId) -> Bindings {
-        if !self.protocol.uses_http_bindings() {
-            return Bindings {
-                body: self.model[output].members.keys().cloned().collect(),
-                ..Bindings::default()
-            };
-        }
         let mut bindings = Bindings::default();
         let mut seen_payload = false;
         for (name, member) in &self.model[output].members {
@@ -1015,7 +870,6 @@ impl<'m> Lowerer<'m> {
                 PayloadKind::Blob => "application/octet-stream",
                 PayloadKind::String => "text/plain",
                 PayloadKind::EventStream => "application/vnd.amazon.eventstream",
-                _ if self.protocol == Protocol::AwsRestXml => "application/xml",
                 _ => "application/json",
             }
             .to_owned()
@@ -1095,13 +949,7 @@ impl<'m> Lowerer<'m> {
                 .explicit_timestamp_format(&member.traits)
                 .or_else(|| self.explicit_timestamp_format(&target.traits));
             let document = explicit.unwrap_or_else(|| self.protocol.timestamp_format(false));
-            let binding = explicit.unwrap_or_else(|| {
-                if header {
-                    self.protocol.timestamp_format(true)
-                } else {
-                    TimestampFormat::DateTime
-                }
-            });
+            let binding = explicit.unwrap_or_else(|| self.protocol.timestamp_format(header));
             if binding != document {
                 bindings.timestamp_formats.insert(name.clone(), binding);
             }
@@ -1219,21 +1067,6 @@ impl<'m> Lowerer<'m> {
         })
     }
 
-    /// XML has no null element, so a sparse entry could not round-trip.
-    fn check_xml_sparse(&mut self, id: &ShapeId, sparse: bool) {
-        if sparse
-            && matches!(
-                self.protocol,
-                Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query
-            )
-        {
-            self.diagnostics.push(
-                id,
-                "@sparse collections are not supported by the selected XML protocol",
-            );
-        }
-    }
-
     /// Typed permissions are a `.cru` feature: a Smithy model that uses one
     /// of their traits is refused rather than lowered as if it had none.
     fn refuse_permission_traits(&mut self) {
@@ -1306,10 +1139,9 @@ impl<'m> Lowerer<'m> {
                 self.require(id, feature, smithy(name));
             }
         }
-        if self.protocol.uses_http_bindings()
-            && traits
-                .get(&smithy("httpPrefixHeaders"))
-                .is_some_and(|v| !v.is_string())
+        if traits
+            .get(&smithy("httpPrefixHeaders"))
+            .is_some_and(|v| !v.is_string())
         {
             self.diagnostics
                 .push(id, "@httpPrefixHeaders must be a string");
@@ -1317,12 +1149,6 @@ impl<'m> Lowerer<'m> {
         if traits.contains_key(&smithy("requestCompression")) {
             self.diagnostics
                 .push(id, "@requestCompression is not supported");
-        }
-        if self.protocol == Protocol::AwsJson10
-            && traits.contains_key(&ShapeId::new("aws.protocols", "awsQueryCompatible"))
-        {
-            self.diagnostics
-                .push(id, "@aws.protocols#awsQueryCompatible is not supported");
         }
         // Behavior traits outside smithy.api must not silently disappear into raw traits.
         {
@@ -1561,21 +1387,6 @@ impl<'m> Lowerer<'m> {
             }
             Kind::Timestamp => simple(SimpleKind::Timestamp),
             Kind::Document => {
-                if matches!(
-                    self.protocol,
-                    Protocol::AwsRestXml | Protocol::AwsQuery | Protocol::Ec2Query
-                ) {
-                    self.diagnostics.push(
-                        id,
-                        "document shapes are not supported by the selected XML protocol",
-                    );
-                }
-                if self.protocol == Protocol::SmithyRpcV2Cbor {
-                    self.diagnostics.push(
-                        id,
-                        "document shapes are not supported by smithy.protocols#rpcv2Cbor",
-                    );
-                }
                 simple(SimpleKind::Document)
             }
             Kind::Blob => simple(SimpleKind::Blob),
@@ -1651,7 +1462,6 @@ impl<'m> Lowerer<'m> {
                 if is_set && sparse {
                     self.diagnostics.push(id, "a set cannot be sparse");
                 }
-                self.check_xml_sparse(id, sparse);
                 let member = self.collection_member(id, "member", shape.member.as_ref(), sparse)?;
                 let mut constraints = constraints(&shape.traits);
                 constraints.unique_items |= is_set;
@@ -1669,7 +1479,6 @@ impl<'m> Lowerer<'m> {
             }
             Kind::Map => {
                 let sparse = shape.traits.contains_key(&smithy("sparse"));
-                self.check_xml_sparse(id, sparse);
                 let key = self.collection_member(id, "key", shape.key.as_ref(), false)?;
                 let value = self.collection_member(id, "value", shape.value.as_ref(), sparse)?;
                 Shape::Map(Map {
@@ -1764,16 +1573,15 @@ impl<'m> Lowerer<'m> {
         in_input: bool,
     ) -> Member {
         self.check_traits(member_id, &member.traits);
-        if self.protocol.uses_json_names()
-            && member
-                .traits
-                .get(&smithy("jsonName"))
-                .is_some_and(|value| !value.is_string())
+        if member
+            .traits
+            .get(&smithy("jsonName"))
+            .is_some_and(|value| !value.is_string())
         {
             self.diagnostics
                 .push(member_id, "@jsonName must be a string");
         }
-        if self.protocol.uses_json_names() && member.traits.contains_key(&smithy("jsonName")) {
+        if member.traits.contains_key(&smithy("jsonName")) {
             self.require(member_id, Feature::JsonName, smithy("jsonName"));
         }
         self.visit(&member.target);
@@ -1838,28 +1646,14 @@ impl<'m> Lowerer<'m> {
                 converted
             })
         } else {
-            if self.protocol == Protocol::SmithyRpcV2Json
-                && self.model.get(&member.target).is_some_and(|target| {
-                    matches!(target.kind, Kind::BigInteger | Kind::BigDecimal)
-                })
-            {
-                default
-                    .as_ref()
-                    .map(|value| Value::String(value.to_string()))
-            } else {
-                default.clone()
-            }
+            default.clone()
         };
         Member {
             internal: member.traits.contains_key(&smithy("internal")),
             sensitive: member.traits.contains_key(&smithy("sensitive")),
             event_binding: self.event_binding(member_id, member),
             name: name.to_owned(),
-            wire_name: if self.protocol.uses_json_names() {
-                string_trait(&member.traits, "jsonName").unwrap_or_else(|| name.to_owned())
-            } else {
-                name.to_owned()
-            },
+            wire_name: string_trait(&member.traits, "jsonName").unwrap_or_else(|| name.to_owned()),
             target: member.target.clone(),
             required: member.traits.contains_key(&smithy("required")),
             default,
@@ -1906,42 +1700,13 @@ impl<'m> Lowerer<'m> {
             Fault::Client => 400,
             Fault::Server => 500,
         };
-        let query_error = if self.protocol == Protocol::AwsQuery {
-            shape
-                .traits
-                .get(&ShapeId::new("aws.protocols", "awsQueryError"))
-        } else {
-            None
-        };
-        let status = if let Some(value) = query_error {
-            value.get("httpResponseCode").and_then(Value::as_u64)
-        } else if self.protocol.uses_http_bindings() || self.protocol.is_rpc_v2() {
-            shape
-                .traits
-                .get(&smithy("httpError"))
-                .and_then(Value::as_u64)
-        } else {
-            None
-        }
-        .and_then(|value| u16::try_from(value).ok())
-        .unwrap_or(default_status);
-        let wire_code = query_error
-            .and_then(|value| value.get("code"))
-            .and_then(Value::as_str)
-            .unwrap_or(id.name())
-            .to_owned();
-        if query_error.is_some_and(|value| {
-            value.get("code").and_then(Value::as_str).is_none()
-                || value
-                    .get("httpResponseCode")
-                    .and_then(Value::as_u64)
-                    .is_none_or(|code| !(100..=599).contains(&code))
-        }) {
-            self.diagnostics.push(
-                id,
-                "@awsQueryError requires code:string and httpResponseCode:HTTP status",
-            );
-        }
+        let status = shape
+            .traits
+            .get(&smithy("httpError"))
+            .and_then(Value::as_u64)
+            .and_then(|value| u16::try_from(value).ok())
+            .unwrap_or(default_status);
+        let wire_code = id.name().to_owned();
         let retryable = shape
             .traits
             .get(&smithy("retryable"))
@@ -1952,32 +1717,18 @@ impl<'m> Lowerer<'m> {
                     .unwrap_or(false),
             });
         for (name, member) in &shape.members {
-            if self.protocol.uses_http_bindings()
-                && member.traits.contains_key(&smithy("httpPayload"))
-            {
+            if member.traits.contains_key(&smithy("httpPayload")) {
                 self.require(
                     &id.with_member(name),
                     Feature::ErrorPayload,
                     smithy("httpPayload"),
                 );
-                if self.protocol == Protocol::AwsRestXml {
-                    self.diagnostics.push(
-                        &id.with_member(name),
-                        "raw error payloads are not supported by the selected XML error envelope",
-                    );
-                }
             }
         }
         let bindings = self.response_bindings(id);
         Some(ErrorInfo {
             protocol_headers: self.protocol.response_headers(&bindings, true),
-            body_discriminator: match self.protocol {
-                Protocol::CrucibleJson | Protocol::AwsJson11 => Some(wire_code.clone()),
-                Protocol::AwsJson10 | Protocol::SmithyRpcV2Json | Protocol::SmithyRpcV2Cbor => {
-                    Some(id.to_string())
-                }
-                _ => None,
-            },
+            body_discriminator: Some(wire_code.clone()),
             discriminator_header: self.protocol.error_header().map(str::to_owned),
             timestamp_formats: bindings.timestamp_formats,
             wire_code,

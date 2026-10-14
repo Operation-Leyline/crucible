@@ -253,7 +253,6 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
             "bearer":op.auth.iter().any(|id|service.is_bearer(id))});
         if !op.uri.greedy_labels.is_empty() { value["greedyLabels"] = json!(op.uri.greedy_labels); }
         if op.unsigned_payload {value["unsignedPayload"] = json!(true);}
-        if op.unwrapped_xml_output {value["unwrappedXmlOutput"] = json!(true);}
         if let Some(discovery) = &op.discovered_endpoint { value["discoveredEndpoint"] = json!(discovery); }
         if let Some(checksum) = &op.checksum {value["checksum"] = json!(checksum);}
         if op.optional_auth { value["optionalAuth"] = json!(true); }
@@ -288,27 +287,14 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     {
         value["permissions"] = permissions;
     }
-    if service.protocol != crucible_smithy::Protocol::CrucibleJson {
-        value["protocol"] = json!(service.protocol);
-        value["protocolSettings"] = json!(service.protocol_settings);
-    }
     if let Some(discovery) = &service.endpoint_discovery {
         value["endpointDiscovery"] = json!(discovery);
-    }
-    if let Some(namespace) = &service.xml_namespace {
-        value["xmlNamespace"] = json!(namespace);
-    }
-    if !service.xml_shapes.is_empty() {
-        value["xmlShapes"] = json!(service.xml_shapes);
     }
     if !service.recursive_groups.is_empty() {
         value["recursiveGroups"] = json!(service.recursive_groups);
     }
     if let Some(rules) = &service.endpoint_rules {
         value["endpointRules"] = json!(rules);
-    }
-    if !service.protocol_tests.is_empty() {
-        value["protocolTests"] = json!(service.protocol_tests);
     }
     value
 }

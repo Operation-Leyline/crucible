@@ -249,11 +249,6 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     for references in result.resource_references.values_mut() {
         references.retain(|r| !r.resolved || resources.contains(&r.resource));
     }
-    result.xml_shapes.retain(|id, _| reached.contains(id));
-    for (id, xml) in &mut result.xml_shapes {
-        xml.members
-            .retain(|name, _| member_exists(&result.shapes, Some(id), name));
-    }
     result.recursive_groups.retain_mut(|group| {
         group.shapes.retain(|id| reached.contains(id));
         group.members.retain(|id| {
@@ -276,7 +271,6 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
                 .member()
                 .is_none_or(|name| member_exists(&result.shapes, Some(&root), name))
     });
-    crate::audience_protocol_tests::retain(service, &mut result);
     result.endpoint_discovery = result
         .endpoint_discovery
         .take()
@@ -360,12 +354,6 @@ const EXTERNAL_RAW_TRAITS: &[&str] = &[
     "smithy.api#uniqueItems",
     "smithy.api#unitType",
     "smithy.api#unstable",
-    "smithy.api#xmlAttribute",
-    "smithy.api#xmlFlattened",
-    "smithy.api#xmlName",
-    "smithy.api#xmlNamespace",
-    "smithy.protocols#rpcv2Cbor",
-    "smithy.protocols#rpcv2Json",
     "smithy.rules#clientContextParams",
     "smithy.rules#contextParam",
     "smithy.rules#endpointRuleSet",
@@ -373,12 +361,7 @@ const EXTERNAL_RAW_TRAITS: &[&str] = &[
     "aws.api#service",
     "aws.auth#sigv4",
     "aws.auth#unsignedPayload",
-    "aws.protocols#awsJson1_0",
-    "aws.protocols#awsJson1_1",
-    "aws.protocols#awsQueryError",
     "aws.protocols#httpChecksum",
-    "aws.protocols#restJson1",
-    "aws.protocols#restXml",
     "crucible.auth#scopes",
     "crucible.protocols#json",
     "crucible.protocols#strict",

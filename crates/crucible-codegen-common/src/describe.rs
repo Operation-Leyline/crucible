@@ -8,7 +8,7 @@ use crucible_smithy::ir::{
     Binding, Bindings, Constraints, DocNotes, ErrorInfo, Fault, Member, Operation, Service, Shape,
     SimpleKind, TimestampFormat,
 };
-use crucible_smithy::{Diagnostics, Protocol, ShapeId};
+use crucible_smithy::{Diagnostics, ShapeId};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -206,30 +206,8 @@ pub fn describe_for_explorer(service: &Service) -> Result<Description, Diagnosti
     describe_inner(service, true)
 }
 
-fn json_protocol(protocol: Protocol) -> bool {
-    matches!(
-        protocol,
-        Protocol::CrucibleJson
-            | Protocol::AwsRestJson1
-            | Protocol::AwsJson10
-            | Protocol::AwsJson11
-            | Protocol::SmithyRpcV2Json
-    )
-}
-
 fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diagnostics> {
     let mut diagnostics = Diagnostics::default();
-    if !explorer
-        && matches!(
-            service.protocol,
-            Protocol::AwsRestXml
-                | Protocol::AwsQuery
-                | Protocol::Ec2Query
-                | Protocol::SmithyRpcV2Cbor
-        )
-    {
-        diagnostics.push(&service.id, "describe.protocol: API reference wire rendering currently supports JSON protocols only");
-    }
     for (id, shape) in &service.shapes {
         for m in shape.members() {
             if service.shape(&m.target).is_none() {
@@ -298,8 +276,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
             let mut value = operation(service, op, explorer);
             if explorer {
                 value["callable"] = json!(
-                    json_protocol(service.protocol)
-                        && op.request.event_stream.is_none()
+                    op.request.event_stream.is_none()
                         && op.response.event_stream.is_none()
                         && !op.request.payload.as_ref().is_some_and(|p| p.streaming)
                         && !op.response.payload.as_ref().is_some_and(|p| p.streaming)
@@ -318,9 +295,8 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         service: json!({"id":service.id.to_string(),"name":service.name_of(&service.id),
             "title":service.title.as_deref().unwrap_or_else(||service.id.name()),"version":service.version,
             "internal":service.internal,"documentation":documentation(service.docs.as_deref()),"notes":notes(&service.notes),
-            "protocol":service.protocol,"protocols":service.protocols.iter().map(|p|p.trait_id().to_string()).collect::<Vec<_>>(),
-            "protocolSettings":service.protocol_settings,
-            "auth":service.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),"scopes":service.scopes,
+            "protocol":service.protocol,
+                        "auth":service.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),"scopes":service.scopes,
             "authSchemes":service.auth_schemes.iter().map(|(id,s)|(id.to_string(),s)).collect::<BTreeMap<_,_>>(),
             "errors":service.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
             "resourceRoots":service.resource_roots.iter().map(ToString::to_string).collect::<Vec<_>>()}),
@@ -383,13 +359,13 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         "pagination":op.paginated.as_ref().map(|p|json!({"inputToken":p.input_token,"outputToken":p.output_token,"items":p.items,"pageSize":p.page_size})),
         "examples":op.examples.iter().map(|e|json!({"title":e.title,"documentation":documentation(e.docs.as_deref()),
             "allowConstraintErrors":e.allow_constraint_errors,
-        "input":e.input.as_ref().filter(|_| json_protocol(service.protocol) && op.request.event_stream.is_none() && !op.request.payload.as_ref().is_some_and(|p|p.streaming)).map(|v|request_example(service,op,v)),
-        "output":e.output.as_ref().filter(|_|json_protocol(service.protocol) && op.response.event_stream.is_none() && !op.response.payload.as_ref().is_some_and(|p|p.streaming)).map(|v| {
+        "input":e.input.as_ref().filter(|_| op.request.event_stream.is_none() && !op.request.payload.as_ref().is_some_and(|p|p.streaming)).map(|v|request_example(service,op,v)),
+        "output":e.output.as_ref().filter(|_|op.response.event_stream.is_none() && !op.response.payload.as_ref().is_some_and(|p|p.streaming)).map(|v| {
                 let mut message=wire_message(service,op.output.as_ref(),&op.response,v);
                 merge_headers(&mut message,&op.response_protocol_headers);
                 message
             }),
-        "error":e.error.as_ref().filter(|_|json_protocol(service.protocol)).map(|e| {
+        "error":e.error.as_ref().map(|e| {
                 let Shape::Structure(s)=service.shape(&e.shape).expect("example error") else { unreachable!("lowered error") };
                 let info=s.error.as_ref().expect("error info");
                 let mut message=wire_message(service,Some(&e.shape),&error_bindings(service,&e.shape,info),&e.content);
@@ -488,7 +464,6 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
         };
         let wire = service.wire_example(m, value, b.timestamp_formats.get(&m.name).copied());
         if b.body.contains(&m.name)
-            && !(wire.is_null() && service.protocol_settings.omit_null_structure_members)
         {
             body.insert(m.wire_name.clone(), wire.clone());
         }
@@ -541,7 +516,7 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
         }
     }
     json!({"labels":labels,"query":query,"headers":headers,"body":if b.payload.is_some() || id.is_none()
-        || (service.protocol.uses_http_bindings() && b.body.is_empty()) {Value::Null} else {Value::Object(body)},
+        || b.body.is_empty() {Value::Null} else {Value::Object(body)},
         "payload":payload,"responseCode":response_code})
 }
 

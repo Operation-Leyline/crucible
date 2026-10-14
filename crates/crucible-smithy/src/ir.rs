@@ -14,12 +14,7 @@ pub use crate::discovery::{DiscoveredEndpoint, EndpointDiscovery};
 pub use crate::doc_notes::{Deprecation, DocNotes};
 pub use crate::extensions::*;
 pub use crate::jmespath_ir::{JmesComparator, JmesEntry, JmesExpression, JmesFunction};
-pub use crate::protocol_tests::{
-    HttpMessageExpectation, HttpProtocolTest, HttpTestCase, MalformedBodyAssertion,
-    MalformedRequestDefinition, MalformedResponseBody, MalformedResponseDefinition, TestAppliesTo,
-};
 pub use crate::recursion::{RecursiveGroup, groups as recursive_groups};
-pub use crate::xml::{XmlMember, XmlNamespace, XmlShape};
 pub use crate::{Protocol, ProtocolSettings};
 pub use serde_json::{Number, Value};
 
@@ -40,11 +35,7 @@ pub struct Service {
     pub internal: bool,
     pub endpoint_discovery: Option<EndpointDiscovery>,
     pub recursive_groups: Vec<RecursiveGroup>,
-    pub xml_namespace: Option<XmlNamespace>,
-    pub xml_shapes: BTreeMap<ShapeId, XmlShape>,
     pub protocol: Protocol,
-    /// Declared supported protocols, sorted by trait ID; bindings use `protocol`.
-    pub protocols: Vec<Protocol>,
     /// Errors declared on the service, independently of operation inheritance.
     pub errors: Vec<ShapeId>,
     pub protocol_settings: ProtocolSettings,
@@ -62,7 +53,6 @@ pub struct Service {
     pub scopes: Vec<String>,
     pub auth_schemes: BTreeMap<ShapeId, AuthScheme>,
     pub endpoint_rules: Option<EndpointRuleSet>,
-    pub protocol_tests: Vec<HttpProtocolTest>,
     /// Sorted by name, so output does not depend on model file order.
     pub operations: Vec<Operation>,
     /// Resources bound to this service, including nested resources. Populated
@@ -789,8 +779,6 @@ pub struct Operation {
     pub response_protocol_headers: BTreeMap<String, String>,
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
-    /// The sole output member is the restXml root rather than its child.
-    pub unwrapped_xml_output: bool,
     pub unsigned_payload: bool,
     pub discovered_endpoint: Option<DiscoveredEndpoint>,
     pub checksum: Option<Checksum>,

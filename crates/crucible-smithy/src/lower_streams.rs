@@ -18,16 +18,6 @@ impl Lowerer<'_> {
                 Feature::Streaming
             };
             self.require(id, feature, trait_id("streaming"));
-            if self.protocol().is_rpc_v2() && shape.kind != Kind::Union {
-                // RPC v2 defines event streams, but no raw streaming blob representation.
-                self.diagnostics.push(
-                    id,
-                    format!(
-                        "@streaming is not supported with @{}",
-                        self.protocol().trait_id()
-                    ),
-                );
-            }
             if !matches!(shape.kind, Kind::Blob | Kind::Union) {
                 self.diagnostics
                     .push(id, "@streaming must target a blob or union");
@@ -151,7 +141,6 @@ impl Lowerer<'_> {
         bindings.event_stream = Some(EventStreamBinding {
             member: name,
             target,
-            initial_message: !self.protocol_uses_http_bindings(),
         });
     }
 
@@ -230,9 +219,7 @@ impl Lowerer<'_> {
                         "@requiresLength can only be used in operation input",
                     );
                 }
-                if self.protocol_uses_http_bindings()
-                    && !member.traits.contains_key(&trait_id("httpPayload"))
-                {
+                if !member.traits.contains_key(&trait_id("httpPayload")) {
                     self.diagnostics.push(
                         &member_id,
                         "streaming members must bind @httpPayload for this protocol",
