@@ -196,6 +196,10 @@ pub fn context(parsed: &Parsed, text: &str, offset: usize) -> Context {
             {
                 return Context::Types;
             }
+            // `structure V for A, B`: more resources, before the body opens.
+            (TokenKind::Comma, _) if in_view_resources(&before, text) => {
+                return Context::Resources;
+            }
             _ => {}
         }
         if before.len() >= 2
@@ -282,6 +286,24 @@ fn line_start(before: &[&Token], index: usize, text: &str) -> usize {
         start -= 1;
     }
     start
+}
+
+/// Whether the cursor follows a comma in the `for` list of a structure head,
+/// not yet inside its body. The list may continue over several lines.
+fn in_view_resources(before: &[&Token], text: &str) -> bool {
+    let mut saw_for = false;
+    for token in before.iter().rev() {
+        match token.kind {
+            TokenKind::Comma => {}
+            TokenKind::Ident => match &text[token.span.start as usize..token.span.end as usize] {
+                "for" => saw_for = true,
+                "structure" => return saw_for,
+                _ => {}
+            },
+            _ => return false,
+        }
+    }
+    false
 }
 
 /// The declaring word of the statement holding `before[index]`, skipping
@@ -1093,6 +1115,11 @@ mod tests {
         );
         assert_eq!(at("operation Op |"), Context::Roles);
         assert_eq!(at("operation Op reads |"), Context::Resources);
+        assert_eq!(at("structure V for A, |"), Context::Resources);
+        assert_eq!(at("structure V for A, B, |"), Context::Resources);
+        assert_eq!(at("structure V for A,\n    B,\n    |"), Context::Resources);
+        // Inside the body a comma is not a resource list.
+        assert_ne!(at("structure V for A { a: string, |}"), Context::Resources);
         assert_eq!(at("operation Op {\n    http |\n}"), Context::HttpMethods);
         assert_eq!(
             at("timestamp T {\n    format |\n}"),

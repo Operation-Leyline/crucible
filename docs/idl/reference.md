@@ -108,7 +108,8 @@ cond_atom   = "(" condition ")" | "has" dotted | dotted "==" value | dotted "in"
 permission_value = segment { ":" segment } ;   (* the string of a permission entry *)
 segment     = lower { lower | upper | digit } { "-" ( lower | digit ) { lower | upper | digit } } ;
 
-structure   = "structure" ident [ "for" ident ] "{" { member } "}" ;
+structure   = "structure" ident [ "for" ident { "," ident } ] "{" { member } "}" ;
+                 (* `for A, B`: one view of several resources (decision 34j) *)
 union       = "union" ident "{" { member } "}" ;
 error       = "error" ident "{" { error_entry } "}" ;
 error_entry = "status" number | "retryable" [ "throttling" ] | member ;
@@ -222,6 +223,8 @@ language's own checks include:
   resource's own views show;
 - `$name` names one of the resource's own identifiers or properties, or an
   inherited identifier; an ancestor's properties are not inherited;
+- a view `for A, B` is lowered against `A`, and each `$name` again against `B`:
+  the members must be identical, and `$*` shows what every resource declares;
 - `$*` appears once, only in a `for` view, and an entry it includes is
   named again only as `$name?` after it, which loosens it for that view;
 - property mutability (decision 34a): an `updates` input does not bind a

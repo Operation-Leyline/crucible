@@ -34,6 +34,12 @@ version's section when it is prepared.
   excuses nothing is an error. See
   [docs/idl/reference.md](docs/idl/reference.md#policy-rules).
 
+- `.cru`: a view can serve several resources, `structure JobData for Job,
+  HistoryJob { ... }`. It is lowered against the first, and each `$name` must
+  lower to the identical member against every other (a difference is an error
+  naming the fields); `$*` shows what all declare. See decision 34j in
+  [docs/idl/decisions.md](docs/idl/decisions.md).
+
 - `.cru`: `sparse list` and `sparse map` declare a collection whose elements
   or values may be null, as `@sparse` does in Smithy: `sparse list ResultRow:
   CypherValue { length ..1000 }`. A dense collection (the default) refuses a
