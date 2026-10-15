@@ -113,6 +113,9 @@ struct MemberContext<'a> {
     owner: &'a ShapeId,
     /// The resource whose identifiers and properties `$name` may elide.
     resource: Option<&'a str>,
+    /// The other resources of a `for A, B` view: what the view shows must be
+    /// declared identically by each of them (`resource` is the first).
+    also: &'a [&'a str],
     union: bool,
     /// URI labels, for an operation input: a member of that name binds to it.
     labels: &'a [String],
@@ -197,6 +200,34 @@ struct EntryRef<'a> {
 /// A property's declared mutability (decision 34a); an identifier has
 /// none. Combinations `check_resources` refuses lower as their first
 /// keyword would.
+/// The fields in which two lowerings of one view member disagree, by name.
+/// Documentation is the first resource's.
+/// Whether `structure` is a `for` view that covers `resource`, as its first
+/// or one of its other resources.
+fn view_of(structure: &crate::ast::Structure, resource: &str) -> bool {
+    structure
+        .resource
+        .iter()
+        .chain(&structure.also)
+        .any(|r| r.name == resource)
+}
+
+fn member_differences(a: &IrMember, b: &IrMember) -> Vec<String> {
+    fn fields(member: &IrMember) -> serde_json::Map<String, Json> {
+        let mut member = member.clone();
+        member.docs = None;
+        match serde_json::to_value(member) {
+            Ok(Json::Object(map)) => map,
+            _ => serde_json::Map::new(),
+        }
+    }
+    let (a, b) = (fields(a), fields(b));
+    a.iter()
+        .filter(|(key, value)| b.get(*key) != Some(*value))
+        .map(|(key, _)| key.replace('_', " "))
+        .collect()
+}
+
 fn entry_mutability(entry: &ResourceEntry) -> Option<Mutability> {
     if entry.kind == ResourceEntryKind::Id {
         return None;
@@ -786,10 +817,7 @@ impl<'a> Lowerer<'a> {
                 MemberKind::Include(name) if !including.contains(&name.name.as_str()) => {
                     if let Some(Decl::Structure(structure)) =
                         self.decl(&name.name).map(|d| &d.item.decl)
-                        && structure
-                            .resource
-                            .as_ref()
-                            .is_none_or(|r| r.name == resource)
+                        && (structure.resource.is_none() || view_of(structure, resource))
                     {
                         including.push(&name.name);
                         self.written(&structure.members, resource, including, out);
@@ -844,7 +872,7 @@ impl<'a> Lowerer<'a> {
         }
         match self.decl(name).map(|d| &d.item.decl) {
             Some(Decl::Structure(structure)) => match &structure.resource {
-                Some(of) if of.name == resource => {
+                Some(_) if view_of(structure, resource) => {
                     self.shows_property(&structure.members, resource, seen)
                 }
                 None if included => self.shows_property(&structure.members, resource, seen),
@@ -2605,9 +2633,12 @@ impl<'a> Lowerer<'a> {
                         }
                     }
                 });
+                let others: Vec<&str> = resource
+                    .map_or_else(Vec::new, |first| self.view_siblings(file, structure, first));
                 let context = MemberContext {
                     owner: id,
                     resource,
+                    also: &others,
                     union: false,
                     labels: &[],
                     site: Site::Structure,
@@ -2636,6 +2667,7 @@ impl<'a> Lowerer<'a> {
                 let context = MemberContext {
                     owner: id,
                     resource: None,
+                    also: &[],
                     union: true,
                     labels: &[],
                     site: Site::Nested,
@@ -2723,6 +2755,7 @@ impl<'a> Lowerer<'a> {
                 let context = MemberContext {
                     owner: id,
                     resource: None,
+                    also: &[],
                     union: false,
                     labels: &[],
                     site: Site::Error,
@@ -2868,6 +2901,7 @@ impl<'a> Lowerer<'a> {
         let context = MemberContext {
             owner: id,
             resource,
+            also: &[],
             union: false,
             labels,
             site: if input { Site::Input } else { Site::Output },
@@ -3078,11 +3112,19 @@ impl<'a> Lowerer<'a> {
                 // resource, wherever it is included; the including operation's
                 // collection role does not carry over to that resource.
                 let own = structure.resource.as_ref().map(|r| r.name.as_str());
+                // The included view's other resources stay checked; so do the
+                // including view's, when both are views of the same resource.
+                let mut others: Vec<&str> =
+                    structure.also.iter().map(|r| r.name.as_str()).collect();
+                if own.is_some() && own == context.resource {
+                    others.extend_from_slice(context.also);
+                }
                 // Its members are a representation unless they land in an
                 // input, where they bind what the operation takes; the
                 // operation's role applies only to its own resource.
                 let context = MemberContext {
                     resource: own.or(context.resource),
+                    also: if own.is_some() { &others } else { context.also },
                     included: true,
                     collection: context.collection && own.is_none(),
                     role: context
@@ -3180,6 +3222,14 @@ impl<'a> Lowerer<'a> {
             if name.is_empty() {
                 continue;
             }
+            // Of several resources, `$*` shows what they all have; a member
+            // they declare differently is reported by the member itself.
+            if !context.also.iter().all(|other| {
+                self.resource_entry(other, name)
+                    .is_some_and(|found| found.own && found.entry.kind == entry.kind)
+            }) {
+                continue;
+            }
             if let Some(&earlier) = before_star.get(name) {
                 self.error(
                     file,
@@ -3233,12 +3283,7 @@ impl<'a> Lowerer<'a> {
             return None;
         }
         match self.decl(name).map(|d| &d.item.decl) {
-            Some(Decl::Structure(structure))
-                if structure
-                    .resource
-                    .as_ref()
-                    .is_some_and(|r| r.name == resource) =>
-            {
+            Some(Decl::Structure(structure)) if view_of(structure, resource) => {
                 Some(name.to_owned())
             }
             Some(Decl::List(list)) => self.nested_view(&list.member.name, resource, depth + 1),
@@ -3401,7 +3446,80 @@ impl<'a> Lowerer<'a> {
         }
     }
 
+    /// The other resources of a `for A, B` view, checked: each is a resource,
+    /// named once and not the first. Names that fail are reported and left out.
+    fn view_siblings<'s>(
+        &mut self,
+        file: usize,
+        structure: &'s crate::ast::Structure,
+        first: &str,
+    ) -> Vec<&'s str> {
+        let mut out: Vec<&str> = Vec::new();
+        for resource in &structure.also {
+            let name = resource.name.as_str();
+            if !matches!(
+                self.decl(name).map(|d| &d.item.decl),
+                Some(Decl::Resource(_))
+            ) {
+                self.error(file, resource.span, format!("`{name}` is not a resource"));
+            } else if name == first || out.contains(&name) {
+                self.error(
+                    file,
+                    resource.span,
+                    format!("`{name}` is named twice in the view's `for`"),
+                );
+            } else {
+                out.push(name);
+            }
+        }
+        out
+    }
+
+    /// A member of a view, lowered against its resource; in a `for A, B` view
+    /// also against each other resource, which must give the same member.
     fn member(
+        &mut self,
+        file: usize,
+        member: &Member,
+        context: MemberContext<'_>,
+    ) -> Option<IrMember> {
+        let lowered = self.member_of(file, member, context)?;
+        if context.also.is_empty() || !matches!(member.kind, MemberKind::Elided { .. }) {
+            return Some(lowered);
+        }
+        let first = context.resource.unwrap_or_default();
+        for other in context.also {
+            let before = self.diagnostics.len();
+            let sibling = MemberContext {
+                resource: Some(other),
+                also: &[],
+                ..context
+            };
+            let twin = self.member_of(file, member, sibling);
+            // What was wrong with the member itself was said for the first
+            // resource; say it once.
+            let known: Vec<_> = self.diagnostics[..before].to_vec();
+            let added: Vec<_> = self.diagnostics.split_off(before);
+            self.diagnostics
+                .extend(added.into_iter().filter(|new| !known.contains(new)));
+            let Some(twin) = twin else { continue };
+            let differing = member_differences(&lowered, &twin);
+            if !differing.is_empty() {
+                self.error(
+                    file,
+                    member.span,
+                    format!(
+                        "`{}` is not the same member of `{first}` and `{other}` ({}): a view of several resources shows only what each declares identically",
+                        lowered.name,
+                        differing.join(", ")
+                    ),
+                );
+            }
+        }
+        Some(lowered)
+    }
+
+    fn member_of(
         &mut self,
         file: usize,
         member: &Member,

@@ -407,7 +407,7 @@ const KEYWORDS: &[Row] = &[
     (
         "for",
         &["structure"],
-        "Makes the structure a view of a resource: `$name` members bind its identifiers and properties, with their types and docs. An output member of the view's type, or a list or map of it, carries those bindings.",
+        "Makes the structure a view of a resource: `$name` members bind its identifiers and properties, with their types and docs. An output member of the view's type, or a list or map of it, carries those bindings. `for A, B` serves several resources, whose shown members must be identical.",
         "structure CityData for City {\n    $cityId as id\n    $name\n}",
     ),
     (

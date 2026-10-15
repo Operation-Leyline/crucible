@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: a view can serve several resources, `structure JobData for Job,
+  HistoryJob { ... }`. It is lowered against the first, and each `$name` must
+  lower to the identical member against every other (a difference is an error
+  naming the fields); `$*` shows what all declare. See decision 34j in
+  [docs/idl/decisions.md](docs/idl/decisions.md).
+
 - `PageTokens::max_cursor` lowers the largest cursor a token seals (default
   and ceiling 4096 bytes), and `max_token_length` / `cursor_capacity(limit)`
   report the longest token that results and the largest cursor a token length

@@ -419,8 +419,13 @@ pub enum ConstraintValue {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Structure {
     pub name: Ident,
-    /// `for Graph`: a view of a resource.
+    /// `for Graph`: a view of a resource. With several (`for QueryJob,
+    /// GraphHistoryQueryJob`) this is the first, which the view is lowered
+    /// against.
     pub resource: Option<Ident>,
+    /// The other resources of `for A, B`. Each must declare, identically,
+    /// everything the view shows.
+    pub also: Vec<Ident>,
     pub members: Vec<Member>,
 }
 
