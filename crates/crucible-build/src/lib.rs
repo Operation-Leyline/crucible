@@ -604,18 +604,12 @@ impl ServerOutput {
         let service = self.lower()?;
         let generated = match self.side {
             Side::Server => {
-                // The language does not lower resources yet, so the
-                // description of a service whose operations belong to a
-                // resource is refused by the describe check.
-                let explorer_service = if self.options.explorer.is_some() {
-                    Some(cru::lower(&self.model, self.service.as_ref())?)
-                } else {
-                    None
-                };
+                // The describe check refuses a service whose operations belong
+                // to a resource, which the language does not lower yet.
                 crucible_codegen_rust::generate_with_explorer_model(
                     &service,
                     &self.options,
-                    explorer_service.as_ref().unwrap_or(&service),
+                    &service,
                 )
             }
             Side::Client => crucible_codegen_rust::generate_client(&service),

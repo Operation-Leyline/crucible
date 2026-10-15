@@ -9,7 +9,7 @@ final class ExtendedTests: XCTestCase {
     func testExactDefaultsAndSparseCollections() throws {
         let codec = try codec()
         let node = try JSONValue(data: Data("{\"mode\":123,\"names\":[\"a\",\"b\"],\"sparseNames\":[null,\"x\"],\"sparseMap\":{\"absent\":null,\"future\":123}}".utf8))
-        let output = try codec.decode("example.types#Output", node, as: Output.self)
+        let output = try codec.decode("example.types#ReadOutput", node, as: ReadOutput.self)
         XCTAssertEqual(output.integer.description, "12345678901234567890123456789012345678901234567890")
         XCTAssertEqual(output.decimal.description, "12345678901234567890.12345678901234567890123456789")
         XCTAssertEqual(output.mode?.rawValue, 123)
@@ -17,7 +17,7 @@ final class ExtendedTests: XCTestCase {
         XCTAssertTrue(output.sparseMap!.keys.contains("absent"))
         XCTAssertNil(output.sparseMap!["absent"]!)
         XCTAssertEqual(output.sparseMap!["future"]!!.rawValue, 123)
-        let encoded = try codec.encode("example.types#Output", output)
+        let encoded = try codec.encode("example.types#ReadOutput", output)
         XCTAssertEqual(encoded["sparseNames"], node["sparseNames"])
         XCTAssertEqual(encoded["sparseMap"], node["sparseMap"])
         XCTAssertEqual(encoded["integer"], .number(output.integer.description))

@@ -74,7 +74,7 @@ def qualify(output):
         client_name = {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]
         script = f"Weather::{client_name}.new(Weather::Runtime::ClientConfig.new(endpoint: 'http://127.0.0.1')).close"
         if name == "renamed":
-            script += "; input = Weather::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
+            script += "; input = Weather::CreateCityInput.new(name: 'n', class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'name'=>'n','class'=>'x','toWire'=>'y'}"
             script += "; begin; Weather::Runtime::WireCodec.string(7); raise 'Expected native argument error'; rescue ::ArgumentError; end"
         run(RUBY, "-I", str(generated / "lib"), "-r", "weather_client", "-e", script)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",

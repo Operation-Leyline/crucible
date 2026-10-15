@@ -52,7 +52,7 @@ test("native bigint round trips through nested containers and known unions", () 
 });
 
 test("IR nullability permits client optional inputs and required document null", () => {
-  assert.deepEqual(fromWire(S_CreateCityInput, parseJson('{"name":null}')), { name: null });
+  assert.deepEqual(fromWire(S_CreateCityInput, parseJson('{"name":"n","clientToken":null}')), { name: "n", clientToken: null });
   const schema = structure(() => ({ value: document }), {}, ["value"]);
   assert.deepEqual(fromWire(schema, parseJson('{"value":null}')), { value: null });
   rejects(() => fromWire(schema, parseJson('{}')));

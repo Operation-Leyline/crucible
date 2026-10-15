@@ -9,7 +9,6 @@ readonly operation Read {
         ratio: float = 1.25
         fraction: double = -3.125
         label: string = "quote\"\\ newline\n"
-        document: document
         blob: blob = "YWI="
         mode: Mode = Known
         strings: Strings = []

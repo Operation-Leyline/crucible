@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, run, weather
+from sdk_cru_packages import replace_once
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from r_http_fixture import edge_fixture
