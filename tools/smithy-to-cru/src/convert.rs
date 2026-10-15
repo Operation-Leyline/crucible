@@ -265,8 +265,8 @@ impl<'a> Cx<'a> {
         };
         let service = self.shape(&service_id).expect("service").clone();
         self.ns = model::namespace(&service_id).to_owned();
-        self.check_service(&service_id, &service);
         self.collect_meta();
+        self.check_service(&service_id, &service);
         let ops = self.collect_resources(&service_id, &service);
         self.choose_naming(&ops);
         self.find_views(&ops);

@@ -44,6 +44,7 @@ fn run() -> Result<bool, String> {
         model.ok_or("usage: smithy-to-cru <model.json> (--out <dir> | --check <package>)")?;
     let json = std::fs::read_to_string(&model)
         .map_err(|e| format!("cannot read {}: {e}", model.display()))?;
+    let mut conversion_errors = 0;
     let package: PathBuf = match (&out, &check_dir) {
         (Some(out), None) => {
             let converted = convert(
@@ -67,6 +68,7 @@ fn run() -> Result<bool, String> {
                 println!("{tag}: {}: {}", d.shape, d.message);
             }
             println!("{errors} unrepresentable construct(s)");
+            conversion_errors = errors;
             out.clone()
         }
         (None, Some(dir)) => dir.clone(),
@@ -77,7 +79,7 @@ fn run() -> Result<bool, String> {
     for w in &report.warnings {
         println!("{w}");
     }
-    Ok(report.is_clean())
+    Ok(report.is_clean() && conversion_errors == 0)
 }
 
 fn write(out: &Path, files: &std::collections::BTreeMap<String, String>) -> Result<(), String> {
