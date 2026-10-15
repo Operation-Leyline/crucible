@@ -3115,6 +3115,9 @@ impl<'a> Lowerer<'a> {
         let mut out = Vec::new();
         let mut including = Vec::new();
         let mut names = BTreeSet::new();
+        // A shape lowered from inside a template's members gets its own
+        // body: it neither sees nor clears the enclosing operation's blame.
+        let outer = self.restating.take();
         self.members_into(
             file,
             members,
@@ -3170,7 +3173,7 @@ impl<'a> Lowerer<'a> {
                 }
             }
         }
-        self.restating = None;
+        self.restating = outer;
         let mut tokens = out.iter().filter(|member| member.idempotency_token);
         if let (Some(first), Some(second)) = (tokens.next(), tokens.next()) {
             let message = format!(
@@ -3328,10 +3331,18 @@ impl<'a> Lowerer<'a> {
             }
             if let Some(lowered) = self.member(file, member, context) {
                 if !names.insert(lowered.name.clone()) {
-                    let (file, span) = match &self.restating {
-                        Some((file, span, own)) if own.contains(&lowered.name) => (*file, *span),
-                        _ => at.unwrap_or((file, member.span)),
-                    };
+                    // The first template member to repeat a name the operation
+                    // wrote is the operation's to answer for; a later one
+                    // repeats the template's own member.
+                    let blamed = self
+                        .restating
+                        .as_mut()
+                        .filter(|(_, _, own)| own.contains(&lowered.name))
+                        .map(|(file, span, own)| {
+                            own.remove(&lowered.name);
+                            (*file, *span)
+                        });
+                    let (file, span) = blamed.unwrap_or_else(|| at.unwrap_or((file, member.span)));
                     self.error(
                         file,
                         span,

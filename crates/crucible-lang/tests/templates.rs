@@ -331,3 +331,68 @@ operation DeleteA deletes Order {
     assert_eq!(twice.len(), 1, "{found:#?}");
     assert_ne!(twice[0].1, operation, "{found:#?}");
 }
+
+fn twice_at(source: &str, name: &str) -> (Vec<u32>, u32) {
+    let text = format!(
+        "{BASE}
+{source}"
+    );
+    let operation = text.find("DeleteA").unwrap() as u32;
+    let wanted = format!("`{name}` is declared twice");
+    let at = messages_with_offsets(source)
+        .into_iter()
+        .filter(|(m, _)| m.contains(&wanted))
+        .map(|(_, at)| at)
+        .collect();
+    (at, operation)
+}
+
+const TRACES: &str = "structure TraceA { trace?: Note }
+structure TraceB { trace?: Note }
+";
+
+fn delete_a(template_input: &str, own: &str) -> String {
+    format!(
+        "{TRACES}structure Holder {{ held?: Note }}
+template deletes {{ input {{ {template_input} }} }}
+operation DeleteA deletes Order {{
+    http DELETE \"/a/{{orderId}}\"
+    input {{ $orderId {own} }}
+}}"
+    )
+}
+
+#[test]
+fn a_typed_template_field_does_not_hide_the_operation_from_a_later_include() {
+    let (at, operation) = twice_at(
+        &delete_a("held?: Holder include TraceA", "trace?: Note"),
+        "trace",
+    );
+    assert_eq!(at, [operation]);
+}
+
+#[test]
+fn a_structure_a_template_field_reaches_keeps_its_own_errors() {
+    let source = format!(
+        "{TRACES}structure Dup {{ include TraceA include TraceB }}
+template deletes {{ input {{ dup?: Dup }} }}
+operation DeleteA deletes Order {{
+    http DELETE \"/a/{{orderId}}\"
+    input {{ $orderId trace?: Note }}
+}}"
+    );
+    let (at, operation) = twice_at(&source, "trace");
+    assert_eq!(at.len(), 1, "{at:?}");
+    assert_ne!(at[0], operation);
+}
+
+#[test]
+fn the_operation_and_the_template_are_each_blamed_for_their_own_repeat() {
+    let (mut at, operation) = twice_at(
+        &delete_a("include TraceA include TraceB", "trace?: Note"),
+        "trace",
+    );
+    at.sort();
+    assert_eq!(at.len(), 2, "{at:?}");
+    assert!(at.contains(&operation), "{at:?}");
+}
