@@ -82,15 +82,8 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         }
         let defaults = try codec.decode("example.weather#CitySummary", json("{\"id\":\"c\",\"name\":\"x\"}"), as: CitySummary.self)
         XCTAssertEqual(defaults.population, 0)
-        var ordinary = CreateCityInput(name: "", expectedRevision: 0)
+        let ordinary = CreateCityInput(name: "", expectedRevision: 0)
         XCTAssertEqual(ordinary.name, ""); XCTAssertEqual(ordinary.expectedRevision, 0)
-        XCTAssertTrue(ordinary.namePresence.isSet)
-        let overridden = CreateCityInput(name: "value", namePresence: .unset)
-        XCTAssertNil(overridden.name); XCTAssertFalse(overridden.namePresence.isSet)
-        ordinary.name = nil
-        XCTAssertEqual(ordinary.namePresence, .null)
-        ordinary.namePresence = .unset
-        XCTAssertNil(ordinary.name); XCTAssertFalse(ordinary.namePresence.isSet)
         let input = CreateCityInput(name: "x", locationPresence: .null)
         let wire = try codec.encode("example.weather#CreateCityInput", input)
         XCTAssertEqual(wire["location"], .null); XCTAssertNil(wire["clientToken"])

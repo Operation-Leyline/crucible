@@ -124,7 +124,7 @@ import 'package:renamed_client/src/runtime/json.dart';
 import 'package:renamed_client/src/schema.dart';
 void main() {
   final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
-  const input = sdk.CreateCityInput(object:'object', context:'context',
+  const input = sdk.CreateCityInput(name:'name', object:'object', context:'context',
     coreValue:'core', wireValue:'wire', jsonValue:'json',
     typedValue:'typed', stampValue:'stamp', errorsValue:'errors', describeValue:'describe');
   final context = codec.context('example.weather#CreateCityInput');

@@ -72,7 +72,7 @@ class RuntimeTests(unittest.TestCase):
         with httpx.Client(transport=httpx.MockTransport(lambda r: (sent.append(r), httpx.Response(200, json={}))[1])) as http:
             client = WeatherClient(http=http, token=lambda: "token")
             client.ping()
-            self.assertNotIn("crucible-version", sent[-1].headers)
+            self.assertEqual(sent[-1].headers["crucible-version"], "2026-10-01")
             client._codec.schema = copy.deepcopy(client._codec.schema)
             client._codec.schema["apiVersion"] = "2026-09-04"
             client.ping()

@@ -11,7 +11,7 @@ int main() {
     using edge::models::CreateCityInput;
     const auto text = std::string("literal\\u0001") + char(0) + "é";
     if (edge::models::Time::known_clear().value != text) throw std::runtime_error("Enum literal");
-    if (edge::schema().shape("example.weather#Sky").at("values").array()[0].string() != text) throw std::runtime_error("Embedded schema escapes");
+    if (edge::schema().shape("example.weather#Time").at("values").array()[0].string() != text) throw std::runtime_error("Embedded schema escapes");
     const auto context = edge::schema().context("example.weather#CreateCityInput");
     const auto value = rt::Json::parse(R"({"name":"edge","node":{"children":[{"children":[]}]}})");
     const auto model = rt::Codec<CreateCityInput>::decode(value, context);

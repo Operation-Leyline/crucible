@@ -2,7 +2,7 @@ package example.types;
 
 import com.sun.net.httpserver.HttpServer;
 import example.types.model.Mode;
-import example.types.model.Output;
+import example.types.model.ReadOutput;
 import com.google.gson.JsonParser;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -15,7 +15,7 @@ public final class TypesTest {
   public static void main(String[] args) throws Exception {
     String integer = "12345678901234567890123456789012345678901234567890";
     String decimal = "12345678901234567890.12345678901234567890123456789";
-    var defaults = Output.builder().build();
+    var defaults = ReadOutput.builder().build();
     check(defaults.integer().toString().equals(integer), "integer default precision");
     check(defaults.decimal().toPlainString().equals(decimal), "decimal default precision");
     var body = new AtomicReference<>("{\"integer\":"+integer+",\"decimal\":"+decimal+",\"mode\":17,\"names\":[\"a\",\"b\"],\"sparseNames\":[null,\"x\"],\"sparseMap\":{\"null\":null,\"future\":17}}");
@@ -45,7 +45,7 @@ public final class TypesTest {
         var member = JsonParser.parseString("{\"target\":\""+header[0]+"\"}").getAsJsonObject();
         check(runtime.header(member, header[1]).getAsBigDecimal().compareTo(new java.math.BigDecimal(header[1])) == 0, "header "+header[0]);
       }
-      var encoded = runtime.encode("example.types#Output", result, null).getAsJsonObject();
+      var encoded = runtime.encode("example.types#ReadOutput", result, null).getAsJsonObject();
       check(encoded.get("integer").getAsString().equals(integer) && encoded.get("decimal").getAsString().equals(decimal), "encode precision");
       for (String invalid : new String[]{"{\"integer\":1.5}", "{\"mode\":2147483648}", "{\"names\":[\"a\",\"a\"]}", "{\"decimals\":[1,1.0]}", "{\"integers\":[18446744073709551616,18446744073709551616]}"}) {
         body.set(invalid);

@@ -1,5 +1,4 @@
 """Qualify generated native R packages, shared wire behavior, and real HTTP."""
-import json
 import os
 from pathlib import Path
 import tempfile
@@ -11,6 +10,15 @@ from r_http_fixture import edge_fixture
 R = os.environ.get("R", "R")
 RSCRIPT = os.environ.get("RSCRIPT", "Rscript")
 
+# Exact document, default and optional-long members, recursive through `next`.
+EXACT_VALUES = """structure ExactValues {
+    document: document
+    defaultLong: long = 9223372036854775807
+    optionalLong?: long
+    next?: ExactValues
+}
+"""
+
 
 def generate(model, output, package="weather.client", *extra):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "r",
@@ -20,15 +28,9 @@ def generate(model, output, package="weather.client", *extra):
 def qualify(output):
     package = output / "sdk"
     model_path = qualification_model(output)
-    model = json.loads(model_path.read_text(encoding="utf-8"))
-    model["shapes"]["example.weather#ExactValues"] = {"type": "structure", "members": {
-        "document": {"target": "smithy.api#Document", "traits": {"smithy.api#required": {}}},
-        "defaultLong": {"target": "smithy.api#Long", "traits": {"smithy.api#default": 9223372036854775807}},
-        "optionalLong": {"target": "smithy.api#Long"},
-        "next": {"target": "example.weather#ExactValues"},
-    }}
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["exactValues"] = {"target": "example.weather#ExactValues"}
-    model_path.write_text(json.dumps(model), encoding="utf-8")
+    (model_path / "exact.cru").write_text(EXACT_VALUES, encoding="utf-8", newline="\n")
+    replace_once(model_path, "        clientToken?: string\n",
+                 "        clientToken?: string\n        exactValues?: ExactValues\n")
     generate(model_path, package)
     run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(package / "man"))
     library = output / "library"

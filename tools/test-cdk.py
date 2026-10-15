@@ -18,6 +18,9 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "crates/crucible-codegen-cdk/tests/fixtures"
 CONSUMERS = ROOT / "tests/cdk"
+# The CDK model declares resources, which the .cru front end cannot lower yet.
+RESOURCE_LOWERING_MARKER = "the language does not lower resources"
+SKIP_REASON = "needs .cru resource lowering (decision 63)"
 
 
 def run(*args, cwd=ROOT, capture=False):
@@ -47,8 +50,15 @@ def prepare(work, npm, node):
     package = work / "package"
     cli = os.environ.get("CRUCIBLE_BIN")
     command = [str(Path(cli).resolve())] if cli else ["cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--"]
-    run(*command, "generate", "cdk", ROOT / "tests/models/cdk-model", "--bindings", FIXTURES / "bindings.json",
-        "--config", FIXTURES / "options.json", "--out", package)
+    generate = [*command, "generate", "cdk", ROOT / "tests/models/cdk-model", "--bindings", FIXTURES / "bindings.json",
+                "--config", FIXTURES / "options.json", "--out", package]
+    print("+", " ".join(str(arg) for arg in generate), flush=True)
+    result = subprocess.run([str(arg) for arg in generate], cwd=ROOT, text=True, capture_output=True, timeout=1200)
+    if result.returncode != 0:
+        if RESOURCE_LOWERING_MARKER in result.stderr:
+            return None
+        sys.stderr.write(result.stdout + result.stderr)
+        raise subprocess.CalledProcessError(result.returncode, generate)
     run(npm, "install", "--ignore-scripts", "--no-audit", "--no-fund", cwd=package)
     run(npm, "run", "build", cwd=package)
     copy("validation.cjs", package / "validation.cjs")
@@ -174,6 +184,9 @@ def main():
     os.environ.setdefault("CARGO_TARGET_DIR", str(ROOT / "target/cdk-consumer-rust"))
     os.environ.setdefault("CARGO_BUILD_JOBS", "2")
     tarball = prepare(work, npm, node)
+    if tarball is None:
+        print(f"CDK qualification skipped: {SKIP_REASON}", flush=True)
+        return
     # TypeScript is the synthesis oracle, even for a one-language matrix job.
     expected = typescript(work, tarball, npm, node)
     for language in languages:

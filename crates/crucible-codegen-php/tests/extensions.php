@@ -7,12 +7,12 @@ function check(bool $condition, string $message): void { if (!$condition) throw 
 function rejects(callable $call): void { try { $call(); } catch (UnexpectedValueException) { return; } throw new RuntimeException('Accepted invalid value'); }
 $codec = Types\Schema::codec();
 $node = Types\Runtime\ExactJson::decode('{"mode":123,"names":["a","b"],"sparseNames":[null,"x"],"sparseMap":{"absent":null,"future":123}}');
-$output = $codec->decode($node, $codec->context('example.types#Output'));
+$output = $codec->decode($node, $codec->context('example.types#ReadOutput'));
 check((string)$output->integer === '12345678901234567890123456789012345678901234567890', 'integer');
 check((string)$output->decimal === '12345678901234567890.12345678901234567890123456789', 'decimal');
 check($output->sparseNames === [null, 'x'] && array_key_exists('absent', $output->sparseMap) && $output->sparseMap['absent'] === null, 'sparse');
 check($output->mode->value === 123 && $output->sparseMap['future']->value === 123, 'future enum');
-$encoded = $codec->encode($output, $codec->context('example.types#Output'));
+$encoded = $codec->encode($output, $codec->context('example.types#ReadOutput'));
 check($codec->equivalent($encoded->get('sparseMap'), $node->get('sparseMap')), 'roundtrip');
 rejects(fn() => $codec->decode(['a', 'a'], $codec->context('example.types#Names')));
 rejects(fn() => $codec->decode([null], $codec->context('example.types#Names')));

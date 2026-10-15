@@ -3,7 +3,7 @@ import random
 import unittest
 
 import httpx
-from types_client import TypesClient, Mode, Output
+from types_client import TypesClient, Mode, ReadOutput
 from types_client import models
 from types_client.runtime import _Codec, _json
 
@@ -19,7 +19,7 @@ class ExtendedTypeTests(unittest.TestCase):
         self.assertEqual(output.sparse_names, ["a", None])
         self.assertEqual(output.sparse_map, {"known": Mode.OFF, "unknown": Mode(42), "null": None})
         codec = _Codec(models._SCHEMA, models._CLASSES)
-        wire = _json(codec.convert("example.types#Output", output))
+        wire = _json(codec.convert("example.types#ReadOutput", output))
         self.assertIn('"decimal":12345678901234567890.12345678901234567890123456789', wire)
         self.assertIn('"mode":42', wire)
 
@@ -30,9 +30,9 @@ class ExtendedTypeTests(unittest.TestCase):
         for _ in range(120):
             integer = rng.randrange(-(10 ** 150), 10 ** 150)
             decimal = Decimal(f"{integer}e{rng.randrange(-200, 201)}")
-            original = Output(integer=integer, decimal=decimal)
-            body = _json(codec.convert("example.types#Output", original))
-            decoded = codec.convert("example.types#Output", json.loads(body, parse_float=Decimal), decode=True)
+            original = ReadOutput(integer=integer, decimal=decimal)
+            body = _json(codec.convert("example.types#ReadOutput", original))
+            decoded = codec.convert("example.types#ReadOutput", json.loads(body, parse_float=Decimal), decode=True)
             self.assertEqual(decoded.integer, integer)
             self.assertEqual(decoded.decimal, decimal)
 
