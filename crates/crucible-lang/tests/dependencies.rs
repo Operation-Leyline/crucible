@@ -289,6 +289,8 @@ fn dependencies_import_dependencies() {
 fn the_manifest_is_checked() {
     let dir = scratch("manifest");
     standards(&dir);
+    // The package directory exists: `shop/../standards` needs it to resolve.
+    std::fs::create_dir_all(dir.join("shop")).unwrap();
     let check = |manifest: &str| {
         check_manifest(&dir.join("shop"), manifest)
             .into_iter()
