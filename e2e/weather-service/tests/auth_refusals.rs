@@ -76,14 +76,13 @@ async fn check(invoke: bool) {
             error.status(),
             "invoke {invoke}"
         );
-        // Only a missing or bad credential is challenged: a 403 names no
-        // credential to go and get.
         assert_eq!(
-            response
-                .headers()
-                .get("www-authenticate")
-                .map(|v| v.to_str().unwrap()),
-            (error == FrameworkError::Unauthenticated).then_some("Bearer")
+            response.headers()["www-authenticate"],
+            if error == FrameworkError::Forbidden {
+                "Bearer error=\"insufficient_scope\""
+            } else {
+                "Bearer"
+            }
         );
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await

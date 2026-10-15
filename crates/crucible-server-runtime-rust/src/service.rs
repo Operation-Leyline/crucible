@@ -440,7 +440,7 @@ impl Crucible {
             Some(crate::Resolution::Framework(error)) => Some(error),
             _ => job.context().attribute::<FrameworkError>(),
         };
-        if let Some(error @ FrameworkError::Unauthenticated) = refusal
+        if let Some(error @ (FrameworkError::Unauthenticated | FrameworkError::Forbidden)) = refusal
             && response.status().as_u16() == error.status()
             && job
                 .context()
@@ -450,7 +450,13 @@ impl Crucible {
             response
                 .headers_mut()
                 .entry(axum::http::header::WWW_AUTHENTICATE)
-                .or_insert(HeaderValue::from_static("Bearer"));
+                .or_insert(HeaderValue::from_static(
+                    if error == FrameworkError::Forbidden {
+                        "Bearer error=\"insufficient_scope\""
+                    } else {
+                        "Bearer"
+                    },
+                ));
         }
         // The service's own not-found error is answered as the framework's
         // NotFound is: never cached, whether a hidden resource's (built by

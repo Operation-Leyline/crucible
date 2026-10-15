@@ -15,6 +15,7 @@ pub struct Principal {
     pub issuer: String,
     pub client_id: Option<String>,
     pub token_kind: TokenKind,
+    pub scopes: BTreeSet<String>,
     pub groups: BTreeSet<String>,
     pub claims: Value,
     /// The workspace or organization the credential itself is bound to, set
@@ -25,7 +26,7 @@ pub struct Principal {
 }
 
 impl Principal {
-    /// A principal with no client, groups, tenant or claims (`Value::Null`).
+    /// A principal with no client, scopes, groups, tenant or claims (`Value::Null`).
     pub fn new(
         subject: impl Into<String>,
         issuer: impl Into<String>,
@@ -36,6 +37,7 @@ impl Principal {
             issuer: issuer.into(),
             client_id: None,
             token_kind,
+            scopes: BTreeSet::new(),
             groups: BTreeSet::new(),
             claims: Value::Null,
             tenant: None,
@@ -44,6 +46,11 @@ impl Principal {
 
     pub fn with_client_id(mut self, client_id: impl Into<String>) -> Self {
         self.client_id = Some(client_id.into());
+        self
+    }
+
+    pub fn with_scopes<S: Into<String>>(mut self, scopes: impl IntoIterator<Item = S>) -> Self {
+        self.scopes = scopes.into_iter().map(Into::into).collect();
         self
     }
 
@@ -110,10 +117,10 @@ mod tests {
                 assert_ne!(one, other);
             }
         }
-        // Groups and claims are what the principal may do, not who
+        // Scopes, groups and claims are what the principal may do, not who
         // it is: they change without the caller changing.
         assert_eq!(
-            alice.clone().with_groups(["read"]).caller_binding(),
+            alice.clone().with_scopes(["read"]).caller_binding(),
             alice.caller_binding()
         );
     }

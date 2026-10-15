@@ -130,7 +130,8 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
             return Ok(());
         }
         if plan.bearer {
-            let challenge = bearer_challenge(refused.then_some("invalid_token"));
+            // RFC 6750 3: a bare challenge; the model declares no scopes.
+            let challenge = bearer_challenge(refused.then_some("invalid_token"), &[]);
             job.response_headers_mut()
                 .insert(header::WWW_AUTHENTICATE, challenge);
         }

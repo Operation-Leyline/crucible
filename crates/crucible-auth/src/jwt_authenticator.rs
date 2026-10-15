@@ -454,6 +454,15 @@ impl JwtAuthenticator {
                 Some((rule, client.to_owned()))
             })
             .ok_or(AuthError::Refused)?;
+        let scopes = match claims.get("scope") {
+            None => BTreeSet::new(),
+            Some(value) => value
+                .as_str()
+                .ok_or(AuthError::Refused)?
+                .split_whitespace()
+                .map(str::to_owned)
+                .collect(),
+        };
         let groups = match claims.get("cognito:groups") {
             None => BTreeSet::new(),
             Some(value) => value
@@ -468,6 +477,7 @@ impl JwtAuthenticator {
         Ok(
             Principal::new(subject, self.config.issuer.clone(), rule.kind.clone())
                 .with_client_id(client_id)
+                .with_scopes(scopes)
                 .with_groups(groups)
                 .with_claims(claims),
         )

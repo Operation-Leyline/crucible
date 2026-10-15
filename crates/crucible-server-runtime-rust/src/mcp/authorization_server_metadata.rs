@@ -18,6 +18,7 @@ pub struct AuthorizationServerMetadata {
     authorization_endpoint: String,
     token_endpoint: String,
     revocation_endpoint: Option<String>,
+    scopes_supported: Vec<String>,
 }
 
 impl AuthorizationServerMetadata {
@@ -35,6 +36,7 @@ impl AuthorizationServerMetadata {
             authorization_endpoint: authorization_endpoint.into(),
             token_endpoint: token_endpoint.into(),
             revocation_endpoint: None,
+            scopes_supported: Vec::new(),
         }
     }
 
@@ -53,6 +55,11 @@ impl AuthorizationServerMetadata {
 
     pub fn revocation_endpoint(mut self, endpoint: impl Into<String>) -> Self {
         self.revocation_endpoint = Some(endpoint.into());
+        self
+    }
+
+    pub fn scopes_supported(mut self, scopes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.scopes_supported = scopes.into_iter().map(Into::into).collect();
         self
     }
 
@@ -114,6 +121,9 @@ impl AuthorizationServerMetadata {
         let fields = document.as_object_mut().expect("object literal");
         if let Some(endpoint) = &self.revocation_endpoint {
             fields.insert("revocation_endpoint".into(), Value::from(endpoint.as_str()));
+        }
+        if !self.scopes_supported.is_empty() {
+            fields.insert("scopes_supported".into(), json!(self.scopes_supported));
         }
         document.to_string()
     }

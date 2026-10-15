@@ -77,13 +77,18 @@ async fn generic_metadata_carries_optional_members_and_issuer_path() {
         "https://api.example.com/tenant/",
         "https://idp.example.com/authorize",
         "https://idp.example.com/token",
-    );
+    )
+    .scopes_supported(["weather/read", "weather/write"]);
     let service = service(McpConfig::new().authorization_server_metadata(metadata)).unwrap();
     // RFC 8414 section 3.1 inserts the well-known suffix before the issuer's path.
     let (status, _, body) = get(&service, "GET", &format!("{WELL_KNOWN}/tenant"), &[]).await;
     assert_eq!(status, StatusCode::OK);
     let document: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(document["issuer"], "https://api.example.com/tenant/");
+    assert_eq!(
+        document["scopes_supported"],
+        json!(["weather/read", "weather/write"])
+    );
     assert!(document.get("revocation_endpoint").is_none());
     assert_ne!(
         get(&service, "GET", WELL_KNOWN, &[]).await.0,
@@ -142,7 +147,8 @@ async fn protected_resource_metadata_names_the_service_issuer() {
     )
     .unwrap();
     let authorization =
-        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier]).unwrap();
+        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier], "weather/mcp")
+            .unwrap();
     let derived = service(McpConfig::new().authorization(authorization)).unwrap();
     let (_, _, body) = get(&derived, "GET", PRM, &[]).await;
     let token_issuers =
@@ -155,7 +161,8 @@ async fn protected_resource_metadata_names_the_service_issuer() {
     )
     .unwrap();
     let authorization =
-        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier]).unwrap();
+        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier], "weather/mcp")
+            .unwrap();
     let service = service(
         McpConfig::new()
             .authorization(authorization)
