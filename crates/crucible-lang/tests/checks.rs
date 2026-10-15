@@ -158,10 +158,10 @@ fn duplicate_declarations_are_refused() {
 
 #[test]
 fn declarations_the_compiler_cannot_lower_yet_are_not_skipped() {
-    let m = messages("rule R {\n    every operation must documented\n}");
+    let m = messages("template lists {\n    input {}\n}");
     assert_mentions(
         &m,
-        "`rule` declarations are not supported by the compiler yet",
+        "`template` declarations are not supported by the compiler yet",
     );
 }
 

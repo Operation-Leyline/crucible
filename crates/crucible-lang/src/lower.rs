@@ -35,12 +35,23 @@ mod permissions;
 
 /// `namespaces[i]` is the namespace of `parsed[i]`: the package's own, or a
 /// bundled import's.
+pub(crate) struct Lowered {
+    pub service: Option<Service>,
+    pub source_map: SourceMap,
+    pub diagnostics: Vec<FileDiagnostic>,
+    /// Types named outside any shape's members: metadata values and resource
+    /// entries. Rules count them as referenced.
+    pub named_types: BTreeSet<ShapeId>,
+    /// Members a role template added to an operation.
+    pub template_members: BTreeSet<ShapeId>,
+}
+
 pub(crate) fn lower(
     package: &Package,
     parsed: &[Parsed],
     namespaces: &[String],
     service: Option<&str>,
-) -> (Option<Service>, SourceMap, Vec<FileDiagnostic>) {
+) -> Lowered {
     let mut lowerer = Lowerer {
         ns: &package.namespace,
         naming: &package.naming,
@@ -74,7 +85,13 @@ pub(crate) fn lower(
     lowerer.check_restated_resources();
     lowerer.check_metadata();
     let service = lowerer.service(service);
-    (service, lowerer.source_map, lowerer.diagnostics)
+    Lowered {
+        service,
+        source_map: lowerer.source_map,
+        diagnostics: lowerer.diagnostics,
+        named_types: lowerer.named_types,
+        template_members: BTreeSet::new(),
+    }
 }
 
 /// A shape being lowered, as its referrers see it (`Lowerer::pending`).
@@ -495,11 +512,9 @@ impl<'a> Lowerer<'a> {
                 match &item.decl {
                     // Migrations are checked against the baseline by `guard`.
                     Decl::Migration(_) => continue,
-                    Decl::Rule(_)
-                    | Decl::Template(_)
-                    | Decl::Except(_)
-                    | Decl::Protocol(_)
-                    | Decl::Conversion(_) => {
+                    // Checked and run apart from the model (`crate::rules`).
+                    Decl::Rule(_) | Decl::Except(_) => continue,
+                    Decl::Template(_) | Decl::Protocol(_) | Decl::Conversion(_) => {
                         let keyword = decl_keyword(&item.decl);
                         self.error(
                             file,
@@ -1613,16 +1628,10 @@ impl<'a> Lowerer<'a> {
                         continue;
                     }
                     let value = self.metadata_value(file, annotation, metadata);
-                    // `check_metadata` reported any other retention once.
-                    let source_only = metadata
-                        .retention
-                        .as_ref()
-                        .is_some_and(|r| r.name == "source");
                     // Source-only metadata is for the compiler and rules; the
-                    // runtime never sees it (decision 43).
-                    if !source_only {
-                        out.traits.insert(self.ref_id(name), value);
-                    }
+                    // runtime never sees it (decision 43). It stays in the
+                    // IR until the rules have run, and `compile` removes it.
+                    out.traits.insert(self.ref_id(name), value);
                     custom.push((&annotation.name, metadata));
                 }
             }
@@ -2291,7 +2300,7 @@ impl<'a> Lowerer<'a> {
     /// members for `include`, and its bindings were judged where it was
     /// included (decision 40).
     fn report_unplaced(&mut self) {
-        let mut used = std::mem::take(&mut self.named_types);
+        let mut used = self.named_types.clone();
         for shape in self.shapes.values().chain(self.meta_shapes.values()) {
             match shape {
                 Shape::Structure(s) | Shape::Union(s) => {
@@ -4859,6 +4868,7 @@ impl<'a> Lowerer<'a> {
             permissions: std::mem::take(&mut self.permissions),
             permission_types,
             not_found: self.not_found.clone(),
+            exceptions: Vec::new(),
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.

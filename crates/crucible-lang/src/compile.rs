@@ -246,13 +246,45 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
             diagnostic: diagnostic.clone(),
         }));
     }
-    let (lowered, source_map, problems) =
-        crate::lower::lower(package, &parsed, &namespaces, service);
+    let crate::lower::Lowered {
+        service: mut lowered,
+        source_map,
+        diagnostics: problems,
+        named_types,
+        template_members,
+    } = crate::lower::lower(package, &parsed, &namespaces, service);
     diagnostics.extend(
         problems
             .into_iter()
             .filter(|problem| !problem.file.is_some_and(|file| broken[file])),
     );
+    // Rules judge a model that compiles; they run once it does, and their
+    // accepted exceptions are recorded in the compiled model.
+    if let Some(model) = lowered.as_mut()
+        && !diagnostics.iter().any(|item| item.diagnostic.is_error())
+    {
+        let outcome = crate::rules::run(&crate::rules::Inputs {
+            package: &package.namespace,
+            files: &files,
+            parsed: &parsed,
+            namespaces: &namespaces,
+            service: model,
+            source_map: &source_map,
+            named_types: &named_types,
+            template_members: &template_members,
+        });
+        diagnostics.extend(outcome.diagnostics.into_iter().filter(|problem| {
+            !problem.file.is_some_and(|file| broken.get(file).copied().unwrap_or(false))
+        }));
+        model.exceptions = outcome.exceptions;
+    }
+    // Metadata kept `retention source` is for the compiler and its rules.
+    if let Some(model) = lowered.as_mut() {
+        let source_only = source_only_keys(&parsed, &namespaces);
+        if !source_only.is_empty() {
+            model.retain_traits(|id| !source_only.contains(id));
+        }
+    }
     let failed = diagnostics.iter().any(|item| item.diagnostic.is_error());
     let (service, best_effort) = if failed {
         (None, lowered)
@@ -268,4 +300,28 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
         source_map,
         diagnostics,
     }
+}
+
+/// The IR keys of the metadata declared `retention source`.
+fn source_only_keys(
+    parsed: &[Parsed],
+    namespaces: &[String],
+) -> std::collections::BTreeSet<crucible_smithy::ShapeId> {
+    let mut keys = std::collections::BTreeSet::new();
+    for (file, parsed) in parsed.iter().enumerate() {
+        let Some(ns) = namespaces.get(file) else {
+            continue;
+        };
+        for item in &parsed.file.items {
+            if let crate::ast::Decl::Metadata(metadata) = &item.decl
+                && metadata
+                    .retention
+                    .as_ref()
+                    .is_some_and(|retention| retention.name == "source")
+            {
+                keys.insert(crucible_smithy::ShapeId::new(ns, &metadata.name.name));
+            }
+        }
+    }
+    keys
 }
