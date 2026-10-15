@@ -158,4 +158,7 @@ metadata note on operation: string
     );
     assert!(again.status.success());
     assert_eq!(before, fs::metadata(&exported).unwrap().modified().unwrap());
+    // Dated at the epoch, so the build script that wrote it does not rerun
+    // because the file is newer than the script's last run.
+    assert_eq!(before, std::time::UNIX_EPOCH);
 }

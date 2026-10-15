@@ -394,6 +394,33 @@ permission or alias, changing a value or an authorization name, and moving
 a permission to `internal` are breaking changes to the release guard;
 adding a requirement is reported as an authorization change.
 
+## Role templates
+
+A `template` declares what every operation of a role carries, once, in the
+service or in a standards package:
+
+```
+template lists {
+    paginated(inputToken: nextToken, outputToken: nextToken, pageSize: maxResults)
+    input {
+        @query
+        nextToken?: NextToken
+        @query
+        maxResults?: MaxResults
+    }
+    output { nextToken?: NextToken }
+}
+```
+
+Each operation whose role is `lists` gets the `paginated` arguments, the
+`errors`, and the `input` and `output` members after its own (an operation
+with no body of that side gets one). The operation adds what is its own:
+`paginated(items: graphs)`. Restating a template's member or a `paginated`
+key is an error, so the standard cannot drift. A role has one template; only
+`input`, `output`, `errors` and `paginated` belong in one. The members are
+lowered where they are written, so a problem in one is reported in the
+template, and a rule can tell them with `template`.
+
 ## Policy rules
 
 A `rule` is a check every compile applies to the package's model; an
@@ -454,7 +481,7 @@ has the ones that apply to it, and a rule that uses another is an error.
 | `internal`, `sensitive` | shapes, operations, members | the modifier is present |
 | `readonly`, `idempotent`, `public`, `paginated` | operation | the modifier or clause is present |
 | `enum`, `referenced` | shapes | an enum; something reaches it (an operation, a resource entry, metadata, `include`) |
-| `optional`, `required`, `template` | members | the member is optional, required, or came from a role template (none compile yet) |
+| `optional`, `required`, `template` | members | the member is optional, required, or came from a role template |
 | `addresses R` | operation | bound to resource `R` or one below it |
 | `name`, `role` | any, operation | the element's name; its role word (`reads`, `lists`, ...) |
 | `http.method`, `http.uri`, `http.status` | operation | the HTTP binding, the URI as written |
@@ -464,6 +491,7 @@ has the ones that apply to it, and a rule that uses another is an error.
 | `has length`, `has range`, `has pattern` | the same, and members | the constraint is present |
 | `input contains sensitive`, `output ...` | operation | the body reaches a sensitive member or shape |
 | `@key`, `has @key`, `@key == value` | any element the key is declared `on` | metadata, including `retention source` keys |
+| `has @token`, `@query`, `@header`, `@payload`, `@deprecated` | members (`@deprecated`: any element) | the built-in annotation is present |
 | `has one of @a, @b` | | any of the keys is present |
 
 Operators: `==`, `!=`, `in [a, b]`, `<`, `<=`, `>`, `>=` on numbers, and

@@ -104,7 +104,15 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
             .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
     }
     std::fs::write(out, text)
-        .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))
+        .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))?;
+    // The build script watches this file. Dated at the epoch it is never newer
+    // than the script's last run, so writing it does not rerun the build; a
+    // deleted file still does.
+    std::fs::File::options()
+        .write(true)
+        .open(out)
+        .and_then(|file| file.set_modified(std::time::UNIX_EPOCH))
+        .map_err(|error| format!("cannot date the export {}: {error}", out.display()))
 }
 
 /// The compatibility guard (decision 47d): the package against its frozen

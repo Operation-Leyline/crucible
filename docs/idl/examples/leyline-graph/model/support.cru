@@ -1,0 +1,142 @@
+// What graph.cru refers to and the excerpt leaves out: the service, the parent
+// resource and the shared shapes, so the package compiles whole and the
+// rules of policy/ and org.standards run on it. Each is abridged to what the
+// excerpt needs.
+
+service Leyline {
+    version "2026-09-04"
+    title "Leyline"
+    protocol json
+    auth bearer
+    resources [Organization]
+    operations [RecordStripeEvent]
+    errors [ValidationException, InternalServerException]
+}
+
+// ---- the parent resource ----------------------------------------------------
+
+/// Identifies one organization.
+string OrganizationId { length 3..40; pattern "^[a-z][a-z0-9-]*$" }
+
+/// What an organization is called.
+string OrganizationName { length 1..64 }
+
+/// The tenant: every graph, member and bill belongs to one.
+resource Organization {
+    id organizationId: OrganizationId
+    readonly property name: OrganizationName
+}
+
+// ---- shapes the graph refers to ---------------------------------------------
+
+/// Identifies one graph group.
+string GraphGroupId { length 3..40; pattern "^[a-z][a-z0-9-]*$" }
+
+/// Changes whenever a group's membership changes.
+integer GraphGroupRevision { range 0.. }
+
+/// A graph's content version.
+long GraphGeneration { range 0.. }
+
+/// A count of nodes or edges.
+long Count { range 0.. }
+
+/// A size in bytes.
+long ByteCount { range 0.. }
+
+/// How a graph's nodes are arranged on disk.
+enum KeySpec {
+    HASH = "hash"
+    RANGE = "range"
+}
+
+/// What a graph's last import loaded.
+structure GraphImportSummary {
+    /// Rows read.
+    rows: Count
+}
+
+/// A sample of the labels and properties a graph holds.
+structure GraphSchemaPreview {
+    /// Distinct labels seen.
+    labels: Count
+}
+
+/// What a catalog search matched on.
+structure GraphSearchMetadata {
+    /// Observed labels.
+    labels: Count
+    /// The terms the search matched, as the index reported them.
+    terms: SearchTerms
+}
+
+/// Index-specific match detail. Open JSON, so it is excepted in policy/.
+document SearchTerms
+
+/// Identifies a graph's history.
+string GraphHistoryId { length 3..40; pattern "^[a-z][a-z0-9_-]*$" }
+
+/// A dataset to load into a new graph.
+enum SampleDataset {
+    MOVIES = "movies"
+    SOCIAL = "social"
+}
+
+/// Whether a graph keeps its history.
+enum HistoryPolicy {
+    NONE = "none"
+    FULL = "full"
+}
+
+/// A yes or no filter flag.
+boolean FilterFlag
+
+/// Words searched across graph metadata.
+string GraphSearchQuery { length 1..200 }
+
+/// The signature the payment processor sent.
+string StripeSignature { length 1..512 }
+
+/// The processor's event, as sent.
+blob StripeEventBody { length 1..1048576 }
+
+/// Whether the event was processed.
+boolean PaymentEventReceived
+
+/// Identifies one request.
+string RequestId { length 1..64 }
+
+// ---- errors the operations name ---------------------------------------------
+
+/// The thing asked for is not there, or you may not see it.
+error ResourceNotFoundException {
+    status 404
+    include RequestIdMixin
+    /// What went wrong, in plain language.
+    message: ErrorMessage
+}
+
+/// The request conflicts with the current state of the resource.
+error ConflictException {
+    status 409
+    include RequestIdMixin
+    /// What went wrong, in plain language.
+    message: ErrorMessage
+}
+
+/// An account limit stops the request.
+error ServiceQuotaExceededException {
+    status 402
+    include RequestIdMixin
+    /// What went wrong, in plain language.
+    message: ErrorMessage
+}
+
+/// Something went wrong on the service's side.
+error InternalServerException {
+    status 500
+    retryable
+    include RequestIdMixin
+    /// What went wrong, in plain language.
+    message: ErrorMessage
+}

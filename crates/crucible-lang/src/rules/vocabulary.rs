@@ -236,6 +236,21 @@ pub(super) fn path_type(head: &str, rest: &[&str], kind: Kind) -> Result<PathTyp
     }
 }
 
+/// The built-in annotations `has @name` tests: those the IR carries as typed
+/// fields. A declared `metadata` key of the same name cannot exist (the
+/// compiler refuses it).
+pub(super) const BUILT_IN: &[&str] = &["token", "query", "header", "payload", "deprecated"];
+
+/// Whether the built-in annotation `name` can be tested on `kind`.
+pub(super) fn built_in_applies(name: &str, kind: Kind) -> bool {
+    match name {
+        "token" | "query" | "header" | "payload" => kind.is_member(),
+        // Resources take no annotations, so none can be deprecated.
+        "deprecated" => kind != Kind::Resource,
+        _ => false,
+    }
+}
+
 /// `has length`, `has range` and `has pattern`: whether `kind` can carry it.
 pub(super) fn has_applies(name: &str, kind: Kind) -> bool {
     matches!(name, "length" | "range" | "pattern") && kind.is_constrained()
