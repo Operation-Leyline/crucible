@@ -550,6 +550,12 @@ version's section when it is prepared.
 
 ### Fixed
 
+- `crucible check` without `--target` accepts every capability some generator
+  supports. It checked against an empty set, so a model using a gated feature
+  such as a `.cru` `sparse list` failed with "requires unsupported target
+  capability sparse" although every generator handles it. `--target <client>`
+  still narrows the check to that client.
+
 - Framework errors under the Crucible JSON protocol (`crucible.protocols#json`)
   now send `X-Crucible-Error`, as modelled errors and `NotFoundException`
   already did (#308). The 401, 403, 405, 409 (including idempotency
