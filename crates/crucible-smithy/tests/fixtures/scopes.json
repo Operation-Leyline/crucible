@@ -2,24 +2,107 @@
   "smithy": "2.0",
   "shapes": {
     "example.scopes#ScopedWeather": {
-      "type": "service", "version": "1",
+      "type": "service",
+      "version": "1",
       "traits": {
         "crucible.protocols#json": {},
         "smithy.api#httpBearerAuth": {},
-        "crucible.auth#scopes": ["weather/read"]
+        "crucible.auth#scopes": [
+          "weather/read"
+        ]
       },
       "operations": [
-        {"target":"example.scopes#Inherits"}, {"target":"example.scopes#Overrides"},
-        {"target":"example.scopes#OptsOut"}, {"target":"example.scopes#Public"},
-        {"target":"example.scopes#OptionalWithScopes"}
+        {
+          "target": "example.scopes#Inherits"
+        },
+        {
+          "target": "example.scopes#Overrides"
+        },
+        {
+          "target": "example.scopes#OptsOut"
+        },
+        {
+          "target": "example.scopes#Public"
+        },
+        {
+          "target": "example.scopes#OptionalWithScopes"
+        }
       ]
     },
-    "crucible.protocols#json": {"type":"structure", "traits":{"smithy.api#trait":{},"smithy.api#protocolDefinition":{}}},
-    "crucible.auth#scopes": {"type":"list", "member":{"target":"smithy.api#String"}, "traits":{"smithy.api#trait":{}}},
-    "example.scopes#Inherits": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/inherits","code":200}}},
-    "example.scopes#Overrides": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/overrides","code":200}, "crucible.auth#scopes":["weather/write","weather/admin"]}},
-    "example.scopes#OptsOut": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/opts-out","code":200}, "crucible.auth#scopes":[]}},
-    "example.scopes#Public": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/public","code":200}, "smithy.api#auth":[]}},
-    "example.scopes#OptionalWithScopes": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/optional","code":200}, "smithy.api#optionalAuth":{}, "crucible.auth#scopes":["weather/read"]}}
+    "crucible.protocols#json": {
+      "type": "structure",
+      "traits": {
+        "smithy.api#trait": {},
+        "smithy.api#protocolDefinition": {}
+      }
+    },
+    "crucible.auth#scopes": {
+      "type": "list",
+      "member": {
+        "target": "smithy.api#String"
+      },
+      "traits": {
+        "smithy.api#trait": {}
+      }
+    },
+    "example.scopes#Inherits": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/inherits",
+          "code": 200
+        }
+      }
+    },
+    "example.scopes#Overrides": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/overrides",
+          "code": 200
+        },
+        "crucible.auth#scopes": [
+          "weather/write",
+          "weather/admin"
+        ]
+      }
+    },
+    "example.scopes#OptsOut": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/opts-out",
+          "code": 200
+        },
+        "crucible.auth#scopes": []
+      }
+    },
+    "example.scopes#Public": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/public",
+          "code": 200
+        },
+        "smithy.api#auth": []
+      }
+    },
+    "example.scopes#OptionalWithScopes": {
+      "type": "operation",
+      "traits": {
+        "smithy.api#http": {
+          "method": "GET",
+          "uri": "/optional",
+          "code": 200
+        },
+        "crucible.auth#scopes": [
+          "weather/read"
+        ]
+      }
+    }
   }
 }

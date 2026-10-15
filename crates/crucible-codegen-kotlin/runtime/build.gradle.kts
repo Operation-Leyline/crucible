@@ -23,9 +23,6 @@ kotlin {
             api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
             api("io.ktor:ktor-client-core:3.3.3")
             implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
-            implementation("org.kotlincrypto.hash:md:0.8.0")
-            implementation("org.kotlincrypto.hash:sha1:0.8.0")
-            implementation("org.kotlincrypto.hash:sha2:0.8.0")
         }
         commonTest.dependencies { implementation(kotlin("test")); implementation("io.ktor:ktor-client-mock:3.3.3"); implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2") }
         jvmMain.dependencies { implementation("io.ktor:ktor-client-cio:3.3.3") }

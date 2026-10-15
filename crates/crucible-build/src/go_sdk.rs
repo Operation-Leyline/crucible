@@ -26,7 +26,6 @@ impl<'a> GoSdk<'a> {
                 module_path: format!("example.com/{name}-sdk"),
                 package_name: format!("{}_sdk", crate::output_builder::native_snake(name)),
                 endpoint: None,
-                content_sha256: false,
             },
         }
     }
@@ -52,12 +51,6 @@ impl<'a> GoSdk<'a> {
     /// Default endpoint embedded in the generated client package.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.options.endpoint = Some(endpoint.into());
-        self
-    }
-
-    /// Enable the existing content SHA-256 client option.
-    pub fn content_sha256(mut self, enabled: bool) -> Self {
-        self.options.content_sha256 = enabled;
         self
     }
 

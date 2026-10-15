@@ -27,11 +27,7 @@ def qualify(package):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
         "--package-name", "weather-client", "--module-name", "weather_client",
-        "--endpoint", "https://weather.example", "--content-sha256")
-    dynamic = package.parent / "dynamic"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", "--out", str(dynamic),
-        "--package-name", "dynamic-client", "--module-name", "dynamic_client")
+        "--endpoint", "https://weather.example")
     extended = package.parent / "extended"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/extended-types.json", "--out", str(extended),
@@ -40,26 +36,10 @@ def qualify(package):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/error-payloads.json", "--out", str(payload),
         "--package-name", "wire-client", "--module-name", "wire_client")
-    auth = package.parent / "auth"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-codegen-python/tests/auth.json", "--out", str(auth),
-        "--package-name", "auth-client", "--module-name", "auth_client")
-    jobs = package.parent / "jobs"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-codegen-python/tests/waiters.json", "--out", str(jobs),
-        "--package-name", "jobs-client", "--module-name", "jobs_client")
-    behavior = package.parent / "behavior"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "--out", str(behavior),
-        "--package-name", "behavior-client", "--module-name", "behavior_client")
     policy = package.parent / "policy"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "crates/crucible-smithy/tests/fixtures/runtime-policy.json", "--out", str(policy),
         "--package-name", "policy-client", "--module-name", "policy_client")
-    stream = package.parent / "stream"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-codegen-python/tests/streaming.json", "--out", str(stream),
-        "--package-name", "stream-client", "--module-name", "stream_client")
     # Typed permissions: the open permission types and the registry
     # (tests/test_permissions.py), from the shared .cru fixture.
     permissions = package.parent / "permissions"
@@ -73,21 +53,10 @@ def qualify(package):
         "--package-name", "docs-client", "--module-name", "docs_client")
     run(sys.executable, "-m", "mypy", str(docs / "src"))
     protocols.append(docs)
-    checksum = package.parent / "checksum"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/checksums.json", "--out", str(checksum),
-        "--package-name", "checksum-client", "--module-name", "checksum_client")
-    run(sys.executable, "-m", "mypy", str(checksum / "src"))
-    protocols.append(checksum)
-    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, permissions, *protocols, *payload_bindings)))
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, extended, payload, policy, permissions, *protocols, *payload_bindings)))
     run(sys.executable, "-m", "mypy", str(package / "src"))
-    run(sys.executable, "-m", "mypy", str(dynamic / "src"))
     run(sys.executable, "-m", "mypy", str(extended / "src"))
     run(sys.executable, "-m", "mypy", str(payload / "src"))
-    run(sys.executable, "-m", "mypy", str(auth / "src"))
-    run(sys.executable, "-m", "mypy", str(jobs / "src"))
-    run(sys.executable, "-m", "mypy", str(behavior / "src"))
-    run(sys.executable, "-m", "mypy", str(stream / "src"))
     run(sys.executable, "-m", "mypy", str(policy / "src"))
     run(sys.executable, "-m", "mypy", str(permissions / "src"))
     if not os.environ.get("WEATHER_BIN"):

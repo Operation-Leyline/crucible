@@ -19,7 +19,7 @@ use crucible_server_runtime_rust::{
 const V1: ApiVersion = ApiVersion::new(0, "v1");
 const V2: ApiVersion = ApiVersion::new(1, "v2");
 
-/// The operation as v2 describes it: authentication optional.
+/// The operation as v2 describes it: no authentication.
 static CURRENT: OperationInfo = generated::operation_info(
     "example.versions#Probe",
     "Probe",
@@ -131,7 +131,6 @@ static SERVICE: ServiceInfo = generated::service_info(
     "example.versions#Versions",
     "v2",
     None,
-    None,
     &[&CURRENT, &OPEN_CURRENT, &GATE_CURRENT],
     &[],
     |_| None,
@@ -142,7 +141,6 @@ static SERVICE: ServiceInfo = generated::service_info(
 static RELEASE_V1: ServiceInfo = generated::service_info(
     "example.versions#Versions",
     "v1",
-    None,
     None,
     &[&OLDER, &OPEN_OLDER, &GATE_OLDER],
     &[],
@@ -157,8 +155,7 @@ static OLDER_VERSIONS: [(ApiVersion, Option<&str>, &ServiceInfo); 1] = [(V1, Non
 struct Current;
 impl Operation for Current {
     const INFO: &'static OperationInfo = &CURRENT;
-    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = true;
+    const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[]);
     const HAS_INPUT: bool = false;
     const HAS_OUTPUT: bool = false;
     type Input = Unit;
@@ -257,7 +254,7 @@ async fn call(service: &Crucible, path: &str, version: &str) -> u16 {
 
 /// An authentication chain scoped to v1's description alone prepares v1's
 /// plan from v1's own schemes: a v1 request without credentials is refused,
-/// though the current version makes authentication optional.
+/// though the current version drops authentication.
 #[tokio::test]
 async fn an_extension_scoped_to_an_older_version_prepares_from_its_own_metadata() {
     let service = Crucible::builder(operations())
@@ -288,15 +285,6 @@ fn unscoped() -> Crucible {
         )]))
         .build()
         .unwrap()
-}
-
-/// v1 required bearer auth where v2 makes it optional: a v1 request without
-/// credentials is refused, a v2 one passes.
-#[tokio::test]
-async fn an_unscoped_chain_keeps_an_older_versions_required_authentication() {
-    let service = unscoped();
-    assert_eq!(call(&service, "/probe", "v1").await, 401);
-    assert_eq!(call(&service, "/probe", "v2").await, 200);
 }
 
 /// v1 required bearer auth where v2 has no auth schemes at all.
@@ -336,7 +324,7 @@ impl crucible_server_runtime_rust::OperationAwareMiddleware for Recorder {
                 served.operation().name,
                 served.api_version(),
                 older.iter().any(|op| std::ptr::eq(*op, served.operation())),
-                metadata.optional_auth,
+                metadata.requires_authentication(),
                 metadata.auth_schemes.unwrap().len(),
             ));
         }
@@ -360,12 +348,12 @@ fn served_operations_lists_each_versions_own_entry_within_the_scope() {
         .build()
         .unwrap();
     let seen = seen.lock().unwrap();
-    let gate = ("Gate", None, false, false, 1);
+    let gate = ("Gate", None, false, true, 1);
     let open = ("Open", None, false, false, 0);
-    let probe = ("Probe", None, false, true, 1);
+    let probe = ("Probe", None, false, false, 0);
     let gate_v1 = ("Gate", Some(V1), true, false, 0);
-    let open_v1 = ("Open", Some(V1), true, false, 1);
-    let probe_v1 = ("Probe", Some(V1), true, false, 1);
+    let open_v1 = ("Open", Some(V1), true, true, 1);
+    let probe_v1 = ("Probe", Some(V1), true, true, 1);
     assert_eq!(
         *seen,
         [
@@ -421,7 +409,6 @@ static LEGACY_SERVICE: ServiceInfo = generated::service_info(
     "example.legacy#Legacy",
     "v3",
     None,
-    None,
     &[],
     &[],
     |_| None,
@@ -433,7 +420,6 @@ static LEGACY_RELEASE_V1: ServiceInfo = generated::service_info(
     "example.legacy#Legacy",
     "v1",
     None,
-    None,
     &[&RETIRED_V1],
     &[],
     |_| None,
@@ -444,7 +430,6 @@ static LEGACY_RELEASE_V1: ServiceInfo = generated::service_info(
 static LEGACY_RELEASE_V2: ServiceInfo = generated::service_info(
     "example.legacy#Legacy",
     "v2",
-    None,
     None,
     &[&RETIRED_V2],
     &[],

@@ -4,7 +4,7 @@
 
 `crucible generate c` emits a C17 CMake package with native model structs,
 typed operation functions, a libcurl transport, and lazy page iterators.
-Generation reads the shared Smithy IR. The package bundles its runtime and
+Generation reads the shared IR. The package bundles its runtime and
 records the generator, service, package version, and schema digest in
 `crucible.json`.
 
@@ -16,7 +16,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 ```sh
 crucible generate c smithy --out sdk \
   --package-name weather_client --prefix weather --package-version 0.1.0 \
-  --endpoint https://api.example.com --content-sha256
+  --endpoint https://api.example.com
 cmake -S sdk -B build -DCMAKE_INSTALL_PREFIX="$PWD/installed"
 cmake --build build
 cmake --install build
@@ -82,7 +82,7 @@ Generated identifiers escape C and C++ keywords with the suffix `_value`, so
 public headers also compile as C++. For example, an operation named `Public`
 uses `weather_operations_public_value`, `weather_operations_public_value_result`
 and `weather_operations_public_value_result_free`; a member named `class`
-uses `class_value`. The Smithy names on the wire remain unchanged.
+uses `class_value`. The names on the wire remain unchanged.
 
 Structures, unions, lists, and maps are native structs. Open string enums keep
 unknown values, and unknown union alternatives retain their name and JSON.
@@ -151,109 +151,22 @@ operations, so a collision, or two permissions of one resource with the same
 
 ## Authentication
 
-Each operation tries its modeled schemes in order. A scheme is used when its
-provider returns an identity. A matching caller-supplied value (an
-`Authorization` header with the scheme prefix, or the API key header or query
-parameter) is sent as is without calling a provider. Providers run on every
-attempt, so retries see refreshed identities.
-
-| Scheme | Configuration | Request |
-|---|---|---|
-| `httpBearerAuth` | `config.token`, `config.token_user` | `Authorization: Bearer ...` |
-| `httpBasicAuth` | `config.basic_credentials`, `config.basic_user` | `Authorization: Basic ...`; a username may not contain `:` |
-| `httpApiKeyAuth` | `config.api_key`, `config.api_key_user` | the modeled header (with its scheme prefix) or query parameter |
-| `aws.auth#sigv4` | `config.credentials`, `config.credentials_user`, `config.region` | SigV4 over the final request |
-
-An operation with modeled schemes fails before sending when no identity is
-available, unless it is `@optionalAuth` or uses only bearer auth (which keeps
-the anonymous fallback). `@auth([])` operations never call a provider. Any
-credentials, including a caller `Authorization` header, require HTTPS except
-on loopback HTTP.
-
-SigV4 runs last, after middleware, the content digest and checksums, so
-middleware headers are signed. It follows the published AWS algorithm
-(`weather_sigv4_sign` is public and checked against the AWS S3 GET vector):
-path normalization and double encoding except for `s3`, a sorted canonical
-query, whitespace-collapsed headers, `X-Amz-Content-Sha256`
-(`UNSIGNED-PAYLOAD` for `@unsignedPayload`), and `X-Amz-Security-Token` for
-session credentials. Endpoint rule `authSchemes` properties select schemes and
-override the signing name, region, double encoding and path normalization.
-
-`weather_aws_credentials` holds borrowed key views plus an optional
-Unix-seconds expiry. The standard providers share the `weather_credentials_fn`
-signature: `weather_credentials_environment` (the `AWS_*` variables),
-`weather_credentials_profile` (a `weather_profile_source`; static shared-file
-credentials only, never a credential process), and
-`weather_credentials_chain_resolve` (stops on the first identity or error).
-`weather_credentials_cache_new` wraps a provider in a thread-safe cache with
-single-flight refresh. Identities with an expiry refresh
-`min(refresh_before, half the remaining lifetime)` before it, and expired
-identities are rejected. A caller waiting on another thread's refresh observes
-its own cancellation and deadline, and every caller receives a copy in its own
-arena. Free the cache after its last use.
-
-## Endpoints
-
-A model with `smithy.rules#endpointRuleSet` resolves the endpoint on every
-call from the lowered rules. Parameters come from operation context, input
-members and paths, `config.endpoint_parameters`, and
-`config.endpoint_builtins`; `AWS::Region` defaults to `config.region` and
-`SDK::Endpoint` to `config.endpoint`. A rule error fails the call with the
-rule's message. Resolved headers are added to the request, and resolved
-`authSchemes` steer signing. With endpoint rules, `config.endpoint` may be
-empty.
-
-`@endpoint(hostPrefix)` prepends the expanded prefix to the resolved host.
-Each label must be one valid host label and the result a valid host name;
-invalid input fails before any request. Set `config.disable_host_prefix` to
-skip prefixing. `weather_endpoint_resolve` and `weather_endpoint_function`
-expose the evaluator and the standard functions (`isSet`, `not`,
-`booleanEquals`, `stringEquals`, `getAttr`, `substring`, `isValidHostLabel`,
-`parseUrl`, `uriEncode`).
-
-## Waiters
-
-Each `smithy.waiters#waitable` waiter generates
-`weather_operations_<op>_wait_until_<waiter>(client, input, timeout, options,
-cancelled, cancel_user, result, report, error)`. Acceptors are evaluated in
-order against the output, the input and output (`inputOutput`), success, or
-the modeled error name. Paths use the shared JMESPath tree with exact decimal
-arithmetic. Delays use the modeled `minDelay` and `maxDelay` (or
-`weather_waiter_options`) with exponential backoff and jitter, and the last
-delay is clamped to the deadline. Each attempt is bounded by both the client
-timeout and the waiter deadline.
-
-The outcome is `weather_ok` with the matching response in `result` (a success
-acceptor may match an error response); `weather_waiter_failed` with the last
-response, `report.cause` and the acceptor message as JSON in `report.message`;
-`weather_deadline` after the timeout; or `weather_cancelled`.
-`report.attempts` counts calls. Free `result` after every outcome.
-
-## Checksums
-
-`@httpChecksumRequired` and `aws.protocols#httpChecksum` operations add a
-request checksum over the final body, after middleware: Content-MD5, or
-`x-amz-checksum-<algorithm>` for the selected request algorithm (CRC32 by
-default). CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256 and SHA512 are
-supported; other algorithms fail before sending. A caller-supplied checksum
-header is kept. With validation enabled (the default), the first modeled
-response checksum header present is compared in constant time over the body.
-A mismatch is `weather_checksum_mismatch` with the response kept in the
-result; a match calls `config.checksum_validated`. Set
-`config.request_checksum_calculation` or `config.response_checksum_validation`
-to `weather_checksum_when_required` to send only required checksums or skip
-default validation. Defaults never modify the caller's input.
-`weather_checksum` computes any supported checksum.
+An operation that uses bearer authentication (`httpBearerAuth`) calls
+`config.token` on every attempt, so retries see refreshed tokens, and sends
+`Authorization: Bearer ...` with the result. The provider sets `present` to
+false for no token; the call then goes out anonymous. A caller-supplied
+`Authorization: Bearer ...` header is sent as is without calling the provider,
+and `@auth([])` operations never call it. Any credentials, including a caller
+`Authorization` header, require HTTPS except on loopback HTTP.
 
 ## Retries and pagination
 
 Middleware runs after credentials and can change the request. Use
-`weather_header_set` for case-insensitive replacement. When enabled, the
-SHA-256 header is computed after middleware over the final body bytes.
+`weather_header_set` for case-insensitive replacement.
 
 The runtime follows the [shared retry contract](../clients.md#http-retry-contract).
 One idempotency token is generated before the first attempt. Retries use a
-fresh credential callback, bounded jitter, and Retry-After when valid. One
+fresh token callback, bounded jitter, and Retry-After when valid. One
 monotonic deadline covers preparation, callbacks, transport, retries, and
 decoding. Cancellation is a callback plus user pointer; it must be cheap and
 thread-safe. Custom transport and middleware callbacks cooperate by checking
@@ -272,9 +185,7 @@ with `weather_pages_free` and keep its client alive until then.
 ## Limits
 
 HEAD operations with request bodies receive a generator diagnostic because
-the transport cannot preserve that body. Endpoint rules may use only the
-standard functions listed above; the AWS partition and ARN functions fail
-resolution. SigV4a, streaming, and event streams are not supported by this target. The default transport does not add
+the transport cannot preserve that body. The default transport does not add
 an HTTP cache, cookie jar, or redirect following. It discards an irrelevant
 successful response body after headers, but reads error bodies for metadata.
 
@@ -286,13 +197,8 @@ is installed.
 ## Qualification
 
 Run `python tools/test-c.py` for generated CMake installation, a separate
-consumer, shared fixtures, and native weather-service HTTP tests. It also
-builds the authentication, checksum, endpoint and waiter packages
-and runs them against a loopback feature service: the published SigV4 vector,
-credential providers and concurrent cache refresh, all seven checksum vectors
-and their HTTP validation, endpoint rules and host labels, waiter acceptors,
-deadlines and cancellation. `C_FEATURES_ONLY=1`
-runs only those. CI covers GCC with sanitizers and MSVC.
+consumer, shared fixtures, and native weather-service HTTP tests. CI covers
+GCC with sanitizers and MSVC.
 
 Native package tests and full-model compilation are separate from authenticated
 Leyline qualification and package publication. See [client coverage](../clients.md)

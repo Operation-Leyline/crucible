@@ -26,7 +26,6 @@ fn yard_type(service: &Service, id: &ShapeId) -> String {
         Some(Shape::Simple(s)) => match s.kind {
             SimpleKind::Boolean => "Boolean".into(),
             SimpleKind::String => "String".into(),
-            SimpleKind::Blob if s.streaming => "Runtime::ByteStream".into(),
             SimpleKind::Blob => "String".into(),
             SimpleKind::Byte
             | SimpleKind::Short
@@ -64,7 +63,7 @@ fn inspect(
             let field = field(&member.name);
             if docs::is_redacted(service, sensitive, member) {
                 format!("{field}: Runtime::Describe.redact(@{field})")
-            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == SimpleKind::Blob && !s.streaming) {
+            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == SimpleKind::Blob) {
                 format!("{field}: Runtime::Describe.bytes(@{field})")
             } else {
                 format!("{field}: @{field}")

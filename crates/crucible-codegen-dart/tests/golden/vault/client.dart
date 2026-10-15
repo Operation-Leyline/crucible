@@ -21,7 +21,7 @@ final class VaultClient {
   /// Creates a client. Without a [config], the generated endpoint is used and no credentials are sent; see [ClientConfig] for credentials, retries, timeouts and the transport. Throws an `ArgumentError` for an invalid endpoint.
   VaultClient([ClientConfig? config]) : _runtime = ClientRuntime(config ?? ClientConfig(),
     WireCodec(wireObject(exactJsonDecode(schemaSource)), models.decodeModel), models.decodeError, () => const models.Unit(),
-    endpoint: "https://weather.example", digest: true);
+    endpoint: "https://weather.example");
   /// Releases the HTTP client this client created. A transport passed in the
   /// configuration is left open. Calls made after closing throw a `StateError`.
   void close() => _runtime.close();

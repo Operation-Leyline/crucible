@@ -209,7 +209,7 @@ impl Check<'_> {
                     return self.mismatch(path, "array", value);
                 };
                 self.length(path, constraints, items.len() as u64, "items");
-                if (list.is_set || constraints.unique_items)
+                if constraints.unique_items
                     && items
                         .iter()
                         .enumerate()
@@ -424,10 +424,9 @@ impl Service {
                     members
                         .iter()
                         .map(|(name, value)| match structure.member(name) {
-                            Some(member) => (
-                                member.wire_name.clone(),
-                                self.wire_example(member, value, None),
-                            ),
+                            Some(member) => {
+                                (member.name.clone(), self.wire_example(member, value, None))
+                            }
                             None => (name.clone(), value.clone()),
                         })
                         .collect(),

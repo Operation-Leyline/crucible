@@ -22,11 +22,11 @@ internal class CallTrace(private val hook: TelemetryHook?, private val clock: Ru
         try { block(hook) } catch (error: Exception) { telemetryLog.error("telemetry hook $name failed", error) }
     }
 
-    fun attemptStarted(method: String, endpoint: String, source: String, target: String, headers: Map<String, String>, requestBytes: Long?) {
+    fun attemptStarted(method: String, endpoint: String, target: String, headers: Map<String, String>, requestBytes: Long?) {
         attempts++
         if (hook == null) return
         attemptStart = clock.now()
-        emit("attemptStarted") { it.attemptStarted(AttemptStarted(id, service, operation, attempts, method, endpoint, source, target, headers, requestBytes, attemptStart)) }
+        emit("attemptStarted") { it.attemptStarted(AttemptStarted(id, service, operation, attempts, method, endpoint, target, headers, requestBytes, attemptStart)) }
     }
 
     fun attemptFinished(status: Int?, error: Throwable?, requestId: String?, responseBytes: Long?, retryReason: String? = null, retryDelay: Duration? = null) {
@@ -47,8 +47,7 @@ internal class CallTrace(private val hook: TelemetryHook?, private val clock: Ru
     companion object {
         const val REDACTED: String = "***"
         /** Always redacted, whatever the model says. */
-        val CREDENTIAL_HEADERS: Set<String> = setOf("authorization", "proxy-authorization", "cookie", "set-cookie", "x-amz-security-token")
-        val CREDENTIAL_QUERY: Set<String> = setOf("x-amz-signature", "x-amz-credential", "x-amz-security-token")
+        val CREDENTIAL_HEADERS: Set<String> = setOf("authorization", "proxy-authorization", "cookie", "set-cookie")
 
         /** A modeled or wire error's name, or the exception type name; never a message, which may echo request data. */
         fun errorName(error: Throwable?): String? = when (error) {
@@ -68,7 +67,7 @@ internal class CallTrace(private val hook: TelemetryHook?, private val clock: Ru
             encodedQuery.split('&').filter { it.isNotEmpty() }.joinToString("&") { pair ->
                 val name = pair.substringBefore('=')
                 val decoded = try { name.decodeURLQueryComponent() } catch (_: Exception) { name }.lowercase()
-                if (decoded in sensitive || decoded in CREDENTIAL_QUERY) "$name=$REDACTED" else pair
+                if (decoded in sensitive) "$name=$REDACTED" else pair
             }
 
         /** Scheme, host, port and base path of an endpoint; never user information. */

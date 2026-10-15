@@ -22,19 +22,13 @@ pub struct Options {
 /// Capabilities whose wire representations this emitter can describe.
 pub fn capabilities() -> Capabilities {
     Capabilities::new([
-        Feature::JsonName,
         Feature::Sparse,
-        Feature::Sets,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::DigestAuth,
-        Feature::OptionalAuth,
     ])
 }
 
@@ -118,11 +112,6 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
             }
         }
     }
-    for (id, scheme) in &service.auth_schemes {
-        if matches!(scheme, AuthScheme::SigV4 { .. } | AuthScheme::SigV4a { .. }) {
-            diagnostics.push(id, "AWS request signing is not supported by OpenAPI export");
-        }
-    }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -144,26 +133,8 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     }
     let mut security = Map::new();
     for (id, scheme) in &service.auth_schemes {
-        let value = match scheme {
-            AuthScheme::Bearer => json!({"type": "http", "scheme": "bearer"}),
-            AuthScheme::Basic => json!({"type": "http", "scheme": "basic"}),
-            AuthScheme::Digest => json!({"type": "http", "scheme": "digest"}),
-            AuthScheme::ApiKey {
-                name,
-                location,
-                scheme,
-            } => {
-                let mut value = json!({"type": "apiKey", "name": name, "in": location});
-                if let Some(scheme) = scheme {
-                    value["description"] =
-                        json!(format!("Prefix the key with {scheme} followed by a space."));
-                    value["x-smithy-api-key-scheme"] = json!(scheme);
-                }
-                value
-            }
-            AuthScheme::SigV4 { .. } | AuthScheme::SigV4a { .. } => unreachable!("diagnosed above"),
-        };
-        security.insert(key(id), value);
+        let AuthScheme::Bearer = scheme;
+        security.insert(key(id), json!({"type": "http", "scheme": "bearer"}));
     }
     let mut document = json!({
         "openapi": "3.1.1",

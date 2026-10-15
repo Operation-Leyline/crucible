@@ -34,13 +34,12 @@ The emitter supports Crucible JSON. It exports:
 - JSON body projections, raw blob payloads, UTF-8 string payloads, and
   structure, union, and document payloads with their resolved media types.
 - Recursive schemas, JSON property names, enums, integer enums, integer widths,
-  arbitrary-precision numbers, unions with one arm, maps, sparse collections,
-  sets, effective constraints, defaults, and resolved timestamp representations.
+  arbitrary-precision numbers, unions with one arm, maps, unique lists,
+  effective constraints, defaults, and resolved timestamp representations.
 - Modeled errors grouped by HTTP status. Multiple errors on one status retain
   their alternative bodies, headers, and wire discriminators. Success and error
   responses sharing a status also retain both alternatives.
-- Bearer, basic, digest, and API key authentication, including effective
-  operation overrides and optional authentication.
+- Bearer authentication, with public operations marked as unauthenticated.
 
 Schema component keys use `namespace.ShapeName`, avoiding collisions across
 namespaces and service renames. Operation IDs use the service's resolved names.
@@ -63,10 +62,9 @@ retain semantics that OpenAPI does not express directly:
 | `x-smithy-length` | Blob length in decoded bytes; base64 character length differs |
 | `x-smithy-decoded-schema` | Constraints before media-type header base64 encoding |
 | `x-smithy-errors`, `x-smithy-response-variants`, `x-smithy-retryable` | Modeled errors and per-response metadata |
-| `x-smithy-api-key-scheme` | Prefix required before an API key |
 
 These extensions document behavior; generic OpenAPI tools need their own support
-to implement automatic tokens, pagination, byte-length checks, and API key prefixes.
+to implement automatic tokens, pagination, and byte-length checks.
 The export does not create a client, host a documentation page, or add runtime routes.
 
 ## Examples
@@ -86,9 +84,7 @@ omitted. The raw `smithy.api#examples` trait is not repeated in `x-smithy-traits
 ## Diagnostics and limits
 
 Unsupported capabilities produce diagnostics against their Smithy shapes.
-The initial exporter rejects event streams and streaming blobs; AWS signing;
-endpoint rules, discovery and host prefixes; waiters; checksum traits; greedy labels; arbitrary query maps;
-prefix headers; and dynamic response status bindings.
+The initial exporter rejects greedy labels.
 
 OpenAPI permits one operation per method and path. Routes that share that pair
 but differ by literal queries are rejected instead of overwriting each other.

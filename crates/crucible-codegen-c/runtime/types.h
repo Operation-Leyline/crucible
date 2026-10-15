@@ -22,11 +22,7 @@ typedef enum {
     /** An HTTP transport or body read failed. */
     crucible_generated_network,
     /** An HTTP service failure; modeled data is retained in the result. */
-    crucible_generated_service_error,
-    /** A waiter reached a modeled failure state; see the waiter report. */
-    crucible_generated_waiter_failed,
-    /** A validated response checksum did not match the received body. */
-    crucible_generated_checksum_mismatch
+    crucible_generated_service_error
 } crucible_generated_status;
 
 /** Borrowed UTF-8 string view; data need not be NUL-terminated. */

@@ -272,7 +272,7 @@ operation error enum. `Error::metadata()` provides the same `ResponseMetadata`
 for modeled and unknown service errors: HTTP status, request ID, and headers.
 Unknown errors also retain their type name, message, and retry classification.
 Other variants are `Unknown`, `Transport`, `Invalid`, `Decode`, `Timeout`,
-`Cancelled`, and `ChecksumMismatch`.
+and `Cancelled`.
 
 The generated `WeatherException` enum contains every modeled service error.
 Each operation error enum converts into it with `From`, as does each individual
@@ -323,7 +323,7 @@ Generated operations also expose `*_with_options(input, CallOptions)` (omit
 `CallOptions.cancellation` accepts a clonable `CancellationToken`. Calling
 `cancel()` ends all calls sharing that token with `Error::Cancelled`. Deadline
 expiry returns `Error::Timeout`; neither condition retries. A generated helper
-(`*_with_options`, `*_pages`, waiters) receives a deterministic numeric suffix if
+(`*_with_options`, `*_pages`) receives a deterministic numeric suffix if
 its name collides with an operation.
 An already-expired budget, including `Duration::ZERO`, returns `Error::Timeout`
 before polling credential providers or dispatching a request. A zero timeout
@@ -357,11 +357,7 @@ its change. Other bodyless requests receive no generated digest.
 Run `cargo test -p crucible-codegen-rust -p crucible-client-runtime-rust -p crucible-wire`,
 then `bash tools/test-e2e.sh` for the generated client over the weather service.
 The E2E client tests also drive generated clients for the shared
-`error-payloads` and `checksums` (with its vectors) fixtures against loopback
-HTTP peers. Native server tests cover event streams in `tests/server_events.rs`.
-The `event-streams` fixture runs the same way under SigV4
-(`tests/event_streams.rs`), and `crucible-wire` decodes the published framing
-vectors in `tests/conformance/event-streams.json`.
+`error-payloads` fixture against loopback HTTP peers.
 The real loopback retry runner consumes the shared retry fixture. The E2E
 workspace is a separate Cargo workspace and uses a generated model package.
 
@@ -437,114 +433,11 @@ operation descriptions must supply this field. Unmodeled 501 and other unknown
 5xx responses are not automatically retried. Roll back the generator, runtime,
 and generated code together if reverting this change.
 
-### Dynamic HTTP bindings
+### Greedy path labels
 
-Generated clients support `@jsonName`, greedy path labels, `@httpQueryParams`,
-`@httpPrefixHeaders`, and `@httpResponseCode`. Public member names stay unchanged;
-JSON names affect only the wire. Explicit query/header bindings take precedence
-when a map supplies the same name. Greedy labels preserve slash separators and
-reject dot-only segments before dispatch. Response-code members read the actual
-HTTP status, including modeled errors. Nested pagination token paths continue to
-use the public model names.
-
-### Streaming payloads
-
-An `@streaming` blob uses `ByteStream` on clients and servers. `ByteStream::new`
-owns a one-shot stream of `Result<Bytes, E>` chunks. `ByteStream::replay` takes a
-factory that must reproduce the same bytes on every attempt; `from_bytes` is a
-replayable in-memory convenience. A cloned one-shot value shares its consumption
-state. The transport never automatically retries a one-shot upload.
-
-Call `open()` and consume the returned chunk stream with `StreamExt::next`.
-Dropping that stream releases its HTTP reader. Call `close()` to release an
-unopened response. The original call deadline and cancellation token remain
-active during response reads. Streaming errors are `std::io::Error`, with
-`TimedOut` and `Interrupted` distinguishing deadline and cancellation failures.
-
-`with_length` supplies a known length for `@requiresLength`; declared and modeled
-length bounds are enforced while reading. With `Config::content_sha256(true)`,
-streaming inputs require `with_sha256` or an explicit digest header. The runtime
-does not collect a streaming body to calculate a hash. Generated servers also
-stream request and response bodies, and enforce configured request-body limits
-as chunks arrive.
-
-### Event streams
-
-A member targeting an `@streaming` union is an `EventStream<Union>`. To send
-events, build one from a `Stream` of union values with `EventStream::new`, from
-a fallible source with `EventStream::try_new`, or from a collection with
-`EventStream::from_events`. The transport pulls an event only when the
-connection accepts more bytes, so a slow service slows the source. A source
-error aborts the request, and the call fails with `Error::Transport`. A call
-that sends events is never retried, because its events cannot be replayed.
-
-```rust
-let events = EventStream::new(futures_util::stream::iter(vec![
-    ClientEvents::Ping(Ping::builder().build()),
-]));
-client.publish(PublishInput::builder().channel("general").events(events).build()?).await?;
-
-let output = client.subscribe(SubscribeInput::builder().channel("news").build()?).await?;
-let mut events = output.events.open()?;
-while let Some(event) = events.recv().await? {
-    // ServerEvents::Message(..), ServerEvents::UnknownValue(..) for a newer event
-}
-```
-
-A received stream is read once: `open()` returns an `EventReceiver`, which is
-also a `Stream`. `recv()` yields events in order, `Ok(None)` at the end, or one
-`EventStreamError`, after which the stream has ended:
-
-- `Exception(union)`: a modeled error, as the union's error member, for example
-  `ServerEvents::Throttled(ThrottledError)`.
-- `Error { code, message }`: an `error` message, or an exception type the client
-  does not know.
-- `Decode(message)`: invalid framing, a checksum mismatch, or an event that does
-  not match the model.
-- `Io(error)`: the connection failed, or the call deadline (`TimedOut`) or
-  cancellation (`Interrupted`) ended it.
-
-An event type the client does not know is the union's unknown member. Dropping
-the receiver releases the connection; `close()` releases an unopened stream.
-The call's total timeout and cancellation token stay active until the stream
-ends, so a configured timeout also bounds a long-lived subscription. Override it
-per call with `CallOptions`. An HTTP error response is decoded as the
-operation's error, as for any call.
-
-Each event is one AWS event stream message (`application/vnd.amazon.eventstream`)
-with `:message-type`, `:event-type`, and `:content-type` headers. `@eventHeader`
-members are typed headers: booleans, byte, short, integer, long, blob, string
-(and enum), and timestamps in milliseconds. An `@eventPayload` blob or string
-is the raw payload, and a structure is a JSON document. Without an
-`@eventPayload`, the remaining members form a JSON document. Prelude and message
-CRC32s are verified. The server limits headers to 128 KiB and payloads to
-24 MiB; clients do not enforce these service-side size limits.
-The operation's other members use HTTP bindings.
-
-With SigV4 authentication the request declares
-`x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-EVENTS`. Each message is
-wrapped in an envelope whose `:chunk-signature` chains from the previous
-signature, starting from the request's, and the stream ends with an empty
-signed message. The string to sign is checked against the published smithy-rs
-vector. Responses are not signed.
-
-Bidirectional operations work over HTTP/1.1. The response is returned when the
-service sends its headers, and both directions then proceed independently; the
-tests exchange events interactively on one connection. `crucible-client-runtime-rust` builds
-reqwest without its `http2` feature, so services that accept event streams only
-over HTTP/2 (for example, Amazon Transcribe streaming) are not reachable with
-the default client. An application can enable that feature and pass its own
-client to `Config::http_client`; that path is untested. Sent events are not checked against model constraints, timestamps in
-headers keep millisecond precision, and `Config::content_sha256` adds no digest
-to an unsigned event stream. Generation refuses a modeled error in an input event
-stream. The native server serves event streams and validates each input event
-as it is read. Server middleware remains responsible for authenticating signed
-requests; signed event-stream envelopes need a custom protocol that verifies
-chunk signatures.
-
-This adds `Location::EventStream` and the defaulted `Operation::INPUT_EVENTS`,
-`OUTPUT_EVENTS`, `input_events`, and `set_output_events` items to
-`crucible-wire`. Add the new variant to exhaustive matches on `Location`.
+Generated clients support greedy path labels, which preserve slash separators
+and reject dot-only segments before dispatch. Nested pagination token paths
+continue to use the public model names.
 
 ### Exact numbers and collections
 
@@ -555,54 +448,11 @@ and `bigdecimal` APIs. Numeric defaults and range validation retain the same
 precision, including HTTP headers. Integer enums provide `as_i32()` and client
 `UnknownValue(i32)` variants for values introduced by newer servers.
 
-Sparse lists use `Vec<Option<T>>`, and sparse maps use
-`BTreeMap<String, Option<T>>`. Sets and `@uniqueItems` lists remain `Vec<T>`;
+`unique` lists remain `Vec<T>`;
 generated member codecs reject duplicates during encoding and decoding using
 structural value equality. Object member order and equivalent numeric spellings
 do not distinguish elements. Dense document collections reject null elements but preserve null nested inside documents.
 Nested timestamp collections use their modeled timestamp formats.
-
-### Authentication options
-
-`Config::basic_credentials(Identity::fixed(BasicCredentials::new(user, password)))`
-configures Basic authentication; `Config::api_key(Token::fixed(key))` supplies the
-modeled API-key header or query parameter. `Identity::provider` accepts an async
-provider returning `Option<T>`. The runtime selects identities in modeled order
-on each attempt, and preserves explicit matching credential headers without
-calling unrelated providers. `@auth([])` bypasses identity providers and
-`@optionalAuth` permits anonymous calls. Required Basic/API-key combinations fail
-before dispatch when no identity is available. Bearer-only services retain the
-existing behavior of accepting a call without a configured token and deciding
-its authorization at the service. Credential resolution uses the total call
-budget and cancellation token.
-
-### Endpoints and waiters
-
-Models with endpoint rules can use `Config::default().region("us-east-1")`;
-`Config::new(endpoint)` supplies the `SDK::Endpoint` built-in. Custom parameters
-use `endpoint_parameter` and `endpoint_builtin`. The generated metadata resolves
-rules, headers, and operation host prefixes. `disable_host_prefix(true)` disables
-prefix expansion. Invalid labels and rule errors fail before dispatch.
-
-Waiters generate `wait_until_<name>(input, WaiterOptions::new(max_wait_time))`.
-The result is `WaiterResult::Response { output, attempts }` or
-`WaiterResult::Error { error, attempts }`: an error-type acceptor can legitimately
-mean success. `WaiterError` retains the last response or underlying error and
-distinguishes failure, timeout, cancellation, and invalid configuration. Optional
-delay overrides and `options.call` configure polling and cancellation. One budget
-covers calls, their retries, and jittered delays. Discarded streaming responses
-are closed before polling again.
-
-Retained `WaiterError.response` and `.cause` values are boxed, keeping the error
-size independent of generated output/error model sizes. Use `.as_deref()` when
-matching the underlying cause, or dereference an owned box to recover its value.
-Regenerate and upgrade the runtime and consumers together; rollback keeps both
-at the earlier generator revision.
-
-Endpoint paths and waiter expressions use model member names even with
-`@jsonName`; timestamps are normalized to exact epoch seconds. Compiled JMESPath
-metadata is adapted once, and comparisons and numeric functions preserve exact
-decimal values rather than converting to floating point.
 
 ### Payloads and media-type headers
 
@@ -617,56 +467,6 @@ bind a payload: the error is named by the `x-crucible-error` header
 (`X-Amzn-Errortype` for AWS protocols) because the body is no longer a JSON
 envelope, and header members still decode beside it.
 
-Header strings whose target has `@mediaType`, including list elements and
-`@httpPrefixHeaders` values, travel base64-encoded. The public model holds the
-decoded text. A response header that is not base64 of UTF-8 text is
-`Error::Decode`.
-
-### HTTP checksums
-
-`@httpChecksumRequired` and `@aws.protocols#httpChecksum` compute request
-checksums over the bytes actually sent: after interceptors and before SigV4
-signing. CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512 are supported;
-choosing another algorithm is `Error::Invalid` before dispatch. A checksum
-header the caller supplies, through a bound member or an interceptor, is sent
-unchanged.
-
-By default (`ChecksumPolicy::WhenSupported`) an absent algorithm member is sent
-as `CRC32` and an absent validation-mode member as `ENABLED`, without changing
-the caller's input. `Config::request_checksum_calculation(ChecksumPolicy::WhenRequired)`
-computes a checksum only when the model requires one or the caller chose an
-algorithm; `response_checksum_validation(ChecksumPolicy::WhenRequired)` verifies
-responses only when the caller enabled validation. A required checksum without
-an algorithm member is `Content-MD5`.
-
-When validation is enabled, the first modeled, supported response algorithm
-that the response carries is verified. A mismatch is
-`Error::ChecksumMismatch(algorithm)` and is not retried.
-`Config::on_checksum_validated(|operation, algorithm| ..)` reports each verified
-response. A streamed response is verified as it is read: a mismatch ends the
-stream with an `InvalidData` error, and the callback runs at its end. A streamed
-upload cannot be hashed before it is sent, so an optional checksum is skipped
-and a required or chosen one needs a caller-supplied header.
-
-These additions change `crucible-wire` descriptions (`Location::TextPayload`,
-`Location::DocumentPayload`, `Scalar::Base64`, `Scalar::Timestamp`, and the
-`Operation::PROTOCOL` and `Operation::CHECKSUM` constants) and add
-`Error::ChecksumMismatch`. Regenerate clients with the matching runtime, and
-add the new variant to exhaustive matches on `Error`.
-
-### AWS signing and credential providers
-
-`Config::aws_credentials(Identity::fixed(AwsCredentials::new(access, secret)))`
-enables modeled SigV4 authentication. Temporary credentials may include
-`session_token` and `expiration`. Configure `region`; `signing_name` optionally
-overrides the modeled name. Endpoint auth properties can override the signing
-region, name, double encoding, and path normalization. Signing runs after caller
-interceptors, and identities are resolved again for each attempt. Streaming
-uploads require a precomputed SHA-256 digest unless the model permits unsigned
-payloads; signing never buffers a stream.
-
-`AwsCredentials::from_environment`, `from_environment_map`, `from_profile`, and
-`from_profile_file` load explicit credential sources. `Identity::chain` tries
-providers in order. `.cached(refresh_before)` coalesces concurrent refreshes and
-refreshes expiring credentials before they expire. No implicit environment,
-profile, or metadata-service lookup runs unless the application selects it.
+Header strings whose target has `@mediaType`, including list elements,
+travel base64-encoded. The public model holds the decoded text. A response
+header that is not base64 of UTF-8 text is `Error::Decode`.

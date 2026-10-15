@@ -4,7 +4,7 @@
 #' @md
 # Generated native operation methods.
 `LeylineClient` <- function(config = client_config()) {
-  client <- .crucible_client(config, NULL, TRUE)
+  client <- .crucible_client(config, NULL)
 #' @description
 #' A mixed list: clients see the public clause and that more are internal,
 #' never the internal clause or the internal member its `when` reads.

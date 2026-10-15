@@ -2,9 +2,7 @@
 //! service, with no dependencies beyond the runtime it carries.
 //!
 //! Output, under `src/`:
-//! - `runtime.ts`: the vendored runtime (wire conversion, transport, retries),
-//!   with its companions `query.ts`, `endpoints.ts`, `waiters.ts`,
-//!   `credentials.ts`, `checksums.ts` and `events.ts`
+//! - `runtime.ts`: the vendored runtime (wire conversion, transport, retries)
 //! - `models.ts`: a type per shape
 //! - `errors.ts`: a `ServiceError` subclass per modelled error
 //! - `schemas.ts`: what the runtime needs per operation (internal)
@@ -34,25 +32,7 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "formatModel",
     "NetworkError",
     "TimeoutError",
-    "AuthenticationError",
-    "WaiterError",
-    "WaiterTimeout",
-    "WaiterOptions",
-    "WaiterResult",
-    "AuthScheme",
-    "BasicCredentials",
-    "AwsCredentials",
-    "credentialsFromEnvironment",
-    "credentialsFromProfile",
-    "chainCredentials",
-    "cacheCredentials",
-    "IdentityProvider",
     "UnknownUnion",
-    "ByteStream",
-    "EventStream",
-    "EventStreamError",
-    "ChecksumError",
-    "ChecksumPolicy",
     "Decimal",
     "contentSha256",
     "stringifyJson",
@@ -185,29 +165,14 @@ pub struct File {
 pub fn capabilities() -> crucible_smithy::Capabilities {
     use crucible_smithy::Feature;
     crucible_smithy::Capabilities::new([
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
-        Feature::Streaming,
+        Feature::Sparse,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
-        Feature::Sparse,
-        Feature::Sets,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::EndpointHostPrefix,
-        Feature::EndpointRules,
-        Feature::Waiters,
-        Feature::SigV4,
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
-        Feature::HttpChecksum,
-        Feature::EventStreams,
     ])
 }
 
@@ -241,13 +206,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     for operation in &service.operations {
-        // `schemas.ts` also exports the service's endpoint rules under this name.
-        if service.endpoint_rules.is_some() && operation.name() == "endpointRules" {
-            diagnostics.push(
-                &operation.id,
-                "`endpointRules` collides with the endpoint rules `schemas.ts` exports",
-            );
-        }
         if RESERVED.contains(&operation.name()) {
             diagnostics.push(
                 &operation.id,
@@ -256,22 +214,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     operation.name()
                 ),
             );
-        }
-    }
-    for operation in &service.operations {
-        let Some(stream) = &operation.request.event_stream else {
-            continue;
-        };
-        if let Some(crucible_smithy::ir::Shape::Union(union)) = service.shape(&stream.target) {
-            for arm in &union.members {
-                if matches!(service.shape(&arm.target), Some(crucible_smithy::ir::Shape::Structure(s)) if s.error.is_some())
-                {
-                    diagnostics.push(
-                        &stream.target.with_member(&arm.name),
-                        "a client cannot send a modeled error in an input event stream",
-                    );
-                }
-            }
         }
     }
     if let Some(overrides) = &options.package_json {
@@ -312,34 +254,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             crucible_codegen_common::service_exception_runtime(service, RUNTIME)
                 .replace("\r\n", "\n"),
         ),
-        file(
-            "src/query.ts",
-            include_str!("../runtime/query.ts").replace("\r\n", "\n"),
-        ),
-        file(
-            "src/endpoints.ts",
-            include_str!("../runtime/endpoints.ts").replace("\r\n", "\n"),
-        ),
-        file(
-            "src/waiters.ts",
-            include_str!("../runtime/waiters.ts").replace("\r\n", "\n"),
-        ),
-        file(
-            "src/credentials.ts",
-            include_str!("../runtime/credentials.ts").replace("\r\n", "\n"),
-        ),
-        file(
-            "src/checksums.ts",
-            include_str!("../runtime/checksums.ts").replace("\r\n", "\n"),
-        ),
-        file(
-            "src/events.ts",
-            crucible_codegen_common::service_exception_runtime(
-                service,
-                include_str!("../runtime/events.ts"),
-            )
-            .replace("\r\n", "\n"),
-        ),
         file("src/models.ts", models::emit(service)),
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
@@ -374,13 +288,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
 /// when there is none.
 fn index(client: &str, permissions: &str) -> String {
     format!(
-        "{HEADER}export {{ credentialsFromEnvironment, credentialsFromProfile, chainCredentials, cacheCredentials }} from \"./credentials.js\";\nexport type {{ AwsCredentials }} from \"./credentials.js\";\nexport {{ WaiterError, WaiterTimeout }} from \"./waiters.js\";\nexport {{ ChecksumError }} from \"./checksums.js\";\nexport type {{ ChecksumPolicy }} from \"./checksums.js\";\nexport type {{ WaiterOptions, WaiterResult }} from \"./waiters.js\";\nexport * from \"./models.js\";\n\
+        "{HEADER}export * from \"./models.js\";\n\
          export * from \"./errors.js\";\n\
          {permissions}\
          export {{ {client} }} from \"./client.js\";\n\
-         export {{ AuthenticationError, ByteStream, Decimal, EventStream, EventStreamError, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
+         export {{ Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \
-         ResponseMetadata,\n  AuthScheme,\n  BasicCredentials,\n  IdentityProvider,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n  UnknownUnion,\n}} from \"./runtime.js\";\n"
+         ResponseMetadata,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n  UnknownUnion,\n}} from \"./runtime.js\";\n"
     )
 }
 

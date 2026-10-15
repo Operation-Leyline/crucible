@@ -6,7 +6,6 @@ fn options() -> Options {
         package_name: "weather.client".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 fn weather() -> serde_json::Value {
@@ -25,19 +24,7 @@ fn weather_package_is_deterministic() {
     let snapshot = files
         .iter()
         .filter(|f| {
-            ![
-                "R/json.R",
-                "R/types.R",
-                "R/codec.R",
-                "R/query.R",
-                "R/endpoints.R",
-                "R/auth.R",
-                "R/checksums.R",
-                "R/waiters.R",
-                "R/runtime.R",
-                "src/checksums.c",
-            ]
-            .contains(&f.path.as_str())
+            !["R/json.R", "R/types.R", "R/codec.R", "R/runtime.R"].contains(&f.path.as_str())
         })
         .map(|f| format!("=== {} ===\n{}\n", f.path, f.contents))
         .collect::<String>();
@@ -178,52 +165,6 @@ fn head_request_bodies_are_diagnosed() {
 }
 
 #[test]
-fn declared_client_features_generate_waiters_and_checksum_packages() {
-    let lower = |source: &str| {
-        Model::from_json(source)
-            .unwrap()
-            .lower_with_capabilities(None, &crucible_codegen_r::capabilities())
-            .unwrap()
-    };
-    let behavior = lower(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-behaviors.json"
-    ));
-    let files = emit(&behavior, &options()).unwrap();
-    let client = &files
-        .iter()
-        .find(|f| f.path == "R/client.R")
-        .unwrap()
-        .contents;
-    assert!(client.contains("client$`wait_until_ready` <- function(input, timeout,"));
-    let checksums = lower(include_str!(
-        "../../crucible-smithy/tests/fixtures/checksums.json"
-    ));
-    assert!(emit(&checksums, &options()).is_ok());
-}
-
-#[test]
-fn waiter_method_collisions_are_diagnosed() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-behaviors.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.behavior#WaitUntilReady"] = serde_json::json!({
-        "type": "operation",
-        "traits": {"smithy.api#http": {"method": "POST", "uri": "/wait"}, "smithy.api#auth": []}
-    });
-    model["shapes"]["example.behavior#Service"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(serde_json::json!({"target": "example.behavior#WaitUntilReady"}));
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_r::capabilities())
-        .unwrap();
-    let diagnostic = emit(&service, &options()).err().unwrap().to_string();
-    assert!(diagnostic.contains("waiter method collision"));
-}
-
-#[test]
 fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
     let mut model: serde_json::Value = serde_json::from_str(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"
@@ -256,23 +197,6 @@ fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
 }
 
 #[test]
-fn runtime_documentation_uses_the_public_basic_auth_setting() {
-    let service = Model::from_json(&weather().to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
-    let files = emit(&service, &options()).unwrap();
-    let docs = &files
-        .iter()
-        .find(|file| file.path == "man/runtime.Rd")
-        .unwrap()
-        .contents;
-    assert!(docs.contains("basic_auth: HTTP basic authentication provider"));
-    assert!(!docs.contains("basic_credentials: HTTP basic authentication provider"));
-    assert!(docs.contains("basic_credentials: Constructs HTTP basic credentials"));
-}
-
-#[test]
 fn model_names_cannot_collide_with_package_documentation() {
     for name in [
         "client",
@@ -297,21 +221,4 @@ fn model_names_cannot_collide_with_package_documentation() {
             "{name}: {diagnostics}"
         );
     }
-}
-
-#[test]
-fn nul_in_service_metadata_is_diagnosed() {
-    // Auth scheme settings reach the schema the package parses on load.
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["traits"]["smithy.api#httpApiKeyAuth"] =
-        serde_json::json!({"name": "X-Api-Key", "in": "header", "scheme": "Key\u{0}"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_r::capabilities())
-        .unwrap();
-    let diagnostic = emit(&service, &options()).err().unwrap().to_string();
-    assert!(
-        diagnostic.contains("NUL in service metadata"),
-        "{diagnostic}"
-    );
 }

@@ -25,8 +25,8 @@ const (
 	RetryModeAdaptive RetryMode = "adaptive"
 )
 
-// Clock supplies the time used for retry backoff and rate limiting, the
-// endpoint discovery cache and telemetry. Now must be monotonic. A call's own
+// Clock supplies the time used for retry backoff and rate limiting and
+// telemetry. Now must be monotonic. A call's own
 // deadline always uses the real clock, so a fake Clock never changes a timeout.
 type Clock interface {
 	Now() time.Time

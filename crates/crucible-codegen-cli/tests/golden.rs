@@ -323,20 +323,6 @@ fn json_service(edit: impl FnOnce(&mut Value)) -> Service {
 }
 
 #[test]
-fn descriptor_carries_json_names_for_body_members() {
-    let service = json_service(|model| {
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["displayName"] = json!({
-            "target": "smithy.api#String",
-            "traits": {"smithy.api#jsonName": "display_name"}
-        });
-    });
-    let schema = schema_of(&service);
-    let member = member_of(&schema, "example.weather#CreateCityInput", "displayName");
-    assert_eq!(member["wire_name"], "display_name");
-    assert_eq!(member["flag"], "display-name");
-}
-
-#[test]
 fn query_timestamps_keep_the_document_kind_and_bound_format() {
     let service = json_service(|model| {
         model["shapes"]["example.weather#CreateCityInput"]["members"]["since"] = json!({

@@ -1,18 +1,17 @@
 use axum::{
     Json, Router,
     body::Body,
-    http::{HeaderName, Request, StatusCode, request::Parts},
+    http::{HeaderName, Request, StatusCode},
     routing::get,
 };
 use crucible_auth::{
-    AuthError, AuthenticateResult, Authenticator, AuthenticatorChain, IssuerConfig,
-    JwtAuthenticator, Principal, TokenKind, test_support::TestTokenIssuer,
+    AuthError, Authenticator, AuthenticatorChain, IssuerConfig, JwtAuthenticator, Principal,
+    test_support::TestTokenIssuer,
 };
 use crucible_server_runtime_rust::__generated as generated;
 use crucible_server_runtime_rust::{
     Context, Crucible, DecodedJob, FrameworkError, Hook, Interceptor, Operation,
-    OperationMiddlewareExt, Operations,
-    operation::{AuthScheme, ServiceInfo},
+    OperationMiddlewareExt, Operations, operation::ServiceInfo,
 };
 use serde_json::{Value, json};
 use std::{
@@ -24,14 +23,14 @@ use std::{
 };
 
 include!(concat!(env!("OUT_DIR"), "/auth_chain.rs"));
-use auth_weather::{BearerOnly, Identity, KeyOnly, Optional, Protected, Public};
+use auth_weather::{BearerOnly, Identity, Protected, Public};
 
 #[tokio::test]
 async fn mcp_authenticator_chain_preserves_http_refusals_and_principals() {
     use crucible_server_runtime_rust::mcp::McpConfig;
 
     for modeled in [false, true] {
-        let chain = AuthenticatorChain::new(vec![id_auth(), Arc::new(ApiKey)]);
+        let chain = AuthenticatorChain::new(vec![id_auth()]);
         let chain = if modeled {
             chain.refusal_factory(|_| {
                 auth_weather::AccessDeniedException {
@@ -120,10 +119,8 @@ fn identity() -> Identity {
 fn operations() -> Operations {
     Operations::builder(&auth_weather::SERVICE)
         .add::<Protected, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
-        .add::<Optional, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .add::<Public, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .add::<BearerOnly, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
-        .add::<KeyOnly, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .build()
         .unwrap()
 }
@@ -144,10 +141,7 @@ impl Interceptor for ObservePrincipal {
         &'a self,
         job: &'a mut DecodedJob<'_>,
     ) -> Hook<'a, crucible_server_runtime_rust::Result<()>> {
-        if job.operation().name == "Protected"
-            || job.operation().name == "BearerOnly"
-            || job.operation().name == "KeyOnly"
-        {
+        if job.operation().name == "Protected" || job.operation().name == "BearerOnly" {
             assert!(job.context().attribute::<Principal>().is_some());
         }
         Hook::Ready(Ok(()))
@@ -170,43 +164,6 @@ fn access_auth() -> Arc<dyn Authenticator> {
     jwt(issuer().access_config(vec!["client".into()]))
 }
 
-struct ApiKey;
-#[crucible_server_runtime_rust::async_trait]
-impl Authenticator for ApiKey {
-    fn supports(&self, scheme: &AuthScheme) -> bool {
-        matches!(scheme, AuthScheme::ApiKey { .. })
-    }
-    fn has_credentials(&self, request: &Parts, scheme: &AuthScheme) -> bool {
-        match scheme {
-            AuthScheme::ApiKey { name, .. } => request.headers.contains_key(*name),
-            _ => false,
-        }
-    }
-    async fn authenticate(&self, request: &Parts, scheme: &AuthScheme) -> AuthenticateResult {
-        let AuthScheme::ApiKey {
-            name,
-            query: false,
-            scheme: None,
-        } = scheme
-        else {
-            return AuthenticateResult::Refused;
-        };
-        match request
-            .headers
-            .get(*name)
-            .and_then(|value| value.to_str().ok())
-        {
-            Some("active-key") => AuthenticateResult::Authenticated(
-                Principal::new("key-123", "local-store", TokenKind::ApiKey).with_tenant("tenant-1"),
-            ),
-            Some("store-down") => AuthenticateResult::Unavailable(
-                crucible_server_runtime_rust::Error::internal("store unavailable"),
-            ),
-            _ => AuthenticateResult::Refused,
-        }
-    }
-}
-
 async fn call(
     service: &Crucible,
     path: &str,
@@ -227,7 +184,7 @@ async fn call(
 
 #[tokio::test]
 async fn id_access_tokens_and_principal_reach_handlers() {
-    let service = service(vec![id_auth(), access_auth(), Arc::new(ApiKey)]);
+    let service = service(vec![id_auth(), access_auth()]);
     for (claims, kind) in [
         (issuer().id_claims("person", "client"), "Id"),
         (issuer().access_claims("person", "client"), "Access"),
@@ -264,7 +221,7 @@ async fn id_access_tokens_and_principal_reach_handlers() {
 
 #[tokio::test]
 async fn invalid_claims_expiry_and_id_in_access_only_are_refused() {
-    let service = service(vec![id_auth(), access_auth(), Arc::new(ApiKey)]);
+    let service = service(vec![id_auth(), access_auth()]);
     for (mut claims, name, wrong) in [
         (
             issuer().id_claims("person", "client"),
@@ -304,7 +261,7 @@ async fn invalid_claims_expiry_and_id_in_access_only_are_refused() {
         );
         assert_eq!(body["__type"], "UnauthenticatedException");
     }
-    let access_only = self::service(vec![access_auth(), Arc::new(ApiKey)]);
+    let access_only = self::service(vec![access_auth()]);
     let bearer = format!(
         "Bearer {}",
         issuer()
@@ -320,19 +277,9 @@ async fn invalid_claims_expiry_and_id_in_access_only_are_refused() {
 }
 
 #[tokio::test]
-async fn optional_public_and_api_key_follow_model_metadata() {
-    let service = service(vec![id_auth(), Arc::new(ApiKey)]);
-    assert_eq!(call(&service, "/optional", &[]).await.0, StatusCode::OK);
-    assert_eq!(
-        call(
-            &service,
-            "/optional",
-            &[("authorization", "Bearer garbage")]
-        )
-        .await
-        .0,
-        StatusCode::UNAUTHORIZED
-    );
+async fn public_operations_ignore_credentials_and_protected_ones_require_them() {
+    let service = service(vec![id_auth()]);
+    assert_eq!(call(&service, "/public", &[]).await.0, StatusCode::OK);
     assert_eq!(
         call(&service, "/public", &[("authorization", "Bearer garbage")])
             .await
@@ -342,54 +289,15 @@ async fn optional_public_and_api_key_follow_model_metadata() {
     let (status, headers, _) = call(&service, "/protected", &[]).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
     assert_eq!(headers["www-authenticate"], "Bearer");
-    for path in ["/protected", "/key"] {
-        let (status, _, body) = call(&service, path, &[("x-api-key", "active-key")]).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["subject"], "key-123");
-    }
-    assert_eq!(
-        call(&service, "/bearer", &[("x-api-key", "active-key")])
-            .await
-            .0,
-        StatusCode::UNAUTHORIZED
-    );
-    // A refused earlier credential permits a later supported scheme to establish identity.
-    assert_eq!(
-        call(
-            &service,
-            "/protected",
-            &[
-                ("authorization", "Bearer wrong"),
-                ("x-api-key", "active-key")
-            ]
-        )
-        .await
-        .0,
-        StatusCode::OK
-    );
-    assert_eq!(
-        call(&service, "/key", &[("x-api-key", "store-down")])
-            .await
-            .0,
-        StatusCode::INTERNAL_SERVER_ERROR
-    );
-    let reversed = self::service(vec![Arc::new(ApiKey), id_auth()]);
     let bearer = format!(
         "Bearer {}",
         issuer()
             .mint(&issuer().id_claims("person", "client"))
             .unwrap()
     );
-    assert_eq!(
-        call(
-            &reversed,
-            "/protected",
-            &[("authorization", &bearer), ("x-api-key", "active-key")]
-        )
-        .await
-        .2["subject"],
-        "person"
-    );
+    let (status, _, body) = call(&service, "/bearer", &[("authorization", &bearer)]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["subject"], "person");
 }
 
 #[tokio::test]
@@ -402,7 +310,7 @@ async fn custom_header_requires_bearer_scheme_and_clock_is_injectable() {
     claims["exp"] = json!(1100);
     claims["nbf"] = json!(990);
     let token = issuer().mint(&claims).unwrap();
-    let service = service(vec![Arc::new(auth), Arc::new(ApiKey)]);
+    let service = service(vec![Arc::new(auth)]);
     let bearer = format!("Bearer {token}");
     let headers = [
         ("x-leyline-authorization", bearer.as_str()),
@@ -415,7 +323,7 @@ async fn custom_header_requires_bearer_scheme_and_clock_is_injectable() {
     assert_eq!(
         call(
             &service,
-            "/optional",
+            "/protected",
             &[("x-leyline-authorization", &token)]
         )
         .await
@@ -433,12 +341,12 @@ async fn credential_headers_read_the_first_present_header_in_order() {
             HeaderName::from_static("authorization"),
         ])
         .unwrap();
-    let service = service(vec![Arc::new(auth), Arc::new(ApiKey)]);
+    let service = service(vec![Arc::new(auth)]);
     let token = issuer()
         .mint(&issuer().id_claims("person", "client"))
         .unwrap();
     let bearer = format!("Bearer {token}");
-    // The router's header wins over a SigV4 Authorization.
+    // The router's header wins over a non-bearer Authorization.
     let routed = [
         ("x-leyline-authorization", bearer.as_str()),
         ("authorization", "AWS4-HMAC-SHA256 oac"),
@@ -560,11 +468,7 @@ async fn foreign_issuer_tokens_do_not_touch_an_unavailable_provider_in_the_chain
     let first_auth = JwtAuthenticator::new(first.config(vec!["client".into()])).unwrap();
     let second_auth =
         JwtAuthenticator::with_jwks(second.config(vec!["client".into()]), second.jwks()).unwrap();
-    let service = service(vec![
-        Arc::new(first_auth),
-        Arc::new(second_auth),
-        Arc::new(ApiKey),
-    ]);
+    let service = service(vec![Arc::new(first_auth), Arc::new(second_auth)]);
     let second_bearer = format!(
         "Bearer {}",
         second.mint(&second.id_claims("person", "client")).unwrap()
@@ -734,7 +638,7 @@ async fn jwks_outage_is_5xx_without_cache_and_uses_bounded_stale_keys() {
     cached.verify(&token).await.unwrap();
     config.min_refresh_interval = Duration::from_secs(2);
     let uncached = JwtAuthenticator::new(config).unwrap();
-    let service = service(vec![Arc::new(uncached), Arc::new(ApiKey)]);
+    let service = service(vec![Arc::new(uncached)]);
     let bearer = format!("Bearer {token}");
     let (status, headers, _) = call(&service, "/protected", &[("authorization", &bearer)]).await;
     assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
@@ -770,7 +674,6 @@ static LEGACY_SERVICE: ServiceInfo = generated::service_info(
     "example.auth#Legacy",
     "1",
     None,
-    None,
     &[Protected::INFO],
     &[],
     |_| None,
@@ -800,30 +703,13 @@ fn legacy_authentication_metadata_fails_closed_at_startup() {
     );
 }
 
-#[test]
-fn unconfigured_schemes_fail_at_startup_with_all_operation_ids() {
-    let error = Crucible::builder(operations())
-        .defaults()
-        .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
-        .operation_middleware(AuthenticatorChain::new(vec![id_auth()]))
-        .build()
-        .err()
-        .unwrap()
-        .to_string();
-    for name in ["Protected", "Optional", "KeyOnly"] {
-        assert!(error.contains(name), "{error}");
-    }
-}
-
 #[tokio::test]
 async fn scoped_chain_allows_separate_access_token_policy() {
     let service = Crucible::builder(operations())
         .defaults()
         .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
         .operation_middleware(AuthenticatorChain::new(vec![access_auth()]).only(&["BearerOnly"]))
-        .operation_middleware(
-            AuthenticatorChain::new(vec![id_auth(), Arc::new(ApiKey)]).except(&["BearerOnly"]),
-        )
+        .operation_middleware(AuthenticatorChain::new(vec![id_auth()]).except(&["BearerOnly"]))
         .build()
         .unwrap();
     let id = format!(
@@ -858,18 +744,17 @@ async fn scoped_chain_allows_separate_access_token_policy() {
 
 #[tokio::test]
 async fn refusal_factory_preserves_modeled_body_and_typed_marker() {
-    let chain =
-        AuthenticatorChain::new(vec![id_auth(), Arc::new(ApiKey)]).refusal_factory(|refusal| {
-            assert_eq!(refusal, FrameworkError::Unauthenticated);
-            assert_eq!(
-                Context::current().attribute::<FrameworkError>(),
-                Some(refusal)
-            );
-            auth_weather::AccessDeniedException {
-                message: "access denied".into(),
-            }
-            .into()
-        });
+    let chain = AuthenticatorChain::new(vec![id_auth()]).refusal_factory(|refusal| {
+        assert_eq!(refusal, FrameworkError::Unauthenticated);
+        assert_eq!(
+            Context::current().attribute::<FrameworkError>(),
+            Some(refusal)
+        );
+        auth_weather::AccessDeniedException {
+            message: "access denied".into(),
+        }
+        .into()
+    });
     let service = Crucible::builder(operations())
         .defaults()
         .on_rejection(weather_service::weather::SERVICE.reject.unwrap())

@@ -1,6 +1,6 @@
 #' HTTP client settings
 #' @description Total call deadlines cover retries and response reads. The default transport uses curl; a custom function receives request, read_body, and scope.
-#' @param endpoint HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules.
+#' @param endpoint HTTP endpoint override; absent uses the generated endpoint.
 #' @param token Bearer token provider invoked for each authenticated attempt.
 #' @param transport Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.
 #' @param timeout Total call budget in seconds, including credentials, retries, backoff, and response reads.
@@ -9,36 +9,14 @@
 #' @param max_delay Maximum backoff bound in seconds; Retry-After can override it.
 #' @param headers Default request headers applied to every attempt.
 #' @param middleware Request transformations applied on every attempt after authentication.
-#' @param basic_auth HTTP basic authentication provider; used only for a modeled basic-auth scheme.
-#' @param api_key API key provider for the modeled header or query location.
-#' @param credentials AWS credentials provider for modeled SigV4 authentication.
-#' @param region SigV4 region and AWS::Region endpoint built-in.
-#' @param endpoint_parameters Named inputs to modeled endpoint rules.
-#' @param endpoint_builtins Endpoint-rule built-in overrides.
-#' @param disable_host_prefix Disables modeled operation host-prefix injection.
-#' @param request_checksum_calculation Computes modeled request checksums when supported or only when required.
-#' @param response_checksum_validation Validates modeled response checksums when supported or only when required.
-#' @param checksum_validated Notification after a response checksum validates.
 #' @return A validated settings list consumed by the service client constructor.
-client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeout = 30, max_attempts = 3L, base_delay = .1, max_delay = 10, headers = list(), middleware = list(),
-                          basic_auth = NULL, api_key = NULL, credentials = NULL, region = NULL, endpoint_parameters = list(), endpoint_builtins = list(), disable_host_prefix = FALSE,
-                          request_checksum_calculation = 'WHEN_SUPPORTED', response_checksum_validation = 'WHEN_SUPPORTED', checksum_validated = NULL) {
+client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeout = 30, max_attempts = 3L, base_delay = .1, max_delay = 10, headers = list(), middleware = list()) {
   for (duration in list(timeout, base_delay, max_delay)) if (!is.numeric(duration) || length(duration) != 1L || !is.finite(duration) || duration < 0) stop('Invalid duration', call. = FALSE)
   if (timeout <= 0 || !is.numeric(max_attempts) || length(max_attempts) != 1L || !is.finite(max_attempts) || max_attempts < 1 || max_attempts != trunc(max_attempts)) stop('Invalid call limits', call. = FALSE)
   if (!is.null(token) && !is.function(token)) stop('Token provider must be a function', call. = FALSE)
   if (!is.null(transport) && !is.function(transport)) stop('Transport must be a function(request, read_body, scope)', call. = FALSE)
   if (!is.list(middleware) || any(!vapply(middleware, is.function, TRUE))) stop('Middleware must be a list of functions', call. = FALSE)
-  if (!is.null(basic_auth) && !is.function(basic_auth) && !inherits(basic_auth, 'crucible_basic_credentials')) stop('basic_auth must be basic_credentials() or a provider function', call. = FALSE)
-  if (!is.null(api_key) && !is.function(api_key) && (!.crucible_query_is_string(api_key) || api_key == '')) stop('api_key must be a nonempty string or a provider function', call. = FALSE)
-  if (!is.null(credentials) && !is.function(credentials) && !inherits(credentials, 'crucible_aws_credentials')) stop('credentials must be aws_credentials() or a provider function', call. = FALSE)
-  if (!is.null(region) && (!.crucible_query_is_string(region) || region == '')) stop('Region must be a nonempty string', call. = FALSE)
-  for (parameters in list(endpoint_parameters, endpoint_builtins)) if (!is.list(parameters) || (length(parameters) && (is.null(names(parameters)) || any(names(parameters) == '')))) stop('Endpoint parameters must be a named list', call. = FALSE)
-  if (!isTRUE(disable_host_prefix) && !isFALSE(disable_host_prefix)) stop('disable_host_prefix must be TRUE or FALSE', call. = FALSE)
-  for (policy in list(request_checksum_calculation, response_checksum_validation)) if (!identical(policy, 'WHEN_SUPPORTED') && !identical(policy, 'WHEN_REQUIRED')) stop('Checksum policies must be WHEN_SUPPORTED or WHEN_REQUIRED', call. = FALSE)
-  if (!is.null(checksum_validated) && !is.function(checksum_validated)) stop('checksum_validated must be a function(operation, algorithm)', call. = FALSE)
-  list(endpoint = endpoint, token = token, transport = transport, timeout = timeout, max_attempts = max_attempts, base_delay = base_delay, max_delay = max_delay, headers = .crucible_headers(headers), middleware = middleware,
-       basic_auth = basic_auth, api_key = api_key, credentials = credentials, region = region, endpoint_parameters = endpoint_parameters, endpoint_builtins = endpoint_builtins, disable_host_prefix = disable_host_prefix,
-       request_checksum_calculation = request_checksum_calculation, response_checksum_validation = response_checksum_validation, checksum_validated = checksum_validated)
+  list(endpoint = endpoint, token = token, transport = transport, timeout = timeout, max_attempts = max_attempts, base_delay = base_delay, max_delay = max_delay, headers = .crucible_headers(headers), middleware = middleware)
 }
 .crucible_headers <- function(headers) {
   if (!is.list(headers) || (length(headers) && is.null(names(headers)))) stop('Headers must be a named list', call. = FALSE)
@@ -117,10 +95,8 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   text <- paste0(sprintf('%02x', bytes), collapse = '')
   paste(substr(text,1,8),substr(text,9,12),substr(text,13,16),substr(text,17,20),substr(text,21,32),sep='-')
 }
-.crucible_prepare <- function(op, name, input, config, resolved) {
-  operation_name <- name
-  checksum <- .crucible_checksum_prepare(op[['checksum']], input, config$request_checksum_calculation, config$response_checksum_validation)
-  values <- checksum$values
+.crucible_prepare <- function(op, input, config, endpoint) {
+  values <- input
   if (!is.null(op$token) && is.null(values[[op$token]])) values[[op$token]] <- .crucible_uuid()
   bindings <- op$request; path <- op$uri
   # Bound timestamps may use a different format than the member's document format.
@@ -144,41 +120,16 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     if (!is.list(value)) value <- list(value)
     for (item in value) query <- c(query, paste0(curl::curl_escape(binding[[2L]]), '=', curl::curl_escape(.crucible_bound(item))))
   }
-  if (!is.null(bindings$queryParams) && !is.null(values[[bindings$queryParams]])) {
-    reserved <- vapply(bindings$query, function(pair) pair[[2L]], character(1L))
-    if (grepl('?', path, fixed = TRUE)) {
-      literal <- strsplit(strsplit(path, '?', fixed = TRUE)[[1L]][2L], '&', fixed = TRUE)[[1L]]
-      reserved <- c(reserved, vapply(literal, function(pair) curl::curl_unescape(strsplit(pair, '=', fixed = TRUE)[[1L]][1L]), character(1L)))
-    }
-    map <- values[[bindings$queryParams]]
-    for (key in sort(setdiff(names(map), reserved), method = 'radix')) {
-      value <- map[[key]]; if (!is.list(value)) value <- list(value)
-      for (item in value) if (!is.null(item)) query <- c(query, paste0(curl::curl_escape(key), '=', curl::curl_escape(.crucible_bound(item))))
-    }
-  }
   if (length(query)) path <- paste0(path, if (grepl('?', path, fixed = TRUE)) '&' else '?', paste(query, collapse = '&'))
   headers <- config$headers
-  for (key in names(resolved$headers)) {
-    entries <- resolved$headers[[key]]
-    if (!all(vapply(entries, .crucible_query_is_string, TRUE))) stop('Endpoint header values must be strings', call. = FALSE)
-    headers[[tolower(key)]] <- paste(unlist(entries), collapse = ', ')
-  }
   # A Content-Type bound to an input member outranks the payload's media type,
-  # which outranks endpoint and client header defaults.
+  # which outranks the client's default headers.
   modelled_content_type <- FALSE
   for (binding in bindings$headers) if (!is.null(values[[binding[[1L]]]])) {
     headers[[tolower(binding[[2L]])]] <- .crucible_bound(.crucible_media(bound(binding[[1L]]), bindings, binding[[1L]], TRUE))
     if (identical(tolower(binding[[2L]]), 'content-type')) modelled_content_type <- TRUE
   }
   body <- NULL
-  explicit <- tolower(vapply(bindings$headers, function(pair) pair[[2L]], character(1L)))
-  for (binding in bindings$prefixHeaders) {
-    value <- values[[binding[[1L]]]]
-    for (key in sort(as.character(names(value)), method = 'radix')) {
-      name <- tolower(paste0(binding[[2L]], key))
-      if (!name %in% explicit) headers[[name]] <- .crucible_bound(.crucible_media(value[[key]], bindings, binding[[1L]], TRUE))
-    }
-  }
   if (length(bindings$body)) {
     object <- json_object()
     for (name in bindings$body) if (name %in% names(values)) object[name] <- values[name]
@@ -193,7 +144,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   # The release this client was generated for (docs/api-versions-clients.md).
   api_version <- .crucible_schema[['apiVersion']]
   if (is.character(api_version) && length(api_version) == 1L) headers[['crucible-version']] <- api_version
-  list(request = .crucible_request(list(url = paste0(resolved$url, path), method = op$method, headers = headers, body = body)), checksum = checksum$settings)
+  list(request = .crucible_request(list(url = paste0(endpoint, path), method = op$method, headers = headers, body = body)))
 }
 .crucible_reformat <- function(value, description, format, encode) {
   shape <- .crucible_shape(description$target)
@@ -212,13 +163,6 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
       body[binding[[1L]]] <- list(.crucible_media(parsed, bindings, binding[[1L]], FALSE))
     }
   }
-  explicit <- tolower(vapply(bindings$headers, function(pair) pair[[2L]], character(1L)))
-  for (binding in bindings$prefixHeaders) {
-    prefix <- tolower(binding[[2L]]); map <- json_object()
-    for (name in names(response$headers)) if (startsWith(name, prefix) && !name %in% explicit) map[substring(name, nchar(prefix) + 1L)] <- list(.crucible_media(response$headers[[name]], bindings, binding[[1L]], FALSE))
-    body[binding[[1L]]] <- list(map)
-  }
-  if (!is.null(bindings$responseCode)) body[bindings$responseCode] <- list(json_number(as.character(response$status)))
   body
 }
 .crucible_success <- function(op, response) {
@@ -232,7 +176,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
 .crucible_failure <- function(op, response) {
   body <- tryCatch(json_parse(response$body), error = function(e) json_object())
   if (!.crucible_is_object(body)) body <- json_object()
-  text <- function(value) if (.crucible_query_is_string(value)) value else NULL
+  text <- function(value) if (is.character(value) && length(value) == 1L && !inherits(value, c('crucible_number', 'crucible_long'))) value else NULL
   name <- text(body[['__type']])
   if (!is.null(response$headers[['x-crucible-error']])) name <- response$headers[['x-crucible-error']]
   matches <- Filter(function(target) { shape <- .crucible_shape(target); if (!is.null(name)) (if (!is.null(shape$error$wireCode)) shape$error$wireCode else shape$name) == name else as.numeric(shape$error$status) == response$status }, op$errors)
@@ -277,81 +221,41 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   }
   min(config$max_delay, config$base_delay * 2^min(attempt - 1, 30)) * stats::runif(1)
 }
-.crucible_client <- function(config, endpoint, digest) {
+# Bearer is the one authentication scheme: an Authorization header the caller
+# already set bypasses the token provider.
+.crucible_has_bearer <- function(request) {
+  value <- request$headers[['authorization']]
+  !is.null(value) && startsWith(tolower(value), 'bearer ') && nchar(value) > 7L
+}
+.crucible_client <- function(config, endpoint) {
   if (!is.null(config$endpoint)) endpoint <- config$endpoint
-  rules <- .crucible_schema[['endpointRules']]
-  if (is.null(endpoint) && is.null(rules)) stop('An endpoint is required', call. = FALSE)
-  if (!is.null(endpoint)) {
-    .crucible_url(endpoint)
-    if (grepl('[?#]', endpoint)) stop('Endpoint cannot contain query or fragment', call. = FALSE)
-    endpoint <- sub('/+$', '', endpoint)
-  }
-  builtins <- list(); builtins['AWS::Region'] <- list(config$region); builtins['SDK::Endpoint'] <- list(endpoint)
-  for (key in names(config$endpoint_builtins)) builtins[key] <- list(config$endpoint_builtins[[key]])
-  identities <- list(bearer = config$token, basic = config$basic_auth, apiKey = config$api_key, sigV4 = config$credentials)
+  if (is.null(endpoint)) stop('An endpoint is required', call. = FALSE)
+  .crucible_url(endpoint)
+  if (grepl('[?#]', endpoint)) stop('Endpoint cannot contain query or fragment', call. = FALSE)
+  endpoint <- sub('/+$', '', endpoint)
   transport <- if (is.null(config$transport)) .crucible_transport() else config$transport
   closed <- FALSE; client <- new.env(parent = emptyenv())
   client$close <- function() { if (!closed && is.null(config$transport)) attr(transport, 'close')(); closed <<- TRUE; transport <<- NULL; invisible(NULL) }
   operation <- function(name) { op <- .crucible_schema$operations[[name]]; if (is.null(op)) stop('Unknown operation: ', name, call. = FALSE); op }
-  # Endpoint rules and host prefixes see the model input before any request exists.
-  resolve <- function(op, values) {
-    query_input <- .crucible_query_value(op$input, values)
-    resolved <- list(url = endpoint, headers = list(), properties = json_object())
-    if (!is.null(rules)) resolved <- .crucible_resolve_endpoint(rules, op[['endpointParameters']], query_input, config$endpoint_parameters, builtins)
-    if (!is.null(op[['endpoint']]) && !isTRUE(config$disable_host_prefix)) resolved$url <- .crucible_host_prefix(resolved$url, op[['endpoint']], query_input)
-    resolved$url <- sub('/+$', '', resolved$url)
-    resolved
-  }
-  # Modeled schemes in priority order, narrowed and parameterized by the endpoint.
-  auth_options <- function(op, resolved) {
-    schemes <- .crucible_schema[['authSchemes']]
-    selected <- if (!is.null(op[['auth']])) unlist(op[['auth']]) else if (isTRUE(op$bearer)) 'smithy.api#httpBearerAuth' else character()
-    endpoint_auth <- resolved$properties[['authSchemes']]; options <- list()
-    for (name in selected) {
-      scheme <- schemes[[name]]
-      if (is.null(scheme) && name == 'smithy.api#httpBearerAuth') scheme <- list(kind = 'bearer')
-      if (is.null(scheme)) stop('Unknown authentication scheme ', name, call. = FALSE)
-      if (!is.null(endpoint_auth)) {
-        match <- Filter(function(item) identical(tolower(item[['name']]), tolower(scheme[['kind']])), endpoint_auth)
-        if (!length(match)) next
-        for (key in setdiff(names(match[[1L]]), 'name')) scheme[key] <- list(match[[1L]][[key]])
-      }
-      options[[length(options) + 1L]] <- list(scheme = scheme, provider = identities[[scheme[['kind']]]])
-    }
-    options
-  }
-  prepare <- function(op, name, values) {
-    resolved <- resolve(op, values)
-    prepared <- .crucible_prepare(op, name, values, config, resolved)
-    prepared$auth <- auth_options(op, resolved)
-    prepared
-  }
-  send <- function(op, name, prepared, scope) {
+  prepare <- function(op, values) .crucible_prepare(op, values, config, endpoint)
+  send <- function(op, prepared, scope) {
     if (closed) stop('Client is closed', call. = FALSE)
-    read_body <- length(op$response$body) > 0L || !is.null(op$response$payload) || length(prepared$checksum$response) > 0L
+    read_body <- length(op$response$body) > 0L || !is.null(op$response$payload)
     for (attempt in seq_len(config$max_attempts)) {
       scope$check(); request <- prepared$request
-      # Identities are resolved on every attempt so refreshed credentials apply.
-      authentication <- NULL; preset <- FALSE
-      for (option in prepared$auth) {
-        if (.crucible_preset_auth(request, option$scheme)) { preset <- TRUE; break }
-        identity <- if (is.function(option$provider)) option$provider() else option$provider
-        scope$check()
-        if (!is.null(identity)) { authentication <- option; authentication$identity <- identity; break }
-      }
-      if (is.null(authentication) && !preset && any(unlist(op[['auth']]) != 'smithy.api#httpBearerAuth') && !isTRUE(op[['optionalAuth']])) stop('No credentials available for the operation authentication schemes', call. = FALSE)
+      # The token is resolved on every attempt so a refreshed token applies.
+      # Middleware runs first so a header it presets also bypasses the provider.
       for (middleware in config$middleware) { scope$check(); request <- .crucible_request(middleware(request)) }
       scope$check()
-      request <- .crucible_checksum_request(prepared$checksum, request)
-      if (digest) {
-        request$headers[['x-amz-content-sha256']] <- NULL
-        if (!is.null(request$body) || request$method %in% c('POST','PUT','PATCH')) request$headers[['x-amz-content-sha256']] <- as.character(openssl::sha256(if (is.null(request$body)) raw() else request$body))
+      token <- NULL; preset <- FALSE
+      if (isTRUE(op$bearer)) {
+        preset <- .crucible_has_bearer(request)
+        if (!preset && !is.null(config$token)) { token <- config$token(); scope$check() }
       }
-      # Signing covers the final bytes and headers, after middleware and digests.
-      if (!is.null(authentication)) request <- .crucible_apply_auth(request, authentication$scheme, authentication$identity, config$region, isTRUE(op[['unsignedPayload']]))
+      if (!is.null(token)) request$headers[['authorization']] <- paste0('Bearer ', .crucible_string(token))
       request <- .crucible_request(request)
       authority <- tolower(.crucible_url(request$url)); hostname <- sub(':[0-9]+$', '', authority)
-      credentialed <- preset || !is.null(authentication) || !is.null(request$headers[['authorization']])
+      credentialed <- preset || !is.null(token) || !is.null(request$headers[['authorization']])
       if (credentialed && !startsWith(tolower(request$url), 'https://') && !hostname %in% c('localhost','127.0.0.1','[::1]')) stop('Credentials require HTTPS or loopback HTTP', call. = FALSE)
       response <- tryCatch(transport(request, read_body, scope), crucible_network = function(e) e)
       scope$check()
@@ -361,8 +265,6 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
       }
       response$headers <- .crucible_headers(response$headers)
       if (response$status >= 200 && response$status < 300) {
-        algorithm <- .crucible_checksum_response(prepared$checksum, response$headers, response$body)
-        if (!is.null(algorithm) && !is.null(config$checksum_validated)) config$checksum_validated(name, algorithm)
         return(.crucible_success(op, response))
       }
       error <- .crucible_failure(op, response)
@@ -375,7 +277,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   invoke <- function(name, input, timeout, cancellation) {
     scope <- .crucible_scope(timeout, cancellation); scope$check(); op <- operation(name)
     values <- if (is.null(op$input)) json_object() else .crucible_codec(input, op$input, TRUE)
-    result <- send(op, name, prepare(op, name, values), scope)
+    result <- send(op, prepare(op, values), scope)
     output <- if (is.null(op$output)) NULL else .crucible_codec(result, op$output)
     scope$check(); output
   }
@@ -390,7 +292,7 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
       if (cycle) stop('Pagination token cycle', call. = FALSE)
       if (finished) return(NULL)
       scope <- .crucible_scope(config$timeout, cancellation); scope$check()
-      result <- send(op, name, prepare(op, name, values), scope)
+      result <- send(op, prepare(op, values), scope)
       output <- .crucible_codec(result, op$output); scope$check()
       token <- result
       for (part in pagination$output) token <- if (is.list(token)) token[[part]] else NULL
@@ -399,42 +301,6 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
         seen <<- c(seen, token); values[[pagination$input]] <<- token
       }
       output
-    }
-  }
-  # Polls until an acceptor reaches a terminal state or the waiter deadline passes.
-  client$wait <- function(name, waiter, input = NULL, timeout, min_delay = NULL, max_delay = NULL, cancellation = NULL) {
-    op <- operation(name); description <- op[['waiters']][[waiter]]
-    if (is.null(description)) stop('Unknown waiter: ', waiter, call. = FALSE)
-    if (missing(timeout) || !is.numeric(timeout) || length(timeout) != 1L || !is.finite(timeout) || timeout <= 0) stop('Waiter timeout must be finite and positive', call. = FALSE)
-    minimum <- if (is.null(min_delay)) as.numeric(as.character(description[['minDelay']])) else min_delay
-    maximum <- if (is.null(max_delay)) as.numeric(as.character(description[['maxDelay']])) else max_delay
-    for (delay in list(minimum, maximum)) if (!is.numeric(delay) || length(delay) != 1L || !is.finite(delay) || delay < 0) stop('Waiter delays must be finite and nonnegative', call. = FALSE)
-    if (maximum < minimum) stop('Waiter maximum delay must not be below the minimum', call. = FALSE)
-    values <- if (is.null(op$input)) json_object() else .crucible_codec(input, op$input, TRUE)
-    query_input <- .crucible_query_value(op$input, values)
-    deadline <- .crucible_now() + timeout; remaining <- function() deadline - .crucible_now()
-    attempts <- 0L; output <- NULL; failure <- NULL
-    expired <- function() stop(.crucible_waiter_condition(TRUE, waiter, attempts, output, failure))
-    repeat {
-      if (!is.null(cancellation)) cancellation$check()
-      if (remaining() <= 0) expired()
-      attempts <- attempts + 1L
-      outcome <- tryCatch(list(output = invoke(name, input, min(config$timeout, remaining()), cancellation), error = NULL),
-        error = function(e) list(output = NULL, error = e))
-      output <- outcome$output; failure <- outcome$error
-      # Cancellation ends the wait instead of becoming an acceptor input.
-      if (inherits(failure, 'crucible_cancelled')) stop(failure)
-      if (remaining() <= 0) expired()
-      query_output <- if (is.null(failure) && !is.null(op$output)) .crucible_query_value(op$output, .crucible_codec(output, op$output, TRUE)) else NULL
-      state <- .crucible_waiter_state(description, query_input, query_output, failure)
-      if (identical(state$state, 'success')) return(output)
-      if (identical(state$state, 'failure')) stop(.crucible_waiter_condition(FALSE, waiter, attempts, output, failure, state$message))
-      end <- .crucible_now() + .crucible_waiter_delay(minimum, maximum, attempts, remaining())
-      repeat {
-        if (!is.null(cancellation)) cancellation$check()
-        left <- end - .crucible_now(); if (left <= 0) break
-        Sys.sleep(min(.025, left))
-      }
     }
   }
   client

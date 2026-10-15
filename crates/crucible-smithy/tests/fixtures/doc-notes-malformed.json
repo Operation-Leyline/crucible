@@ -36,18 +36,9 @@
           "target": "smithy.api#String",
           "traits": { "smithy.api#externalDocumentation": { "Guide": 1, "Good": "https://notes.example" } }
         },
-        "unstableNotEmpty": { "target": "smithy.api#String", "traits": { "smithy.api#unstable": false } },
-        "legacy": { "target": "example.notes#Legacy" }
+        "unstableNotEmpty": { "target": "smithy.api#String", "traits": { "smithy.api#unstable": false } }
       },
       "traits": { "smithy.api#input": {} }
-    },
-    "example.notes#Legacy": {
-      "type": "string",
-      "traits": {
-        "smithy.api#enum": [
-          { "value": "a", "name": "A", "deprecated": "yes" }
-        ]
-      }
     }
   }
 }

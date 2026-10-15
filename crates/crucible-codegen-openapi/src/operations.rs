@@ -123,19 +123,14 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
 }
 
 fn security(op: &Operation) -> Vec<Value> {
-    let mut alternatives: Vec<Value> = op
-        .auth
+    op.auth
         .iter()
         .map(|id| {
             let mut requirement = Map::new();
             requirement.insert(key(id), json!([]));
             Value::Object(requirement)
         })
-        .collect();
-    if op.optional_auth {
-        alternatives.push(json!({}));
-    }
-    alternatives
+        .collect()
 }
 
 fn structure<'a>(
@@ -205,7 +200,6 @@ fn content(service: &Service, structure: &Structure, bindings: &Bindings) -> Val
                 bindings.timestamp_formats.get(&member.name).copied(),
                 None,
             ),
-            PayloadKind::EventStream => unreachable!("event stream capability rejected"),
         };
         (payload.media_type.as_str(), schema)
     } else {

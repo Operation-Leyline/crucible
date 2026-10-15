@@ -30,12 +30,6 @@
           "traits": {
             "smithy.api#httpHeader": "x-meta"
           }
-        },
-        "extras": {
-          "target": "example.wire#MediaMap",
-          "traits": {
-            "smithy.api#httpPrefixHeaders": "x-extra-"
-          }
         }
       }
     },
@@ -120,12 +114,6 @@
           "target": "example.wire#MediaList",
           "traits": {
             "smithy.api#httpHeader": "x-meta"
-          }
-        },
-        "extras": {
-          "target": "example.wire#MediaMap",
-          "traits": {
-            "smithy.api#httpPrefixHeaders": "x-extra-"
           }
         }
       }

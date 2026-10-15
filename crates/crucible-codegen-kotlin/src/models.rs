@@ -22,13 +22,6 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
         "    fun decode(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = when (target) {\n",
     );
     let mut helpers = String::new();
-    let mut stream_read = String::from(
-        "    fun stream(target: String?, value: Any?): ByteStream? = when(target) {\n",
-    );
-    let mut stream_write = String::from(
-        "    fun withStream(target: String, value: Any, stream: ByteStream): Any = when(target) {\n",
-    );
-
     for (index, (id, shape)) in service.shapes.iter().enumerate() {
         if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
@@ -46,37 +39,26 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     ty(service, &l.member.target, package),
                     if l.sparse { "?" } else { "" }
                 );
-                let collection = if l.is_set { "Set" } else { "List" };
-                let base = if l.is_set {
-                    "LinkedHashSet"
-                } else {
-                    "ArrayList"
-                };
-                let conversion = if l.is_set { ".toSet()" } else { "" };
                 models.push_str(&kdoc_for(
                     "",
                     l.docs.as_deref(),
-                    &[format!(
-                        "A {} of {}.",
-                        if l.is_set { "set" } else { "list" },
-                        code(&l.member.target.to_string())
-                    )],
+                    &[format!("A list of {}.", code(&l.member.target.to_string()))],
                     &[],
                     &l.notes,
                     "",
                 ));
                 if recursive_collection(service, id, id, &mut std::collections::BTreeSet::new()) {
                     models.push_str(&format!(
-                        "class `{name}` : kotlin.collections.{base}<{t}>() {{\n    override fun toString(): kotlin.String = {}\n}}\n",
+                        "class `{name}` : kotlin.collections.ArrayList<{t}>() {{\n    override fun toString(): kotlin.String = {}\n}}\n",
                         if service.sensitive(&l.member) { format!("{package}.ModelFormat.REDACTED") } else { "super.toString()".to_string() }
                     ));
                     decode.push_str(&format!("        {target} -> {native}().apply {{ addAll(codec.readList(target, value) as List<{t}>) }}\n"));
                 } else {
                     models.push_str(&format!(
-                        "typealias `{name}` = kotlin.collections.{collection}<{t}>\n"
+                        "typealias `{name}` = kotlin.collections.List<{t}>\n"
                     ));
                     decode.push_str(&format!(
-                        "        {target} -> codec.readList(target, value){conversion} as {native}\n"
+                        "        {target} -> codec.readList(target, value) as {native}\n"
                     ));
                 }
             }
@@ -161,12 +143,6 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                 ));
             }
             Shape::Structure(s) => {
-                if let Some(member)=s.members.iter().find(|member| matches!(service.shape(&member.target),Some(Shape::Simple(simple)) if simple.streaming)) {
-                    let attribute=field(&member.name);
-                    stream_read.push_str(&format!("        {target} -> (value as? {native})?.`{attribute}`\n"));
-                    stream_write.push_str(&format!("        {target} -> (value as {native}).copy {{ `{attribute}`=stream }}\n"));
-                }
-
                 let mut class_notes = vec![];
                 if let Some(error) = &s.error {
                     class_notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends `{exception}`.", error.status, if matches!(error.fault, crucible_smithy::ir::Fault::Client) { "client" } else { "server" }));
@@ -361,7 +337,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                         "        data class `{v}`(val value: {t}?) : `{name}` {{\n            override fun toString(): kotlin.String = {package}.ModelFormat.format({}, {n} to {shown})\n        }}\n", literal(name)
                     ));
                     encode.push_str(&format!("            is {native}.`{v}` -> wireObject {{ codec.put(it, target, {n}, model.value) }}\n"));
-                    let wire = literal(&m.wire_name);
+                    let wire = literal(&m.name);
                     decode.push_str(&format!("            {wire} -> {native}.`{v}`(codec.readUnionMember(target, {n}, item) as {t}?)\n"));
                 }
                 models.push_str(&kdoc("        ", None, &["A variant this client does not recognize, preserved so it round-trips. Its payload is never printed, since it may be sensitive.".to_string()], &["@property name the wire name of the variant".to_string(), "@property value the raw JSON value".to_string()]));
@@ -401,14 +377,12 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
             }
         }
     }
-    stream_read.push_str("        else -> null\n    }\n");
-    stream_write.push_str("        else -> error(\"No streaming member for $target\")\n    }\n");
     encode.push_str("        else -> error(\"No generated encoder for $target\")\n    }\n");
     decode.push_str("        else -> error(\"No generated decoder for $target\")\n    }\n");
     (
         files,
         format!(
-            "@Suppress(\"UNCHECKED_CAST\", \"UNUSED_VARIABLE\", \"UNUSED_PARAMETER\")\ninternal object ModelCodecs {{\n{encode}{decode}{helpers}{stream_read}{stream_write}}}\n"
+            "@Suppress(\"UNCHECKED_CAST\", \"UNUSED_VARIABLE\", \"UNUSED_PARAMETER\")\ninternal object ModelCodecs {{\n{encode}{decode}{helpers}}}\n"
         ),
     )
 }
@@ -497,7 +471,7 @@ pub(crate) fn default_expr(
             )),
             _ => None,
         },
-        (Shape::List(list), Value::Array(value)) if value.is_empty() => Some(
+        (Shape::List(_), Value::Array(value)) if value.is_empty() => Some(
             if recursive_collection(
                 service,
                 target,
@@ -506,11 +480,7 @@ pub(crate) fn default_expr(
             ) {
                 format!("{}()", ty(service, target, package))
             } else {
-                if list.is_set {
-                    "kotlin.collections.emptySet()".into()
-                } else {
-                    "kotlin.collections.emptyList()".into()
-                }
+                "kotlin.collections.emptyList()".into()
             },
         ),
         (Shape::Map(_), Value::Object(value)) if value.is_empty() => Some(

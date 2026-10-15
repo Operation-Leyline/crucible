@@ -146,9 +146,9 @@ impl PageTokens {
             )));
         };
         if let Some(size) = pagination.page_size {
-            members.remove(size.wire_name);
+            members.remove(size.name);
         }
-        let token = members.remove(pagination.input_token.wire_name);
+        let token = members.remove(pagination.input_token.name);
         let caller =
             self.caller
                 .bind("PageTokens", job.context(), job.operation(), job.metadata())?;
@@ -357,7 +357,6 @@ mod tests {
         "t#Service",
         "v1",
         None,
-        None,
         &[&LIST],
         &[],
         classify,
@@ -375,10 +374,7 @@ mod tests {
         input_token_max_length: Option<u64>,
     ) -> Option<Pagination> {
         Some(Pagination {
-            input_token: PaginationMember {
-                name: "token",
-                wire_name: "token",
-            },
+            input_token: PaginationMember { name: "token" },
             page_size: None,
             input_token_map,
             input_token_max_length,
@@ -579,7 +575,6 @@ mod tests {
     static RELEASE_V1: ServiceInfo = service_info(
         "t#Service",
         "v1",
-        None,
         None,
         &[&LIST_V1],
         &[],

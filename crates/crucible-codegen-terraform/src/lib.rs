@@ -469,7 +469,6 @@ pub fn emit(service: &Service, plan: &Plan, options: &Options) -> Result<Vec<Fil
             module_path: options.module_path.clone(),
             package_name: "provider".into(),
             endpoint: None,
-            content_sha256: false,
         },
     )?;
     let mut files: Vec<_> = sdk

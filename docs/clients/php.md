@@ -16,7 +16,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 crucible generate php smithy \
   --out generated/client --package-name example/weather-client \
   --namespace 'Example\Weather' --package-version 0.1.0 \
-  --endpoint https://weather.example --content-sha256
+  --endpoint https://weather.example
 cd generated/client
 composer install
 ```
@@ -90,7 +90,7 @@ Open enums wrap wire values in a class. Unions have a class per variant and an
 unknown variant carrying its name and `JsonValue`. Blobs are binary strings,
 encoded as padded base64 in JSON. Raw blob payloads use bytes directly. An
 empty response payload remains present; an empty request payload sends no body
-or content type. Optional SHA-256 covers the final bytes after middleware.
+or content type.
 
 ## API documentation and string representations
 
@@ -129,8 +129,7 @@ are discarded without waiting for that body. Proxy CONNECT responses never
 count as API responses. Credentials require HTTPS except on loopback.
 
 `close()` closes the owned transport and prevents new calls. An injected
-`HttpTransport` remains caller-owned and must honor `CallScope` and `readBody`;
-see Streaming blobs for request streams and the optional response sink.
+`HttpTransport` remains caller-owned and must honor `CallScope` and `readBody`.
 Calls on one transport are synchronous and cannot be reentrant. Modeled errors
 extend `ServiceError`, which retains status, name, request ID, headers, and
 retry traits even if modeled members are malformed. Retries follow the
@@ -141,182 +140,11 @@ and recursive collection aliases. Nominal recursive structures are supported.
 
 ## Authentication
 
-Besides bearer, Basic, API-key, and SigV4 credentials, packages answer
-`smithy.api#httpDigestAuth` and sign `aws.auth#sigv4a`:
-
-```php
-use Example\Vault\Runtime\{AwsCredentials, BasicCredentials, ClientConfig};
-
-$client = new VaultClient(new ClientConfig(
-    endpoint: 'https://vault.example',
-    digestAuth: fn() => new BasicCredentials('user', $password),
-    credentials: fn() => new AwsCredentials($key, $secret),
-    region: 'us-west-2',
-    sigv4aSigningRegionSet: ['us-west-2', 'us-east-1'],
-));
-```
-
-HTTP Digest follows RFC 7616. The first request carries no credentials; a `401`
-with a Digest challenge is answered once on the same attempt. The client keeps
-that challenge and answers later requests preemptively with increasing nonce
-counts, and a `stale=true` challenge replaces it without failing the call. The
-strongest offered algorithm is chosen: SHA-512-256, SHA-256, then MD5, each also
-as `-sess`. `qop=auth` is preferred over `auth-int`, which hashes the buffered
-body and so cannot cover a stream. `userhash=true` sends the hashed username,
-and a username outside quoted ASCII uses `username*`. A rejected answer is not
-retried, and a one-shot stream cannot be resent after the challenge, so that
-call fails with the `401`.
-
-SigV4a derives an ECDSA P-256 key from the secret access key, as the AWS SDKs
-do, and signs with the `openssl` extension, which such packages require in
-`composer.json`. The scope omits the region. `X-Amz-Region-Set` comes from an
-endpoint rule's `signingRegionSet`, then `sigv4aSigningRegionSet`, then
-`region`. The signing name comes from the model or the endpoint rule. A caller's
-own `Authorization` header bypasses either scheme, and credentials require
-HTTPS except on loopback.
-
-## Waiters
-
-Each modeled waiter becomes a `waitUntil<Name>` method beside its operation.
-The timeout, in seconds, is required and covers every attempt and delay; each
-attempt also keeps the client's per-call timeout:
-
-```php
-use Example\Jobs\Runtime\{WaiterException, WaiterTimeoutException};
-
-try {
-    $job = $client->waitUntilJobDone(new GetJobInput(id: $id), timeout: 300.0);
-} catch (WaiterTimeoutException $timeout) {
-    // $timeout->attempts, $timeout->response, and $timeout->getPrevious()
-} catch (WaiterException $failure) {
-    // A failure acceptor matched; $failure->reason is its modeled message.
-}
-```
-
-Acceptors run in model order over the output, or over `input` and `output`,
-with member names as keys and timestamps as epoch seconds. Error matchers
-compare the error's wire name, and an error no acceptor matches ends the wait.
-Delays back off exponentially from the modeled `minDelay` toward `maxDelay`
-with jitter, and a delay that would pass the deadline ends at it instead; pass
-`minDelay:` and `maxDelay:` to override them. A `CancellationToken` stops the
-wait, including during delays. The input is encoded once, so later changes do
-not affect the polls. A waiter whose success acceptor matches an error returns
-`null`. JMESPath expressions are compiled during generation and evaluated with
-exact decimal numbers; the runtime has no JMESPath dependency.
-
-## Endpoints
-
-When the model has an endpoint rule set, `endpoint` becomes optional and each
-call resolves its URL, headers, and authentication properties from the rules:
-
-```php
-$client = new JobsClient(new ClientConfig(
-    region: 'us-west-2',
-    endpointParameters: ['UseFIPS' => true],
-    credentials: fn() => new AwsCredentials($key, $secret),
-));
-```
-
-Each parameter binds from its modeled sources in order: static context, input
-members and paths, client context (`endpointParameters`), built-ins, and
-defaults. `AWS::Region` comes from `region` and `SDK::Endpoint` from
-`endpoint`; `endpointBuiltIns` overrides either. A missing required parameter,
-a wrong type, or an error rule throws `Runtime\EndpointException` before any
-request is sent. Endpoint `authSchemes` properties select the authentication
-scheme and override the SigV4 signing name and region.
-
-Operations with `@endpoint` host prefixes prepend the expanded prefix to the
-host. Each host label member must be a single valid DNS label, so input cannot
-add dots, slashes, or user information. Set `disableHostPrefix: true` to send
-to the endpoint unchanged.
-
-## Checksums
-
-Operations with `@httpChecksumRequired` send `Content-MD5`. With
-`@aws.protocols#httpChecksum`, a request carries `x-amz-checksum-<algorithm>`
-for the input's algorithm member, defaulting to CRC32, and the response is
-validated when the validation mode member is `ENABLED`, which is also the
-default. CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512 use PHP's
-built-in `hash` functions and a pure-PHP CRC-64/NVME; any other requested
-algorithm is rejected before sending.
-
-Checksums cover the final body after middleware, and a checksum header that the
-caller already supplied is kept. A response is checked against the first
-modeled algorithm whose header is present; a mismatch throws
-`Runtime\ChecksumException` and is not retried. `checksumValidated:` receives
-the operation and algorithm of each validated response. Set
-`requestChecksumCalculation:` or `responseChecksumValidation:` to
-`Checksums::WHEN_REQUIRED` to send or validate checksums only when the model
-requires them. Defaults go on the wire and are never written to the input.
-
-## Streaming blobs
-
-A `@streaming` blob member is a `Runtime\ByteStream`, sent or received as the
-whole HTTP body without buffering it. Requests choose a source:
-
-| Source | Replay | Length |
-|---|---|---|
-| `ByteStream::fromString($bytes)` | replayable | known |
-| `ByteStream::fromFile($path)` | replayable, reopened per attempt | file size |
-| `ByteStream::fromResource($handle[, $length])` | replayable from its current position if seekable, else one-shot | remaining file size, or optional |
-| `ByteStream::fromObject($psr7Stream[, $length])` | replayable if seekable, else one-shot | `getSize()`, or optional |
-| `ByteStream::fromFactory(fn() => ..., [$length])` | replayable, one factory call per attempt | optional |
-| `ByteStream::fromIterable($chunks[, $length])` | an array replays; a generator is one-shot | optional |
-
-`fromObject` accepts a PSR-7 `StreamInterface`, or any object with `read()` and
-`eof()`, without a PSR dependency. A factory may return a string, resource,
-iterable, or stream object; it must return the same bytes every time, and the
-client closes what it returns. Resources and objects passed directly stay
-caller-owned. A one-shot stream is opened once, so its call is never retried,
-and using it in a second call throws `LogicException`.
-
-A known length is sent as `Content-Length` and the source must produce exactly
-that many bytes; otherwise the body is chunked. `@requiresLength` rejects a
-stream without a length, and `@length` bounds reject a known length outside
-them, before sending; the bounds are checked again as bytes flow. A source that
-fails or breaks its length throws `Runtime\StreamException`, which is never
-retried. Middleware sees a streaming body as `$request->stream`, with a null
-`body`; `withBody()` replaces it with bytes.
-
-```php
-$client->putObject(new PutObjectInput(key: 'photo.jpg', body: ByteStream::fromFile($path)));
-$client->putObject(new PutObjectInput(key: 'log', body: ByteStream::fromResource(STDIN)));
-
-$client->getObject(new GetObjectInput(key: 'photo.jpg'), responseTarget: fopen($target, 'wb'));
-$client->getObject(new GetObjectInput(key: 'feed'), responseTarget: function (string $chunk): void {
-    process($chunk);
-});
-```
-
-Operations with a streaming response accept `responseTarget:`. A closure
-receives each chunk as it arrives and a writable stream resource is written to;
-the transfer waits while either runs, so a slow consumer slows the download
-rather than growing a buffer. Without a target the body is spooled to a
-`php://temp` stream, kept in memory up to 1 MiB and on disk beyond, and the
-returned `ByteStream` reads it with `read()`, `getContents()`, or `copyTo()`.
-With a resource target, the returned body wraps that resource. The deadline and
-cancellation are checked between chunks. Once bytes reach a closure or
-resource, a failure is not retried; bytes held only in the private buffer are
-discarded, so the call is retried as usual.
-
-Streams are never buffered to compute a digest. SigV4 signs a stream's declared
-SHA-256, set with `withSha256($hex)`, or else `UNSIGNED-PAYLOAD`. With
-`--content-sha256`, a replayable stream without a declared digest is read once
-in chunks to hash it, and a one-shot stream without one is rejected before
-sending. Request checksums are computed the same way for replayable streams; a
-one-shot stream needs its checksum header supplied by the caller (for example
-the modeled `x-amz-checksum-crc32` member) or `requestChecksumCalculation:
-Checksums::WHEN_REQUIRED`. A streamed response checksum is computed as the
-bytes arrive and checked at the end; a mismatch throws `ChecksumException`
-after the body was delivered, and `checksumValidated` runs only after it
-matches.
-
-The cURL transport sends a stream with a read callback and delivers a streamed
-response through a write callback. An injected `HttpTransport` reads a request
-stream with `$request->stream->open()`, and may declare a fourth
-`?\Closure $sink` parameter: it then calls `$sink($chunk, $headers)` for each
-chunk of a 2xx body, with lowercase headers. A transport without the parameter
-returns the body buffered, and the runtime delivers it to the target.
+Operations that use HTTP bearer authentication send `Authorization: Bearer`
+with the token from `ClientConfig::$token`, called on every attempt so a
+provider can refresh it. A provider that returns null sends the request without
+credentials. A caller's own `Authorization` header is kept, and credentials
+require HTTPS except on loopback.
 
 ## Permissions
 
@@ -372,19 +200,9 @@ are diagnosed.
 
 `python tools/test-php.py` checks exact codecs, shared retry/header fixtures,
 native weather-service calls, body interruption and proxy behavior, Composer
-archive installation, and empty and renamed packages. Generated packages also
-cover waiters (every matcher kind, the JMESPath function library, backoff,
-deadlines, and cancellation), endpoint rules and host prefixes, the shared
-checksum vectors and request and response checksum flows, through an injected
-transport, and streaming blobs: every
-source kind, replay and one-shot rules, length checks, digests and checksums,
-response targets, and retries. The typed permissions of
+archive installation, and empty and renamed packages. The typed permissions of
 `tests/fixtures/permissions` are read through a Composer install
-(`tests/permissions.php`). A loopback server then exercises the cURL
-transport: 256 MiB uploads (chunked and sized) and a 256 MiB download under a
-64 MiB PHP memory limit, cancellation and a deadline on a stalled stream,
-streamed response checksums, a waiter, and request and response checksums. The
-memory limit covers PHP allocations, not cURL's own buffers.
+(`tests/permissions.php`).
 
 Set `PHP` to
 choose the executable and `COMPOSER_PHAR` to use a specific Composer archive. These checks

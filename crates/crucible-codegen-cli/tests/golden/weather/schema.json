@@ -74,7 +74,6 @@
       "members": [
         {
           "name": "id",
-          "wire_name": "id",
           "flag": "id",
           "target": "example.weather#CityId",
           "description": "",
@@ -83,7 +82,6 @@
         },
         {
           "name": "name",
-          "wire_name": "name",
           "flag": "name",
           "target": "example.weather#CityName",
           "description": "",
@@ -92,7 +90,6 @@
         },
         {
           "name": "population",
-          "wire_name": "population",
           "flag": "population",
           "target": "smithy.api#Long",
           "description": "",
@@ -101,7 +98,6 @@
         },
         {
           "name": "updatedAt",
-          "wire_name": "updatedAt",
           "flag": "updated-at",
           "target": "smithy.api#Timestamp",
           "description": "",
@@ -112,7 +108,6 @@
         },
         {
           "name": "createdAt",
-          "wire_name": "createdAt",
           "flag": "created-at",
           "target": "smithy.api#Timestamp",
           "description": "Deprecated since 2026-08: Use updatedAt.",
@@ -129,7 +124,6 @@
       "members": [
         {
           "name": "message",
-          "wire_name": "message",
           "flag": "message",
           "target": "smithy.api#String",
           "description": "",
@@ -144,7 +138,6 @@
       "members": [
         {
           "name": "latitude",
-          "wire_name": "latitude",
           "flag": "latitude",
           "target": "smithy.api#Double",
           "description": "",
@@ -153,7 +146,6 @@
         },
         {
           "name": "longitude",
-          "wire_name": "longitude",
           "flag": "longitude",
           "target": "smithy.api#Double",
           "description": "",
@@ -168,7 +160,6 @@
       "members": [
         {
           "name": "name",
-          "wire_name": "name",
           "flag": "name",
           "target": "example.weather#CityName",
           "description": "",
@@ -177,7 +168,6 @@
         },
         {
           "name": "location",
-          "wire_name": "location",
           "flag": "location",
           "target": "example.weather#Location",
           "description": "",
@@ -186,7 +176,6 @@
         },
         {
           "name": "clientToken",
-          "wire_name": "clientToken",
           "flag": "client-token",
           "target": "smithy.api#String",
           "description": "",
@@ -195,7 +184,6 @@
         },
         {
           "name": "expectedRevision",
-          "wire_name": "expectedRevision",
           "flag": "expected-revision",
           "target": "smithy.api#Long",
           "description": "",
@@ -210,7 +198,6 @@
       "members": [
         {
           "name": "city",
-          "wire_name": "city",
           "flag": "city",
           "target": "example.weather#CitySummary",
           "description": "",
@@ -234,7 +221,6 @@
       "members": [
         {
           "name": "cityId",
-          "wire_name": "cityId",
           "flag": "city-id",
           "target": "example.weather#CityId",
           "description": "",
@@ -243,7 +229,6 @@
         },
         {
           "name": "at",
-          "wire_name": "at",
           "flag": "at",
           "target": "example.weather#DateTime",
           "description": "",
@@ -260,7 +245,6 @@
       "members": [
         {
           "name": "city",
-          "wire_name": "city",
           "flag": "city",
           "target": "example.weather#CitySummary",
           "description": "",
@@ -269,7 +253,6 @@
         },
         {
           "name": "forecast",
-          "wire_name": "forecast",
           "flag": "forecast",
           "target": "example.weather#Forecast",
           "description": "",
@@ -278,7 +261,6 @@
         },
         {
           "name": "requestId",
-          "wire_name": "requestId",
           "flag": "request-id",
           "target": "smithy.api#String",
           "description": "",
@@ -293,7 +275,6 @@
       "members": [
         {
           "name": "cityId",
-          "wire_name": "cityId",
           "flag": "city-id",
           "target": "example.weather#CityId",
           "description": "",
@@ -308,7 +289,6 @@
       "members": [
         {
           "name": "caption",
-          "wire_name": "caption",
           "flag": "caption",
           "target": "smithy.api#String",
           "description": "",
@@ -317,7 +297,6 @@
         },
         {
           "name": "photo",
-          "wire_name": "photo",
           "flag": "photo",
           "target": "example.weather#Photo",
           "description": "",
@@ -332,7 +311,6 @@
       "members": [
         {
           "name": "nextToken",
-          "wire_name": "nextToken",
           "flag": "next-token",
           "target": "smithy.api#String",
           "description": "",
@@ -341,7 +319,6 @@
         },
         {
           "name": "maxResults",
-          "wire_name": "maxResults",
           "flag": "max-results",
           "target": "smithy.api#Integer",
           "description": "",
@@ -350,7 +327,6 @@
         },
         {
           "name": "tags",
-          "wire_name": "tags",
           "flag": "tags",
           "target": "example.weather#Tags",
           "description": "",
@@ -365,7 +341,6 @@
       "members": [
         {
           "name": "cities",
-          "wire_name": "cities",
           "flag": "cities",
           "target": "example.weather#CitySummaries",
           "description": "",
@@ -374,7 +349,6 @@
         },
         {
           "name": "nextToken",
-          "wire_name": "nextToken",
           "flag": "next-token",
           "target": "smithy.api#String",
           "description": "",
@@ -389,7 +363,6 @@
       "members": [
         {
           "name": "coordinates",
-          "wire_name": "coordinates",
           "flag": "coordinates",
           "target": "example.weather#Coordinates",
           "description": "",
@@ -398,7 +371,6 @@
         },
         {
           "name": "unknown",
-          "wire_name": "unknown",
           "flag": "unknown",
           "target": "smithy.api#Unit",
           "description": "",
@@ -413,7 +385,6 @@
       "members": [
         {
           "name": "message",
-          "wire_name": "message",
           "flag": "message",
           "target": "smithy.api#String",
           "description": "",
@@ -422,7 +393,6 @@
         },
         {
           "name": "resourceId",
-          "wire_name": "resourceId",
           "flag": "resource-id",
           "target": "smithy.api#String",
           "description": "",
@@ -441,7 +411,6 @@
       "members": [
         {
           "name": "size",
-          "wire_name": "size",
           "flag": "size",
           "target": "smithy.api#Integer",
           "description": "",
@@ -450,7 +419,6 @@
         },
         {
           "name": "thumbnail",
-          "wire_name": "thumbnail",
           "flag": "thumbnail",
           "target": "example.weather#Thumbnail",
           "description": "",
@@ -459,7 +427,6 @@
         },
         {
           "name": "caption",
-          "wire_name": "caption",
           "flag": "caption",
           "target": "smithy.api#String",
           "description": "",
@@ -474,7 +441,6 @@
       "members": [
         {
           "name": "cityId",
-          "wire_name": "cityId",
           "flag": "city-id",
           "target": "example.weather#CityId",
           "description": "",
@@ -483,7 +449,6 @@
         },
         {
           "name": "caption",
-          "wire_name": "caption",
           "flag": "caption",
           "target": "smithy.api#String",
           "description": "",
@@ -492,7 +457,6 @@
         },
         {
           "name": "photo",
-          "wire_name": "photo",
           "flag": "photo",
           "target": "example.weather#Photo",
           "description": "",
@@ -507,7 +471,6 @@
       "members": [
         {
           "name": "photo",
-          "wire_name": "photo",
           "flag": "photo",
           "target": "example.weather#PhotoSummary",
           "description": "",
@@ -541,7 +504,6 @@
       "members": [
         {
           "name": "message",
-          "wire_name": "message",
           "flag": "message",
           "target": "smithy.api#String",
           "description": "",
@@ -550,7 +512,6 @@
         },
         {
           "name": "retryAfter",
-          "wire_name": "retryAfter",
           "flag": "retry-after",
           "target": "smithy.api#Integer",
           "description": "",
@@ -569,7 +530,6 @@
       "members": [
         {
           "name": "message",
-          "wire_name": "message",
           "flag": "message",
           "target": "smithy.api#String",
           "description": "",
@@ -578,7 +538,6 @@
         },
         {
           "name": "reason",
-          "wire_name": "reason",
           "flag": "reason",
           "target": "example.weather#ValidationReason",
           "description": "",
@@ -587,7 +546,6 @@
         },
         {
           "name": "fieldList",
-          "wire_name": "fieldList",
           "flag": "field-list",
           "target": "example.weather#ValidationFieldList",
           "description": "",
@@ -596,7 +554,6 @@
         },
         {
           "name": "requestId",
-          "wire_name": "requestId",
           "flag": "request-id",
           "target": "smithy.api#String",
           "description": "",
@@ -611,7 +568,6 @@
       "members": [
         {
           "name": "path",
-          "wire_name": "path",
           "flag": "path",
           "target": "smithy.api#String",
           "description": "",
@@ -620,7 +576,6 @@
         },
         {
           "name": "message",
-          "wire_name": "message",
           "flag": "message",
           "target": "smithy.api#String",
           "description": "",

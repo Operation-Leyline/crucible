@@ -7,7 +7,7 @@ find_package(OpenSSL 1.1.1 REQUIRED)
 find_package(Threads REQUIRED)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
-add_library(weather_client STATIC src/models.c src/client.c src/arena.c src/json.c src/number.c src/timestamp.c src/codec.c src/scope.c src/headers.c src/transport.c src/client_runtime.c src/bindings.c src/encoding.c src/auth.c src/checksums.c src/query.c src/endpoints.c src/waiters.c)
+add_library(weather_client STATIC src/models.c src/client.c src/arena.c src/json.c src/number.c src/timestamp.c src/codec.c src/scope.c src/headers.c src/transport.c src/client_runtime.c src/bindings.c src/encoding.c src/auth.c)
 add_library(weather_client::weather_client ALIAS weather_client)
 target_compile_features(weather_client PUBLIC c_std_17)
 set_target_properties(weather_client PROPERTIES C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON DEBUG_POSTFIX d)
@@ -1052,7 +1052,7 @@ static const weather_string schema_chunks[] = {
 };
 weather_status weather_client_new(const weather_client_config *config, weather_client **output, weather_error *error) {
     const weather_string endpoint = {"", 0};
-    return weather_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, true, output, error);
+    return weather_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, output, error);
 }
 weather_status weather_operations_create_city(weather_client *client, const weather_models_create_city_input *input, weather_cancelled_fn cancelled, void *cancel_user, weather_operations_create_city_result *result, weather_error *error) {
     const weather_string operation = {"CreateCity", 10};

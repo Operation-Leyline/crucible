@@ -16,16 +16,12 @@ pub struct OperationMetadata {
     pub auth_schemes: Option<&'static [AuthScheme]>,
     /// Prepared once at registration for protocol-independent bearer challenges.
     pub bearer_auth: bool,
-    pub optional_auth: bool,
     /// Every one of these OAuth scopes is required; empty requires none.
     pub scopes: &'static [&'static str],
     /// The service default scope list, advertised on authentication challenges.
     pub service_scopes: &'static [&'static str],
-    pub unsigned_payload: bool,
     pub has_input: bool,
     pub has_output: bool,
-    pub input_events: Option<&'static crate::event_stream::EventStreamInfo>,
-    pub output_events: Option<&'static crate::event_stream::EventStreamInfo>,
     /// Where a `@paginated` operation's input carries its token and page size.
     /// At an older API version the input is the current version's, so these
     /// are the current members.
@@ -56,12 +52,12 @@ pub struct OperationMetadata {
 
 impl OperationMetadata {
     /// Whether every request the operation serves has been authenticated:
-    /// it names an authentication scheme and is not `@optionalAuth`. An
-    /// operation with no scheme (`@auth([])`, a public one) or without
+    /// it names an authentication scheme. An operation with no scheme (a
+    /// `public` one) or without
     /// authentication metadata (bindings older than it) admits anonymous
     /// callers.
     pub fn requires_authentication(&self) -> bool {
-        self.auth_schemes.is_some_and(|schemes| !schemes.is_empty()) && !self.optional_auth
+        self.auth_schemes.is_some_and(|schemes| !schemes.is_empty())
     }
 
     pub(crate) fn of<O: Operation>() -> Self {
@@ -72,14 +68,10 @@ impl OperationMetadata {
                     .iter()
                     .any(|scheme| matches!(scheme, AuthScheme::Bearer))
             }),
-            optional_auth: O::OPTIONAL_AUTH,
             scopes: O::SCOPES,
             service_scopes: O::SERVICE_SCOPES,
-            unsigned_payload: O::UNSIGNED_PAYLOAD,
             has_input: O::HAS_INPUT,
             has_output: O::HAS_OUTPUT,
-            input_events: O::INPUT_EVENTS,
-            output_events: O::OUTPUT_EVENTS,
             pagination: O::PAGINATION,
             idempotency_token: O::IDEMPOTENCY_TOKEN,
             idempotency_token_sent: O::IDEMPOTENCY_TOKEN.is_some(),

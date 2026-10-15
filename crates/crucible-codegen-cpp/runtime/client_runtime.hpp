@@ -1,9 +1,5 @@
 #pragma once
-#include "auth.hpp"
-#include "checksums.hpp"
 #include "codec.hpp"
-#include "endpoints.hpp"
-#include "query.hpp"
 #include "transport.hpp"
 #include <atomic>
 #include <exception>
@@ -13,7 +9,7 @@
 namespace crucible_generated::runtime {
 /** Client settings. Defaults are a 30-second call deadline and three attempts. Providers and transport must be thread safe for concurrent calls. */
 struct ClientConfig {
-    /** HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules. */
+    /** HTTP endpoint override; absent uses the generated endpoint. */
     std::optional<std::string> endpoint;
     /** Bearer token provider invoked for each authenticated attempt. */
     std::function<std::optional<std::string>()> token;
@@ -31,55 +27,7 @@ struct ClientConfig {
     Headers headers;
     /** Request transformations applied on every attempt after authentication. */
     std::vector<std::function<HttpRequest(HttpRequest)>> middleware;
-    /// Modeled authentication schemes are tried in the operation's order; caller-supplied
-    /// Authorization (or API key) values for a scheme are used without invoking its provider.
-    /** HTTP basic authentication provider; used only for a modeled basic-auth scheme. */
-    std::function<std::optional<BasicCredentials>()> basic_credentials;
-    /** API key provider for the modeled header or query location. */
-    std::function<std::optional<std::string>()> api_key;
-    /** AWS credentials provider for modeled SigV4 authentication. */
-    CredentialsProvider credentials;
-    /** SigV4 region and AWS::Region endpoint built-in. */
-    std::optional<std::string> region;
-    /// Endpoint rule inputs: string, boolean, or string-array values.
-    /** Named inputs to modeled endpoint rules. */
-    Json::Object endpoint_parameters;
-    /** Endpoint-rule built-in overrides. */
-    Json::Object endpoint_builtins;
-    /** Disables modeled operation host-prefix injection. */
-    bool disable_host_prefix = false;
-    /** Computes modeled request checksums when supported or only when required. */
-    ChecksumPolicy request_checksum_calculation = ChecksumPolicy::when_supported;
-    /** Validates modeled response checksums when supported or only when required. */
-    ChecksumPolicy response_checksum_validation = ChecksumPolicy::when_supported;
-    /** Notification after a response checksum validates. */
-    std::function<void(const std::string& operation, const std::string& algorithm)> checksum_validated;
 };
-/** Optional waiter polling delay overrides in seconds. */
-struct WaiterOptions {
-    std::optional<double> min_delay;
-    /** Maximum backoff bound in seconds; Retry-After can override it. */
-    std::optional<double> max_delay;
-};
-/** Modeled waiter failure, carrying attempts and the last response. */
-class WaiterError : public std::runtime_error {
-    std::string name_;
-    unsigned attempts_;
-    Json response_;
-    Json reason_;
-    std::exception_ptr cause_;
-public:
-    WaiterError(std::string name, unsigned attempts, Json response, std::exception_ptr cause, Json reason, const std::string& message);
-    [[nodiscard]] const std::string& name() const noexcept { return name_; }
-    [[nodiscard]] unsigned attempts() const noexcept { return attempts_; }
-    /// The last response in its JMESPath view (member names, epoch timestamps), or null.
-    [[nodiscard]] const Json& response() const noexcept { return response_; }
-    /// The modeled acceptor message, or null.
-    [[nodiscard]] const Json& reason() const noexcept { return reason_; }
-    [[nodiscard]] std::exception_ptr cause() const noexcept { return cause_; }
-};
-/** Waiter deadline exhaustion. */
-class WaiterTimeoutError : public WaiterError { public: using WaiterError::WaiterError; };
 using ErrorFactory = std::function<std::exception_ptr(const std::string&, const Json&, ErrorMetadata)>;
 /** Shared HTTP connections, authentication, retries, and modeled error decoding. */
 class ClientRuntime {
@@ -88,57 +36,24 @@ class ClientRuntime {
     ErrorFactory errors_;
     std::string endpoint_;
     std::shared_ptr<Transport> transport_;
-    bool digest_;
     std::atomic<bool> closed_ = false;
-public:
-    /// A decoded response, and its streaming body when the operation has one.
-    struct CallResult {
-        Json value;
-        std::optional<ByteStream> stream;
-    };
-private:
-    struct Prepared {
-        HttpRequest request;
-        ChecksumSettings checksum;
-        /** Endpoint resolved from modeled endpoint rules, if any. */
-        std::optional<ResolvedEndpoint> endpoint;
-    };
-    [[nodiscard]] Prepared prepare(const std::string& name, const Json& operation, const Json& input, bool streaming) const;
-    [[nodiscard]] std::optional<SigningOptions> authenticate(const Json& operation, HttpRequest& request, const std::optional<ResolvedEndpoint>& endpoint, const CallScope& scope, bool& credentials, std::optional<AwsCredentials>& identity) const;
-    [[nodiscard]] std::optional<CallResult> wait_json(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop, const std::function<Json(const Json&)>& view, const std::optional<ByteStream>& body) const;
+    [[nodiscard]] HttpRequest prepare(const Json& operation, const Json& input) const;
+    /// Sets the bearer token when the operation takes one; returns whether the request carries an identity.
+    [[nodiscard]] bool authenticate(const Json& operation, HttpRequest& request, const CallScope& scope) const;
     [[nodiscard]] Json success(const Json& operation, const HttpResponse& response) const;
     [[nodiscard]] Json apply_headers(const std::string& target, const Json& bindings, const HttpResponse& response, const Json& body) const;
     [[nodiscard]] std::pair<ErrorMetadata, std::exception_ptr> failure(const Json& operation, const HttpResponse& response) const;
     [[nodiscard]] double retry_delay(unsigned attempt, const std::optional<std::string>& header) const;
 public:
     /** Constructs a runtime; borrows the immutable schema and retains the transport. */
-    ClientRuntime(ClientConfig config, const Schema& schema, ErrorFactory errors, std::string endpoint, bool digest);
+    ClientRuntime(ClientConfig config, const Schema& schema, ErrorFactory errors, std::string endpoint);
     /** Closes the runtime and its owned transport; borrowed transports stay open. */
     void close();
     [[nodiscard]] CallScope scope(std::stop_token stop = {}) const { return CallScope(config_.timeout, stop); }
     [[nodiscard]] const Schema& schema() const noexcept { return *schema_; }
     [[nodiscard]] const Json& operation(const std::string& name) const { return schema_->description().at("operations").at(name); }
-    /// Sends one operation, with its streaming request body if it has one.
-    [[nodiscard]] CallResult exchange(const std::string& name, const Json& input, const CallScope& scope, std::optional<ByteStream> body = {}) const;
-    [[nodiscard]] Json call(const std::string& name, const Json& input, const CallScope& scope) const { return exchange(name, input, scope).value; }
-    /// Polls an operation until a modeled waiter acceptor succeeds or fails, or the timeout elapses.
-    template<class T> [[nodiscard]] std::optional<T> wait(const std::string& operation, const std::string& waiter, const Json& input, double timeout, const WaiterOptions& options, std::stop_token stop,
-            std::optional<ByteStream> body = {}, const std::function<void(T&, std::optional<ByteStream>)>& attach = {}) const {
-        const auto& output = this->operation(operation).at("output");
-        (void)output;
-        const auto view = [&](const Json& value) -> Json {
-            if constexpr (std::is_same_v<T, Unit>) return value;
-            else { const auto context = schema_->context(output.string()); return Codec<T>::encode(Codec<T>::decode(value, context), context); }
-        };
-        auto result = wait_json(operation, waiter, input, timeout, options, stop, view, body);
-        if (!result) return std::nullopt;
-        if constexpr (std::is_same_v<T, Unit>) return T{};
-        else {
-            auto decoded = Codec<T>::decode(result->value, schema_->context(output.string()));
-            if (attach) attach(decoded, std::move(result->stream));
-            return decoded;
-        }
-    }
+    /// Sends one operation, retrying within the scope's deadline, and returns its decoded response.
+    [[nodiscard]] Json call(const std::string& name, const Json& input, const CallScope& scope) const;
 };
 /** Lazy page iterator. Consume from one thread; next returns nullopt on exhaustion. */
 template<class T> class Pages {

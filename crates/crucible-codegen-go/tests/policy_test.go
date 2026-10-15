@@ -1,8 +1,8 @@
 package policy
 
-// Runtime policy: retry quota, adaptive rate limiting, endpoint discovery and
-// telemetry. The shared vectors are tests/conformance/{retry-quota,
-// adaptive-retry,endpoint-discovery,telemetry}.json, run against a client
+// Runtime policy: retry quota, adaptive rate limiting and telemetry. The
+// shared vectors are tests/conformance/{retry-quota,adaptive-retry,
+// telemetry}.json, run against a client
 // generated from crates/crucible-smithy/tests/fixtures/runtime-policy.json.
 
 import (
@@ -19,7 +19,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -106,9 +105,6 @@ func newRecords(t *testing.T, config Config) *RecordsClient {
 	if config.Endpoint == "" {
 		config.Endpoint = endpoint
 	}
-	if config.APIKey == nil {
-		config.APIKey = func(context.Context) (string, error) { return "key", nil }
-	}
 	client, err := NewRecordsClient(config)
 	if err != nil {
 		t.Fatal(err)
@@ -145,9 +141,6 @@ func invoke(ctx context.Context, client *RecordsClient, name string, input map[s
 func outcome(err error) string {
 	if err == nil {
 		return "success"
-	}
-	if errors.Is(err, ErrEndpointDiscovery) {
-		return "endpoint-discovery"
 	}
 	var service *ServiceError
 	if errors.As(err, &service) {
@@ -379,9 +372,6 @@ func TestInvalidSettings(t *testing.T) {
 	if _, err := NewRecordsClient(Config{Endpoint: endpoint, RetryMode: "aggressive"}); err == nil || !strings.Contains(err.Error(), "RetryMode") {
 		t.Fatal(err)
 	}
-	if _, err := NewRecordsClient(Config{Endpoint: endpoint, EndpointDiscovery: "yes"}); err == nil || !strings.Contains(err.Error(), "EndpointDiscovery") {
-		t.Fatal(err)
-	}
 }
 
 func TestBackoffUsesTheInjectedClockAndRetryAfter(t *testing.T) {
@@ -396,261 +386,6 @@ func TestBackoffUsesTheInjectedClockAndRetryAfter(t *testing.T) {
 	}
 	if !reflect.DeepEqual(clock.slept(), []time.Duration{2 * time.Second, 750 * time.Millisecond}) {
 		t.Fatal(clock.slept())
-	}
-}
-
-type exchange struct {
-	Method   string
-	URL      string
-	JSON     any
-	Response map[string]any
-}
-
-// script serves exchanges in order, failing the test on any mismatch.
-type script struct {
-	t         *testing.T
-	mu        sync.Mutex
-	exchanges []exchange
-}
-
-func (s *script) Do(r *http.Request) (*http.Response, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(s.exchanges) == 0 {
-		s.t.Errorf("unexpected request %s %s", r.Method, r.URL)
-		return reply(500, nil, nil), nil
-	}
-	next := s.exchanges[0]
-	s.exchanges = s.exchanges[1:]
-	if r.Method != next.Method || r.URL.String() != next.URL {
-		s.t.Errorf("request %s %s, expected %s %s", r.Method, r.URL, next.Method, next.URL)
-	}
-	if next.JSON != nil {
-		data, _ := io.ReadAll(r.Body)
-		var body any
-		if err := json.Unmarshal(data, &body); err != nil || !reflect.DeepEqual(body, next.JSON) {
-			s.t.Errorf("body %s, expected %v", data, next.JSON)
-		}
-	}
-	if r.Header.Get("X-Api-Key") != "key" {
-		s.t.Error("discovery and discovered calls are authenticated")
-	}
-	return respond(next.Response)
-}
-
-func (s *script) load(exchanges []exchange) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.exchanges = append([]exchange(nil), exchanges...)
-}
-
-func (s *script) remaining() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.exchanges)
-}
-
-func TestEndpointDiscoveryScenarios(t *testing.T) {
-	var vectors struct {
-		Scenarios []struct {
-			Name              string
-			EndpointDiscovery *bool
-			MaxAttempts       int
-			Steps             []struct {
-				Advance   *float64
-				Call      string
-				Input     map[string]any
-				Exchanges []exchange
-				Outcome   string
-			}
-		}
-	}
-	load(t, "endpoint-discovery.json", &vectors)
-	modes := map[bool]EndpointDiscoveryMode{true: EndpointDiscoveryEnabled, false: EndpointDiscoveryDisabled}
-	for _, scenario := range vectors.Scenarios {
-		t.Run(scenario.Name, func(t *testing.T) {
-			clock := &fakeClock{}
-			server := &script{t: t}
-			mode := EndpointDiscoveryAuto
-			if scenario.EndpointDiscovery != nil {
-				mode = modes[*scenario.EndpointDiscovery]
-			}
-			client := newRecords(t, Config{Clock: clock, HTTPClient: server, EndpointDiscovery: mode, MaxAttempts: max(scenario.MaxAttempts, 0)})
-			for _, step := range scenario.Steps {
-				if step.Advance != nil {
-					clock.advance(*step.Advance)
-					continue
-				}
-				server.load(step.Exchanges)
-				err := invoke(context.Background(), client, step.Call, step.Input)
-				if got := outcome(err); got != step.Outcome {
-					t.Fatalf("%s: outcome %s, expected %s", step.Call, got, step.Outcome)
-				}
-				if left := server.remaining(); left != 0 {
-					t.Fatalf("%s: %d expected requests were not sent", step.Call, left)
-				}
-			}
-		})
-	}
-}
-
-func endpointsReply() *http.Response {
-	return reply(200, map[string]any{"Endpoints": []any{map[string]any{"Address": "t1.records.example", "CachePeriodInMinutes": 1}}}, nil)
-}
-
-func TestConcurrentCallersShareOneDiscovery(t *testing.T) {
-	var discoveries atomic.Int32
-	started, release := make(chan struct{}), make(chan struct{})
-	var once sync.Once
-	client := newRecords(t, Config{HTTPClient: doFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Path == "/endpoints" {
-			discoveries.Add(1)
-			once.Do(func() { close(started) })
-			<-release
-			return endpointsReply(), nil
-		}
-		if r.URL.Host != "t1.records.example" {
-			t.Errorf("sent to %s", r.URL.Host)
-		}
-		return reply(200, nil, nil), nil
-	})})
-	var group sync.WaitGroup
-	errs := make(chan error, 8)
-	for range 8 {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			_, err := client.GetRecord(context.Background(), &GetRecordInput{Table: "t1", Key: "k"})
-			errs <- err
-		}()
-	}
-	<-started
-	time.Sleep(100 * time.Millisecond)
-	close(release)
-	group.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	if discoveries.Load() != 1 {
-		t.Fatalf("%d discoveries", discoveries.Load())
-	}
-}
-
-func TestAFailedSharedDiscoveryFailsEveryWaitingRequiredCall(t *testing.T) {
-	started, release := make(chan struct{}), make(chan struct{})
-	var once sync.Once
-	client := newRecords(t, Config{HTTPClient: doFunc(func(*http.Request) (*http.Response, error) {
-		once.Do(func() { close(started) })
-		<-release
-		return reply(400, map[string]any{"__type": "Denied"}, nil), nil
-	})})
-	var group sync.WaitGroup
-	outcomes := make(chan string, 4)
-	for range 4 {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			_, err := client.GetRecord(context.Background(), &GetRecordInput{Table: "t1", Key: "k"})
-			outcomes <- outcome(err)
-		}()
-	}
-	<-started
-	time.Sleep(100 * time.Millisecond)
-	close(release)
-	group.Wait()
-	close(outcomes)
-	for result := range outcomes {
-		if result != "Denied" {
-			t.Fatal(result)
-		}
-	}
-}
-
-func TestSharedDiscoverySurvivesTheCancelledCallerThatStartedIt(t *testing.T) {
-	var discoveries atomic.Int32
-	started, release := make(chan struct{}), make(chan struct{})
-	client := newRecords(t, Config{HTTPClient: doFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Path == "/endpoints" {
-			discoveries.Add(1)
-			close(started)
-			<-release
-			if err := r.Context().Err(); err != nil {
-				t.Error("the shared discovery was cancelled with its first caller")
-			}
-			return endpointsReply(), nil
-		}
-		return reply(200, map[string]any{"value": r.URL.Path}, nil), nil
-	})})
-	ctx, cancel := context.WithCancel(context.Background())
-	first := make(chan error, 1)
-	go func() {
-		_, err := client.GetRecord(ctx, &GetRecordInput{Table: "t1", Key: "first"})
-		first <- err
-	}()
-	<-started
-	type result struct {
-		index int
-		value string
-		err   error
-	}
-	results := make(chan result, 6)
-	for i := range 6 {
-		go func() {
-			output, err := client.GetRecord(context.Background(), &GetRecordInput{Table: "t1", Key: fmt.Sprintf("k%d", i)})
-			results <- result{i, output.GetValue(), err}
-		}()
-	}
-	time.Sleep(50 * time.Millisecond)
-	// The caller that started discovery goes away; the others still get its result.
-	cancel()
-	if err := <-first; !errors.Is(err, context.Canceled) {
-		t.Fatal(err)
-	}
-	close(release)
-	for range 6 {
-		r := <-results
-		if r.err != nil || r.value != fmt.Sprintf("/records/t1/k%d", r.index) {
-			t.Fatal(r)
-		}
-	}
-	if discoveries.Load() != 1 {
-		t.Fatalf("%d discoveries", discoveries.Load())
-	}
-}
-
-func TestAWaiterStopsAtItsOwnDeadline(t *testing.T) {
-	started, release := make(chan struct{}), make(chan struct{})
-	var discoveries atomic.Int32
-	client := newRecords(t, Config{HTTPClient: doFunc(func(r *http.Request) (*http.Response, error) {
-		if r.URL.Path == "/endpoints" {
-			if discoveries.Add(1) == 1 {
-				close(started)
-			}
-			<-release
-			return endpointsReply(), nil
-		}
-		return reply(200, nil, nil), nil
-	})})
-	leader := make(chan error, 1)
-	go func() {
-		_, err := client.GetRecord(context.Background(), &GetRecordInput{Table: "t1", Key: "k"})
-		leader <- err
-	}()
-	<-started
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-	if _, err := client.GetRecord(ctx, &GetRecordInput{Table: "t1", Key: "k"}); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatal(err)
-	}
-	close(release)
-	if err := <-leader; err != nil {
-		t.Fatal(err)
-	}
-	if _, err := client.GetRecord(context.Background(), &GetRecordInput{Table: "t1", Key: "k"}); err != nil || discoveries.Load() != 1 {
-		t.Fatal(err, discoveries.Load())
 	}
 }
 
@@ -687,7 +422,7 @@ func record(event any) (map[string]any, time.Time) {
 		at = e.Time
 	case AttemptStartedEvent:
 		fields = map[string]any{"event": "attemptStarted", "invocationId": e.InvocationID, "service": e.Service, "operation": e.Operation,
-			"attempt": e.Attempt, "method": e.Method, "endpoint": e.Endpoint, "endpointSource": e.EndpointSource, "target": e.Target,
+			"attempt": e.Attempt, "method": e.Method, "endpoint": e.Endpoint, "target": e.Target,
 			"headers": e.Headers, "requestBytes": nullable(e.RequestBytes, -1)}
 		at = e.Time
 	case AttemptFinishedEvent:
@@ -744,7 +479,8 @@ func TestTelemetryScenarios(t *testing.T) {
 		t.Run(scenario.Name, func(t *testing.T) {
 			hook := &recorder{}
 			responses := scenario.Responses
-			client := newRecords(t, Config{Telemetry: hook, Clock: &fakeClock{}, APIKey: func(context.Context) (string, error) { return "api-key-secret", nil },
+			client := newRecords(t, Config{Telemetry: hook, Clock: &fakeClock{},
+				Token: func(context.Context) (string, error) { return "api-key-secret", nil },
 				HTTPClient: doFunc(func(*http.Request) (*http.Response, error) {
 					next := responses[0]
 					responses = responses[1:]
@@ -824,8 +560,5 @@ func TestTelemetryIsOptional(t *testing.T) {
 	client := newRecords(t, Config{HTTPClient: doFunc(func(*http.Request) (*http.Response, error) { return reply(200, nil, nil), nil })})
 	if _, err := client.PutRecord(context.Background(), &PutRecordInput{Table: "t1", Secret: Some[Secret]("s")}); err != nil {
 		t.Fatal(err)
-	}
-	if len(client.credentialHeaders) != 1 || !client.credentialHeaders["x-api-key"] {
-		t.Fatal("per-call sensitive names must not leak into the client's credential set", client.credentialHeaders)
 	}
 }

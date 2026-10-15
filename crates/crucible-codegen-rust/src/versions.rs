@@ -107,10 +107,6 @@ pub(crate) fn emit(
             }) {
                 // The handler takes the last version's types.
                 let at_last = operation(models[last], &old_op.id).expect("the last version has it");
-                if streams(old_op) || streams(at_last) {
-                    // Streams cross no JSON conversion: not served.
-                    continue;
-                }
                 Some(legacy(&models, last, at_last, &mut methods, diagnostics))
             } else {
                 // Gone without a handler: the guard refuses such a model.
@@ -274,7 +270,7 @@ fn older_requirements(
     module.permission_types = None;
     let mut kept = false;
     for operation in &mut module.operations {
-        if !removed.contains(&operation.id) || streams(operation) {
+        if !removed.contains(&operation.id) {
             operation.requirements = Default::default();
             continue;
         }
@@ -613,9 +609,6 @@ fn conversion(
     ) else {
         return refused("the operation is not in every later version");
     };
-    if streams(old_op) || streams(new_op) {
-        return refused("streams are served at the current version only");
-    }
     let mut upgrade: Vec<Item> = Vec::new();
     let mut downgrade: Vec<Item> = Vec::new();
     let mut errors = Vec::new();
@@ -822,7 +815,7 @@ fn conversion(
                     match (older.member(to), wire(current, error, from)) {
                         (Some(to), Some(from)) => pairs.push(format!(
                             "({}, {})",
-                            literal(&to.wire_name),
+                            literal(&to.name),
                             literal(&from)
                         )),
                         _ => diagnostics.push(
@@ -995,7 +988,7 @@ fn conversion(
                             diagnostics,
                         );
                         for mut at in ups {
-                            at.push(Step::Field(old_member.wire_name.clone()));
+                            at.push(Step::Field(old_member.name.clone()));
                             let text = format!(
                                 "Transform::Hook {{ at: {}, hook: {} }}",
                                 segs(&at),
@@ -1032,7 +1025,7 @@ fn conversion(
                             diagnostics,
                         );
                         for mut at in downs {
-                            at.push(Step::Field(new_member.wire_name.clone()));
+                            at.push(Step::Field(new_member.name.clone()));
                             let text = format!(
                                 "Transform::Hook {{ at: {}, hook: {} }}",
                                 segs(&at),
@@ -1115,7 +1108,7 @@ fn conversion(
                             let text = format!(
                                 "Transform::Fill {{ at: {}, member: {}, hook: {} }}",
                                 segs(&at),
-                                literal(&new_member.wire_name),
+                                literal(&new_member.name),
                                 literal(&key)
                             );
                             upgrade.push(Item {
@@ -1195,18 +1188,6 @@ fn refused(reason: &str) -> String {
     )
 }
 
-fn streams(operation: &Operation) -> bool {
-    [&operation.request, &operation.response]
-        .iter()
-        .any(|bindings| {
-            bindings.event_stream.is_some()
-                || bindings
-                    .payload
-                    .as_ref()
-                    .is_some_and(|payload| payload.streaming)
-        })
-}
-
 /// One step of a place in a value's JSON.
 #[derive(Clone, PartialEq)]
 enum Step {
@@ -1280,7 +1261,7 @@ fn walk(
     match service.shape(shape) {
         Some(Shape::Structure(structure) | Shape::Union(structure)) => {
             for member in &structure.members {
-                path.push(Step::Field(member.wire_name.clone()));
+                path.push(Step::Field(member.name.clone()));
                 walk(service, &member.target, target, stack, path, out, recursive);
                 path.pop();
             }
@@ -1356,7 +1337,7 @@ fn segs(path: &[Step]) -> String {
 fn wire(service: &Service, shape: &ShapeId, member: &str) -> Option<String> {
     match service.shape(shape)? {
         Shape::Structure(structure) | Shape::Union(structure) => {
-            Some(structure.member(member)?.wire_name.clone())
+            Some(structure.member(member)?.name.clone())
         }
         _ => None,
     }

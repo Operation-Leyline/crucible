@@ -71,7 +71,6 @@ pub struct LanguageOptions {
     pub module_path: Option<String>,
     pub client_name: Option<String>,
     pub endpoint: Option<Endpoint>,
-    pub content_sha256: bool,
     pub middleware: Vec<String>,
     pub package_json: Option<Value>,
     pub runtime: Option<Runtime>,
@@ -404,9 +403,6 @@ impl Sdk {
                 set("endpoint_env", json!(name));
             }
             None => {}
-        }
-        if options.content_sha256 {
-            set("content_sha256", json!(true));
         }
         if !options.middleware.is_empty() {
             set("middleware", json!(options.middleware));

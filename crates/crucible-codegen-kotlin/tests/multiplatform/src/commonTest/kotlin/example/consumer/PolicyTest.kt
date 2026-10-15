@@ -5,7 +5,6 @@ import example.policy.AttemptFinished
 import example.policy.AttemptStarted
 import example.policy.ClientConfig
 import example.policy.CubicCalculator
-import example.policy.EndpointDiscoveryError
 import example.policy.NetworkError
 import example.policy.OperationFinished
 import example.policy.OperationStarted
@@ -22,7 +21,6 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.network.sockets.ConnectTimeoutException
 import io.ktor.client.request.HttpResponseData
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.OutgoingContent
 import io.ktor.http.headersOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,12 +33,9 @@ import kotlin.time.DurationUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
@@ -61,7 +56,6 @@ import kotlinx.serialization.json.jsonPrimitive
 /** The shared runtime-policy vectors (tests/conformance), against a client generated from runtime-policy.json. */
 private val QUOTA = Json.parseToJsonElement(RETRY_QUOTA_VECTORS).jsonObject
 private val ADAPTIVE = Json.parseToJsonElement(ADAPTIVE_RETRY_VECTORS).jsonObject
-private val DISCOVERY = Json.parseToJsonElement(ENDPOINT_DISCOVERY_VECTORS).jsonObject
 private val TELEMETRY = Json.parseToJsonElement(TELEMETRY_VECTORS).jsonObject
 private const val ENDPOINT = "https://records.example"
 private val JSON_HEADERS = headersOf("content-type", "application/json")
@@ -91,10 +85,10 @@ private class Recorder : TelemetryHook {
     override fun operationFinished(event: OperationFinished) { events += event }
 }
 
-private fun client(http: HttpClient, clock: RuntimeClock = RuntimeClock.System, mode: RetryMode = RetryMode.LEGACY, discovery: Boolean? = null,
+private fun client(http: HttpClient, clock: RuntimeClock = RuntimeClock.System, mode: RetryMode = RetryMode.LEGACY,
     attempts: Int = 3, telemetry: TelemetryHook? = null, key: String = "key", baseDelay: Duration = Duration.ZERO) =
-    RecordsClient(ClientConfig(endpoint = ENDPOINT, httpClient = http, apiKey = { key }, baseDelay = baseDelay, retryMode = mode,
-        endpointDiscovery = discovery, maxAttempts = attempts, telemetry = telemetry, runtimeClock = clock))
+    RecordsClient(ClientConfig(endpoint = ENDPOINT, httpClient = http, token = { key }, baseDelay = baseDelay, retryMode = mode,
+        maxAttempts = attempts, telemetry = telemetry, runtimeClock = clock))
 
 private fun MockRequestHandleScope.reply(spec: JsonObject): HttpResponseData {
     if (spec.str("transport") == "timeout") throw ConnectTimeoutException("timed out")
@@ -117,7 +111,6 @@ private suspend fun RecordsClient.invoke(call: String, input: JsonElement) {
 }
 
 private suspend fun outcome(block: suspend () -> Unit): String = try { block(); "success" }
-    catch (error: EndpointDiscoveryError) { "endpoint-discovery" }
     catch (error: ServiceError) { error.errorName }
 
 private fun record(event: Any): Map<String, Any?> = when (event) {
@@ -125,7 +118,7 @@ private fun record(event: Any): Map<String, Any?> = when (event) {
         "operation" to event.operation, "time" to event.time.seconds())
     is AttemptStarted -> mapOf("event" to "attemptStarted", "invocationId" to event.invocationId, "service" to event.service,
         "operation" to event.operation, "attempt" to event.attempt, "method" to event.method, "endpoint" to event.endpoint,
-        "endpointSource" to event.endpointSource, "target" to event.target, "headers" to event.headers,
+        "target" to event.target, "headers" to event.headers,
         "requestBytes" to event.requestBytes, "time" to event.time.seconds())
     is AttemptFinished -> mapOf("event" to "attemptFinished", "invocationId" to event.invocationId, "service" to event.service,
         "operation" to event.operation, "attempt" to event.attempt, "status" to event.status, "error" to event.error,
@@ -274,87 +267,6 @@ class PolicyTest {
         })
         client(http, clock, RetryMode.STANDARD).use { it.listRecords() }
         assertEquals(listOf(2.seconds, Duration.ZERO), clock.sleeps)
-        http.close()
-    }
-
-    @Test fun discoveryScenarios() = realTest {
-        for (case in DISCOVERY.arr("scenarios")) {
-            val name = case.str("name")
-            val clock = FakeClock()
-            val exchanges = ArrayDeque<JsonObject>()
-            val problems = mutableListOf<String>()
-            val http = HttpClient(MockEngine { request ->
-                val exchange = exchanges.removeFirstOrNull()
-                if (exchange == null) { problems += "unexpected request ${request.method.value} ${request.url}"; return@MockEngine respond("{}", HttpStatusCode.BadRequest, JSON_HEADERS) }
-                if (exchange.str("method") != request.method.value || exchange.str("url") != request.url.toString())
-                    problems += "expected ${exchange.str("method")} ${exchange.str("url")}, sent ${request.method.value} ${request.url}"
-                exchange["json"]?.let { expected ->
-                    val sent = (request.body as? OutgoingContent.ByteArrayContent)?.bytes()?.decodeToString()
-                    if (sent == null || Json.parseToJsonElement(sent) != expected) problems += "expected body $expected, sent $sent"
-                }
-                if (request.headers["x-api-key"] != "key") problems += "missing api key"
-                reply(exchange.obj("response"))
-            })
-            client(http, clock, discovery = case.jsonObject.getValue("endpointDiscovery").jsonPrimitive.booleanOrNull,
-                attempts = case.jsonObject["maxAttempts"]?.jsonPrimitive?.int ?: 3).use { client ->
-                for (step in case.arr("steps")) {
-                    if ("advance" in step.jsonObject) { clock.time += step.num("advance").seconds; continue }
-                    exchanges.clear(); exchanges.addAll(step.arr("exchanges").map { it.jsonObject })
-                    assertEquals(step.str("outcome"), outcome { client.invoke(step.str("call")!!, step.jsonObject.getValue("input")) }, "$name $step")
-                    assertEquals(emptyList(), problems, "$name $step")
-                    assertTrue(exchanges.isEmpty(), "$name: every expected request was sent")
-                }
-            }
-            http.close()
-        }
-    }
-
-    @Test fun concurrentCallsShareOneDiscoveryThatSurvivesItsLeadersCancellation() = realTest {
-        val release = CompletableDeferred<Unit>()
-        val discoveries = Channel<Unit>(Channel.UNLIMITED)
-        val http = HttpClient(MockEngine { request ->
-            if (request.url.encodedPath == "/endpoints") {
-                discoveries.send(Unit)
-                release.await()
-                respond("""{"Endpoints":[{"Address":"t1.records.example","CachePeriodInMinutes":1}]}""", HttpStatusCode.OK, JSON_HEADERS)
-            } else if (request.url.host != "t1.records.example") respond("{}", HttpStatusCode.BadRequest, JSON_HEADERS)
-            else respond("""{"value":"${request.url.encodedPath}"}""", HttpStatusCode.OK, JSON_HEADERS)
-        })
-        client(http).use { client ->
-            coroutineScope {
-                val leader = async { client.getRecord { table = "t1"; key = "leader" } }
-                discoveries.receive()
-                val others = (0 until 7).map { index -> async { client.getRecord { table = "t1"; key = "k$index" }.value } }
-                delay(200) // every caller is now waiting for the leader's discovery
-                // The caller that started discovery goes away; the others still get its result.
-                leader.cancelAndJoin()
-                release.complete(Unit)
-                assertEquals((0 until 7).map { "/records/t1/k$it" }, others.awaitAll())
-                assertFailsWith<CancellationException> { leader.await() }
-            }
-        }
-        assertTrue(discoveries.tryReceive().isFailure, "one discovery")
-        http.close()
-    }
-
-    @Test fun aFailedSharedDiscoveryFailsEveryWaitingRequiredCall() = realTest {
-        val release = CompletableDeferred<Unit>()
-        val discoveries = Channel<Unit>(Channel.UNLIMITED)
-        val http = HttpClient(MockEngine {
-            discoveries.send(Unit)
-            release.await()
-            respond("""{"__type":"Denied"}""", HttpStatusCode.BadRequest, JSON_HEADERS)
-        })
-        client(http).use { client ->
-            coroutineScope {
-                val calls = (0 until 4).map { async { outcome { client.getRecord { table = "t1"; key = "k" } } } }
-                discoveries.receive()
-                delay(200)
-                release.complete(Unit)
-                assertEquals(List(4) { "Denied" }, calls.awaitAll())
-            }
-        }
-        assertTrue(discoveries.tryReceive().isFailure, "one discovery")
         http.close()
     }
 

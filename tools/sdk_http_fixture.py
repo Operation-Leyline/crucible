@@ -121,7 +121,6 @@ def fixture():
                     calls.append(body)
                     attempt = len(calls)
                 assert "/echo/" in self.path, "Unexpected echo path"
-                assert self.headers.get("x-amz-content-sha256") == hashlib.sha256(body).hexdigest(), "Body digest mismatch"
                 assert self.headers.get("authorization") == f"Bearer {attempt}", f"Credential attempt mismatch: expected {attempt}, received {self.headers.get('authorization')!r}"
                 assert json.loads(body)["clientToken"], "Missing idempotency token"
                 assert all(item == body for item in calls), "Retry body changed"

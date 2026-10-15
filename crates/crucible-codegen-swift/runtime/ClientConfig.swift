@@ -99,8 +99,7 @@ public protocol HTTPTransport: Sendable {
 /// number of clients.
 public struct ClientConfig: Sendable {
     /// The service base URL, overriding the one generated into the client.
-    /// Must be absolute HTTP(S) without credentials, query or fragment. Required
-    /// unless the model endpoint rules resolve every request.
+    /// Must be absolute HTTP(S) without credentials, query or fragment.
     public var endpoint: String?
     /// Sends the HTTP requests. Defaults to a `URLSession` that the client
     /// owns and closes with itself. A transport you supply stays yours to close.
@@ -125,50 +124,14 @@ public struct ClientConfig: Sendable {
     public var headers: [String: String]
     /// Request rewriters, run in order on every attempt.
     public var middleware: [@Sendable (HTTPRequest) async throws -> HTTPRequest]
-    /// Identity for modeled HTTP Basic authentication; `nil` means unavailable.
-    public var basicAuth: (@Sendable () async throws -> BasicCredentials?)?
-    /// Identity for modeled API key authentication; `nil` or empty means unavailable.
-    public var apiKey: (@Sendable () async throws -> String?)?
-    /// AWS credentials for SigV4. Wrap a refreshing provider in `CachedCredentials`.
-    public var credentials: (any CredentialsProvider)?
-    /// The SigV4 signing region and the `AWS::Region` endpoint built-in.
-    public var region: String?
-    /// Client-context endpoint parameters: strings, booleans, or string arrays.
-    public var endpointParameters: [String: JSONValue]
-    /// Overrides for endpoint built-ins such as `SDK::Endpoint`.
-    public var endpointBuiltIns: [String: JSONValue]
-    /// Ignore modeled host prefixes, for endpoints that cannot accept them.
-    public var disableHostPrefix: Bool
-    /// Whether to checksum request payloads only when an operation requires it
-    /// or whenever the service supports it (the default).
-    public var requestChecksumCalculation: ChecksumPolicy
-    /// Whether to validate response checksums only when required or whenever
-    /// the service sends one (the default).
-    public var responseChecksumValidation: ChecksumPolicy
-    /// Called with the operation name and algorithm after a response checksum validates.
-    public var checksumValidated: (@Sendable (String, String) -> Void)?
     /// Invalid values (a non-positive `timeout`, fewer than one attempt,
     /// negative delays) are rejected when a client is created, not here.
     public init(endpoint: String? = nil, transport: (any HTTPTransport)? = nil,
                 token: (@Sendable () async throws -> String?)? = nil,
                 maxAttempts: Int = 3, timeout: TimeInterval = 30, baseDelay: TimeInterval = 0.1, maxDelay: TimeInterval = 20,
-                headers: [String: String] = [:], middleware: [@Sendable (HTTPRequest) async throws -> HTTPRequest] = [],
-                basicAuth: (@Sendable () async throws -> BasicCredentials?)? = nil,
-                apiKey: (@Sendable () async throws -> String?)? = nil,
-                credentials: (any CredentialsProvider)? = nil, region: String? = nil,
-                endpointParameters: [String: JSONValue] = [:], endpointBuiltIns: [String: JSONValue] = [:],
-                disableHostPrefix: Bool = false,
-                requestChecksumCalculation: ChecksumPolicy = .whenSupported,
-                responseChecksumValidation: ChecksumPolicy = .whenSupported,
-                checksumValidated: (@Sendable (String, String) -> Void)? = nil) {
+                headers: [String: String] = [:], middleware: [@Sendable (HTTPRequest) async throws -> HTTPRequest] = []) {
         self.endpoint = endpoint; self.transport = transport; self.token = token; self.maxAttempts = maxAttempts
         self.timeout = timeout; self.baseDelay = baseDelay; self.maxDelay = maxDelay; self.headers = headers; self.middleware = middleware
-        self.basicAuth = basicAuth; self.apiKey = apiKey; self.credentials = credentials; self.region = region
-        self.endpointParameters = endpointParameters; self.endpointBuiltIns = endpointBuiltIns
-        self.disableHostPrefix = disableHostPrefix
-        self.requestChecksumCalculation = requestChecksumCalculation
-        self.responseChecksumValidation = responseChecksumValidation
-        self.checksumValidated = checksumValidated
     }
 }
 

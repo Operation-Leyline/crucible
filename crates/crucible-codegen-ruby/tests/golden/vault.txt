@@ -12,16 +12,7 @@ require_relative 'vault_client/runtime/error_metadata'
 require_relative 'vault_client/runtime/service_error'
 require_relative 'vault_client/runtime/cancellation_token'
 require_relative 'vault_client/runtime/call_scope'
-require_relative 'vault_client/runtime/basic_credentials'
-require_relative 'vault_client/runtime/aws_credentials'
-require_relative 'vault_client/runtime/cached_credentials'
-require_relative 'vault_client/runtime/credentials'
 require_relative 'vault_client/runtime/authentication'
-require_relative 'vault_client/runtime/byte_stream'
-require_relative 'vault_client/runtime/query'
-require_relative 'vault_client/runtime/waiters'
-require_relative 'vault_client/runtime/endpoints'
-require_relative 'vault_client/runtime/checksums'
 require_relative 'vault_client/runtime/client_config'
 require_relative 'vault_client/runtime/http_request'
 require_relative 'vault_client/runtime/http_response'
@@ -65,7 +56,7 @@ module Vault
     # @param config [Runtime::ClientConfig]
     # @raise [ArgumentError] when the endpoint or another setting is invalid
     def initialize(config = Runtime::ClientConfig.new)
-      @runtime = Runtime::ClientRuntime.new(config, ::Vault.codec, endpoint: '', digest: false)
+      @runtime = Runtime::ClientRuntime.new(config, ::Vault.codec, endpoint: '')
     end
     # Releases the HTTP connection this client created. A transport passed in the configuration is left open.
     def close = @runtime.close

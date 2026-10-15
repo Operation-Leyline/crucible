@@ -25,16 +25,10 @@ type DecodeJson = fn(&[u8]) -> std::result::Result<Box<dyn Input>, Rejection>;
 pub(crate) type DecodeBound = for<'a> fn(
     &'a [u8],
     Vec<(&'static str, BoundValue<'a>)>,
-    Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection>;
 
 /// Reads an operation's output back from its JSON form, for a replay.
 pub(crate) type OutputFromJson = fn(Value) -> Result<Box<dyn Output>>;
-
-pub(crate) type DecodeEvents = for<'a> fn(
-    Vec<(&'static str, BoundValue<'a>)>,
-    crucible_wire::event_stream::Incoming,
-) -> std::result::Result<Box<dyn Input>, Rejection>;
 
 pub(crate) struct Entry {
     pub info: &'static OperationInfo,
@@ -42,7 +36,6 @@ pub(crate) struct Entry {
     pub decode: Decode,
     pub decode_json: DecodeJson,
     pub decode_bound: DecodeBound,
-    pub decode_events: DecodeEvents,
     pub invoke: Invoke,
     /// Reads the current version's output from JSON, when the operation's
     /// output can be replayed (`Operation::OUTPUT_FROM_JSON`).
@@ -235,24 +228,9 @@ pub(crate) fn decode_json<O: Operation>(
 pub(crate) fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
     bound: Vec<(&'static str, BoundValue<'a>)>,
-    stream: Option<crucible_wire::stream::ByteStream>,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let mut input: O::Input =
+    let input: O::Input =
         crucible_wire::bound::read_http(body, bound, O::INFO.input).map_err(unreadable)?;
-    if let Some(stream) = stream {
-        O::set_input_stream(&mut input, stream);
-    }
-    Validator::check(&input)?;
-    Ok(Box::new(input))
-}
-
-pub(crate) fn decode_events<O: Operation>(
-    bound: Vec<(&'static str, BoundValue<'_>)>,
-    events: crucible_wire::event_stream::Incoming,
-) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let mut input: O::Input =
-        crucible_wire::bound::read_http(&[], bound, O::INFO.input).map_err(unreadable)?;
-    O::set_input_events(&mut input, events);
     Validator::check(&input)?;
     Ok(Box::new(input))
 }
@@ -281,14 +259,11 @@ pub(crate) fn output_from_json<O: Operation>(value: Value) -> Result<Box<dyn Out
             O::INFO.name
         ))
     })?;
-    Ok(Box::new(StreamingOutput::<O>(output)))
+    Ok(Box::new(OperationOutput::<O>(output)))
 }
 
-pub(crate) struct StreamingOutput<O: Operation>(pub(crate) O::Output);
-impl<O: Operation> Output for StreamingOutput<O> {
-    fn response_status(&self) -> Option<u16> {
-        O::output_status(&self.0)
-    }
+pub(crate) struct OperationOutput<O: Operation>(pub(crate) O::Output);
+impl<O: Operation> Output for OperationOutput<O> {
     fn to_json(&self) -> Value {
         serde_json::to_value(&self.0).unwrap_or(Value::Null)
     }
@@ -301,19 +276,6 @@ impl<O: Operation> Output for StreamingOutput<O> {
         out: &mut Vec<u8>,
     ) -> serde_json::Result<Vec<(&'static str, String)>> {
         crucible_wire::split::write(&self.0, members, out)
-    }
-    fn write_http(
-        &self,
-        members: &[crate::operation::MemberInfo],
-        out: &mut Vec<u8>,
-    ) -> serde_json::Result<crate::operation::ResponseBindings> {
-        crucible_wire::split::write_http(&self.0, members, None, out)
-    }
-    fn events(&self) -> Option<std::io::Result<crucible_wire::event_stream::Outgoing>> {
-        O::output_events(&self.0)
-    }
-    fn stream(&self) -> Option<crucible_wire::stream::ByteStream> {
-        O::output_stream(&self.0)
     }
     fn as_any(&self) -> &dyn std::any::Any {
         &self.0

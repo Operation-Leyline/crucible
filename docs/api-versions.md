@@ -59,8 +59,7 @@ are built from the current model.
 | An unknown version | Refused with `400`, the service's validation error naming the supported versions |
 | A version with a `sunset` | Served, with a `Sunset: <date>` header (RFC 8594) |
 
-Versioned responses carry `Vary: Crucible-Version`. With `@cors`, browsers
-may send `Crucible-Version` and read `Crucible-Version` and `Sunset`.
+Versioned responses carry `Vary: Crucible-Version`.
 
 A request with no version is settled by `Builder::api_version`:
 
@@ -219,11 +218,6 @@ impl versions::v1::Migration for Shop {
   the handler of the last version that had `Op` part of that migration's
   trait. It takes and returns that version's types; older versions reach
   it through the chain. It answers with its own release's errors.
-
-Operations with a streaming payload or an event stream are served at the
-current version only: they are not routed at older versions, so a request
-there is answered as any request no operation matches (`404`, `405`, or
-the service's unknown-operation error).
 
 What the generator cannot convert is a diagnostic against the shape, not a
 silent skip: a member inside a recursive shape, and a member renamed inside

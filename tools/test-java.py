@@ -14,7 +14,7 @@ def qualify(output):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
         "--group-id", "example", "--artifact-id", "weather-client", "--package-name", "example.weather",
-        "--endpoint", "https://weather.example", "--content-sha256")
+        "--endpoint", "https://weather.example")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
         "package", "dependency:copy-dependencies", cwd=package)
     jar = next((package / "target").glob("weather-client-*.jar"))
@@ -52,15 +52,6 @@ def qualify(output):
             str(model), "--out", str(generated), "--group-id", "example", "--artifact-id", label,
             "--package-name", "example." + label)
         run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", cwd=generated)
-    dynamic = output / "dynamic"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json"), "--out", str(dynamic),
-        "--group-id", "example", "--artifact-id", "dynamic", "--package-name", "example.dynamic")
-    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=dynamic)
-    dynamic_classpath = os.pathsep.join([str(dynamic / "target/classes"), str(dynamic / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", dynamic_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/DynamicTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), dynamic_classpath]), "example.dynamic.DynamicTest")
     types = output / "types"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json"), "--out", str(types),
@@ -92,53 +83,6 @@ def qualify(output):
         run("javac", "--release", "17", "-d", str(bindings_classes), "-cp", bindings_classpath,
             str(ROOT / "crates/crucible-codegen-java/tests/PayloadContentTypeTest.java"))
         run("java", "-cp", os.pathsep.join([str(bindings_classes), bindings_classpath]), "example.payload.PayloadContentTypeTest")
-    streaming = output / "streaming"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-codegen-java/tests/streaming.json"), "--out", str(streaming),
-        "--group-id", "example", "--artifact-id", "streaming", "--package-name", "example.stream")
-    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=streaming)
-    streaming_classpath = os.pathsep.join([str(streaming / "target/classes"), str(streaming / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", streaming_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/StreamingTest.java"))
-    # 256 MiB each way under a 64 MiB heap: any buffered transfer fails.
-    run("java", "-Xmx64m", "-cp", os.pathsep.join([str(classes), streaming_classpath]), "example.stream.StreamingTest")
-    auth = output / "auth"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(auth),
-        "--group-id", "example", "--artifact-id", "auth", "--package-name", "example.auth")
-    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=auth)
-    auth_classpath = os.pathsep.join([str(auth / "target/classes"), str(auth / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", auth_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/AuthTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), auth_classpath]), "example.auth.AuthTest")
-    waiters = output / "waiters"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-codegen-java/tests/waiters.json"), "--out", str(waiters),
-        "--group-id", "example", "--artifact-id", "waiters", "--package-name", "example.wait")
-    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=waiters)
-    waiter_classpath = os.pathsep.join([str(waiters / "target/classes"), str(waiters / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", waiter_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/WaiterTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), waiter_classpath]), "example.wait.WaiterTest")
-    waiter_identity(output, classes)
-    endpoints = output / "endpoints"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-codegen-java/tests/endpoints.json"), "--out", str(endpoints),
-        "--group-id", "example", "--artifact-id", "endpoints", "--package-name", "example.endpoint")
-    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=endpoints)
-    endpoint_classpath = os.pathsep.join([str(endpoints / "target/classes"), str(endpoints / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", endpoint_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/EndpointTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), endpoint_classpath]), "example.endpoint.EndpointTest")
-    checksums = output / "checksums"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json"), "--out", str(checksums),
-        "--group-id", "example", "--artifact-id", "checksums", "--package-name", "example.checksums")
-    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=checksums)
-    checksum_classpath = os.pathsep.join([str(checksums / "target/classes"), str(checksums / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", checksum_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/ChecksumTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), checksum_classpath]), "example.checksums.ChecksumTest")
     docs = output / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json"), "--out", str(docs),
@@ -179,25 +123,6 @@ def permissions(output, classes):
     run("javac", "--release", "17", "-Xlint:all", "-Werror", "-d", str(classes), "-cp", classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/PermissionsTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.leyline.PermissionsTest")
-
-
-def waiter_identity(output, classes):
-    model = ROOT / "tests/conformance/waiter-errors.json"
-    packages = []
-    for label, service in [("json", "JsonIdentity")]:
-        package = output / ("waiter-identity-" + label)
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-            str(model), "--service", "example.waiter#" + service, "--out", str(package),
-            "--group-id", "example", "--artifact-id", "waiter-identity-" + label,
-            "--package-name", "example.waiter" + label)
-        run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
-            "package", "dependency:copy-dependencies", cwd=package)
-        packages.append(package)
-    classpath = os.pathsep.join([str(package / "target/classes") for package in packages]
-                               + [str(packages[0] / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/WaiterIdentityTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.waiterjson.WaiterIdentityTest")
 
 
 if __name__ == "__main__":

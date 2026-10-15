@@ -8,7 +8,6 @@ fn options() -> Options {
         package_name: "example.weather".into(),
         package_version: "0.0.0-SNAPSHOT".into(),
         endpoint: Some("https://weather.example".into()),
-        content_sha256: true,
     }
 }
 
@@ -129,29 +128,6 @@ fn native_defaults_follow_lowered_client_nullability() {
     assert!(model.contains("new java.util.ArrayList<>()"));
     assert!(model.contains("new java.util.LinkedHashMap<>()"));
     assert!(model.contains("new example.weather.model.Mode(\"known\")"));
-}
-
-#[test]
-fn streaming_blobs_are_byte_streams() {
-    let service = Model::from_json(include_str!("streaming.json"))
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_java::capabilities())
-        .unwrap();
-    let files = emit(&service, &options()).unwrap();
-    let model = |name: &str| {
-        &files
-            .iter()
-            .find(|file| file.path.ends_with(&format!("/model/{name}.java")))
-            .unwrap()
-            .contents
-    };
-    assert!(model("UploadInput").contains("public example.weather.ByteStream body;"));
-    assert!(model("DownloadOutput").contains("public example.weather.ByteStream body() {"));
-    assert!(
-        files
-            .iter()
-            .any(|file| file.path.ends_with("/example/weather/ByteStream.java"))
-    );
 }
 
 #[test]

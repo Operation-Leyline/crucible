@@ -124,7 +124,6 @@ async fn only_recognized_credentials_are_claimed_or_read() {
     let auth = auth.well_formed(|key| key.ends_with("789"));
     let scheme = AuthScheme::Bearer;
     assert!(auth.supports(&AuthScheme::Bearer));
-    assert!(!auth.supports(&AuthScheme::Basic));
     assert!(auth.has_credentials(&bearer(KEY), &scheme));
     for value in [
         "Bearer eyJhbGciOiJSUzI1NiJ9.e30.sig",
@@ -142,13 +141,6 @@ async fn only_recognized_credentials_are_claimed_or_read() {
     let long = format!("Bearer pgn_{}789", "a".repeat(1100));
     assert!(!auth.has_credentials(&parts(&[("authorization", &long)]), &scheme));
     assert!(!auth.has_credentials(&parts(&[]), &scheme));
-    // A supported scheme only: an API-key-in-header scheme is someone else's.
-    let api_key = AuthScheme::ApiKey {
-        name: "authorization",
-        query: false,
-        scheme: None,
-    };
-    assert!(!auth.has_credentials(&bearer(KEY), &api_key));
     assert_eq!(store.lookups(), 0, "unrecognized credentials cost no read");
 }
 

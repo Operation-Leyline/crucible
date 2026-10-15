@@ -237,7 +237,6 @@ fn other_languages_are_not_stamped_yet() {
             module_name: "weather".into(),
             package_version: "1.0.0".into(),
             endpoint: None,
-            content_sha256: false,
         })
         .emit(&weather())
         .unwrap();

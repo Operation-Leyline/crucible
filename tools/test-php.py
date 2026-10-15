@@ -16,11 +16,10 @@ def composer(*args, **kwargs):
     run(*command, "--no-interaction", "--no-plugins", "--no-scripts", *args, **kwargs)
 
 def qualify(output):
-    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/loopback_framing.php"))
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
         str(qualification_model(output)), "--out", str(package), "--package-name", "example/weather-client",
-        "--namespace", "Example\\Weather", "--content-sha256")
+        "--namespace", "Example\\Weather")
     for path in sorted(package.rglob("*.php")):
         run(PHP, "-l", str(path))
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/codec.php"))
@@ -81,12 +80,11 @@ $client = new $class(new Example\\Weather\\Runtime\\ClientConfig(endpoint:'http:
 $client->close();
 """.replace("PLACEHOLDER_CLIENT", {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]), encoding="utf-8")
         run(PHP, str(generated / "check.php"))
-    for name, fixture_name, namespace in [("dynamic", "dynamic-bindings", "Dynamic"), ("extended", "extended-types", "Types")]:
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
-            "--package-name", "example/" + name, "--namespace", namespace)
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json"), "--out", str(output / "extended"),
+        "--package-name", "example/extended", "--namespace", "Types")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/extensions.php"), env=dict(os.environ,
-        PHP_DYNAMIC_PACKAGE=str(output / "dynamic"), PHP_EXTENDED_PACKAGE=str(output / "extended")))
+        PHP_EXTENDED_PACKAGE=str(output / "extended")))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
         "--package-name", "example/wire", "--namespace", "WireSdk")
@@ -105,10 +103,6 @@ $client->close();
     for path in sorted((output / "describe").rglob("*.php")):
         run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/describe.php"), env=dict(os.environ, PHP_VAULT_PACKAGE=str(output / "describe")))
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
-        "--package-name", "example/auth", "--namespace", "AuthSdk")
-    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/auth.php"), env=dict(os.environ, PHP_AUTH_PACKAGE=str(output / "auth")))
     # Typed permissions: the open permission classes and the registry, from the shared .cru fixture,
     # through Composer, which loads the registry's namespace constant.
     permissions = output / "permissions"
@@ -122,33 +116,7 @@ $client->close();
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/permissions.php"),
         env=dict(os.environ, PHP_PERMISSIONS_PACKAGE=str(permissions)))
 
-    # An endpoint rule's header name keeps the model's case; the client
-    # lowercases it, so it replaces a client default of the same name.
-    behaviors = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json").read_text())
-    endpoint = behaviors["shapes"]["example.behavior#Service"]["traits"]["smithy.rules#endpointRuleSet"]["rules"][0]["endpoint"]
-    endpoint["headers"] = {"X-Region": endpoint["headers"].pop("x-region")}
-    behaviors_path = output / "behaviors.json"
-    behaviors_path.write_text(json.dumps(behaviors), encoding="utf-8")
-    for name, model, namespace, test, variable, extra in [
-        ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "JobsSdk", "waiters.php", "PHP_JOBS_PACKAGE", {}),
-        ("behavior", behaviors_path, "BehaviorSdk", "endpoints.php", "PHP_BEHAVIOR_PACKAGE", {}),
-        ("checksum", "crates/crucible-smithy/tests/fixtures/checksums.json", "ChecksumSdk", "checksums.php", "PHP_CHECKSUM_PACKAGE",
-         {"CHECKSUM_VECTORS": str(ROOT / "tests/conformance/checksums.json")}),
-    ]:
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php", str(ROOT / model),
-            "--out", str(output / name), "--package-name", "example/" + name, "--namespace", namespace)
-        run(PHP, str(ROOT / "crates/crucible-codegen-php/tests" / test), env=dict(os.environ, **{variable: str(output / name)}, **extra))
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "crates/crucible-codegen-java/tests/streaming.json"), "--out", str(output / "stream"),
-        "--package-name", "example/stream", "--namespace", "StreamSdk")
-    for path in sorted((output / "stream").rglob("*.php")):
-        run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
-    streams = dict(os.environ, PHP_STREAM_PACKAGE=str(output / "stream"), PHP_JOBS_PACKAGE=str(output / "jobs"),
-                   PHP_CHECKSUM_PACKAGE=str(output / "checksum"), CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json"))
-    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/streaming.php"), env=streams)
-    # Real cURL against a loopback server: 256 MiB each way under a 64 MiB PHP memory limit.
-    run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/loopback.php"), env=streams)
-    print("PHP generated models, shared retry, native HTTP, waiters, endpoint rules, checksums, streaming blobs, Composer archive, empty and renamed packages passed")
+    print("PHP generated models, shared retry, native HTTP, Composer archive, empty and renamed packages passed")
 
 if __name__ == "__main__":
     explicit = os.environ.get("PHP_TEST_OUTPUT")

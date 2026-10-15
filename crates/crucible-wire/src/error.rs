@@ -91,9 +91,6 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn shape_id(&self) -> &'static str {
         self.info().name
     }
-    fn response_status(&self) -> u16 {
-        self.info().status
-    }
     /// Every member, as on the wire; the protocol moves header members out.
     fn to_json(&self) -> Value;
 
@@ -104,23 +101,6 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn write_json(&self, out: &mut Vec<u8>) -> serde_json::Result<Vec<(&'static str, String)>> {
         let info = self.info();
         crate::split::write_typed(&self.to_json(), info.members, Some(info.name), out)
-    }
-    fn write_http(
-        &self,
-        out: &mut Vec<u8>,
-    ) -> serde_json::Result<crate::operation::ResponseBindings> {
-        let info = self.info();
-        crate::split::write_http(&self.to_json(), info.members, Some(info.name), out)
-    }
-
-    /// Serializes with the discriminator chosen by the serving protocol.
-    /// Payload bytes are retained; protocols put their discriminator in a header.
-    fn write_http_typed(
-        &self,
-        type_name: Option<&'static str>,
-        out: &mut Vec<u8>,
-    ) -> serde_json::Result<crate::operation::ResponseBindings> {
-        crate::split::write_http(&self.to_json(), self.info().members, type_name, out)
     }
 }
 
@@ -235,26 +215,6 @@ impl fmt::Display for FrameworkError {
 }
 
 impl std::error::Error for FrameworkError {}
-
-/// Serializes a generated error's body and dynamic HTTP bindings in one pass.
-#[doc(hidden)]
-pub fn write_error_http<E: ModelledError + serde::Serialize>(
-    error: &E,
-    out: &mut Vec<u8>,
-) -> serde_json::Result<crate::operation::ResponseBindings> {
-    let info = error.info();
-    crate::split::write_http(error, info.members, Some(info.name), out)
-}
-
-/// A generated error with its serving protocol's discriminator, in one pass.
-#[doc(hidden)]
-pub fn write_error_http_typed<E: ModelledError + serde::Serialize>(
-    error: &E,
-    type_name: Option<&'static str>,
-    out: &mut Vec<u8>,
-) -> serde_json::Result<crate::operation::ResponseBindings> {
-    crate::split::write_http(error, error.info().members, type_name, out)
-}
 
 #[cfg(test)]
 mod tests {

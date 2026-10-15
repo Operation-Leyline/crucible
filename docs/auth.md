@@ -1,7 +1,7 @@
 # Bearer authentication: JWTs and API keys
 
 Install `crucible-auth` explicitly to verify JWTs and API keys and enforce the
-Smithy model's authentication settings. `Crucible::defaults()` keeps
+model's authentication settings. `Crucible::defaults()` keeps
 authentication off. The separate crate keeps JWT cryptography, JWKS HTTP
 fetching, and test issuers out of services that do not use bearer
 authentication.
@@ -12,25 +12,19 @@ tenant membership for token callers, permissions, and authorization;
 
 ## Configuring Cognito
 
-Declare the authentication schemes on the service. Operation `@auth` overrides
-the effective scheme list; `@auth([])` makes an operation public.
+Declare `auth bearer` on the service; a `public` operation opts out. Bearer is
+the only scheme.
 
-```smithy
-@httpBearerAuth
-@httpApiKeyAuth(name: "x-api-key", in: "header")
-@auth([httpBearerAuth, httpApiKeyAuth])
+```
 service Example {
-    version: "1"
-    operations: [Read, Health]
+    version "1"
+    protocol json
+    auth bearer
 }
 
-@optionalAuth
-@http(method: "GET", uri: "/read", code: 200)
-operation Read {}
+operation Read { .. }
 
-@auth([])
-@http(method: "GET", uri: "/health", code: 200)
-operation Health {}
+public operation Health { .. }
 ```
 
 Add `crucible-auth` from the same revision as your runtime. Construct an ID-token
@@ -50,9 +44,8 @@ let service = builder.operation_middleware(AuthenticatorChain::new(vec![jwt]))
 ```
 
 Add an [`ApiKeyAuthenticator`](#api-keys) to the same chain for bearer API
-keys, or register a custom authenticator when the service declares
-`@httpApiKeyAuth`. Construction fails with collected operation IDs when a modeled scheme
-has no configured authenticator. Bindings without explicit auth metadata also
+keys, or register a custom authenticator. Construction fails with collected
+operation IDs when the bearer scheme has no configured authenticator. Bindings without explicit auth metadata also
 fail at construction; regenerate old bindings before installing the chain.
 At a service with [API versions](api-versions.md), the chain prepares a plan
 for each version's entry of an operation: a request is authenticated by the
@@ -173,27 +166,22 @@ operation's input does not carry it, binds its own array
 
 For a credential other than a bearer API key, implement `Authenticator`:
 
-- `supports` selects modeled schemes at service construction.
+- `supports` selects the modeled scheme (`AuthScheme::Bearer`) at service construction.
 - `has_credentials` checks the configured source without a store lookup.
 - `authenticate` returns `Authenticated(Principal)`, `Refused`, or
   `Unavailable(Error)`.
 
-The trait receives the static `AuthScheme` with API-key header/query placement
-and optional scheme prefix. The service controls its source extraction and
-storage policy. See the compiled
+The service controls its source extraction and storage policy. See the compiled
 [API-key example and HTTP tests](../e2e/weather-service/tests/auth.rs).
 
-The chain follows effective model scheme order, then configured authenticator
-order for each scheme. A refusal permits another authenticator to succeed;
+The chain follows configured authenticator order. A refusal permits another authenticator to succeed;
 an unavailable provider stops the chain with a 5xx. The chain wraps that
 failure in the runtime's `OpaqueError`, so `ExceptionTranslator` rules never
 look into its cause: a rule that turns the service's database-client errors
 into a modelled 4xx for its operations cannot turn a key store outage on the
 same client into one. A rule may still match `OpaqueError` itself (to answer
-every such outage with a modelled 503, say). Optional auth permits
-absence, but refuses credentials that were presented and failed verification.
-Scheme matching and operation plans are computed in `prepare`, never from raw
-traits on each request.
+every such outage with a modelled 503, say). Operation plans are computed in
+`prepare`, never from raw traits on each request.
 
 ## API keys
 
@@ -202,10 +190,8 @@ and does the caching every such table needs. It joins an `AuthenticatorChain`
 beside a `JwtAuthenticator`, in either order: it claims only credentials with
 its prefix, so a JWT falls through to the JWT verifier without a store read.
 
-It serves the model's bearer scheme (`@httpBearerAuth`) only: keys are sent as
-`Authorization: Bearer KEY` or in the configured headers. It does not serve
-Smithy `@httpApiKeyAuth` (`AuthScheme::ApiKey`); a service that models that
-scheme still needs its own `Authenticator` for it.
+It serves the model's bearer scheme: keys are sent as
+`Authorization: Bearer KEY` or in the configured headers.
 
 ```rust
 use std::sync::Arc;
@@ -481,8 +467,7 @@ policy.
 The interceptor runs after input validation, so a caller lacking a scope can
 still receive a `400` for a malformed request before the `403`. An operation
 that declares scopes but receives no principal is refused with `401` (no
-authenticator ran) unless it is `@optionalAuth`, which admits an anonymous caller
-but still checks a token that was presented. `refusal_factory` substitutes a
+authenticator ran). `refusal_factory` substitutes a
 modeled error as it does on the chain.
 
 Responses follow
@@ -494,7 +479,7 @@ Responses follow
 | `401`, refused token | `Bearer error="invalid_token", scope="weather/read"` |
 | `403`, scope missing | `Bearer error="insufficient_scope", scope="weather/write weather/admin"` (the operation's list) |
 
-Only operations whose effective schemes include bearer auth send a challenge.
+Only operations that require authentication send a challenge.
 
 ### Cognito resource-server scopes
 
@@ -536,8 +521,8 @@ identity without request-extension identity bypasses.
 For Leyline, replace the Cognito JWT verifier with an ID-token authenticator
 and preserve its app-client allowlist. Configure
 `credential_headers([x-leyline-authorization, AUTHORIZATION])`:
-CloudFront OAC uses `Authorization` for SigV4, so the router moves the caller's
-token to `x-leyline-authorization`, and unsigned local calls still use
+CloudFront OAC overwrites `Authorization` with its own signature, so the router
+moves the caller's token to `x-leyline-authorization`, and local calls still use
 `Authorization`. Replace its API-key
 authenticator with an `ApiKeyAuthenticator` over its DynamoDB table:
 

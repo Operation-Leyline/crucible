@@ -5,14 +5,12 @@ use crate::{Feature, ShapeId};
 #[serde(rename_all = "camelCase")]
 pub struct ProtocolSettings {
     pub http: Vec<String>,
-    pub event_stream_http: Vec<String>,
 }
 
 impl Default for ProtocolSettings {
     fn default() -> Self {
         Self {
             http: vec!["http/1.1".into()],
-            event_stream_http: vec!["http/1.1".into()],
         }
     }
 }
@@ -34,9 +32,7 @@ impl Protocol {
     ) -> std::collections::BTreeMap<String, String> {
         let mut headers = std::collections::BTreeMap::new();
         if has_value {
-            let media_type = if bindings.event_stream.is_some() {
-                "application/vnd.amazon.eventstream"
-            } else if let Some(payload) = &bindings.payload {
+            let media_type = if let Some(payload) = &bindings.payload {
                 &payload.media_type
             } else {
                 "application/json"

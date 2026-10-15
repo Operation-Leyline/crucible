@@ -261,7 +261,7 @@ fn invalid_local_runtime_workspace_is_a_cargo_metadata_diagnostic() {
 
 #[test]
 fn operation_names_do_not_collide_with_runtime_shortcuts() {
-    for (operation, shortcut) in [("Config", "Config"), ("Waiter", "WaiterError")] {
+    for (operation, shortcut) in [("Config", "Config"), ("Retry", "Retry")] {
         let mut service = service();
         service.operations[0].id = crucible_smithy::ShapeId::new("example.weather", operation);
         let files = emit_client_package(&service, &explicit()).unwrap();

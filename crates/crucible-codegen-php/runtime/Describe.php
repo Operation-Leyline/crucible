@@ -64,7 +64,6 @@ final class Describe
             foreach ($value as $key => $item) $items[] = $key . '=' . self::value($item);
             return '{' . implode(', ', $items) . '}';
         }
-        if ($value instanceof ByteStream) return '<stream>';
         if ($value instanceof \DateTimeInterface) return $value->format(\DateTimeInterface::ATOM);
         if ($value instanceof \Stringable) return (string)$value;
         if ($value instanceof \BackedEnum) return (string)$value->value;

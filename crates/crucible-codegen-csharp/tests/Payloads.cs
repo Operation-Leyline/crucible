@@ -25,7 +25,6 @@ static class Program
             var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
             if (Invalid is not null) response.Headers.TryAddWithoutValidation("X-Meta", Invalid);
             else if (request.Headers.TryGetValues("X-Meta", out var meta)) response.Headers.TryAddWithoutValidation("X-Meta", meta);
-            if (request.Headers.TryGetValues("X-Extra-Note",out var extra)) response.Headers.TryAddWithoutValidation("X-Extra-Note",extra);
             return response;
         }
     }
@@ -33,9 +32,8 @@ static class Program
     {
         var handler = new Handler(); using var http = new HttpClient(handler);
         using var client = new WireClient(new() { Endpoint = "https://example.test", HttpClient = http });
-        var output = await client.TextAsync(new() { Text = "héllo 🌍", Meta = ["{\"key\":\"héllo\"}", "a,b", ""], Extras = new() { ["note"] = "héllo" } });
+        var output = await client.TextAsync(new() { Text = "héllo 🌍", Meta = ["{\"key\":\"héllo\"}", "a,b", ""] });
         Check(output.Text == "héllo 🌍" && output.Meta!.SequenceEqual(new[] { "{\"key\":\"héllo\"}", "a,b", "" }), "text and media round trip");
-        Check(output.Extras!.Values.Single() == "héllo","encoded prefix media round trip");
         var record = await client.DocumentAsync(new() { Document = new() { Name = "nested" } });
         Check(record.Document!.Name == "nested", "document response");
         Check((await client.TextAsync(new() { Text = "" })).Text == "", "empty text");

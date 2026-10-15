@@ -85,7 +85,7 @@ func (*infraProvider) Configure(ctx context.Context, req provider.ConfigureReque
 	}
 	// A deployment retry is not necessarily an API-safe retry. Never replay a
 	// lifecycle mutation automatically, even when the service client permits it.
-	client, err := newClient(Config{Endpoint: endpoint.ValueString(), MaxAttempts: 1, Token: func(context.Context) (string, error) { return secret, nil }}, wireSchema, false)
+	client, err := newClient(Config{Endpoint: endpoint.ValueString(), MaxAttempts: 1, Token: func(context.Context) (string, error) { return secret, nil }}, wireSchema)
 	if err != nil {
 		resp.Diagnostics.AddError("Invalid provider configuration", "The service endpoint is invalid.")
 		return

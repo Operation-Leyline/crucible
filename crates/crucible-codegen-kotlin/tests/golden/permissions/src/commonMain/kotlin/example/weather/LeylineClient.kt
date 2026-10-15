@@ -12,7 +12,7 @@ package example.weather
  * @param config endpoint, credentials, retry and timeout settings; copied on construction
  */
 class LeylineClient(config: ClientConfig) : AutoCloseable {
-    private val runtime = ClientRuntime(config, "https://weather.example", true)
+    private val runtime = ClientRuntime(config, "https://weather.example")
     /**
      * Releases the client's own HTTP engine and timers; calls started afterwards fail.
      */

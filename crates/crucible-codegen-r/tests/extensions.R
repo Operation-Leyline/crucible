@@ -1,24 +1,6 @@
 args <- commandArgs(TRUE)
-library(dynamic.client, lib.loc = args[1L])
 check <- function(value, label) if (!isTRUE(value)) stop(label, call. = FALSE)
 rejects <- function(expression) { result <- tryCatch({ force(expression); NULL }, error = identity); if (is.null(result)) stop('Expected rejection'); result }
-requests <- list()
-transport <- function(request, read_body, scope) {
-  requests[[length(requests) + 1L]] <<- request
-  list(status = 207L, headers = list('X-Meta-Answer' = 'yes'), body = charToRaw('{"wire-value":"response"}'))
-}
-client <- DynamicClient(client_config(endpoint = 'https://example.invalid', transport = transport))
-result <- client$get(Input(key = 'folder/a b/', query = list(q = list('a b', 'c')), metadata_value = list(trace = 'abc'), value = 'request'))
-check(requests[[1L]]$url == 'https://example.invalid/files/folder/a%20b/?q=a%20b&q=c', 'Greedy path and repeated query')
-check(rawToChar(requests[[1L]]$body) == '{"wire-value":"request"}', 'jsonName request')
-check(requests[[1L]]$headers[['x-meta-trace']] == 'abc', 'Prefix request header')
-check(result$status == 207 && result$metadata_value$answer == 'yes' && result$value == 'response', 'Response status, prefix and jsonName')
-rejects(client$get(Input(key = 'a/../b')))
-error_client <- DynamicClient(client_config(endpoint = 'https://example.invalid', max_attempts = 1L, transport = function(...) list(status = 409L, headers = list('x-crucible-error' = 'Problem', 'x-meta-detail' = 'bad'), body = charToRaw('{}'))))
-failure <- rejects(error_client$get(Input(key = 'x')))
-check(inherits(failure, 'Problem') && failure$model$status == 409 && failure$model$details$detail == 'bad', 'Modeled error dynamic bindings')
-client$close(); error_client$close()
-
 library(types.client, lib.loc = args[1L])
 ns <- asNamespace('types.client'); codec <- get('.crucible_codec', ns)
 parse <- types.client::json_parse
@@ -39,4 +21,4 @@ canonical <- get('.crucible_canonical_number', ns)
 check(identical(canonical(types.client::big_decimal('10e999999999999999999999')), canonical(types.client::big_decimal('1e1000000000000000000000'))), 'Arbitrary exponent canonical equality')
 rejects(types.client::big_integer('1.5'))
 rejects(types.client::Mode(2147483648))
-cat('R dynamic bindings and exact extended types passed\n')
+cat('R exact extended types passed\n')

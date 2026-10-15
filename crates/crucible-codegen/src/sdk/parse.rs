@@ -476,10 +476,6 @@ fn options(context: &mut Context<'_>, name: &str, table: &Table) -> LanguageOpti
             None
         }
     });
-    options.content_sha256 = table
-        .get("content_sha256")
-        .and_then(|value| boolean(context, &at("content_sha256"), value))
-        .unwrap_or(false);
     options.middleware = table
         .get("middleware")
         .and_then(|value| list(context, &at("middleware"), value))

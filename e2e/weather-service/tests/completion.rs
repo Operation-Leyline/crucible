@@ -1,11 +1,8 @@
-//! Completion observes the protocol response; streaming direct invokes fail safely.
+//! Completion observes the protocol response.
 // The fixture deprecates `Ping`; these tests still drive it.
 #![allow(deprecated)]
 use crucible_server_runtime_rust::__generated as generated;
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
-};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use axum::body::Body;
@@ -18,24 +15,12 @@ use crucible_server_runtime_rust::operation::{
 };
 use crucible_server_runtime_rust::validate::{Validate, Validator};
 use crucible_server_runtime_rust::{
-    ByteStream, Crucible, InvokeProtocol, JsonProtocol, Operation, OperationInfo, ServiceInfo,
+    Crucible, InvokeProtocol, JsonProtocol, Operation, OperationInfo, ServiceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use weather_service::weather;
 
-const BODY: MemberInfo = generated::member_info(
-    "body",
-    Location::StreamingPayload {
-        media_type: "application/octet-stream",
-        requires_length: false,
-        minimum: None,
-        maximum: None,
-    },
-    Scalar::Json,
-    &Redaction::Public,
-    &[],
-);
 const TAG: MemberInfo = generated::member_info(
     "tag",
     Location::Header("x-tag"),
@@ -53,28 +38,8 @@ static UPLOAD: OperationInfo = {
         &[Segment::Literal("upload")],
         base.literal_query,
         base.status,
-        &[BODY, TAG],
+        &[TAG],
         base.output,
-        base.errors,
-        base.readonly,
-        base.idempotent,
-        base.internal,
-        base.idempotency_token,
-        base.traits,
-    )
-};
-static DOWNLOAD: OperationInfo = {
-    let base = weather::Ping::INFO;
-    generated::operation_info(
-        "test.completion#Download",
-        "Download",
-        base.resource,
-        base.method,
-        &[Segment::Literal("download")],
-        base.literal_query,
-        base.status,
-        base.input,
-        &[BODY],
         base.errors,
         base.readonly,
         base.idempotent,
@@ -135,8 +100,7 @@ static SERVICE: ServiceInfo = {
         "test.completion#Service",
         base.version,
         None,
-        None,
-        &[&UPLOAD, &DOWNLOAD, &BROKEN, &FAULT],
+        &[&UPLOAD, &BROKEN, &FAULT],
         base.errors,
         base.classify,
         base.reject,
@@ -146,37 +110,17 @@ static SERVICE: ServiceInfo = {
 };
 
 #[derive(Serialize, Deserialize)]
-struct StreamInput {
-    body: ByteStream,
+struct TagInput {
     tag: String,
 }
-impl Validate for StreamInput {
+impl Validate for TagInput {
     fn validate(&self, _: &mut Validator) {}
-}
-#[derive(Serialize)]
-struct StreamOutput {
-    body: ByteStream,
 }
 struct Upload;
 impl Operation for Upload {
     const INFO: &'static OperationInfo = &UPLOAD;
-    type Input = StreamInput;
+    type Input = TagInput;
     type Output = ();
-    fn input_stream(input: &StreamInput) -> Option<ByteStream> {
-        Some(input.body.clone())
-    }
-    fn set_input_stream(input: &mut StreamInput, body: ByteStream) {
-        input.body = body;
-    }
-}
-struct Download;
-impl Operation for Download {
-    const INFO: &'static OperationInfo = &DOWNLOAD;
-    type Input = Unit;
-    type Output = StreamOutput;
-    fn output_stream(output: &StreamOutput) -> Option<ByteStream> {
-        Some(output.body.clone())
-    }
 }
 struct Broken;
 struct BrokenOutput;
@@ -197,30 +141,12 @@ impl Operation for Fault {
     type Input = Unit;
     type Output = ();
 }
-#[derive(Default)]
-struct Calls {
-    uploads: AtomicUsize,
-    downloads: AtomicUsize,
-}
-const BYTES: &[u8] = &[0xff, 0, 1];
-fn builder(calls: Arc<Calls>) -> crucible_server_runtime_rust::Builder {
-    let downloads = calls.clone();
+fn builder() -> crucible_server_runtime_rust::Builder {
     let operations = crucible_server_runtime_rust::Operations::builder(&SERVICE)
-        .add::<Upload, _, _>(calls, |calls, input| {
+        .add::<Upload, _, _>(Arc::new(()), |_, input| {
             Box::pin(async move {
-                calls.uploads.fetch_add(1, Ordering::SeqCst);
                 assert_eq!(input.tag, "ordinary field");
-                let bytes = axum::body::to_bytes(Body::from_stream(input.body.open()?), 16).await?;
-                assert_eq!(bytes.as_ref(), BYTES);
                 Ok(())
-            })
-        })
-        .add::<Download, _, _>(downloads, |calls, _| {
-            Box::pin(async move {
-                calls.downloads.fetch_add(1, Ordering::SeqCst);
-                Ok(StreamOutput {
-                    body: ByteStream::from_bytes(BYTES),
-                })
             })
         })
         .add::<Broken, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
@@ -239,56 +165,6 @@ fn builder(calls: Arc<Calls>) -> crucible_server_runtime_rust::Builder {
             message: rejection.summary(),
         })
     })
-}
-
-#[tokio::test]
-async fn streaming_direct_invokes_are_rejected_before_implementation_and_http_still_streams() {
-    let calls = Arc::new(Calls::default());
-    let service = builder(calls.clone())
-        .protocol(JsonProtocol)
-        .protocol(InvokeProtocol)
-        .build()
-        .unwrap();
-    let input = StreamInput {
-        body: ByteStream::from_bytes(BYTES),
-        tag: "ordinary field".into(),
-    };
-    for (operation, input) in [
-        ("Upload", serde_json::to_value(input).unwrap()),
-        ("Download", json!({})),
-    ] {
-        let answer = service.invoke(operation, input).await;
-        assert_eq!(answer["error"]["__type"], "ConflictError");
-        assert_eq!(
-            answer["error"]["message"],
-            "direct invocation does not support streaming payloads; use HTTP"
-        );
-        assert!(answer.get("output").is_none());
-    }
-    assert_eq!(calls.uploads.load(Ordering::SeqCst), 0);
-    assert_eq!(calls.downloads.load(Ordering::SeqCst), 0);
-    let response = service
-        .handle(
-            Request::put("/upload")
-                .header("x-tag", "ordinary field")
-                .body(Body::from(BYTES))
-                .unwrap(),
-        )
-        .await;
-    assert_eq!(response.status(), 200);
-    let response = service
-        .handle(Request::get("/download").body(Body::empty()).unwrap())
-        .await;
-    assert_eq!(response.status(), 200);
-    assert_eq!(
-        axum::body::to_bytes(response.into_body(), 16)
-            .await
-            .unwrap()
-            .as_ref(),
-        BYTES
-    );
-    assert_eq!(calls.uploads.load(Ordering::SeqCst), 1);
-    assert_eq!(calls.downloads.load(Ordering::SeqCst), 1);
 }
 
 fn http_v2_event() -> Value {
@@ -413,7 +289,7 @@ impl Recorder for Records {
 #[tokio::test]
 async fn metrics_record_serialization_failure_actual_validation_status_and_relay_completion() {
     let records = Records::default();
-    let service = builder(Arc::new(Calls::default()))
+    let service = builder()
         .middleware(Metrics::new(records.clone()))
         .operation_middleware(before_fn(|job| {
             if job.request().headers.contains_key("x-relay") {

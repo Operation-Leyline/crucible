@@ -18,8 +18,7 @@
   }
 
   function callable(operation) {
-    return operation.callable !== false && operation.protocol === JSON_PROTOCOL
-      && ![operation.request, operation.response].some((b) => b && (b.eventStream || b.payload && b.payload.streaming));
+    return operation.callable !== false && operation.protocol === JSON_PROTOCOL;
   }
 
   function timestamp(value, format) {
@@ -75,7 +74,7 @@
   }
 
   function buildRequest(description, operation, input, base, credentials = {}, options = {}) {
-    if (!callable(operation)) throw new Error("Use a native client or curl for this streaming operation");
+    if (!callable(operation)) throw new Error("Use a native client or curl for this operation");
     if (options.readOnly && !operation.readonly) throw new Error("Explorer is read-only for this operation");
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Input must be a JSON object");
     const bindings = operation.request;
@@ -101,31 +100,11 @@
     for (const binding of bindings.query || []) {
       if (values.get(binding.member) != null) addQuery(binding.name, values.get(binding.member));
     }
-    if (bindings.queryParams && values.get(bindings.queryParams)) {
-      const fixedNames = new Set((bindings.query || []).map((b) => b.name));
-      const literals = new URLSearchParams(uri.split("?")[1] || "");
-      for (const [name, value] of Object.entries(values.get(bindings.queryParams))) {
-        if (!fixedNames.has(name) && !literals.has(name)) addQuery(name, value);
-      }
-    }
     const headers = new Headers(operation.protocolHeaders || {});
     for (const binding of bindings.headers || []) {
       if (values.get(binding.member) != null) headers.set(binding.name, headerValue(values.get(binding.member), (bindings.headerEncodings || {})[binding.member], (bindings.timestampFormats || {})[binding.member]));
     }
-    for (const binding of bindings.prefixHeaders || []) {
-      for (const [name, value] of Object.entries(values.get(binding.member) || {})) {
-        if (value != null && !headers.has(`${binding.name}${name}`)) headers.set(`${binding.name}${name}`, headerValue(value, (bindings.headerEncodings || {})[binding.member], (bindings.timestampFormats || {})[binding.member]));
-      }
-    }
     if (credentials.bearer) headers.set("Authorization", `Bearer ${credentials.bearer}`);
-    for (const id of operation.auth || []) {
-      const scheme = (description.service.authSchemes || {})[id];
-      const key = credentials.apiKeys && credentials.apiKeys[id];
-      if (!key || !scheme || scheme.kind !== "apiKey") continue;
-      const value = scheme.scheme ? `${scheme.scheme} ${key}` : key;
-      if (scheme.location === "query") addQuery(scheme.name, value);
-      else headers.set(scheme.name, value);
-    }
     if (query.length) uri += `${uri.includes("?") ? "&" : "?"}${query.join("&")}`;
     const baseUrl = new URL(base);
     const url = new URL(`${baseUrl.origin}${baseUrl.pathname}${uri.replace(/^\/+/, "")}`);
@@ -240,12 +219,6 @@
       form.append(field);
     };
     credential("Bearer token", credentials.bearer, (value) => { credentials.bearer = value; });
-    for (const id of operation.auth || []) {
-      const scheme = description.service.authSchemes[id];
-      if (scheme && scheme.kind === "apiKey") credential(`API key: ${scheme.name} (${scheme.location})`, (credentials.apiKeys || {})[id], (value) => {
-        credentials.apiKeys = { ...credentials.apiKeys, [id]: value };
-      });
-    }
     const schema = operation.inputSchema;
     const raw = element("textarea", null, "cx-try-json");
     raw.rows = 10;

@@ -42,7 +42,6 @@ pub mod scoped_weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Inherits {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const SCOPES: &'static [&'static str] = &["weather/read"];
         const SERVICE_SCOPES: &'static [&'static str] = &["weather/read"];
         const HAS_INPUT: bool = false;
@@ -79,7 +78,6 @@ pub mod scoped_weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for OptionalWithScopes {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = true;
         const SCOPES: &'static [&'static str] = &["weather/read"];
         const SERVICE_SCOPES: &'static [&'static str] = &["weather/read"];
         const HAS_INPUT: bool = false;
@@ -116,7 +114,6 @@ pub mod scoped_weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for OptsOut {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const SERVICE_SCOPES: &'static [&'static str] = &["weather/read"];
         const HAS_INPUT: bool = false;
         const HAS_OUTPUT: bool = false;
@@ -152,7 +149,6 @@ pub mod scoped_weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Overrides {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const SCOPES: &'static [&'static str] = &["weather/write", "weather/admin"];
         const SERVICE_SCOPES: &'static [&'static str] = &["weather/read"];
         const HAS_INPUT: bool = false;
@@ -189,7 +185,6 @@ pub mod scoped_weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Public {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const OPTIONAL_AUTH: bool = false;
         const PUBLIC: bool = true;
         const HAS_INPUT: bool = false;
         const HAS_OUTPUT: bool = false;
@@ -210,7 +205,6 @@ pub mod scoped_weather {
     pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
         "example.scopes#ScopedWeather",
         "1",
-        None,
         None,
         &[
             &INHERITS_OPERATION,

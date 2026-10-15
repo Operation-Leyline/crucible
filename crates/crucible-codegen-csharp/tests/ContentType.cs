@@ -24,7 +24,6 @@ static class Program
     }
     static async Task Main()
     {
-        foreach (var streaming in new[] { false, true })
         // An empty or malformed modelled value is sent as given, as the
         // other clients send it, never refused by .NET's header parser.
         foreach (var modelled in new string?[] { null, "image/png", "", "not a media type" })
@@ -35,18 +34,9 @@ static class Program
             var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (configured is not null) headers["Content-Type"] = configured;
             using var client = new PayloadBindingsClient(new() { Endpoint = "https://example.test", HttpClient = http, Headers = headers });
-            if (streaming)
-            {
-                var input = new StreamInput { DataValue = ByteStream.FromBytes(Encoding.UTF8.GetBytes("PNG")) };
-                if (modelled is not null) input.ContentType = modelled;
-                await client.UploadStreamAsync(input);
-            }
-            else
-            {
-                var input = new UploadInput { DataValue = Encoding.UTF8.GetBytes("PNG") };
-                if (modelled is not null) input.ContentType = modelled;
-                await client.UploadAsync(input);
-            }
+            var input = new UploadInput { DataValue = Encoding.UTF8.GetBytes("PNG") };
+            if (modelled is not null) input.ContentType = modelled;
+            await client.UploadAsync(input);
         }
         Console.WriteLine("C# payload Content-Type precedence passed");
     }

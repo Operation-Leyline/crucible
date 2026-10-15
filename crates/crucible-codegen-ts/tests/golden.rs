@@ -8,39 +8,6 @@ use std::path::Path;
 use crucible_codegen_ts::{Middleware, Options, emit};
 use crucible_smithy::Model;
 
-#[test]
-fn legacy_enum_models_match_golden() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/legacy-enum.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
-    let options = Options {
-        package_name: "@example/legacy".into(),
-        package_version: "0.0.0-dev".into(),
-        client_name: None,
-        endpoint: None,
-        middleware: vec![],
-        package_json: None,
-        metadata: Default::default(),
-    };
-    let models = emit(&service, &options)
-        .unwrap()
-        .into_iter()
-        .find(|file| file.path == "src/models.ts")
-        .unwrap()
-        .contents;
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/legacy_enum_models.ts");
-    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
-        fs::write(&path, &models).unwrap();
-    }
-    assert_eq!(
-        fs::read_to_string(path).unwrap().replace("\r\n", "\n"),
-        models
-    );
-}
-
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
@@ -270,17 +237,7 @@ fn weather_client_matches_golden_files() {
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
     let mut stale = Vec::new();
     for file in emit(&service, &options).unwrap() {
-        if [
-            "src/runtime.ts",
-            "src/query.ts",
-            "src/endpoints.ts",
-            "src/waiters.ts",
-            "src/credentials.ts",
-            "src/checksums.ts",
-            "src/events.ts",
-        ]
-        .contains(&file.path.as_str())
-        {
+        if file.path == "src/runtime.ts" {
             continue;
         }
         let path = golden.join(&file.path);
@@ -716,29 +673,6 @@ fn reserved_names_are_diagnostics() {
 }
 
 #[test]
-fn checksum_operations_carry_their_lowered_description() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/checksums.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
-    .unwrap();
-    let files = emit(&service, &options("checksums")).unwrap();
-    let schemas = file(&files, "src/schemas.ts");
-    assert!(
-        schemas.contains("  checksum: {\"kind\":\"md5\"},\n"),
-        "{schemas}"
-    );
-    assert!(schemas.contains("  checksum: {\"kind\":\"awsFlexible\",\"requestRequired\":true,\"requestAlgorithms\":[],\"responseAlgorithms\":[]},\n"));
-    assert!(schemas.contains("\"requestAlgorithmMember\":\"algorithm\""));
-    assert!(schemas.contains("\"validationModeMember\":\"validation\""));
-    assert!(files.iter().any(|f| f.path == "src/checksums.ts"));
-    let index = file(&files, "src/index.ts");
-    assert!(index.contains("export { ChecksumError } from \"./checksums.js\";"));
-    assert!(index.contains("export type { ChecksumPolicy } from \"./checksums.js\";"));
-}
-
-#[test]
 fn configured_client_cannot_shadow_the_service_exception() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"
@@ -859,51 +793,6 @@ fn the_import_alias_avoids_another_operations_name() {
 }
 
 #[test]
-fn an_operation_named_endpoint_rules_is_diagnosed_when_rules_are_exported() {
-    let mut model: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/endpoints.json")).unwrap();
-    let shapes = model["shapes"].as_object_mut().unwrap();
-    let service_id = shapes
-        .iter()
-        .find(|(_, shape)| shape["type"] == "service")
-        .map(|(id, _)| id.clone())
-        .unwrap();
-    shapes.insert(
-        "example.behavior#endpointRules".into(),
-        serde_json::json!({
-            "type": "operation",
-            "traits": { "smithy.api#http": { "method": "GET", "uri": "/rules" } }
-        }),
-    );
-    shapes.get_mut(&service_id).unwrap()["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(serde_json::json!({ "target": "example.behavior#endpointRules" }));
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
-        .unwrap();
-    let diagnostics = emit(
-        &service,
-        &Options {
-            package_name: "endpoints".into(),
-            package_version: "0.0.0".into(),
-            client_name: None,
-            endpoint: None,
-            middleware: vec![],
-            package_json: None,
-            metadata: Default::default(),
-        },
-    )
-    .unwrap_err()
-    .to_string();
-    assert!(
-        diagnostics.contains("example.behavior#endpointRules: `endpointRules` collides"),
-        "{diagnostics}"
-    );
-}
-
-#[test]
 fn documentation_and_formatting_use_the_lowered_contract() {
     let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
         .unwrap()
@@ -938,7 +827,6 @@ fn documentation_and_formatting_use_the_lowered_contract() {
         .unwrap()
         .contents;
     assert!(runtime.contains("Maximum retry backoff delay in milliseconds"));
-    assert!(!runtime.contains("Override the maximum waiter delay"));
     assert!(models.contains("https://example.com"));
     assert!(models.contains("line two"));
     assert!(models.contains("Label marker."));

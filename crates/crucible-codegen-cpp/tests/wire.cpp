@@ -13,8 +13,8 @@ struct Fake : wire_sdk::runtime::Transport {
             return {200, {}, *request.body};
         }
         check(request.headers.at("content-type") == "text/plain" && *request.body == "h\xc3\xa9llo");
-        check(request.headers.at("x-meta") == "eyJhIjoxfQ==, aGVsbG8=" && request.headers.at("x-extra-trace") == "aGVsbG8=");
-        return failure ? wire_sdk::runtime::HttpResponse{422, {{"x-crucible-error", "TextError"}}, "invalid text"} : wire_sdk::runtime::HttpResponse{200, {{"x-meta", "eyJhIjoxfQ==, aGVsbG8="}, {"x-extra-trace", "aGVsbG8="}}, *request.body};
+        check(request.headers.at("x-meta") == "eyJhIjoxfQ==, aGVsbG8=");
+        return failure ? wire_sdk::runtime::HttpResponse{422, {{"x-crucible-error", "TextError"}}, "invalid text"} : wire_sdk::runtime::HttpResponse{200, {{"x-meta", "eyJhIjoxfQ==, aGVsbG8="}}, *request.body};
     }
     void close() override {}
 };
@@ -22,9 +22,9 @@ int run() {
     wire_sdk::runtime::ClientConfig config;
     config.endpoint = "http://127.0.0.1"; config.transport = std::make_shared<Fake>(false);
     wire_sdk::models::TextInput input;
-    input.text = "h\xc3\xa9llo"; input.meta = std::vector<std::string>{"{\"a\":1}", "hello"}; input.extras = std::map<std::string,std::string>{{"trace","hello"}};
+    input.text = "h\xc3\xa9llo"; input.meta = std::vector<std::string>{"{\"a\":1}", "hello"};
     const auto output = wire_sdk::WireClient(config).text(input);
-    check(*output.text == *input.text && *output.meta == *input.meta && *output.extras == *input.extras);
+    check(*output.text == *input.text && *output.meta == *input.meta);
     wire_sdk::models::Record record; record.name = "record";
     wire_sdk::models::DocumentInput document; document.document = record;
     check(*wire_sdk::WireClient(config).document(document).document->name == "record");

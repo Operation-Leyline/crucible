@@ -100,13 +100,13 @@ fn kind(shape: &Shape) -> String {
 }
 
 fn member(service: &Service, m: &Member) -> Value {
-    json!({"name":m.name,"wireName":m.wire_name,"target":m.target.to_string(),
+    json!({"name":m.name,"wireName":m.name,"target":m.target.to_string(),
         "targetName":service.name_of(&m.target),"targetType":kind(service.shape(&m.target).expect("validated target")),
         "required":m.required,"nullable":m.optional_on_server(),"clientOptional":m.client_optional,
         "default":m.default,"wireDefault":m.wire_default,"constraints":constraints(&m.constraints),
         "sensitive":service.sensitive(m),"internal":m.internal,
         "documentation":documentation(m.docs.as_deref()),"notes":notes(&m.notes),
-        "timestampFormat":m.wire_timestamp_format,"eventBinding":m.event_binding})
+        "timestampFormat":m.wire_timestamp_format})
 }
 
 fn pairs(bindings: &[Binding]) -> Vec<Value> {
@@ -118,20 +118,16 @@ fn pairs(bindings: &[Binding]) -> Vec<Value> {
 
 fn bindings(b: &Bindings) -> Value {
     json!({"labels":b.labels,"query":pairs(&b.query),"headers":pairs(&b.headers),
-        "queryParams":b.query_params,"prefixHeaders":pairs(&b.prefix_headers),
-        "responseCode":b.response_code,"body":b.body,
+        "body":b.body,
         "timestampFormats":b.timestamp_formats,"headerEncodings":b.header_encodings,
         "payload":b.payload.as_ref().map(|p| json!({"member":p.member,"kind":p.kind,
-            "mediaType":p.media_type,"streaming":p.streaming,"requiresLength":p.requires_length})),
-        "eventStream":b.event_stream})
+            "mediaType":p.media_type}))})
 }
 
 fn error_bindings(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Bindings {
     let mut b = Bindings {
         headers: info.headers.clone(),
-        prefix_headers: info.prefix_headers.clone(),
         payload: info.payload.clone(),
-        response_code: info.response_code.clone(),
         timestamp_formats: info.timestamp_formats.clone(),
         header_encodings: info.header_encodings.clone(),
         ..Bindings::default()
@@ -142,13 +138,7 @@ fn error_bindings(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Bindings
             .expect("validated error")
             .members()
             .iter()
-            .filter(|m| {
-                !b.headers
-                    .iter()
-                    .chain(&b.prefix_headers)
-                    .any(|h| h.member == m.name)
-                    && b.response_code.as_ref() != Some(&m.name)
-            })
+            .filter(|m| !b.headers.iter().any(|h| h.member == m.name))
             .map(|m| m.name.clone())
             .collect();
     }
@@ -173,16 +163,13 @@ fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
     match shape {
         Shape::Simple(s) => {
             value["constraints"] = constraints(&s.constraints);
-            value["streaming"] = json!(s.streaming);
-            value["requiresLength"] = json!(s.requires_length);
         }
         Shape::List(s) => {
             value["constraints"] = constraints(&s.constraints);
-            value["sparse"] = json!(s.sparse); value["set"] = json!(s.is_set);
+            value["sparse"] = json!(s.sparse); value["set"] = json!(s.constraints.unique_items);
         }
         Shape::Map(s) => { value["constraints"] = constraints(&s.constraints); value["sparse"] = json!(s.sparse); }
         Shape::Structure(s) | Shape::Union(s) => {
-            value["streaming"] = json!(s.streaming);
             value["error"] = s.error.as_ref().map_or(Value::Null, |e| error(service,id,e));
         }
         Shape::Enum(s) => value["values"] = json!(s.values.iter().map(|v|json!({"name":v.name,"value":v.value,
@@ -240,18 +227,6 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
                 diagnostics.push(&op.id, format!("describe.target: missing shape {id}"));
             }
         }
-        if !explorer
-            && !op.examples.is_empty()
-            && (op.request.event_stream.is_some()
-                || op.response.event_stream.is_some()
-                || op.request.payload.as_ref().is_some_and(|p| p.streaming)
-                || op.response.payload.as_ref().is_some_and(|p| p.streaming))
-        {
-            diagnostics.push(
-                &op.id,
-                "describe.example_streaming: buffered examples cannot represent streaming messages",
-            );
-        }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -275,12 +250,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         .map(|op| {
             let mut value = operation(service, op, explorer);
             if explorer {
-                value["callable"] = json!(
-                    op.request.event_stream.is_none()
-                        && op.response.event_stream.is_none()
-                        && !op.request.payload.as_ref().is_some_and(|p| p.streaming)
-                        && !op.response.payload.as_ref().is_some_and(|p| p.streaming)
-                );
+                value["callable"] = json!(true);
             }
             (op.id.to_string(), value)
         })
@@ -354,13 +324,13 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         "input":op.input.as_ref().map(ToString::to_string),"output":op.output.as_ref().map(ToString::to_string),
         "inputSchema":json_schema::standalone(service,op.input.as_ref()),"outputSchema":json_schema::standalone(service,op.output.as_ref()),
         "errors":op.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
-        "auth":op.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),"scopes":op.scopes,"optionalAuth":op.optional_auth,
+        "auth":op.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),"scopes":op.scopes,
         "readonly":op.readonly,"idempotent":op.idempotent,"idempotencyToken":op.idempotency_token,
         "pagination":op.paginated.as_ref().map(|p|json!({"inputToken":p.input_token,"outputToken":p.output_token,"items":p.items,"pageSize":p.page_size})),
         "examples":op.examples.iter().map(|e|json!({"title":e.title,"documentation":documentation(e.docs.as_deref()),
             "allowConstraintErrors":e.allow_constraint_errors,
-        "input":e.input.as_ref().filter(|_| op.request.event_stream.is_none() && !op.request.payload.as_ref().is_some_and(|p|p.streaming)).map(|v|request_example(service,op,v)),
-        "output":e.output.as_ref().filter(|_|op.response.event_stream.is_none() && !op.response.payload.as_ref().is_some_and(|p|p.streaming)).map(|v| {
+        "input":e.input.as_ref().map(|v|request_example(service,op,v)),
+        "output":e.output.as_ref().map(|v| {
                 let mut message=wire_message(service,op.output.as_ref(),&op.response,v);
                 merge_headers(&mut message,&op.response_protocol_headers);
                 message
@@ -424,7 +394,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
                         .filter_map(|m| {
                             input.get(&m.name).map(|v| {
                                 (
-                                    m.wire_name.clone(),
+                                    m.name.clone(),
                                     service.wire_example(
                                         m,
                                         v,
@@ -453,7 +423,6 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
     let mut query: Vec<Value> = Vec::new();
     let mut headers = Map::new();
     let mut payload = Value::Null;
-    let mut response_code = Value::Null;
     for m in id
         .and_then(|id| service.shape(id))
         .into_iter()
@@ -464,7 +433,7 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
         };
         let wire = service.wire_example(m, value, b.timestamp_formats.get(&m.name).copied());
         if b.body.contains(&m.name) {
-            body.insert(m.wire_name.clone(), wire.clone());
+            body.insert(m.name.clone(), wire.clone());
         }
         if b.labels.contains(&m.name) {
             labels.insert(m.name.clone(), json!(text(&wire)));
@@ -480,32 +449,8 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
                     .map(|v| json!({"name":binding.name,"value":text(v)})),
             );
         }
-        if b.query_params.as_ref() == Some(&m.name)
-            && let Some(entries) = wire.as_object()
-        {
-            for (name, value) in entries {
-                let items = value
-                    .as_array()
-                    .cloned()
-                    .unwrap_or_else(|| vec![value.clone()]);
-                query.extend(items.iter().map(|v| json!({"name":name,"value":text(v)})));
-            }
-        }
         for binding in b.headers.iter().filter(|h| h.member == m.name) {
             headers.insert(binding.name.clone(), json!(header(&wire, b, &m.name)));
-        }
-        for binding in b.prefix_headers.iter().filter(|h| h.member == m.name) {
-            if let Some(entries) = wire.as_object() {
-                for (name, value) in entries {
-                    headers.insert(
-                        format!("{}{name}", binding.name),
-                        json!(header(value, b, &m.name)),
-                    );
-                }
-            }
-        }
-        if b.response_code.as_ref() == Some(&m.name) {
-            response_code = wire.clone();
         }
         if let Some(p) = &b.payload
             && p.member == m.name
@@ -516,7 +461,7 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
     }
     json!({"labels":labels,"query":query,"headers":headers,"body":if b.payload.is_some() || id.is_none()
         || b.body.is_empty() {Value::Null} else {Value::Object(body)},
-        "payload":payload,"responseCode":response_code})
+        "payload":payload})
 }
 
 fn percent(text: &str, greedy: bool) -> String {

@@ -40,7 +40,6 @@ fn operation_docs(
     op: &crucible_smithy::ir::Operation,
     input: Option<&str>,
     output: &str,
-    streaming: bool,
     pages: bool,
 ) -> String {
     let token = op.idempotency_token.as_deref().map(field);
@@ -73,10 +72,6 @@ fn operation_docs(
     if let Some(input) = input {
         text.push_str(&format!("\n@param input [{input}] the request to send"));
     }
-    if streaming {
-        text.push_str("\n@param response_target [IO, nil] receives the streamed body; the body is yielded to the block when omitted");
-        text.push_str("\n@yieldparam chunk [String] a chunk of the streamed body");
-    }
     text.push_str(
         "\n@param cancellation [Runtime::CancellationToken, nil] cancels the call when cancelled",
     );
@@ -102,7 +97,6 @@ pub struct Options {
     pub module_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 pub struct File {
     pub path: String,
@@ -198,18 +192,8 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 diagnostics.push(&op.id, "Ruby operation name collision");
             }
         }
-        for waiter in op.waiters.keys() {
-            let method = waiter_method(waiter);
-            if !names::method(&method) || !methods.insert(method) {
-                diagnostics.push(&op.id, "Ruby waiter method name collision");
-            }
-        }
     }
     diagnostics
-}
-
-fn waiter_method(name: &str) -> String {
-    format!("wait_until_{}", field(name))
 }
 
 pub fn capabilities() -> crucible_smithy::Capabilities {
@@ -218,25 +202,11 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
-        Feature::Sets,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
-        Feature::Streaming,
     ])
 }
 
@@ -266,7 +236,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }))
         .expect("provenance"),
     });
-    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'digest', '>= 3.1', '< 4'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\n  spec.add_dependency 'zlib', '>= 3.0', '< 4'\n  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'\n  spec.add_dependency 'stringio', '>= 3.0', '< 4'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
+    files.push(File {path:format!("{package}.gemspec"), contents:format!("# frozen_string_literal: true\nGem::Specification.new do |spec|\n  spec.name = {}\n  spec.version = {}\n  spec.summary = {}\n  spec.authors = ['Package maintainers']\n  spec.required_ruby_version = '>= 3.3', '< 5'\n  spec.files = Dir['lib/**/*', 'sig/**/*', 'crucible.json', '.yardopts']\n  spec.require_paths = ['lib']\n  spec.add_dependency 'json', '>= 2.7', '< 3'\n  spec.add_dependency 'net-http', '>= 0.4', '< 1'\n  spec.add_dependency 'base64', '>= 0.2', '< 1'\n  spec.add_dependency 'date', '>= 3.3', '< 4'\n  spec.add_dependency 'time', '>= 0.3', '< 1'\n  spec.add_dependency 'securerandom', '>= 0.3', '< 1'\n  spec.add_dependency 'openssl', '>= 3.0', '< 5'\n  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'\nend\n",literal(package),literal(&options.package_version),literal(&format!("Generated {} client",service.name_of(&service.id))))});
     // The doc comments are Markdown (Smithy's @documentation is CommonMark).
     files.push(File {
         path: ".yardopts".into(),
@@ -293,27 +263,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("call_scope", include_str!("../runtime/call_scope.rb")),
         (
-            "basic_credentials",
-            include_str!("../runtime/basic_credentials.rb"),
-        ),
-        (
-            "aws_credentials",
-            include_str!("../runtime/aws_credentials.rb"),
-        ),
-        (
-            "cached_credentials",
-            include_str!("../runtime/cached_credentials.rb"),
-        ),
-        ("credentials", include_str!("../runtime/credentials.rb")),
-        (
             "authentication",
             include_str!("../runtime/authentication.rb"),
         ),
-        ("byte_stream", include_str!("../runtime/byte_stream.rb")),
-        ("query", include_str!("../runtime/query.rb")),
-        ("waiters", include_str!("../runtime/waiters.rb")),
-        ("endpoints", include_str!("../runtime/endpoints.rb")),
-        ("checksums", include_str!("../runtime/checksums.rb")),
         ("client_config", include_str!("../runtime/client_config.rb")),
         ("http_request", include_str!("../runtime/http_request.rb")),
         ("http_response", include_str!("../runtime/http_response.rb")),
@@ -367,15 +319,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     entry.push_str(&format!("require_relative '{package}/client'\n"));
     let mut client = format!(
-        "# frozen_string_literal: true\nmodule {module}\n{}  class {client_name}\n{}    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {}, digest: {})\n    end\n    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.\n    def close = @runtime.close\n",
+        "# frozen_string_literal: true\nmodule {module}\n{}  class {client_name}\n{}    def initialize(config = Runtime::ClientConfig.new)\n      @runtime = Runtime::ClientRuntime.new(config, ::{module}.codec, endpoint: {})\n    end\n    # Releases the HTTP connection this client created. A transport passed in the configuration is left open.\n    def close = @runtime.close\n",
         client_docs(service, &client_name),
         docs::line_comment(
             "    ",
             "#",
             "Creates a client. Without a `config`, the generated endpoint is used and no credentials are sent; see {Runtime::ClientConfig} for credentials, retries, timeouts and the transport.\n\n@param config [Runtime::ClientConfig]\n@raise [ArgumentError] when the endpoint or another setting is invalid"
         ),
-        literal(options.endpoint.as_deref().unwrap_or("")),
-        options.content_sha256
+        literal(options.endpoint.as_deref().unwrap_or(""))
     );
     for op in &service.operations {
         let name = field(op.name());
@@ -385,11 +336,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         } else {
             "Runtime::Unit.new"
         };
-        let streaming = op
-            .response
-            .payload
-            .as_ref()
-            .is_some_and(|payload| payload.streaming);
         let input_type = op.input.as_ref().map(|id| service.name_of(id).to_string());
         let output_type = op.output.as_ref().map_or_else(
             || "Runtime::Unit".to_string(),
@@ -400,46 +346,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             op,
             input_type.as_deref(),
             &output_type,
-            streaming,
             op.paginated.is_some(),
         ));
-        if streaming {
-            client.push_str(&format!("    def {name}({input}response_target: nil, cancellation: nil, &block)\n      @runtime.call({}, {value}, cancellation: cancellation, response_target: response_target, block: block)\n    end\n",literal(op.name())));
-        } else {
-            client.push_str(&format!("    def {name}({input}cancellation: nil)\n      @runtime.call({}, {value}, cancellation: cancellation)\n    end\n",literal(op.name())));
-        }
+        client.push_str(&format!("    def {name}({input}cancellation: nil)\n      @runtime.call({}, {value}, cancellation: cancellation)\n    end\n",literal(op.name())));
         if op.paginated.is_some() {
             client.push_str(&docs::line_comment("    ", "#", &format!("Every page of {{#{name}}}, following the pagination token until the service stops returning one. Returns an `Enumerator`; the call for each page is made as it is consumed, so each can fail.\n\n@param input [{}] the request for the first page\n@param cancellation [Runtime::CancellationToken, nil]\n@return [Enumerator<{output_type}>]", input_type.as_deref().unwrap_or("Runtime::Unit"))));
             client.push_str(&format!("    def {name}_pages(input, cancellation: nil)\n      @runtime.pages({}, input, cancellation: cancellation)\n    end\n",literal(op.name())));
-        }
-        for (waiter, description) in &op.waiters {
-            let waiter_docs = description
-                .documentation
-                .as_deref()
-                .map(|text| {
-                    format!(
-                        "{}
-
-",
-                        docs::escape_block(text)
-                    )
-                })
-                .unwrap_or_default();
-            client.push_str(&docs::line_comment("    ", "#", &format!("{waiter_docs}Calls {{#{name}}} repeatedly until the modeled `{waiter}` waiter succeeds, with jittered backoff between `min_delay` and `max_delay`. Returns nil when an error acceptor succeeds.
-
-@param timeout [Numeric] the most time to wait, in seconds
-@param min_delay [Numeric, nil] the shortest delay between attempts; the modeled value when nil
-@param max_delay [Numeric, nil] the longest delay between attempts; the modeled value when nil
-@param cancellation [Runtime::CancellationToken, nil]
-@return [{output_type}, nil]
-@raise [Runtime::WaiterError] when a failure acceptor matches
-@raise [Runtime::WaiterTimeoutError] when `timeout` passes first")));
-            client.push_str(&format!(
-                "    def {}({input}timeout:, min_delay: nil, max_delay: nil, cancellation: nil)\n      @runtime.wait({}, {}, {value}, timeout: timeout, min_delay: min_delay, max_delay: max_delay, cancellation: cancellation)\n    end\n",
-                waiter_method(waiter),
-                literal(op.name()),
-                literal(waiter)
-            ));
         }
     }
     client.push_str("  end\nend\n");

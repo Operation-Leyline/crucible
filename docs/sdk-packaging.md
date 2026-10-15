@@ -108,7 +108,7 @@ Rules:
 - **Other language keys** are the generator's own options in snake case:
   `group_id`, `artifact_id`, `package_id` (C#), `module_name`,
   `namespace`, `prefix` (C), `module_path` (Go), `client_name`,
-  `endpoint`, `content_sha256`, `middleware`, `package_json`, and
+  `endpoint`, `middleware`, `package_json`, and
   `runtime = { git = "..", rev = "..", version = ".." }` for Rust.
 - **Errors.** A language key the language does not take is an error at
   that key: Rust takes no `endpoint`. A common key with no native field is
@@ -376,8 +376,7 @@ which `cargo package` includes, and npm's `files` lists both:
   written by `snapshot::write_contract` *(built)*: the release snapshot
   format (`format`, `compiler`, `service`: the audience-projected IR,
   without older API versions), as compact JSON of the typed contract:
-  without documentation (every `docs` string, example `docs`, waiter
-  `documentation`) and without the raw trait maps, which repeat the typed
+  without documentation (every `docs` string and example `docs`) and without the raw trait maps, which repeat the typed
   IR; no compatibility comparison reads either. The external projection
   itself keeps only standard raw traits that cannot name what it removed.
   It is the API the package already exposes, so an external SDK reveals
@@ -630,7 +629,7 @@ job needs no build toolchain, only Crucible and each channel's uploader
 Its tests are ported, the Weather workflow
 (`.github/workflows/sdk-release.yml`) runs `crucible sdk`, and the tool,
 `tools/sdk-releases/weather.json` and their references in
-`docs/sdk-releases.md`, `docs/sdk-session-recovery.md`,
+`docs/sdk-releases.md`,
 `docs/build-outputs.md` and `docs/clients.md` go. It is repository
 tooling, so it needs no deprecation period. Its stale Rust target is a
 separate small fix.

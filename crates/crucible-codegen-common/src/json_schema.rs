@@ -117,7 +117,7 @@ fn base(service: &Service, shape: &Shape) -> Value {
             &enumeration.traits,
         ),
         Shape::List(list) => (
-            json!({"type": "array", "items": member(service, &list.member, list.sparse, None, None), "uniqueItems": list.is_set}),
+            json!({"type": "array", "items": member(service, &list.member, list.sparse, None, None), "uniqueItems": list.constraints.unique_items}),
             &list.docs,
             &list.traits,
         ),
@@ -138,8 +138,8 @@ fn base(service: &Service, shape: &Shape) -> Value {
         ),
         Shape::Union(structure) => {
             let alternatives: Vec<_> = structure.members.iter().map(|m| {
-                let mut value = json!({"type": "object", "properties": {}, "required": [&m.wire_name], "additionalProperties": false});
-                value["properties"][&m.wire_name] = member(service, m, false, None, None);
+                let mut value = json!({"type": "object", "properties": {}, "required": [&m.name], "additionalProperties": false});
+                value["properties"][&m.name] = member(service, m, false, None, None);
                 value
             }).collect();
             (
@@ -178,7 +178,7 @@ pub fn member(
         Shape::List(list) if format.is_some() || encoding.is_some() => json!({
             "type": "array",
             "items": self::member(service, &list.member, false, format, encoding),
-            "uniqueItems": list.is_set || member.constraints.unique_items,
+            "uniqueItems": member.constraints.unique_items,
         }),
         Shape::Simple(_) | Shape::Enum(_) if encoding.is_some() => {
             json!({"type": "string", "contentEncoding": "base64"})
@@ -237,7 +237,7 @@ pub fn object<'a>(
     let mut required = Vec::new();
     for m in members {
         properties.insert(
-            m.wire_name.clone(),
+            m.name.clone(),
             member(
                 service,
                 m,
@@ -247,7 +247,7 @@ pub fn object<'a>(
             ),
         );
         if !m.optional_on_server() && m.default.is_none() {
-            required.push(m.wire_name.clone());
+            required.push(m.name.clone());
         }
     }
     let mut value = json!({"type": "object", "properties": properties});

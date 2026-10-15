@@ -2,8 +2,8 @@ use crate::OperationMetadata;
 use crate::error::{Error, Result};
 use crate::operation::{Input, Operation, Output, Segment, ServiceInfo};
 use crate::operations::{
-    Entry, Invoke, MissingOperations, OlderVersion, Operations, OutputFromJson, StreamingOutput,
-    decode, decode_bound, decode_events, decode_json, output_from_json,
+    Entry, Invoke, MissingOperations, OlderVersion, OperationOutput, Operations, OutputFromJson,
+    decode, decode_bound, decode_json, output_from_json,
 };
 use crate::validate::Validator;
 use crate::versioning::{
@@ -63,7 +63,7 @@ where
         };
         let output = call(implementation.clone(), input);
         Box::pin(
-            async move { Ok(Box::new(StreamingOutput::<O>(output.await?)) as Box<dyn Output>) },
+            async move { Ok(Box::new(OperationOutput::<O>(output.await?)) as Box<dyn Output>) },
         )
     });
     Entry {
@@ -72,7 +72,6 @@ where
         decode: decode::<O>,
         decode_json: decode_json::<O>,
         decode_bound: decode_bound::<O>,
-        decode_events: decode_events::<O>,
         invoke,
         output_from_json: O::OUTPUT_FROM_JSON.map(|_| output_from_json::<O> as OutputFromJson),
         body_limit: None,
@@ -165,11 +164,7 @@ impl OperationsBuilder {
     where
         Old::Output: serde::de::DeserializeOwned,
     {
-        // Streams are not converted: such operations are served at the
-        // current version only.
-        let refused = chain.iter().any(|conversion| conversion.refused.is_some())
-            || Current::INPUT_EVENTS.is_some()
-            || Current::OUTPUT_EVENTS.is_some();
+        let refused = chain.iter().any(|conversion| conversion.refused.is_some());
         let hooks = chain
             .iter()
             .flat_map(|conversion| {
@@ -312,7 +307,7 @@ where
                     Old::INFO.name
                 ))
             })?;
-            Ok(Box::new(StreamingOutput::<Old>(output)) as Box<dyn Output>)
+            Ok(Box::new(OperationOutput::<Old>(output)) as Box<dyn Output>)
         })
     });
     let classify = service.classify;
@@ -375,7 +370,6 @@ where
         decode: decode::<Old>,
         decode_json: decode_json::<Old>,
         decode_bound: decode_bound::<Old>,
-        decode_events: decode_events::<Old>,
         invoke: serving.invoke.clone(),
         output_from_json: serving.output_from_json,
         body_limit: serving.body_limit,
@@ -425,7 +419,6 @@ mod tests {
         "t#Service",
         "v1",
         None,
-        None,
         &[&INFO],
         &[],
         classify,
@@ -434,10 +427,7 @@ mod tests {
         None,
     );
 
-    const TOKEN: PaginationMember = PaginationMember {
-        name: "token",
-        wire_name: "token",
-    };
+    const TOKEN: PaginationMember = PaginationMember { name: "token" };
 
     /// The current version, which has the token and declares its
     /// requirements.
@@ -496,10 +486,7 @@ mod tests {
     impl Operation for Paged {
         const INFO: &'static OperationInfo = &INFO;
         const PAGINATION: Option<Pagination> = Some(Pagination {
-            input_token: PaginationMember {
-                name: "pageToken",
-                wire_name: "pageToken",
-            },
+            input_token: PaginationMember { name: "pageToken" },
             page_size: None,
             input_token_map: false,
             input_token_max_length: None,
@@ -514,10 +501,7 @@ mod tests {
     impl Operation for Renamed {
         const INFO: &'static OperationInfo = &INFO;
         const PAGINATION: Option<Pagination> = Some(Pagination {
-            input_token: PaginationMember {
-                name: "nextToken",
-                wire_name: "nextToken",
-            },
+            input_token: PaginationMember { name: "nextToken" },
             page_size: None,
             input_token_map: false,
             input_token_max_length: None,

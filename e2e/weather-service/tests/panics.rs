@@ -28,7 +28,6 @@ static SERVICE: ServiceInfo = {
         base.id,
         base.version,
         None,
-        None,
         &[weather::Ping::INFO],
         base.errors,
         base.classify,

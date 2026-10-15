@@ -143,9 +143,6 @@ impl Explorer {
 }
 
 fn secure(mut response: Response) -> Response {
-    response
-        .extensions_mut()
-        .insert(crate::endpoint::SameOrigin);
     let headers = response.headers_mut();
     headers.insert(
         "cross-origin-resource-policy",

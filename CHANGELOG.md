@@ -557,6 +557,62 @@ version's section when it is prepared.
   `render_conformance`, the `--protocol` option of `crucible generate` and
   `crucible check`, and the `crucible conformance` subcommand.
 
+- **Every feature only a Smithy model could reach.** Crucible's own
+  language and the two services built with it (Leyline and Pigeon) use none
+  of these, so they are gone from the IR, the Smithy lowering, the Rust
+  server runtime, the Rust client runtime, `crucible-wire`, every client
+  generator and bundled runtime (Rust, TypeScript, Python, Go, Java, Kotlin,
+  C#, Swift, Dart, PHP, Ruby, C++, C, R), the OpenAPI, documentation, CLI
+  and infrastructure generators, the explorer and the docs:
+  - **Streaming and event streams.** `@streaming` blobs and unions,
+    `@requiresLength`, `@eventHeader`/`@eventPayload`, the `ByteStream`,
+    `ChunkStream`, `EventStream`, `EventReceiver` and `EventStreamError`
+    types (`crucible_wire::{stream, event_stream}`), `Location::
+    {StreamingPayload, EventStream}`, `PayloadKind::EventStream`,
+    `EventStreamBinding`, event signing and the `INPUT_EVENTS`/
+    `OUTPUT_EVENTS` operation constants.
+  - **Waiters.** `smithy.waiters#waitable`, `wait_until_*` methods,
+    `WaiterOptions`/`WaiterResult`/`WaiterError`, and the bundled JMESPath
+    evaluators (the `jmespath` dependency).
+  - **Endpoint rule sets, `@endpoint` host prefixes and endpoint
+    discovery.** `ServiceMetadata`/`OperationMetadata` of the Rust client
+    and `Transport::send_with_metadata`, `Config::{region,
+    endpoint_parameter, endpoint_builtin, disable_host_prefix}`, endpoint
+    caches, the `endpoint` retry reason and the `endpointSource` telemetry
+    field.
+  - **Authentication other than bearer.** SigV4 and SigV4a, HTTP Basic,
+    Digest and API-key client schemes, `@optionalAuth` and
+    `aws.auth#unsignedPayload`: `AuthScheme` has the single variant
+    `Bearer`; `Config::{basic_credentials, api_key, aws_credentials,
+    signing_name}`, `AwsCredentials`, `BasicCredentials`, credential
+    providers and the `content_sha256` client option of every language but
+    TypeScript and Rust (and the `--content-sha256` flag of `crucible
+    generate`); `OperationMetadata::{optional_auth, unsigned_payload}`.
+  - **HTTP checksums.** `@httpChecksum`, `@httpChecksumRequired`,
+    `ChecksumPolicy`, `Config::on_checksum_validated`,
+    `operation::{Checksum, ChecksumAlgorithm}`.
+  - **Smithy HTTP bindings and names.** `@httpPrefixHeaders`,
+    `@httpQueryParams`, `@httpResponseCode` (and
+    `ModelledError::{response_status, write_http, write_http_typed}`,
+    `Output::{response_status, write_http}`, `ResponseBindings`,
+    `split::write_http`), `@jsonName` (a member's wire name is its name:
+    `Member::wire_name` and `PaginationMember::wire_name` are gone).
+  - **Sets and legacy enums.** Set shapes (`List::is_set`; a list with
+    `unique` is the replacement) and legacy `@enum` strings. Sparse
+    collections stay.
+  - **CORS.** `@cors`, `Service::cors`, `CorsInfo` and the built-in
+    `middlewares::Cors`.
+  - **Other.** The generated `MCP_EXCLUSIONS` static (it listed only
+    streaming operations), `Feature` loses everything but `GreedyLabels`,
+    `IntEnum`, `BigInteger`, `BigDecimal`, `NonBlobPayload`, `ErrorPayload`
+    and `MediaTypeHeaders`, `ProtocolSettings::event_stream_http`, the
+    `describe/1` keys of the removed features (`wireName` stays and equals
+    `name`), and the Smithy-only test fixtures that exercised them.
+  A Smithy model that uses one of them is refused with a diagnostic naming
+  the trait. Release snapshots move to format 3: older snapshots still
+  read, with the unused fields dropped, and a snapshot that used a removed
+  feature is refused with a message naming it.
+
 ### Fixed
 
 - `crucible check` without `--target` accepts every capability some generator
@@ -1167,6 +1223,36 @@ version's section when it is prepared.
   dropped), one frozen with another protocol is refused with a message
   naming it. No shim is possible: the protocols, not an API, are removed.
   See [migrating](docs/migrating.md#unreleased).
+
+- **Smithy-only features are removed.** A service built from a `.cru`
+  package is unaffected unless it used one of the Rust runtime items below.
+  Server code: `crucible_server_runtime_rust::{ByteStream, ChunkStream,
+  EventStream, EventReceiver, EventStreamError}`, `middlewares::Cors`,
+  `operation::{CorsInfo, Checksum, ChecksumAlgorithm, ResponseBindings}`,
+  `Operation::{OPTIONAL_AUTH, UNSIGNED_PAYLOAD, CHECKSUM, INPUT_EVENTS,
+  OUTPUT_EVENTS}` and its `*_stream`/`*_events`/`output_status` methods,
+  `OperationMetadata::{optional_auth, unsigned_payload, input_events,
+  output_events}`, `ModelledError::{response_status, write_http,
+  write_http_typed}`, `Output::{events, stream, response_status,
+  write_http}`, `Job::{take_body_stream, decode_events}`, `Location::
+  {QueryParams, PrefixHeaders, ResponseCode, StreamingPayload, EventStream}`,
+  `AuthScheme::{Basic, ApiKey, SigV4}` and the `wire_name` of
+  `PaginationMember` are removed; `OperationMetadata::requires_authentication`
+  is true whenever an authentication scheme is named. Rust client code:
+  `Config::{region, endpoint_parameter, endpoint_builtin,
+  disable_host_prefix, basic_credentials, api_key,
+  aws_credentials, signing_name, request_checksum_calculation,
+  response_checksum_validation, on_checksum_validated}`, `ChecksumPolicy`,
+  `AwsCredentials`, `BasicCredentials`, `ServiceMetadata`,
+  `OperationMetadata`, `Transport::send_with_metadata`, `decode_modelled_at`
+  (use `decode_modelled`), the waiter and streaming types and
+  `Error::ChecksumMismatch` are removed. Generator code: the removed
+  `Feature` variants, IR fields and types listed under Removed;
+  `Options::content_sha256` of every SDK generator, the `crucible_build`
+  `content_sha256(..)` builders and the matching CLI options. Regenerate bindings and SDKs. The Smithy front end
+  refuses the traits that used the removed features, so a Smithy model that
+  used one has no replacement. No shim is possible: the features, not an
+  API, are removed. See [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12
 

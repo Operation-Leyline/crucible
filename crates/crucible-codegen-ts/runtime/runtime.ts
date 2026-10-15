@@ -3,19 +3,7 @@
 // Edit it in the crucible repository (crates/crucible-emit-ts/runtime/), never
 // in a generated package.
 
-import { hostPrefix, parseEndpoint, resolveEndpoint, type EndpointPrefix, type EndpointRules, type ParameterSource } from "./endpoints.js";
-import { waitFor, type WaiterSpec, type WaiterOptions, type WaiterResult } from "./waiters.js";
-import { signSigV4, type AwsCredentials, type SigningScope } from "./credentials.js";
-import { ChecksumError, computeChecksum, planChecksum, responseChecksum, sameChecksum, verifyingStream, type ChecksumPlan, type ChecksumPolicy, type ChecksumSpec } from "./checksums.js";
-import { EVENT_STREAM_CONTENT_TYPE, EventMessageReader, EventSigner, EventStream, STREAMING_EVENTS, decodeEvent, eventBody, eventSigning, receivedEvents, type EventMessage, type EventSigning, type EventStreamSpec } from "./events.js";
-export { EventStream, EventStreamError } from "./events.js";
-export type { EventStreamSpec } from "./events.js";
-type Signing = {credentials: AwsCredentials; scope: SigningScope; streaming: boolean};
-const signingRequests = new WeakMap<Request, Signing>();
-export type { WaiterSpec } from "./waiters.js";
-export type { EndpointRules } from "./endpoints.js";
-
-/** Any JSON value: what a Smithy `document` holds. */
+/** Any JSON value: what a `document` holds. */
 export type Document = null | boolean | number | string | Document[] | { [key: string]: Document };
 
 /** An exact decimal JSON number. Construct from text to avoid floating-point rounding. */
@@ -42,40 +30,6 @@ function numericKey(text: string): string {
   return `${match[1]}${digits}e${exponent}`;
 }
 
-/** A streaming payload. Factory bodies must reproduce the same bytes on every retry. */
-export class ByteStream {
-  /** True for a source factory, which can reopen the same bytes for retries. */
-  readonly replayable: boolean;
-  /** Declared byte length; undefined means unknown. */
-  readonly length?: number;
-  /** Precomputed hexadecimal SHA-256 for signing; the source is never buffered to hash it. */
-  readonly sha256?: string;
-  #source: ReadableStream<Uint8Array> | (() => ReadableStream<Uint8Array>);
-  #opened = false;
-  /** Wrap a one-shot stream or a replay factory, optionally declaring length and digest. */
-  constructor(source: ReadableStream<Uint8Array> | (() => ReadableStream<Uint8Array>), options: { length?: number; sha256?: string } = {}) {
-    if (!(source instanceof ReadableStream) && typeof source !== "function") throw new TypeError("ByteStream requires a ReadableStream or replay factory");
-    if (options.length !== undefined && (!Number.isSafeInteger(options.length) || options.length < 0)) throw new TypeError("stream length must be a nonnegative safe integer");
-    if (options.sha256 !== undefined && !/^[a-fA-F0-9]{64}$/.test(options.sha256)) throw new TypeError("sha256 must contain 64 hexadecimal digits");
-    this.#source = source; this.replayable = typeof source === "function";
-    this.length = options.length; this.sha256 = options.sha256?.toLowerCase();
-  }
-  /** Open once, or once per attempt for a replay factory. Read with getReader(). */
-  open(): ReadableStream<Uint8Array> {
-    if (this.#opened && !this.replayable) throw new TypeError("one-shot ByteStream already opened");
-    this.#opened = true;
-    const source = typeof this.#source === "function" ? this.#source() : this.#source;
-    if (!(source instanceof ReadableStream)) throw new TypeError("stream factory must return a ReadableStream");
-    return source;
-  }
-  /** Release an unopened response body without reading it. */
-  async cancel(reason?: unknown): Promise<void> {
-    if (this.#opened) throw new TypeError("cancel the opened stream or reader");
-    this.#opened = true;
-    if (typeof this.#source !== "function") await this.#source.cancel(reason);
-  }
-}
-
 /** A future union arm. `json` is its lossless JSON payload, not the enclosing union. */
 export interface UnknownUnion {
   readonly $unknown: { readonly name: string; readonly json: string };
@@ -84,10 +38,10 @@ export interface UnknownUnion {
 /** A union member or result that carries no value. On the wire it is `{}`. */
 export type Unit = Record<string, never>;
 
-/** Smithy timestamp encoding selected by the lowered wire contract. */
+/** Timestamp encoding selected by the lowered wire contract. */
 export type TimestampFormat = "date-time" | "http-date" | "epoch-seconds";
 
-/** Static wire conversion and validation metadata emitted from the Smithy IR. */
+/** Static wire conversion and validation metadata emitted from the lowered IR. */
 export type Schema =
   | { readonly kind: "string" | "boolean" | "document" | "blob" | "bigInteger" | "bigDecimal" }
   | { readonly kind: "number" }
@@ -101,8 +55,6 @@ export type Schema =
       readonly defaults?: Readonly<Record<string, unknown>>;
       /** Nonoptional client members, settled by the IR (not inferred here). */
       readonly required?: readonly string[];
-      readonly jsonNames?: Readonly<Record<string, string>>;
-      readonly modelNames?: Readonly<Record<string, string>>;
     };
 
 /** Static schema for a string value. */
@@ -133,23 +85,14 @@ export function map(value: Schema | (() => Schema), options: { sparse?: boolean 
 }
 
 /** Thunks also support recursive list/map aliases without declaration-order work. */
-export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[], jsonNames?: Readonly<Record<string, string>>): Schema {
+export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[]): Schema {
   let resolved: Record<string, Schema> | undefined;
-  return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required, jsonNames, modelNames: reverseNames(jsonNames) };
+  return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required };
 }
 /** Create a lazy union schema enforcing exactly one member; unknown wire members are preserved. */
-export function union(members: () => Record<string, Schema>, jsonNames?: Readonly<Record<string, string>>): Schema {
+export function union(members: () => Record<string, Schema>): Schema {
   let resolved: Record<string, Schema> | undefined;
-  return { kind: "union", get members() { return (resolved ??= members()); }, jsonNames, modelNames: reverseNames(jsonNames) };
-}
-
-function reverseNames(names: Readonly<Record<string, string>> | undefined): Readonly<Record<string, string>> {
-  return Object.fromEntries(Object.entries(names ?? {}).map(([model, wire]) => [wire, model]));
-}
-/** Resolve a modeled member name to its wire JSON name. */
-export function wireName(schema: Schema | undefined, name: string): string {
-  if (schema?.kind !== "structure" && schema?.kind !== "union") return name;
-  return schema.jsonNames && Object.hasOwn(schema.jsonNames, name) ? schema.jsonNames[name] : name;
+  return { kind: "union", get members() { return (resolved ??= members()); } };
 }
 
 /** An internal numeric token. It never escapes decoding into a public model. */
@@ -193,7 +136,7 @@ function exactInteger(value: unknown, bits: 8 | 16 | 32 | 64 | undefined, encodi
 function jsonValue(value: unknown): unknown {
   if (value instanceof JsonNumber) return jsonValue(Number(value.text));
   if (typeof value === "number" && !Number.isFinite(value)) throw new TypeError("non-finite JSON number");
-  if (value instanceof Uint8Array || value instanceof Date || value instanceof ByteStream || value instanceof Decimal || value instanceof EventStream) return value;
+  if (value instanceof Uint8Array || value instanceof Date || value instanceof Decimal) return value;
   if (Array.isArray(value)) return value.map(jsonValue);
   if (value !== null && typeof value === "object") return mapValues(value as Record<string, unknown>, jsonValue);
   return value;
@@ -287,10 +230,10 @@ function valueKey(value: unknown): string {
   if (value !== null && typeof value === "object") return "{" + Object.keys(value).sort().map(key => JSON.stringify(key) + ":" + valueKey((value as Record<string, unknown>)[key])).join(",") + "}";
   return JSON.stringify(value);
 }
-/** Clone public values while keeping exact decimals and streaming body ownership. */
+/** Clone public values while keeping exact decimals. */
 function snapshotValue<T>(value: T, seen = new Map<object, unknown>()): T {
   if (value === null || typeof value !== "object") return value;
-  if (value instanceof ByteStream || value instanceof Decimal || value instanceof EventStream) return value;
+  if (value instanceof Decimal) return value;
   if (value instanceof Date) return new Date(value.getTime()) as T;
   if (value instanceof Uint8Array) return value.slice() as T;
   if (seen.has(value)) return seen.get(value) as T;
@@ -311,26 +254,19 @@ function convertMembers(
     const name = names[0];
     if (convert === toWire && name === "$unknown") {
       const arm = object(value.$unknown);
-      if (typeof arm.name !== "string" || typeof arm.json !== "string" ||
-          Object.keys(schema.members).some(member => wireName(schema, member) === arm.name)) {
+      if (typeof arm.name !== "string" || typeof arm.json !== "string" || Object.hasOwn(schema.members, arm.name)) {
         throw new TypeError("unknown union arm must name an undeclared member and carry JSON text");
       }
       return Object.fromEntries([[arm.name, parseJson(arm.json)]]);
     }
-    const model = convert === fromWire && schema.modelNames && Object.hasOwn(schema.modelNames, name) ? schema.modelNames[name] : name;
-    if (!Object.hasOwn(schema.members, model) || (convert === fromWire && wireName(schema, model) !== name)) {
+    if (!Object.hasOwn(schema.members, name)) {
       if (convert === toWire) throw new TypeError("undeclared union arm requires $unknown");
       return { $unknown: { name, json: stringifyJson(value[name]) } };
     }
-    return Object.fromEntries([[convert === toWire ? wireName(schema, model) : model, convert(schema.members[model], value[name])]]);
+    return Object.fromEntries([[name, convert(schema.members[name], value[name])]]);
   }
   const native: Record<string, unknown> = Object.create(null);
-  for (const name of Object.keys(value)) {
-    const model = convert === fromWire && schema.modelNames && Object.hasOwn(schema.modelNames, name) ? schema.modelNames[name] : name;
-    // A stale wire property must not masquerade as a renamed modeled member.
-    if (convert === fromWire && Object.hasOwn(schema.members, model) && wireName(schema, model) !== name) continue;
-    native[model] = value[name];
-  }
+  for (const name of Object.keys(value)) native[name] = value[name];
   if (convert === fromWire) {
     for (const [name, fallback] of Object.entries(schema.defaults ?? {})) {
       if (!Object.hasOwn(native, name) || native[name] === undefined) native[name] = fallback;
@@ -342,7 +278,7 @@ function convertMembers(
   }
   return Object.fromEntries(Object.keys(native).map(name => {
     const member = Object.hasOwn(schema.members, name) ? schema.members[name] : undefined;
-    return [convert === toWire && member !== undefined ? wireName(schema, name) : name, convert(member, native[name])];
+    return [name, convert(member, native[name])];
   }));
 }
 
@@ -466,45 +402,26 @@ export interface OperationSpec {
   /** The release this client was generated for, sent as `Crucible-Version` (docs/api-versions-clients.md). */
   readonly apiVersion?: string;
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
-  readonly unsignedPayload?: boolean;
-  /** Request and response checksums (`@httpChecksumRequired`, `@aws.protocols#httpChecksum`). */
-  readonly checksum?: ChecksumSpec;
   readonly name: string;
   /** Effective operation authentication; omitted only by older hand-written specs. */
   readonly bearer?: boolean;
-  readonly auth?: readonly AuthScheme[];
-  readonly optionalAuth?: boolean;
-  readonly endpoint?: EndpointPrefix;
-  readonly waiters?: Readonly<Record<string, WaiterSpec>>;
-  readonly endpointParameters?: Readonly<Record<string, readonly ParameterSource[]>>;
   readonly method: string;
   /** Literal path segments and `{ label: member }` placeholders. */
   readonly path: readonly (string | { readonly label: string; readonly schema?: Schema; readonly greedy?: boolean })[];
-  readonly queryParams?: string;
-  readonly prefixHeaders?: readonly (readonly [member: string, prefix: string])[];
   readonly literalQuery?: readonly (readonly [string, string | undefined])[];
   readonly query?: readonly (readonly [member: string, param: string, schema?: Schema])[];
   readonly headers?: readonly (readonly [member: string, header: string, schema?: Schema])[];
   /** Input members in the JSON body; absent when the request has no body. */
   readonly body?: readonly string[];
   /** The input member that is the whole body, raw (`@httpPayload`), and its content type. */
-  readonly payload?: { readonly member: string; readonly mediaType: string; readonly kind?: "blob" | "string" | "document"; readonly streaming?: boolean; readonly requiresLength?: boolean; readonly minimum?: number; readonly maximum?: number };
+  readonly payload?: { readonly member: string; readonly mediaType: string; readonly kind?: "blob" | "string" | "document" };
   readonly input?: Schema;
-  /** The input member that sends an event stream. */
-  readonly inputEvents?: EventStreamSpec;
   readonly output?: {
-    /** The output member that receives an event stream. */
-    readonly events?: EventStreamSpec;
     readonly body: boolean;
-    readonly responseCode?: string;
-    readonly prefixHeaders?: readonly (readonly [member: string, prefix: string])[];
     /** The output member that is the whole body, read as bytes. */
     readonly payload?: string;
     readonly payloadKind?: "blob" | "string" | "document";
     readonly headerEncodings?: Readonly<Record<string,"base64">>;
-    readonly streaming?: boolean;
-    readonly minimum?: number;
-    readonly maximum?: number;
     readonly schema?: Schema;
     readonly headers?: readonly (readonly [member: string, header: string, schema?: Schema])[];
   };
@@ -554,9 +471,9 @@ export class ServiceError extends Error {
 export class ServiceException extends ServiceError {}
 
 type DebugMember = { readonly target: string; readonly attribute: string; readonly sensitive?: boolean };
-type DebugShape = { readonly name: string; readonly kind: string; readonly sensitive?: boolean; readonly streaming?: boolean; readonly members?: Readonly<Record<string, DebugMember>>; readonly member?: DebugMember; readonly key?: DebugMember; readonly value?: DebugMember };
+type DebugShape = { readonly name: string; readonly kind: string; readonly sensitive?: boolean; readonly members?: Readonly<Record<string, DebugMember>>; readonly member?: DebugMember; readonly key?: DebugMember; readonly value?: DebugMember };
 
-/** Format modeled error fields; omit undefined, preserve null, redact unknown union data and never read streams. */
+/** Format modeled error fields; omit undefined, preserve null and redact unknown union data. */
 export function formatModel(shapes: Readonly<Record<string, DebugShape>>, target: string, value: unknown): string {
   const active = new Set<object>();
   const render = (target: string, value: unknown, sensitive = false): string => {
@@ -564,7 +481,6 @@ export function formatModel(shapes: Readonly<Record<string, DebugShape>>, target
     if (sensitive || shape.sensitive) return "*** Sensitive Data Redacted ***";
     if (value === null) return "null";
     if (value === undefined) return "undefined";
-    if (shape.streaming) return "<stream>";
     if (typeof value !== "object") return typeof value === "string" ? JSON.stringify(value) : String(value);
     if (active.has(value)) return "<recursive>";
     active.add(value);
@@ -603,8 +519,6 @@ export interface ErrorSpec {
   readonly payload?: string;
   readonly payloadKind?: "blob" | "string" | "document";
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
-  readonly responseCode?: string;
-  readonly prefixHeaders?: readonly (readonly [member: string, prefix: string])[];
   readonly status: number;
   readonly fault?: "client" | "server";
   readonly retryable?: { readonly throttling: boolean };
@@ -619,18 +533,8 @@ export type Fetch = (input: Request) => Promise<Response>;
 export type Next = (request: Request) => Promise<Response>;
 /** Sees every attempt of every request, in order, before it is sent. */
 export type Middleware = (request: Request, next: Next) => Promise<Response>;
-/** A static identity or a provider invoked for each request attempt; undefined means unavailable. */
-export type IdentityProvider<T> = T | (() => T | undefined | Promise<T | undefined>);
-/** A bearer token or synchronous/asynchronous token provider. */
-export type TokenProvider = IdentityProvider<string>;
-/** Username and password for modeled HTTP Basic authentication. */
-export interface BasicCredentials { readonly username: string; readonly password: string; }
-/** The effective modeled authentication scheme for a request. */
-export type AuthScheme = { readonly kind: "bearer" } | { readonly kind: "basic" } | { readonly kind: "apiKey"; readonly name: string; readonly location: "header" | "query"; readonly scheme?: string | null } | { readonly kind: "sigV4"; readonly signingName: string };
-/** Authentication could not be resolved or credentials were invalid before sending. */
-export class AuthenticationError extends Error {
-  constructor(message: string) { super(message); this.name = "AuthenticationError"; }
-}
+/** A bearer token or a provider invoked for each request attempt; undefined means unavailable. */
+export type TokenProvider = string | (() => string | undefined | Promise<string | undefined>);
 
 /** Exponential full-jitter retry delays and the total attempt limit. Only retry-safe calls are retried. */
 export interface RetryConfig {
@@ -644,26 +548,10 @@ export interface RetryConfig {
 
 /** Configuration shared by every call; construction validates endpoint and retry settings. */
 export interface ClientConfig {
-  /** Absolute HTTP(S) base URL; if omitted, endpoint rules or a generated default must resolve it. */
+  /** Absolute HTTP(S) base URL; if omitted, the generated default is used. */
   readonly endpoint?: string;
-  /** AWS region used for endpoint rules and SigV4 signing. */
-  readonly region?: string;
-  /** Caller overrides for named endpoint rule parameters. */
-  readonly endpointParameters?: Readonly<Record<string, unknown>>;
-  /** Caller overrides for endpoint built-in values. */
-  readonly endpointBuiltins?: Readonly<Record<string, unknown>>;
-  /** Disable the modeled host prefix when true. */
-  readonly disableHostPrefix?: boolean;
   /** Sent as a bearer token. A function is called for every attempt, so a refreshed token is picked up. */
   readonly token?: TokenProvider;
-  /** Static or per-attempt provider of HTTP Basic credentials. */
-  readonly basicCredentials?: IdentityProvider<BasicCredentials>;
-  /** Static or per-attempt provider of the modeled API key. */
-  readonly apiKey?: IdentityProvider<string>;
-  /** Static or per-attempt provider of AWS signing credentials. */
-  readonly awsCredentials?: IdentityProvider<AwsCredentials>;
-  /** Override the modeled SigV4 service signing name. */
-  readonly signingName?: string;
   /** Custom fetch transport; otherwise global fetch is used. */
   readonly fetch?: Fetch;
   /** Headers sent on every request; a body's or payload's Content-Type takes precedence. */
@@ -674,19 +562,13 @@ export interface ClientConfig {
   readonly retry?: RetryConfig | false;
   /** Total call budget, including credentials, middleware, attempts and response bodies. */
   readonly timeoutMs?: number;
-  /** When modeled request checksums are computed. `WHEN_SUPPORTED` (the default) also sends CRC32 when the caller chose no algorithm. */
-  readonly requestChecksumCalculation?: ChecksumPolicy;
-  /** When modeled response checksums are verified. `WHEN_SUPPORTED` (the default) also asks the service for one. */
-  readonly responseChecksumValidation?: ChecksumPolicy;
-  /** Told the operation and algorithm of each verified response checksum; a streamed body is verified when it ends. */
-  readonly checksumValidated?: (operation: string, algorithm: string) => void;
 }
 
 /** Per-call cancellation, total timeout and header overrides. */
 export interface RequestOptions {
   /** Overrides the client budget; null disables it for this call. */
   readonly timeoutMs?: number | null;
-  /** Abort this call or waiter when the signal is aborted. */
+  /** Abort this call when the signal is aborted. */
   readonly signal?: AbortSignal;
   /** Additional HTTP headers; per-call values override client headers, but not a body's or payload's Content-Type. */
   readonly headers?: Readonly<Record<string, string>>;
@@ -698,35 +580,23 @@ const RETRYABLE_STATUS = new Set([500, 502, 503, 504]);
 export class Transport {
   readonly #config: ClientConfig;
   readonly #endpoint: string;
-  readonly #endpointRules?: EndpointRules;
   readonly #middleware: readonly Middleware[];
   readonly #bearer: boolean;
   readonly #errors: Readonly<Record<string, ErrorSpec>>;
 
   constructor(
     config: ClientConfig,
-    defaults: { readonly endpoint?: string; readonly middleware: readonly Middleware[]; readonly bearer: boolean; readonly endpointRules?: EndpointRules },
+    defaults: { readonly endpoint?: string; readonly middleware: readonly Middleware[]; readonly bearer: boolean },
     errors: Readonly<Record<string, ErrorSpec>>,
   ) {
     const endpoint = config.endpoint ?? defaults.endpoint;
-    if (!endpoint && !defaults.endpointRules) throw new TypeError("no endpoint: pass `endpoint` in the client config");
-    if (endpoint && !parseEndpoint(endpoint)) throw new TypeError("endpoint must be an absolute HTTP(S) URL without credentials, query, or fragment");
-    for (const policy of [config.requestChecksumCalculation, config.responseChecksumValidation]) {
-      if (policy !== undefined && policy !== "WHEN_SUPPORTED" && policy !== "WHEN_REQUIRED") throw new TypeError("checksum policies must be WHEN_SUPPORTED or WHEN_REQUIRED");
-    }
+    if (!endpoint) throw new TypeError("no endpoint: pass `endpoint` in the client config");
+    if (!validEndpoint(endpoint)) throw new TypeError("endpoint must be an absolute HTTP(S) URL without credentials, query, or fragment");
     this.#config = config;
-    this.#endpoint = endpoint?.replace(/\/+$/, "") ?? "";
-    this.#endpointRules = defaults.endpointRules;
+    this.#endpoint = endpoint.replace(/\/+$/, "");
     this.#errors = errors;
     this.#bearer = defaults.bearer;
     this.#middleware = [...defaults.middleware, ...(config.middleware ?? [])];
-  }
-
-  /** Poll a named modeled waiter with a total budget and cancellation signal. */
-  wait<O>(operation: OperationSpec, name: string, input: object, options: WaiterOptions): Promise<WaiterResult<O>> {
-    const spec = operation.waiters?.[name]; if (!spec) throw new TypeError(`unknown waiter ${name}`);
-    const snapshot = snapshotValue(withIdempotencyToken(operation, input)) as object;
-    return waitFor(name, spec, snapshot, (input, options) => this.send<O>(operation, input, options), options);
   }
 
   /** Execute one logical call with configured retries, per-call overrides and a total deadline. */
@@ -747,65 +617,34 @@ export class Transport {
       };
       arm();
     }
-    let retained = false;
-    const cleanup = () => {
-      if (timer !== undefined) clearTimeout(timer);
-      options.signal?.removeEventListener("abort", abort);
-    };
     try {
       controller.signal.throwIfAborted();
-      const result = await abortable(this.#send<O>(operation, input, { ...options, signal: controller.signal }), controller.signal);
-      const events = operation.output?.events && (result as Record<string, unknown>)[operation.output.events.member];
-      if (events instanceof EventStream) {
-        // Deadlines and cancellation cover the events until they end.
-        retained = true; retainUntilSettled(events, cleanup);
-      }
-      if (operation.output?.streaming && operation.output.payload) {
-        const fields = result as Record<string, unknown>;
-        const body = fields[operation.output.payload];
-        if (body instanceof ByteStream) {
-          fields[operation.output.payload] = new ByteStream(lifetimeStream(body.open(), controller.signal, cleanup), { length: body.length });
-          retained = true;
-        }
-      }
-      return result;
-    } finally { if (!retained) cleanup(); }
+      return await abortable(this.#send<O>(operation, input, { ...options, signal: controller.signal }), controller.signal);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      options.signal?.removeEventListener("abort", abort);
+    }
   }
 
   async #send<O>(operation: OperationSpec, input: object, options: RequestOptions): Promise<O> {
     // Preserve write-back of generated tokens, but replay one logical input even
     // when the caller changes its mutable objects while a request is in flight.
-    const original = withIdempotencyToken(operation, input) as Record<string, unknown>;
-    const streamMember = operation.inputEvents?.member ?? (operation.payload?.streaming ? operation.payload.member : undefined);
-    const stream = streamMember ? original[streamMember] : undefined;
-    const snapshot = streamMember ? Object.fromEntries(Object.entries(original).filter(([name]) => name !== streamMember)) : original;
-    const values = snapshotValue(snapshot) as Record<string, unknown>;
-    if (streamMember && stream !== undefined) values[streamMember] = stream;
+    const values = snapshotValue(withIdempotencyToken(operation, input)) as Record<string, unknown>;
     const retry = this.#config.retry === false ? { maxAttempts: 1 } : (this.#config.retry ?? {});
-    // Events are read from the caller's source once: never replayed.
-    const maxAttempts = (stream instanceof ByteStream && !stream.replayable) || operation.inputEvents ? 1 : Math.max(1, retry.maxAttempts ?? 3);
-    const streaming = stream instanceof ByteStream || operation.inputEvents !== undefined;
-    // Fills defaulted checksum members into the private snapshot only.
-    const checksum = planChecksum(operation.checksum, values, this.#config.requestChecksumCalculation ?? "WHEN_SUPPORTED",
-      this.#config.responseChecksumValidation ?? "WHEN_SUPPORTED", streaming);
+    const maxAttempts = Math.max(1, retry.maxAttempts ?? 3);
     for (let attempt = 1; ; attempt++) {
       // Invalid inputs are caller errors, not transport failures.
       options.signal?.throwIfAborted();
-      const signing = operation.inputEvents ? eventSigning() : undefined;
-      const prepared = this.#request(operation, values, options, signing); let request = prepared.request;
-      if (streaming && checksum.header !== undefined && !request.headers.has(checksum.header)) {
-        // Hashing a stream first would buffer it; the caller supplies the value instead.
-        const error = new TypeError(`${operation.name}: a streamed body cannot be checksummed before it is sent; supply the ${checksum.header} header`);
-        await request.body?.cancel(error).catch(() => {});
-        throw error;
+      let request = this.#request(operation, values, options);
+      if (operation.bearer ?? this.#bearer) {
+        try { request = await authenticate(request, this.#config); }
+        catch (error) { await request.body?.cancel(error).catch(() => {}); throw error; }
       }
-      try { request = await authenticate(request, operation.auth ?? ((operation.bearer ?? this.#bearer) ? [{ kind: "bearer" }] : []), operation.optionalAuth ?? false, this.#config, prepared.properties, streaming, operation.unsignedPayload); }
-      catch (error) { await request.body?.cancel(error).catch(() => {}); throw error; }
       let response: Response | undefined;
       let text = "";
-      let bytes: Uint8Array | ByteStream | undefined;
+      let bytes: Uint8Array | undefined;
       try {
-        response = await this.#dispatch(request, signingRequests.get(request), streaming ? undefined : checksum, signing);
+        response = await this.#dispatch(request);
         if (options.signal?.aborted) {
           void response.body?.cancel().catch(() => {});
           options.signal.throwIfAborted();
@@ -813,39 +652,21 @@ export class Transport {
         // Fetch resolves at the headers; required bodies can still fail.
         // A successful operation without a modeled body needs only headers;
         // a payload is read as the bytes sent, never as text.
-        if (response.ok && operation.output?.events) {
-          // Read below, outside the retry: events are not replayed.
-        } else if (response.ok && operation.output?.payload !== undefined && operation.output.streaming) {
-          let source = response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
-          const expected = responseChecksum(checksum, response.headers);
-          if (expected !== undefined) source = verifyingStream(source, expected.algorithm, expected.expected, () => this.#config.checksumValidated?.(operation.name, expected.algorithm));
-          bytes = new ByteStream(lifetimeStream(source, options.signal, () => {}, undefined, operation.output.minimum, operation.output.maximum));
-        } else if (response.ok && operation.output?.payload !== undefined) {
+        if (response.ok && operation.output?.payload !== undefined) {
           bytes = await readResponse(response, options.signal);
-        } else if (!response.ok || operation.output?.body || checksum.response.length > 0) {
+        } else if (!response.ok || operation.output?.body) {
           bytes = await readResponse(response, options.signal);text = new TextDecoder().decode(bytes);
         }
       } catch (error) {
-        if (isAbort(error, options.signal) || error instanceof AuthenticationError) throw error;
+        if (isAbort(error, options.signal)) throw error;
         const network = new NetworkError(error);
         if (!operation.retrySafe || attempt >= maxAttempts) throw network;
         const delay = response === undefined ? undefined : retryAfter(response);
         await sleep(delay ?? backoff(attempt, retry), options.signal);
         continue;
       }
-      if (response.ok && operation.output?.events) return this.#receiveEvents<O>(operation, operation.output.events, response, checksum, options.signal);
-      if (response.ok) {
-        // A streamed body is verified as it is read. A corrupted response is
-        // not retried: the request may have taken effect.
-        const expected = responseChecksum(checksum, response.headers);
-        if (expected !== undefined && !(bytes instanceof ByteStream)) {
-          if (!sameChecksum(expected.expected, await computeChecksum(expected.algorithm, bytes ?? new Uint8Array()))) throw new ChecksumError(expected.algorithm);
-          this.#config.checksumValidated?.(operation.name, expected.algorithm);
-        }
-        try { return this.#decodeOutput(operation, response, text, bytes) as O; }
-        catch (error) { if (bytes instanceof ByteStream) await bytes.cancel(error); throw error; }
-      }
-      const error = this.#decodeError(operation, response, text, bytes instanceof Uint8Array ? bytes : new Uint8Array());
+      if (response.ok) return this.#decodeOutput(operation, response, text, bytes) as O;
+      const error = this.#decodeError(operation, response, text, bytes ?? new Uint8Array());
       const throttled = error.$retryable?.throttling === true;
       const transient = error.$retryable !== undefined || RETRYABLE_STATUS.has(response.status);
       if (!(throttled || (operation.retrySafe && transient)) || attempt >= maxAttempts) throw error;
@@ -853,55 +674,13 @@ export class Transport {
     }
   }
 
-  async #receiveEvents<O>(operation: OperationSpec, spec: EventStreamSpec, response: Response, checksum: ChecksumPlan, signal: AbortSignal | undefined): Promise<O> {
-    const output = operation.output!;
-    const settled = new Settlement();
-    let source = response.body ?? new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
-    const expected = responseChecksum(checksum, response.headers);
-    if (expected !== undefined) source = verifyingStream(source, expected.algorithm, expected.expected, () => this.#config.checksumValidated?.(operation.name, expected.algorithm));
-    const reader = new EventMessageReader(lifetimeStream(source, signal, () => settled.settle()));
-    try {
-      const fields = object({});
-      readHeaders(response.headers, output.headers, fields, true, output.schema, output.headerEncodings);
-      readDynamicHeaders(response, output, fields);
-      const metadata: ResponseMetadata = { status: response.status, requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? undefined, headers: response.headers };
-      const events = receivedEvents(spec, reader, this.#errors, metadata);
-      settlements.set(events as EventStream<unknown>, settled);
-      Object.defineProperty(fields, wireName(output.schema, spec.member), { value: events, enumerable: true, writable: true, configurable: true });
-      return fromWire(output.schema, fields) as O;
-    } catch (error) {
-      await reader.cancel(error);
-      throw error;
-    }
-  }
-
-  #dispatch(request: Request, signing?: Signing, checksum?: ChecksumPlan, events?: EventSigning): Promise<Response> {
+  #dispatch(request: Request): Promise<Response> {
     const send = this.#config.fetch ?? ((request: Request) => fetch(request));
     const signal = request.signal;
     const checked: Next = async pending => {
       signal.throwIfAborted(); pending.signal.throwIfAborted();
-      // Over the final bytes, after every middleware and before signing; a
-      // checksum the caller already supplied is kept as it is.
-      let headers: Headers | undefined;
-      if (checksum?.header !== undefined && checksum.algorithm !== undefined && !pending.headers.has(checksum.header)) {
-        const bytes = pending.body === null ? new Uint8Array() : new Uint8Array(await pending.clone().arrayBuffer());
-        headers = new Headers(pending.headers);
-        headers.set(checksum.header, await computeChecksum(checksum.algorithm, bytes));
-      }
-      if (events) {
-        // Each event is signed as it is sent; the request declares so.
-        headers ??= new Headers(pending.headers);
-        if (signing) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
-        else if (headers.get("x-amz-content-sha256") === STREAMING_EVENTS) headers.delete("x-amz-content-sha256");
-      }
       // Also over a request a middleware rebuilt without the redirect mode.
-      const final = new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), redirect: "manual", ...(headers ? { headers } : {}), ...(events ? { duplex: "half" } : {}) } as RequestInit);
-      const signed = signing ? await signSigV4(final, signing.credentials, signing.scope, signing.streaming) : final;
-      if (events) {
-        const seed = /Signature=([0-9a-f]+)/.exec(signed.headers.get("authorization") ?? "")?.[1];
-        events.resolve(signing && seed ? new EventSigner(signing.credentials, signing.scope, seed) : undefined);
-      }
-      return send(signed);
+      return send(new Request(pending, { signal: AbortSignal.any([signal, pending.signal]), redirect: "manual" }));
     };
     const chain = this.#middleware.reduceRight<Next>((next, middleware) => request => {
       signal.throwIfAborted(); request.signal.throwIfAborted(); return middleware(request, next);
@@ -909,7 +688,7 @@ export class Transport {
     return chain(request);
   }
 
-  #request(operation: OperationSpec, values: Record<string, unknown>, options: RequestOptions, events?: EventSigning): {request: Request; properties: Readonly<Record<string,unknown>>} {
+  #request(operation: OperationSpec, values: Record<string, unknown>, options: RequestOptions): Request {
     const encoded = toWire(operation.input, values) as Record<string, unknown>;
     const path = operation.path
       .map(segment => {
@@ -926,9 +705,7 @@ export class Transport {
         return segments.map(encodeURIComponent).join("/");
       })
       .join("/");
-    const endpoint = this.#endpointRules ? resolveEndpoint(this.#endpointRules, operation.endpointParameters ?? {}, values, this.#config.endpointParameters ?? {}, { "AWS::Region": this.#config.region, "SDK::Endpoint": this.#endpoint || undefined, ...this.#config.endpointBuiltins }) : { url: this.#endpoint, headers: {}, properties: {} };
-    const base = operation.endpoint && !this.#config.disableHostPrefix ? hostPrefix(endpoint.url, operation.endpoint, values) : endpoint.url;
-    const url = new URL(`${base.replace(/\/+$/, "")}/${path}`);
+    const url = new URL(`${this.#endpoint}/${path}`);
     for (const [key, value] of operation.literalQuery ?? []) url.searchParams.append(key, value ?? "");
     for (const [member, param, schema] of operation.query ?? []) {
       const value = values[member];
@@ -937,24 +714,8 @@ export class Transport {
       const itemSchema = schema?.kind === "list" ? schema.member : schema;
       for (const item of items) url.searchParams.append(param, scalar(item, itemSchema));
     }
-    if (operation.queryParams && values[operation.queryParams] != null) {
-      const claimed = new Set([...(operation.query ?? []).map(([, name]) => name), ...(operation.literalQuery ?? []).map(([name]) => name)]);
-      for (const [key, value] of Object.entries(object(values[operation.queryParams]))) {
-        if (claimed.has(key) || value == null) continue;
-        for (const item of Array.isArray(value) ? value : [value]) url.searchParams.append(key, scalar(item, undefined));
-      }
-    }
     const headers = new Headers();
-    for (const [name, values] of Object.entries(endpoint.headers)) for (const value of values) headers.append(name, value);
     for (const [name, value] of Object.entries({ ...this.#config.headers, ...options.headers })) headers.set(name, value);
-    const explicit = new Set((operation.headers ?? []).map(([, name]) => name.toLowerCase()));
-    for (const [member, prefix] of operation.prefixHeaders ?? []) {
-      if (values[member] == null) continue;
-      for (const [key, value] of Object.entries(object(values[member]))) {
-        const name = prefix + key;
-        if (!explicit.has(name.toLowerCase()) && value != null) headers.set(name, operation.headerEncodings?.[member]==="base64"?encodeMedia(value):String(value));
-      }
-    }
     // A Content-Type bound to an input member outranks the payload's media
     // type, which outranks client and per-call header defaults.
     let modelledContentType = false;
@@ -968,28 +729,19 @@ export class Transport {
     if (operation.body !== undefined) {
       const picked: Record<string, unknown> = Object.create(null);
       for (const member of operation.body) {
-        const name = wireName(operation.input, member);
-        if (encoded[name] !== undefined) picked[name] = encoded[name];
+        if (encoded[member] !== undefined) picked[member] = encoded[member];
       }
       body = stringifyJson(picked);
       // A protocol document keeps the media type of its encoding.
       headers.set("content-type", "application/json");
     }
     if (operation.payload !== undefined) {
-      // The bytes go as they are: a body digest covers exactly these.
       const value = values[operation.payload.member];
       // JSON conversion owns null-member presence; raw payloads bypass member conversion.
       const payloadValue = operation.payload.kind === "document"
-        ? encoded[wireName(operation.input, operation.payload.member)] : value;
+        ? encoded[operation.payload.member] : value;
       if (payloadValue !== undefined && (value !== null || operation.payload.kind==="document")) {
-        if (operation.payload.streaming) {
-          if (!(value instanceof ByteStream)) throw new TypeError(`${operation.name}: streaming payload must be a ByteStream`);
-          if (operation.payload.requiresLength && value.length === undefined) throw new TypeError(`${operation.name}: streaming payload requires a known length`);
-          if (value.sha256) headers.set("x-amz-content-sha256", value.sha256);
-          if (this.#middleware.includes(contentSha256) && !headers.has("x-amz-content-sha256")) throw new TypeError("streaming contentSha256 requires a precomputed ByteStream sha256");
-          if (value.length !== undefined) headers.set("content-length", String(value.length));
-          body = lifetimeStream(value.open(), options.signal, () => {}, value.length, operation.payload.minimum, operation.payload.maximum);
-        } else if (operation.payload.kind==="string") {
+        if (operation.payload.kind==="string") {
           if (typeof value!=="string") throw new TypeError(`${operation.name}: payload must be a string`);body=value;
         } else if (operation.payload.kind==="document") {
           body=stringifyJson(payloadValue);
@@ -1001,32 +753,19 @@ export class Transport {
       }
     }
     if (operation.apiVersion !== undefined) headers.set("crucible-version", operation.apiVersion);
-    if (operation.inputEvents && events) {
-      const source = values[operation.inputEvents.member] ?? [];
-      if (typeof source !== "object" || (!(Symbol.asyncIterator in source) && !(Symbol.iterator in source))) throw new TypeError(`${operation.name}: an event stream member is an EventStream or an iterable of events`);
-      const sigV4 = operation.auth?.some(scheme => scheme.kind === "sigV4") ?? false;
-      if (this.#middleware.includes(contentSha256) && !sigV4) throw new TypeError("an event stream has no body digest to precompute");
-      body = eventBody(operation.inputEvents, source as AsyncIterable<unknown> | Iterable<unknown>, events);
-      headers.set("content-type", EVENT_STREAM_CONTENT_TYPE);
-      // Declared before middleware runs, so a digest middleware leaves the stream alone; removed again if no signature follows.
-      if (sigV4) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
-    }
     // A followed redirect would resend credential headers to wherever the
     // Location points; the 3xx is returned to the caller instead.
-    const init: RequestInit & { duplex?: "half" } = { method: operation.method, headers, body, signal: options.signal, redirect: "manual" };
-    if (body instanceof ReadableStream) init.duplex = "half";
-    return {request: new Request(url, init),properties:endpoint.properties};
+    return new Request(url, { method: operation.method, headers, body, signal: options.signal, redirect: "manual" });
   }
 
-  #decodeOutput(operation: OperationSpec, response: Response, text: string, bytes: Uint8Array | ByteStream | undefined): unknown {
+  #decodeOutput(operation: OperationSpec, response: Response, text: string, bytes: Uint8Array | undefined): unknown {
     const output = operation.output;
     if (output === undefined) return {};
     const body = output.payload !== undefined
-      ? { [wireName(output.schema, output.payload)]: decodePayload(output.payloadKind,bytes ?? new Uint8Array()) }
+      ? { [output.payload]: decodePayload(output.payloadKind,bytes ?? new Uint8Array()) }
       : output.body ? readJson(text) : {};
     const fields = object(body ?? {});
-    readHeaders(response.headers, output.headers, fields, true, output.schema,output.headerEncodings);
-    readDynamicHeaders(response, output, fields);
+    readHeaders(response.headers, output.headers, fields, true, output.headerEncodings);
     return fromWire(output.schema, fields);
   }
 
@@ -1048,9 +787,8 @@ export class Transport {
     }
     let fields: Record<string, unknown>;
     try {
-      if (spec.payload!==undefined) Object.defineProperty(body,wireName(spec.schema,spec.payload),{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
-      readHeaders(response.headers, spec.headers, body, true, spec.schema,spec.headerEncodings);
-      readDynamicHeaders(response, spec, body);
+      if (spec.payload!==undefined) Object.defineProperty(body,spec.payload,{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
+      readHeaders(response.headers, spec.headers, body, true, spec.headerEncodings);
       fields = fromWire(spec.schema, body) as Record<string, unknown>;
     } catch (error) {
       if (!(error instanceof TypeError || error instanceof RangeError || error instanceof DOMException)) throw error;
@@ -1059,6 +797,17 @@ export class Transport {
     }
     return spec.create(fields, metadata);
   }
+}
+
+/** An absolute HTTP(S) URL with a plain host and no credentials, query or fragment. */
+function validEndpoint(value: string): boolean {
+  if (/[\x00-\x20\x7f?#\\]/.test(value) || !/^https?:\/\//.test(value)) return false;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return false;
+    const ip = /^\d+\.\d+\.\d+\.\d+$/.test(url.hostname) || url.hostname.startsWith("[");
+    return ip || url.hostname.replace(/\.$/, "").split(".").every(label => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label));
+  } catch { return false; }
 }
 
 /**
@@ -1118,24 +867,12 @@ function readHeaders(
   bindings: readonly (readonly [string, string, Schema?])[] | undefined,
   into: Record<string, unknown>,
   wire = false,
-  shape?: Schema,
   encodings?: Readonly<Record<string,"base64">>,
 ): void {
   for (const [member, header, schema] of bindings ?? []) {
     const text = headers.get(header);
-    if (text !== null) Object.defineProperty(into, wire ? wireName(shape, member) : member, { value: encodings?.[member]==="base64"?(schema?.kind==="list"?splitHeader(text).map(decodeMedia):decodeMedia(text)):parseHeader(text, schema, wire), enumerable: true, writable: true, configurable: true });
+    if (text !== null) Object.defineProperty(into, member, { value: encodings?.[member]==="base64"?(schema?.kind==="list"?splitHeader(text).map(decodeMedia):decodeMedia(text)):parseHeader(text, schema, wire), enumerable: true, writable: true, configurable: true });
   }
-}
-
-function readDynamicHeaders(response: Response, spec: { readonly schema?: Schema; readonly headerEncodings?: Readonly<Record<string,"base64">>; readonly responseCode?: string; readonly prefixHeaders?: readonly (readonly [string, string])[] }, into: Record<string, unknown>): void {
-  for (const [member, prefix] of spec.prefixHeaders ?? []) {
-    const entries: [string, string][] = [];
-    response.headers.forEach((value, name) => {
-      if (name.toLowerCase().startsWith(prefix.toLowerCase())) entries.push([name.slice(prefix.length), spec.headerEncodings?.[member]==="base64"?decodeMedia(value):value]);
-    });
-    Object.defineProperty(into, wireName(spec.schema, member), { value: Object.fromEntries(entries), enumerable: true, writable: true, configurable: true });
-  }
-  if (spec.responseCode) Object.defineProperty(into, wireName(spec.schema, spec.responseCode), { value: response.status, enumerable: true, writable: true, configurable: true });
 }
 
 function parseHeader(text: string, schema: Schema | undefined, wire = false): unknown {
@@ -1179,9 +916,8 @@ function encodeMedia(value: unknown): string {
   return toBase64(new TextEncoder().encode(value));
 }
 function decodeMedia(value: string): string {return new TextDecoder("utf-8",{fatal:true}).decode(fromBase64(value));}
-function decodePayload(kind: "blob" | "string" | "document" | undefined, bytes: Uint8Array | ByteStream): unknown {
+function decodePayload(kind: "blob" | "string" | "document" | undefined, bytes: Uint8Array): unknown {
   if (kind===undefined || kind==="blob") return bytes;
-  if (!(bytes instanceof Uint8Array)) throw new TypeError("non-blob payload cannot be a byte stream");
   const text=new TextDecoder("utf-8",{fatal:true}).decode(bytes);
   return kind==="string"?text:readJson(text);
 }
@@ -1189,60 +925,6 @@ function decodePayload(kind: "blob" | "string" | "document" | undefined, bytes: 
 function stringField(body: Record<string, unknown>, name: string): string | undefined {
   const value = body[name];
   return typeof value === "string" ? value : undefined;
-}
-
-async function identity<T>(provider: IdentityProvider<T> | undefined): Promise<T | undefined> {
-  return typeof provider === "function" ? (provider as () => T | undefined | Promise<T | undefined>)() : provider;
-}
-
-async function authenticate(request: Request, schemes: readonly AuthScheme[], optional: boolean, config: ClientConfig, properties: Readonly<Record<string,unknown>>, streaming: boolean, unsignedPayload?: boolean): Promise<Request> {
-  if (!schemes.length) return request;
-  const authorization = request.headers.get("authorization") ?? "";
-  // Explicit credentials for any modeled option take precedence over providers.
-  for (const scheme of schemes) {
-    if (scheme.kind === "bearer" && /^Bearer\s+\S/i.test(authorization)) return request;
-    if (scheme.kind === "basic" && /^Basic\s+\S/i.test(authorization)) return request;
-    if (scheme.kind === "sigV4" && authorization.startsWith("AWS4-HMAC-SHA256 ")) return request;
-    if (scheme.kind === "apiKey" && (scheme.location === "header" ? request.headers.has(scheme.name) : new URL(request.url).searchParams.has(scheme.name))) return request;
-  }
-  for (const scheme of schemes) {
-    let header: string | undefined;
-    if (scheme.kind === "bearer") {
-      const token = await identity(config.token);
-      if (token) header = `Bearer ${token}`;
-    } else if (scheme.kind === "basic") {
-      const credentials = await identity(config.basicCredentials);
-      if (credentials) {
-        if (credentials.username.includes(":")) throw new AuthenticationError("basic username cannot contain a colon");
-        header = `Basic ${toBase64(new TextEncoder().encode(`${credentials.username}:${credentials.password}`))}`;
-      }
-    } else if (scheme.kind === "sigV4") {
-      const credentials = await identity(config.awsCredentials);
-      if (credentials) {
-        request.signal.throwIfAborted();
-        const overrides = (Array.isArray(properties.authSchemes) ? properties.authSchemes : []).find(value=>value && typeof value==="object" && ["sigv4","aws.auth#sigv4"].includes(value.name)) as Record<string,unknown> | undefined;
-        signingRequests.set(request,{credentials,scope:{region:typeof overrides?.signingRegion==="string"?overrides.signingRegion:config.region ?? "",name:typeof overrides?.signingName==="string"?overrides.signingName:config.signingName ?? scheme.signingName,disableDoubleEncoding:typeof overrides?.disableDoubleEncoding==="boolean"?overrides.disableDoubleEncoding:undefined,disableNormalizePath:typeof overrides?.disableNormalizePath==="boolean"?overrides.disableNormalizePath:undefined,unsignedPayload},streaming});
-        return request;
-      }
-    } else {
-      const key = await identity(config.apiKey);
-      if (key !== undefined) {
-        request.signal.throwIfAborted();
-        if (scheme.location === "query") {
-          const url = new URL(request.url); url.searchParams.set(scheme.name, key);
-          return new Request(url, request);
-        }
-        request.headers.set(scheme.name, scheme.scheme ? `${scheme.scheme} ${key}` : key);
-        return request;
-      }
-    }
-    request.signal.throwIfAborted();
-    if (header !== undefined) { request.headers.set("authorization", header); return request; }
-  }
-  // Preserve the established bearer-only contract: the service can decide
-  // whether an anonymous request is permitted. Other required schemes fail early.
-  if (optional || schemes.every(scheme => scheme.kind === "bearer")) return request;
-  throw new AuthenticationError("no identity is available for the operation authentication schemes");
 }
 
 /**
@@ -1261,58 +943,15 @@ export const contentSha256: Middleware = async (request, next) => {
   return next(request);
 };
 
-/** Runs a call's cleanup once its received events have ended, however they end. */
-class Settlement {
-  #settled = false;
-  #cleanup?: () => void;
-  settle(): void { if (this.#settled) return; this.#settled = true; this.#cleanup?.(); }
-  retain(cleanup: () => void): void { if (this.#settled) cleanup(); else this.#cleanup = cleanup; }
-}
-const settlements = new WeakMap<EventStream<unknown>, Settlement>();
-function retainUntilSettled(events: EventStream<unknown>, cleanup: () => void): void {
-  const settlement = settlements.get(events);
-  if (settlement) settlement.retain(cleanup); else cleanup();
-}
-
-/** Keeps transport ownership until EOF or cancellation without eager buffering. */
-function lifetimeStream(source: ReadableStream<Uint8Array>, signal: AbortSignal | undefined, cleanup: () => void, length?: number, minimum?: number, maximum?: number): ReadableStream<Uint8Array> {
-  const reader = source.getReader();
-  let finished = false;
-  let size = 0;
-  let controller: ReadableStreamDefaultController<Uint8Array>;
-  const finish = () => {
-    if (finished) return;
-    finished = true;
-    signal?.removeEventListener("abort", abort);
-    reader.releaseLock(); cleanup();
-  };
-  const abort = () => {
-    if (finished) return;
-    controller.error(signal?.reason);
-    void reader.cancel(signal?.reason).catch(() => {}).finally(finish);
-  };
-  return new ReadableStream<Uint8Array>({
-    start(value) { controller = value; signal?.addEventListener("abort", abort, { once: true }); if (signal?.aborted) abort(); },
-    async pull() {
-      try {
-        signal?.throwIfAborted();
-        const next = await reader.read();
-        if (finished) return;
-        signal?.throwIfAborted();
-        if (next.done) {
-          if ((length !== undefined && size !== length) || (minimum !== undefined && size < minimum)) throw new TypeError("stream ended before its declared length");
-          controller.close(); finish(); return;
-        }
-        if (!(next.value instanceof Uint8Array)) throw new TypeError("stream chunks must be Uint8Array");
-        size += next.value.byteLength;
-        if (!Number.isSafeInteger(size) || (length !== undefined && size > length) || (maximum !== undefined && size > maximum)) throw new TypeError("stream exceeds its declared length");
-        controller.enqueue(next.value);
-      } catch (error) {
-        if (!finished) { controller.error(error); await reader.cancel(error).catch(() => {}); finish(); }
-      }
-    },
-    async cancel(reason) { try { await reader.cancel(reason); } finally { finish(); } },
-  }, { highWaterMark: 0 });
+/** Sets the bearer token, unless the caller already supplied one. */
+async function authenticate(request: Request, config: ClientConfig): Promise<Request> {
+  // An explicit bearer credential takes precedence over the provider.
+  if (/^Bearer\s+\S/i.test(request.headers.get("authorization") ?? "")) return request;
+  const token = typeof config.token === "function" ? await config.token() : config.token;
+  request.signal.throwIfAborted();
+  // The service decides whether an anonymous request is permitted.
+  if (token) request.headers.set("authorization", `Bearer ${token}`);
+  return request;
 }
 
 async function readResponse(response: Response, signal: AbortSignal | undefined): Promise<Uint8Array> {
@@ -1422,25 +1061,4 @@ export async function* paginate<I extends object, O>(
     if (last) return;
     token = next;
   }
-}
-
-/** Numeric text for the companion query interpreter, without Number coercion. */
-export function numericText(value: unknown): string | undefined {
-  if (value instanceof Decimal || value instanceof JsonNumber) return value instanceof Decimal ? value.toString() : value.text;
-  if (typeof value === "bigint" || (typeof value === "number" && Number.isFinite(value))) return String(value);
-  return undefined;
-}
-
-/** Compiled AST literals retain exact numeric tokens; structural indices stay numbers. */
-export function parseBehavior(text: string): unknown {
-  const convert = (value: unknown): unknown => {
-    if (value instanceof JsonNumber) return Number(value.text);
-    if (Array.isArray(value)) return value.map(convert);
-    if (value !== null && typeof value === "object") {
-      const record = value as Record<string, unknown>;
-      return Object.fromEntries(Object.entries(record).map(([key, value]) => [key, record.kind === "literal" && key === "value" ? value : convert(value)]));
-    }
-    return value;
-  };
-  return convert(parseJson(text));
 }

@@ -60,9 +60,8 @@ operation's protocol header:
   another would decode the wrong shapes. A caller who needs another
   release uses that release's SDK line (5c).
 - **Precedence.** The header is set with the protocol headers: after
-  configured and per-call headers, so it cannot be overridden by accident;
-  before middleware and interceptors, which may change it deliberately;
-  and before signing, so SigV4 signs it.
+  configured and per-call headers, so it cannot be overridden by accident,
+  and before middleware and interceptors, which may change it deliberately.
 - **Every release is in the chain.** A client names its release, so every
   release must stay one its server serves. The guard therefore requires a
   migration for every change of `version`, empty when nothing breaks:
@@ -73,13 +72,11 @@ operation's protocol header:
   gets `400` naming the releases served. The operating rule: deploy
   servers before publishing their clients, and do not roll a server back
   past a release whose clients are in use.
-- **Browsers.** A `.cru` service with `@cors` always allows the
-  `Crucible-Version` request header and exposes it and `Sunset`, from the
-  first release. CORS configured outside the model (an API gateway, a
-  CDN, a tower layer) must allow `Crucible-Version` too, or browser
-  requests fail their preflight. A non-safelisted header makes every
-  cross-origin request preflighted, one extra round trip until the
-  preflight is cached (`maxAge`).
+- **Browsers.** CORS is configured outside the model (an API gateway, a
+  CDN, a tower layer) and must allow `Crucible-Version` and expose
+  `Sunset`, or browser requests fail their preflight. A non-safelisted
+  header makes every cross-origin request preflighted, one extra round trip
+  until the preflight is cached (`maxAge`).
 - **Freeze before you publish.** Once a release's clients are published,
   freeze it as the baseline (`crucible freeze`). The guard then requires
   a migration for a new `version`, and the server keeps serving the
@@ -163,14 +160,13 @@ release's name.
     which a later addition has no place in. This is the one exception to
     "additive changes reach every release", stated with it.
 - **Derived IR** (reachable shapes, recursion groups, renames, resource
-  bindings, service-level auth and CORS) is recomputed. Projecting inside
+  bindings and service-level auth) is recomputed. Projecting inside
   crucible-lang, before lowering finishes, keeps one implementation for
   the build and the CLI.
 - **The generator is not unchanged.** Hook and legacy-handler types
   become projected types that grow with the model. A new operation can add
   a hook direction to a released migration's trait (require the hook, or
-  hide the operation at that release). Streaming operations stay
-  current-only, so they leave older projections.
+  hide the operation at that release).
 
 - **Checked.** A projection must be compatible with its frozen release:
   the compatibility guard compares them, and any breaking finding is a

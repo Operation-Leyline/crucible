@@ -277,13 +277,6 @@ pub mod vault {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for Leak {
@@ -358,7 +351,6 @@ pub mod vault {
     impl ::crucible_server_runtime_rust::__generated::Operation for Put {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const OPTIONAL_AUTH: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUT_OPERATION;
         type Input = model::PutInput;
         type Output = model::PutOutput;
@@ -379,7 +371,6 @@ pub mod vault {
     pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
         "test.debug#Vault",
         "1",
-        None,
         None,
         &[
             &PUT_OPERATION,

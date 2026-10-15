@@ -1189,13 +1189,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for ConflictError {
@@ -1284,13 +1277,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for NotFoundError {
@@ -1379,13 +1365,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for ThrottlingError {
@@ -1495,13 +1474,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for ValidationError {
@@ -1686,7 +1658,6 @@ static CREATE_CITY_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
 impl ::crucible_client_runtime_rust::__generated::Operation for CreateCity {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = CreateCityOutput;
@@ -1712,9 +1683,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for CreateCity
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::CONFLICT_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ConflictError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::CONFLICT_ERROR_INFO, headers, body).map(Self::ConflictError),
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ConflictError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::CONFLICT_ERROR_INFO, headers, body).map(Self::ConflictError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1774,7 +1745,6 @@ static GET_CITY_OPERATION: ::crucible_client_runtime_rust::__generated::Operatio
 impl ::crucible_client_runtime_rust::__generated::Operation for GetCity {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = GetCityOutput;
@@ -1800,9 +1770,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for GetCityErr
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1860,7 +1830,6 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::__generated::Op
 impl ::crucible_client_runtime_rust::__generated::Operation for GetCityPhoto {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = GetCityPhotoOutput;
@@ -1886,9 +1855,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for GetCityPho
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -1948,7 +1917,6 @@ static LIST_CITIES_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
 impl ::crucible_client_runtime_rust::__generated::Operation for ListCities {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = ListCitiesOutput;
@@ -1972,8 +1940,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for ListCities
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -2027,7 +1995,6 @@ static PING_OPERATION: ::crucible_client_runtime_rust::__generated::OperationInf
 impl ::crucible_client_runtime_rust::__generated::Operation for Ping {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const HAS_INPUT: bool = false;
     const HAS_OUTPUT: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &PING_OPERATION;
@@ -2053,8 +2020,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for PingError 
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -2112,7 +2079,6 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::__generated::Op
 impl ::crucible_client_runtime_rust::__generated::Operation for PutCityPhoto {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = PutCityPhotoOutput;
@@ -2138,9 +2104,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for PutCityPho
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_ERROR_INFO, &errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "NotFoundError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "NotFoundError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_ERROR_INFO, headers, body).map(Self::NotFoundError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }
@@ -2193,7 +2159,6 @@ static STATUS_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Status {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = StatusOutput;
@@ -2217,8 +2182,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for StatusErro
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::THROTTLING_ERROR_INFO, &errors::VALIDATION_ERROR_INFO])?,
         };
         match name {
-            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
-            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
+            "ThrottlingError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::THROTTLING_ERROR_INFO, headers, body).map(Self::ThrottlingError),
+            "ValidationError" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_ERROR_INFO, headers, body).map(Self::ValidationError),
             _ => None,
         }
     }

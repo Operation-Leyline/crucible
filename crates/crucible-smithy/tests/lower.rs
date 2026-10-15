@@ -465,13 +465,7 @@ fn refuses_streaming_blobs() {
     assert!(
         messages
             .iter()
-            .any(|message| message.contains("requires streaming")),
-        "{messages:?}"
-    );
-    assert!(
-        messages
-            .iter()
-            .any(|message| message.contains("top-level operation")),
+            .any(|message| message.contains("smithy.api#streaming is not supported")),
         "{messages:?}"
     );
 }
@@ -495,8 +489,6 @@ fn a_blob_payload_is_the_whole_body() {
         put.request.payload,
         Some(Payload {
             kind: crucible_smithy::ir::PayloadKind::Blob,
-            streaming: false,
-            requires_length: false,
             member: "photo".into(),
             media_type: "image/jpeg".into()
         })

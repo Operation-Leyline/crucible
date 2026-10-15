@@ -151,8 +151,6 @@ fn timestamps_use_explicit_provider_representation() {
         crucible_smithy::ir::Shape::Simple(crucible_smithy::ir::Simple {
             internal: false,
             sensitive: false,
-            streaming: false,
-            requires_length: false,
             kind: crucible_smithy::ir::SimpleKind::Timestamp,
             constraints: Default::default(),
             timestamp_format: None,

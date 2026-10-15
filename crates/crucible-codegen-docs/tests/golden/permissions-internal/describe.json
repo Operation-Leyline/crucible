@@ -96,7 +96,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#ArchiveGraphOutput",
       "outputSchema": {
         "$defs": {
@@ -135,7 +134,6 @@
         "body": [
           "auditTicket"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
@@ -143,10 +141,7 @@
           "graphId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -198,15 +193,11 @@
         "body": [
           "archived"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -285,7 +276,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#CreateGraphOutput",
       "outputSchema": {
         "$defs": {
@@ -327,17 +317,13 @@
         "body": [
           "name"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
           "organizationId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -376,15 +362,11 @@
         "body": [
           "created"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -546,7 +528,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#ExecuteQueryOutput",
       "outputSchema": {
         "$defs": {
@@ -593,7 +574,6 @@
           "query",
           "target"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
@@ -601,10 +581,7 @@
           "graphId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -676,15 +653,11 @@
         "body": [
           "rows"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -766,7 +739,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#GetGraphOutput",
       "outputSchema": {
         "$defs": {
@@ -801,7 +773,6 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
@@ -809,10 +780,7 @@
           "graph"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -851,15 +819,11 @@
         "body": [
           "name"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -927,7 +891,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#GetOrganizationOutput",
       "outputSchema": {
         "$defs": {
@@ -962,17 +925,13 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
           "organizationId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -1007,15 +966,11 @@
         "body": [
           "name"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1057,7 +1012,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#GetUserOutput",
       "outputSchema": {
         "$defs": {
@@ -1092,15 +1046,11 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -1121,15 +1071,11 @@
         "body": [
           "subject"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1169,7 +1115,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#HealthOutput",
       "outputSchema": {
         "$defs": {
@@ -1204,15 +1149,11 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [],
@@ -1220,15 +1161,11 @@
         "body": [
           "status"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1296,7 +1233,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#ListGraphsOutput",
       "outputSchema": {
         "$defs": {
@@ -1338,17 +1274,13 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
           "organizationId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -1387,15 +1319,11 @@
         "body": [
           "names"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1490,7 +1418,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#RestoreBackupOutput",
       "outputSchema": {
         "$defs": {
@@ -1525,7 +1452,6 @@
       "readonly": false,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
@@ -1534,10 +1460,7 @@
           "historyId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [],
@@ -1551,15 +1474,11 @@
         "body": [
           "restored"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1664,7 +1583,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.leyline#RewriteGraphOutput",
       "outputSchema": {
         "$defs": {
@@ -1703,7 +1621,6 @@
         "body": [
           "mode"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
@@ -1711,10 +1628,7 @@
           "graphId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "requirementDocumentation": [
@@ -1784,15 +1698,11 @@
         "body": [
           "rewritten"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1943,7 +1853,6 @@
           "body": [
             "message"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [
             {
@@ -1953,10 +1862,7 @@
           ],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "InternalServerException",
@@ -1990,7 +1896,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -2023,7 +1928,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "retryAfterSeconds",
           "notes": {
@@ -2050,8 +1954,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "crucible.errors#NotFoundException": {
       "documentation": {
@@ -2065,15 +1968,11 @@
             "message",
             "resourceType"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "NotFoundException",
@@ -2105,7 +2004,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -2138,7 +2036,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "resourceType",
           "notes": {
@@ -2165,8 +2062,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "crucible.errors#ValidationException": {
       "documentation": {
@@ -2181,15 +2077,11 @@
             "reason",
             "fieldList"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "ValidationException",
@@ -2221,7 +2113,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -2254,7 +2145,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "reason",
           "notes": {
@@ -2287,7 +2177,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "fieldList",
           "notes": {
@@ -2314,8 +2203,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "crucible.errors#ValidationExceptionField": {
       "documentation": {
@@ -2342,7 +2230,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "name",
           "notes": {
@@ -2375,7 +2262,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -2402,8 +2288,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "crucible.errors#ValidationExceptionFieldList": {
       "constraints": {
@@ -2435,7 +2320,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "member",
           "notes": {
@@ -2576,7 +2460,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -2609,7 +2492,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "graphId",
           "notes": {
@@ -2642,7 +2524,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": true,
           "name": "auditTicket",
           "notes": {
@@ -2669,8 +2550,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#ArchiveGraphOutput": {
       "documentation": {
@@ -2697,7 +2577,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "archived",
           "notes": {
@@ -2724,8 +2603,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#CreateGraphInput": {
       "documentation": {
@@ -2752,7 +2630,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -2785,7 +2662,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "name",
           "notes": {
@@ -2812,8 +2688,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#CreateGraphOutput": {
       "documentation": {
@@ -2840,7 +2715,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "created",
           "notes": {
@@ -2867,8 +2741,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#ExecuteQueryInput": {
       "documentation": {
@@ -2895,7 +2768,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -2928,7 +2800,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "graphId",
           "notes": {
@@ -2961,7 +2832,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "query",
           "notes": {
@@ -2994,7 +2864,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "target",
           "notes": {
@@ -3021,8 +2890,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#ExecuteQueryOutput": {
       "documentation": {
@@ -3049,7 +2917,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "rows",
           "notes": {
@@ -3076,8 +2943,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#GetGraphInput": {
       "documentation": {
@@ -3104,7 +2970,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -3137,7 +3002,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "graph",
           "notes": {
@@ -3164,8 +3028,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#GetGraphOutput": {
       "documentation": {
@@ -3192,7 +3055,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "name",
           "notes": {
@@ -3219,8 +3081,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#GetOrganizationInput": {
       "documentation": {
@@ -3247,7 +3108,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -3274,8 +3134,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#GetOrganizationOutput": {
       "documentation": {
@@ -3302,7 +3161,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "name",
           "notes": {
@@ -3329,8 +3187,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#GetUserOutput": {
       "documentation": {
@@ -3357,7 +3214,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "subject",
           "notes": {
@@ -3384,8 +3240,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#GraphId": {
       "constraints": {
@@ -3410,9 +3265,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#HealthOutput": {
       "documentation": {
@@ -3439,7 +3292,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "status",
           "notes": {
@@ -3466,8 +3318,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#HistoryId": {
       "constraints": {
@@ -3492,9 +3343,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#HistoryRef": {
       "documentation": {
@@ -3521,7 +3370,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "historyId",
           "notes": {
@@ -3548,8 +3396,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#ListGraphsInput": {
       "documentation": {
@@ -3576,7 +3423,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -3603,8 +3449,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#ListGraphsOutput": {
       "documentation": {
@@ -3631,7 +3476,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "names",
           "notes": {
@@ -3658,8 +3502,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#Names": {
       "constraints": {
@@ -3691,7 +3534,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "member",
           "notes": {
@@ -3745,9 +3587,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#QueryTarget": {
       "documentation": {
@@ -3774,7 +3614,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "current",
           "notes": {
@@ -3807,7 +3646,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "history",
           "notes": {
@@ -3834,8 +3672,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#ResourceKind": {
       "documentation": {
@@ -3915,7 +3752,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -3948,7 +3784,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "graphId",
           "notes": {
@@ -3981,7 +3816,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "historyId",
           "notes": {
@@ -4008,8 +3842,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#RestoreBackupOutput": {
       "documentation": {
@@ -4036,7 +3869,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "restored",
           "notes": {
@@ -4063,8 +3895,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#RewriteGraphInput": {
       "documentation": {
@@ -4091,7 +3922,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "organizationId",
           "notes": {
@@ -4124,7 +3954,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "graphId",
           "notes": {
@@ -4157,7 +3986,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "mode",
           "notes": {
@@ -4184,8 +4012,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.leyline#RewriteGraphOutput": {
       "documentation": {
@@ -4212,7 +4039,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "rewritten",
           "notes": {
@@ -4239,8 +4065,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Boolean": {
       "constraints": {
@@ -4265,9 +4090,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Integer": {
       "constraints": {
@@ -4292,9 +4115,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#String": {
       "constraints": {
@@ -4319,9 +4140,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Unit": {
       "documentation": {

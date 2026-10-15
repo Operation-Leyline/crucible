@@ -51,7 +51,8 @@
       }
     },
     "example.types#Names": {
-      "type": "set",
+      "type": "list",
+      "traits": { "smithy.api#uniqueItems": {} },
       "member": {
         "target": "smithy.api#String"
       }
@@ -66,7 +67,8 @@
       }
     },
     "example.types#Decimals": {
-      "type": "set",
+      "type": "list",
+      "traits": { "smithy.api#uniqueItems": {} },
       "member": {
         "target": "smithy.api#BigDecimal"
       }
@@ -152,7 +154,8 @@
       }
     },
     "example.types#Documents": {
-      "type": "set",
+      "type": "list",
+      "traits": { "smithy.api#uniqueItems": {} },
       "member": {
         "target": "smithy.api#Document"
       }

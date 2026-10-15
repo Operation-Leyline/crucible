@@ -68,8 +68,8 @@ python tools/check_publish_metadata.py --order
       (`tools/check_publish_metadata.py` and the publish workflow skip it).
 - [ ] Add the new `crucible-api` library crate: it re-exports the runtime
       crates behind features (`server` → `crucible-server-runtime-rust`,
-      `client` → `crucible-client-runtime-rust`, `auth` → the client auth/
-      credentials/signing modules and the server auth work once merged), has no logic of its
+      `client` → `crucible-client-runtime-rust`, `auth` → the client auth
+      modules and the server auth work once merged), has no logic of its
       own, and is published after the crates it re-exports. `crucible-build`
       stays a separate published crate for `build-dependencies`.
 - [ ] Check package contents and size for each crate with

@@ -348,8 +348,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
         match shape {
             Shape::List(list) => source.push_str(&format!(
                 "    .sparse = {}, .unique = {},\n",
-                list.sparse,
-                list.is_set || list.constraints.unique_items
+                list.sparse, list.constraints.unique_items
             )),
             Shape::Map(map) => source.push_str(&format!("    .sparse = {},\n", map.sparse)),
             _ => {}

@@ -164,7 +164,6 @@ static SERVICE: ServiceInfo = generated::service_info(
     "audit#Bindings",
     "1",
     None,
-    None,
     &[&BINDINGS],
     &[&ERROR],
     |_| None,
@@ -386,7 +385,6 @@ static ROUTES: ServiceInfo = generated::service_info(
     "audit#Routes",
     "1",
     None,
-    None,
     &[&EARLY, &LATE, &REGULAR, &GREEDY, &FLAG, &EXACT],
     &[],
     |_| None,
@@ -507,7 +505,6 @@ fn explicit_head_routes_take_precedence_over_get_fallback() {
         generated::service_info(
             base.id,
             base.version,
-            None,
             None,
             &[&GET, &HEAD],
             base.errors,
@@ -866,7 +863,6 @@ fn malformed_literal_fallback_keeps_path_specificity_ahead_of_query_preference()
         generated::service_info(
             base.id,
             base.version,
-            None,
             None,
             &[&SPECIFIC, &GENERIC, &UNCONSTRAINED_GREEDY],
             base.errors,

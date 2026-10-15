@@ -17,7 +17,14 @@ use crate::ir::Service;
 /// declared-protocol list, protocol tests, initial messages and the protocol
 /// settings that were never set for Crucible JSON); [`read`] drops them from
 /// a format 1 snapshot of a Crucible JSON service.
-pub const FORMAT: u32 = 2;
+///
+/// Format 3 dropped what only Smithy models could reach: streaming payloads
+/// and event streams, waiters, endpoint rules, host prefixes and discovery,
+/// HTTP checksums, non-bearer auth schemes, CORS, prefix headers, query-params
+/// and response-code bindings, sets, and the JSON name
+/// (a member's wire name is its name). [`read`] drops them from an older
+/// snapshot that left them unused and refuses one that used them.
+pub const FORMAT: u32 = 3;
 
 #[derive(Serialize, Deserialize)]
 struct Snapshot {
@@ -52,8 +59,7 @@ pub fn write(service: &Service, compiler: &str) -> String {
 /// `service` as a package carries it (`crucible-model.json`): the release
 /// snapshot of the typed contract, as compact JSON. A package ships in
 /// every release, so it holds what a compatibility comparison reads and no
-/// more: no documentation strings (`docs`, example `docs`, waiter
-/// `documentation`) and no raw trait maps, which repeat the typed IR (and
+/// more: no documentation strings (`docs`, example `docs`) and no raw trait maps, which repeat the typed IR (and
 /// carry documentation, raw vectors and legacy enum definitions with it).
 /// [`read`] reads it like any snapshot.
 pub fn write_contract(service: &Service, compiler: &str) -> String {
@@ -88,9 +94,6 @@ fn typed_contract(service: &mut Service) {
         strip(&mut op.traits);
         for example in &mut op.examples {
             example.docs = None;
-        }
-        for waiter in op.waiters.values_mut() {
-            waiter.documentation = None;
         }
         if let crate::ir::Requirements::List(clauses) | crate::ir::Requirements::Partial(clauses) =
             &mut op.requirements
@@ -168,6 +171,9 @@ pub fn read(text: &str) -> Result<Service, String> {
     if format == 1 {
         migrate_format_1(&mut value)?;
     }
+    if format <= 2 {
+        migrate_format_2(&mut value)?;
+    }
     let snapshot: Snapshot = serde_json::from_value(value.clone())
         .map_err(|error| format!("release snapshot format {format}: {error}"))?;
     // Whatever this compiler does not know would be dropped silently: a
@@ -234,6 +240,164 @@ fn migrate_format_1(value: &mut serde_json::Value) -> Result<(), String> {
     }
     value["format"] = Value::from(2);
     Ok(())
+}
+
+/// What a format 3 snapshot no longer carries, by where it was. A field is
+/// dropped when it holds its zero value and refuses the snapshot otherwise:
+/// the snapshot used a feature Crucible no longer implements.
+const REMOVED_SERVICE_FIELDS: &[&str] = &["cors", "endpoint_discovery", "endpoint_rules"];
+const REMOVED_OPERATION_FIELDS: &[&str] = &[
+    "unsigned_payload",
+    "discovered_endpoint",
+    "checksum",
+    "optional_auth",
+    "endpoint",
+    "endpoint_parameters",
+    "waiters",
+];
+const REMOVED_BINDING_FIELDS: &[&str] = &[
+    "query_params",
+    "prefix_headers",
+    "response_code",
+    "event_stream",
+];
+const REMOVED_ERROR_FIELDS: &[&str] = &["prefix_headers", "response_code"];
+const REMOVED_PAYLOAD_FIELDS: &[&str] = &["streaming", "requires_length"];
+
+/// Reads a snapshot of format 1 or 2 as format 3.
+fn migrate_format_2(value: &mut serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let Some(service) = value.get_mut("service").and_then(Value::as_object_mut) else {
+        return Ok(());
+    };
+    drop_unused(service, REMOVED_SERVICE_FIELDS, "the service")?;
+    if let Some(settings) = service
+        .get_mut("protocol_settings")
+        .and_then(Value::as_object_mut)
+    {
+        settings.remove("eventStreamHttp");
+    }
+    if let Some(schemes) = service.get("auth_schemes").and_then(Value::as_object) {
+        for (id, scheme) in schemes {
+            if scheme.get("kind").and_then(Value::as_str) != Some("bearer") {
+                return Err(unsupported(&format!("the auth scheme {id}")));
+            }
+        }
+    }
+    for operation in service
+        .get_mut("operations")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_object_mut)
+    {
+        let name = operation
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("an operation")
+            .to_owned();
+        drop_unused(operation, REMOVED_OPERATION_FIELDS, &name)?;
+        for side in ["request", "response"] {
+            if let Some(bindings) = operation.get_mut(side).and_then(Value::as_object_mut) {
+                drop_unused(bindings, REMOVED_BINDING_FIELDS, &name)?;
+                if let Some(payload) = bindings.get_mut("payload").and_then(Value::as_object_mut) {
+                    drop_payload(payload, &name)?;
+                }
+            }
+        }
+    }
+    for shape in service
+        .get_mut("shapes")
+        .and_then(Value::as_object_mut)
+        .into_iter()
+        .flat_map(|shapes| shapes.iter_mut())
+    {
+        let (id, shape) = shape;
+        let Some((kind, body)) = shape
+            .as_object_mut()
+            .and_then(|shape| shape.iter_mut().next())
+        else {
+            continue;
+        };
+        let Some(body) = body.as_object_mut() else {
+            continue;
+        };
+        match kind.as_str() {
+            "Simple" => drop_unused(body, &["streaming", "requires_length"], id)?,
+            "List" => drop_unused(body, &["is_set"], id)?,
+            "Structure" | "Union" => {
+                drop_unused(body, &["streaming"], id)?;
+                if let Some(error) = body.get_mut("error").and_then(Value::as_object_mut) {
+                    drop_unused(error, REMOVED_ERROR_FIELDS, id)?;
+                    if let Some(payload) = error.get_mut("payload").and_then(Value::as_object_mut) {
+                        drop_payload(payload, id)?;
+                    }
+                }
+            }
+            _ => {}
+        }
+        let members: Vec<&mut Value> = match kind.as_str() {
+            "Structure" | "Union" => body
+                .get_mut("members")
+                .and_then(Value::as_array_mut)
+                .into_iter()
+                .flatten()
+                .collect(),
+            "List" => body.get_mut("member").into_iter().collect(),
+            "Map" => body
+                .iter_mut()
+                .filter(|(field, _)| *field == "key" || *field == "value")
+                .map(|(_, member)| member)
+                .collect(),
+            _ => Vec::new(),
+        };
+        for member in members.into_iter().filter_map(Value::as_object_mut) {
+            drop_unused(member, &["event_binding"], id)?;
+            let name = member.get("name").cloned();
+            match member.get("wire_name") {
+                Some(wire) if Some(wire) != name.as_ref() => {
+                    return Err(unsupported(&format!("a JSON name on a member of {id}")));
+                }
+                _ => {
+                    member.remove("wire_name");
+                }
+            }
+        }
+    }
+    value["format"] = Value::from(3);
+    Ok(())
+}
+
+/// Removes the `fields` of `object` that hold their zero value; one that
+/// holds anything else was used.
+fn drop_unused(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    fields: &[&str],
+    owner: &str,
+) -> Result<(), String> {
+    for field in fields {
+        if object.get(*field).is_some_and(|value| !is_zero(value)) {
+            return Err(unsupported(&format!("`{field}` on {owner}")));
+        }
+        object.remove(*field);
+    }
+    Ok(())
+}
+
+fn drop_payload(
+    payload: &mut serde_json::Map<String, serde_json::Value>,
+    owner: &str,
+) -> Result<(), String> {
+    if payload.get("kind").and_then(serde_json::Value::as_str) == Some("eventStream") {
+        return Err(unsupported(&format!("an event stream on {owner}")));
+    }
+    drop_unused(payload, REMOVED_PAYLOAD_FIELDS, owner)
+}
+
+fn unsupported(what: &str) -> String {
+    format!(
+        "the release snapshot uses {what}, which Crucible no longer supports (see the Migration entry for removing Smithy-only features in the changelog)"
+    )
 }
 
 /// The first field `original` has that `read`, the same snapshot read and

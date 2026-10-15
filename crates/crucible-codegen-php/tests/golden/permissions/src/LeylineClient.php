@@ -19,7 +19,7 @@ final class LeylineClient
      */
     public function __construct(Runtime\ClientConfig $config = new Runtime\ClientConfig())
     {
-        $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Decoder::error(...), '', true);
+        $this->runtime = new Runtime\ClientRuntime($config, Schema::codec(), Decoder::error(...), '');
     }
     /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */
     public function close(): void { $this->runtime->close(); }

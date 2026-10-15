@@ -2,50 +2,35 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'auth.dart';
 import 'cancellation.dart';
-import 'checksums.dart';
 import 'codec.dart';
 import 'config.dart';
-import 'endpoints.dart';
 import 'errors.dart';
 import 'json.dart';
 import 'timestamp.dart';
 import 'transport.dart';
-import 'waiters.dart';
 
 typedef ErrorDecoder = ServiceError Function(
     String target, Object? value, WireContext context, ErrorMetadata metadata);
-
-final class _Prepared {
-  final HttpRequest request;
-  final ResolvedEndpoint? endpoint;
-  final ChecksumSettings checksum;
-  const _Prepared(this.request, this.endpoint, this.checksum);
-}
 
 final class ClientRuntime {
   final ClientConfig config;
   final WireCodec codec;
   final ErrorDecoder errors;
   final Object Function() unit;
-  final bool digest;
   late final String endpoint;
   late final HttpTransport _transport;
   late final bool _owned;
   bool _closed = false;
   ClientRuntime(this.config, this.codec, this.errors, this.unit,
-      {required String endpoint, required this.digest}) {
+      {required String endpoint}) {
     this.endpoint =
         (config.endpoint ?? endpoint).replaceFirst(RegExp(r'/+$'), '');
-    // Modeled endpoint rules may resolve every URL without a configured endpoint.
-    if (this.endpoint.isNotEmpty || codec.schema['endpointRules'] == null) {
-      final url = Uri.parse(this.endpoint);
-      _validateUrl(url);
-      if (url.hasQuery || url.hasFragment)
-        throw ArgumentError('Endpoint must not have a query or fragment');
-    }
+    final url = Uri.parse(this.endpoint);
+    _validateUrl(url);
+    if (url.hasQuery || url.hasFragment)
+      throw ArgumentError('Endpoint must not have a query or fragment');
     _owned = config.transport == null;
     _transport = config.transport ?? DefaultHttpTransport();
   }
@@ -163,95 +148,6 @@ final class ClientRuntime {
     return controller.stream;
   }
 
-  /// Polls until a modeled acceptor reaches a terminal state. One deadline
-  /// covers every attempt and delay; each attempt also keeps its own timeout.
-  Future<T?> wait<T>(String name, String waiter, WireModel input,
-      {required Duration timeout, Duration? minDelay, Duration? maxDelay, CancellationToken? cancellation}) async {
-    final op = _operation(name);
-    final description = wireObject(wireObject(op['waiters'])[waiter]);
-    final minimum = minDelay ?? waiterSeconds(description['minDelay']);
-    final maximum = maxDelay ?? waiterSeconds(description['maxDelay']);
-    if (timeout <= Duration.zero || minimum.isNegative || maximum < minimum) {
-      throw ArgumentError('Waiter timeout must be positive and delays ordered and nonnegative');
-    }
-    final values = _input(op, input);
-    final queryInput = op['input'] == null ? null : queryValue(wireString(op['input']), values);
-    final scope = CallScope(timeout, cancellation);
-    var attempts = 0;
-    T? output;
-    Object? error;
-    WaiterTimeoutException expired() => WaiterTimeoutException(waiter, attempts, response: output, error: error);
-    try {
-      while (true) {
-        if (scope.remaining <= Duration.zero) throw expired();
-        attempts++;
-        try {
-          final remaining = scope.remaining;
-          output = await _invoke<T>(name, op, () => Map.of(values), scope.token,
-              remaining < config.timeout ? remaining : config.timeout);
-          error = null;
-        } catch (caught) {
-          if (scope.token.isCancelled) {
-            if (scope.token.reason is TimeoutException) throw expired();
-            rethrow;
-          }
-          output = null;
-          error = caught;
-        }
-        if (scope.remaining <= Duration.zero) throw expired();
-        final String state;
-        final Object? message;
-        try {
-          final queryOutput = output == null || op['output'] == null
-              ? null
-              : queryValue(wireString(op['output']), codec.encode(output, codec.context(wireString(op['output']))));
-          (state, message) = waiterState(description, queryInput, queryOutput, error);
-        } on FormatException catch (caught) {
-          throw WaiterException(waiter, attempts, response: output, error: caught);
-        }
-        if (state == 'success') return output;
-        if (state == 'failure') throw WaiterException(waiter, attempts, response: output, error: error, message: message);
-        try {
-          await scope.sleep(waiterDelay(attempts, scope.remaining, minimum, maximum));
-        } catch (_) {
-          if (scope.token.reason is TimeoutException) throw expired();
-          rethrow;
-        }
-      }
-    } finally {
-      scope.close();
-    }
-  }
-
-  /// Wire values keyed by member name, with timestamps as exact epoch seconds,
-  /// as waiter and endpoint queries observe them.
-  Object? queryValue(String target, Object? value, [String? format]) {
-    if (value == null) return null;
-    final shape = codec.shape(target);
-    switch (shape['kind']) {
-      case 'structure':
-      case 'union':
-        final members = wireObject(shape['members']);
-        return {
-          for (final entry in wireObject(value).entries)
-            if (members[entry.key] case final Map<String, Object?> member)
-              entry.key: queryValue(wireString(member['target']), entry.value, member['format'] as String?)
-            else
-              entry.key: entry.value
-        };
-      case 'list':
-        final member = wireObject(shape['member']);
-        return [for (final item in wireArray(value)) queryValue(wireString(member['target']), item, member['format'] as String?)];
-      case 'map':
-        final member = wireObject(shape['value']);
-        return wireObject(value).map((key, item) => MapEntry(key, queryValue(wireString(member['target']), item, member['format'] as String?)));
-      case 'timestamp':
-        return _parseTime(value, format ?? shape['format'] as String? ?? 'date-time').toEpoch();
-      default:
-        return value;
-    }
-  }
-
   static Timestamp _parseTime(Object? value, String format) => switch (format) {
         'epoch-seconds' => Timestamp.fromEpoch(value is JsonNumber ? value : JsonNumber(wireString(value))),
         'http-date' => Timestamp.parseHttp(wireString(value)),
@@ -282,29 +178,11 @@ final class ClientRuntime {
     return [for (final part in parts) convert(format == 'epoch-seconds' ? JsonNumber(part) : part)];
   }
 
-  _Prepared _prepare(String name, Map<String, Object?> op, Map<String, Object?> input) {
+  HttpRequest _prepare(String name, Map<String, Object?> op, Map<String, Object?> input) {
     final values = Map<String, Object?>.from(input);
     final inputTarget = op['input'] as String?;
     final token = op['token'];
     if (token is String && values[token] == null) values[token] = _uuid();
-    final checksum = prepareChecksum(op['checksum'] as Map<String, Object?>?, values,
-        config.requestChecksumCalculation, config.responseChecksumValidation);
-    ResolvedEndpoint? resolved;
-    var base = endpoint;
-    if (codec.schema['endpointRules'] case final Map<String, Object?> rules) {
-      final builtIns = <String, Object?>{
-        'AWS::Region': config.region,
-        'SDK::Endpoint': endpoint.isEmpty ? null : endpoint,
-        ...config.endpointBuiltIns,
-      };
-      resolved = resolveEndpoint(rules, op['endpointParameters'] as Map<String, Object?>? ?? const {},
-          inputTarget == null ? <String, Object?>{} : queryValue(inputTarget, values), config.endpointParameters, builtIns);
-      base = resolved.url;
-    }
-    if (op['endpoint'] case final Map<String, Object?> prefix when !config.disableHostPrefix) {
-      base = prefixEndpoint(base, prefix, values);
-    }
-    base = base.replaceFirst(RegExp(r'/+$'), '');
     final bindings = wireObject(op['request']);
     Object? bound(String member) => inputTarget == null ? values[member] : _rebind(inputTarget, bindings, member, values[member], encode: true);
     var path = wireString(op['uri']);
@@ -329,30 +207,11 @@ final class ClientRuntime {
             '${_escape(wireString(pair[1]))}=${_escape(codec.bound(item))}');
       }
     }
-    if (bindings['queryParams'] case final String member) {
-      final reserved = wireArray(bindings['query']).map((pair) => wireString(wireArray(pair)[1])).toSet();
-      if (path.contains('?')) {
-        for (final pair in path.split('?').last.split('&')) reserved.add(Uri.decodeComponent(pair.split('=').first));
-      }
-      if (values[member] != null) {
-        final map = wireObject(values[member]);
-        for (final key in map.keys.toList()..sort()) {
-          if (reserved.contains(key)) continue;
-          final value = map[key];
-          for (final item in value is List ? value : [value]) {
-            if (item != null) query.add('${_escape(key)}=${_escape(codec.bound(item))}');
-          }
-        }
-      }
-    }
     if (query.isNotEmpty)
       path += '${path.contains('?') ? '&' : '?'}${query.join('&')}';
     final headers = _headers(config.headers);
-    for (final entry in resolved?.headers.entries ?? const <MapEntry<String, List<String>>>[]) {
-      headers[entry.key.toLowerCase()] = entry.value.join(', ');
-    }
     // A Content-Type bound to an input member outranks the payload's media
-    // type, which outranks endpoint and client header defaults.
+    // type, which outranks client header defaults.
     var modelledContentType = false;
     for (final binding in wireArray(bindings['headers'])) {
       final pair = wireArray(binding);
@@ -366,17 +225,6 @@ final class ClientRuntime {
       if (wire == 'content-type') modelledContentType = true;
     }
     Uint8List? body;
-    final explicitHeaders = wireArray(bindings['headers']).map((pair) => wireString(wireArray(pair)[1]).toLowerCase()).toSet();
-    for (final binding in bindings['prefixHeaders'] as List? ?? const []) {
-      final pair = wireArray(binding);
-      final value = values[wireString(pair[0])];
-      if (value == null) continue;
-      final map = wireObject(value);
-      for (final key in map.keys.toList()..sort()) {
-        final name = '${wireString(pair[1])}$key'.toLowerCase();
-        if (!explicitHeaders.contains(name)) headers[name] = codec.bound(_media(map[key], bindings, wireString(pair[0]), true));
-      }
-    }
     final members = wireArray(bindings['body']);
     if (members.isNotEmpty) {
       final object = <String, Object?>{};
@@ -404,19 +252,16 @@ final class ClientRuntime {
     // The release this client was generated for (docs/api-versions-clients.md).
     final apiVersion = codec.schema['apiVersion'];
     if (apiVersion is String) headers['crucible-version'] = apiVersion;
-    return _Prepared(
-        HttpRequest(url: Uri.parse(base + path), method: wireString(op['method']), headers: headers, body: body),
-        resolved,
-        checksum);
+    return HttpRequest(url: Uri.parse(endpoint + path), method: wireString(op['method']), headers: headers, body: body);
   }
 
   Future<Map<String, Object?>> _send(String name,
-      Map<String, Object?> op, _Prepared prepared, CallScope scope) async {
+      Map<String, Object?> op, HttpRequest prepared, CallScope scope) async {
     if (_closed) throw StateError('Client is closed');
     final safe = op['safe'] == true;
     for (var attempt = 1; attempt <= config.maxAttempts; attempt++) {
       scope.check();
-      final auth = await authenticate(prepared.request.copyWith(), op, codec.schema, config, prepared.endpoint, scope);
+      final auth = await authenticate(prepared.copyWith(), op, config, scope);
       var request = auth.request;
       for (final middleware in config.middleware) {
         scope.check();
@@ -425,21 +270,14 @@ final class ClientRuntime {
       scope.check();
       var headers = _headers(request.headers);
       _validateUrl(request.url);
-      headers = checksumRequest(prepared.checksum, headers, request.body);
-      if (digest && (request.body != null || const ['POST', 'PUT', 'PATCH'].contains(request.method)))
-        headers['x-amz-content-sha256'] =
-            sha256.convert(request.body ?? const <int>[]).toString();
       request = request.copyWith(headers: headers);
-      if (auth.sign case final sign?) request = sign(request);
       if ((auth.credentialed || request.headers.containsKey('authorization')) && !_secure(request.url))
         throw ArgumentError('Credentials require HTTPS or loopback HTTP');
       late final HttpResponse response;
       try {
         final bindings = wireObject(op['response']);
         response = await _transport.send(request,
-            readBody: wireArray(bindings['body']).isNotEmpty ||
-                bindings['payload'] != null ||
-                prepared.checksum.response.isNotEmpty,
+            readBody: wireArray(bindings['body']).isNotEmpty || bindings['payload'] != null,
             cancellation: scope.token);
       } catch (error) {
         scope.check();
@@ -451,8 +289,6 @@ final class ClientRuntime {
       }
       scope.check();
       if (response.status >= 200 && response.status < 300) {
-        final algorithm = checksumResponse(prepared.checksum, response.headers, response.body);
-        if (algorithm != null) config.checksumValidated?.call(name, algorithm);
         return _success(op, response);
       }
       final error = _failure(op, response);
@@ -495,18 +331,6 @@ final class ClientRuntime {
           ? _rebind(target, bindings, name, text, encode: false)
           : _media(codec.header(members[name], text), bindings, name, false);
     }
-    final explicit = wireArray(bindings['headers']).map((pair) => wireString(wireArray(pair)[1]).toLowerCase()).toSet();
-    for (final binding in bindings['prefixHeaders'] as List? ?? const []) {
-      final pair = wireArray(binding);
-      final prefix = wireString(pair[1]).toLowerCase();
-      final map = <String, Object?>{};
-      for (final entry in response.headers.entries) {
-        final name = entry.key.toLowerCase();
-        if (name.startsWith(prefix) && !explicit.contains(name)) map[name.substring(prefix.length)] = _media(entry.value, bindings, wireString(pair[0]), false);
-      }
-      body[wireString(pair[0])] = map;
-    }
-    if (bindings['responseCode'] case final String member) body[member] = JsonNumber(response.status.toString());
   }
 
   ServiceError _failure(Map<String, Object?> op, HttpResponse response) {

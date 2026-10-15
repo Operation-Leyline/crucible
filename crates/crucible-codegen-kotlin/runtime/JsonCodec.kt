@@ -59,11 +59,10 @@ internal class JsonCodec(val schema: JsonObject) {
     }
     fun stringify(value: JsonElement): String = value.toString()
     fun shape(target: String): JsonObject = schema.obj("shapes").obj(target)
-    fun wireName(target: String, name: String): String = shape(target).obj("members").obj(name).text("jsonName") ?: name
     fun inputValues(target: String?, input: Any?): MutableMap<String, JsonElement> {
         if (target == null || input == null) return mutableMapOf()
         val wire = encode(target, input).jsonObject
-        return shape(target).obj("members").keys.mapNotNull { name -> wire[wireName(target, name)]?.let { name to it } }.toMap().toMutableMap()
+        return shape(target).obj("members").keys.mapNotNull { name -> wire[name]?.let { name to it } }.toMap().toMutableMap()
     }
     fun queryValue(target: String?, value: JsonElement, format: String? = null): JsonElement {
         if (target==null || value==JsonNull) return value
@@ -71,7 +70,7 @@ internal class JsonCodec(val schema: JsonObject) {
         return when (shape.text("kind")) {
             "timestamp" -> JsonUnquotedLiteral(epochText(decode(target,value,format) as Instant))
             "structure", "union" -> JsonObject(value.jsonObject.map { (wire,item) ->
-                val member=shape.obj("members").keys.firstOrNull { wireName(target,it)==wire }
+                val member=shape.obj("members").keys.firstOrNull { it==wire }
                 if (member==null) wire to item else member to shape.obj("members").obj(member).let { queryValue(it.text("target"),item,it.text("format")) }
             }.toMap())
             "list" -> JsonArray(value.jsonArray.map { shape.obj("member").let { member -> queryValue(member.text("target"),it,member.text("format")) } })
@@ -99,7 +98,7 @@ internal class JsonCodec(val schema: JsonObject) {
         return when (shape.text("kind")) {
             "timestamp" -> writeTime(value as Instant, format ?: shape.text("format"))
             "document" -> checkedJson(value as JsonElement)
-            "blob" -> if(shape.flag("streaming")) JsonPrimitive("") else JsonPrimitive(Base64.encode(value as ByteArray))
+            "blob" -> JsonPrimitive(Base64.encode(value as ByteArray))
             "bigInteger" -> JsonUnquotedLiteral(value.toString())
             "bigDecimal" -> JsonUnquotedLiteral(decimalText(value as com.ionspin.kotlin.bignum.decimal.BigDecimal))
             "list" -> {
@@ -108,7 +107,7 @@ internal class JsonCodec(val schema: JsonObject) {
                     require(shape.flag("sparse") || it != null && it != JsonNull) { "Null element in non-sparse list" }
                     encode(member.text("target"), it, member.text("format"))
                 }
-                require(!shape.flag("set") || items.map { collectionKey(it) }.toSet().size == items.size) { "Duplicate set member" }
+                require(!shape.flag("set") || items.map { collectionKey(it) }.toSet().size == items.size) { "Duplicate member in unique list" }
                 JsonArray(items)
             }
             "map" -> {
@@ -144,7 +143,7 @@ internal class JsonCodec(val schema: JsonObject) {
             "double" -> number(value).toDouble().also { require(it.isFinite()) { "Double overflow" } }
             "timestamp" -> readTime(value, format ?: shape.text("format"))
             "document" -> checkedJson(value)
-            "blob" -> if(shape.flag("streaming")) ByteStream.fromBytes(byteArrayOf()) else Base64.decode(string(value))
+            "blob" -> Base64.decode(string(value))
             else -> ModelCodecs.decode(target, value, this)
         }
     }
@@ -152,10 +151,9 @@ internal class JsonCodec(val schema: JsonObject) {
         val shape = shape(target); val member = shape.obj("member")
         val values = value.jsonArray.map { item ->
             require(shape.flag("sparse") || item != JsonNull) { "Null element in non-sparse list" }
-            decode(member.text("target"), item, member.text("format")).also {
-            require(shape.flag("sparse") || it != null) { "Null element in non-sparse list" }
-        } }
-        require(!shape.flag("set") || values.toSet().size == values.size && value.jsonArray.map { collectionKey(it) }.toSet().size == value.jsonArray.size) { "Duplicate set member" }
+            decode(member.text("target"), item, member.text("format")).also { require(shape.flag("sparse") || it != null) { "Null element in non-sparse list" } }
+        }
+        require(!shape.flag("set") || values.toSet().size == values.size && value.jsonArray.map { collectionKey(it) }.toSet().size == value.jsonArray.size) { "Duplicate member in unique list" }
         return values
     }
     fun readMap(target: String, value: JsonElement): Map<Any?, Any?> {
@@ -168,11 +166,11 @@ internal class JsonCodec(val schema: JsonObject) {
     fun put(result: MutableMap<String, JsonElement>, target: String, name: String, input: Any?) {
         val value = if (input is OptionalValue<*>) { if (!input.present) return; input.value } else input
         val member = shape(target).obj("members").obj(name)
-        result[wireName(target, name)] = encode(member.text("target"), value, member.text("format"))
+        result[name] = encode(member.text("target"), value, member.text("format"))
     }
     fun readMember(target: String, body: JsonObject, name: String, optional: Boolean): Any? {
         val member = shape(target).obj("members").obj(name)
-        val actual = body[wireName(target, name)]
+        val actual = body[name]
         val value = actual ?: member["default"]?.takeUnless { it == JsonNull }
         if (value == null) return if (optional) OptionalValue.unset<Any>() else null
         val decoded = decode(member.text("target"), value, member.text("format"))
@@ -188,7 +186,7 @@ internal class JsonCodec(val schema: JsonObject) {
         return decode(member.text("target"), value, member.text("format"))
     }
     fun unknownUnion(target: String, name: String, value: JsonElement): JsonObject {
-        require(shape(target).obj("members").keys.none { wireName(target, it) == name }) { "Unknown union name is declared" }
+        require(shape(target).obj("members").keys.none { it == name }) { "Unknown union name is declared" }
         return JsonObject(mapOf(name to value))
     }
     private fun writeTime(value: Instant, format: String?): JsonElement = when (format) {

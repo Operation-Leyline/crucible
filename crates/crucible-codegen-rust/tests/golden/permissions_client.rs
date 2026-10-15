@@ -1295,13 +1295,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for InternalServerException {
@@ -1390,13 +1383,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for NotFoundException {
@@ -1496,13 +1482,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for ValidationException {
@@ -1704,7 +1683,6 @@ static ARCHIVE_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Ope
 impl ::crucible_client_runtime_rust::__generated::Operation for ArchiveGraph {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &ARCHIVE_GRAPH_OPERATION;
     type Input = model::ArchiveGraphInput;
@@ -1731,9 +1709,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for ArchiveGra
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -1791,7 +1769,6 @@ static CREATE_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Oper
 impl ::crucible_client_runtime_rust::__generated::Operation for CreateGraph {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &CREATE_GRAPH_OPERATION;
     type Input = model::CreateGraphInput;
@@ -1818,9 +1795,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for CreateGrap
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -1880,7 +1857,6 @@ static EXECUTE_QUERY_OPERATION: ::crucible_client_runtime_rust::__generated::Ope
 impl ::crucible_client_runtime_rust::__generated::Operation for ExecuteQuery {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &EXECUTE_QUERY_OPERATION;
     type Input = model::ExecuteQueryInput;
@@ -1907,9 +1883,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for ExecuteQue
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -1967,7 +1943,6 @@ static GET_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Operati
 impl ::crucible_client_runtime_rust::__generated::Operation for GetGraph {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_GRAPH_OPERATION;
     type Input = model::GetGraphInput;
@@ -1994,9 +1969,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for GetGraphEr
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -2053,7 +2028,6 @@ static GET_ORGANIZATION_OPERATION: ::crucible_client_runtime_rust::__generated::
 impl ::crucible_client_runtime_rust::__generated::Operation for GetOrganization {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_ORGANIZATION_OPERATION;
     type Input = model::GetOrganizationInput;
@@ -2080,9 +2054,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for GetOrganiz
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -2138,7 +2112,6 @@ static GET_USER_OPERATION: ::crucible_client_runtime_rust::__generated::Operatio
 impl ::crucible_client_runtime_rust::__generated::Operation for GetUser {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const HAS_INPUT: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_USER_OPERATION;
@@ -2164,8 +2137,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for GetUserErr
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -2219,7 +2192,6 @@ static HEALTH_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Health {
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const HAS_INPUT: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &HEALTH_OPERATION;
@@ -2245,8 +2217,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for HealthErro
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -2302,7 +2274,6 @@ static LIST_GRAPHS_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
 impl ::crucible_client_runtime_rust::__generated::Operation for ListGraphs {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &LIST_GRAPHS_OPERATION;
     type Input = model::ListGraphsInput;
@@ -2329,9 +2300,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for ListGraphs
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -2390,7 +2361,6 @@ static RESTORE_BACKUP_OPERATION: ::crucible_client_runtime_rust::__generated::Op
 impl ::crucible_client_runtime_rust::__generated::Operation for RestoreBackup {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &RESTORE_BACKUP_OPERATION;
     type Input = model::RestoreBackupInput;
@@ -2415,8 +2385,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for RestoreBac
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }
@@ -2476,7 +2446,6 @@ static REWRITE_GRAPH_OPERATION: ::crucible_client_runtime_rust::__generated::Ope
 impl ::crucible_client_runtime_rust::__generated::Operation for RewriteGraph {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-    const OPTIONAL_AUTH: bool = false;
     const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &REWRITE_GRAPH_OPERATION;
     type Input = model::RewriteGraphInput;
@@ -2503,9 +2472,9 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for RewriteGra
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO, &errors::INTERNAL_SERVER_EXCEPTION_INFO])?,
         };
         match name {
-            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
-            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
-            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
+            "NotFoundException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::NOT_FOUND_EXCEPTION_INFO, headers, body).map(Self::NotFoundException),
+            "ValidationException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::VALIDATION_EXCEPTION_INFO, headers, body).map(Self::ValidationException),
+            "InternalServerException" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_SERVER_EXCEPTION_INFO, headers, body).map(Self::InternalServerException),
             _ => None,
         }
     }

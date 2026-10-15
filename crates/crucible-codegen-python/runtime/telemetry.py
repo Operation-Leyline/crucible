@@ -13,10 +13,7 @@ REDACTED = "***"
 
 # Always redacted, whatever the model says.
 CREDENTIAL_HEADERS = frozenset({
-    "authorization", "proxy-authorization", "cookie", "set-cookie", "x-amz-security-token",
-})
-CREDENTIAL_QUERY = frozenset({
-    "x-amz-signature", "x-amz-credential", "x-amz-security-token",
+    "authorization", "proxy-authorization", "cookie", "set-cookie",
 })
 
 _log = logging.getLogger(__name__)
@@ -41,8 +38,6 @@ class AttemptStarted:
     method: str
     endpoint: str
     """Scheme, host and port only."""
-    endpoint_source: str
-    """``configured``, ``rules`` or ``discovered``."""
     target: str
     """Path and query, with sensitive and credential values redacted."""
     headers: Mapping[str, str]
@@ -65,7 +60,7 @@ class AttemptFinished:
     response_bytes: int | None
     latency: float
     retry_reason: str | None
-    """Set when another attempt follows: throttling, transient, timeout, network or endpoint."""
+    """Set when another attempt follows: throttling, transient, timeout or network."""
     retry_delay: float | None
     time: float
 
@@ -121,7 +116,7 @@ def redact_headers(headers: Any, sensitive: frozenset[str]) -> dict[str, str]:
 
 def redact_query(pairs: list[tuple[str, str]], sensitive: frozenset[str]) -> list[tuple[str, str]]:
     """Names compare case-insensitively: redacting too much is the safe failure."""
-    return [(name, REDACTED if name.lower() in sensitive or name.lower() in CREDENTIAL_QUERY else value)
+    return [(name, REDACTED if name.lower() in sensitive else value)
             for name, value in pairs]
 
 

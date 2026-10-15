@@ -1,17 +1,16 @@
-"""Runtime policy: retry quota, adaptive rate limiting, endpoint discovery and telemetry.
+"""Runtime policy: retry quota, adaptive rate limiting and telemetry.
 
-The shared vectors live in tests/conformance/{retry-quota,adaptive-retry,endpoint-discovery,telemetry}.json.
+The shared vectors live in tests/conformance/{retry-quota,adaptive-retry,telemetry}.json.
 """
 import asyncio
 import dataclasses
 import json
-import threading
 import unittest
 from pathlib import Path
 
 import httpx
 import policy_client as p
-from policy_client import (AttemptFinished, AttemptStarted, EndpointDiscoveryError, OpenTelemetryHook,
+from policy_client import (AttemptFinished, AttemptStarted, OpenTelemetryHook,
                            OperationFinished, OperationStarted, RecordsClient, AsyncRecordsClient,
                            ServiceError, TelemetryHook)
 from policy_client.policy import AdaptiveRateLimiter, CubicCalculator, RetryQuota
@@ -19,7 +18,6 @@ from policy_client.policy import AdaptiveRateLimiter, CubicCalculator, RetryQuot
 ROOT = Path(__file__).resolve().parents[3]
 QUOTA = json.loads((ROOT / "tests/conformance/retry-quota.json").read_text())
 ADAPTIVE = json.loads((ROOT / "tests/conformance/adaptive-retry.json").read_text())
-DISCOVERY = json.loads((ROOT / "tests/conformance/endpoint-discovery.json").read_text())
 TELEMETRY = json.loads((ROOT / "tests/conformance/telemetry.json").read_text())
 ENDPOINT = "https://records.example"
 RESPONSES = {
@@ -57,15 +55,6 @@ def response(spec, request):
 def model_input(name, values):
     cls = getattr(p, name + "Input", None)
     return cls(**values) if cls is not None else None
-
-
-def outcome_of(test, error):
-    if error is None:
-        return "success"
-    if isinstance(error, EndpointDiscoveryError):
-        return "endpoint-discovery"
-    test.assertIsInstance(error, ServiceError, repr(error))
-    return error.name
 
 
 def camel(name):
@@ -143,7 +132,7 @@ class QuotaVectors(unittest.TestCase):
             with self.subTest(case=case["name"]):
                 script: list = []
                 with httpx.Client(transport=httpx.MockTransport(self._transport(script))) as http:
-                    client = RecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0,
+                    client = RecordsClient(ENDPOINT, http=http, token="key", base_delay=0,
                                            retry_mode=case["mode"], clock=FakeClock())
                     for step in case["steps"]:
                         for _ in range(step.get("repeat", 1)):
@@ -166,7 +155,7 @@ class AsyncQuotaVectors(unittest.IsolatedAsyncioTestCase):
                 script: list = []
                 transport = httpx.MockTransport(QuotaVectors._transport(None, script))  # type: ignore[arg-type]
                 async with httpx.AsyncClient(transport=transport) as http:
-                    client = AsyncRecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0,
+                    client = AsyncRecordsClient(ENDPOINT, http=http, token="key", base_delay=0,
                                                 retry_mode=case["mode"], clock=FakeClock())
                     for step in case["steps"]:
                         for _ in range(step.get("repeat", 1)):
@@ -222,7 +211,7 @@ class AdaptiveVectors(unittest.TestCase):
             status = statuses.pop(0)
             return httpx.Response(status, json={"__type": "Throttled"} if status == 429 else {})
         with httpx.Client(transport=httpx.MockTransport(handle)) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0, retry_mode="adaptive", clock=clock)
+            client = RecordsClient(ENDPOINT, http=http, token="key", base_delay=0, retry_mode="adaptive", clock=clock)
             client.list_records()
             self.assertEqual(clock.sleeps, [], "no send delay before the first throttle")
             client.list_records()
@@ -235,7 +224,7 @@ class AdaptiveVectors(unittest.TestCase):
         for mode in ("legacy", "standard"):
             clock = FakeClock()
             with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(429, json={"__type": "Throttled"}))) as http:
-                client = RecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0, retry_mode=mode, clock=clock)
+                client = RecordsClient(ENDPOINT, http=http, token="key", base_delay=0, retry_mode=mode, clock=clock)
                 with self.assertRaises(p.Throttled):
                     client.list_records()
             self.assertIsNone(client._retry.limiter)
@@ -244,171 +233,17 @@ class AdaptiveVectors(unittest.TestCase):
     def test_invalid_settings(self):
         with self.assertRaisesRegex(ValueError, "retry_mode"):
             RecordsClient(ENDPOINT, retry_mode="aggressive")
-        with self.assertRaisesRegex(ValueError, "endpoint_discovery"):
-            RecordsClient(ENDPOINT, endpoint_discovery="yes")
 
     def test_backoff_uses_the_injected_clock_and_retry_after(self):
         clock = FakeClock()
         replies = [httpx.Response(503, json={"__type": "Unavailable"}, headers={"retry-after": "2"}),
                    httpx.Response(503, json={"__type": "Unavailable"}), httpx.Response(200, json={})]
         with httpx.Client(transport=httpx.MockTransport(lambda r: replies.pop(0))) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0.5, max_delay=0.75,
+            client = RecordsClient(ENDPOINT, http=http, token="key", base_delay=0.5, max_delay=0.75,
                                    retry_mode="standard", clock=clock)
             client._retry._jitter = lambda: 1.0
             client.list_records()
         self.assertEqual(clock.sleeps, [2.0, 0.75])
-
-
-class DiscoveryScenarios(unittest.TestCase):
-    def run_scenario(self, case):
-        clock = FakeClock()
-        exchanges: list = []
-
-        def handle(request):
-            self.assertTrue(exchanges, f"unexpected request {request.method} {request.url}")
-            exchange = exchanges.pop(0)
-            self.assertEqual((request.method, str(request.url)), (exchange["method"], exchange["url"]))
-            if "json" in exchange:
-                self.assertEqual(json.loads(request.content), exchange["json"])
-            self.assertEqual(request.headers["x-api-key"], "key")
-            return response(exchange["response"], request)
-        with httpx.Client(transport=httpx.MockTransport(handle)) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0, clock=clock,
-                                   endpoint_discovery=case["endpointDiscovery"], max_attempts=case.get("maxAttempts", 3))
-            for step in case["steps"]:
-                if "advance" in step:
-                    clock.time += step["advance"]
-                    continue
-                exchanges[:] = list(step["exchanges"])
-                error = None
-                try:
-                    client._call(step["call"], model_input(step["call"], step["input"]))
-                except Exception as caught:
-                    error = caught
-                self.assertEqual(outcome_of(self, error), step["outcome"], step)
-                self.assertEqual(exchanges, [], "every expected request was sent")
-
-    def test_scenarios(self):
-        for case in DISCOVERY["scenarios"]:
-            with self.subTest(case=case["name"]):
-                self.run_scenario(case)
-
-    def test_concurrent_callers_share_one_discovery(self):
-        discovery_calls = []
-        release = threading.Event()
-
-        def handle(request):
-            if request.url.path == "/endpoints":
-                discovery_calls.append(1)
-                release.wait(5)
-                return httpx.Response(200, json={"Endpoints": [{"Address": "t1.records.example", "CachePeriodInMinutes": 1}]})
-            self.assertEqual(request.url.host, "t1.records.example")
-            return httpx.Response(200, json={})
-        errors = []
-        with httpx.Client(transport=httpx.MockTransport(handle)) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key")
-
-            def call():
-                try:
-                    client.get_record(p.GetRecordInput(table="t1", key="k"))
-                except Exception as error:  # pragma: no cover - reported below
-                    errors.append(error)
-            threads = [threading.Thread(target=call) for _ in range(8)]
-            for thread in threads:
-                thread.start()
-            while not discovery_calls:
-                threading.Event().wait(0.01)
-            threading.Event().wait(0.1)
-            release.set()
-            for thread in threads:
-                thread.join(10)
-        self.assertEqual(errors, [])
-        self.assertEqual(len(discovery_calls), 1)
-
-    def test_a_failed_shared_discovery_fails_every_waiting_required_call(self):
-        release = threading.Event()
-        started = threading.Event()
-
-        def handle(request):
-            started.set()
-            release.wait(5)
-            return httpx.Response(400, json={"__type": "Denied"})
-        outcomes = []
-        with httpx.Client(transport=httpx.MockTransport(handle)) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key")
-
-            def call():
-                try:
-                    client.get_record(p.GetRecordInput(table="t1", key="k"))
-                except ServiceError as error:
-                    outcomes.append(error.name)
-            threads = [threading.Thread(target=call) for _ in range(4)]
-            for thread in threads:
-                thread.start()
-            started.wait(5)
-            threading.Event().wait(0.1)
-            release.set()
-            for thread in threads:
-                thread.join(10)
-        self.assertEqual(outcomes, ["Denied"] * 4)
-
-
-class AsyncDiscoveryScenarios(unittest.IsolatedAsyncioTestCase):
-    async def test_scenarios(self):
-        for case in DISCOVERY["scenarios"]:
-            with self.subTest(case=case["name"]):
-                clock = FakeClock()
-                exchanges: list = []
-
-                def handle(request):
-                    self.assertTrue(exchanges, f"unexpected request {request.method} {request.url}")
-                    exchange = exchanges.pop(0)
-                    self.assertEqual((request.method, str(request.url)), (exchange["method"], exchange["url"]))
-                    if "json" in exchange:
-                        self.assertEqual(json.loads(request.content), exchange["json"])
-                    return response(exchange["response"], request)
-                async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
-                    client = AsyncRecordsClient(ENDPOINT, http=http, api_key="key", base_delay=0, clock=clock,
-                                                endpoint_discovery=case["endpointDiscovery"],
-                                                max_attempts=case.get("maxAttempts", 3))
-                    for step in case["steps"]:
-                        if "advance" in step:
-                            clock.time += step["advance"]
-                            continue
-                        exchanges[:] = list(step["exchanges"])
-                        error = None
-                        try:
-                            await client._call(step["call"], model_input(step["call"], step["input"]))
-                        except Exception as caught:
-                            error = caught
-                        self.assertEqual(outcome_of(self, error), step["outcome"], step)
-                        self.assertEqual(exchanges, [])
-
-    async def test_concurrent_tasks_share_one_discovery_that_survives_cancellation(self):
-        discovery_calls = []
-        release = asyncio.Event()
-
-        async def handle(request):
-            if request.url.path == "/endpoints":
-                discovery_calls.append(1)
-                await release.wait()
-                return httpx.Response(200, json={"Endpoints": [{"Address": "t1.records.example", "CachePeriodInMinutes": 1}]})
-            return httpx.Response(200, json={"value": request.url.path})
-        async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
-            client = AsyncRecordsClient(ENDPOINT, http=http, api_key="key")
-            first = asyncio.create_task(client.get_record(p.GetRecordInput(table="t1", key="first")))
-            others = [asyncio.create_task(client.get_record(p.GetRecordInput(table="t1", key=f"k{i}"))) for i in range(6)]
-            while not discovery_calls:
-                await asyncio.sleep(0)
-            # The caller that started discovery goes away; the others still get its result.
-            first.cancel()
-            await asyncio.sleep(0)
-            release.set()
-            results = await asyncio.gather(*others)
-            with self.assertRaises(asyncio.CancelledError):
-                await first
-        self.assertEqual(len(discovery_calls), 1)
-        self.assertEqual([r.value for r in results], [f"/records/t1/k{i}" for i in range(6)])
 
 
 class TelemetryScenarios(unittest.TestCase):
@@ -431,7 +266,7 @@ class TelemetryScenarios(unittest.TestCase):
                 recorder = Recorder()
                 responses = list(case["responses"])
                 with httpx.Client(transport=httpx.MockTransport(lambda r: response(responses.pop(0), r))) as http:
-                    client = RecordsClient(ENDPOINT, http=http, api_key="api-key-secret", base_delay=0,
+                    client = RecordsClient(ENDPOINT, http=http, token="api-key-secret", base_delay=0,
                                            telemetry=recorder, clock=FakeClock())
                     try:
                         client._call(case["call"], model_input(case["call"], case["input"]))
@@ -444,7 +279,7 @@ class TelemetryScenarios(unittest.TestCase):
             def attempt_started(self, event):
                 raise RuntimeError("hook bug")
         with httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={"count": 2}))) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key", telemetry=Broken())
+            client = RecordsClient(ENDPOINT, http=http, token="key", telemetry=Broken())
             with self.assertLogs("policy_client.telemetry", "ERROR"):
                 self.assertEqual(client.list_records().count, 2)
 
@@ -456,7 +291,7 @@ class TelemetryScenarios(unittest.TestCase):
             clock.time += 0.25
             return httpx.Response(200, json={"count": 7})
         with httpx.Client(transport=httpx.MockTransport(handle)) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="key", telemetry=recorder, clock=clock)
+            client = RecordsClient(ENDPOINT, http=http, token="key", telemetry=recorder, clock=clock)
             client.list_records()
         finished = [event for event in recorder.events if isinstance(event, AttemptFinished)][0]
         self.assertEqual(finished.latency, 0.25)
@@ -490,7 +325,7 @@ class TelemetryScenarios(unittest.TestCase):
         tracer = Tracer()
         replies = [httpx.Response(503, json={"__type": "Unavailable"}), httpx.Response(400, json={"__type": "Denied"})]
         with httpx.Client(transport=httpx.MockTransport(lambda r: replies.pop(0))) as http:
-            client = RecordsClient(ENDPOINT, http=http, api_key="secret", base_delay=0,
+            client = RecordsClient(ENDPOINT, http=http, token="secret", base_delay=0,
                                    telemetry=OpenTelemetryHook(tracer), clock=FakeClock())
             with self.assertRaises(ServiceError):
                 client.list_records()
@@ -512,7 +347,7 @@ class AsyncTelemetryScenarios(unittest.IsolatedAsyncioTestCase):
                 recorder = Recorder()
                 responses = list(case["responses"])
                 async with httpx.AsyncClient(transport=httpx.MockTransport(lambda r: response(responses.pop(0), r))) as http:
-                    client = AsyncRecordsClient(ENDPOINT, http=http, api_key="api-key-secret", base_delay=0,
+                    client = AsyncRecordsClient(ENDPOINT, http=http, token="api-key-secret", base_delay=0,
                                                 telemetry=recorder, clock=FakeClock())
                     try:
                         await client._call(case["call"], model_input(case["call"], case["input"]))
@@ -528,7 +363,7 @@ class AsyncTelemetryScenarios(unittest.IsolatedAsyncioTestCase):
             started.set()
             await asyncio.Event().wait()
         async with httpx.AsyncClient(transport=httpx.MockTransport(handle)) as http:
-            client = AsyncRecordsClient(ENDPOINT, http=http, api_key="key", telemetry=recorder)
+            client = AsyncRecordsClient(ENDPOINT, http=http, token="key", telemetry=recorder)
             task = asyncio.create_task(client.list_records())
             await started.wait()
             task.cancel()

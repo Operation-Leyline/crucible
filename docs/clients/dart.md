@@ -4,7 +4,7 @@
 
 `crucible generate dart` emits typed models, asynchronous operations, and
 `Stream` pagination. Generated packages require Dart 3.6.2 or later within
-Dart 3.x, `package:http` 1.6, and `package:crypto` 3.x. They use the same
+Dart 3.x, `package:http` 1.6. They use the same
 runtime on the native VM and in browsers, with no Flutter dependency.
 
 ## Generating and installing
@@ -15,7 +15,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 ```sh
 crucible generate dart smithy \
   --out generated/client --package-name weather_client \
-  --package-version 0.1.0 --endpoint https://api.example --content-sha256
+  --package-version 0.1.0 --endpoint https://api.example
 cd generated/client
 dart pub get
 dart analyze
@@ -73,8 +73,7 @@ String enums preserve unknown values in their `value` field. Unions are sealed
 classes with a generated class for each variant and an unknown variant carrying
 its name and `JsonValue`. Blobs are `Uint8List`, encoded as padded base64 in JSON.
 Raw blob payloads use bytes directly. An empty response payload remains present;
-an empty request payload sends no body or content type. Optional SHA-256 covers
-the final bytes after middleware.
+an empty request payload sends no body or content type.
 
 ## API documentation and string representations
 
@@ -145,8 +144,7 @@ subscription is cancelled. Each page has its own deadline.
 
 The default transport refuses redirects and adds `Cache-Control: no-cache,
 no-store` to prevent a browser from reusing authenticated responses. Browser
-servers must allow this header, Authorization, modeled headers, and the optional
-digest header in their CORS policy; expose response headers used by the model.
+servers must allow this header, Authorization, and modeled headers in their CORS policy; expose response headers used by the model.
 Fetch reports refused redirects as transport errors. Browsers control their
 own connection and cookie policy; cross-origin credentials are not enabled by
 the default HTTP client. Credentials require HTTPS except on loopback.
@@ -165,83 +163,20 @@ supported.
 
 ## Authentication
 
-Operations use the modeled schemes in priority order: the first scheme with
-credentials wins. Configure one provider per scheme; each is called on every
-attempt and may return `null` when unavailable.
+Operations that accept a bearer token call `ClientConfig.token` on every attempt;
+it may return `null` when no token is available, and the request is then sent
+without one.
 
 ```dart
-final client = AuthClient(ClientConfig(
+final client = WeatherClient(ClientConfig(
   endpoint: 'https://api.example',
-  token: () => bearerToken,                              // httpBearerAuth
-  basicAuth: () => BasicCredentials('user', password),   // httpBasicAuth
-  apiKey: () => apiKey,                                  // httpApiKeyAuth
-  credentials: CachedCredentials(credentialChain([
-      () => environmentCredentials(), () => profileCredentials()])),
-  region: 'us-east-1'));                                 // aws.auth#sigv4
+  token: () => bearerToken));
 ```
 
-A matching credential already present on the request (for example an
-`Authorization: Basic ...` default header, or the modeled API-key header or
-query parameter) is sent as is, and no provider is called. Operations with
-`@auth([])` send no credentials; `@optionalAuth` operations call anonymously
-when no provider has an identity. Otherwise a missing identity is a
-`StateError` before anything is sent. Credentials require HTTPS except on
-loopback.
-
-SigV4 signs the final bytes after middleware, checksums, and the body digest,
-so each retry is signed again with a fresh identity. `@unsignedPayload`
-operations sign `UNSIGNED-PAYLOAD`. S3 keeps its path as sent; other services
-normalize the path and encode it twice. `signV4` is also exported for signing
-requests directly. `CachedCredentials` shares one provider call across
-concurrent requests and refreshes before expiry (60 seconds, or half of a short
-lifetime). `environmentCredentials` and `profileCredentials` read the standard
-AWS environment variables and shared credentials file on native platforms. They
-never run `credential_process`. In browsers they throw `UnsupportedError`.
-`BasicCredentials`, `AwsCredentials` and `CachedCredentials` redact secrets in
-`toString`.
-
-## Endpoints
-
-When the model has `@smithy.rules#endpointRuleSet`, every call resolves its
-endpoint from the rules, so `endpoint` may be omitted. Parameters come from
-operation context, input members and paths, `ClientConfig.endpointParameters`,
-built-ins (`AWS::Region` from `region`, `SDK::Endpoint` from `endpoint`,
-overridable in `endpointBuiltIns`), then defaults. Resolved endpoint headers
-are sent, and `authSchemes` properties select and configure the signer, for
-example the signing region. Rule errors, missing required parameters, and
-invalid URLs raise `EndpointException` before anything is sent.
-
-`@endpoint(hostPrefix: ...)` prepends the expanded prefix to the host. Each
-`@hostLabel` value must be one DNS label, and the expanded host must remain a
-valid host name, or the call raises `EndpointException`. Set
-`disableHostPrefix: true` to keep the configured host.
-
-## Waiters
-
-Each modeled waiter generates `waitUntil<Name>(input, timeout: ...)`, which
-returns the successful output, or `null` when an error acceptor succeeds.
-The generated return type is `Future<Output?>`. Acceptors are evaluated in
-order over the input and output by member name, with timestamps as epoch seconds and exact
-numbers. Delays grow exponentially from the modeled `minDelay` to `maxDelay`
-with jitter, and are clipped to the deadline; `minDelay` and `maxDelay` may be
-overridden. One `timeout` covers every attempt and delay, and each attempt
-keeps the client's request timeout. A failure state raises `WaiterException`
-with the attempt count, last response or error, and the acceptor's message.
-The deadline raises `WaiterTimeoutException` and cancels the attempt in
-flight; a `CancellationToken` cancels the waiter and its attempt.
-
-## Checksums
-
-`@httpChecksumRequired` and `@aws.protocols#httpChecksum` operations send
-`Content-MD5` or `x-amz-checksum-<algorithm>` over the final request bytes.
-CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512 are supported, in the
-browser as well. By default (`ChecksumPolicy.whenSupported`) the client sends
-CRC32 when the caller chooses no algorithm and enables response validation;
-`whenRequired` limits both to operations that require them. A checksum header
-supplied by the caller or middleware is kept. Responses are validated against
-the first modeled algorithm the server returned; a mismatch raises
-`ChecksumException`, and `checksumValidated` reports each verified algorithm.
-An unsupported requested algorithm is an `ArgumentError` before sending.
+An `Authorization: Bearer ...` header already on the request (for example a
+default header) is sent as is, and the provider is not called. Operations
+without bearer authentication send no credentials. Credentials require HTTPS
+except on loopback.
 
 ## Migrating existing callers
 
@@ -254,11 +189,7 @@ remain available. Regenerate and rebuild the package and its consumers together.
 
 `python tools/test-dart.py` checks shared retry and header cases,
 real HTTP, minimum-version analysis, native and JavaScript consumer compilation,
-and empty and renamed packages. It also generates the authentication, waiter,
-endpoint-rules, and checksum models and runs their
-tests on the VM and in Chrome: the published S3 SigV4 vector, credential
-selection and refresh, the shared checksum vectors, rules functions and host
-labels, waiter matchers, deadlines and cancellation, and error decoding. Set `DART` to select the SDK executable and
+and empty and renamed packages. Set `DART` to select the SDK executable and
 `CHROME_EXECUTABLE` if Chrome is not on its usual path. These checks do not
 establish Flutter device, published-package, or authenticated deployed-Leyline
 compatibility.

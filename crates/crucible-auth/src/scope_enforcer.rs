@@ -80,14 +80,9 @@ impl Interceptor for ScopeEnforcer {
             return Hook::Ready(Ok(()));
         }
         let Some(principal) = job.context().attribute::<Principal>() else {
-            // Optional authentication admits an anonymous caller, which holds no
-            // scope to check. Anywhere else a missing principal means no
-            // authenticator ran: fail closed rather than serve it.
-            return Hook::Ready(if metadata.optional_auth {
-                Ok(())
-            } else {
-                Err(self.refuse(job, FrameworkError::Unauthenticated))
-            });
+            // A scoped operation is authenticated, so a missing principal means
+            // no authenticator ran: fail closed rather than serve it.
+            return Hook::Ready(Err(self.refuse(job, FrameworkError::Unauthenticated)));
         };
         if self.scopeless.exempts(&principal.token_kind)
             || metadata

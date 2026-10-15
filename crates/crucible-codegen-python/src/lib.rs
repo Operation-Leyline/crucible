@@ -13,7 +13,6 @@ pub struct Options {
     pub module_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 
 pub struct File {
@@ -23,29 +22,14 @@ pub struct File {
 
 pub fn capabilities() -> Capabilities {
     Capabilities::new([
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
-        Feature::Sets,
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
-        Feature::Streaming,
-        Feature::EndpointDiscovery,
     ])
 }
 
@@ -75,20 +59,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "OpenEnum",
         "OpenIntEnum",
         "Decimal",
-        "BasicCredentials",
-        "AwsCredentials",
-        "CachedCredentials",
-        "AsyncCachedCredentials",
-        "credential_chain",
-        "async_credential_chain",
-        "environment_credentials",
-        "profile_credentials",
-        "WaiterError",
-        "WaiterTimeout",
-        "ChecksumError",
-        "ByteStream",
-        "StreamLengthError",
-        "EndpointDiscoveryError",
         "TelemetryHook",
         "OpenTelemetryHook",
         "OperationStarted",
@@ -179,11 +149,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         if op.paginated.is_some() && !methods.insert(format!("{}_pages", field(op.name()))) {
             diagnostics.push(&op.id, "paginator collides with a Python client method");
         }
-        for name in op.waiters.keys() {
-            if !methods.insert(format!("wait_until_{}", field(name))) {
-                diagnostics.push(&op.id, "waiter collides with a Python client method");
-            }
-        }
     }
     permissions::check_names(service, &mut diagnostics);
     if !diagnostics.is_empty() {
@@ -221,10 +186,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     {
         models.push_str("from .runtime import OpenIntEnum\n\n");
     }
-    let streaming = |shape: &Shape| matches!(shape, Shape::Simple(s) if s.streaming);
-    if service.shapes.values().any(streaming) {
-        models.push_str("from .streams import ByteStream\n\n");
-    }
     // Aliases use forward references so model-file ordering cannot affect imports.
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
         let name = service.name_of(id);
@@ -258,11 +219,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push('\n');
             }
             Shape::Unit { .. } => models.push_str(&format!("{name}: TypeAlias = None\n\n")),
-            // A streaming blob is sent from a source and read from the response
-            // without ever being held whole in memory.
-            Shape::Simple(_) if streaming(shape) => {
-                models.push_str(&format!("{name}: TypeAlias = ByteStream\n\n"));
-            }
             Shape::Simple(s) => {
                 let prelude = ShapeId::new(
                     "smithy.api",
@@ -459,7 +415,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "Use with or close(). Share across threads only if all supplied callbacks are thread-safe."
             }
         );
-        client.push_str(&format!("class {name}({base}):\n    {}\n    def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:\n        super().__init__(endpoint=endpoint or {}, schema=m._SCHEMA, classes=m._CLASSES, content_sha256={}, **kwargs)\n    __init__.__doc__ = {base}.__init__.__doc__\n\n",literal(&crucible_codegen_common::documentation::text(&client_docs)),options.endpoint.as_ref().map_or("None".into(),|s|literal(s)),if options.content_sha256 {"True"} else {"False"}));
+        client.push_str(&format!("class {name}({base}):\n    {}\n    def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:\n        super().__init__(endpoint=endpoint or {}, schema=m._SCHEMA, classes=m._CLASSES, **kwargs)\n    __init__.__doc__ = {base}.__init__.__doc__\n\n",literal(&crucible_codegen_common::documentation::text(&client_docs)),options.endpoint.as_ref().map_or("None".into(),|s|literal(s))));
         for op in &service.operations {
             let input = op
                 .input
@@ -496,14 +452,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 ))
             );
             client.push_str(&format!("    {def} {method}(self, {parameter}**options: Any) -> {output}:\n{docs}        return {wait}self._call({}, {argument}, **options)\n\n",literal(op.name())));
-            for (name, description) in &op.waiters {
-                let result = if op.output.is_some() {
-                    format!("{output} | None")
-                } else {
-                    output.clone()
-                };
-                client.push_str(&format!("    {def} wait_until_{}(self, {parameter}*, timeout: float, min_delay: float | None = None, max_delay: float | None = None) -> {result}:\n        {}\n        return {wait}self._wait({}, {}, {argument}, timeout=timeout, min_delay=min_delay, max_delay=max_delay)\n\n", field(name), literal(&format!("{}\nPoll until an acceptor succeeds, fails or timeout expires (seconds). Raises WaiterError or WaiterTimeout. Optional min_delay/max_delay override modeled delays in seconds.", crucible_codegen_common::documentation::text(description.documentation.as_deref().unwrap_or("")))), literal(op.name()), literal(name)));
-            }
             if op.paginated.is_some() {
                 let iter = if asynchronous {
                     "AsyncIterator"
@@ -516,7 +464,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     let pyproject = format!(
-        "[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = {}\nversion = {}\nrequires-python = \">=3.11\"\ndependencies = [\"httpx>=0.28,<1\", \"jmespath==1.0.1\"]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n\n[tool.setuptools.package-data]\n{} = [\"py.typed\", \"crucible.json\"]\n",
+        "[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = {}\nversion = {}\nrequires-python = \">=3.11\"\ndependencies = [\"httpx>=0.28,<1\"]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n\n[tool.setuptools.package-data]\n{} = [\"py.typed\", \"crucible.json\"]\n",
         literal(&options.package_name),
         literal(&options.package_version),
         literal(module)
@@ -564,32 +512,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/auth.py").replace("\r\n", "\n"),
         ),
         file(
-            format!("src/{module}/checksums.py"),
-            include_str!("../runtime/checksums.py").replace("\r\n", "\n"),
-        ),
-        file(
-            format!("src/{module}/query.py"),
-            include_str!("../runtime/query.py").replace("\r\n", "\n"),
-        ),
-        file(
-            format!("src/{module}/waiters.py"),
-            include_str!("../runtime/waiters.py").replace("\r\n", "\n"),
-        ),
-        file(
-            format!("src/{module}/endpoints.py"),
-            include_str!("../runtime/endpoints.py").replace("\r\n", "\n"),
-        ),
-        file(
-            format!("src/{module}/streams.py"),
-            include_str!("../runtime/streams.py").replace("\r\n", "\n"),
-        ),
-        file(
             format!("src/{module}/policy.py"),
             include_str!("../runtime/policy.py").replace("\r\n", "\n"),
-        ),
-        file(
-            format!("src/{module}/discovery.py"),
-            include_str!("../runtime/discovery.py").replace("\r\n", "\n"),
         ),
         file(
             format!("src/{module}/telemetry.py"),
@@ -600,7 +524,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         file(
             format!("src/{module}/__init__.py"),
             format!(
-                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, {exception}, NetworkError, ResponseMetadata\nfrom .auth import BasicCredentials, AwsCredentials, CachedCredentials, AsyncCachedCredentials, credential_chain, async_credential_chain, environment_credentials, profile_credentials\nfrom .waiters import WaiterError, WaiterTimeout\nfrom .checksums import ChecksumError\nfrom .streams import ByteStream, StreamLengthError\nfrom .discovery import EndpointDiscoveryError\nfrom .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished\n"
+                "from .client import {client_name}, {async_client_name}\n{model_import}from .runtime import UNSET, ServiceError, {exception}, NetworkError, ResponseMetadata\nfrom .telemetry import TelemetryHook, OpenTelemetryHook, OperationStarted, AttemptStarted, AttemptFinished, OperationFinished\n"
             ),
         ),
     ]);

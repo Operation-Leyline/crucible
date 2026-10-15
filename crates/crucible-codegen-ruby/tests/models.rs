@@ -15,7 +15,6 @@ fn weather_models_generate() {
         module_name: "Weather".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     };
     let files = emit(&service, &options).unwrap();
     let again = emit(&service, &options).unwrap();
@@ -61,7 +60,6 @@ fn options() -> Options {
         module_name: "Weather".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 fn weather() -> serde_json::Value {
@@ -135,64 +133,6 @@ fn top_level_support_names_are_diagnosed() {
     }
 }
 
-fn lower_supported(value: &serde_json::Value) -> crucible_smithy::ir::Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_ruby::capabilities())
-        .unwrap()
-}
-
-#[test]
-fn waiters_generate_methods_and_collisions_are_diagnosed() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-codegen-java/tests/waiters.json"
-    ))
-    .unwrap();
-    let files = emit(&lower_supported(&model), &options()).unwrap();
-    let client = files
-        .iter()
-        .find(|file| file.path.ends_with("/client.rb"))
-        .unwrap();
-    assert!(client.contents.contains("def wait_until_ready(input, timeout:, min_delay: nil, max_delay: nil, cancellation: nil)\n      @runtime.wait('Read', 'Ready', input,"));
-    model["shapes"]["example.wait#Jobs"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(serde_json::json!({"target":"example.wait#WaitUntilReady"}));
-    model["shapes"]["example.wait#WaitUntilReady"] = serde_json::json!({"type":"operation","traits":{"smithy.api#http":{"method":"POST","uri":"/wait"}}});
-    let diagnostics = emit(&lower_supported(&model), &options())
-        .err()
-        .expect("diagnostics")
-        .to_string();
-    assert!(
-        diagnostics.contains("example.wait#WaitUntilReady: Ruby operation name collision")
-            || diagnostics.contains("waiter method name collision"),
-        "{diagnostics}"
-    );
-}
-
-#[test]
-fn streamed_responses_take_a_target_or_block() {
-    let model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-codegen-java/tests/streaming.json"
-    ))
-    .unwrap();
-    let files = emit(&lower_supported(&model), &options()).unwrap();
-    let client = files
-        .iter()
-        .find(|file| file.path.ends_with("/client.rb"))
-        .unwrap();
-    assert!(
-        client
-            .contents
-            .contains("def download(response_target: nil, cancellation: nil, &block)")
-    );
-    assert!(
-        client
-            .contents
-            .contains("def upload(input, cancellation: nil)")
-    );
-}
-
 fn vault_files() -> Vec<crucible_codegen_ruby::File> {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/client-docs.json"
@@ -205,7 +145,6 @@ fn vault_files() -> Vec<crucible_codegen_ruby::File> {
         module_name: "Vault".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: false,
     };
     emit(&service, &options).unwrap()
 }

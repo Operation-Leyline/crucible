@@ -26,7 +26,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         }
     }
     source.push_str("    return {};\n}\n}\n");
-    source.push_str(&format!("{client_name}::{client_name}(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, {}, {})) {{}}\n", names::literal(options.endpoint.as_deref().unwrap_or("")),options.content_sha256));
+    source.push_str(&format!("{client_name}::{client_name}(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, {})) {{}}\n", names::literal(options.endpoint.as_deref().unwrap_or(""))));
     for operation in &service.operations {
         let name = names::field(operation.name());
         let wire_name = names::literal(operation.name());
@@ -51,23 +51,6 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
                 )
             })
             .unwrap_or_else(|| "runtime::Json(runtime::Json::Object{})".into());
-        let request_stream = operation
-            .request
-            .payload
-            .as_ref()
-            .filter(|payload| payload.streaming)
-            .map(|payload| {
-                format!(
-                    "runtime::request_stream(input.{})",
-                    names::field(&payload.member)
-                )
-            });
-        let response_stream = operation
-            .response
-            .payload
-            .as_ref()
-            .filter(|payload| payload.streaming)
-            .map(|payload| names::field(&payload.member));
         header.push_str(&crucible_codegen_common::doxygen_for(
             Some(&crucible_codegen_common::documentation::operation(
                 service, operation,
@@ -79,62 +62,16 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
             "    [[nodiscard]] {output} {name}({input}std::stop_token stop = {{}}) const;\n"
         ));
         source.push_str(&format!("{output} {client_name}::{name}({input}std::stop_token stop) const {{\n    const auto scope = runtime_->scope(stop);\n    scope.check();\n"));
-        if request_stream.is_some() || response_stream.is_some() {
-            source.push_str(&format!(
-                "    {}auto result = runtime_->exchange({wire_name}, {encoded}, scope, {});\n",
-                if operation.output.is_some() {
-                    ""
-                } else {
-                    "[[maybe_unused]] "
-                },
-                request_stream.as_deref().unwrap_or("std::nullopt")
-            ));
-        } else {
-            source.push_str(&format!(
-                "    const auto result = runtime_->call({wire_name}, {encoded}, scope);\n"
-            ));
-        }
-        let decoded = if request_stream.is_some() || response_stream.is_some() {
-            "result.value"
-        } else {
-            "result"
-        };
+        source.push_str(&format!(
+            "    const auto result = runtime_->call({wire_name}, {encoded}, scope);\n"
+        ));
         if let Some(id) = &operation.output {
             source.push_str(&format!(
-                "    auto output = runtime::Codec<{output}>::decode({decoded}, schema().context({}));\n",
+                "    auto output = runtime::Codec<{output}>::decode(result, schema().context({}));\n    scope.check();\n    return output;\n}}\n",
                 names::literal(&id.to_string())
             ));
-            if let Some(member) = &response_stream {
-                source.push_str(&format!(
-                    "    runtime::assign_stream(output.{member}, std::move(result.stream));\n"
-                ));
-            }
-            source.push_str("    scope.check();\n    return output;\n}\n");
         } else {
             source.push_str("    scope.check();\n    return {};\n}\n");
-        }
-        for waiter in operation.waiters.keys() {
-            let method = format!("wait_until_{}", names::field(waiter));
-            header.push_str(&format!(
-                "    /// Polls {} until the {waiter} waiter's acceptors succeed or fail; throws runtime::WaiterTimeoutError after timeout seconds.\n    [[nodiscard]] std::optional<{output}> {method}({input}double timeout, runtime::WaiterOptions options = {{}}, std::stop_token stop = {{}}) const;\n",
-                operation.name()
-            ));
-            let streams = if request_stream.is_some() || response_stream.is_some() {
-                format!(
-                    ", {}{}",
-                    request_stream.as_deref().unwrap_or("std::nullopt"),
-                    response_stream
-                        .as_ref()
-                        .map(|member| format!(", [](auto& output, std::optional<runtime::ByteStream> stream) {{ runtime::assign_stream(output.{member}, std::move(stream)); }}"))
-                        .unwrap_or_default()
-                )
-            } else {
-                String::new()
-            };
-            source.push_str(&format!(
-                "std::optional<{output}> {client_name}::{method}({input}double timeout, runtime::WaiterOptions options, std::stop_token stop) const {{\n    return runtime_->wait<{output}>({wire_name}, {}, {encoded}, timeout, options, stop{streams});\n}}\n",
-                names::literal(waiter)
-            ));
         }
         if operation.paginated.is_some() {
             header.push_str(&format!("    /** Creates a lazy iterator; next returns nullopt when exhausted. */\n    [[nodiscard]] runtime::Pages<{output}> {name}_pages({input}std::stop_token stop = {{}}) const;\n"));

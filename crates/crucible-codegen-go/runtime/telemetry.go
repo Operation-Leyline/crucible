@@ -53,7 +53,7 @@ type OperationStartedEvent struct {
 	Time      time.Time
 }
 
-// AttemptStartedEvent describes one outgoing attempt with redacted target and headers and endpoint provenance.
+// AttemptStartedEvent describes one outgoing attempt with redacted target and headers.
 type AttemptStartedEvent struct {
 	InvocationID string
 	Service      string
@@ -63,8 +63,6 @@ type AttemptStartedEvent struct {
 	Method  string
 	// Endpoint is the scheme, host, port and base path; never user information.
 	Endpoint string
-	// EndpointSource is "configured", "rules" or "discovered".
-	EndpointSource string
 	// Target is the path and query as sent, with sensitive and credential values redacted.
 	Target string
 	// Headers are the request headers as sent, lowercased, with sensitive and
@@ -87,12 +85,12 @@ type AttemptFinishedEvent struct {
 	// message. It is empty when the attempt succeeded.
 	Error     string
 	RequestID string
-	// ResponseBytes is the bytes read (a streamed response's Content-Length),
+	// ResponseBytes is the bytes read,
 	// or -1 when unknown or no response arrived.
 	ResponseBytes int64
 	Latency       time.Duration
 	// RetryReason is set only when another attempt follows: "throttling",
-	// "transient", "timeout", "network" or "endpoint".
+	// "transient", "timeout" or "network".
 	RetryReason string
 	// RetryDelay is the wait before that attempt.
 	RetryDelay time.Duration
@@ -116,8 +114,7 @@ const redacted = "***"
 
 // Always redacted, whatever the model says.
 var (
-	credentialHeaders = map[string]bool{"authorization": true, "proxy-authorization": true, "cookie": true, "set-cookie": true, "x-amz-security-token": true}
-	credentialQuery   = map[string]bool{"x-amz-signature": true, "x-amz-credential": true, "x-amz-security-token": true}
+	credentialHeaders = map[string]bool{"authorization": true, "proxy-authorization": true, "cookie": true, "set-cookie": true}
 )
 
 func notify(event string, deliver func()) {
@@ -143,8 +140,7 @@ func redactHeaders(headers http.Header, sensitive map[string]bool) map[string]st
 	return result
 }
 
-// redactQuery keeps the query as sent, replacing credential and sensitive
-// values. Names compare case-insensitively: redacting too much is the safe failure.
+// redactQuery keeps the query as sent, replacing sensitive values. Names compare case-insensitively: redacting too much is the safe failure.
 func redactQuery(raw string, sensitive map[string]bool) string {
 	if raw == "" {
 		return ""
@@ -157,7 +153,7 @@ func redactQuery(raw string, sensitive map[string]bool) string {
 			decoded = name
 		}
 		lower := strings.ToLower(decoded)
-		if credentialQuery[lower] || sensitive[lower] {
+		if sensitive[lower] {
 			parts[i] = name + "=" + redacted
 		}
 	}
@@ -186,8 +182,6 @@ func errorName(err error) string {
 		return "Canceled"
 	case errors.Is(err, context.DeadlineExceeded):
 		return "DeadlineExceeded"
-	case errors.Is(err, ErrEndpointDiscovery):
-		return "EndpointDiscoveryError"
 	}
 	for {
 		kind := reflect.TypeOf(err)
@@ -234,7 +228,7 @@ func (c *clientRuntime) startTrace(operation string) *callTrace {
 	return trace
 }
 
-func (t *callTrace) attemptStarted(request *http.Request, endpoint, source, displayPath string, sensitiveHeaders, sensitiveQuery map[string]bool) {
+func (t *callTrace) attemptStarted(request *http.Request, endpoint, displayPath string, sensitiveHeaders, sensitiveQuery map[string]bool) {
 	t.attempts++
 	if t.hook == nil {
 		return
@@ -249,7 +243,7 @@ func (t *callTrace) attemptStarted(request *http.Request, endpoint, source, disp
 		length = -1
 	}
 	event := AttemptStartedEvent{InvocationID: t.id, Service: t.runtime.schema.Service, Operation: t.operation, Attempt: t.attempts,
-		Method: request.Method, Endpoint: shownEndpoint(endpoint), EndpointSource: source, Target: target,
+		Method: request.Method, Endpoint: shownEndpoint(endpoint), Target: target,
 		Headers: redactHeaders(request.Header, sensitiveHeaders), RequestBytes: length, Time: t.attemptStart}
 	notify("AttemptStarted", func() { t.hook.AttemptStarted(event) })
 }

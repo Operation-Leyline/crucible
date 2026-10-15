@@ -1,6 +1,5 @@
 """Loopback fixture for Dart native and browser transport qualification."""
 from contextlib import contextmanager
-import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
@@ -72,7 +71,6 @@ def fixture():
                     calls.append(body)
                     attempt = len(calls)
                 assert "/echo/" in self.path
-                assert self.headers.get("x-amz-content-sha256") == hashlib.sha256(body).hexdigest()
                 assert self.headers.get("authorization") == f"Bearer {attempt}"
                 assert json.loads(body)["clientToken"]
                 assert all(item == body for item in calls)

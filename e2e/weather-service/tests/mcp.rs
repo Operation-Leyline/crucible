@@ -29,7 +29,6 @@ fn runtime_mcp_requires_generated_service_descriptors() {
         generated::service_info(
             base.id,
             base.version,
-            base.cors,
             None,
             &[],
             base.errors,

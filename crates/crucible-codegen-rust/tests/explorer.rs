@@ -3,21 +3,17 @@ use crucible_smithy::{Audience, Model, ShapeId};
 
 #[test]
 fn description_projection_refusals_keep_ordinary_server_diagnostics() {
-    let mut source: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/legacy-enum.json"
+    let service = Model::from_json(include_str!(
+        "../../crucible-smithy/tests/fixtures/internal-target.json"
     ))
+    .unwrap()
+    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
     .unwrap();
-    source["shapes"]["example.legacy#Color"]["traits"]["smithy.api#internal"] =
-        serde_json::json!({});
-    let service = Model::from_json(&source.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .unwrap();
     let diagnostics = generate(
         &service,
         &Options {
             explorer: Some(Audience::External),
-            validation_error: Some(ShapeId::new("example.legacy", "Color")),
+            validation_error: Some(ShapeId::new("example.audience", "SecretInput")),
             ..Options::default()
         },
     )

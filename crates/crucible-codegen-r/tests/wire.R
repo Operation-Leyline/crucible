@@ -8,14 +8,14 @@ transport <- function(request, read_body, scope) {
     return(list(status = 200L, headers = list(), body = request$body))
   }
   check(request$headers[['content-type']] == 'text/plain' && rawToChar(request$body) == 'héllo')
-  check(request$headers[['x-meta']] == 'eyJhIjoxfQ==, aGVsbG8=' && request$headers[['x-extra-trace']] == 'aGVsbG8=')
+  check(request$headers[['x-meta']] == 'eyJhIjoxfQ==, aGVsbG8=')
   if (failure) list(status = 422L, headers = list('x-crucible-error' = 'TextError'), body = charToRaw('invalid text')) else
-    list(status = 200L, headers = list('x-meta' = 'eyJhIjoxfQ==, aGVsbG8=', 'x-extra-trace' = 'aGVsbG8='), body = request$body)
+    list(status = 200L, headers = list('x-meta' = 'eyJhIjoxfQ==, aGVsbG8='), body = request$body)
 }
-input <- TextInput(text = 'héllo', meta = list('{"a":1}', 'hello'), extras = list(trace = 'hello'))
+input <- TextInput(text = 'héllo', meta = list('{"a":1}', 'hello'))
 client <- WireClient(client_config(endpoint = 'http://127.0.0.1', transport = transport))
 output <- client$text(input)
-check(identical(output$text, input$text) && identical(output$meta, input$meta) && identical(unclass(output$extras), input$extras))
+check(identical(output$text, input$text) && identical(output$meta, input$meta))
 check(client$document(DocumentInput(document = Record(name = 'record')))$document$name == 'record')
 failure <- TRUE
 error <- tryCatch(client$text(input), error = identity)

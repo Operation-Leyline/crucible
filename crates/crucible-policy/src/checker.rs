@@ -41,20 +41,14 @@ impl Checker<'_> {
             for usage in &service.requirements {
                 if !matches!(
                     usage.feature,
-                    Feature::JsonName
-                        | Feature::GreedyLabels
-                        | Feature::QueryParams
-                        | Feature::PrefixHeaders
-                        | Feature::ResponseCode
+                    Feature::GreedyLabels
                         | Feature::Sparse
-                        | Feature::Sets
                         | Feature::IntEnum
                         | Feature::BigInteger
                         | Feature::BigDecimal
                         | Feature::NonBlobPayload
                         | Feature::ErrorPayload
                         | Feature::MediaTypeHeaders
-                        | Feature::OptionalAuth
                 ) {
                     self.push(
                         "compatibility.unchecked",
@@ -63,18 +57,6 @@ impl Checker<'_> {
                     );
                 }
             }
-        }
-        // Metadata outside the supported wire subset must not silently pass.
-        if self.old.endpoint_rules.is_some()
-            || self.new.endpoint_rules.is_some()
-            || self.old.endpoint_discovery.is_some()
-            || self.new.endpoint_discovery.is_some()
-        {
-            self.push(
-                "compatibility.unchecked",
-                &self.old.id.clone(),
-                "endpoint rules/discovery require a separate compatibility assessment",
-            );
         }
         for old_op in &self.old.operations {
             let Some(new_op) = self.new.operations.iter().find(|op| op.id == old_op.id) else {
@@ -95,10 +77,7 @@ impl Checker<'_> {
                     "HTTP method, URI pattern, or success status changed",
                 );
             }
-            if old_op.auth != new_op.auth
-                || old_op.optional_auth != new_op.optional_auth
-                || self.old.auth_schemes != self.new.auth_schemes
-            {
+            if old_op.auth != new_op.auth || self.old.auth_schemes != self.new.auth_schemes {
                 self.push(
                     "compatibility.auth",
                     &old_op.id,
@@ -203,8 +182,6 @@ impl Checker<'_> {
                             || a.retryable != b.retryable
                             || a.payload != b.payload
                             || a.headers != b.headers
-                            || a.prefix_headers != b.prefix_headers
-                            || a.response_code != b.response_code
                             || a.timestamp_formats != b.timestamp_formats
                             || a.header_encodings != b.header_encodings
                         {
@@ -231,13 +208,12 @@ impl Checker<'_> {
         new_bindings: &Bindings,
     ) {
         if old_bindings.payload != new_bindings.payload
-            || old_bindings.response_code != new_bindings.response_code
             || old_bindings.header_encodings != new_bindings.header_encodings
         {
             self.push(
                 "compatibility.bindings",
                 operation,
-                "payload, dynamic status, or header encoding changed",
+                "payload or header encoding changed",
             );
         }
         match (old, new) {
@@ -296,15 +272,8 @@ impl Checker<'_> {
         match (old, new) {
             (Shape::Unit { .. }, Shape::Unit { .. }) => {}
             (Shape::Simple(a), Shape::Simple(b)) => {
-                if a.kind != b.kind
-                    || a.streaming != b.streaming
-                    || a.requires_length != b.requires_length
-                {
-                    self.push(
-                        "compatibility.type",
-                        old_id,
-                        "scalar type or streaming contract changed",
-                    );
+                if a.kind != b.kind {
+                    self.push("compatibility.type", old_id, "scalar type changed");
                 }
                 // Incoming members already carry effective constraints and timestamp
                 // formats. Raw target traits may be overridden at every wire use.
@@ -341,13 +310,6 @@ impl Checker<'_> {
                 self.members(old_id, a, b, direction, bindings, true)
             }
             (Shape::List(a), Shape::List(b)) => {
-                if a.is_set != b.is_set {
-                    self.push(
-                        "compatibility.type",
-                        old_id,
-                        "collection set/list semantics changed",
-                    );
-                }
                 if direction == Direction::Input && a.sparse && !b.sparse
                     || direction == Direction::Output && !a.sparse && b.sparse
                 {
@@ -742,9 +704,7 @@ impl Checker<'_> {
                     self.push("compatibility.sdk", id, "public scalar type changed")
                 }
                 (Shape::List(a), Shape::List(b))
-                    if a.member.target != b.member.target
-                        || a.sparse != b.sparse
-                        || a.is_set != b.is_set =>
+                    if a.member.target != b.member.target || a.sparse != b.sparse =>
                 {
                     self.push("compatibility.sdk", id, "public collection type changed")
                 }
@@ -833,16 +793,6 @@ fn location(member: &Member, bindings: Option<&Bindings>) -> String {
         if let Some(binding) = bindings.headers.iter().find(|b| b.member == member.name) {
             return format!("header:{}", binding.name.to_ascii_lowercase());
         }
-        if let Some(binding) = bindings
-            .prefix_headers
-            .iter()
-            .find(|b| b.member == member.name)
-        {
-            return format!("prefix-header:{}", binding.name.to_ascii_lowercase());
-        }
-        if bindings.query_params.as_deref() == Some(&member.name) {
-            return "query-params".into();
-        }
         if bindings
             .payload
             .as_ref()
@@ -850,9 +800,6 @@ fn location(member: &Member, bindings: Option<&Bindings>) -> String {
         {
             return "payload".into();
         }
-        if bindings.response_code.as_deref() == Some(&member.name) {
-            return "response-code".into();
-        }
     }
-    format!("body:{}", member.wire_name)
+    format!("body:{}", member.name)
 }

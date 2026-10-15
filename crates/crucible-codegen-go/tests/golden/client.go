@@ -12,7 +12,7 @@ type WeatherClient struct { *clientRuntime }
 // NewWeatherClient validates configuration and applies defaults without sending a request.
 func NewWeatherClient(config Config) (*WeatherClient, error) {
  if config.Endpoint == "" { config.Endpoint = "https://weather.example" }
- runtime, err := newClient(config, wireSchema, true)
+ runtime, err := newClient(config, wireSchema)
  if err != nil { return nil, err }
  return &WeatherClient{clientRuntime: runtime}, nil
 }

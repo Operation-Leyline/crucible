@@ -28,18 +28,14 @@ Json document(const Schema& schema, std::string_view target, const Json& value, 
     const auto& kind = shape.at("kind").string();
     if (kind == "structure" || kind == "union") {
         Json::Object result;
-        std::vector<std::string> known, wire_names;
+        std::vector<std::string> known;
         for (const auto& [name, member] : shape.at("members").object()) {
-            const auto* renamed = member.find("jsonName");
-            const auto& wire = renamed ? renamed->string() : name;
-            const auto& source = encode ? name : wire;
-            known.push_back(source); wire_names.push_back(wire);
-            const auto* item = value.find(source);
-            if (item) result.emplace(encode ? wire : name, document(schema, member.at("target").string(), *item, encode));
+            known.push_back(name);
+            const auto* item = value.find(name);
+            if (item) result.emplace(name, document(schema, member.at("target").string(), *item, encode));
         }
         if (kind == "union") for (const auto& [name, item] : value.object()) {
             if (std::find(known.begin(), known.end(), name) != known.end()) continue;
-            if (encode && std::find(wire_names.begin(), wire_names.end(), name) != wire_names.end()) throw std::invalid_argument("Unknown variant name is declared");
             result.emplace(name, item);
         }
         return Json(std::move(result));

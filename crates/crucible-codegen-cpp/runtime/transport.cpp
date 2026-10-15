@@ -2,9 +2,7 @@
 #include <curl/curl.h>
 #include <charconv>
 #include <climits>
-#include <atomic>
 #include <cmath>
-#include <cstring>
 #include <exception>
 #include <limits>
 #include <mutex>
@@ -68,37 +66,18 @@ template<class T> void option(CURL* easy, CURLoption name, T value) {
     if (code != CURLE_OK) throw NetworkError(curl_easy_strerror(code));
 }
 void multi_check(CURLMcode code) { if (code != CURLM_OK) throw NetworkError(curl_multi_strerror(code)); }
-// Received bytes a streaming body may hold before the transfer pauses until the reader drains them.
-constexpr std::size_t stream_buffer_limit = 1 << 20;
 struct Transfer {
     HttpResponse response;
     bool read_body = true;
     bool discarded = false;
-    bool streaming = false;
-    bool headers_done = false;
-    bool paused = false;
-    std::size_t offset = 0;
-    std::shared_ptr<RequestBody> upload;
     std::exception_ptr failure;
     static size_t body(char* bytes, size_t size, size_t count, void* opaque) noexcept {
         auto& self = *static_cast<Transfer*>(opaque);
         try {
             if (size && count > (std::numeric_limits<size_t>::max)() / size) throw NetworkError("Response size overflow");
-            if (self.streaming) {
-                // Pull-based: hold at most one buffer of unread bytes, then let TCP apply backpressure.
-                if (self.response.body.size() - self.offset >= stream_buffer_limit) { self.paused = true; return CURL_WRITEFUNC_PAUSE; }
-                if (self.offset == self.response.body.size()) { self.response.body.clear(); self.offset = 0; }
-            }
             self.response.body.append(bytes, size * count);
             return size * count;
         } catch (...) { self.failure = std::current_exception(); return 0; }
-    }
-    static size_t read(char* buffer, size_t size, size_t count, void* opaque) noexcept {
-        auto& self = *static_cast<Transfer*>(opaque);
-        try {
-            if (size && count > (std::numeric_limits<size_t>::max)() / size) throw NetworkError("Upload size overflow");
-            return self.upload->read(buffer, size * count);
-        } catch (...) { self.failure = std::current_exception(); return CURL_READFUNC_ABORT; }
     }
     static size_t header(char* bytes, size_t size, size_t count, void* opaque) noexcept {
         auto& self = *static_cast<Transfer*>(opaque);
@@ -113,7 +92,6 @@ struct Transfer {
                 const auto parsed = std::from_chars(status.data(), status.data() + status.size(), self.response.status);
                 if (parsed.ec != std::errc() || parsed.ptr != status.data() + status.size()) throw NetworkError("Invalid HTTP status");
             } else if (line == "\r\n" || line == "\n") {
-                if (self.response.status >= 200) self.headers_done = true;
                 if (!self.read_body && self.response.status >= 200 && self.response.status < 300) { self.discarded = true; return 0; }
             } else {
                 const auto colon = line.find(':');
@@ -156,15 +134,6 @@ HeaderList configure(CURL* easy, const HttpRequest& request, Transfer& transfer,
         if (request.body->size() > static_cast<std::size_t>((std::numeric_limits<curl_off_t>::max)())) throw std::invalid_argument("Request body too large");
         option(easy, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(request.body->size()));
         option(easy, CURLOPT_POSTFIELDS, request.body->data());
-    } else if (request.stream) {
-        // A known length is sent as Content-Length; an unknown one is chunked.
-        const auto length = request.stream->length();
-        if (length && *length > static_cast<std::uint64_t>((std::numeric_limits<curl_off_t>::max)())) throw std::invalid_argument("Request body too large");
-        transfer.upload = request.stream;
-        option(easy, CURLOPT_POST, 1L);
-        option(easy, CURLOPT_READFUNCTION, &Transfer::read);
-        option(easy, CURLOPT_READDATA, &transfer);
-        option(easy, CURLOPT_POSTFIELDSIZE_LARGE, length ? static_cast<curl_off_t>(*length) : static_cast<curl_off_t>(-1));
     }
     if (request.method == "HEAD") option(easy, CURLOPT_NOBODY, 1L);
     HeaderList headers;
@@ -186,96 +155,11 @@ CURLcode finished(CURLM* multi, CURL* easy) {
     return result;
 }
 void raise(const Transfer& transfer, CURLcode result) {
-    // The caller's stream failure or a callback error wins over the transport error it caused.
+    // A callback error wins over the transport error it caused.
     if (transfer.failure) std::rethrow_exception(transfer.failure);
     if (result == CURLE_OPERATION_TIMEDOUT) throw DeadlineError();
     if (result != CURLE_OK) throw NetworkError(curl_easy_strerror(result));
 }
-// A streaming exchange on its own connection: returned at the headers, read on demand.
-class CurlStream final : public ResponseBody {
-    HttpRequest request_;
-    CallScope scope_;
-    CURLM* multi_ = nullptr;
-    std::unique_ptr<CURL, EasyDeleter> easy_;
-    HeaderList headers_;
-    std::mutex mutex_;
-    // Guards the handles against close() waking a reader while that reader releases them.
-    std::mutex handles_;
-    std::atomic<bool> closed_ = false;
-    bool done_ = false;
-    CURLcode result_ = CURLE_OK;
-    void release() noexcept {
-        std::lock_guard guard(handles_);
-        if (!multi_) return;
-        try { [[maybe_unused]] const SigpipeBlock signals; curl_multi_remove_handle(multi_, easy_.get()); easy_.reset(); curl_multi_cleanup(multi_); } catch (...) {}
-        multi_ = nullptr;
-    }
-    // Drives the transfer once; returns false when it has finished.
-    bool step() {
-        scope_.check();
-        [[maybe_unused]] const SigpipeBlock signals;
-        int running = 0;
-        multi_check(curl_multi_perform(multi_, &running));
-        if (!running) { done_ = true; result_ = finished(multi_, easy_.get()); return false; }
-        int ready = 0;
-        multi_check(curl_multi_poll(multi_, nullptr, 0, 25, &ready));
-        return true;
-    }
-public:
-    Transfer transfer;
-    CurlStream(const HttpRequest& request, const CallScope& scope) : request_(request), scope_(scope) {
-        transfer.streaming = true;
-        multi_ = curl_multi_init();
-        if (!multi_) throw std::bad_alloc();
-        easy_.reset(curl_easy_init());
-        if (!easy_) { curl_multi_cleanup(multi_); multi_ = nullptr; throw std::bad_alloc(); }
-    }
-    ~CurlStream() override { release(); }
-    CurlStream(const CurlStream&) = delete;
-    CurlStream& operator=(const CurlStream&) = delete;
-    void start() {
-        headers_ = configure(easy_.get(), request_, transfer, scope_);
-        multi_check(curl_multi_add_handle(multi_, easy_.get()));
-        try {
-            while (!transfer.headers_done && step()) {}
-            if (transfer.failure) std::rethrow_exception(transfer.failure);
-            if (!transfer.headers_done) { raise(transfer, result_); throw NetworkError("Missing HTTP response headers"); }
-        } catch (...) { release(); throw; }
-    }
-    std::size_t read(char* buffer, std::size_t size) override {
-        std::lock_guard lock(mutex_);
-        for (;;) {
-            if (closed_) { release(); throw StreamClosedError(); }
-            try { scope_.check(); } catch (...) { release(); throw; }
-            auto& data = transfer.response.body;
-            if (transfer.offset < data.size()) {
-                const auto count = (std::min)(size, data.size() - transfer.offset);
-                std::memcpy(buffer, data.data() + transfer.offset, count);
-                transfer.offset += count;
-                if (transfer.offset == data.size() && transfer.paused && multi_) {
-                    data.clear(); transfer.offset = 0; transfer.paused = false;
-                    [[maybe_unused]] const SigpipeBlock signals;
-                    curl_easy_pause(easy_.get(), CURLPAUSE_CONT);
-                }
-                return count;
-            }
-            if (done_ || !multi_) {
-                const auto result = result_;
-                release();
-                raise(transfer, result);
-                return 0;
-            }
-            try { (void)step(); } catch (...) { release(); throw; }
-        }
-    }
-    void close() noexcept override {
-        if (closed_.exchange(true)) return;
-        { std::lock_guard guard(handles_); if (multi_) curl_multi_wakeup(multi_); }
-        // A reader blocked in another thread notices the flag and releases the connection itself.
-        std::unique_lock lock(mutex_, std::try_to_lock);
-        if (lock.owns_lock()) release();
-    }
-};
 }
 std::string lower(std::string text) { for (char& byte : text) if (byte >= 'A' && byte <= 'Z') byte = static_cast<char>(byte + ('a' - 'A')); return text; }
 std::string uri_encode(std::string_view text) {
@@ -286,34 +170,6 @@ std::string uri_encode(std::string_view text) {
         else { output += '%'; output += hex[byte >> 4]; output += hex[byte & 15]; }
     }
     return output;
-}
-std::string uri_decode(std::string_view text) {
-    std::string result;
-    for (std::size_t i = 0; i < text.size(); ++i) {
-        if (text[i] != '%') { result += text[i]; continue; }
-        unsigned byte = 0;
-        if (i + 2 >= text.size()) throw std::invalid_argument("Invalid percent-encoding");
-        const auto parsed = std::from_chars(text.data() + i + 1, text.data() + i + 3, byte, 16);
-        if (parsed.ec != std::errc() || parsed.ptr != text.data() + i + 3) throw std::invalid_argument("Invalid percent-encoding");
-        result += static_cast<char>(byte);
-        i += 2;
-    }
-    return result;
-}
-UrlParts split_url(std::string_view url) {
-    UrlParts result;
-    const auto scheme = url.find("://");
-    if (scheme == std::string_view::npos) throw std::invalid_argument("Absolute URL required");
-    result.scheme = lower(std::string(url.substr(0, scheme)));
-    auto rest = url.substr(scheme + 3);
-    if (const auto fragment = rest.find('#'); fragment != std::string_view::npos) rest = rest.substr(0, fragment);
-    const auto end = rest.find_first_of("/?");
-    result.authority = std::string(rest.substr(0, end));
-    rest = end == std::string_view::npos ? std::string_view{} : rest.substr(end);
-    const auto question = rest.find('?');
-    result.path = std::string(rest.substr(0, question));
-    if (question != std::string_view::npos) result.query = std::string(rest.substr(question + 1));
-    return result;
 }
 void validate_url(const std::string& text, bool endpoint, bool credentials) {
     initialize();
@@ -330,8 +186,7 @@ void validate_url(const std::string& text, bool endpoint, bool credentials) {
 }
 void validate_request(const HttpRequest& request) {
     if (!token(request.method)) throw std::invalid_argument("Invalid HTTP method");
-    if (request.method == "HEAD" && ((request.body && !request.body->empty()) || request.stream)) throw std::invalid_argument("libcurl HEAD requests cannot carry a body");
-    if (request.body && request.stream) throw std::invalid_argument("A request has either a body or a stream");
+    if (request.method == "HEAD" && request.body && !request.body->empty()) throw std::invalid_argument("libcurl HEAD requests cannot carry a body");
     bool credentials = false;
     for (const auto& [name, value] : request.headers) {
         if (!token(name) || value.find_first_of(std::string("\r\n\0", 3)) != std::string::npos) throw std::invalid_argument("Invalid HTTP header");
@@ -383,29 +238,5 @@ HttpResponse CurlTransport::send(const HttpRequest& request, bool read_body, con
     raise(transfer, result);
     if (transfer.response.status < 100) throw NetworkError("Missing HTTP response status");
     return std::move(transfer.response);
-}
-HttpResponse CurlTransport::open(const HttpRequest& request, const CallScope& scope) {
-    scope.check();
-    validate_request(request);
-    {
-        std::lock_guard lock(state_->mutex);
-        if (state_->closed) throw std::logic_error("Transport is closed");
-    }
-    // A dedicated connection: the caller may hold the body open while the client sends other requests.
-    auto stream = std::make_shared<CurlStream>(request, scope);
-    stream->start();
-    HttpResponse response;
-    response.status = stream->transfer.response.status;
-    response.headers = stream->transfer.response.headers;
-    response.stream = std::move(stream);
-    return response;
-}
-HttpResponse Transport::open(const HttpRequest& request, const CallScope& scope) {
-    auto buffered = request;
-    if (buffered.stream) { buffered.body = std::string{}; char chunk[65536]; while (const auto count = buffered.stream->read(chunk, sizeof(chunk))) buffered.body->append(chunk, count); buffered.stream.reset(); }
-    auto response = send(buffered, true, scope);
-    response.stream = std::make_shared<MemoryBody>(std::move(response.body));
-    response.body.clear();
-    return response;
 }
 }

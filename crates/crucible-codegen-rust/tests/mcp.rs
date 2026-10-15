@@ -22,7 +22,7 @@ fn static_descriptors_match_golden() {
     .unwrap();
     assert!(code.contains("Some(MCP_TOOLS),"));
     let descriptors = code
-        .split("    /// MCP tools for the selected audience;")
+        .split("    /// MCP tools for the selected audience.")
         .nth(1)
         .unwrap();
     let metadata = code
@@ -91,20 +91,9 @@ fn strict_inputs_remain_strict_after_external_projection() {
     );
 }
 #[test]
-fn streaming_exclusions_are_explicit_and_sorted() {
-    let code = emit(include_str!(
-        "../../crucible-smithy/tests/fixtures/mcp-streaming.json"
-    ))
-    .unwrap();
-    assert_eq!(code.matches("mcp.streaming_excluded:").count(), 5);
-    let notes = code.split("pub static MCP_EXCLUSIONS").nth(1).unwrap();
-    assert!(notes.find("#Chat").unwrap() < notes.find("#Publish").unwrap());
-    assert!(notes.find("#Publish").unwrap() < notes.find("#Subscribe").unwrap());
-}
-#[test]
 fn server_keeps_internal_api_but_descriptors_use_external_projection() {
     let code = emit(include_str!(
-        "../../crucible-smithy/tests/fixtures/internal-cors.json"
+        "../../crucible-smithy/tests/fixtures/internal.json"
     ))
     .unwrap();
     assert!(code.contains("pub trait SecretOperation"));

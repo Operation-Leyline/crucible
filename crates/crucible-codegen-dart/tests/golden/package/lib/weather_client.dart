@@ -7,7 +7,3 @@ export 'src/runtime/timestamp.dart';
 export 'src/runtime/errors.dart';
 export 'src/runtime/cancellation.dart' show CancellationToken;
 export 'src/runtime/transport.dart';
-export 'src/runtime/auth.dart' show BasicCredentials, AwsCredentials, CachedCredentials, BasicCredentialProvider, ApiKeyProvider, AwsCredentialProvider, credentialChain, environmentCredentials, profileCredentials, signV4;
-export 'src/runtime/checksums.dart' show ChecksumPolicy, ChecksumException;
-export 'src/runtime/endpoints.dart' show EndpointException;
-export 'src/runtime/waiters.dart' show WaiterException, WaiterTimeoutException;

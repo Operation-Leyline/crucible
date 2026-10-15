@@ -18,7 +18,7 @@ search in the generated source:
 
 On top of that, generated Rust server code was one trait with every operation
 on it (Leyline's `api/mod.rs`, 2,100 lines), and generated clients needed
-splicing for request signing digests and package metadata.
+splicing for package metadata.
 
 crucible reads the Smithy model itself, so none of those are lost.
 
@@ -80,10 +80,6 @@ reach, keyed by shape id. Lowering settles, once:
 - **Scopes**: `@crucible.auth#scopes` on a service is the default, on an
   operation the override (`[]` opts out). Each operation carries its effective
   list, empty when public; misuse is a diagnostic. See [auth.md](auth.md#oauth-scopes).
-- **CORS**: service `@cors` becomes a typed policy with defaults, authentication
-  and protocol headers, and all input/output/error header bindings resolved once.
-  Prefix-bound input headers remain prefixes for matching concrete browser
-  preflight names. Generators consume this policy without reading raw traits.
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
 - **Visibility**: `@internal` becomes explicit `internal` flags on operations,
@@ -107,7 +103,7 @@ reach, keyed by shape id. Lowering settles, once:
 - **HTTP bindings**: label, query, header, body or payload for each input
   member, header, body or payload for each output or error member. A payload
   (`@httpPayload`) is the whole body, so its structure has no body members.
-  The IR records its kind, media type and streaming requirements. Labels
+  The IR records its kind and media type. Labels
   are checked against the URI in both
   directions. Literal query parameters are preserved
   in both clients and participate in server route matching.
@@ -180,7 +176,7 @@ C prefixes and R constructors. Shared runtime types can keep generic names.
 Give modeled SDK exceptions a service-wide type named after the service
 (`LeylineException`). Inheritance-based targets extend this type from the
 shared `ServiceError` base; unknown and malformed error responses use it too.
-Network, cancellation, checksum and other local failures keep their own types.
+Network, cancellation and other local failures keep their own types.
 Swift uses a service protocol, Go a service interface, R a condition class,
 and Rust a service enum with conversions from operation error enums. C retains
 its service-prefixed error representation. These are public SDK types, not

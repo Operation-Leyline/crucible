@@ -141,21 +141,6 @@ impl DocNotes {
         }
         notes
     }
-
-    /// A legacy `@enum` definition marks deprecation with a boolean.
-    pub(crate) fn lower_legacy_enum_value(
-        id: &ShapeId,
-        definition: &Value,
-        diagnostics: &mut Diagnostics,
-    ) -> Self {
-        let mut notes = Self::default();
-        match definition.get("deprecated") {
-            Some(Value::Bool(true)) => notes.deprecated = Some(Deprecation::default()),
-            Some(Value::Bool(false)) | None => {}
-            Some(_) => diagnostics.push(id, "@enum definition deprecated must be boolean"),
-        }
-        notes
-    }
 }
 
 fn deprecation(id: &ShapeId, value: &Value, diagnostics: &mut Diagnostics) -> Option<Deprecation> {

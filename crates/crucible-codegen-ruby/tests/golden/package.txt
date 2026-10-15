@@ -25,16 +25,7 @@ require_relative 'weather_client/runtime/error_metadata'
 require_relative 'weather_client/runtime/service_error'
 require_relative 'weather_client/runtime/cancellation_token'
 require_relative 'weather_client/runtime/call_scope'
-require_relative 'weather_client/runtime/basic_credentials'
-require_relative 'weather_client/runtime/aws_credentials'
-require_relative 'weather_client/runtime/cached_credentials'
-require_relative 'weather_client/runtime/credentials'
 require_relative 'weather_client/runtime/authentication'
-require_relative 'weather_client/runtime/byte_stream'
-require_relative 'weather_client/runtime/query'
-require_relative 'weather_client/runtime/waiters'
-require_relative 'weather_client/runtime/endpoints'
-require_relative 'weather_client/runtime/checksums'
 require_relative 'weather_client/runtime/client_config'
 require_relative 'weather_client/runtime/http_request'
 require_relative 'weather_client/runtime/http_response'
@@ -86,7 +77,7 @@ module Weather
     # @param config [Runtime::ClientConfig]
     # @raise [ArgumentError] when the endpoint or another setting is invalid
     def initialize(config = Runtime::ClientConfig.new)
-      @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '', digest: true)
+      @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '')
     end
     # Releases the HTTP connection this client created. A transport passed in the configuration is left open.
     def close = @runtime.close
@@ -1034,9 +1025,5 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'time', '>= 0.3', '< 1'
   spec.add_dependency 'securerandom', '>= 0.3', '< 1'
   spec.add_dependency 'openssl', '>= 3.0', '< 5'
-  spec.add_dependency 'digest', '>= 3.1', '< 4'
   spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'
-  spec.add_dependency 'zlib', '>= 3.0', '< 4'
-  spec.add_dependency 'ipaddr', '>= 1.2', '< 2'
-  spec.add_dependency 'stringio', '>= 3.0', '< 4'
 end

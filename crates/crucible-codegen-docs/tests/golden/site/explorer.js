@@ -254,14 +254,11 @@
   function location(bindings, member) {
     const name = member.name;
     if (list(bindings.labels).includes(name)) return `path: ${name}`;
-    for (const key of ["query", "headers", "prefixHeaders"]) {
+    for (const key of ["query", "headers"]) {
       const hit = list(bindings[key]).find((b) => b.member === name);
       if (hit) return `${key}: ${hit.name}`;
     }
     if (bindings.payload && bindings.payload.member === name) return "payload";
-    if (bindings.eventStream && bindings.eventStream.member === name) return "event stream";
-    if (bindings.queryParams === name) return "query parameters";
-    if (bindings.responseCode === name) return "HTTP status";
     return `body: ${member.wireName}`;
   }
 
@@ -288,7 +285,6 @@
     const lines = [`${op.method} ${uri} HTTP/1.1`];
     for (const [name, value] of Object.entries(op.protocolHeaders || {})) lines.push(`${name}: ${value}`);
     for (const header of list(b.headers)) lines.push(`${header.name}: {${header.member}}`);
-    for (const header of list(b.prefixHeaders)) lines.push(`${header.name}{key}: {${header.member}}`);
     return finishSyntax(lines, b);
   }
 
@@ -297,7 +293,6 @@
     const lines = [`HTTP/1.1 ${op.status}`];
     for (const [name, value] of Object.entries(op.responseProtocolHeaders || {})) lines.push(`${name}: ${value}`);
     for (const header of list(b.headers)) lines.push(`${header.name}: {${header.member}}`);
-    for (const header of list(b.prefixHeaders)) lines.push(`${header.name}{key}: {${header.member}}`);
     return finishSyntax(lines, b);
   }
 
@@ -316,7 +311,7 @@
     const shape = shapeId && m.shapes[shapeId];
     const all = shape ? list(shape.members) : [];
     const inBody = (member) =>
-      list(b.body).includes(member.name) || (b.payload && b.payload.member === member.name) || (b.eventStream && b.eventStream.member === member.name);
+      list(b.body).includes(member.name) || (b.payload && b.payload.member === member.name);
     return { shape, all, parameters: all.filter((x) => !inBody(x)), body: all.filter(inBody) };
   }
 
@@ -330,13 +325,10 @@
     if (parameters.length) out.push(h("h3", {}, `${title} parameters`), memberTable(m, parameters, b, `${title} parameters`));
     if (body.length) {
       out.push(h("h3", {}, `${title} body`));
-      if (!b.payload && !b.eventStream) out.push(codeBlock(`${title.toLowerCase()} body shape`, bodySkeleton(body), "json"));
+      if (!b.payload) out.push(codeBlock(`${title.toLowerCase()} body shape`, bodySkeleton(body), "json"));
       out.push(memberTable(m, body, b, `${title} body members`));
     }
     if (shape && !all.length) out.push(h("p", { class: "cx-muted" }, "No modeled members."));
-    if (b.eventStream) out.push(h("p", {}, "The body carries an event stream; consume events incrementally."));
-    if (b.payload && b.payload.streaming) out.push(h("p", {}, "The payload is streaming."));
-    if (b.payload && b.payload.requiresLength) out.push(h("p", {}, "The payload requires a Content-Length header."));
     return h("section", { id: sectionId(request ? "request" : "response") }, out);
   }
 
@@ -410,7 +402,7 @@
   // -------------------------------------------------------------- examples
 
   function exampleMessage(message, request, status) {
-    const lines = [request ? `${message.method} ${message.uri} HTTP/1.1` : `HTTP/1.1 ${message.responseCode == null ? status : message.responseCode}`];
+    const lines = [request ? `${message.method} ${message.uri} HTTP/1.1` : `HTTP/1.1 ${status}`];
     for (const [name, value] of Object.entries(message.headers || {})) lines.push(`${name}: ${value}`);
     let out = lines.join("\n");
     if (message.body != null) out += `\n\n${pretty(message.body)}`;
@@ -509,7 +501,7 @@
     const out = [
       pageHeader(op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
       panels,
-      h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", op.optionalAuth ? " (optional)" : "", "."), list(op.scopes).length ? h("p", {}, "Required scopes: ", list(op.scopes).map((s) => code(s))) : null),
+      h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", "."), list(op.scopes).length ? h("p", {}, "Required scopes: ", list(op.scopes).map((s) => code(s))) : null),
       authorizationSection(op),
       messageSection(m, op, true),
       messageSection(m, op, false),
@@ -553,7 +545,6 @@
     if (!s) return missingView(`No data type ${id}.`);
     const out = [pageHeader(s.name, s, h("span", { class: "cx-kind" }, s.kind))];
     if (s.sensitive) out.push(h("p", { class: "cx-note cx-sensitive" }, h("strong", {}, "Sensitive: "), "avoid logging this value."));
-    if (s.streaming) out.push(h("p", {}, h("strong", {}, "Streaming: "), "values are consumed incrementally."));
     if (s.error) {
       const e = s.error;
       out.push(h("p", {}, "Error: ", code(e.wireCode), ` — HTTP ${e.status}, ${e.fault} fault`, e.retryable ? (e.retryable.throttling ? ", retryable (throttling)" : ", retryable") : "", "."));

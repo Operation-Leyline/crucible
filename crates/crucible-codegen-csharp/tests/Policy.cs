@@ -1,5 +1,5 @@
-// Runtime policy: retry quota, adaptive rate limiting, endpoint discovery and telemetry, against the shared vectors in
-// tests/conformance/{retry-quota,adaptive-retry,endpoint-discovery,telemetry}.json and a client generated from
+// Runtime policy: retry quota, adaptive rate limiting and telemetry, against the shared vectors in
+// tests/conformance/{retry-quota,adaptive-retry,telemetry}.json and a client generated from
 // crates/crucible-smithy/tests/fixtures/runtime-policy.json.
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -63,12 +63,12 @@ static class Program
     }
 
     static RecordsClient Client(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> handle, TimeProvider? clock = null,
-        RetryMode mode = RetryMode.Legacy, bool? discovery = null, int maxAttempts = 3, TelemetryHook? telemetry = null, string key = "key",
+        RetryMode mode = RetryMode.Legacy, int maxAttempts = 3, TelemetryHook? telemetry = null, string key = "key",
         TimeSpan? baseDelay = null, TimeSpan? maxDelay = null) =>
         new(new ClientConfig
         {
-            Endpoint = Endpoint, HttpClient = new HttpClient(new Handler(handle)), ApiKey = _ => ValueTask.FromResult<string?>(key),
-            BaseDelay = baseDelay ?? TimeSpan.Zero, MaxDelay = maxDelay ?? TimeSpan.FromSeconds(20), RetryMode = mode, EndpointDiscovery = discovery,
+            Endpoint = Endpoint, HttpClient = new HttpClient(new Handler(handle)), Token = _ => ValueTask.FromResult<string?>(key),
+            BaseDelay = baseDelay ?? TimeSpan.Zero, MaxDelay = maxDelay ?? TimeSpan.FromSeconds(20), RetryMode = mode,
             MaxAttempts = maxAttempts, Telemetry = telemetry, TimeProvider = clock ?? TimeProvider.System
         });
 
@@ -100,7 +100,6 @@ static class Program
     static async Task<string> Outcome(Task call)
     {
         try { await call; return "success"; }
-        catch (EndpointDiscoveryException) { return "endpoint-discovery"; }
         catch (ServiceError error) { return error.ErrorName; }
     }
 
@@ -109,16 +108,11 @@ static class Program
         var directory = args.Length != 0 ? args[0] : ".";
         var quota = Load(Path.Combine(directory, "retry-quota.json"));
         var adaptive = Load(Path.Combine(directory, "adaptive-retry.json"));
-        var discovery = Load(Path.Combine(directory, "endpoint-discovery.json"));
         var telemetry = Load(Path.Combine(directory, "telemetry.json"));
         QuotaSteps(quota, adaptive);
         await QuotaCalls(quota);
         AdaptiveVectors(adaptive);
         await AdaptiveClient();
-        await DiscoveryScenarios(discovery);
-        await ConcurrentCallersShareOneDiscovery();
-        await FailedSharedDiscoveryFailsEveryWaiter();
-        await CancelledLeaderDoesNotCancelTheSharedDiscovery();
         await TelemetryScenarios(telemetry);
         await TelemetryHookFailuresAreIgnored();
         await TelemetryUsesTheInjectedClock();
@@ -269,103 +263,6 @@ static class Program
         }
         Check(clock.Sleeps.SequenceEqual([2.0, 0.75]), "backoff sleeps: " + string.Join(",", clock.Sleeps));
         Check(clock.GetTimestamp() == TimeSpan.FromSeconds(2.75).Ticks, "sleeps advanced the clock");
-    }
-
-    static async Task DiscoveryScenarios(JsonNode vectors)
-    {
-        foreach (var test in vectors["scenarios"]!.AsArray())
-        {
-            var name = Str(test!["name"]);
-            var clock = new FakeClock();
-            var exchanges = new Queue<JsonNode>();
-            using var client = Client(async (request, _) => {
-                Check(exchanges.Count != 0, name + ": unexpected request " + request.Method + " " + request.RequestUri);
-                var exchange = exchanges.Dequeue();
-                Check(request.Method.Method == Str(exchange["method"]) && request.RequestUri!.AbsoluteUri == Str(exchange["url"]),
-                    name + ": expected " + exchange["method"] + " " + exchange["url"] + ", sent " + request.Method + " " + request.RequestUri);
-                if (exchange["json"] is JsonNode body)
-                    Check(JsonNode.DeepEquals(JsonNode.Parse(await request.Content!.ReadAsStringAsync()), body), name + ": request body");
-                Check(request.Headers.GetValues("x-api-key").Single() == "key", name + ": authenticated");
-                return await Reply(exchange["response"]!);
-            }, clock, discovery: test["endpointDiscovery"]?.GetValue<bool>(), maxAttempts: test["maxAttempts"]?.GetValue<int>() ?? 3);
-            foreach (var step in test["steps"]!.AsArray())
-            {
-                if (step!["advance"] is JsonNode advance) { clock.Advance(advance.GetValue<double>()); continue; }
-                exchanges.Clear(); foreach (var exchange in step["exchanges"]!.AsArray()) exchanges.Enqueue(exchange!);
-                var outcome = await Outcome(Call(client, Str(step["call"]), step["input"]));
-                Check(outcome == Str(step["outcome"]), name + ": outcome " + outcome + " for " + step.ToJsonString());
-                Check(exchanges.Count == 0, name + ": every expected request was sent");
-            }
-        }
-    }
-
-    static JsonObject Endpoints(string host, int minutes) =>
-        new() { ["Endpoints"] = new JsonArray(new JsonObject { ["Address"] = host, ["CachePeriodInMinutes"] = minutes }) };
-
-    static async Task ConcurrentCallersShareOneDiscovery()
-    {
-        int discoveries = 0; var release = new TaskCompletionSource();
-        using var client = Client(async (request, _) => {
-            if (request.RequestUri!.AbsolutePath == "/endpoints")
-            {
-                Interlocked.Increment(ref discoveries);
-                await release.Task.WaitAsync(TimeSpan.FromSeconds(5));
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Endpoints("t1.records.example", 1).ToJsonString()) };
-            }
-            Check(request.RequestUri.Host == "t1.records.example", "discovered host");
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("{}") };
-        });
-        // Four asynchronous callers and four blocking ones on their own threads.
-        var calls = Enumerable.Range(0, 4).Select(i => (Task)client.GetRecordAsync(new() { Table = "t1", Key = "a" + i }))
-            .Concat(Enumerable.Range(0, 4).Select(i => Task.Factory.StartNew(() => client.GetRecord(new() { Table = "t1", Key = "s" + i }),
-                TaskCreationOptions.LongRunning))).ToList();
-        while (Volatile.Read(ref discoveries) == 0) await Task.Delay(10);
-        await Task.Delay(200);
-        release.SetResult();
-        await Task.WhenAll(calls).WaitAsync(TimeSpan.FromSeconds(10));
-        Check(discoveries == 1, "one shared discovery, not " + discoveries);
-    }
-
-    static async Task FailedSharedDiscoveryFailsEveryWaiter()
-    {
-        int discoveries = 0; var release = new TaskCompletionSource();
-        using var client = Client(async (_, _) => {
-            Interlocked.Increment(ref discoveries);
-            await release.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            return new HttpResponseMessage(HttpStatusCode.BadRequest) { Content = new StringContent("""{"__type":"Denied"}""") };
-        });
-        var calls = Enumerable.Range(0, 4).Select(i => Outcome(client.GetRecordAsync(new() { Table = "t1", Key = "k" + i }))).ToList();
-        while (Volatile.Read(ref discoveries) == 0) await Task.Delay(10);
-        await Task.Delay(200);
-        release.SetResult();
-        var outcomes = await Task.WhenAll(calls).WaitAsync(TimeSpan.FromSeconds(10));
-        Check(outcomes.All(outcome => outcome == "Denied") && discoveries == 1, "shared discovery failure: " + string.Join(",", outcomes) + " after " + discoveries);
-    }
-
-    static async Task CancelledLeaderDoesNotCancelTheSharedDiscovery()
-    {
-        int discoveries = 0; var release = new TaskCompletionSource();
-        using var client = Client(async (request, _) => {
-            if (request.RequestUri!.AbsolutePath == "/endpoints")
-            {
-                Interlocked.Increment(ref discoveries);
-                await release.Task.WaitAsync(TimeSpan.FromSeconds(5));
-                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(Endpoints("t1.records.example", 1).ToJsonString()) };
-            }
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(new JsonObject { ["value"] = request.RequestUri.AbsolutePath }.ToJsonString()) };
-        });
-        using var cancel = new CancellationTokenSource();
-        var leader = client.GetRecordAsync(new() { Table = "t1", Key = "first" }, cancel.Token);
-        while (Volatile.Read(ref discoveries) == 0) await Task.Delay(10);
-        var others = Enumerable.Range(0, 6).Select(i => client.GetRecordAsync(new() { Table = "t1", Key = "k" + i })).ToList();
-        await Task.Delay(100);
-        // The caller that started discovery goes away; the others still get its result.
-        cancel.Cancel();
-        try { await leader; throw new Exception("cancelled leader completed"); } catch (OperationCanceledException) { }
-        release.SetResult();
-        var results = await Task.WhenAll(others).WaitAsync(TimeSpan.FromSeconds(10));
-        Check(discoveries == 1, "one discovery survives the leader's cancellation");
-        Check(results.Select(result => result.Value).SequenceEqual(Enumerable.Range(0, 6).Select(i => "/records/t1/k" + i)), "waiters' results");
     }
 
     sealed class Recorder : TelemetryHook

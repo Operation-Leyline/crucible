@@ -58,7 +58,6 @@
         },
         "color": { "target": "example.notes#Color" },
         "level": { "target": "example.notes#Level" },
-        "legacy": { "target": "example.notes#Legacy" },
         "tags": { "target": "example.notes#Tags" }
       },
       "traits": {
@@ -97,16 +96,6 @@
           "traits": { "smithy.api#enumValue": 1, "smithy.api#deprecated": { "since": "2.0" } }
         },
         "HIGH": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": 2 } }
-      }
-    },
-    "example.notes#Legacy": {
-      "type": "string",
-      "traits": {
-        "smithy.api#enum": [
-          { "value": "a", "name": "A", "deprecated": true },
-          { "value": "b", "name": "B", "deprecated": false },
-          { "value": "c", "name": "C" }
-        ]
       }
     },
     "example.notes#Tags": {

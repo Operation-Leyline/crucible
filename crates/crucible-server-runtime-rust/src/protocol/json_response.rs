@@ -20,100 +20,23 @@ fn write_outcome(job: &Job, answers: &Answers<'_>) -> Response {
     match job.resolution() {
         Some(Resolution::Success(output)) => {
             let op = operation.expect("an output implies an operation");
-            if let Some(info) = job
-                .context()
-                .operation_metadata()
-                .and_then(|m| m.output_events)
-            {
-                let events = match output
-                    .events()
-                    .unwrap_or_else(|| Ok(Box::pin(futures_util::stream::empty())))
-                {
-                    Ok(events) => events,
-                    Err(error) => return serialization_failure(error),
-                };
-                let mut ignored = Vec::new();
-                let bindings = match output.write_http(op.output, &mut ignored) {
-                    Ok(bindings) => bindings,
-                    Err(error) => return serialization_failure(error),
-                };
-                let (status, headers) = (bindings.status.unwrap_or(op.status), bindings.headers);
-                let mut response = respond(status, headers, None);
-                if response
-                    .extensions()
-                    .get::<super::SerializationFailure>()
-                    .is_some()
-                {
-                    return response;
-                }
-                response.headers_mut().insert(
-                    header::CONTENT_TYPE,
-                    HeaderValue::from_static(crate::event_stream::CONTENT_TYPE),
-                );
-                response.headers_mut().remove(header::CONTENT_LENGTH);
-                *response.body_mut() = super::server_events::body(info, events);
-                return response;
-            }
-            if let Some(stream) = output.stream() {
-                let mut ignored = Vec::new();
-                let bindings = match output.write_http(op.output, &mut ignored) {
-                    Ok(bindings) => bindings,
-                    Err(error) => return serialization_failure(error),
-                };
-                let Some((member, media_type)) = Location::payload(op.output) else {
-                    return framework_response(&FrameworkError::InternalFailure);
-                };
-                let stream = match member.location {
-                    Location::StreamingPayload {
-                        minimum, maximum, ..
-                    } => stream.with_bounds(minimum, maximum),
-                    _ => stream,
-                };
-                let mut response =
-                    respond(bindings.status.unwrap_or(op.status), bindings.headers, None);
-                if response
-                    .extensions()
-                    .get::<super::SerializationFailure>()
-                    .is_some()
-                {
-                    return response;
-                }
-                return match stream.open() {
-                    Ok(body) => {
-                        response
-                            .headers_mut()
-                            .insert(header::CONTENT_TYPE, content_type_header(media_type));
-                        if let Some(length) = stream.length() {
-                            response.headers_mut().insert(
-                                header::CONTENT_LENGTH,
-                                HeaderValue::from_str(&length.to_string()).expect("integer header"),
-                            );
-                        }
-                        *response.body_mut() = Body::from_stream(body);
-                        response
-                    }
-                    Err(_) => framework_response(&FrameworkError::InternalFailure),
-                };
-            }
             if let Some((_, media_type)) = Location::payload(op.output) {
                 // The payload's bytes are the body, under its own media type.
                 let mut body = Vec::new();
-                return match output.write_http(op.output, &mut body) {
-                    Ok(bindings) => respond(
-                        bindings.status.unwrap_or(op.status),
-                        bindings.headers,
+                return match output.write_json_split(op.output, &mut body) {
+                    Ok(headers) => respond(
+                        op.status,
+                        owned(headers),
                         (!body.is_empty()).then_some((media_type, body)),
                     ),
                     Err(error) => serialization_failure(error),
                 };
             }
             let has_body = op.output.iter().any(|m| m.location == Location::Body);
-            let has_headers = op.output.iter().any(|m| {
-                matches!(
-                    m.location,
-                    Location::Header(_) | Location::PrefixHeaders(_) | Location::ResponseCode
-                )
-            });
+            let has_headers = op
+                .output
+                .iter()
+                .any(|m| matches!(m.location, Location::Header(_)));
             if !has_headers {
                 // Straight to bytes, with no JSON value in between.
                 if !has_body {
@@ -127,10 +50,10 @@ fn write_outcome(job: &Job, answers: &Answers<'_>) -> Response {
             }
             // Header members leave the body as it is written.
             let mut body = Vec::with_capacity(256);
-            match output.write_http(op.output, &mut body) {
-                Ok(bindings) => respond(
-                    bindings.status.unwrap_or(op.status),
-                    bindings.headers,
+            match output.write_json_split(op.output, &mut body) {
+                Ok(headers) => respond(
+                    op.status,
+                    owned(headers),
                     has_body.then_some((CONTENT_TYPE, body)),
                 ),
                 Err(error) => serialization_failure(error),
@@ -157,19 +80,13 @@ fn write_outcome(job: &Job, answers: &Answers<'_>) -> Response {
 
 fn error_response(error: &dyn ModelledError) -> Response {
     let mut body = Vec::with_capacity(128);
-    let written = error.write_http(&mut body);
-    match written {
-        Ok(mut bindings) => {
-            bindings
-                .headers
-                .push(("x-crucible-error".to_owned(), error.info().name.to_owned()));
+    match error.write_json(&mut body) {
+        Ok(headers) => {
+            let mut headers = owned(headers);
+            headers.push(("x-crucible-error".to_owned(), error.info().name.to_owned()));
             let media_type = Location::payload(error.info().members)
                 .map_or(CONTENT_TYPE, |(_, media_type)| media_type);
-            respond(
-                bindings.status.unwrap_or(error.response_status()),
-                bindings.headers,
-                Some((media_type, body)),
-            )
+            respond(error.info().status, headers, Some((media_type, body)))
         }
         Err(error) => serialization_failure(error),
     }
@@ -212,6 +129,13 @@ fn not_found(error: &FrameworkError, resource_type: &str) -> Response {
         headers,
         Some((CONTENT_TYPE, to_bytes(&body))),
     )
+}
+
+fn owned(headers: Vec<(&'static str, String)>) -> Vec<(String, String)> {
+    headers
+        .into_iter()
+        .map(|(name, value)| (name.to_owned(), value))
+        .collect()
 }
 
 fn serialization_failure(error: impl std::fmt::Display) -> Response {

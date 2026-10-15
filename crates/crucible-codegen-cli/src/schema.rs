@@ -118,7 +118,6 @@ fn describe_member(service: &Service, member: &Member) -> Value {
     let mut value = json!({
         "name": member.name,
         // The SDK's serde keys the member by its wire name, not its model name.
-        "wire_name": member.wire_name,
         "flag": names::kebab(&member.name),
         "target": member.target.to_string(),
         "description": member.notes.prose(member.docs.as_deref()).unwrap_or_default(),

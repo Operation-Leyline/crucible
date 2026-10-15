@@ -29,7 +29,6 @@ impl<'a> CppSdk<'a> {
                 package_version: std::env::var("CARGO_PKG_VERSION")
                     .unwrap_or_else(|_| "0.1.0".into()),
                 endpoint: None,
-                content_sha256: false,
             },
         }
     }
@@ -61,12 +60,6 @@ impl<'a> CppSdk<'a> {
     /// Default endpoint embedded in the generated client package.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.options.endpoint = Some(endpoint.into());
-        self
-    }
-
-    /// Enable the existing content SHA-256 client option.
-    pub fn content_sha256(mut self, enabled: bool) -> Self {
-        self.options.content_sha256 = enabled;
         self
     }
 

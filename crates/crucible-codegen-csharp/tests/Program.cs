@@ -4,7 +4,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -19,7 +18,7 @@ static class Program
     static readonly Type RuntimeType = typeof(WeatherClient).Assembly.GetType("Example.Weather.ClientRuntime")!;
     static object Runtime(ClientConfig config, JsonObject? schema = null, Dictionary<string, Type>? registry = null) =>
         Activator.CreateInstance(RuntimeType, BindingFlags.NonPublic | BindingFlags.Instance, null,
-            schema is null ? [config, "", false] : [config, "", false, schema, registry!], null)!;
+            schema is null ? [config, ""] : [config, "", schema, registry!], null)!;
     static object? Invoke(object runtime, string name, params object?[] args)
     {
         try { return RuntimeType.GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(runtime, args); }
@@ -210,7 +209,6 @@ static class Program
         var sent = new List<byte[]>(); int credentials = 0;
         await using (var server = new Server(request => {
             sent.Add(request.Body);
-            Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData(request.Body)).ToLowerInvariant(), "digest");
             Check(request.Headers["Authorization"] == "Bearer " + sent.Count, "auth refresh");
             Check(request.Headers["x-expected-revision"] == "7", "header binding");
             return sent.Count == 1 ? new(503, "{\"__type\":\"FutureError\"}") : new(200, """{"city":{"id":"c","name":"x"}}""");
@@ -254,13 +252,11 @@ static class Program
             {
                 Check(request.Body.SequenceEqual(photo), "payload request bytes");
                 Check(request.Headers["Content-Type"] == "image/jpeg" && request.Headers["X-Photo-Caption"] == "harbour", "payload request bindings");
-                Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData(photo)).ToLowerInvariant(), "raw payload digest");
                 return call == 1 ? new(503, "{\"__type\":\"FutureError\"}") : new(200, """{"photo":{"size":11,"thumbnail":"/9h7ImEiOjE=","caption":"harbour"}}""");
             }
             if (call == 3) return new(200, "", new() { ["Content-Type"] = "image/jpeg", ["X-Photo-Caption"] = "harbour" }, BinaryBody: photo);
             if (call == 4) return new(200, "");
             Check(request.Body.Length == 0 && request.Headers["Content-Type"] == "image/jpeg", "empty payload request retains its modeled media type");
-            Check(request.Headers["x-amz-content-sha256"] == Convert.ToHexString(SHA256.HashData([])).ToLowerInvariant(), "empty payload digest");
             return new(200, """{"photo":{"size":0,"thumbnail":""}}""");
         });
         using var client = new WeatherClient(new() { Endpoint = server.Endpoint, BaseDelay = TimeSpan.Zero });
@@ -417,30 +413,10 @@ static class Program
     }
     static async Task Main(string[] args)
     {
-        await BodilessDigests();
         HeaderParsing();
         await Hardening();
         await RetryCases(args[0]); Serialization(args[1]); await HttpBehavior(); await Payloads(); await MalformedModeledErrors(); await NumericListErrors(); await FailureBehavior(); await Weather();
         Console.WriteLine("C# client conformance and weather HTTP passed");
-    }
-    static async Task BodilessDigests()
-    {
-        foreach (var method in new[] { "POST", "PUT", "PATCH", "GET", "DELETE" })
-        {
-            Request? sent = null;
-            await using var server = new Server(request => {
-                sent = request;
-                return new(200, "");
-            });
-            using var client = new WeatherClient(new() { Endpoint = server.Endpoint,
-                Middleware = [(request, _) => { request.Method = new HttpMethod(method); return ValueTask.CompletedTask; }] });
-            await client.PingAsync();
-            Check(server.Attempts == 1, "one bodiless request");
-            Check(sent!.Body.Length == 0, "expected no body");
-            var present = sent.Headers.TryGetValue("x-amz-content-sha256", out var digest);
-            if (method is "GET" or "DELETE") Check(!present, "bodiless read has no digest");
-            else Check(present && digest == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "empty write digest");
-        }
     }
     static void HeaderParsing()
     {

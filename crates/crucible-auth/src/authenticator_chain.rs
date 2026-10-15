@@ -74,7 +74,7 @@ impl AsyncOperationAwareMiddleware for AuthenticatorChain {
                 operation,
                 AuthenticationPlan {
                     attempts,
-                    optional: metadata.optional_auth || schemes.is_empty(),
+                    optional: schemes.is_empty(),
                     bearer: schemes
                         .iter()
                         .any(|scheme| matches!(scheme, AuthScheme::Bearer)),

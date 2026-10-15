@@ -1,4 +1,4 @@
-#![cfg(all(feature = "openapi", feature = "cli"))]
+#![cfg(all(feature = "openapi", feature = "cli", feature = "terraform"))]
 
 #[path = "../../../tests/support/cargo_target.rs"]
 mod cargo_target;
@@ -12,7 +12,6 @@ use crucible_smithy::{Capabilities, Feature, Model};
 use serde_json::Value;
 
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
-const UNSUPPORTED: &str = include_str!("../../crucible-smithy/tests/fixtures/error-payloads.json");
 
 fn checkout() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -150,12 +149,12 @@ fn document_cli_probe() {
         manifest,
         fs::read_to_string("exports/cli/Cargo.toml").unwrap()
     );
-    let unsupported = crucible_build::model("unsupported.json").compile();
+    let unsupported = crucible_build::model("model.json").compile();
     let error = unsupported
-        .openapi("openapi")
-        .try_generate_into("exports/openapi")
+        .terraform("terraform")
+        .try_generate_into("exports/terraform")
         .unwrap_err();
-    assert!(error.contains("prefix-headers"), "{error}");
+    assert!(error.contains("bindings"), "{error}");
     assert_eq!(
         exported_document,
         fs::read("exports/openapi/openapi.json").unwrap()
@@ -185,7 +184,6 @@ fn documents_and_cli_packages_share_native_defaults_exports_and_diagnostics() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
     fs::write(root.join("model.json"), WEATHER).unwrap();
-    fs::write(root.join("unsupported.json"), UNSUPPORTED).unwrap();
     for (checkout, crates) in [
         (
             "runtime",

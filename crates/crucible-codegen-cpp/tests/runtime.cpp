@@ -39,15 +39,9 @@ int main() {
         auto settings = config(fake);
         settings.token = []() -> std::optional<std::string> { throw std::runtime_error("Public operation requested credentials"); };
         (void)WeatherClient(settings).public_ping();
-        fake = std::make_shared<Fake>([](unsigned, const HttpRequest& request) {
-            check(request.headers.at("x-amz-content-sha256") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "Empty write digest");
-            return HttpResponse{200, {}, "{}"};
-        });
         for (const auto* method : {"POST", "PUT", "PATCH", "GET", "DELETE"}) {
             auto transport = std::make_shared<Fake>([method](unsigned, const HttpRequest& request) {
                 check(!request.body && request.method == method, "Bodiless request");
-                if (request.method == "GET" || request.method == "DELETE") check(!request.headers.contains("x-amz-content-sha256"), "Bodiless read has no digest");
-                else check(request.headers.at("x-amz-content-sha256") == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "Empty write digest");
                 return HttpResponse{200, {}, "{}"};
             });
             auto options = config(transport);
@@ -55,7 +49,6 @@ int main() {
             (void)WeatherClient(options).retry_safe();
             check(transport->requests.size() == 1, "One bodiless request");
         }
-        (void)WeatherClient(config(fake)).retry_safe();
         for (const auto* label : {".", ".."}) {
             fake = std::make_shared<Fake>([](unsigned, const HttpRequest&) -> HttpResponse { throw std::runtime_error("Dot label reached transport"); });
             (void)rejects([&] { (void)WeatherClient(config(fake)).get_city(GetCityInput(label)); });

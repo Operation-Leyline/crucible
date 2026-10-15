@@ -4,7 +4,6 @@
 mod invoke_protocol;
 mod json_protocol;
 mod json_response;
-mod server_events;
 
 use axum::http::request::Parts;
 use axum::response::Response;

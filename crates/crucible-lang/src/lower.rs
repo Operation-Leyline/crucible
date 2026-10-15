@@ -2472,8 +2472,6 @@ impl<'a> Lowerer<'a> {
         Some(Shape::Simple(Simple {
             internal: false,
             sensitive: false,
-            streaming: false,
-            requires_length: false,
             kind,
             constraints: Constraints::default(),
             timestamp_format: None,
@@ -2537,8 +2535,6 @@ impl<'a> Lowerer<'a> {
                 Shape::Simple(Simple {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
-                    streaming: false,
-                    requires_length: false,
                     kind,
                     constraints: info.constraints,
                     timestamp_format: info.format,
@@ -2635,7 +2631,6 @@ impl<'a> Lowerer<'a> {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
                     sparse: modifiers.contains("sparse"),
-                    is_set: false,
                     member,
                     constraints: info.constraints,
                     docs,
@@ -2719,7 +2714,6 @@ impl<'a> Lowerer<'a> {
                 Shape::Structure(IrStructure {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
-                    streaming: false,
                     strict: modifiers.contains("strict"),
                     input: false,
                     members,
@@ -2748,7 +2742,6 @@ impl<'a> Lowerer<'a> {
                 Shape::Union(IrStructure {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
-                    streaming: false,
                     strict: false,
                     input: false,
                     members,
@@ -2837,7 +2830,6 @@ impl<'a> Lowerer<'a> {
                 Shape::Structure(IrStructure {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
-                    streaming: false,
                     strict: false,
                     input: false,
                     members,
@@ -3001,7 +2993,6 @@ impl<'a> Lowerer<'a> {
         Shape::Structure(IrStructure {
             internal: false,
             sensitive: false,
-            streaming: false,
             strict,
             input: source.body.kind == BodyKind::Input,
             members,
@@ -3019,9 +3010,7 @@ impl<'a> Lowerer<'a> {
         IrMember {
             internal: false,
             sensitive: false,
-            event_binding: None,
             name: name.to_owned(),
-            wire_name: name.to_owned(),
             target: target.clone(),
             required: false,
             default: None,
@@ -3976,9 +3965,7 @@ impl<'a> Lowerer<'a> {
         Some(IrMember {
             internal,
             sensitive,
-            event_binding: None,
             name: name.clone(),
-            wire_name: name,
             target,
             required,
             wire_default: default.clone(),
@@ -4079,7 +4066,6 @@ impl<'a> Lowerer<'a> {
                 match kind {
                     PayloadKind::Blob => "application/octet-stream",
                     PayloadKind::String => "text/plain",
-                    PayloadKind::EventStream => "application/vnd.amazon.eventstream",
                     PayloadKind::Document => "application/json",
                 }
                 .to_owned()
@@ -4093,8 +4079,6 @@ impl<'a> Lowerer<'a> {
         }
         Some(Payload {
             kind,
-            streaming: false,
-            requires_length: false,
             member: member.name.clone(),
             media_type,
         })
@@ -4198,8 +4182,6 @@ impl<'a> Lowerer<'a> {
             status,
             retryable,
             headers: bindings.headers,
-            prefix_headers: bindings.prefix_headers,
-            response_code: bindings.response_code,
         }
     }
 
@@ -4758,25 +4740,16 @@ impl<'a> Lowerer<'a> {
         if modifiers.contains("internal") {
             traits.insert(smithy("internal"), Json::Object(JsonMap::new()));
         }
-        let has_value = output_id.is_some()
-            && (!response.body.is_empty()
-                || response.payload.is_some()
-                || response.event_stream.is_some());
+        let has_value =
+            output_id.is_some() && (!response.body.is_empty() || response.payload.is_some());
         Some(IrOperation {
             response_protocol_headers: self.protocol.response_headers(&response, has_value),
             protocol_headers,
             internal: modifiers.contains("internal"),
-            unsigned_payload: false,
-            discovered_endpoint: None,
-            checksum: None,
             id,
             auth,
             public: modifiers.contains("public"),
             scopes: Vec::new(),
-            optional_auth: false,
-            endpoint: None,
-            endpoint_parameters: BTreeMap::new(),
-            waiters: BTreeMap::new(),
             resource,
             docs,
             notes: annotations.notes,
@@ -5104,9 +5077,7 @@ impl<'a> Lowerer<'a> {
 
         let version_declared = version.is_some();
         let mut service = Service {
-            cors: None,
             internal: false,
-            endpoint_discovery: None,
             recursive_groups: crucible_smithy::ir::recursive_groups(&self.shapes),
             protocol: self.protocol,
             errors: service_errors,
@@ -5120,7 +5091,6 @@ impl<'a> Lowerer<'a> {
             auth: auth.clone(),
             scopes: Vec::new(),
             auth_schemes,
-            endpoint_rules: None,
             operations: lowered,
             resources: BTreeMap::new(),
             resource_roots: Vec::new(),

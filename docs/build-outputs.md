@@ -129,8 +129,7 @@ directories do not trigger model compilation.
 Output names start with a lowercase letter and contain lowercase letters,
 digits, or hyphens. Names must be unique within a producer. `java` and
 `java-internal` are distinct configurations. The internal variant above includes
-all API; the default external variant omits `@internal` API. Java settings also support `.endpoint(...)` and
-`.content_sha256(true)`.
+all API; the default external variant omits `@internal` API. Java settings also support `.endpoint(...)`.
 
 To apply project conventions before publication and generation, use
 `crucible_build::model("model").policy("../crucible.toml")` with
@@ -166,10 +165,10 @@ crucible generate ts model.json --audience internal \
 ```
 
 External projection refuses contracts that need removed API. It collects every
-required internal member, external reference to an internal shape, paginator,
-waiter or endpoint reference to a removed member, and removed lifecycle operation
+required internal member, external reference to an internal shape, paginator
+reference to a removed member, and removed lifecycle operation
 on a public infrastructure resource. Internal collection elements cannot be
-removed; checksum and endpoint-discovery references are checked too. Diagnostics
+removed. Diagnostics
 identify the referencing shape or member. Generation fails before writing files,
 so an existing output survives a refusal.
 
@@ -248,7 +247,6 @@ fn main() {
         package_name: "example.weather.sdk".into(),
         package_version: "0.1.0".into(),
         endpoint: None,
-        content_sha256: false,
     })).generate();
 }
 ```

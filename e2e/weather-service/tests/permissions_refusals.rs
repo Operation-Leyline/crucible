@@ -104,7 +104,6 @@ static SERVICE: ServiceInfo = generated::service_info(
     "example.auth#Refusals",
     "1",
     None,
-    None,
     &[&INFO],
     &[&NOT_FOUND],
     |error| {
@@ -348,7 +347,6 @@ static OWN_INFO: OperationInfo = generated::operation_info(
 static OWN_SERVICE: ServiceInfo = generated::service_info(
     "example.auth#Refusals",
     "1",
-    None,
     None,
     &[&OWN_INFO],
     &[&OWN_NOT_FOUND],

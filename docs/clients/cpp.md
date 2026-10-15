@@ -15,7 +15,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 ```sh
 crucible generate cpp smithy --out sdk \
   --package-name weather_client --namespace example::weather \
-  --package-version 0.1.0 --content-sha256
+  --package-version 0.1.0
 cmake -S sdk -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/sdk
 cmake --build build --config Release
 cmake --install build --config Release
@@ -84,8 +84,7 @@ model edges use `Box<T>` with deep-copy semantics. Enums retain unknown strings;
 unions use `std::variant` with a distinct unknown alternative. Documents use
 `runtime::Json`, preserving object/list identity and exact numeric text.
 `Blob` is `std::vector<std::byte>`; JSON encodes it as base64 and payload bindings
-transmit the bytes directly. A `@streaming` blob is a `runtime::ByteStream`
-instead (see [Streaming blobs](#streaming-blobs)). `Timestamp` stores signed 64-bit epoch seconds
+transmit the bytes directly. `Timestamp` stores signed 64-bit epoch seconds
 and nanoseconds. Date text supports years 1 through 9999.
 
 Generated `runtime::Codec<T>` converts a model to or from `Json` using its
@@ -143,143 +142,12 @@ generator diagnostic, never a silent rename.
 
 ## Authentication
 
-Operations try their modeled schemes in order. Each scheme has its own
-`ClientConfig` provider, called for every attempt:
-
-| Scheme | Provider |
-|---|---|
-| `@httpBearerAuth` | `token` returns the bearer token |
-| `@httpBasicAuth` | `basic_credentials` returns `runtime::BasicCredentials` |
-| `@httpApiKeyAuth` | `api_key` returns the key; the modeled header, scheme prefix, or query parameter is applied |
-| `aws.auth#sigv4` | `credentials` returns `runtime::AwsCredentials`; `region` sets the signing region |
-
-A provider returning `std::nullopt` passes to the next scheme. When no scheme
-yields an identity, the call fails before dispatch unless the operation has
-`@optionalAuth`; `@auth([])` operations never call a provider. An
-`Authorization` header or API-key header already present in `headers` (or the
-API-key query parameter) satisfies its scheme without calling the provider.
-Any identity requires HTTPS outside loopback. Identities print redacted.
-
-SigV4 signs the final request after middleware, request checksums, and the
-`--content-sha256` digest, including the session token and
-`@unsignedPayload`. `runtime::sign_v4` is public and passes the published AWS
-test vector. AWS credentials come from providers that take the call's
-`CallScope`:
-
-```cpp
-config.region = "us-east-1";
-config.credentials = runtime::CachedCredentials(runtime::credential_chain({
-    runtime::environment_credentials,
-    runtime::profile_credentials(),  // AWS_PROFILE, AWS_SHARED_CREDENTIALS_FILE
-}));
-```
-
-`profile_credentials` reads static keys only and never runs
-`credential_process`. `CachedCredentials` reuses an identity until five
-minutes (or half its remaining life) before `expires_at`. Concurrent callers
-share one refresh; a waiting caller still honors its own deadline and
-`std::stop_token`. A provider returning an expired identity fails.
-
-## Endpoints
-
-With `smithy.rules#endpointRuleSet`, each call resolves its endpoint from the
-rules, using operation context parameters, `endpoint_parameters`,
-`endpoint_builtins`, `AWS::Region` from `region`, and `SDK::Endpoint` from
-`endpoint`. The resolved endpoint's headers are sent and its `authSchemes`
-property selects the signing name and region. `endpoint` is optional when rules
-are modeled. A rule error or unmatched rule set throws `runtime::EndpointError`.
-`@endpoint(hostPrefix)` prepends validated host labels to the endpoint before
-dispatch; `disable_host_prefix` turns that off.
-
-## Waiters
-
-Each `@waitable` waiter generates `wait_until_<name>(input, timeout, options,
-stop)`. It polls with the modeled exponential backoff and jitter, bounded by
-`timeout` seconds; `runtime::WaiterOptions` overrides the minimum and maximum
-delays. Acceptors match on output, input and output, success, or error type,
-using JMESPath with all standard functions. It returns the matching output (or
-`std::nullopt` when an error acceptor succeeded), throws `runtime::WaiterError`
-for a failure acceptor or unmatched error (with `attempts()`, `reason()`, and
-`cause()`), throws `runtime::WaiterTimeoutError` at the deadline, and rethrows
-`CancelledError` on cancellation.
-
-## Checksums
-
-`@httpChecksumRequired` and `aws.protocols#httpChecksum` operations send
-`Content-MD5` or `x-amz-checksum-<algorithm>` over the final body; a checksum
-header the caller already set is kept. CRC32, CRC32C, CRC64NVME, MD5, SHA1,
-SHA256, and SHA512 are supported. With `request_checksum_calculation` at the
-default `ChecksumPolicy::when_supported`, an unset algorithm member defaults
-to CRC32; `when_required` only sends required checksums. When response
-validation is enabled (the default, or `ENABLED` in the validation member),
-the first modeled algorithm the response carries is verified;
-a mismatch throws `runtime::ChecksumError` and a match calls
-`checksum_validated(operation, algorithm)`. Streaming bodies follow the
-rules in [Streaming blobs](#streaming-blobs).
-
-## Streaming blobs
-
-A `@streaming` blob is a `runtime::ByteStream`, sent or received as the whole
-HTTP body without buffering it. Requests choose a source:
-
-| Source | Replay | Length |
-|---|---|---|
-| `ByteStream::from_bytes(blob)`, `from_string(text)` | replayable | known |
-| `ByteStream::from_file(path)` | replayable, reopened per attempt | file size |
-| `ByteStream::from_factory(open[, length])` | replayable, one `open()` call per attempt | optional |
-| `ByteStream::from_reader(read[, length])` | one-shot | optional |
-| `ByteStream::from_istream(stream[, length])` | one-shot; the caller owns the stream | optional |
-| `ByteStream()` | none | an empty body |
-
-A `runtime::StreamReader` is `std::size_t(char* buffer, std::size_t size)`: it
-fills up to `size` bytes and returns 0 at the end; an exception it throws ends
-the call. A replay factory must return the same bytes every time. A one-shot
-body is read at most once, so its operation is never retried, and passing it
-to a second call throws `StreamConsumedError`. Copies of a `ByteStream` share
-the same stream. A known length is sent as `Content-Length` through a libcurl
-read callback, and the stream must produce exactly that many bytes; otherwise
-the body is sent chunked. `@requiresLength` rejects a stream of unknown length
-before sending, and modeled `@length` bounds are checked before sending when
-the length is known and again as bytes flow. A stream that fails or breaks
-its length throws its own error (`StreamLengthError` or the reader's
-exception), never a retried `NetworkError`. The call's deadline and
-`std::stop_token` are checked before every read; a reader blocked inside its
-own I/O cannot be interrupted.
-
-```cpp
-(void)client.put_object(models::PutObjectInput("photo.jpg",
-    runtime::ByteStream::from_file("photo.jpg")));
-
-auto object = client.get_object(models::GetObjectInput("photo.jpg"));
-std::ofstream target("copy.jpg", std::ios::binary);
-object.body.transfer_to(target);  // or read(buffer, size), read_all(), read_text()
-```
-
-A streaming response is returned as soon as its headers are decoded; the body
-stays on the connection and is pulled only as the caller reads it, with at
-most 1 MiB received ahead before the transfer pauses. The call's deadline and
-`std::stop_token` keep applying while the body is read: an expired deadline
-fails `read` with `DeadlineError`, and a stop request with `CancelledError`.
-`close()` releases the connection, and may be called from another thread to
-end a blocked `read` with `StreamClosedError`; destroying the last copy of an
-unread stream releases it too. Streaming exchanges use their own connection,
-so the client can send other requests while a body is open. A custom
-transport that does not override `Transport::open` receives and returns
-buffered bodies.
-
-Streams are never buffered to compute a digest. With `--content-sha256` or
-SigV4 signing, declare the hex SHA-256 with `with_sha256(hex)` or an
-`x-amz-content-sha256` header from middleware; without it the call throws
-`StreamDigestError` before the stream is opened. SigV4 signs an operation
-modeled with an unsigned payload as `UNSIGNED-PAYLOAD` instead. A streaming
-request receives no automatic checksum: a required or explicitly selected
-algorithm needs its header supplied by the caller (for example a modeled
-`x-amz-checksum-crc32` member), or the call throws `StreamDigestError`. A
-streaming response checksum is verified incrementally; a mismatch fails the
-final `read` with `ChecksumError` (and every later read), and
-`checksum_validated` runs on the reading thread only after the last byte
-verified. Middleware sees the unopened stream as `request.stream`, with no
-`body`. Event streams are not supported.
+An operation with a bearer scheme sends `Authorization: Bearer <token>`, where
+`ClientConfig::token` returns the token and is called for every attempt. A
+provider returning `std::nullopt` or an empty token sends the request without
+credentials. A bearer `Authorization` header already present in `headers`
+satisfies the scheme without calling the provider. A request that carries a
+token requires HTTPS outside loopback.
 
 ## Errors, retries, and cancellation
 
@@ -292,9 +160,7 @@ maximum jitter delay. The [shared retry contract](../clients.md#http-retry-contr
 applies. Generated idempotency tokens and prepared body bytes remain stable
 across attempts; credentials and middleware run again for each attempt.
 HTTP header maps use case-insensitive keys, including middleware assignments.
-`--content-sha256` hashes the final body after middleware, including zero bytes
-for an empty `POST`, `PUT`, or `PATCH`. A Retry-After
-delay beyond the remaining deadline ends with `DeadlineError`.
+A Retry-After delay beyond the remaining deadline ends with `DeadlineError`.
 
 Every operation and paginator accepts `std::stop_token`. Deadlines cover
 encoding, hooks, HTTP, retry waits, and decoding. Caller hooks are cooperative:
@@ -320,18 +186,7 @@ Call `close()` after outstanding calls finish.
 
 `python tools/test-cpp.py` generates and installs a CMake package, compiles a
 separate consumer, runs shared retry/header fixtures, and exercises the weather
-service and transport edge cases over loopback HTTP. It also generates the
-authentication, endpoint-rule, waiter, and checksum
-fixtures and runs their native tests: the published SigV4 vector and a
-server-side signature check, credential chains and concurrent cached refresh,
-the shared checksum vectors, rule-engine functions and host-prefix validation,
-and waiter and checksum behavior against a scripted loopback server.
-Its streaming package exercises one-shot, factory, byte, file, and stream
-uploads, length rules, upload cancellation, responses returned at their
-headers, deadlines and cancellation after return, connection release on close
-and destruction, incremental checksums, and declared digests, and moves
-256 MiB each way over loopback HTTP while checking that the process's peak
-working set stays within 64 MiB of its starting size. Set `CPP_SANITIZE=1` for
+service and transport edge cases over loopback HTTP. Set `CPP_SANITIZE=1` for
 Linux address and undefined-behavior sanitizers. Windows dependency configuration
 uses `CMAKE_TOOLCHAIN_FILE` and `VCPKG_INSTALLED_DIR`.
 

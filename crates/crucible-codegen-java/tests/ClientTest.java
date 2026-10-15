@@ -22,7 +22,6 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -125,7 +124,6 @@ public final class ClientTest {
             new ClientRuntime(
                 config,
                 "",
-                false,
                 Map.of(
                     "Ordinary",
                     ServiceError.class,
@@ -152,7 +150,7 @@ public final class ClientTest {
   static void sharedSerialization(Path path) throws Exception {
     var config = new ClientConfig();
     config.endpoint = "https://example.invalid";
-    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
+    var runtime = new ClientRuntime(config, "", ModelRegistry.classes());
     for (var row : JsonParser.parseString(Files.readString(path)).getAsJsonArray()) {
       var test = row.getAsJsonObject();
       String id = test.get("id").getAsString(), target = test.get("target").getAsString();
@@ -231,7 +229,7 @@ public final class ClientTest {
     sharedSerialization(headers.resolveSibling("serialization.json"));
     ClientConfig config = new ClientConfig();
     config.endpoint = "https://example.invalid";
-    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
+    var runtime = new ClientRuntime(config, "", ModelRegistry.classes());
     var sky = runtime.decode("example.weather#Sky", JsonParser.parseString("\"future\""), null);
     check(sky.toString().equals("future"), "unknown enum");
     var wire = JsonParser.parseString("{\"future\":{\"n\":9223372036854775807}}");
@@ -294,14 +292,6 @@ public final class ClientTest {
             exchange -> {
               byte[] bytes = exchange.getRequestBody().readAllBytes();
               sent.add(bytes);
-              check(
-                  exchange
-                      .getRequestHeaders()
-                      .getFirst("x-amz-content-sha256")
-                      .equals(
-                          HexFormat.of()
-                              .formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))),
-                  "digest");
               check(
                   exchange
                       .getRequestHeaders()
@@ -499,11 +489,6 @@ public final class ClientTest {
                 check(java.util.Arrays.equals(bytes, photo), "payload not sent raw");
                 check("image/jpeg".equals(headers.getFirst("content-type")), "media type");
                 check("harbour".equals(headers.getFirst("x-photo-caption")), "header member");
-                check(
-                    HexFormat.of()
-                        .formatHex(MessageDigest.getInstance("SHA-256").digest(photo))
-                        .equals(headers.getFirst("x-amz-content-sha256")),
-                    "digest over the exact bytes");
                 response(
                     exchange,
                     200,
@@ -738,9 +723,6 @@ public final class ClientTest {
       calls.incrementAndGet();
       check(exchange.getRequestHeaders().getFirst("authorization") == null, "anonymous credentials");
       check(exchange.getRequestBody().readAllBytes().length == 0, "expected no body");
-      var expected = List.of("GET", "DELETE").contains(exchange.getRequestMethod()) ? null
-          : HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0]));
-      check(java.util.Objects.equals(exchange.getRequestHeaders().getFirst("x-amz-content-sha256"), expected), "bodiless digest");
       emptyResponse(exchange);
     })) {
       var config = server.config();

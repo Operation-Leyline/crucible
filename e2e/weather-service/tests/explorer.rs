@@ -304,7 +304,7 @@ struct Token;
 #[crucible_server_runtime_rust::async_trait]
 impl Authenticator for Token {
     fn supports(&self, scheme: &AuthScheme) -> bool {
-        matches!(scheme, AuthScheme::Bearer | AuthScheme::ApiKey { .. })
+        matches!(scheme, AuthScheme::Bearer)
     }
     fn has_credentials(&self, parts: &Parts, _: &AuthScheme) -> bool {
         parts.headers.contains_key("authorization")
@@ -330,20 +330,14 @@ impl Authenticator for Token {
 
 #[tokio::test]
 async fn endpoint_auth_adapter_and_normal_route_auth_are_independent() {
-    assert!(matches!(
-        EndpointAuthenticator::new(Token, AuthScheme::Basic),
-        Err(error) if error.contains("does not support")
-    ));
     let identity = || auth::Identity {
         subject: Some("developer".into()),
         kind: None,
     };
     let operations = Operations::builder(&auth::SERVICE)
         .add::<auth::Protected, _, _>(Arc::new(()), move |_, _| async move { Ok(identity()) })
-        .add::<auth::Optional, _, _>(Arc::new(()), move |_, _| async move { Ok(identity()) })
         .add::<auth::Public, _, _>(Arc::new(()), move |_, _| async move { Ok(identity()) })
         .add::<auth::BearerOnly, _, _>(Arc::new(()), move |_, _| async move { Ok(identity()) })
-        .add::<auth::KeyOnly, _, _>(Arc::new(()), move |_, _| async move { Ok(identity()) })
         .build()
         .unwrap();
     let service = Crucible::builder(operations)
@@ -395,64 +389,5 @@ async fn endpoint_auth_adapter_and_normal_route_auth_are_independent() {
             .await
             .unwrap()
             .is_empty()
-    );
-}
-
-#[tokio::test]
-async fn explorer_contract_is_same_origin_despite_service_cors() {
-    mod generated {
-        include!(concat!(env!("OUT_DIR"), "/cors.rs"));
-    }
-    struct Reader;
-    impl generated::cors_service::ReadOperation for Reader {
-        async fn read(
-            &self,
-            _: generated::cors_service::ReadInput,
-        ) -> crucible_server_runtime_rust::Result<generated::cors_service::ReadOutput> {
-            Ok(generated::cors_service::ReadOutput {
-                header: Some("ok".into()),
-            })
-        }
-    }
-    let service = Crucible::builder(generated::cors_service::operations(Arc::new(Reader)))
-        .on_rejection(|_| {
-            Box::new(generated::cors_service::CorsError {
-                message: Some("rejected".into()),
-                header: None,
-            })
-        })
-        .protocol(crucible_server_runtime_rust::JsonProtocol)
-        .explorer(Explorer::new(weather::DESCRIPTION))
-        .build()
-        .unwrap();
-    for path in [
-        "/explorer/",
-        "/explorer/describe.json",
-        "/explorer/describe.js",
-        "/explorer/try-it.js",
-        "/explorer/unknown",
-    ] {
-        let mut req = request(path, Some("127.0.0.1:1234"));
-        req.headers_mut()
-            .insert("origin", "https://other.example".parse().unwrap());
-        let response = service.handle(req).await;
-        assert!(
-            !response
-                .headers()
-                .contains_key("access-control-allow-origin"),
-            "{path}"
-        );
-        assert_eq!(
-            response.headers()["cross-origin-resource-policy"],
-            "same-origin"
-        );
-    }
-    let response = service
-        .handle(request("/cors/example", Some("127.0.0.1:1234")))
-        .await;
-    assert!(
-        response
-            .headers()
-            .contains_key("access-control-allow-origin")
     );
 }

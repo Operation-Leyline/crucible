@@ -8,7 +8,6 @@ fn options() -> Options {
         namespace: "example::weather".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 fn weather() -> serde_json::Value {
@@ -38,11 +37,6 @@ fn weather_models_generate_deterministically() {
                     "src/codec.cpp",
                     "src/transport.cpp",
                     "src/client_runtime.cpp",
-                    "src/checksums.cpp",
-                    "src/auth.cpp",
-                    "src/query.cpp",
-                    "src/endpoints.cpp",
-                    "src/stream.cpp",
                 ]
                 .contains(&file.path.as_str())
         })
@@ -171,90 +165,6 @@ fn service_client_name_is_reserved() {
     assert!(emit(&lower(&model), &options()).is_err());
 }
 
-fn lower_features(value: &serde_json::Value) -> crucible_smithy::ir::Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_cpp::capabilities())
-        .unwrap()
-}
-
-fn feature_model(path: &str) -> serde_json::Value {
-    serde_json::from_str(
-        &fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)).unwrap(),
-    )
-    .unwrap()
-}
-
-#[test]
-fn declared_client_features_generate() {
-    let capabilities = crucible_codegen_cpp::capabilities();
-    for path in [
-        "../crucible-codegen-python/tests/auth.json",
-        "../crucible-smithy/tests/fixtures/client-behaviors.json",
-        "../crucible-codegen-java/tests/waiters.json",
-        "../crucible-smithy/tests/fixtures/checksums.json",
-        "../crucible-codegen-java/tests/streaming.json",
-    ] {
-        let service = Model::from_json(&feature_model(path).to_string())
-            .unwrap()
-            .lower_with_capabilities(None, &capabilities)
-            .unwrap_or_else(|error| panic!("{path}: {error}"));
-        let files = emit(&service, &options()).unwrap_or_else(|error| panic!("{path}: {error}"));
-        assert!(files.iter().any(|file| file.path == "src/endpoints.cpp"));
-    }
-    let service = lower_features(&feature_model(
-        "../crucible-codegen-java/tests/waiters.json",
-    ));
-    let client = emit(&service, &options())
-        .unwrap()
-        .into_iter()
-        .find(|file| file.path.ends_with("client.hpp"))
-        .unwrap();
-    assert!(client.contents.contains(
-        "std::optional<::example::weather::models::Output> wait_until_all_ready(const ::example::weather::models::Input& input, double timeout"
-    ));
-}
-
-#[test]
-fn waiter_method_collisions_are_diagnosed() {
-    let mut model = feature_model("../crucible-codegen-java/tests/waiters.json");
-    // An operation whose method name equals a generated waiter method.
-    model["shapes"]["example.wait#WaitUntilReady"] = serde_json::json!({
-        "type": "operation",
-        "traits": {"smithy.api#http": {"method": "GET", "uri": "/wait"}}
-    });
-    model["shapes"]["example.wait#Jobs"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(serde_json::json!({"target": "example.wait#WaitUntilReady"}));
-    let diagnostics = emit(&lower_features(&model), &options())
-        .err()
-        .expect("diagnostic")
-        .to_string();
-    assert!(diagnostics.contains("name collision"), "{diagnostics}");
-}
-
-#[test]
-fn streaming_payloads_carry_streams_beside_the_model() {
-    let service = lower_features(&feature_model(
-        "../crucible-codegen-java/tests/streaming.json",
-    ));
-    let files = emit(&service, &options()).unwrap();
-    let file = |name: &str| {
-        files
-            .iter()
-            .find(|file| file.path.ends_with(name))
-            .unwrap()
-            .contents
-            .clone()
-    };
-    let models = file("models.hpp");
-    assert!(models.contains("::example::weather::runtime::ByteStream body;"));
-    let client = file("src/client.cpp");
-    assert!(client.contains("runtime::request_stream(input.body)"));
-    assert!(client.contains("runtime::assign_stream(output.body, std::move(result.stream));"));
-}
-
 #[test]
 fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
     let mut model: serde_json::Value = serde_json::from_str(include_str!(
@@ -288,9 +198,27 @@ fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
 }
 
 #[test]
-fn pagination_and_resolved_endpoint_docs_describe_their_own_entities() {
+fn client_config_docs_describe_their_own_entities() {
     let header = include_str!("../runtime/client_runtime.hpp").replace("\r\n", "\n");
     assert_eq!(header.matches("Bearer token provider invoked").count(), 1);
     assert_eq!(header.matches("HTTP endpoint override").count(), 1);
-    assert!(header.contains("Endpoint resolved from modeled endpoint rules, if any. */\n        std::optional<ResolvedEndpoint> endpoint;"));
+}
+
+#[test]
+fn only_the_bearer_runtime_is_emitted() {
+    let files = emit(&lower(&weather()), &options()).unwrap();
+    for gone in ["stream", "checksums", "auth", "query", "endpoints"] {
+        assert!(
+            files
+                .iter()
+                .all(|file| !file.path.ends_with(&format!("{gone}.hpp"))
+                    && !file.path.ends_with(&format!("{gone}.cpp"))),
+            "{gone} is still generated"
+        );
+    }
+    let cmake = files
+        .iter()
+        .find(|file| file.path == "CMakeLists.txt")
+        .unwrap();
+    assert!(!cmake.contents.contains("src/stream.cpp"));
 }

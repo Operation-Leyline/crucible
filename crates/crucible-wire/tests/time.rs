@@ -101,9 +101,6 @@ fn response_headers_reject_out_of_range_timestamp_text() {
                 &[],
             )];
             assert!(crucible_wire::split::write(&output, &members, &mut Vec::new()).is_err());
-            assert!(
-                crucible_wire::split::write_http(&output, &members, None, &mut Vec::new()).is_err()
-            );
         }
     }
 }

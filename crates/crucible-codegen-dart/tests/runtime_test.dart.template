@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:test/test.dart';
-import 'package:crypto/crypto.dart';
 import 'package:weather_client/weather_client.dart';
 import 'package:weather_client/src/runtime/codec.dart';
 import 'package:weather_client/src/runtime/json.dart';
@@ -30,31 +29,21 @@ WeatherClient client(Fake transport, {int maxAttempts = 3, TokenProvider? token,
   WeatherClient(ClientConfig(endpoint:'http://127.0.0.1', transport:transport, maxAttempts:maxAttempts,
     baseDelay:Duration.zero, token:token, middleware:middleware, timeout:timeout));
 void main() {
-  test('public auth, empty digest, and dot labels', () async {
+  test('public auth and dot labels', () async {
     final public = Fake((_, request, read) {
       expect(request.headers.containsKey('authorization'), isFalse);
       return response(204, '');
     });
     await client(public, token: () => throw StateError('Public operation requested credentials')).publicPing();
-    final empty = Fake((_, request, read) {
-      expect(request.headers['x-amz-content-sha256'], 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-      return response(200);
-    });
     for (final method in ['POST', 'PUT', 'PATCH', 'GET', 'DELETE']) {
       final fake = Fake((_, request, read) {
         expect(request.body, isNull);
         expect(request.method, method);
-        if (method == 'GET' || method == 'DELETE') {
-          expect(request.headers.containsKey('x-amz-content-sha256'), isFalse);
-        } else {
-          expect(request.headers['x-amz-content-sha256'], 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
-        }
         return response(200);
       });
       await client(fake, middleware: [(request) => request.copyWith(method: method)]).retrySafe();
       expect(fake.requests.length, 1);
     }
-    await client(empty).retrySafe();
     for (final label in ['.', '..']) {
       final fake = Fake((_, request, read) => throw StateError('Dot label reached transport'));
       await expectLater(client(fake).getCity(GetCityInput(cityId: label)), throwsFormatException);
@@ -107,11 +96,10 @@ void main() {
     expect(codec.decode({'unknown':<String,Object?>{}}, union), isA<LocationUnknown>());
     expect(() => codec.decode([null], codec.context('example.weather#Tags')), throwsFormatException);
   });
-  test('retry bytes, digest, per-attempt hooks and caller input', () async {
+  test('retry bytes, per-attempt hooks and caller input', () async {
     var token = 0;
     final fake = Fake((attempt, request, read) {
       expect(request.headers['authorization'], 'Bearer $attempt');
-      expect(request.headers['x-amz-content-sha256'], sha256.convert(request.body!).toString());
       expect(request.headers['x-expected-revision'], '7');
       return attempt == 1 ? response(503, '{"__type":"Future"}') : response(201, '{"city":{"id":"x","name":"n"}}');
     });
@@ -136,7 +124,6 @@ void main() {
     }
     final empty = Fake((_, request, read) {
       expect(request.body, isNull); expect(request.headers.containsKey('content-type'), isFalse);
-      expect(request.headers['x-amz-content-sha256'], sha256.convert([]).toString());
       return response(200, '{"photo":{"size":0,"thumbnail":""}}');
     });
     await client(empty).putCityPhoto(PutCityPhotoInput(cityId:'x', photo:Uint8List(0)));

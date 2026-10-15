@@ -43,9 +43,6 @@ crucible_generated_status crucible_generated_header_set(crucible_generated_arena
     crucible_generated_string name, crucible_generated_string value, crucible_generated_error *error);
 crucible_generated_status crucible_generated_validate_url(crucible_generated_string url, bool endpoint, bool credentials, crucible_generated_error *error);
 crucible_generated_status crucible_generated_validate_request(const crucible_generated_request *request, crucible_generated_error *error);
-/** Base64 of an HTTP checksum: CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256 or SHA512. */
-crucible_generated_status crucible_generated_checksum(crucible_generated_string algorithm, crucible_generated_blob data,
-    char output[89], crucible_generated_error *error);
 crucible_generated_status crucible_generated_curl_new(crucible_generated_curl **transport, crucible_generated_error *error);
 void crucible_generated_curl_free(crucible_generated_curl *transport);
 crucible_generated_status crucible_generated_curl_send(void *transport,

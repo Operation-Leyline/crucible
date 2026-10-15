@@ -60,28 +60,6 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
     // The older versions the service still serves, for generators that
     // serve them (docs/api-versions.md).
     let versions = crucible_lang::versions(&package, &compiled, package.files.len())?;
-    let current = compiled.service.as_ref().expect("checked above");
-    for version in &versions {
-        for operation in &version.service.operations {
-            let streams = current
-                .operations
-                .iter()
-                .find(|op| op.id == operation.id)
-                .is_some_and(|op| {
-                    [&op.request, &op.response].iter().any(|bindings| {
-                        bindings.event_stream.is_some()
-                            || bindings.payload.as_ref().is_some_and(|p| p.streaming)
-                    })
-                });
-            if streams {
-                println!(
-                    "cargo::warning=API version {}: {} streams, so it is served at the current version only",
-                    version.name,
-                    operation.name()
-                );
-            }
-        }
-    }
     let mut service = compiled.service.expect("checked above");
     service.versions = versions;
     Ok(service)

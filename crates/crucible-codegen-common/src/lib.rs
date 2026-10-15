@@ -123,20 +123,9 @@ fn member(service: &Service, m: &Member, field: &impl Fn(&str) -> String) -> Val
     let mut value = json!({"target": m.target.to_string(), "attribute": field(&m.name),
         "required": m.required, "default": service.document_wire_default(m), "optional": m.optional_on_client(),
         "format": format(service.document_timestamp_format(m))});
-    if let Some(binding) = m.event_binding {
-        value["eventBinding"] = json!(binding);
-    }
-    if m.wire_name != m.name {
-        value["jsonName"] = json!(m.wire_name);
-    }
     // Runtimes redact these from telemetry, wherever the member is bound.
     if service.sensitive(m) {
         value["sensitive"] = json!(true);
-    }
-    if matches!(service.shape(&m.target), Some(Shape::Simple(shape)) if shape.streaming)
-        && let Some(length) = &m.constraints.length
-    {
-        value["length"] = json!({"min":length.min,"max":length.max});
     }
     value
 }
@@ -159,33 +148,10 @@ fn bindings(b: &Bindings) -> Value {
     if !b.header_encodings.is_empty() {
         value["headerEncodings"] = json!(b.header_encodings);
     }
-    if let Some(payload) = &b.payload {
-        if payload.kind != crucible_smithy::ir::PayloadKind::Blob {
-            value["payloadKind"] = json!(payload.kind);
-        }
-        if payload.streaming {
-            value["streaming"] = json!(true);
-        }
-        if payload.requires_length {
-            value["requiresLength"] = json!(true);
-        }
-    }
-    if let Some(stream) = &b.event_stream {
-        value["eventStream"] = json!(stream);
-    }
-    if let Some(member) = &b.query_params {
-        value["queryParams"] = json!(member);
-    }
-    if !b.prefix_headers.is_empty() {
-        value["prefixHeaders"] = json!(
-            b.prefix_headers
-                .iter()
-                .map(|b| [&b.member, &b.name])
-                .collect::<Vec<_>>()
-        );
-    }
-    if let Some(member) = &b.response_code {
-        value["responseCode"] = json!(member);
+    if let Some(payload) = &b.payload
+        && payload.kind != crucible_smithy::ir::PayloadKind::Blob
+    {
+        value["payloadKind"] = json!(payload.kind);
     }
     value
 }
@@ -206,7 +172,7 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
             Shape::List(l) => {
                 let mut value=json!({"kind":"list", "member":member(service,&l.member,&field)});
                 if l.sparse {value["sparse"]=json!(true);}
-                if l.is_set || l.constraints.unique_items {value["set"]=json!(true);}
+                if l.constraints.unique_items {value["set"]=json!(true);}
                 value
             },
             Shape::Map(m) => {
@@ -228,20 +194,10 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
                         v["error"]["payloadKind"] = json!(payload.kind);
                     }
                     if !e.header_encodings.is_empty() { v["error"]["headerEncodings"] = json!(e.header_encodings); }
-                    if !e.prefix_headers.is_empty() { v["error"]["prefixHeaders"] = json!(e.prefix_headers.iter().map(|b|[&b.member,&b.name]).collect::<Vec<_>>()); }
-                    if let Some(member) = &e.response_code { v["error"]["responseCode"] = json!(member); }
                 }
                 v
             }
         };
-        match shape {
-            Shape::Simple(simple) => {
-                if simple.streaming {value["streaming"] = json!(true);}
-                if simple.requires_length {value["requiresLength"] = json!(true);}
-            }
-            Shape::Union(union) if union.streaming => {value["streaming"] = json!(true);}
-            _ => {}
-        }
         value["name"] = json!(service.name_of(id));
         (id.to_string(),value)
     }).collect();
@@ -252,27 +208,10 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
             "safe":op.readonly || op.idempotent || op.idempotency_token.is_some(),"token":op.idempotency_token,"pagination":pagination,
             "bearer":op.auth.iter().any(|id|service.is_bearer(id))});
         if !op.uri.greedy_labels.is_empty() { value["greedyLabels"] = json!(op.uri.greedy_labels); }
-        if op.unsigned_payload {value["unsignedPayload"] = json!(true);}
-        if let Some(discovery) = &op.discovered_endpoint { value["discoveredEndpoint"] = json!(discovery); }
-        if let Some(checksum) = &op.checksum {value["checksum"] = json!(checksum);}
-        if op.optional_auth { value["optionalAuth"] = json!(true); }
-        if let Some(endpoint) = &op.endpoint { value["endpoint"] = json!(endpoint); }
-        if !op.endpoint_parameters.is_empty() { value["endpointParameters"] = json!(op.endpoint_parameters); }
-        if !op.waiters.is_empty() { value["waiters"] = json!(op.waiters); }
-        if service.auth_schemes.keys().any(|id|!service.is_bearer(id)) { value["auth"] = json!(op.auth.iter().map(ToString::to_string).collect::<Vec<_>>()); }
         (op.name().into(),value)
     }).collect();
     let mut value = json!({"service":service.id.to_string(),"version":service.version,"shapes":shapes,"operations":operations,
         "bearer":service.auth.iter().any(|id|service.is_bearer(id))});
-    if service.auth_schemes.keys().any(|id| !service.is_bearer(id)) {
-        value["authSchemes"] = json!(
-            service
-                .auth_schemes
-                .iter()
-                .map(|(id, scheme)| (id.to_string(), scheme))
-                .collect::<std::collections::BTreeMap<_, _>>()
-        );
-    }
     // The release every request names in `Crucible-Version`
     // (docs/api-versions-clients.md); absent for a Smithy model.
     if let Some(version) = &service.api_version {
@@ -287,14 +226,8 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     {
         value["permissions"] = permissions;
     }
-    if let Some(discovery) = &service.endpoint_discovery {
-        value["endpointDiscovery"] = json!(discovery);
-    }
     if !service.recursive_groups.is_empty() {
         value["recursiveGroups"] = json!(service.recursive_groups);
-    }
-    if let Some(rules) = &service.endpoint_rules {
-        value["endpointRules"] = json!(rules);
     }
     value
 }
@@ -356,29 +289,20 @@ mod tests {
         );
     }
     #[test]
-    fn unique_items_lists_use_the_same_runtime_uniqueness_marker_as_sets() {
+    fn unique_items_lists_carry_the_runtime_uniqueness_marker() {
         use crucible_smithy::{Capabilities, Feature, Model};
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
+        let service = Model::from_json(include_str!(
             "../../crucible-smithy/tests/fixtures/extended-types.json"
         ))
+        .unwrap()
+        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
         .unwrap();
-        model["shapes"]["example.types#Names"]["type"] = serde_json::json!("list");
-        model["shapes"]["example.types#Names"]["traits"] =
-            serde_json::json!({"smithy.api#uniqueItems":{}});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-            .unwrap();
         let schema = super::schema(&service, str::to_owned);
-        assert_eq!(schema["shapes"]["example.types#Names"]["set"], true);
-        assert!(
-            schema["shapes"]["example.types#SparseNames"]
-                .get("set")
-                .is_none()
-        );
+        assert_eq!(schema["shapes"]["example.types#Integers"]["set"], true);
+        assert!(schema["shapes"]["example.types#Mode"].get("set").is_none());
     }
     #[test]
-    fn sensitive_members_and_discovery_are_described_for_runtimes() {
+    fn sensitive_members_are_described_for_runtimes() {
         use crucible_smithy::{Capabilities, Feature, Model};
         let service = Model::from_json(include_str!(
             "../../crucible-smithy/tests/fixtures/runtime-policy.json"
@@ -391,158 +315,7 @@ mod tests {
         assert_eq!(members["secret"]["sensitive"], true);
         assert_eq!(members["ticket"]["sensitive"], true);
         assert!(members["label"].get("sensitive").is_none());
-        assert_eq!(
-            schema["endpointDiscovery"]["operation"],
-            "example.policy#DescribeEndpoints"
-        );
-        assert_eq!(
-            schema["endpointDiscovery"]["cachePeriodMember"],
-            "CachePeriodInMinutes"
-        );
-        assert_eq!(
-            schema["operations"]["GetRecord"]["discoveredEndpoint"],
-            serde_json::json!({"required": true, "identifiers": ["table"]})
-        );
     }
-    #[test]
-    fn extension_metadata_is_normalized_without_changing_member_identity() {
-        use crucible_smithy::{Capabilities, Feature, Model};
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/dynamic-bindings.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(
-            None,
-            &Capabilities::new([
-                Feature::JsonName,
-                Feature::GreedyLabels,
-                Feature::QueryParams,
-                Feature::PrefixHeaders,
-                Feature::ResponseCode,
-            ]),
-        )
-        .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        assert_eq!(
-            schema["shapes"]["example.dynamic#Input"]["members"]["value"]["jsonName"],
-            "wire-value"
-        );
-        assert_eq!(
-            schema["shapes"]["example.dynamic#Input"]["members"]["value"]["attribute"],
-            "value"
-        );
-        assert_eq!(
-            schema["operations"]["Get"]["request"]["queryParams"],
-            "query"
-        );
-        assert_eq!(
-            schema["operations"]["Get"]["response"]["responseCode"],
-            "status"
-        );
-        assert_eq!(schema["operations"]["Get"]["uri"], "/files/{key+}");
-        assert_eq!(
-            schema["operations"]["Get"]["greedyLabels"],
-            serde_json::json!(["key"])
-        );
-    }
-
-    #[test]
-    fn behavior_schema_preserves_auth_order_and_empty_override() {
-        use crucible_smithy::{Capabilities, Feature, Model};
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/client-behaviors.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(
-            None,
-            &Capabilities::new([
-                Feature::JsonName,
-                Feature::BasicAuth,
-                Feature::ApiKeyAuth,
-                Feature::SigV4,
-                Feature::OptionalAuth,
-                Feature::EndpointHostPrefix,
-                Feature::EndpointRules,
-                Feature::Waiters,
-            ]),
-        )
-        .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        assert_eq!(
-            schema["operations"]["Public"]["auth"],
-            serde_json::json!([])
-        );
-        assert_eq!(
-            schema["operations"]["Read"]["auth"][0],
-            "smithy.api#httpBearerAuth"
-        );
-        assert_eq!(
-            schema["authSchemes"]["smithy.api#httpApiKeyAuth"]["location"],
-            "header"
-        );
-        assert_eq!(
-            schema["operations"]["Read"]["waiters"]["Ready"]["acceptors"][0]["matcher"]["path"]["expression"]
-                ["name"],
-            "status"
-        );
-        assert_eq!(
-            schema["endpointRules"]["rules"][1]["result"]["kind"],
-            "error"
-        );
-    }
-
-    #[test]
-    fn streaming_length_uses_effective_member_constraints() {
-        let model = serde_json::json!({"smithy":"2.0","shapes":{
-            "test#Service":{"type":"service","version":"1","traits":{"crucible.protocols#json":{}},"operations":[{"target":"test#Put"}]},
-            "test#Put":{"type":"operation","traits":{"smithy.api#http":{"method":"PUT","uri":"/"}},"input":{"target":"test#Input"}},
-            "test#Stream":{"type":"blob","traits":{"smithy.api#streaming":{},"smithy.api#length":{"min":1,"max":100}}},
-            "test#Input":{"type":"structure","members":{"body":{"target":"test#Stream","traits":{"smithy.api#httpPayload":{},"smithy.api#required":{},"smithy.api#length":{"min":2,"max":10}}}}}
-        }});
-        let service = crucible_smithy::Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_with_capabilities(
-                None,
-                &crucible_smithy::Capabilities::new([crucible_smithy::Feature::Streaming]),
-            )
-            .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        assert_eq!(
-            schema["shapes"]["test#Input"]["members"]["body"]["length"],
-            serde_json::json!({"min":2,"max":10})
-        );
-    }
-
-    #[test]
-    fn event_streams_name_their_member_and_union() {
-        let service = crucible_smithy::Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/event-streams.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(
-            None,
-            &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
-        )
-        .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        assert_eq!(
-            schema["operations"]["Publish"]["request"]["eventStream"],
-            serde_json::json!({"member": "events", "target": "example.events#ClientEvents"})
-        );
-        assert_eq!(
-            schema["operations"]["Publish"]["request"]["labels"],
-            serde_json::json!(["channel"])
-        );
-        assert_eq!(
-            schema["shapes"]["example.events#ServerEvents"]["streaming"],
-            true
-        );
-        assert_eq!(
-            schema["shapes"]["example.events#MessageEvent"]["members"]["id"]["eventBinding"],
-            "header"
-        );
-    }
-
     #[test]
     fn renamed_errors_preserve_the_protocol_discriminator() {
         let mut model: serde_json::Value = serde_json::from_str(include_str!(

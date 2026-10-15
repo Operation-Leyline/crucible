@@ -12,9 +12,7 @@ use serde_json::{Value, json};
 
 use super::{Answers, Protocol, Route};
 use crate::error::{FrameworkError, ModelledError, Result};
-use crate::operation::Location;
 use crate::operations::Operations;
-use crate::validate::Rejection;
 use crate::{Hook, Job, Resolution};
 
 /// Marks a request as a direct invocation of `operation`. Set only by the
@@ -119,24 +117,7 @@ impl InvokeProtocol {
         if !self.owns(job.request()) {
             return Ok(());
         }
-        let operation = job.operation().ok_or(FrameworkError::UnknownOperation)?;
-        if operation
-            .input
-            .iter()
-            .chain(operation.output)
-            .any(|member| {
-                matches!(
-                    member.location,
-                    Location::StreamingPayload { .. } | Location::EventStream
-                )
-            })
-        {
-            return Err(Rejection::malformed(
-                "",
-                "direct invocation does not support streaming payloads; use HTTP",
-            )
-            .into());
-        }
+        job.operation().ok_or(FrameworkError::UnknownOperation)?;
         let input = job.decode_json(job.body())?;
         job.set_input(input);
         Ok(())

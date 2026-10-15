@@ -11,7 +11,6 @@ pub struct Options {
     pub package_id: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 pub struct File {
     pub path: String,
@@ -72,7 +71,6 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
     match service.shape(id).expect("lowered target") {
         Shape::IntEnum(_) => format!("global::{ns}.Models.@{}", service.name_of(id)),
         Shape::Unit { .. } => format!("global::{ns}.Unit"),
-        Shape::Simple(s) if s.streaming => format!("global::{ns}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::BigInteger => "global::System.Numerics.BigInteger",
             SimpleKind::BigDecimal => return format!("global::{ns}.BigDecimal"),
@@ -282,31 +280,14 @@ fn collection_cycle(service: &Service, id: &ShapeId, stack: &mut BTreeSet<ShapeI
 pub fn capabilities() -> crucible_smithy::Capabilities {
     use crucible_smithy::Feature;
     crucible_smithy::Capabilities::new([
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
-        Feature::Sets,
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
-        Feature::Streaming,
-        Feature::EndpointDiscovery,
-        Feature::DigestAuth,
-        Feature::SigV4a,
     ])
 }
 
@@ -316,19 +297,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     crucible_codegen_common::check_service_exception_name(service)?;
     let client_name = format!("{}Client", pascal(service.id.name()));
     let mut diagnostics = Diagnostics::default();
-    if [
-        "ChecksumException",
-        "EndpointDiscoveryException",
-        "WaiterException",
-        "WaiterTimeoutException",
-    ]
-    .contains(&exception.as_str())
-    {
-        diagnostics.push(
-            &service.id,
-            format!("service exception `{exception}` collides with a C# runtime export"),
-        );
-    }
     if !options.namespace.split('.').all(identifier)
         || options
             .namespace
@@ -432,13 +400,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         {
             if !methods.insert(format!("{}{suffix}", pascal(op.name()))) {
                 diagnostics.push(&op.id, "C# client method name collision");
-            }
-        }
-        for waiter in op.waiters.keys() {
-            for suffix in ["", "Async"] {
-                if !methods.insert(format!("WaitUntil{}{suffix}", pascal(waiter))) {
-                    diagnostics.push(&op.id, "C# waiter method name collision");
-                }
             }
         }
     }
@@ -671,14 +632,13 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .or_else(|| service.title.clone())
         .unwrap_or_else(|| format!("Client for the `{}` service.", service.id.name()));
     let mut client = format!(
-        "{header}{}public sealed class {client_name} : global::System.IDisposable {{\n    private readonly ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{ runtime = new(config, {}, {}); }}\n{}    public void Dispose() => runtime.Dispose();\n",
+        "{header}{}public sealed class {client_name} : global::System.IDisposable {{\n    private readonly ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{ runtime = new(config, {}); }}\n{}    public void Dispose() => runtime.Dispose();\n",
         xmldoc("", Some(&service_summary), &[
             format!("Create one with new {client_name}(config), share it freely and dispose it when finished: the client is thread-safe, and Dispose releases only the HttpClient it created itself, never one supplied in the configuration."),
             "Every operation has an asynchronous form returning a Task and a blocking form that runs it on the thread pool. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived.".to_string(),
         ], &[]),
         xmldoc("    ", None, &["Creates a client from the configuration, which is read once.".to_string()], &[param("config", "Endpoint, credentials, retry and timeout settings."), exception_tag("global::System.ArgumentException", "The endpoint or a retry setting is invalid.")]),
         literal(options.endpoint.as_deref().unwrap_or("")),
-        options.content_sha256,
         xmldoc("    ", None, &["Releases the HttpClient this client created; a supplied one stays caller-owned.".to_string()], &[])
     );
     for op in &service.operations {
@@ -697,39 +657,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         } else {
             &[]
         };
-        for waiter in op.waiters.keys() {
-            let waiter_name = pascal(waiter);
-            let wait_note = format!(
-                "Polls {} until the {} waiter reaches its success state and returns the response that satisfied it, or null when an error acceptor succeeded. Throws WaiterException when a failure state is reached and WaiterTimeoutException when the deadline passes.",
-                op.name(),
-                waiter
-            );
-            let mut wait_params: Vec<(&str, &str)> = in_doc.to_vec();
-            wait_params.extend([
-                ("timeout", "The overall polling deadline."),
-                ("options", "Overrides of the modeled delay bounds, or null."),
-                ("cancellationToken", "Cancels the wait."),
-            ]);
-            let wait_async_doc = operation_xmldoc(
-                service,
-                op,
-                ns,
-                &format!("Asynchronous form. {wait_note}"),
-                &wait_params,
-                "The satisfying response.",
-                false,
-            );
-            let wait_sync_doc = operation_xmldoc(
-                service,
-                op,
-                ns,
-                &format!("Blocking form, run on the thread pool. {wait_note}"),
-                &wait_params,
-                "The satisfying response.",
-                false,
-            );
-            client.push_str(&format!("{wait_async_doc}    public global::System.Threading.Tasks.Task<{output}?> WaitUntil{waiter_name}Async({parameter}global::System.TimeSpan timeout, WaiterOptions? options = null, global::System.Threading.CancellationToken cancellationToken = default) => runtime.WaitAsync<{output}>({}, {}, {arg}, timeout, options, cancellationToken);\n{wait_sync_doc}    public {output}? WaitUntil{waiter_name}({parameter}global::System.TimeSpan timeout, WaiterOptions? options = null, global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => WaitUntil{waiter_name}Async({}timeout, options, cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),literal(waiter),if input.is_some(){"input, "}else{""}));
-        }
         let mut call_params: Vec<(&str, &str)> = in_doc.to_vec();
         call_params.push(("cancellationToken", "Cancels the call."));
         let call_async_doc = operation_xmldoc(
@@ -784,61 +711,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("NetworkError", include_str!("../runtime/NetworkError.cs")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.cs")),
         ("Unit", include_str!("../runtime/Unit.cs")),
-        ("ByteStream", include_str!("../runtime/ByteStream.cs")),
-        (
-            "ByteStreamContent",
-            include_str!("../runtime/ByteStreamContent.cs"),
-        ),
-        (
-            "ResponseBodyStream",
-            include_str!("../runtime/ResponseBodyStream.cs"),
-        ),
         ("BigDecimal", include_str!("../runtime/BigDecimal.cs")),
-        (
-            "BasicCredentials",
-            include_str!("../runtime/BasicCredentials.cs"),
-        ),
-        (
-            "AwsCredentials",
-            include_str!("../runtime/AwsCredentials.cs"),
-        ),
-        (
-            "CredentialProviders",
-            include_str!("../runtime/CredentialProviders.cs"),
-        ),
-        (
-            "CachedCredentials",
-            include_str!("../runtime/CachedCredentials.cs"),
-        ),
-        (
-            "SigningOptions",
-            include_str!("../runtime/SigningOptions.cs"),
-        ),
-        ("SigV4Signer", include_str!("../runtime/SigV4Signer.cs")),
-        ("Query", include_str!("../runtime/Query.cs")),
-        ("Endpoints", include_str!("../runtime/Endpoints.cs")),
-        ("Checksums", include_str!("../runtime/Checksums.cs")),
-        (
-            "ChecksumPolicy",
-            include_str!("../runtime/ChecksumPolicy.cs"),
-        ),
-        (
-            "ChecksumException",
-            include_str!("../runtime/ChecksumException.cs"),
-        ),
-        ("WaiterOptions", include_str!("../runtime/WaiterOptions.cs")),
-        (
-            "WaiterException",
-            include_str!("../runtime/WaiterException.cs"),
-        ),
-        (
-            "WaiterTimeoutException",
-            include_str!("../runtime/WaiterTimeoutException.cs"),
-        ),
-        (
-            "ClientRuntime.Waiters",
-            include_str!("../runtime/ClientRuntime.Waiters.cs"),
-        ),
         (
             "ClientRuntime.Policy",
             include_str!("../runtime/ClientRuntime.Policy.cs"),
@@ -853,15 +726,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         (
             "AdaptiveRateLimiter",
             include_str!("../runtime/AdaptiveRateLimiter.cs"),
-        ),
-        ("EndpointCache", include_str!("../runtime/EndpointCache.cs")),
-        (
-            "DiscoveredAddress",
-            include_str!("../runtime/DiscoveredAddress.cs"),
-        ),
-        (
-            "EndpointDiscoveryException",
-            include_str!("../runtime/EndpointDiscoveryException.cs"),
         ),
         ("TelemetryHook", include_str!("../runtime/TelemetryHook.cs")),
         (
@@ -883,24 +747,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         (
             "ActivityTelemetryHook",
             include_str!("../runtime/ActivityTelemetryHook.cs"),
-        ),
-        (
-            "ClientRuntime.Digest",
-            include_str!("../runtime/ClientRuntime.Digest.cs"),
-        ),
-        ("Sha512_256", include_str!("../runtime/Sha512_256.cs")),
-        (
-            "DigestAuthentication",
-            include_str!("../runtime/DigestAuthentication.cs"),
-        ),
-        ("SigV4aSigner", include_str!("../runtime/SigV4aSigner.cs")),
-        (
-            "SigV4aSigningOptions",
-            include_str!("../runtime/SigV4aSigningOptions.cs"),
-        ),
-        (
-            "SigV4aSigningResult",
-            include_str!("../runtime/SigV4aSigningResult.cs"),
         ),
     ] {
         files.push(File {

@@ -9,7 +9,6 @@ fn options() -> Options {
         module_name: "WeatherClient".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: Some("https://weather.example".into()),
-        content_sha256: true,
     }
 }
 
@@ -276,7 +275,6 @@ fn module_keywords_and_emitted_types_are_diagnosed_but_package_names_are_indepen
         "Timestamp",
         "Swift",
         "Foundation",
-        "Crypto",
         "FoundationNetworking",
         "class",
         "enum",
@@ -366,7 +364,6 @@ fn imported_type_module_names_are_diagnosed() {
         "AsyncSequence",
         "AsyncIteratorProtocol",
         "URLError",
-        "SHA256",
     ] {
         let mut config = options();
         config.module_name = name.into();
@@ -525,52 +522,6 @@ fn service_client_name_is_reserved() {
     model["shapes"]["example.weather#Weather"]["rename"] =
         serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
     assert!(emit(&lower(&model), &options()).is_err());
-}
-
-fn lower_swift(model: &Value) -> Service {
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_swift::capabilities())
-        .unwrap()
-}
-
-#[test]
-fn modeled_waiters_emit_async_methods_and_diagnose_collisions() {
-    let mut model: Value = serde_json::from_str(include_str!(
-        "../../crucible-codegen-java/tests/waiters.json"
-    ))
-    .unwrap();
-    let files = emit(&lower_swift(&model), &options()).unwrap();
-    let client = &files
-        .iter()
-        .find(|file| file.path.ends_with("JobsClient.swift"))
-        .unwrap()
-        .contents;
-    assert!(client.contains(
-        "public func `waitUntilReady`(_ input: `Input`, timeout: Foundation.TimeInterval, options: WaiterOptions = WaiterOptions()) async throws -> `Output`?"
-    ));
-    assert!(client.contains("runtime.wait(\"Read\", waiter: \"Ready\""));
-    for runtime in ["Auth", "Checksums", "Query", "Endpoints", "Waiters"] {
-        assert!(
-            files
-                .iter()
-                .any(|file| file.path.ends_with(&format!("/{runtime}.swift"))),
-            "{runtime}"
-        );
-    }
-    model["shapes"]["example.wait#WaitUntilReady"] = json!({
-        "type": "operation",
-        "traits": {"smithy.api#http": {"method": "POST", "uri": "/other"}}
-    });
-    model["shapes"]["example.wait#Jobs"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(json!({"target": "example.wait#WaitUntilReady"}));
-    let diagnostics = emit(&lower_swift(&model), &options()).err().unwrap();
-    assert!(diagnostics.iter().any(|d| {
-        d.message == "invalid or colliding Swift waiter name"
-            || d.message == "Swift operation name collision"
-    }));
 }
 
 fn vault_model() -> Value {
@@ -826,7 +777,6 @@ fn permission_options() -> Options {
         module_name: "Leyline".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: None,
-        content_sha256: false,
     }
 }
 

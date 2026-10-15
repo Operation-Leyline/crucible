@@ -81,14 +81,7 @@ pub(crate) fn emit(
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
                 documented(&mut out, "", simple.docs.as_deref(), &simple.notes);
-                out.push_str(&format!(
-                    "pub type {name} = {};\n",
-                    if simple.streaming {
-                        "::crucible_server_runtime_rust::__generated::ByteStream"
-                    } else {
-                        builtin(simple.kind)
-                    }
-                ));
+                out.push_str(&format!("pub type {name} = {};\n", builtin(simple.kind)));
             }
             Shape::List(list) => {
                 documented(&mut out, "", list.docs.as_deref(), &list.notes);
@@ -160,7 +153,7 @@ pub(crate) fn emit(
                     );
                 }
             }
-            Shape::Union(union) if client || union.streaming => {
+            Shape::Union(union) if client => {
                 crate::open::union(&mut out, service, id, name, union, &boxed, client)
             }
             Shape::Union(union) => {
@@ -187,7 +180,7 @@ pub(crate) fn emit(
                     };
                     out.push_str(&format!(
                         "    #[serde(rename = {})]\n    {}({adapter}{ty}),\n",
-                        literal(&member.wire_name),
+                        literal(&member.name),
                         variant(&member.name)
                     ));
                 }
@@ -312,7 +305,7 @@ pub(crate) fn member_field(
     diagnostics: &mut Diagnostics,
 ) {
     documented(out, "    ", member.docs.as_deref(), &member.notes);
-    let mut serde = vec![format!("rename = {}", literal(&member.wire_name))];
+    let mut serde = vec![format!("rename = {}", literal(&member.name))];
     let optional = if client {
         member.optional_on_client()
     } else {
@@ -335,12 +328,6 @@ pub(crate) fn member_field(
             }
             .to_owned(),
         );
-    }
-    if crate::events::is_event_stream(service, &member.target) {
-        if !optional && default.is_none() {
-            serde.push("default".to_owned());
-        }
-        serde.push("skip_serializing".to_owned());
     }
     if let Some(value) = default {
         let inner = format!("super::{prefix}");
@@ -679,15 +666,11 @@ fn value_checks(
             // A blob's length is its byte count.
             if simple.kind == SimpleKind::Blob {
                 if let Some(length) = &c.length {
-                    if simple.streaming {
-                        out.push_str(&format!("{pad}if let Some(length) = {value}.length() {{ validator.length(length, {}, {}); }}\n", opt(length.min), opt(length.max)));
-                    } else {
-                        out.push_str(&format!(
-                            "{pad}validator.length({value}.len(), {}, {});\n",
-                            opt(length.min),
-                            opt(length.max)
-                        ));
-                    }
+                    out.push_str(&format!(
+                        "{pad}validator.length({value}.len(), {}, {});\n",
+                        opt(length.min),
+                        opt(length.max)
+                    ));
                 }
             }
             if let Some(range) = &c.range {
@@ -702,7 +685,7 @@ fn value_checks(
                     opt(length.max)
                 ));
             }
-            if list.is_set || c.unique_items {
+            if c.unique_items {
                 out.push_str(&format!("{pad}validator.unique({value});\n"));
             }
             let item = value_checks(service, &list.member, "item", patterns, depth + 2);
@@ -754,8 +737,6 @@ fn value_checks(
                 ));
             }
         }
-        // Events are not validated as they are sent; the stream handle has nothing to check.
-        Some(Shape::Union(union)) if union.streaming => {}
         Some(Shape::Structure(_) | Shape::Union(_)) => {
             out.push_str(&format!("{pad}{value}.validate(validator);\n"));
         }

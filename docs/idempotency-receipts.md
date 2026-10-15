@@ -108,8 +108,8 @@ is, and what is not (§10).
   "failed"|"unkept"}`.
 - `IdempotencyStore` has four calls (`claim`, `hold`, `complete`, `release`),
   each conditional on the attempt. `expires` doubles as the TTL.
-- `prepare` refuses streaming input (cannot fingerprint) and operations whose
-  bindings predate replay (`replays_output`).
+- `prepare` refuses operations whose bindings predate replay
+  (`replays_output`).
 
 The model knows the token (`@token`, `OperationInfo::idempotency_token`) and the
 resource lifecycle: roles `creates | puts | reads | updates | deletes | lists |
@@ -223,8 +223,7 @@ Rules of the clause:
   `reads` operation, found through the lifecycle (§4.2). `reads Op` names a
   different read operation where the lifecycle has none (an operation
   `on Webhook collection` is not a lifecycle `creates`) or the author wants
-  another. The named operation must be `readonly`, unpaginated and
-  non-streaming, and every *required* input member of it must be supplied
+  another. The named operation must be `readonly`, unpaginated, and every *required* input member of it must be supplied
   (§4.2).
 - **`by handler`** says who writes the receipt: omitted, the interceptor
   claims in the store before the handler runs and completes after (two
@@ -299,7 +298,7 @@ Each has a diagnostic code, a fixture of its refusal and of its acceptance
 2. `idempotency.receipt-no-reads`: `receipt` (written or defaulted) with no
    read operation: the resource has no `reads` and no `reads Op` is given.
 3. `idempotency.read-shape`: the read operation is not `readonly`, is
-   paginated, streams, or has a required input member that the create's output
+   paginated, or has a required input member that the create's output
    and input do not supply by name and type. The message names the member.
 4. `idempotency.receipt-shape`: an output member of a `receipt` operation that
    is neither in the read's output (same name and type) nor `once`. The
@@ -312,9 +311,7 @@ Each has a diagnostic code, a fixture of its refusal and of its acceptance
    stores the member in plaintext for the retention. Written (`idempotency
    replay`) it is accepted with a warning saying so, because the author has
    made the choice. This is the check Pigeon's `CreateWebhook` would have hit.
-7. `idempotency.receipt-streams`: a `receipt` operation whose input streams
-   (cannot be fingerprinted, as `prepare` already refuses for `Replay`).
-8. `idempotency.resource-unreachable`: a `receipt` whose read has a required
+7. `idempotency.resource-unreachable`: a `receipt` whose read has a required
    input that neither the create's output nor its input supplies (the
    identifiers of the resource, or the explicit read's inputs, §4.2).
 
@@ -782,15 +779,6 @@ receipt is `Unreplayable`, as today's stale responses are.
 
 An older version whose model lacks the token still "runs unclaimed", as today.
 
-### 7.8 Streaming exclusions
-
-Unchanged for input: a streaming input cannot be fingerprinted, so `prepare`
-refuses `Idempotency` over it, `Receipt` or `Replay`. For output: `Replay`
-refuses a streaming output (it cannot be stored); `Receipt` does not need to
-store it but refuses it anyway, because the generated read maps a typed output
-and a stream is not retried (check 3 for the read, check 7 for the input).
-Both stay `.except(&[..])` territory.
-
 ## 8. How Leyline's pattern fits
 
 Mapping Leyline's pieces to this design (nothing here changes Leyline's
@@ -958,8 +946,7 @@ tests do):
   is `Mismatch`; `handler_claimed` constructor refuses a store-needing
   operation at `build`; `commit()` is a no-op but still refuses an open
   permission obligation.
-- `prepare` refusals: streaming input, two interceptors on one operation (as
-  today).
+- `prepare` refusals: two interceptors on one operation (as today).
 
 Language (`crucible-lang`, `crucible-smithy`): a fixture pair for each check
 in §5 (refusal and acceptance), the default derivation table of §4.2, and

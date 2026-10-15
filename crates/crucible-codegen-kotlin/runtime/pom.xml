@@ -10,9 +10,6 @@
     <dependency><groupId>io.ktor</groupId><artifactId>ktor-client-cio-jvm</artifactId><version>3.3.3</version></dependency>
     <dependency><groupId>org.jetbrains.kotlinx</groupId><artifactId>kotlinx-datetime-jvm</artifactId><version>0.7.1</version></dependency>
     <dependency><groupId>org.jetbrains.kotlinx</groupId><artifactId>kotlinx-serialization-json-jvm</artifactId><version>1.9.0</version></dependency>
-    <dependency><groupId>org.kotlincrypto.hash</groupId><artifactId>md-jvm</artifactId><version>0.8.0</version></dependency>
-    <dependency><groupId>org.kotlincrypto.hash</groupId><artifactId>sha1-jvm</artifactId><version>0.8.0</version></dependency>
-    <dependency><groupId>org.kotlincrypto.hash</groupId><artifactId>sha2-jvm</artifactId><version>0.8.0</version></dependency>
   </dependencies>
   <build><sourceDirectory>src/commonMain/kotlin</sourceDirectory><testSourceDirectory>src/test/kotlin</testSourceDirectory><resources><resource><directory>src/commonMain/resources</directory></resource></resources><plugins>
     <plugin><groupId>org.jetbrains.kotlin</groupId><artifactId>kotlin-maven-plugin</artifactId><version>${kotlin.version}</version>

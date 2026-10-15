@@ -14,7 +14,7 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[]</code>. Optional authentication: false.
+Effective schemes: <code>[]</code>. Optional authentication: null.
 
 ## Request syntax
 

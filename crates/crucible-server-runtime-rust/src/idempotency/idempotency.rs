@@ -8,7 +8,7 @@ use super::store_unavailable::StoreUnavailable;
 use super::stored_response::Recorded;
 use super::{Claim, Fingerprint, IdempotencyKey, IdempotencyRefusal, IdempotencyStore};
 use crate::caller_binding::CallerBinding;
-use crate::operation::{Location, OperationInfo};
+use crate::operation::OperationInfo;
 use crate::{Context, DecodedJob, Hook, Interceptor, OperationJob, Outcome, Prepare, Result};
 
 /// How long a completed request's response is replayed: the API standard
@@ -284,18 +284,6 @@ fn well_formed(token: &str) -> bool {
     token.len() <= MAX_TOKEN && token.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
-/// Whether `operation`'s input streams: a stream is not part of the decoded
-/// input's JSON form, so two requests differing only in it would fingerprint
-/// alike.
-fn input_streams(operation: &OperationInfo) -> bool {
-    operation.input.iter().any(|member| {
-        matches!(
-            member.location,
-            Location::StreamingPayload { .. } | Location::EventStream
-        )
-    })
-}
-
 impl Interceptor for Idempotency {
     fn before<'a>(&'a self, job: &'a mut DecodedJob<'_>) -> Hook<'a, Result<()>> {
         let metadata = job.metadata();
@@ -320,7 +308,7 @@ impl Interceptor for Idempotency {
         let mut input = job.input().to_json();
         let token = input
             .as_object_mut()
-            .and_then(|members| members.remove(member.wire_name));
+            .and_then(|members| members.remove(member.name));
         let token = match token {
             Some(Value::String(token)) if !token.is_empty() => token,
             _ if self.required => {
@@ -402,18 +390,6 @@ impl Interceptor for Idempotency {
         }) {
             problems.push(problem);
         }
-        let streamed: Vec<&str> = prepare
-            .operations()
-            .filter(&tokened)
-            .filter(|operation| input_streams(operation))
-            .map(|operation| operation.name)
-            .collect();
-        if !streamed.is_empty() {
-            problems.push(format!(
-                "Idempotency cannot fingerprint the streaming input of {}: a retry with other bytes would replay the first",
-                streamed.join(", ")
-            ));
-        }
         let unreplayable: Vec<&str> = prepare
             .operations()
             .filter(&tokened)
@@ -426,7 +402,7 @@ impl Interceptor for Idempotency {
             .collect();
         if !unreplayable.is_empty() {
             problems.push(format!(
-                "Idempotency cannot replay the output of {}: it streams, or the bindings predate replay (regenerate them)",
+                "Idempotency cannot replay the output of {}: the bindings predate replay (regenerate them)",
                 unreplayable.join(", ")
             ));
         }

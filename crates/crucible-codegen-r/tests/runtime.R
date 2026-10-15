@@ -18,15 +18,9 @@ test <- fake(function(attempt, request) {
   response(204L, '')
 })
 sdk(test, token=function() stop('Public operation requested credentials'))$public_ping()
-test <- fake(function(attempt, request) {
-  check(request$headers[['x-amz-content-sha256']] == as.character(openssl::sha256(raw())), 'Empty write digest')
-  response()
-})
 for (method in c('POST', 'PUT', 'PATCH', 'GET', 'DELETE')) {
   transport <- fake(function(attempt, request) {
     check(is.null(request$body) && request$method == method, 'Bodiless request')
-    if (method %in% c('GET', 'DELETE')) check(!'x-amz-content-sha256' %in% names(request$headers), 'Bodiless read has no digest')
-    else check(request$headers[['x-amz-content-sha256']] == as.character(openssl::sha256(raw())), 'Empty write digest')
     response()
   })
   sdk(transport, middleware=list(function(request) { request$method <- method; request }))$retry_safe()
@@ -104,12 +98,13 @@ check(sdk(test)$get_city(GetCityInput(city_id='a/b *?#é',at=time_decode('2026-1
 count <- 0L
 test <- fake(function(attempt,request) {
   check(request$headers$authorization==paste('Bearer',attempt),'Refreshed token')
-  check(request$headers[['x-amz-content-sha256']]==as.character(openssl::sha256(request$body)),'Final digest')
   response(if(attempt==1)503 else 201,if(attempt==1)'{"__type":"Future"}' else '{"city":{"id":"x","name":"n"}}')
 })
 client <- sdk(test,token=function(){count<<-count+1L;as.character(count)},middleware=list(function(request){request$body<-c(request$body,charToRaw(' '));request}))
 client$create_city(input)
 check(identical(test$requests[[1]]$body,test$requests[[2]]$body) && inherits(input$client_token,'crucible_unset'),'Stable body and caller ownership')
+test <- fake(function(attempt,request) { check(identical(request$headers$authorization,'Bearer preset'),'Caller bearer header wins'); response(body='{"city":{"id":"x","name":"n"}}') })
+sdk(test,token=function() stop('Provider called despite a preset bearer header'),middleware=list(function(request){request$headers$authorization<-'Bearer preset';request}))$get_city(GetCityInput(city_id='x'))
 test <- fake(function(attempt,request) response(429,'{"__type":"ThrottlingError","message":42}',list('x-request-id'='header')))
 error <- rejects(sdk(test,max_attempts=2)$ping(),'WeatherException')
 check(error$metadata$status==429 && error$metadata$throttling && error$metadata$request_id=='header' && length(test$requests)==2,'Malformed typed error preserves metadata')

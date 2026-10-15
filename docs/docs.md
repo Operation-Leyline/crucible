@@ -132,15 +132,12 @@ is how `tests/site/` checks them under Node.
 
 The renderer supports Crucible JSON. HTTP member bindings come from the IR.
 
-All supported lowered shape kinds can be described. Streaming payload and
-event-stream metadata appear in the contract and pages, but buffered examples
-cannot represent a stream.
+All supported lowered shape kinds can be described.
 
 | Diagnostic | Meaning | Regression coverage |
 |---|---|---|
 | `describe.target` | Supplied IR has an unresolved shape target | Modified `service-docs.json`; same collection test |
 | `describe.resources` | Resource metadata is missing from supplied IR | Operation-only Weather lowering; docs `documentation_requires_the_resource_projection_and_detects_filename_collisions` |
-| `describe.example_streaming` | A buffered example is attached to a streaming operation | Weather with a streaming payload; docs `streaming_examples_are_refused_without_partial_output` |
 | `docs.filename` | Page names collide on a case-insensitive filesystem | Modified `service-docs.json`; docs resource-projection/filename test |
 | `audience.example_reference` | External projection removes an example's selected union arm or enum value | `service-docs-examples-refused.json`; Smithy `examples_using_removed_union_or_enum_values_are_diagnosed` |
 
@@ -215,7 +212,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `input`, `output` | Nullable shape IDs; null means no modeled value/Unit |
 | `inputSchema`, `outputSchema` | Self-contained shared JSON Schemas for the entire input/output's document value, including bound members; `$defs` and local `$ref` references |
 | `errors` | Effective operation and inherited service error-ID array |
-| `auth`, `scopes`, `optionalAuth` | Effective authentication scheme IDs, required scope strings, optional-auth boolean |
+| `auth`, `scopes` | Effective authentication scheme IDs, required scope strings |
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
 | `pagination` | Null or `{inputToken, outputToken, items, pageSize}`; token strings and nullable item/page-size member paths |
 | `examples` | Ordered example objects described below |
@@ -231,22 +228,20 @@ implementation.
 | Binding field | Type and meaning |
 |---|---|
 | `labels`, `body` | Model member-name arrays |
-| `query`, `headers`, `prefixHeaders` | Ordered arrays of `{member, name}`; model member to wire parameter/header name or prefix |
-| `queryParams`, `responseCode` | Nullable member names for a dynamic query map or response status |
+| `query`, `headers` | Ordered arrays of `{member, name}`; model member to wire parameter/header name |
 | `timestampFormats`, `headerEncodings` | Member-name maps of resolved formats/encodings |
-| `payload` | Null or `{member, kind, mediaType, streaming, requiresLength}` |
-| `eventStream` | Null or the lowered `{member, target, initialMessage}` descriptor |
+| `payload` | Null or `{member, kind, mediaType}` |
 
 ### Shapes, members, and errors
 
 | Object | Fields and types |
 |---|---|
 | Each shape | `id`, `name`, `kind`: strings; `internal`, `sensitive`: booleans; common `documentation`, `notes`; `members`: ordered member array |
-| Simple/collection metadata | `constraints`; simple `streaming`, `requiresLength`; list `sparse`, `set`; map `sparse` |
-| Structure/union metadata | `streaming`: boolean; `error`: null or the error metadata below |
+| Simple/collection metadata | `constraints` |
+| Structure/union metadata | `error`: null or the error metadata below |
 | Enum/intEnum metadata | `values`: ordered `{name, value, internal, documentation, notes}` objects; values are strings or integers |
-| Each member | `name`, `wireName`, `target`, `targetName`, `targetType`: strings; `required`, `nullable`, `clientOptional`, `sensitive`, `internal`: booleans |
-| Member semantics | `default`: model default or null; `wireDefault`: resolved top-level wire default or null; `constraints`; `timestampFormat`: resolved format; `eventBinding`: null or event binding string; common `documentation`, `notes` |
+| Each member | `name`, `wireName` (equal to `name`), `target`, `targetName`, `targetType`: strings; `required`, `nullable`, `clientOptional`, `sensitive`, `internal`: booleans |
+| Member semantics | `default`: model default or null; `wireDefault`: resolved top-level wire default or null; `constraints`; `timestampFormat`: resolved format; common `documentation`, `notes` |
 | Constraints | `length`, `range`: null or objects with nullable `min`/`max`; `pattern`: nullable string; `uniqueItems`: boolean |
 | Error metadata | `shape`, `wireCode`: strings; `bodyDiscriminator`, `discriminatorHeader`: nullable body code/header name; `protocolHeaders`: fixed response headers; `status`: integer; `fault`: `client` or `server`; `retryable`: null or `{throttling: boolean}`; `bindings`: resolved error response bindings |
 
@@ -259,8 +254,8 @@ Version 1 shape kinds are `unit`, `boolean`, `string`, `byte`, `short`, `integer
 Each example has `title`, `documentation`, `allowConstraintErrors`, and nullable
 `input`, `output`, and `error`. A message object contains `labels` (member to text),
 `query` (ordered `{name, value}` pairs, including repeated values), `headers`
-(wire name to encoded text), `body` (wire document or null), `payload`, and
-`responseCode` (value or null). Input messages additionally carry `method` and
+(wire name to encoded text), `body` (wire document or null), and `payload`.
+Input messages additionally carry `method` and
 the percent-encoded `uri`, including literal and modeled query parameters, and
 merge required protocol headers. Body keys use wire member names and timestamps
 use their resolved formats. Header lists use the shared wire formatter; media
@@ -270,7 +265,7 @@ Raw blob payloads use `{kind, mediaType, encoding: "base64", value}` so the JSON
 contract can preserve bytes; send decoded bytes as the HTTP payload. Other
 payloads use `encoding: "identity"`. Error examples include `shape`, `status`,
 `wireCode`, and `message`, with the protocol discriminator in the body or header
-as appropriate. Buffered examples never claim to represent event framing.
+as appropriate.
 
 ## Reviewing generated changes
 

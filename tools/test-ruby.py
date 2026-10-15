@@ -20,7 +20,7 @@ def qualify(output):
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
         str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client",
-        "--module-name", "Weather", "--content-sha256")
+        "--module-name", "Weather")
     for source in sorted(package.rglob("*.rb")):
         run(RUBY, "-c", str(source))
     run(RUBY, "-I", str(package / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/serialization.rb"))
@@ -73,15 +73,10 @@ def qualify(output):
             script += "; input = Weather::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
             script += "; begin; Weather::Runtime::WireCodec.string(7); raise 'Expected native argument error'; rescue ::ArgumentError; end"
         run(RUBY, "-I", str(generated / "lib"), "-r", "weather_client", "-e", script)
-    for name, fixture_name, package_name, module in [
-        ("dynamic", "dynamic-bindings", "dynamic_client", "Dynamic"),
-        ("extended", "extended-types", "types_client", "Types"),
-    ]:
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
-            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
-            "--package-name", package_name, "--module-name", module)
-    run(RUBY, "-I", str(output / "dynamic/lib"), "-I", str(output / "extended/lib"),
-        str(ROOT / "crates/crucible-codegen-ruby/tests/extensions.rb"))
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
+        str(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json"), "--out", str(output / "extended"),
+        "--package-name", "types_client", "--module-name", "Types")
+    run(RUBY, "-I", str(output / "extended/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/extensions.rb"))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
         "--package-name", "wire_client", "--module-name", "WireSdk")
@@ -90,15 +85,10 @@ def qualify(output):
     payload = output / "payload"
     generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", payload, "payload_client", "PayloadSdk")
     run(RUBY, "-I", str(payload / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/payload_bindings.rb"))
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
-        str(ROOT / "crates/crucible-codegen-python/tests/auth.json"), "--out", str(output / "auth"),
-        "--package-name", "auth_client", "--module-name", "AuthSdk")
-    run(RUBY, "-I", str(output / "auth/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/auth.rb"))
     # Typed permissions: the open permission classes and the registry, from the shared .cru fixture.
     generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "Leyline")
     run(RUBY, "-I", str(output / "permissions/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/permissions.rb"))
-    behaviors(output)
-    print("Ruby empty, void, renamed, dynamic-binding and extended-type packages passed")
+    print("Ruby empty, void, renamed and extended-type packages passed")
 
 
 def generate(model, out, package, module, *extra):
@@ -106,29 +96,6 @@ def generate(model, out, package, module, *extra):
         "--out", str(out), "--package-name", package, "--module-name", module)
     for source in sorted(out.rglob("*.rb")):
         run(RUBY, "-c", str(source), stdout=subprocess.DEVNULL)
-
-
-def behaviors(output):
-    """Waiters, endpoint rules, host prefixes, and checksums."""
-    tests = ROOT / "crates/crucible-codegen-ruby/tests"
-    generate(ROOT / "crates/crucible-codegen-java/tests/waiters.json", output / "jobs", "jobs_client", "Jobs")
-    run(RUBY, "-I", str(output / "jobs/lib"), str(tests / "waiters.rb"))
-    identity_model = ROOT / "tests/conformance/waiter-errors.json"
-    identity_includes = []
-    for label, service in [("json", "JsonIdentity")]:
-        package = output / ("waiter-identity-" + label)
-        generate(identity_model, package, "waiter_" + label + "_client", "Waiter" + label.title(),
-                 "--service", "example.waiter#" + service)
-        identity_includes += ["-I", str(package / "lib")]
-    run(RUBY, *identity_includes, str(tests / "waiter_identity.rb"))
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", output / "behavior", "behavior_client", "Behavior")
-    run(RUBY, "-I", str(output / "behavior/lib"), str(tests / "endpoints.rb"))
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", output / "checksum", "checksum_client", "ChecksumSdk")
-    run(RUBY, "-I", str(output / "checksum/lib"), str(tests / "checksums.rb"),
-        env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
-    generate(ROOT / "crates/crucible-codegen-java/tests/streaming.json", output / "stream", "stream_client", "StreamSdk")
-    run(RUBY, "-I", str(output / "stream/lib"), str(tests / "streaming.rb"),
-        env=dict(os.environ, CHECKSUM_VECTORS=str(ROOT / "tests/conformance/checksums.json")))
 
 
 if __name__ == "__main__":

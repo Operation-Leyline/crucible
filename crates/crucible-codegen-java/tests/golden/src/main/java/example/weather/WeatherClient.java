@@ -12,11 +12,11 @@ public final class WeatherClient {
     /**
      * <p>Creates a client from a copy of the configuration.</p>
      *
-     * @param config endpoint, credentials, retry and timeout settings
+     * @param config endpoint, token, retry and timeout settings
      * @throws IllegalArgumentException if the endpoint or a retry setting is invalid
      */
     public WeatherClient(ClientConfig config) {
-        runtime = new ClientRuntime(config, "https://weather.example", true, ModelRegistry.classes());
+        runtime = new ClientRuntime(config, "https://weather.example", ModelRegistry.classes());
     }
     /**
      * <p>Calls the <code>CreateCity</code> operation.</p>

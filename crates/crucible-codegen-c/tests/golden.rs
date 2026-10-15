@@ -6,7 +6,6 @@ fn options() -> Options {
         prefix: "leyline".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 

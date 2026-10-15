@@ -12,11 +12,11 @@ public final class LeylineClient {
     /**
      * <p>Creates a client from a copy of the configuration.</p>
      *
-     * @param config endpoint, credentials, retry and timeout settings
+     * @param config endpoint, token, retry and timeout settings
      * @throws IllegalArgumentException if the endpoint or a retry setting is invalid
      */
     public LeylineClient(ClientConfig config) {
-        runtime = new ClientRuntime(config, "https://weather.example", true, ModelRegistry.classes());
+        runtime = new ClientRuntime(config, "https://weather.example", ModelRegistry.classes());
     }
     /**
      * <p>A mixed list: clients see the public clause and that more are internal, never the internal clause or the internal member its <code>when</code> reads.</p>

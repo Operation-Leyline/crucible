@@ -7,7 +7,7 @@ import com.google.gson.JsonParser;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Set;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class TypesTest {
@@ -33,13 +33,13 @@ public final class TypesTest {
       check(result.integer().toString().equals(integer) && result.decimal().toPlainString().equals(decimal), "wire precision");
       check(result.mode().equals(new Mode(17)), "open integer enum");
       check(Mode.ON.value() == Integer.MAX_VALUE && Mode.OFF.value() == -1, "known integer enum values");
-      check(result.names().equals(Set.of("a", "b")), "native set");
+      check(result.names().equals(List.of("a", "b")), "unique list");
       check(result.sparseNames().equals(Arrays.asList(null,"x")), "sparse list");
       check(result.sparseMap().containsKey("null") && result.sparseMap().get("null")==null && result.sparseMap().get("future").equals(new Mode(17)), "sparse map");
       body.set("{\"integers\":[18446744073709551616,36893488147419103232],\"decimals\":[12345678901234567890.1234567891,12345678901234567890.1234567892]}");
       var precise=client.read();
-      check(precise.integers().size()==2 && precise.decimals().size()==2,"collection uniqueness lost numeric precision");
-      var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
+      check(precise.integers().size()==2 && precise.decimals().size()==2,"unique list lost numeric precision");
+      var runtime = new ClientRuntime(config, "", ModelRegistry.classes());
       // Header text is not JSON; these kinds must be parsed into numbers, not left as strings.
       for (String[] header : new String[][]{{"example.types#Mode","2"},{"smithy.api#BigInteger",integer},{"smithy.api#BigDecimal","1.5"}}) {
         var member = JsonParser.parseString("{\"target\":\""+header[0]+"\"}").getAsJsonObject();

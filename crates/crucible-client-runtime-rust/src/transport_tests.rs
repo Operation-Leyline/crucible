@@ -24,7 +24,7 @@ fn repeated_response_header_lines_preserve_list_values() {
         for line in &lines {
             headers.append("x-names", HeaderValue::from_str(line).unwrap());
         }
-        let output: Value = read_response(200, &MEMBERS, &headers, b"{}", Bytes::new).unwrap();
+        let output: Value = read_response(&MEMBERS, &headers, b"{}", Bytes::new).unwrap();
         assert_eq!(output["names"], serde_json::json!(expected));
     }
 }
@@ -39,9 +39,8 @@ fn non_ascii_response_headers_are_decode_errors() {
             headers.append("x-names", HeaderValue::from_static("a"));
         }
         headers.append("x-names", HeaderValue::from_bytes(b"\xff").unwrap());
-        let error =
-            decode_output::<Probe, Known>(200, members, &headers, &Bytes::from_static(b"{}"))
-                .unwrap_err();
+        let error = decode_output::<Probe, Known>(members, &headers, &Bytes::from_static(b"{}"))
+            .unwrap_err();
         assert!(matches!(error, Error::Decode(message) if message.contains("x-names")));
     }
 }
@@ -52,12 +51,12 @@ fn absent_response_headers_and_scalar_first_line_are_preserved() {
     static LIST: [MemberInfo; 1] = [response_header(Scalar::List(&Scalar::String))];
     let mut headers = HeaderMap::new();
     for members in [&SCALAR, &LIST] {
-        let output: Value = read_response(200, members, &headers, b"{}", Bytes::new).unwrap();
+        let output: Value = read_response(members, &headers, b"{}", Bytes::new).unwrap();
         assert_eq!(output, serde_json::json!({}));
     }
     headers.append("x-names", HeaderValue::from_static("a"));
     headers.append("x-names", HeaderValue::from_static("b"));
-    let output: Value = read_response(200, &SCALAR, &headers, b"{}", Bytes::new).unwrap();
+    let output: Value = read_response(&SCALAR, &headers, b"{}", Bytes::new).unwrap();
     assert_eq!(output["names"], "a");
 }
 
@@ -91,9 +90,9 @@ fn response_bodies_cannot_supply_header_bound_members() {
             Some(value) => serde_json::json!({"names": value, "message": "kept"}),
             None => serde_json::json!({"message": "kept"}),
         };
-        let output = decode_output::<HeaderOutput, Known>(200, &MEMBERS, &headers, &body).unwrap();
+        let output = decode_output::<HeaderOutput, Known>(&MEMBERS, &headers, &body).unwrap();
         assert_eq!(output, expected);
-        let error: Value = decode_modelled_at(400, &HEADER_ERROR, &headers, &body).unwrap();
+        let error: Value = decode_modelled(&HEADER_ERROR, &headers, &body).unwrap();
         assert_eq!(error, expected);
     }
 }
@@ -151,53 +150,12 @@ async fn redirect_attempt<O: Operation<Input = Unit, Output = Unit>>(
     (result, source_task.await.unwrap(), target)
 }
 
-struct ApiKeyProbe;
-impl Operation for ApiKeyProbe {
-    const INFO: &'static OperationInfo = Probe::INFO;
-    const AUTH_SCHEMES: Option<&'static [crucible_wire::operation::AuthScheme]> =
-        Some(&[crucible_wire::operation::AuthScheme::ApiKey {
-            name: "x-api-key",
-            query: false,
-            scheme: None,
-        }]);
-    type Input = Unit;
-    type Output = Unit;
-}
-
-struct SigV4Probe;
-impl Operation for SigV4Probe {
-    const INFO: &'static OperationInfo = Probe::INFO;
-    const AUTH_SCHEMES: Option<&'static [crucible_wire::operation::AuthScheme]> =
-        Some(&[crucible_wire::operation::AuthScheme::SigV4 {
-            signing_name: "test",
-        }]);
-    type Input = Unit;
-    type Output = Unit;
-}
-
 #[tokio::test]
-async fn default_client_does_not_redirect_api_keys_to_another_origin() {
-    let (result, source, target) = redirect_attempt::<ApiKeyProbe>(|config| {
-        config.api_key(crate::Token::fixed("test-api-key"))
-    })
-    .await;
-    assert!(source.contains("x-api-key: test-api-key"));
-    assert!(target.is_none(), "the redirect target received a request");
-    assert!(matches!(result, Err(Error::Unknown(error)) if error.metadata.status == 302));
-}
-
-#[tokio::test]
-async fn default_client_does_not_redirect_sigv4_session_tokens_to_another_origin() {
-    let mut credentials = crate::AwsCredentials::new("test-access-key", "test-secret-key");
-    credentials.session_token = Some("test-session-token".into());
-    let (result, source, target) = redirect_attempt::<SigV4Probe>(|config| {
-        config
-            .region("us-west-2")
-            .aws_credentials(crate::Identity::fixed(credentials))
-    })
-    .await;
-    assert!(source.contains("x-amz-security-token: test-session-token"));
-    assert!(source.contains("authorization: AWS4-HMAC-SHA256"));
+async fn default_client_does_not_redirect_bearer_tokens_to_another_origin() {
+    let (result, source, target) =
+        redirect_attempt::<Probe>(|config| config.token(crate::Token::fixed("test-bearer-token")))
+            .await;
+    assert!(source.contains("authorization: Bearer test-bearer-token"));
     assert!(target.is_none(), "the redirect target received a request");
     assert!(matches!(result, Err(Error::Unknown(error)) if error.metadata.status == 302));
 }
@@ -228,8 +186,7 @@ fn modeled_errors_cannot_read_absent_header_members_from_the_body() {
     struct HeaderError {
         names: Option<String>,
     }
-    let error: HeaderError = decode_modelled_at(
-        400,
+    let error: HeaderError = decode_modelled(
         &HEADER_ERROR,
         &HeaderMap::new(),
         br#"{"names":"from-body"}"#,
@@ -284,27 +241,6 @@ impl Operation for BufferedUpload {
     ]);
     type Input = UploadInput<crate::Blob>;
     type Output = Unit;
-}
-
-struct StreamingUpload;
-impl Operation for StreamingUpload {
-    const INFO: &'static OperationInfo = &upload_info(&[
-        upload_member(
-            "data",
-            Location::StreamingPayload {
-                media_type: "application/octet-stream",
-                requires_length: true,
-                minimum: None,
-                maximum: None,
-            },
-        ),
-        upload_member("content_type", Location::Header("content-type")),
-    ]);
-    type Input = UploadInput<ByteStream>;
-    type Output = Unit;
-    fn input_stream(input: &Self::Input) -> Option<ByteStream> {
-        Some(input.data.clone())
-    }
 }
 
 async fn upload_content_type<O: Operation<Output = Unit>>(
@@ -374,26 +310,6 @@ async fn buffered_upload_content_type_prefers_modeled_header_then_media_type_the
         };
         assert_eq!(
             upload_content_type::<BufferedUpload>(&input, configured).await,
-            expected
-        );
-    }
-}
-
-#[tokio::test]
-async fn streaming_upload_content_type_prefers_modeled_header_then_media_type_then_config() {
-    for (modeled, configured, expected) in [
-        (Some("image/png"), None, "image/png"),
-        (None, None, "application/octet-stream"),
-        // The payload's media type outranks a client-wide default.
-        (None, Some("image/jpeg"), "application/octet-stream"),
-        (Some("image/png"), Some("image/jpeg"), "image/png"),
-    ] {
-        let input = UploadInput {
-            data: ByteStream::from_bytes(Bytes::from_static(b"png-data")),
-            content_type: modeled.map(str::to_owned),
-        };
-        assert_eq!(
-            upload_content_type::<StreamingUpload>(&input, configured).await,
             expected
         );
     }
@@ -501,6 +417,43 @@ fn modeled_and_unknown_errors_expose_identical_http_metadata() {
 }
 
 #[tokio::test]
+async fn body_digests_cover_empty_writes_and_raw_bytes() {
+    let transport = Transport::new(Config::new("http://localhost").content_sha256(true));
+    for (method, body, expected) in [
+        (
+            Method::POST,
+            None,
+            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        ),
+        (
+            Method::PUT,
+            Some(("application/octet-stream", Bytes::from_static(b"abc"))),
+            Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+        ),
+        (Method::GET, None, None),
+    ] {
+        let request = transport
+            .request::<Known>(
+                method,
+                "http://localhost",
+                &HeaderMap::new(),
+                body,
+                true,
+                crate::auth::OperationAuth::of::<Probe>(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            request
+                .headers()
+                .get("x-amz-content-sha256")
+                .and_then(|h| h.to_str().ok()),
+            expected
+        );
+    }
+}
+
+#[tokio::test]
 async fn deadlines_and_cancellation_include_stalled_credentials() {
     let token = crate::Token::provider(std::future::pending::<Option<String>>);
     let transport = Transport::new(
@@ -582,46 +535,6 @@ async fn expired_deadlines_do_not_poll_credentials() {
 }
 
 #[tokio::test]
-async fn body_digests_cover_empty_writes_and_raw_bytes() {
-    let transport = Transport::new(Config::new("http://localhost").content_sha256(true));
-    for (method, body, expected) in [
-        (
-            Method::POST,
-            None,
-            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
-        ),
-        (
-            Method::PUT,
-            Some(("application/octet-stream", Bytes::from_static(b"abc"))),
-            Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
-        ),
-        (Method::GET, None, None),
-    ] {
-        let request = transport
-            .request::<Known>(
-                method,
-                "http://localhost",
-                &HeaderMap::new(),
-                body,
-                true,
-                crate::auth::OperationAuth::of::<Probe>(),
-                None,
-                &crate::checksum::Plan::default(),
-                None,
-            )
-            .await
-            .unwrap();
-        assert_eq!(
-            request
-                .headers()
-                .get("x-amz-content-sha256")
-                .and_then(|h| h.to_str().ok()),
-            expected
-        );
-    }
-}
-
-#[tokio::test]
 async fn total_deadline_covers_response_body_and_retry_after() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     for reply in [
@@ -651,36 +564,5 @@ async fn total_deadline_covers_response_body_and_retry_after() {
             Err(Error::Timeout)
         ));
         server.abort();
-    }
-}
-
-#[tokio::test]
-async fn stream_constraints_are_checked_incrementally() {
-    for (body, expected) in [
-        (
-            ByteStream::from_bytes("ab").with_bounds(Some(3), None),
-            std::io::ErrorKind::UnexpectedEof,
-        ),
-        (
-            ByteStream::from_bytes("abcd").with_bounds(None, Some(3)),
-            std::io::ErrorKind::InvalidData,
-        ),
-        (
-            ByteStream::from_bytes("abc").with_length(4),
-            std::io::ErrorKind::UnexpectedEof,
-        ),
-    ] {
-        let mut stream = body.open().unwrap();
-        loop {
-            match stream.next().await {
-                Some(Ok(_)) => continue,
-                Some(Err(error)) => {
-                    assert_eq!(error.kind(), expected);
-                    break;
-                }
-                None => panic!("stream bounds must fail"),
-            }
-        }
-        assert!(stream.next().await.is_none());
     }
 }

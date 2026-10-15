@@ -301,8 +301,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A native C17 CMake package with arena-owned models and libcurl transport.
     C {
@@ -318,8 +316,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// An R package with S3 models and lazy page iteration.
     R {
@@ -333,8 +329,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A C++20 CMake package with native models and libcurl transport.
     Cpp {
@@ -350,8 +344,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A PHP Composer package with typed operations and lazy pagination.
     Php {
@@ -367,8 +359,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A Dart package with Future operations and Stream pagination.
     Dart {
@@ -382,8 +372,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A Swift package with native async operations and AsyncSequence pagination.
     Swift {
@@ -399,8 +387,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A .NET 8 NuGet package with synchronous and asynchronous clients.
     Csharp {
@@ -416,8 +402,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A Kotlin Multiplatform package with suspend operations and Flow pagination.
     Kotlin {
@@ -435,8 +419,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A Java client package.
     Java {
@@ -454,8 +436,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A Go module with typed models and context-aware HTTP clients.
     Go {
@@ -469,8 +449,6 @@ enum Target {
         package_name: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A typed Python package with synchronous and asynchronous clients.
     Python {
@@ -486,8 +464,6 @@ enum Target {
         package_version: String,
         #[arg(long)]
         endpoint: Option<String>,
-        #[arg(long)]
-        content_sha256: bool,
     },
     /// A fetch-based TypeScript client package.
     Ts {
@@ -1194,7 +1170,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             module_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_ruby::capabilities())?;
@@ -1203,7 +1178,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 module_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1220,7 +1194,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             prefix,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_c::capabilities())?;
@@ -1229,7 +1202,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 prefix,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1245,7 +1217,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_r::capabilities())?;
@@ -1253,7 +1224,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1270,7 +1240,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             namespace,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_cpp::capabilities())?;
@@ -1279,7 +1248,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 namespace,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1296,7 +1264,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             namespace,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_php::capabilities())?;
@@ -1305,7 +1272,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 namespace,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1321,7 +1287,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_dart::capabilities())?;
@@ -1329,7 +1294,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1346,7 +1310,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             module_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_swift::capabilities())?;
@@ -1355,7 +1318,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 module_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1372,7 +1334,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_id,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_csharp::capabilities())?;
@@ -1381,7 +1342,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_id,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1399,7 +1359,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_kotlin::capabilities())?;
@@ -1409,7 +1368,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1427,7 +1385,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_java::capabilities())?;
@@ -1437,7 +1394,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1453,7 +1409,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             module_path,
             package_name,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_go::capabilities())?;
@@ -1461,7 +1416,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 module_path,
                 package_name,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)
@@ -1478,7 +1432,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             module_name,
             package_version,
             endpoint,
-            content_sha256,
         } => {
             let service =
                 lower_for_audience(&source, audience, &crucible_codegen_python::capabilities())?;
@@ -1487,7 +1440,6 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 module_name,
                 package_version,
                 endpoint,
-                content_sha256,
             });
             let files = client
                 .emit_for_audience(&service, audience)

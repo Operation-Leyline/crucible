@@ -22,8 +22,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 ```sh
 crucible generate java smithy \
   --out target/java-sdk --group-id example --artifact-id weather-client \
-  --package-name example.weather --endpoint https://api.example.com \
-  --content-sha256
+  --package-name example.weather --endpoint https://api.example.com
 gradle -p target/java-sdk build
 ```
 
@@ -38,86 +37,22 @@ name matches the configured artifact ID for composite dependency substitution.
 The retained `pom.xml` supports Maven consumers as well.
 Arbitrary precision numbers use `java.math.BigInteger` and `BigDecimal`.
 Integer enums are open records with an `int value()` and named constants.
-Sets use `Set<T>` and reject duplicate wire values; sparse lists and maps
-preserve null elements or values. JSON member renames, greedy path labels,
-query maps, prefix headers, and response-code members use the modeled bindings.
+Unique lists use `List<T>` and reject duplicate wire values; sparse lists and
+maps preserve null elements or values, and other collections reject them. Greedy path labels use the modeled bindings.
 Whole-body payloads support bytes, strings, and JSON structures/unions/documents,
 including modeled errors. Media-type string headers are base64 encoded on the wire.
 
-## Protocol and checksums
+## Protocol
 
 The Crucible JSON protocol applies the lowered HTTP bindings and timestamp formats.
+Member names are the JSON names.
 
-Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`;
-streaming payloads follow the rules under Streaming blobs.
-The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and
-SHA512. Selecting an unsupported XXHASH algorithm raises an error before sending.
-Required legacy checksums use `Content-MD5`; flexible requests default to CRC32
-and response validation defaults to `ENABLED` when the model supplies those input
-members. These defaults change only the private request copy. Explicit checksum
-headers take precedence. Request checksums cover the final middleware body and
-are included in authentication signing. Response verification runs before decoding;
-a mismatch raises `ChecksumMismatch` and returns no model.
+## Authentication
 
-`requestChecksumCalculation` and `responseChecksumValidation` default to
-`ChecksumPolicy.WHEN_SUPPORTED`. Set either to `WHEN_REQUIRED` to disable its
-automatic opt-in while retaining required request checksums and explicit input
-choices. The `checksumValidated` callback receives the operation name and the
-single algorithm actually verified. It is invoked only after successful validation;
-absence of a callback means no checksum was verified for that response.
-
-## Authentication and credentials
-
-Authentication follows each operation's effective ordered scheme list. Set
-`config.basicAuth = () -> new BasicCredentials(user, password)` for Basic auth,
-`config.apiKey = () -> key` for a modeled API key, or `config.credentials` and
-`config.region` for AWS Signature V4. API keys use the modeled header or query
-location. An operation with `auth: []` never calls these providers; optional
-authentication permits an absent identity. Providers are called per attempt,
-after middleware, and SigV4 signs the final request bytes and headers.
-
-```java
-config.region = "us-east-1";
-config.credentials = new CachedCredentials(CredentialProviders.chain(
-    CredentialProviders::environment,
-    CredentialProviders.profile(java.nio.file.Path.of("/path/to/credentials"), "development")));
-```
-
-Provider chains stop at the first identity. `CachedCredentials` serializes
-refreshes and refreshes expiring credentials one minute before expiry by default.
-Environment and profile lookup happen only when explicitly configured. Credential
-objects redact secrets from `toString()`. All authentication schemes require
-HTTPS except for loopback test endpoints.
-
-## Endpoints and waiters
-
-When the model declares endpoint rules, an explicit endpoint is optional. Rules
-consume `region`, `endpointBuiltins`, `endpointParameters`, and modeled input
-sources in the precedence resolved by Smithy. Endpoint headers and signing
-properties apply to the prepared request. Host-prefix labels are validated before
-transport; set `disableHostPrefix = true` to opt out of prefix expansion.
-An explicit endpoint is available to the rules as `SDK::Endpoint`; the rules
-determine whether it overrides other resolution logic.
-
-Each modeled waiter generates `waitUntilName(input, options)` and
-`waitUntilNameAsync(input, options)`, with default-options and builder overloads.
-For a service declaring a `Ready` waiter:
-
-```java
-var options = new WaiterOptions(java.time.Duration.ofMinutes(2));
-var response = client.waitUntilReady(options, b -> b.names(java.util.List.of("job")));
-var future = client.waitUntilReadyAsync(options, b -> b.names(java.util.List.of("job")));
-future.cancel(true);
-```
-
-A waiter returns the final operation result, or `null` when an error acceptor
-represents success, such as a deleted resource. `WaiterError` retains the attempt
-count, last response/error, and modeled failure message; `WaiterTimeout` marks an
-expired overall deadline. The default deadline is five minutes. The deadline
-includes every operation and retry; cancelling the future stops the active
-operation and further polls. Delay overrides are optional; otherwise the waiter
-uses its modeled minimum/maximum delay and jitter. Compiled query expressions
-operate on modeled member names, including renamed wire fields and timestamps.
+Set `config.token = () -> token` for operations that use HTTP bearer auth. The
+supplier is called per attempt, after middleware, for operations that declare
+bearer auth; an operation that does not never calls it. The token is sent only
+over HTTPS, except to loopback test endpoints.
 
 ## Calling operations
 
@@ -143,70 +78,6 @@ while (pages.hasNext()) {
     for (var row : pages.next().cities()) System.out.println(row.name());
 }
 ```
-
-## Streaming blobs
-
-A `@streaming` blob is an `example.weather.ByteStream`, sent or received as the
-whole HTTP body without buffering it. Requests choose a source:
-
-| Source | Replay | Length |
-|---|---|---|
-| `ByteStream.fromBytes(bytes)`, `fromString(text)` | replayable | known |
-| `ByteStream.fromFile(path)` | replayable, reopened per attempt | file size |
-| `ByteStream.fromInputStreamSupplier(factory[, length])` | replayable, one factory call per attempt | optional |
-| `ByteStream.fromInputStream(input[, length])` | one-shot | optional |
-| `ByteStream.fromPublisher(publisher[, length])` (`Flow.Publisher<ByteBuffer>`) | one-shot | optional |
-
-A replay factory must return the same bytes every time. A one-shot body is
-opened once, so its operation is never retried, and passing it to a second call
-raises `IllegalStateException`. The client closes every `InputStream` it opens,
-including one-shot inputs, at the end of the body, on failure, or on cancellation.
-A known length is sent as `Content-Length` and the stream must produce exactly
-that many bytes; otherwise the body is chunked. `@requiresLength` rejects a
-stream without a length before sending, and modeled `@length` bounds are checked
-as bytes flow. A stream that fails or breaks its declared length raises its own
-error, never a retried `NetworkError`. For `PutObject` and `GetObject` operations
-with a streaming `body`:
-
-```java
-client.putObject(b -> b.key("photo.jpg").body(ByteStream.fromFile(path)));
-client.putObject(b -> b.key("log").body(ByteStream.fromInputStream(socketInput)));
-
-var object = client.getObject(b -> b.key("photo.jpg"));
-try (InputStream in = object.body().inputStream()) {
-    in.transferTo(Files.newOutputStream(target));
-}
-```
-
-A streaming response is returned as soon as its headers are decoded; the body is
-then read once through `inputStream()`, `publisher()`, `transferTo(output)`, or
-`readAllBytes()`. The runtime pulls one received chunk at a time, only when the
-reader needs it; `publisher()` requests chunks only as the subscriber signals demand, so
-asynchronous clients get backpressure too (`client.getObjectAsync(...)` completes
-at the headers in the same way). The configured `timeout` remains in force while
-the body is read: an expired deadline fails the read with `HttpTimeoutException`.
-Close the returned stream, or call `close()` on an unread `ByteStream`, to cancel
-the body and release its connection; closing from another thread, or interrupting
-a blocked reader, ends a pending read with an `IOException`. Cancelling the
-future of an asynchronous call stops an upload in progress; once the future has
-completed, cancel the body by closing it. A waiter closes the streams of every
-response it does not return.
-
-Streams are never buffered to compute a digest. With `--content-sha256` or
-SigV4 signing, declare the hex SHA-256 with `withSha256(hex)`; without it the call
-fails before the stream is opened. SigV4 signs an operation modeled with an
-unsigned payload as `UNSIGNED-PAYLOAD` instead. A streaming request receives no automatic checksum: a required
-or explicitly selected algorithm needs its header supplied by the caller (for
-example the modeled `x-amz-checksum-crc32` member). A streaming response checksum
-is verified incrementally; a mismatch fails the final read with `ChecksumMismatch`
-as its cause, and `checksumValidated` runs only after the last byte verified.
-Middleware sees a streaming body as `request.stream`, with a null `body`.
-
-The native suite exercises one-shot and replayed uploads, files, publishers,
-`requiresLength`, 256 MiB uploads and downloads under a 64 MiB heap, demand,
-deadlines after return, cancellation and connection release, checksums, and
-declared digests against a loopback HTTP server. Event streams are not
-supported.
 
 ## Asynchronous pagination
 
@@ -238,8 +109,7 @@ client.listCitiesPagesAsync(b -> b.maxResults(20)).subscribe(
 Demand counts pages. At most one page request is active per subscriber; callbacks
 are serialized. Each subscriber owns an independent cursor and receives a snapshot
 of the input captured when the publisher was created. Cancelling the subscription
-cancels the active operation, including credential-provider work and pending
-retries. Cancellation suppresses signals from the cancelled exchange and stops
+cancels the active operation, including pending retries. Cancellation suppresses signals from the cancelled exchange and stops
 new page requests; a subscriber callback already running may finish.
 Nonpositive demand signals `IllegalArgumentException`; repeated pagination tokens
 signal an error. The existing synchronous iterator remains available.
@@ -270,13 +140,13 @@ a nominal type to break the recursive generic expansion. Primitive aliases use
 boxed Java types. Enum records retain unknown strings. Union builders select one
 arm at a time; choosing another clears the previous arm. Use `Unit` for an empty
 arm, and `unknownVariant(...)` to retain a future arm. Serialization uses the
-model's wire names.
+model's member names.
 
 `Instant` preserves nanoseconds in date-time and epoch-seconds formats.
 HTTP-date has second precision. Modeled integer widths are checked on decode,
 including exact signed 64-bit values. Documents use Gson's `JsonElement` and
 preserve JSON numbers. Missing modeled defaults are applied; explicit null is
-kept distinct. Blobs are `byte[]` (streaming blobs are `ByteStream`; see above): standard, padded base64 in JSON, and the bytes
+kept distinct. Blobs are `byte[]`: standard, padded base64 in JSON, and the bytes
 themselves, under the blob's media type, as an `@httpPayload`; a payload
 response is the body as received, an empty body empty bytes.
 
@@ -329,15 +199,15 @@ Javadoc's full doclint.
 Each operation has synchronous and `CompletableFuture` methods. Cancelling the
 returned future cancels active transport and pending retries. Interrupting a
 synchronous call cancels it, restores the interrupt flag, and throws
-`CancellationException`. The configured overall timeout includes credential
-refresh, middleware, retries, and body reading. Blocking user hooks cannot be
+`CancellationException`. The configured overall timeout includes
+middleware, retries, and body reading. Blocking user hooks cannot be
 forcibly stopped, but their completion cannot dispatch an already cancelled
 call. Hooks run outside the deadline scheduler.
 
 Client construction copies configuration. An injected `HttpClient` remains
-caller-owned; the default does not follow redirects. Credentials are refreshed
-per attempt and require HTTPS except on loopback. Middleware receives the
-request's headers and body bytes; the optional digest is computed afterwards.
+caller-owned; the default does not follow redirects. The token is read
+per attempt and requires HTTPS except on loopback. Middleware receives the
+request's headers and body bytes.
 Generated tokens are reused across retries without mutating input models.
 `ClientConfig.idempotencyToken` defaults to a random UUID supplier. A custom
 supplier runs once when the modeled input token is omitted; explicit tokens
@@ -355,8 +225,8 @@ remain available for applications managing pagination themselves.
 Run `python tools/test-java.py` with Maven, a JDK, and Rust available. Set
 `MAVEN` to an executable path if necessary. The harness builds the jar and
 tests it through a separate consumer, shared retry/header cases, the
-weather service over HTTP, and generated feature packages (payloads, streaming,
-authentication, waiters, endpoints, and checksums). Generate and package the current full Leyline
+weather service over HTTP, and generated feature packages (payloads, types,
+defaults, documentation and permissions). Generate and package the current full Leyline
 projection separately, recording its model fingerprint and operation coverage.
 Published Maven artifacts and authenticated deployed Leyline traffic are
 separate qualification steps.
