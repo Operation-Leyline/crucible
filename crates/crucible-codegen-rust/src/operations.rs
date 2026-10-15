@@ -632,8 +632,15 @@ fn pagination_items(service: &Service, op: &Operation) -> String {
         .and_then(|s| s.member(&paginated.input_token))
         .and_then(|m| service.shape(&m.target))
         .is_some_and(|shape| matches!(shape, Shape::Map(_)));
+    let max_length = input
+        .and_then(|s| s.member(&paginated.input_token))
+        .and_then(|m| m.constraints.length.as_ref())
+        .and_then(|length| length.max);
+    let max_length = max_length.map_or("::std::option::Option::None".to_owned(), |max| {
+        format!("::std::option::Option::Some({max})")
+    });
     format!(
-        "    const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination {{ input_token: {}, page_size: {page_size}, input_token_map: {token_map} }});
+        "    const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination {{ input_token: {}, page_size: {page_size}, input_token_map: {token_map}, input_token_max_length: {max_length} }});
 ",
         member(&paginated.input_token)
     )

@@ -499,9 +499,20 @@ let next_token = last.map(|key| page_tokens::issue(&key)).transpose()?;
   to revoke the tokens it sealed. The secret must be random (32 bytes from
   a CSPRNG), not a password: its length is checked, its randomness cannot
   be.
-- **Bounded.** A cursor is at most 4096 bytes (`issue` of a longer one is
-  an internal error), and a token longer than the longest one `issue`
-  writes is refused before it is decoded.
+- **Bounded.** A cursor is at most 4096 bytes by default (`issue` of a longer
+  one is an internal error; `PageTokens::max_cursor` lowers it), and a token
+  longer than the longest one `issue` writes is refused before it is decoded.
+  The longest token is `4 + len(key id) + ceil(4 * (48 + max_cursor) / 3)`
+  characters (`PageTokens::max_token_length`): 5532 for a 2-character key id
+  and the default cap. `build` refuses a paginated operation whose input
+  token member's `@length` max is smaller than that, naming the operation, the
+  two lengths and the largest cursor that fits
+  (`PageTokens::cursor_capacity(limit)`), so a model limit is met at build and
+  not by a long cursor at runtime. A model with `@length(max: 2048)` on its
+  token: `let tokens = PageTokens::new(..); let tokens = tokens.max_cursor(tokens.cursor_capacity(2048)?);`
+  (1483 bytes for a 2-character key id). A token member with no `@length`
+  accepts any cap. The check reads the input token (`Pagination::input_token_max_length`),
+  so give the output's `nextToken` the same shape.
 
 The interceptor opens the request's token before the operation runs; with
 typed permissions, register it after `Permissions`, so a refused request is

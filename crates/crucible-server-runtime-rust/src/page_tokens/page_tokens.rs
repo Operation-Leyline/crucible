@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 
 use super::PageKeys;
 use super::scope::PageScope;
-use super::token::Sealer;
+use super::token::{MAX_CURSOR, Sealer, cursor_capacity};
 use crate::caller_binding::CallerBinding;
 use crate::canonical_json::write_canonical;
 use crate::validate::Rejection;
@@ -60,6 +60,7 @@ impl PageTokens {
                 keys,
                 ttl: DEFAULT_TTL,
                 clock: Arc::new(SystemTime::now),
+                max_cursor: MAX_CURSOR,
             }),
             caller: CallerBinding::new(caller),
             refusal: Arc::new(Error::new),
@@ -85,6 +86,34 @@ impl PageTokens {
     pub fn ttl(mut self, ttl: Duration) -> Self {
         Arc::make_mut(&mut self.sealer).ttl = ttl;
         self
+    }
+
+    /// The longest cursor `issue` accepts, in bytes: 4096 by default, from 1
+    /// to 4096 (`build` refuses any other). Lower it so the longest token fits
+    /// the model: `build` refuses a paginated operation whose token member's
+    /// `@length` max is smaller than [`max_token_length`](Self::max_token_length).
+    /// [`cursor_capacity`](Self::cursor_capacity) gives the largest cursor a
+    /// model limit allows.
+    pub fn max_cursor(mut self, bytes: usize) -> Self {
+        Arc::make_mut(&mut self.sealer).max_cursor = bytes;
+        self
+    }
+
+    /// The length in characters of the longest token this issues, which is
+    /// `4 + len(key id) + ceil(4 * (48 + max_cursor) / 3)`: the format and
+    /// separators, the current key's id, and the base64url (unpadded) of a
+    /// 24-byte nonce, an 8-byte expiry, the cursor and a 16-byte tag. At the
+    /// default cursor of 4096 bytes and a 2-character key id that is 5532.
+    pub fn max_token_length(&self) -> usize {
+        self.sealer.longest_token()
+    }
+
+    /// The largest `max_cursor` whose longest token is at most `token_length`
+    /// characters under the current key, capped at 4096; `None` when not even
+    /// a one-byte cursor fits. For a model with `@length(max: 2048)` on the
+    /// token member: `tokens.max_cursor(tokens.cursor_capacity(2048)?)`.
+    pub fn cursor_capacity(&self, token_length: usize) -> Option<usize> {
+        cursor_capacity(self.sealer.keys.current().id.len(), token_length)
     }
 
     /// The clock expiry is read from, for deterministic tests.
@@ -171,6 +200,12 @@ impl Interceptor for PageTokens {
                 "a page token lifetime is from one second to 30 days, not {ttl:?}"
             ));
         }
+        let max_cursor = self.sealer.max_cursor;
+        if !(1..=MAX_CURSOR).contains(&max_cursor) {
+            return Err(format!(
+                "a page cursor is from 1 to {MAX_CURSOR} bytes, not {max_cursor}"
+            ));
+        }
         // A sealed token is a string, so an operation whose token is a map
         // (which Smithy allows) cannot resume from one; reading its token
         // as absent would restart every listing on its first page. Asked per
@@ -191,6 +226,30 @@ impl Interceptor for PageTokens {
                 ))
             })
             .collect();
+        // The longest token must fit the member that carries it: a token the
+        // model's `@length` refuses on the way back would fail only for a
+        // long cursor, at runtime. Asked per served entry, like the map check.
+        let longest = self.sealer.longest_token();
+        problems.extend(prepare.served_operations().filter_map(|served| {
+            let pagination = served.metadata.pagination?;
+            let limit = pagination.input_token_max_length?;
+            if u64::try_from(longest).is_ok_and(|longest| longest <= limit) {
+                return None;
+            }
+            let remedy = usize::try_from(limit)
+                .ok()
+                .and_then(|limit| self.cursor_capacity(limit))
+                .map_or_else(
+                    || "no cursor fits that limit; raise the model's `@length`".to_owned(),
+                    |fit| format!("lower `PageTokens::max_cursor` to {fit} or raise the model's `@length`"),
+                );
+            Some(format!(
+                "{}: the longest page token PageTokens issues is {longest} characters \
+                 (a cursor of {max_cursor} bytes), and the page token `{}` allows {limit}; {remedy}",
+                served.label(),
+                pagination.input_token.name
+            ))
+        }));
         if let Err(problem) = self.caller.prepare("PageTokens", prepare, |metadata| {
             metadata.pagination.is_some()
         }) {
@@ -308,6 +367,13 @@ mod tests {
     );
 
     const fn pagination(input_token_map: bool) -> Option<Pagination> {
+        bounded(input_token_map, None)
+    }
+
+    const fn bounded(
+        input_token_map: bool,
+        input_token_max_length: Option<u64>,
+    ) -> Option<Pagination> {
         Some(Pagination {
             input_token: PaginationMember {
                 name: "token",
@@ -315,6 +381,7 @@ mod tests {
             },
             page_size: None,
             input_token_map,
+            input_token_max_length,
         })
     }
 
@@ -340,6 +407,15 @@ mod tests {
     impl Operation for StringToken {
         const INFO: &'static OperationInfo = &LIST;
         const PAGINATION: Option<Pagination> = pagination(false);
+        type Input = Loose;
+        type Output = Value;
+    }
+
+    /// A listing whose token member allows 2048 characters.
+    struct Bounded;
+    impl Operation for Bounded {
+        const INFO: &'static OperationInfo = &LIST;
+        const PAGINATION: Option<Pagination> = bounded(false, Some(2048));
         type Input = Loose;
         type Output = Value;
     }
@@ -430,6 +506,44 @@ mod tests {
             Duration::from_secs(30 * 24 * 60 * 60),
         ] {
             assert!(service::<StringToken>(tokens().ttl(ttl)).0.is_ok());
+        }
+    }
+
+    #[test]
+    fn the_longest_token_must_fit_the_models_length() {
+        // 4096-byte cursors make 5532-character tokens (key id `k1`).
+        let default = tokens();
+        assert_eq!(default.max_token_length(), 5532);
+        let Err(BuildError::Prepare(why)) = service::<Bounded>(default).0 else {
+            panic!("built");
+        };
+        assert!(
+            why.starts_with("List: ")
+                && why.contains("is 5532 characters")
+                && why.contains("allows 2048")
+                && why.contains("`PageTokens::max_cursor` to 1483"),
+            "{why}"
+        );
+        // The remedy the message names is one that builds, and is the largest.
+        let fit = tokens().cursor_capacity(2048).unwrap();
+        assert_eq!(fit, 1483);
+        let fitted = tokens().max_cursor(fit);
+        assert!(fitted.max_token_length() <= 2048);
+        assert!(service::<Bounded>(fitted).0.is_ok());
+        assert!(tokens().max_cursor(fit + 1).max_token_length() > 2048);
+        assert!(service::<Bounded>(tokens().max_cursor(fit + 1)).0.is_err());
+        // An unbounded token member accepts any cursor cap.
+        assert!(service::<StringToken>(tokens()).0.is_ok());
+    }
+
+    #[test]
+    fn a_cursor_cap_is_from_one_to_the_maximum() {
+        for bytes in [0, 4097] {
+            let why = refusal(tokens().max_cursor(bytes));
+            assert!(why.contains("from 1 to 4096 bytes"), "{why}");
+        }
+        for bytes in [1, 4096] {
+            assert!(service::<StringToken>(tokens().max_cursor(bytes)).0.is_ok());
         }
     }
 

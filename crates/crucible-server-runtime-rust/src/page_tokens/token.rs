@@ -29,12 +29,26 @@ pub(crate) const MAX_CURSOR: usize = 4096;
 
 /// The longest token [`Sealer::seal`] writes, and so the longest
 /// [`Sealer::open`] reads: anything longer is refused before it is decoded.
-const MAX_TOKEN: usize = VERSION.len()
-    + 1
-    + super::page_keys::MAX_ID
-    + 1
-    // Unpadded base64: four characters per three bytes, rounded up.
-    + ((NONCE + EXPIRY + MAX_CURSOR + TAG) * 4).div_ceil(3);
+const MAX_TOKEN: usize = token_length(super::page_keys::MAX_ID, MAX_CURSOR);
+
+/// The length of a token sealed under a key whose id is `key_id` characters
+/// long around a cursor of `cursor` bytes: `p1.<id>.<base64url>`, the payload
+/// being nonce, expiry, cursor and tag in unpadded base64 (four characters per
+/// three bytes, rounded up).
+pub(crate) const fn token_length(key_id: usize, cursor: usize) -> usize {
+    VERSION.len() + 1 + key_id + 1 + ((NONCE + EXPIRY + cursor + TAG) * 4).div_ceil(3)
+}
+
+/// The largest cursor, at most [`MAX_CURSOR`], whose token under a key id of
+/// `key_id` characters is at most `token` characters. `None` when not even a
+/// one-byte cursor fits.
+pub(crate) fn cursor_capacity(key_id: usize, token: usize) -> Option<usize> {
+    // Inverts `token_length`: n bytes take ceil(4n/3) characters, so e
+    // characters hold floor(3e/4) bytes.
+    let payload = token.checked_sub(VERSION.len() + 2 + key_id)?;
+    let cursor = (payload / 4 * 3 + payload % 4 * 3 / 4).checked_sub(NONCE + EXPIRY + TAG)?;
+    (cursor >= 1).then_some(cursor.min(MAX_CURSOR))
+}
 
 pub(crate) type Clock = Arc<dyn Fn() -> SystemTime + Send + Sync>;
 
@@ -44,6 +58,8 @@ pub(crate) struct Sealer {
     pub(crate) keys: PageKeys,
     pub(crate) ttl: Duration,
     pub(crate) clock: Clock,
+    /// The longest cursor `seal` accepts, at most [`MAX_CURSOR`].
+    pub(crate) max_cursor: usize,
 }
 
 /// A token that did not open. Deliberately without a reason: every case has
@@ -52,9 +68,14 @@ pub(crate) struct Sealer {
 pub(crate) struct Invalid;
 
 impl Sealer {
-    /// `None` when the cursor is longer than [`MAX_CURSOR`].
+    /// The longest token `seal` writes under the current key.
+    pub(crate) fn longest_token(&self) -> usize {
+        token_length(self.keys.current().id.len(), self.max_cursor)
+    }
+
+    /// `None` when the cursor is longer than `max_cursor`.
     pub(crate) fn seal(&self, binding: &[u8; 32], cursor: &[u8]) -> Option<String> {
-        if cursor.len() > MAX_CURSOR {
+        if cursor.len() > self.max_cursor {
             return None;
         }
         let key = self.keys.current();
@@ -147,6 +168,7 @@ mod tests {
             keys,
             ttl: Duration::from_secs(60),
             clock: Arc::new(SystemTime::now),
+            max_cursor: MAX_CURSOR,
         }
     }
 
@@ -219,6 +241,39 @@ mod tests {
     }
 
     #[test]
+    fn the_longest_token_is_what_the_formula_says() {
+        for id in ["k", "key-0123456789ab"] {
+            for max_cursor in [1, 100, 1483, MAX_CURSOR] {
+                let mut sealer = sealer(keys(id, SECRET));
+                sealer.max_cursor = max_cursor;
+                let token = sealer.seal(&BINDING, &vec![b'x'; max_cursor]).unwrap();
+                assert_eq!(token.len(), sealer.longest_token(), "{id} {max_cursor}");
+                assert!(sealer.seal(&BINDING, &vec![b'x'; max_cursor + 1]).is_none());
+            }
+        }
+    }
+
+    #[test]
+    fn the_capacity_is_the_largest_cursor_that_fits() {
+        for id in [1, 16] {
+            for limit in [60, 200, 2048, 5000, 8000] {
+                match cursor_capacity(id, limit) {
+                    Some(cursor) => {
+                        assert!(token_length(id, cursor) <= limit, "{id} {limit}");
+                        assert!(
+                            cursor == MAX_CURSOR || token_length(id, cursor + 1) > limit,
+                            "{id} {limit}"
+                        );
+                    }
+                    None => assert!(token_length(id, 1) > limit, "{id} {limit}"),
+                }
+            }
+        }
+        assert_eq!(cursor_capacity(2, 0), None);
+        assert_eq!(cursor_capacity(2, usize::MAX), Some(MAX_CURSOR));
+    }
+
+    #[test]
     fn a_token_expires() {
         let now = Arc::new(AtomicU64::new(1_000_000));
         let clock = {
@@ -229,6 +284,7 @@ mod tests {
             keys: keys("k1", SECRET),
             ttl: Duration::from_secs(60),
             clock,
+            max_cursor: MAX_CURSOR,
         };
         let token = sealer.seal(&BINDING, b"c").unwrap();
         now.store(1_000_060, Ordering::Relaxed);

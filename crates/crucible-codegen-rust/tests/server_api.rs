@@ -165,3 +165,23 @@ fn pagination_says_whether_the_input_token_is_a_map() {
         json!({"target": "example.weather#TokenMap"});
     assert!(marker(&ast).contains("input_token_map: true"));
 }
+
+#[test]
+fn pagination_carries_the_input_tokens_length_limit() {
+    // A server extension that issues tokens checks at build that the longest
+    // fits the member's `@length`.
+    let marker = |ast: &Value| {
+        let service = Model::from_json(&ast.to_string())
+            .unwrap()
+            .lower(None)
+            .unwrap();
+        let code = generate(&service, &Options::default()).unwrap();
+        let start = code.find("Pagination { input_token").unwrap();
+        code[start..start + code[start..].find('\n').unwrap()].to_owned()
+    };
+    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
+    assert!(marker(&ast).contains("input_token_max_length: ::std::option::Option::None"));
+    ast["shapes"]["example.weather#ListCitiesInput"]["members"]["nextToken"]["traits"]["smithy.api#length"] =
+        json!({"max": 2048});
+    assert!(marker(&ast).contains("input_token_max_length: ::std::option::Option::Some(2048)"));
+}

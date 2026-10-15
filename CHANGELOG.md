@@ -17,6 +17,15 @@ version's section when it is prepared.
 
 ### Added
 
+- `PageTokens::max_cursor` lowers the largest cursor a token seals (default
+  and ceiling 4096 bytes), and `max_token_length` / `cursor_capacity(limit)`
+  report the longest token that results and the largest cursor a token length
+  allows. `build` now refuses a `@paginated` operation whose input token
+  member's `@length` max is smaller than the longest token `PageTokens` can
+  issue, so a model limit fails at build instead of at runtime on a long
+  cursor. `Pagination` gains `input_token_max_length` (generated).
+  See [docs/framework.md](docs/framework.md).
+
 - Generated server string enums carry `VALUES: &'static [&'static str]`, every wire
   value in declaration order, beside `as_str`, so a service can enumerate
   them (a quota code list, say) without parsing the model.

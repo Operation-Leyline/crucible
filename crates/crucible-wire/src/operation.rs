@@ -480,6 +480,10 @@ pub struct Pagination {
     /// either): a server extension that seals string tokens refuses such an
     /// operation instead of reading its token as absent.
     pub input_token_map: bool,
+    /// The largest length the model allows the input token member (`@length`
+    /// max, in characters), if it bounds one: a server extension that issues
+    /// tokens checks at build that the longest it can issue fits.
+    pub input_token_max_length: Option<u64>,
 }
 
 /// A top-level input member, named as the model names it (a validation

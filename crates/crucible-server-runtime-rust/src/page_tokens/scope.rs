@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::token::{MAX_CURSOR, Sealer};
+use super::token::Sealer;
 use crate::{Error, Result};
 
 /// One request's page token state, left on the request context by
@@ -26,9 +26,10 @@ impl PageScope {
     }
 
     pub(crate) fn issue(&self, cursor: &[u8]) -> Result<String> {
-        if cursor.len() > MAX_CURSOR {
+        let max = self.sealer.max_cursor;
+        if cursor.len() > max {
             return Err(Error::internal(format!(
-                "a page cursor is at most {MAX_CURSOR} bytes, and this one is {}",
+                "a page cursor is at most {max} bytes, and this one is {}",
                 cursor.len()
             )));
         }
