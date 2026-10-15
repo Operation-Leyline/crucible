@@ -1309,3 +1309,54 @@ fn a_renamed_member_lowers_its_other_steps_under_both_names() {
             if member == "notes" && from == "description"
     )));
 }
+
+#[test]
+fn a_renamed_member_is_compared_with_its_new_self_wherever_it_is_bound() {
+    // Release 1 reads `description` from the query key `q`; release 2 reads
+    // the renamed `notes` from `r` and gives `q` to a new member.
+    let baseline = with_create(V1).replace(
+        "        description?: string\n",
+        "        @query(\"q\")\n        description?: string\n",
+    );
+    let current = |notes: &str| {
+        baseline.replace(
+            "        @query(\"q\")\n        description?: string\n",
+            &format!(
+                "        @query(\"r\")\n        {notes}\n        @query(\"q\")\n        filter?: string\n"
+            ),
+        )
+    };
+    let run = |name: &str, notes: &str| {
+        let dir = package_from(
+            name,
+            &baseline,
+            &current(notes),
+            &format!("migration \"v2\" from \"v1\" {{\n{RENAME_DESCRIPTION}}}\n"),
+        );
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+        guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap()
+    };
+
+    let optional = run("rename-rebound", "notes?: string");
+    assert!(
+        !rules(&optional)
+            .iter()
+            .any(|rule| rule.starts_with("compatibility.nullability")),
+        "{:?}",
+        rules(&optional)
+    );
+
+    // Made required along with the rename: reported against `notes`, not
+    // hidden by the member that took over `q`.
+    let required = run("rename-rebound-required", "notes: string");
+    assert!(
+        rules(&required)
+            .contains(&"compatibility.nullability example.shop#CreateItemInput$description".into()),
+        "{:?}",
+        rules(&required)
+    );
+}
