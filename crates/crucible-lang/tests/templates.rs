@@ -226,3 +226,73 @@ fn a_problem_in_a_template_member_is_reported_once_for_all_its_operations() {
         .collect();
     assert_eq!(mine.len(), 1, "{found:#?}");
 }
+
+fn messages_with_offsets(source: &str) -> Vec<(String, u32)> {
+    compiled(source)
+        .diagnostics
+        .iter()
+        .filter(|d| d.diagnostic.is_error())
+        .map(|d| (d.diagnostic.message.clone(), d.diagnostic.span.start))
+        .collect()
+}
+
+#[test]
+fn a_template_supplying_an_identifier_satisfies_the_role() {
+    let source = "template reads { input { $orderId } }
+readonly operation GetOrder reads Order {
+    http GET \"/orders/{orderId}\"
+    output { order: OrderData }
+}";
+    let found = errors(source);
+    assert!(found.is_empty(), "{found:#?}");
+    // Without the template the same operation is missing the identifier.
+    let found = errors(&source.replace(
+        "template reads { input { $orderId } }
+",
+        "",
+    ));
+    assert!(found.iter().any(|m| m.contains("`$orderId`")), "{found:#?}");
+}
+
+#[test]
+fn a_template_binding_a_property_counts_for_the_lifecycle() {
+    let widget = "resource Widget {
+    id widgetId: OrderId
+    immutable property color: Note
+}
+";
+    let operation = "operation PutWidget puts Widget {
+    http PUT \"/widgets/{widgetId}\"
+    input { $widgetId }
+}";
+    let unset = "nothing could ever set it";
+    let without = errors(&format!("{widget}{operation}"));
+    assert!(without.iter().any(|m| m.contains(unset)), "{without:#?}");
+    let with = errors(&format!(
+        "template puts {{ input {{ $color }} }}
+{widget}{operation}"
+    ));
+    assert!(!with.iter().any(|m| m.contains(unset)), "{with:#?}");
+}
+
+#[test]
+fn restating_a_member_a_template_includes_is_reported_at_the_operation() {
+    let source = "structure Trace { note?: Note }
+template deletes { input { include Trace } }
+operation DeleteA deletes Order {
+    http DELETE \"/a/{orderId}\"
+    input { $orderId note?: Note }
+}";
+    let text = format!(
+        "{BASE}
+{source}"
+    );
+    let at = text.find("DeleteA").unwrap() as u32;
+    let found = messages_with_offsets(source);
+    let twice: Vec<_> = found
+        .iter()
+        .filter(|(m, _)| m.contains("`note` is declared twice"))
+        .collect();
+    assert_eq!(twice.len(), 1, "{found:#?}");
+    assert_eq!(twice[0].1, at, "{found:#?}");
+}

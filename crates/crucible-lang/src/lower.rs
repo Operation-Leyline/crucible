@@ -837,6 +837,14 @@ impl<'a> Lowerer<'a> {
         })
     }
 
+    /// The members the role template of `operation` adds to its `kind` body.
+    fn template_bodies(&self, operation: &str, kind: BodyKind) -> Vec<&'a [Member]> {
+        self.template_extras
+            .get(&(operation.to_owned(), kind))
+            .map(|(_, bodies)| bodies.iter().map(|(_, members)| *members).collect())
+            .unwrap_or_default()
+    }
+
     /// The names of `resource`'s own properties that `members` write:
     /// elisions not under `@query`, through `include`s of structures for no
     /// other resource. Mirrors which bindings `bound_mutability` treats as
@@ -960,23 +968,32 @@ impl<'a> Lowerer<'a> {
                 let Some(input) = Self::body(operation, BodyKind::Input) else {
                     continue;
                 };
+                // The operation's own members, then the ones its template adds.
+                let mut sides: Vec<&'a [Member]> = vec![&input.members];
+                sides.extend(self.template_bodies(&operation.name.name, BodyKind::Input));
                 match (attachment.role.name.as_str(), attachment.collection) {
                     // A custom collection action makes new instances, as
                     // Pigeon's `CreateApiKey` does (34g), so what it binds
                     // is set at creation.
                     ("creates", _) | ("on", true) => {
-                        self.written(&input.members, name, &mut Vec::new(), &mut created)
+                        for members in &sides {
+                            self.written(members, name, &mut Vec::new(), &mut created);
+                        }
                     }
                     // A custom instance action's input is not checked
                     // against the keywords, but what it binds does change
                     // after creation (Leyline's `PutGraphGroupMembership`
                     // moves a graph's `groupId`), so it counts as a change.
                     ("updates", _) | ("on", false) => {
-                        self.written(&input.members, name, &mut Vec::new(), &mut updated)
+                        for members in &sides {
+                            self.written(members, name, &mut Vec::new(), &mut updated);
+                        }
                     }
                     ("puts", _) => {
                         let mut put = BTreeSet::new();
-                        self.written(&input.members, name, &mut Vec::new(), &mut put);
+                        for members in &sides {
+                            self.written(members, name, &mut Vec::new(), &mut put);
+                        }
                         created.extend(put.iter().copied());
                         updated.extend(put);
                     }
@@ -1322,17 +1339,18 @@ impl<'a> Lowerer<'a> {
         ) {
             return;
         }
+        // What the operation binds, and what its role template binds for it.
+        let templated = self.template_bodies(&operation.name.name, BodyKind::Input);
         let bound: BTreeSet<&str> = input
-            .map(|body| {
-                body.members
-                    .iter()
-                    .filter_map(|member| match &member.kind {
-                        MemberKind::Elided { name, .. } => Some(name.name.as_str()),
-                        _ => None,
-                    })
-                    .collect()
+            .map(|body| body.members.as_slice())
+            .into_iter()
+            .chain(templated)
+            .flat_map(|members| members.iter())
+            .filter_map(|member| match &member.kind {
+                MemberKind::Elided { name, .. } => Some(name.name.as_str()),
+                _ => None,
             })
-            .unwrap_or_default();
+            .collect();
         let (inherited, own) = self.identifiers(&attachment.resource.name);
         let collection = matches!(role, "creates" | "lists") || attachment.collection;
         let required: Vec<&String> = if collection {
@@ -3102,11 +3120,17 @@ impl<'a> Lowerer<'a> {
                         continue;
                     }
                     let before = out.len();
+                    // An `include` has no name of its own to compare, so a
+                    // member it supplies that the operation also writes is
+                    // found as a duplicate: blame the operation, which
+                    // restated it, not the template.
+                    let at =
+                        matches!(member.kind, MemberKind::Include(_)).then_some((file, operation));
                     self.members_into(
                         *template_file,
                         std::slice::from_ref(member),
                         context,
-                        None,
+                        at,
                         &mut out,
                         &mut names,
                         &mut including,
