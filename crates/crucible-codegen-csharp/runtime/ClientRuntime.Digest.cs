@@ -3,8 +3,11 @@ using System.Text.Json.Nodes;
 // HTTP Digest authentication: the challenge a 401 offers and the session that answers it.
 internal sealed partial class ClientRuntime
 {
-    /// <summary>The last HTTP Digest challenge, answered preemptively with increasing nonce counts.</summary>
-    private readonly DigestAuthentication digestSession = new();
+    /// <summary>The last HTTP Digest challenge per origin, answered preemptively with increasing nonce counts.</summary>
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, DigestAuthentication> digestSessions = new();
+
+    /// <summary>The Digest session for the origin of <paramref name="uri"/>: a challenge is scoped to its server.</summary>
+    private DigestAuthentication DigestSession(Uri uri) => digestSessions.GetOrAdd(uri.GetLeftPart(UriPartial.Authority), _ => new());
 
     /// <summary>The strongest Digest challenge a 401 offers, when this request may answer it.</summary>
     private IReadOnlyDictionary<string, string>? DigestChallenge(Prepared prepared, HttpRequestMessage request, Dictionary<string, string> headers)

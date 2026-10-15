@@ -22,17 +22,18 @@ use crate::{Hook, Job, Prepare, Result};
 /// Whether the request's `content-type` is `expected`, ignoring case and
 /// parameters.
 pub(super) fn content_type(request: &Parts, expected: &str) -> bool {
-    request
-        .headers
-        .get("content-type")
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| {
-            v.split(';')
-                .next()
-                .unwrap_or("")
-                .trim()
-                .eq_ignore_ascii_case(expected)
-        })
+    let mut values = request.headers.get_all("content-type").iter();
+    // Exactly one field: a repeated `Content-Type` is ambiguous, not a match.
+    let (Some(value), None) = (values.next(), values.next()) else {
+        return false;
+    };
+    value.to_str().ok().is_some_and(|v| {
+        v.split(';')
+            .next()
+            .unwrap_or("")
+            .trim()
+            .eq_ignore_ascii_case(expected)
+    })
 }
 
 /// Carries serialization diagnostics to completion observers, never the wire.

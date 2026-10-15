@@ -214,6 +214,7 @@ pub(crate) fn custom_traits(traits: &crucible_smithy::ir::Traits) -> String {
             !id.is_prelude()
                 && !id.namespace().starts_with("aws.")
                 && id.namespace() != "crucible.protocols"
+                && id.namespace() != "smithy.test"
         })
         .map(|(id, value)| {
             format!(

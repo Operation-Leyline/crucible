@@ -199,6 +199,7 @@ static class Program
             && Regex.Match(authorization, "/vault/aws4_request, SignedHeaders=([a-z0-9;-]+),") is { Success: true } signedHeaders
             && new[] { "content-type", "host", "x-amz-content-sha256", "x-amz-date", "x-amz-region-set" }.All(signedHeaders.Groups[1].Value.Split(';').Contains),
             "SigV4a signs the request: " + authorization);
+        Check(signed.Requests.All(r => !r.Request.Headers.Contains("Smithy-Protocol") && !r.Request.Headers.Contains("X-Amz-Target")), "no removed-protocol headers");
         Rejects<InvalidOperationException>(() => Client(signed, configure: b => b.Credentials = credentials).SignAsync(new SignInput()), "SigV4a needs a region set");
     }
 

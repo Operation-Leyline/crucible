@@ -31,8 +31,9 @@ Python, C#, Go, and Kotlin implement retry modes, endpoint discovery (declare
 vectors. Credential chains and caching are tracked per language guide.
 
 Status: HTTP Digest and SigV4a are lowered in `crucible-smithy` and implemented
-in PHP and C#, which run RFC 7616 and AWS SigV4a vectors and verifying loopback
-servers. They remain PHP/C# capabilities; other targets refuse them.
+in PHP and C#. C# runs RFC 7616 and AWS SigV4a vectors and verifying loopback
+servers; PHP implements both without that vector qualification. They remain
+PHP/C# capabilities; other targets refuse them.
 
 Event streams (`event-streams`) are declared by the Rust and TypeScript clients.
 Lowering records the stream member and the other members' HTTP bindings; both

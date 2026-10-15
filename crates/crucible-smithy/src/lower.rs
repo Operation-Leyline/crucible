@@ -1100,6 +1100,19 @@ impl<'m> Lowerer<'m> {
         }
     }
 
+    /// Refuses the traits only XML and query protocols give meaning to.
+    fn refuse_xml_and_query(&mut self, id: &ShapeId, traits: &Traits) {
+        for (namespace, name) in REFUSED_XML_AND_QUERY_TRAITS {
+            let trait_id = ShapeId::new(namespace, name);
+            if traits.contains_key(&trait_id) {
+                self.diagnostics.push(
+                    id,
+                    format!("@{trait_id} is not supported: XML and query serialization are gone"),
+                );
+            }
+        }
+    }
+
     fn check_traits(&mut self, id: &ShapeId, traits: &Traits) {
         if traits.contains_key(&smithy("cors"))
             && !self
@@ -1164,15 +1177,7 @@ impl<'m> Lowerer<'m> {
             self.diagnostics
                 .push(id, "@requestCompression is not supported");
         }
-        for (namespace, name) in REFUSED_XML_AND_QUERY_TRAITS {
-            let trait_id = ShapeId::new(namespace, name);
-            if traits.contains_key(&trait_id) {
-                self.diagnostics.push(
-                    id,
-                    format!("@{trait_id} is not supported: XML and query serialization are gone"),
-                );
-            }
-        }
+        self.refuse_xml_and_query(id, traits);
         // Behavior traits outside smithy.api must not silently disappear into raw traits.
         {
             let trait_id = ShapeId::new("smithy.rules", "endpointBdd");
@@ -1383,6 +1388,11 @@ impl<'m> Lowerer<'m> {
                 traits: traits.clone(),
             })
         };
+        if matches!(shape.kind, Kind::Enum | Kind::IntEnum) {
+            for (name, member) in &shape.members {
+                self.refuse_xml_and_query(&id.with_member(name), &member.traits);
+            }
+        }
         Some(match shape.kind {
             Kind::Boolean => simple(SimpleKind::Boolean),
             Kind::String if shape.traits.contains_key(&smithy("enum")) => Shape::Enum(Enum {

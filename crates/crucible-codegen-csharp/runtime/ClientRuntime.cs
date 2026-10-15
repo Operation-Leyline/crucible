@@ -614,8 +614,8 @@ internal sealed partial class ClientRuntime : IDisposable
                     if (config.DigestCredentials is not null && await config.DigestCredentials(token).AsTask().WaitAsync(token).ConfigureAwait(false) is BasicCredentials digestUser)
                     {
                         // Until a server challenge arrives the request carries no credentials; SendAsync answers the 401.
-                        if (!digestSession.Ready) return (true, null);
-                        return (true, async () => SetHeader(request, "Authorization", digestSession.Authorization(digestUser, request.Method.Method, request.RequestUri!,
+                        if (!DigestSession(request.RequestUri!).Ready) return (true, null);
+                        return (true, async () => SetHeader(request, "Authorization", DigestSession(request.RequestUri!).Authorization(digestUser, request.Method.Method, request.RequestUri!,
                             request.Content is null ? [] : request.Content is ByteStreamContent ? null : await request.Content.ReadAsByteArrayAsync(token).ConfigureAwait(false))));
                     }
                     break;
@@ -692,7 +692,7 @@ internal sealed partial class ClientRuntime : IDisposable
                     // A Digest 401 is answered once per attempt: when no credentials went out, or the nonce was stale.
                     if (status == 401 && !answering && DigestChallenge(prepared, request, headers) is { } challenge)
                     {
-                        digestSession.Accept(challenge);
+                        DigestSession(request.RequestUri!).Accept(challenge);
                         retry.AfterAttempt(false);
                         trace.AttemptFinished(status, null, null, RequestIdOf(null, headers));
                         challenged = true; attempt--;

@@ -9,6 +9,24 @@ const api = require("../../src/explorer/runtime/try-it.js");
 const description = JSON.parse(readFileSync(new URL("../../../crucible-codegen-docs/tests/golden/weather-internal/describe.json", import.meta.url)));
 const base = "https://localhost:8080/stage/";
 
+const contracts = JSON.parse(readFileSync(new URL("../../../crucible-codegen-common/tests/golden/explorer/request-vectors.json", import.meta.url)));
+for (const vector of contracts.cases) {
+  test(vector.name, () => {
+    const vectorDescription = contracts.descriptions[vector.description];
+    const request = api.buildRequest(vectorDescription, vectorDescription.operations[vector.operation], vector.input, base);
+    const url = new URL(request.url);
+    assert.equal(request.method, vector.expected.method);
+    assert.equal(url.pathname, `/stage${vector.expected.uri}`);
+    // Query order is not significant, but repeated names and percent-encoding are.
+    assert.deepEqual(url.search.slice(1).split("&").filter(Boolean).sort(), (vector.expected.queryParams || []).slice().sort());
+    for (const [name, value] of Object.entries(vector.expected.headers || {})) assert.equal(request.headers.get(name), value, name);
+    if (vector.expected.body !== undefined) {
+      if (request.body instanceof Uint8Array) assert.equal(new TextDecoder().decode(request.body), vector.expected.body);
+      else assert.deepEqual(JSON.parse(request.body || "{}"), JSON.parse(vector.expected.body || "{}"));
+    }
+  });
+}
+
 test("labels, query parameters and the method come from the lowered bindings", () => {
   const get = Object.values(description.operations).find((op) => op.name === "GetCity");
   const request = api.buildRequest(description, get, { cityId: "c-12345678", at: "2014-04-29T18:30:38Z" }, base);

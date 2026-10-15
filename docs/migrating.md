@@ -39,8 +39,9 @@ API version and scheme.
 
 Crucible serves and generates clients for `@crucible.protocols#json` only.
 Smithy models that declare `restJson1`, `awsJson1_0`, `awsJson1_1`,
-`restXml`, `awsQuery`, `ec2Query`, `rpcv2Cbor` or `rpcv2Json`, or use the XML
-and query traits, fail with `protocol X is not supported`: declare
+`restXml`, `awsQuery`, `ec2Query`, `rpcv2Cbor` or `rpcv2Json`, fail with `protocol X is not supported`, and one that uses the XML and
+query traits fails with `@X is not supported: XML and query serialization
+are gone`. Declare
 `@crucible.protocols#json` and bind each operation with `@http`. Drop
 `.protocol(..)`, `.conformance()`, `--protocol` and `crucible conformance`
 from build scripts and CI. Release snapshots are format 2; format 1

@@ -643,12 +643,9 @@ trait when a project defines it.
     runtimes implement: every protocol needs wire-format code, so an open
     id would only trade exhaustive matches for string comparisons. A
     language `protocol` declaration names one of them by id, and its
-    family is a property of the implemented protocol
-    (`uses_http_bindings`). Settings stay in `ProtocolSettings`. *Why:* one protocol in real
-    use, and whether to keep the AWS runtimes stops being a language
-    question: dropping one is deleting a declaration and a runtime module.
-    The product call on the AWS runtimes stays deferred to after the
-    hardening pass.
+    family is a property of the implemented protocol. Settings stay in `ProtocolSettings`. *Why:* one protocol in real
+    use. The AWS and Smithy RPC v2 runtimes were deleted rather than
+    kept behind a declaration.
 
 35a. **Binding families are the fixed vocabularies the runtimes implement;
     the language ships `http` and `rpc`.** `http` provides the operation

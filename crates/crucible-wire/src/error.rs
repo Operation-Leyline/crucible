@@ -141,8 +141,8 @@ pub fn write_error<E: ModelledError + serde::Serialize>(
 ///
 /// Non-exhaustive: the framework may answer new errors, so a `match` outside
 /// this crate needs a wildcard arm. [`name`](Self::name),
-/// [`status`](Self::status), [`message`](Self::message) and
-/// [`shape_id`](Self::shape_id) cover every variant.
+/// [`status`](Self::status) and [`message`](Self::message) cover every
+/// variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FrameworkError {

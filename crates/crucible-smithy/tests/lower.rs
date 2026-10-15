@@ -701,6 +701,24 @@ fn refuses_xml_and_query_traits() {
 }
 
 #[test]
+fn refuses_xml_traits_on_enum_members() {
+    let messages = refused(|model| {
+        model["shapes"]["example.weather#Unit"] = json!({
+            "type": "enum",
+            "members": {"C": {"target": "smithy.api#Unit", "traits": {"smithy.api#xmlName": "c"}}}
+        });
+        model["shapes"]["example.weather#GetCityInput"]["members"]["unit"] =
+            json!({"target": "example.weather#Unit"});
+    });
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("xmlName is not supported")),
+        "{messages:?}"
+    );
+}
+
+#[test]
 fn chooses_among_services() {
     let mut model: Value = serde_json::from_str(WEATHER).unwrap();
     model["shapes"]["example.weather#Other"] = json!({ "type": "service", "version": "1" });

@@ -221,8 +221,10 @@ fn value_kind(unexpected: &str) -> &str {
         "character",
         "string",
     ];
-    // `number` is serde_json's own, under `arbitrary_precision`; the rest
-    // are serde's names for the kinds a value can have.
+    // `number` is serde_json's own, under `arbitrary_precision`; `tag`,
+    // `undefined`, `simple` and `break` are CBOR labels still named by
+    // inputs read elsewhere; the rest are serde's names for the kinds a
+    // value can have.
     const BARE: [&str; 19] = [
         "number",
         "string",
