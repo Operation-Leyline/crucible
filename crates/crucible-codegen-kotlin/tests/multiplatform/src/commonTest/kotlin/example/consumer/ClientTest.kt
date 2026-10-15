@@ -198,7 +198,7 @@ class ClientTest {
             assertEquals(example.weather.model.Mode(17), result.mode)
             assertEquals(listOf("a", "b"), result.names); assertEquals(listOf(null, "x"), result.sparseNames)
             assertEquals(null, result.sparseMap?.get("null")); assertEquals(example.weather.model.Mode(17), result.sparseMap?.get("future"))
-            client.echo(example.weather.model.EchoInput { integer = result.integer; decimal = result.decimal; mode = result.mode; names = result.names; integers = result.integers; decimals = result.decimals; sparseNames = result.sparseNames; sparseMap = result.sparseMap })
+            client.echo(example.weather.model.EchoInput { this.integer = result.integer; this.decimal = result.decimal; mode = result.mode; names = result.names; integers = result.integers; decimals = result.decimals; sparseNames = result.sparseNames; sparseMap = result.sparseMap })
             wire = """{"integers":[18446744073709551616,36893488147419103232],"decimals":[12345678901234567890.1234567891,12345678901234567890.1234567892]}"""
             val precise=client.read(); assertEquals(2,precise.integers?.size); assertEquals(2,precise.decimals?.size)
             wire = """{"decimals":[1,1.0]}"""; assertFailsWith<IllegalArgumentException> { client.read() }

@@ -55,7 +55,7 @@ input <- CreateCityInput(name = 'R', location = Location('future', json_parse('{
 wire <- codec(input, 'example.weather#CreateCityInput', TRUE)
 check(!'clientToken' %in% names(wire) && as.character(wire$location$future$long) == '9223372036854775807','Native wire')
 copy <- codec(wire,'example.weather#CreateCityInput'); check(inherits(copy$location,'Location') && copy$name == 'R','Native model round trip')
-check(json_encode(codec(CreateCityInput(name = NULL),'example.weather#CreateCityInput',TRUE)) == '{"name":null}','Unset vs null')
+check(json_encode(codec(CreateCityInput(name = 'n', client_token = NULL),'example.weather#CreateCityInput',TRUE)) == '{"name":"n","clientToken":null}','Unset vs null')
 rejects(codec(input,'example.weather#GetCityInput',TRUE))
 decoded <- codec(json_parse('{"document":null}'),'example.weather#ExactValues')
 check(is.null(decoded$document) && as.character(decoded$default_long)=='9223372036854775807' && inherits(decoded$optional_long,'crucible_unset'),'Required document null and exact default')

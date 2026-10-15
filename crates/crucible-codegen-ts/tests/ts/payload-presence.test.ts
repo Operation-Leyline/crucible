@@ -23,7 +23,7 @@ for (const [sdk, protocol] of [[crucible, "Crucible JSON"]] as const) {
     }});
     await client.putRecord({});
     // JavaScript callers can supply null even when the typed input omits it.
-    await client.putRecord({record: null} as unknown as crucible.RecordInput);
+    await client.putRecord({record: null} as unknown as crucible.PutRecordInput);
     await client.putRecord({record: {name: "record"}});
     assert.deepEqual(bodies, ["", "null", '{"name":"record"}']);
   });

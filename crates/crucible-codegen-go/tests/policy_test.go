@@ -480,6 +480,7 @@ func TestTelemetryScenarios(t *testing.T) {
 			hook := &recorder{}
 			responses := scenario.Responses
 			client := newRecords(t, Config{Telemetry: hook, Clock: &fakeClock{},
+				Token: func(context.Context) (string, error) { return "api-key-secret", nil },
 				HTTPClient: doFunc(func(*http.Request) (*http.Response, error) {
 					next := responses[0]
 					responses = responses[1:]

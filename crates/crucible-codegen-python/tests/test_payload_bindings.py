@@ -12,9 +12,9 @@ class PayloadBindingTests(unittest.TestCase):
 
     def test_document_payload_keeps_null_distinct_from_omitted(self):
         for module, sdk in self.clients():
-            for input, expected in ((sdk.DocumentInput(), b""),
-                                    (sdk.DocumentInput(document=None), b"null"),
-                                    (sdk.DocumentInput(document={"answer": 42}), b'{"answer":42}')):
+            for input, expected in ((sdk.PutDocumentInput(), b""),
+                                    (sdk.PutDocumentInput(document=None), b"null"),
+                                    (sdk.PutDocumentInput(document={"answer": 42}), b'{"answer":42}')):
                 with self.subTest(protocol=module, expected=expected):
                     requests = []
                     def reply(request):
@@ -29,9 +29,9 @@ class PayloadBindingTests(unittest.TestCase):
 
     def test_record_null_is_sent_as_null(self):
         for module, sdk in self.clients():
-            for input, expected in ((sdk.RecordInput(), b""),
-                                    (sdk.RecordInput(record=None), b"null"),
-                                    (sdk.RecordInput(record=sdk.Record(name="record")), b'{"name":"record"}')):
+            for input, expected in ((sdk.PutRecordInput(), b""),
+                                    (sdk.PutRecordInput(record=None), b"null"),
+                                    (sdk.PutRecordInput(record=sdk.Record(name="record")), b'{"name":"record"}')):
                 with self.subTest(protocol=module, expected=expected):
                     def reply(request):
                         self.assertEqual(request.content, expected)
