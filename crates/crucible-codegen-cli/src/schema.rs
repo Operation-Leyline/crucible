@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Value, json};
 
 use crate::{Options, names};

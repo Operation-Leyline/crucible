@@ -1,5 +1,5 @@
 use crucible_codegen_csharp::{Options, emit};
-use crucible_smithy::{ShapeId, ir::Service};
+use crucible_ir::{ShapeId, ir::Service};
 use std::{fs, path::Path};
 fn model_dir(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -182,7 +182,7 @@ fn permissions_match_goldens() {
                     .as_deref()
                     .and_then(|symbol| resource.permission(symbol))
                     .unwrap_or(p);
-                (primary.tier == crucible_smithy::ir::Tier::Internal).then(|| p.value.clone())
+                (primary.tier == crucible_ir::ir::Tier::Internal).then(|| p.value.clone())
             })
         })
         .collect();
@@ -190,7 +190,7 @@ fn permissions_match_goldens() {
         !internal.is_empty(),
         "the fixture declares internal permissions"
     );
-    let service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions");
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
     let mut expected = std::collections::BTreeSet::new();
@@ -257,7 +257,7 @@ fn colliding_permission_names_are_diagnosed() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let full = compiled.service.expect("the fixture compiles");
-    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let mut service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let graph = service
         .permissions
         .values_mut()
@@ -292,7 +292,7 @@ fn hyphenated_permission_symbols_spell_words() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let full = compiled.service.expect("the fixture compiles");
-    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let mut service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let graph = service
         .permissions
         .values_mut()

@@ -2,8 +2,8 @@
 //! recorded in `recursive_groups` as the Smithy front end records them, and
 //! refused only where no finite value exists or only collections recur.
 
+use crucible_ir::ir::{Service, Shape, Structure};
 use crucible_lang::{Compiled, Package, SourceFile, compile};
-use crucible_smithy::ir::{Service, Shape, Structure};
 
 const RECURSIVE: &str = include_str!("fixtures/recursive.cru");
 
@@ -67,7 +67,7 @@ fn structure<'a>(service: &'a Service, name: &str) -> &'a Structure {
     }
 }
 
-fn names(ids: &[crucible_smithy::ShapeId]) -> Vec<String> {
+fn names(ids: &[crucible_ir::ShapeId]) -> Vec<String> {
     ids.iter().map(ToString::to_string).collect()
 }
 
@@ -117,7 +117,7 @@ fn the_groups_are_the_ones_the_shared_algorithm_finds() {
     let service = service(RECURSIVE);
     assert_eq!(
         service.recursive_groups,
-        crucible_smithy::ir::recursive_groups(&service.shapes)
+        crucible_ir::ir::recursive_groups(&service.shapes)
     );
 }
 

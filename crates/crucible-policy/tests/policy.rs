@@ -1,5 +1,5 @@
+use crucible_ir::ir::Service;
 use crucible_policy::{Config, Severity, check, diff};
-use crucible_smithy::ir::Service;
 
 /// The `.cru` package the tests change (`tests/models/policy-contract`).
 fn package() -> crucible_lang::Package {

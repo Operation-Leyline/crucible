@@ -12,7 +12,7 @@
 //! and roxygen.
 
 use crucible_codegen::{Client, File, Generator, Server};
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 #[cfg(feature = "all-outputs")]
 use serde_json::Value;
 
@@ -407,11 +407,11 @@ fn hostile_model_text_never_reaches_infrastructure_or_cli_source_raw() {
     let mut service = common::load("terraform-inventory");
     service.version = hostile.version.clone();
     service.docs = hostile_doc.clone();
-    let kind: crucible_smithy::ShapeId = "example.infra#Kind".parse().unwrap();
+    let kind: crucible_ir::ShapeId = "example.infra#Kind".parse().unwrap();
     service.shapes.insert(
         kind.clone(),
         hostile.shapes[&"example.hostile#Kind"
-            .parse::<crucible_smithy::ShapeId>()
+            .parse::<crucible_ir::ShapeId>()
             .unwrap()]
             .clone(),
     );
@@ -421,7 +421,7 @@ fn hostile_model_text_never_reaches_infrastructure_or_cli_source_raw() {
         }
     }
     for shape in service.shapes.values_mut() {
-        if let crucible_smithy::ir::Shape::Structure(structure) = shape {
+        if let crucible_ir::ir::Shape::Structure(structure) = shape {
             for member in &mut structure.members {
                 if member.name == "slug" {
                     member.target = kind.clone();

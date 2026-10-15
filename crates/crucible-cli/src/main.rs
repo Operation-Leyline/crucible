@@ -10,8 +10,8 @@ mod sdk;
 mod starter;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Service, Shape, Traits};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Service, Shape, Traits};
 
 /// Generate servers, clients, and infrastructure packages from a Crucible model.
 #[derive(Parser)]
@@ -189,7 +189,7 @@ impl ClientLanguage {
         Self::R,
     ];
 
-    fn capabilities(self) -> crucible_smithy::Capabilities {
+    fn capabilities(self) -> crucible_ir::Capabilities {
         match self {
             Self::Rust => crucible_codegen_rust::client_capabilities(),
             Self::Ts => crucible_codegen_ts::capabilities(),
@@ -657,7 +657,7 @@ fn run(command: Command) -> ExitCode {
             // An empty set would refuse every gated feature (`sparse`, ...)
             // that the model is allowed to use; only a named client narrows it.
             &target.map(ClientLanguage::capabilities).unwrap_or_else(|| {
-                crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied())
+                crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied())
             }),
         )
         .and_then(|service| {
@@ -737,12 +737,12 @@ fn run(command: Command) -> ExitCode {
 }
 
 fn lower(source: &Source) -> Result<Service, String> {
-    lower_with_capabilities(source, &crucible_smithy::Capabilities::default())
+    lower_with_capabilities(source, &crucible_ir::Capabilities::default())
 }
 
 fn lower_with_capabilities(
     source: &Source,
-    capabilities: &crucible_smithy::Capabilities,
+    capabilities: &crucible_ir::Capabilities,
 ) -> Result<Service, String> {
     let service = lower_cru(source, true)?;
     service
@@ -754,11 +754,11 @@ fn lower_with_capabilities(
 fn lower_for_audience(
     source: &Source,
     audience: crucible_codegen::Audience,
-    capabilities: &crucible_smithy::Capabilities,
+    capabilities: &crucible_ir::Capabilities,
 ) -> Result<Service, String> {
-    let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
+    let all = crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied());
     let full = lower_with_capabilities(source, &all)?;
-    let projected = crucible_smithy::project(&full, audience).map_err(|d| d.to_string())?;
+    let projected = crucible_ir::project(&full, audience).map_err(|d| d.to_string())?;
     projected
         .require_capabilities(capabilities)
         .map_err(|d| d.to_string())?;
@@ -851,7 +851,7 @@ fn compile(package: PathBuf, service: Option<ShapeId>, out: Option<&Path>) -> Re
         true,
     )?;
     let compiler = format!("crucible {}", env!("CARGO_PKG_VERSION"));
-    let text = crucible_smithy::snapshot::write(&service, &compiler);
+    let text = crucible_ir::snapshot::write(&service, &compiler);
     match out {
         Some(path) => {
             // `--out target/model.json` works on a checkout with no `target`.
@@ -995,7 +995,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
     match target {
         Target::Docs { source, out } => {
             let full = lower_resources(&source)?;
-            let service = crucible_smithy::project(&full, audience).map_err(|e| e.to_string())?;
+            let service = crucible_ir::project(&full, audience).map_err(|e| e.to_string())?;
             let files = crucible_codegen_docs::generate(&service).map_err(|e| e.to_string())?;
             let files = files
                 .into_iter()
@@ -1031,7 +1031,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             config,
             out,
         } => {
-            let service = crucible_smithy::project(&lower_resources(&source)?, audience)
+            let service = crucible_ir::project(&lower_resources(&source)?, audience)
                 .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let options = read_config(&config)?;
@@ -1055,7 +1055,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             provider_address,
             out,
         } => {
-            let service = crucible_smithy::project(&lower_resources(&source)?, audience)
+            let service = crucible_ir::project(&lower_resources(&source)?, audience)
                 .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
@@ -1084,7 +1084,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             runtime_path,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_smithy::Capabilities::default())?;
+                lower_for_audience(&source, audience, &crucible_ir::Capabilities::default())?;
             let runtime_path = runtime_path.canonicalize().map_err(|error| {
                 format!(
                     "cannot resolve runtime path {}: {error}",
@@ -1593,7 +1593,7 @@ fn summary(service: &Service) -> String {
 /// every pending operation is listed with its reason (docs/permissions.md
 /// §4.7). Empty for a service that says nothing about authorization.
 fn permissions_summary(service: &Service) -> String {
-    use crucible_smithy::ir::Requirements;
+    use crucible_ir::ir::Requirements;
     let declared = service
         .operations
         .iter()

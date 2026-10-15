@@ -5,17 +5,17 @@
 //! This module checks what only the syntax can get wrong (tiers written
 //! twice, a binding name that is no identifier, `requires none` beside
 //! another clause) and resolves implicit bindings; everything that holds of
-//! the IR is `crucible_smithy::validate::permissions`.
+//! the IR is `crucible_ir::validate::permissions`.
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::permissions::Binding;
-use crucible_smithy::ir::{
+use crucible_ir::ShapeId;
+use crucible_ir::ir::permissions::Binding;
+use crucible_ir::ir::{
     Condition, Mode, Permission, PermissionTypes, Requirement, Requirements, ResourcePermissions,
     Service, Tier,
 };
-use crucible_smithy::validate::{
+use crucible_ir::validate::{
     FindingSeverity, PermissionFinding, attaches_not_found, derived_authorization_name,
     not_found_id,
 };
@@ -873,7 +873,7 @@ impl<'a> Lowerer<'a> {
             .into_iter()
             .collect();
         let findings = if missing.is_empty() {
-            crucible_smithy::validate::permissions(service, &self.permission_facts)
+            crucible_ir::validate::permissions(service, &self.permission_facts)
         } else {
             let mut probe = service.clone();
             for ty in missing {
@@ -882,7 +882,7 @@ impl<'a> Lowerer<'a> {
                     probe.shapes.insert(ty, shape.clone());
                 }
             }
-            crucible_smithy::validate::permissions(&probe, &self.permission_facts)
+            crucible_ir::validate::permissions(&probe, &self.permission_facts)
         };
         self.service_findings.clone_from(&findings);
         self.report_permission_findings(findings);
@@ -926,7 +926,7 @@ impl<'a> Lowerer<'a> {
         // Whether every operation must say something is the service's
         // question: a resource it does not reach does not make it ask.
         let declares = !self.permissions.is_empty();
-        let findings = crucible_smithy::validate::permissions(&drafts, &facts)
+        let findings = crucible_ir::validate::permissions(&drafts, &facts)
             .into_iter()
             .filter(|finding| {
                 !self.service_findings.contains(finding)

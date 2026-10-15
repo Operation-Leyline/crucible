@@ -10,14 +10,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{
+use crucible_ir::ir::{
     AuthScheme, Binding, Bindings, Bounds, Constraints, Deprecation, DocNotes, Enum,
     EnumValue as IrEnumValue, ErrorInfo, Example as IrExample, ExampleError, Fault, HeaderEncoding,
     IntEnum, IntEnumValue, List, Map, Member as IrMember, Mutability, Operation as IrOperation,
     Paginated, Payload, PayloadKind, Retryable, Segment, Service, Shape, Simple, SimpleKind,
     Structure as IrStructure, TimestampFormat, Traits, Uri,
 };
-use crucible_smithy::{Feature, FeatureUse, Protocol, ProtocolSettings, ShapeId};
+use crucible_ir::{Feature, FeatureUse, Protocol, ProtocolSettings, ShapeId};
 use serde_json::{Map as JsonMap, Number, Value as Json};
 
 use crate::Parsed;
@@ -81,7 +81,7 @@ pub(crate) fn lower(
         named_types: BTreeSet::new(),
         declared_permissions: BTreeMap::new(),
         permissions: BTreeMap::new(),
-        permission_facts: crucible_smithy::validate::PermissionFacts::default(),
+        permission_facts: crucible_ir::validate::PermissionFacts::default(),
         service_findings: Vec::new(),
         unlowered_requirements: BTreeSet::new(),
         not_found: None,
@@ -466,13 +466,13 @@ struct Lowerer<'a> {
     named_types: BTreeSet<ShapeId>,
     /// Every resource's permission entries, by resource, whether or not the
     /// service reaches it.
-    declared_permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
+    declared_permissions: BTreeMap<ShapeId, crucible_ir::ir::ResourcePermissions>,
     /// The service's: its reachable resources' `declared_permissions`.
-    permissions: BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
-    permission_facts: crucible_smithy::validate::PermissionFacts,
+    permissions: BTreeMap<ShapeId, crucible_ir::ir::ResourcePermissions>,
+    permission_facts: crucible_ir::validate::PermissionFacts,
     /// What the shared check found in the service, so the check of what it
     /// does not reach repeats none of it.
-    service_findings: Vec<crucible_smithy::validate::PermissionFinding>,
+    service_findings: Vec<crucible_ir::validate::PermissionFinding>,
     /// Operations whose every requirement clause failed to lower: they are
     /// `Undeclared` in the IR, and not reported as declaring nothing.
     unlowered_requirements: BTreeSet<ShapeId>,
@@ -1998,7 +1998,7 @@ impl<'a> Lowerer<'a> {
         }
         let what = format!("the value of `@{name}`");
         for problem in
-            crucible_smithy::validate::value(&self.meta_shapes, &what, &id, &constraints, value)
+            crucible_ir::validate::value(&self.meta_shapes, &what, &id, &constraints, value)
         {
             self.error(file, span, problem);
         }
@@ -2243,7 +2243,7 @@ impl<'a> Lowerer<'a> {
             }
             if name == "pattern"
                 && let ConstraintValue::Value(Value::Str(pattern)) = &constraint.value
-                && let Some(problem) = crucible_smithy::validate::pattern_problem(&pattern.value)
+                && let Some(problem) = crucible_ir::validate::pattern_problem(&pattern.value)
             {
                 self.error(
                     file,
@@ -2298,13 +2298,9 @@ impl<'a> Lowerer<'a> {
         for problem in resolve_enum_symbols(&self.shapes, target, value, &mut json) {
             self.error(file, span, problem);
         }
-        for problem in crucible_smithy::validate::value(
-            &self.shapes,
-            "the default",
-            target,
-            constraints,
-            &json,
-        ) {
+        for problem in
+            crucible_ir::validate::value(&self.shapes, "the default", target, constraints, &json)
+        {
             self.error(file, span, problem);
         }
         json
@@ -4082,7 +4078,7 @@ impl<'a> Lowerer<'a> {
             }
         }
         // Duplicate names, binding targets and a payload beside body members
-        // are checked by crucible_smithy::validate.
+        // are checked by crucible_ir::validate.
         self.header_encodings(owner, members, &mut bindings);
         self.binding_timestamp_formats(members, &mut bindings);
         bindings
@@ -4703,7 +4699,7 @@ impl<'a> Lowerer<'a> {
                 items: field("items"),
                 page_size: field("pageSize"),
             };
-            // Member paths and types are checked by crucible_smithy::validate.
+            // Member paths and types are checked by crucible_ir::validate.
             traits.insert(smithy("paginated"), Json::Object(own));
             Some(paginated)
         });
@@ -5131,7 +5127,7 @@ impl<'a> Lowerer<'a> {
         let version_declared = version.is_some();
         let mut service = Service {
             internal: false,
-            recursive_groups: crucible_smithy::ir::recursive_groups(&self.shapes),
+            recursive_groups: crucible_ir::ir::recursive_groups(&self.shapes),
             protocol: self.protocol,
             errors: service_errors,
             protocol_settings: ProtocolSettings::default(),
@@ -5172,8 +5168,8 @@ impl<'a> Lowerer<'a> {
             );
         }
         // Rules of the IR itself, shared with the Smithy front end.
-        let mut issues = crucible_smithy::Diagnostics::default();
-        crucible_smithy::validate::service(&service, &mut issues);
+        let mut issues = crucible_ir::Diagnostics::default();
+        crucible_ir::validate::service(&service, &mut issues);
         for issue in issues.iter() {
             self.error_at(&issue.shape, &issue.message);
         }
@@ -5195,9 +5191,9 @@ impl<'a> Lowerer<'a> {
         probe.operations = unreached;
         probe.shapes = std::mem::take(&mut self.shapes);
         self.check_unreached_permissions(&probe);
-        let mut issues = crucible_smithy::Diagnostics::default();
+        let mut issues = crucible_ir::Diagnostics::default();
         for operation in &probe.operations {
-            crucible_smithy::validate::operation(&probe, operation, &mut issues);
+            crucible_ir::validate::operation(&probe, operation, &mut issues);
         }
         for issue in issues.iter() {
             self.error_at(&issue.shape, &issue.message);

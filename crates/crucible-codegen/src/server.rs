@@ -1,5 +1,5 @@
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 use crate::File;
 
@@ -21,7 +21,7 @@ impl Server {
     }
 
     /// Constructs supported by the selected server emitter.
-    pub fn capabilities(&self) -> crucible_smithy::Capabilities {
+    pub fn capabilities(&self) -> crucible_ir::Capabilities {
         match *self {
             #[cfg(feature = "rust")]
             Self::Rust(_) => crucible_codegen_rust::capabilities(),

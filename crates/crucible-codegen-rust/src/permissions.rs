@@ -11,12 +11,12 @@ use std::collections::BTreeMap;
 use crucible_codegen_common::permissions::{
     aliases, code_span, denied_message, not_found_message, notes,
 };
-use crucible_smithy::ir::permissions::Binding;
-use crucible_smithy::ir::{
+use crucible_ir::ir::permissions::Binding;
+use crucible_ir::ir::{
     Condition, Member, Mode, Operation, Permission, Requirements, ResourcePermissions, Service,
     Shape, SimpleKind, Tier, Value,
 };
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::info::constant;
 use crate::names::{doc, documented_text, field, literal, variant};

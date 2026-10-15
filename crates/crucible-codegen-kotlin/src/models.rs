@@ -1,6 +1,6 @@
 use super::{code, field, kdoc, kdoc_for, literal, ty};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Service, Shape, SimpleKind};
 use serde_json::Value;
 
 pub fn variant(name: &str) -> String {
@@ -145,7 +145,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
             Shape::Structure(s) => {
                 let mut class_notes = vec![];
                 if let Some(error) = &s.error {
-                    class_notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends `{exception}`.", error.status, if matches!(error.fault, crucible_smithy::ir::Fault::Client) { "client" } else { "server" }));
+                    class_notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends `{exception}`.", error.status, if matches!(error.fault, crucible_ir::ir::Fault::Client) { "client" } else { "server" }));
                 } else {
                     class_notes.push(format!("Build one with `{name} {{ ... }}` or `copy {{ ... }}`; it is immutable. Smithy shape {}.", code(&id.to_string())));
                 }
@@ -502,9 +502,9 @@ pub(crate) fn default_expr(
 // Kotlin aliases cannot recurse without a nominal type breaking the cycle.
 fn recursive_collection(
     service: &Service,
-    start: &crucible_smithy::ShapeId,
-    current: &crucible_smithy::ShapeId,
-    visited: &mut std::collections::BTreeSet<crucible_smithy::ShapeId>,
+    start: &crucible_ir::ShapeId,
+    current: &crucible_ir::ShapeId,
+    visited: &mut std::collections::BTreeSet<crucible_ir::ShapeId>,
 ) -> bool {
     if !visited.insert(current.clone()) {
         return false;

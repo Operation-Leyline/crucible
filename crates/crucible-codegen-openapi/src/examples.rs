@@ -4,8 +4,8 @@
 
 use std::collections::BTreeSet;
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Bindings, Example, Operation, PayloadKind, Service, Structure};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Bindings, Example, Operation, PayloadKind, Service, Structure};
 use serde_json::{Map, Value, json};
 
 /// One example's value for a single request or response.

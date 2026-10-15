@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use crucible_codegen::{Client, Generator};
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 
 use crate::{Artifact, Output};
 

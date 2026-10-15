@@ -15,7 +15,7 @@ use crucible_codegen_rust::{
 
 const RECURSIVE: &str = include_str!("../../crucible-lang/tests/fixtures/recursive.cru");
 
-fn service() -> crucible_smithy::ir::Service {
+fn service() -> crucible_ir::ir::Service {
     let package = crucible_lang::Package {
         namespace: "example.search".to_owned(),
         files: vec![crucible_lang::SourceFile {

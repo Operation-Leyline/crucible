@@ -10,10 +10,10 @@ Sources read on 2026-10-08:
 |---|---|---|
 | Leyline (`leyline/smithy/src/main/smithy`) | 174 files, 129 operations, 20 resources, 2 services | primary consumer |
 | Pigeon (`pigeon/smithy/src/main/smithy`) | 71 files, 54 operations, 36 resources | second consumer |
-| weather fixture (`crates/crucible-smithy/tests/fixtures/weather.json`) | 7 operations, 1 resource | exercises every documented feature |
+| weather fixture (`crates/crucible-ir/tests/fixtures/weather.json`) | 7 operations, 1 resource | exercises every documented feature |
 | service template / starter | 5 operations, 1 resource | onboarding shape |
 | `smithy/*.smithy` | protocol, `@strict`, standard errors, `@scopes` | Crucible's own vocabulary |
-| `crucible-smithy` `Feature` list and the trait ids `lower*.rs` read | | the accepted subset |
+| `crucible-ir` `Feature` list and the trait ids `lower*.rs` read | | the accepted subset |
 | `ir.rs` | | what generators consume |
 
 ## Shape kinds

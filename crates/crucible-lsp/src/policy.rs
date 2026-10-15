@@ -4,9 +4,9 @@
 
 use std::path::Path;
 
+use crucible_ir::ShapeId;
 use crucible_lang::{Compiled, TokenKind};
 use crucible_policy::{Check, Config, NameCase, Severity};
-use crucible_smithy::ShapeId;
 
 /// One policy finding in a file of the package.
 #[derive(Debug, Clone, PartialEq, Eq)]

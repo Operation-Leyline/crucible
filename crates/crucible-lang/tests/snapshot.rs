@@ -2,8 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crucible_smithy::ir::Service;
-use crucible_smithy::snapshot;
+use crucible_ir::ir::Service;
+use crucible_ir::snapshot;
 
 fn models() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models")

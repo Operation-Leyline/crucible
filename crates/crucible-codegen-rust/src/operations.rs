@@ -2,8 +2,8 @@
 //! `OperationInfo`, and the trait the service implements; for the service its
 //! `ServiceInfo` and the registration functions.
 
-use crucible_smithy::ir::{DocNotes, Operation, Segment, Service, Shape};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{DocNotes, Operation, Segment, Service, Shape};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::errors::{error_shapes, info_static};
 use crate::info::{constant, custom_traits, members};
@@ -71,7 +71,7 @@ pub(crate) fn output_type(service: &Service, operation: &Operation) -> String {
 pub(crate) fn structure<'s>(
     service: &'s Service,
     id: Option<&ShapeId>,
-) -> Option<&'s crucible_smithy::ir::Structure> {
+) -> Option<&'s crucible_ir::ir::Structure> {
     match service.shape(id?)? {
         Shape::Structure(structure) => Some(structure),
         _ => None,
@@ -212,7 +212,7 @@ pub(crate) fn marker_for(
         .iter()
         .filter_map(|id| service.auth_schemes.get(id))
         .map(|scheme| {
-            let crucible_smithy::ir::AuthScheme::Bearer = scheme;
+            let crucible_ir::ir::AuthScheme::Bearer = scheme;
             "::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer"
         })
         .collect::<Vec<_>>()
@@ -394,7 +394,7 @@ fn pagination_items(service: &Service, op: &Operation) -> String {
         .map_or("::std::option::Option::None".to_owned(), |name| {
             format!("::std::option::Option::Some({})", member(name))
         });
-    // crucible-smithy accepts a string or a map token.
+    // crucible-ir accepts a string or a map token.
     let token_map = input
         .and_then(|s| s.member(&paginated.input_token))
         .and_then(|m| service.shape(&m.target))

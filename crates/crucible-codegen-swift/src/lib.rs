@@ -2,8 +2,8 @@
 mod client;
 mod models;
 mod permissions;
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Service, Shape, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -383,9 +383,9 @@ fn ty(service: &Service, id: &ShapeId, _module: &str) -> String {
         _ => format!("`{}`", model_name(service.name_of(id))),
     }
 }
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,

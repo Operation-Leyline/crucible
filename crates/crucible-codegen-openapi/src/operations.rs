@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use crucible_smithy::ir::{Bindings, Member, Operation, PayloadKind, Service, Shape, Structure};
+use crucible_ir::ir::{Bindings, Member, Operation, PayloadKind, Service, Shape, Structure};
 use serde_json::{Map, Value, json};
 
 use crate::{Slot, annotate, description, examples, key, schemas, traits};
@@ -133,10 +133,7 @@ fn security(op: &Operation) -> Vec<Value> {
         .collect()
 }
 
-fn structure<'a>(
-    service: &'a Service,
-    id: Option<&crucible_smithy::ShapeId>,
-) -> Option<&'a Structure> {
+fn structure<'a>(service: &'a Service, id: Option<&crucible_ir::ShapeId>) -> Option<&'a Structure> {
     match id.and_then(|id| service.shape(id)) {
         Some(Shape::Structure(structure)) => Some(structure),
         _ => None,

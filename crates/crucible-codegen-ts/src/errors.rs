@@ -1,9 +1,9 @@
 //! `errors.ts`: one `ServiceError` subclass per modelled error, so callers
 //! branch with `instanceof` and read typed fields.
 
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Fault, Service, Shape, Structure};
+use crucible_ir::Diagnostics;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Fault, Service, Shape, Structure};
 
 use crate::names::{doc, documented, property, ts_type};
 

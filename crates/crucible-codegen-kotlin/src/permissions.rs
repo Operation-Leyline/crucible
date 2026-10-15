@@ -13,8 +13,8 @@ use std::collections::BTreeSet;
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, constant_symbol, notes, primary, upper_snake,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 use super::{File, code, identifier, kdoc, kdoc_for, literal};
 

@@ -3,7 +3,7 @@
 mod source;
 
 use crucible_codegen_infra::Plan;
-use crucible_smithy::{Diagnostics, ir::Service};
+use crucible_ir::{Diagnostics, ir::Service};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 

@@ -2,7 +2,7 @@ use crucible_codegen_dart::{
     CODEC_RUNTIME, DESCRIBE_RUNTIME, ERROR_RUNTIME, JSON_RUNTIME, Options, TIMESTAMP_RUNTIME, emit,
     emit_models,
 };
-use crucible_smithy::{ShapeId, ir::Service};
+use crucible_ir::{ShapeId, ir::Service};
 use std::{fs, path::Path};
 
 fn model_dir(name: &str) -> std::path::PathBuf {
@@ -315,7 +315,7 @@ fn service_client_name_is_reserved() {
 #[test]
 fn service_exception_cannot_shadow_runtime_failures() {
     let mut service = weather();
-    service.id = crucible_smithy::ShapeId::new("example.weather", "Network");
+    service.id = crucible_ir::ShapeId::new("example.weather", "Network");
     assert!(
         emit(&service, &options())
             .err()

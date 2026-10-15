@@ -3,7 +3,7 @@ use crate::{
     names::{field, literal, ty, variant},
 };
 use crucible_codegen_common::docs;
-use crucible_smithy::ir::{DocNotes, Member, Service, Shape};
+use crucible_ir::ir::{DocNotes, Member, Service, Shape};
 
 /// A `/** */` docblock for model text; empty when the model has none.
 pub(crate) fn docblock(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
@@ -34,7 +34,7 @@ fn debug_info(
             let field = field(&member.name);
             let value = if docs::is_redacted(service, sensitive, member) {
                 format!("{runtime}\\Describe::redact($this->{field})")
-            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == crucible_smithy::ir::SimpleKind::Blob) {
+            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == crucible_ir::ir::SimpleKind::Blob) {
                 format!("{runtime}\\Describe::bytes($this->{field})")
             } else {
                 format!("$this->{field}")

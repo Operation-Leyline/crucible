@@ -1,7 +1,7 @@
 use crate::{File, Options, models, names};
-use crucible_smithy::ir::{Service, Shape};
+use crucible_ir::ir::{Service, Shape};
 
-pub fn symbols(service: &Service, prefix: &str) -> Vec<(crucible_smithy::ShapeId, String)> {
+pub fn symbols(service: &Service, prefix: &str) -> Vec<(crucible_ir::ShapeId, String)> {
     let mut result = Vec::new();
     for op in &service.operations {
         let name = format!("{prefix}_operations_{}", names::field(op.name()));

@@ -1,6 +1,6 @@
 // Runtime policy: retry quota, adaptive rate limiting and telemetry, against the shared vectors in
 // tests/conformance/{retry-quota,adaptive-retry,telemetry}.json and a client generated from
-// crates/crucible-smithy/tests/fixtures/runtime-policy.json.
+// crates/crucible-ir/tests/fixtures/runtime-policy.json.
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Net;

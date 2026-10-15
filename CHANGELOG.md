@@ -479,6 +479,10 @@ version's section when it is prepared.
 
 ### Changed
 
+- The `crucible-smithy` crate is renamed `crucible-ir` (library `crucible_ir`): it holds the
+  IR, snapshots and the helpers every generator shares, and no longer reads
+  Smithy. Update the dependency and `use crucible_smithy::` paths.
+
 - The compatibility guard counts a migration's `rename` steps toward
   `compatibility.pagination`: when renaming a paginated operation's input
   or output token, items or page size member accounts for the whole

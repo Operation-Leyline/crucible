@@ -9,8 +9,8 @@ mod schema;
 pub use file::File;
 pub use options::Options;
 
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 /// Generate package sources without reading the model AST or touching disk.
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {

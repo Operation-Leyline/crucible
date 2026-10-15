@@ -126,18 +126,16 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
     let service = table
         .get("service")
         .and_then(|value| string(&mut context, "service", value))
-        .filter(
-            |service| match service.parse::<crucible_smithy::ShapeId>() {
-                Ok(_) => true,
-                Err(error) => {
-                    context.error(
-                        "service",
-                        format!("{service:?} is not a shape ID such as example#Service: {error}"),
-                    );
-                    false
-                }
-            },
-        );
+        .filter(|service| match service.parse::<crucible_ir::ShapeId>() {
+            Ok(_) => true,
+            Err(error) => {
+                context.error(
+                    "service",
+                    format!("{service:?} is not a shape ID such as example#Service: {error}"),
+                );
+                false
+            }
+        });
     let defaults = match table.get("defaults") {
         Some(Value::Table(defaults)) => {
             for key in defaults.keys() {
@@ -289,18 +287,18 @@ fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) 
         }
     }
     let audience = match table.get("audience") {
-        None => crucible_smithy::Audience::External,
+        None => crucible_ir::Audience::External,
         Some(value) => match string(context, &at("audience"), value).as_deref() {
-            Some("external") => crucible_smithy::Audience::External,
-            Some("internal") => crucible_smithy::Audience::Internal,
+            Some("external") => crucible_ir::Audience::External,
+            Some("internal") => crucible_ir::Audience::Internal,
             Some(other) => {
                 context.error(
                     &at("audience"),
                     format!("{other:?} is not \"external\" or \"internal\""),
                 );
-                crucible_smithy::Audience::External
+                crucible_ir::Audience::External
             }
-            None => crucible_smithy::Audience::External,
+            None => crucible_ir::Audience::External,
         },
     };
     let out = match table.get("out") {
@@ -398,7 +396,7 @@ fn sdk(context: &mut Context<'_>, name: &str, table: &Table, defaults: &Common) 
             _ => {}
         }
     }
-    if audience == crucible_smithy::Audience::Internal
+    if audience == crucible_ir::Audience::Internal
         && channel.as_ref().is_some_and(Channel::is_public)
     {
         context.error(

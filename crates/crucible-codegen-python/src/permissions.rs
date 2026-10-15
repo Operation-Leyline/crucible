@@ -11,8 +11,8 @@ use crucible_codegen_common::documentation::with_notes;
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 use crate::names::{enum_member, literal};
 use crate::python_doc;

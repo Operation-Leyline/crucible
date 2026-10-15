@@ -2,8 +2,8 @@
 //! the errors it declares, and a method on the service client; `*_pages` for a
 //! `@paginated` operation.
 
-use crucible_smithy::ir::{Member, Operation, Service, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Member, Operation, Service, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::errors::info_static;
 use crate::names::{doc, documented, field, function, literal, variant};
@@ -189,8 +189,7 @@ fn wire_error(service: &Service, op: &Operation, name: &str) -> String {
         .iter()
         .find(|id| service.name_of(id) == name)
         .expect("declared operation error");
-    let crucible_smithy::ir::Shape::Structure(shape) = service.shape(id).expect("error shape")
-    else {
+    let crucible_ir::ir::Shape::Structure(shape) = service.shape(id).expect("error shape") else {
         unreachable!("error structure")
     };
     shape

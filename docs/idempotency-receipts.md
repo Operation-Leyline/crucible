@@ -273,7 +273,7 @@ change that adds a required read input makes old receipts unreadable (§11).
 ### 4.3 In the IR
 
 A new operation field, `serde(default)` per the IR's rules
-(AGENTS.md, `crucible-smithy`):
+(AGENTS.md, `crucible-ir`):
 
 ```rust
 pub struct IdempotencyPolicy {
@@ -946,7 +946,7 @@ tests do):
   permission obligation.
 - `prepare` refusals: two interceptors on one operation (as today).
 
-Language (`crucible-lang`, `crucible-smithy`): a fixture pair for each check
+Language (`crucible-lang`, `crucible-ir`): a fixture pair for each check
 in §5 (refusal and acceptance), the default derivation table of §4.2, and
 `once` parsing; the IR snapshot with the new field defaulting
 (`serde(default)`), so committed releases still load.

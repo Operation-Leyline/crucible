@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 crucible-lang.workspace = true
 crucible-policy.workspace = true
-crucible-smithy.workspace = true
+crucible-ir.workspace = true
 crossbeam-channel = "0.5"
 lsp-server = "0.7"
 lsp-types = "0.95"

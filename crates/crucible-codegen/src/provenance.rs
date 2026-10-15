@@ -6,8 +6,8 @@
 
 use std::sync::OnceLock;
 
-use crucible_smithy::Audience;
-use crucible_smithy::ir::Service;
+use crucible_ir::Audience;
+use crucible_ir::ir::Service;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -227,7 +227,7 @@ pub(crate) fn stamp(
     };
     let mut text = serde_json::to_string_pretty(&record).expect("provenance serializes");
     text.push('\n');
-    let model = crucible_smithy::snapshot::write_contract(
+    let model = crucible_ir::snapshot::write_contract(
         service,
         &format!("crucible {}", env!("CARGO_PKG_VERSION")),
     );

@@ -1,8 +1,8 @@
 use crate::direction::Direction;
 use crate::{Renames, Report, Severity};
-use crucible_smithy::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
-use crucible_smithy::validate::needs_not_found;
-use crucible_smithy::{Feature, ShapeId};
+use crucible_ir::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
+use crucible_ir::validate::needs_not_found;
+use crucible_ir::{Feature, ShapeId};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
@@ -727,10 +727,7 @@ fn compare_numbers(a: &serde_json::Number, b: &serde_json::Number) -> Ordering {
     }
 }
 
-fn error_info<'a>(
-    service: &'a Service,
-    id: &ShapeId,
-) -> Option<&'a crucible_smithy::ir::ErrorInfo> {
+fn error_info<'a>(service: &'a Service, id: &ShapeId) -> Option<&'a crucible_ir::ir::ErrorInfo> {
     match service.shape(id) {
         Some(Shape::Structure(shape)) => shape.error.as_ref(),
         _ => None,

@@ -16,8 +16,8 @@ mod names;
 mod permissions;
 mod schemas;
 
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 use serde_json::{Value, json};
 
 pub(crate) const HEADER: &str =
@@ -162,9 +162,9 @@ pub struct File {
     pub contents: String,
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::Sparse,
         Feature::IntEnum,

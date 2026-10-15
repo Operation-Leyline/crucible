@@ -3,7 +3,7 @@ use crate::{
     names::{field, literal},
 };
 use crucible_codegen_common::docs;
-use crucible_smithy::{
+use crucible_ir::{
     ShapeId,
     ir::{DocNotes, Member, Service, Shape, SimpleKind},
 };

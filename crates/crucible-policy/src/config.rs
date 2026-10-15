@@ -162,7 +162,7 @@ impl Config {
             }
             exception
                 .shape
-                .parse::<crucible_smithy::ShapeId>()
+                .parse::<crucible_ir::ShapeId>()
                 .map_err(|error| at(field(|e| &e.shape), error.to_string()))?;
             if exception.reason.trim().is_empty() {
                 return Err(at(

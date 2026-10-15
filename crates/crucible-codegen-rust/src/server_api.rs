@@ -1,8 +1,8 @@
 //! The public server namespace; implementation modules stay private.
 use std::collections::BTreeMap;
 
-use crucible_smithy::ir::{Service, Shape};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Service, Shape};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::{errors, models, names};
 

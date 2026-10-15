@@ -483,7 +483,7 @@ mod tests {
             (r"^\s$", "\u{feff}", "\u{85}"),
             (r"\ba\b", "éaé", "bab"),
         ] {
-            let constraints = crucible_smithy::ir::Constraints {
+            let constraints = crucible_ir::ir::Constraints {
                 pattern: Some(pattern.into()),
                 ..Default::default()
             };

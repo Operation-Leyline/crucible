@@ -2,8 +2,8 @@
 //! `crucible_server_runtime_rust::ModelledError`, and the service-wide error functions the
 //! framework calls (classify, reject, internal).
 
-use crucible_smithy::ir::{Fault, Member, Service, Shape, SimpleKind, Structure};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Fault, Member, Service, Shape, SimpleKind, Structure};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::info::{constant, error_bindings, members};
 use crate::models::member_field;

@@ -1,7 +1,7 @@
 use crucible_codegen_common::{describe, documentation};
-use crucible_smithy::{Audience, project};
+use crucible_ir::{Audience, project};
 
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);

@@ -8,7 +8,7 @@ publish.workspace = true
 repository.workspace = true
 
 [dependencies]
-crucible-smithy.workspace = true
+crucible-ir.workspace = true
 crucible-codegen-common.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }
 

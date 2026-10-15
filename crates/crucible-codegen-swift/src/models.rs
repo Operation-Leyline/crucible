@@ -1,6 +1,6 @@
 use super::{enum_constant, field, literal, method, model_name, ty};
 use crucible_codegen_common::docs;
-use crucible_smithy::ir::{DocNotes, Member, Service, Shape};
+use crucible_ir::ir::{DocNotes, Member, Service, Shape};
 
 /// Doc comment with the model's notes, then the native deprecation attribute
 /// so the compiler flags use sites.

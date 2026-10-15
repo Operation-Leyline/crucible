@@ -2,7 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crucible_codegen_cli::{Options, emit};
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 use serde_json::Value;
 
 fn package_dir(name: &str) -> PathBuf {
@@ -253,7 +253,7 @@ fn empty_services_do_not_emit_unused_dispatch_bindings() {
 fn descriptor_preserves_root_shape_sensitivity() {
     let mut service = weather();
     let id = "example.weather#CreateCityInput".parse().unwrap();
-    let Some(crucible_smithy::ir::Shape::Structure(input)) = service.shapes.get_mut(&id) else {
+    let Some(crucible_ir::ir::Shape::Structure(input)) = service.shapes.get_mut(&id) else {
         panic!("CreateCityInput is a structure");
     };
     input.sensitive = true;
@@ -363,10 +363,10 @@ fn tools_reuse_shared_emission_and_selected_audience() {
         "internal operation GetCity reads City",
     )]);
     for audience in [
-        crucible_smithy::Audience::External,
-        crucible_smithy::Audience::Internal,
+        crucible_ir::Audience::External,
+        crucible_ir::Audience::Internal,
     ] {
-        let selected = crucible_smithy::project(&service, audience).unwrap();
+        let selected = crucible_ir::project(&service, audience).unwrap();
         let files = emit(&selected, &options()).unwrap();
         let tools = &files
             .iter()
@@ -382,7 +382,7 @@ fn tools_reuse_shared_emission_and_selected_audience() {
         assert_eq!(tools, &shared);
         assert_eq!(
             tools.contains("name: \"GetCity\""),
-            audience == crucible_smithy::Audience::Internal
+            audience == crucible_ir::Audience::Internal
         );
     }
 }

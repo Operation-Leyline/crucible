@@ -192,7 +192,7 @@ Beyond the grammar, the compiler refuses a model that breaks the rules in
 rules of decision 35c (labels, query and header targets, header names,
 bodiless responses, one payload, unique routes) and the checks on
 pagination members, examples and name collisions run on the IR in
-`crucible_smithy::validate`. So do
+`crucible_ir::validate`. So do
 the limits on recursive shapes, which are otherwise allowed (a
 structure or union may reach itself through its members): a cycle must
 pass through a structure or union, not lists and maps alone, and a value
@@ -240,7 +240,7 @@ language's own checks include:
 - service, operation, error and example clauses, list entries, object
   keys and annotations are given once; a service declares its version.
 - permissions ([permissions.md](../permissions.md) §5, checks 1-18): they
-  run on the IR in `crucible_smithy::validate::permissions`, and each
+  run on the IR in `crucible_ir::validate::permissions`, and each
   diagnostic starts with its code
   (`permissions.undeclared` and the like), for the operations and
   resources the service does not reach too, unless another service of the

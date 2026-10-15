@@ -544,9 +544,9 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen",
  "crucible-codegen-rust",
+ "crucible-ir",
  "crucible-lang",
  "crucible-policy",
- "crucible-smithy",
  "serde",
  "serde_json",
  "tempfile",
@@ -579,11 +579,11 @@ dependencies = [
  "crucible-codegen-swift",
  "crucible-codegen-terraform",
  "crucible-codegen-ts",
+ "crucible-ir",
  "crucible-lang",
  "crucible-policy",
  "crucible-revision",
  "crucible-sdk-release",
- "crucible-smithy",
  "serde",
  "serde_json",
  "tempfile",
@@ -647,9 +647,9 @@ dependencies = [
  "crucible-codegen-swift",
  "crucible-codegen-terraform",
  "crucible-codegen-ts",
+ "crucible-ir",
  "crucible-lang",
  "crucible-revision",
- "crucible-smithy",
  "serde",
  "serde_json",
  "sha2",
@@ -662,8 +662,8 @@ name = "crucible-codegen-c"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -674,8 +674,8 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-infra",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde",
  "serde_json",
 ]
@@ -686,8 +686,8 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-rust",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "semver",
  "serde_json",
 ]
@@ -697,8 +697,8 @@ name = "crucible-codegen-common"
 version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "crucible-wire",
  "pulldown-cmark",
  "serde",
@@ -711,8 +711,8 @@ name = "crucible-codegen-cpp"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -722,8 +722,8 @@ name = "crucible-codegen-csharp"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -733,8 +733,8 @@ name = "crucible-codegen-dart"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -744,8 +744,8 @@ name = "crucible-codegen-docs"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
 ]
 
@@ -754,8 +754,8 @@ name = "crucible-codegen-go"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -764,8 +764,8 @@ dependencies = [
 name = "crucible-codegen-infra"
 version = "0.7.0"
 dependencies = [
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde",
  "serde_json",
 ]
@@ -775,8 +775,8 @@ name = "crucible-codegen-java"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -786,8 +786,8 @@ name = "crucible-codegen-kotlin"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -797,8 +797,8 @@ name = "crucible-codegen-openapi"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
 ]
 
@@ -807,8 +807,8 @@ name = "crucible-codegen-php"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -818,8 +818,8 @@ name = "crucible-codegen-python"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -829,8 +829,8 @@ name = "crucible-codegen-r"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "pulldown-cmark",
  "serde_json",
  "sha2",
@@ -841,8 +841,8 @@ name = "crucible-codegen-ruby"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -852,9 +852,9 @@ name = "crucible-codegen-rust"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
  "crucible-revision",
- "crucible-smithy",
  "regex",
  "semver",
  "serde_json",
@@ -868,8 +868,8 @@ name = "crucible-codegen-swift"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
  "sha2",
 ]
@@ -881,8 +881,8 @@ dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-go",
  "crucible-codegen-infra",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde",
  "serde_json",
 ]
@@ -892,17 +892,29 @@ name = "crucible-codegen-ts"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "serde_json",
+]
+
+[[package]]
+name = "crucible-ir"
+version = "0.7.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
 ]
 
 [[package]]
 name = "crucible-lang"
 version = "0.7.0"
 dependencies = [
+ "crucible-ir",
  "crucible-policy",
- "crucible-smithy",
  "regex",
  "serde",
  "serde_json",
@@ -915,9 +927,9 @@ name = "crucible-lsp"
 version = "0.7.0"
 dependencies = [
  "crossbeam-channel",
+ "crucible-ir",
  "crucible-lang",
  "crucible-policy",
- "crucible-smithy",
  "lsp-server",
  "lsp-types",
  "serde",
@@ -929,8 +941,8 @@ dependencies = [
 name = "crucible-policy"
 version = "0.7.0"
 dependencies = [
+ "crucible-ir",
  "crucible-lang",
- "crucible-smithy",
  "regex",
  "serde",
  "serde_json",
@@ -989,18 +1001,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "crucible-smithy"
-version = "0.7.0"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
 name = "crucible-wire"
 version = "0.7.0"
 dependencies = [
@@ -1008,7 +1008,7 @@ dependencies = [
  "bigdecimal",
  "bytes",
  "chrono",
- "crucible-smithy",
+ "crucible-ir",
  "jsonschema",
  "regex",
  "serde",

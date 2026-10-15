@@ -8,9 +8,9 @@ use std::path::Path;
 
 use std::collections::BTreeSet;
 
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{ApiVersion, Hook, Operation, Paginated, Service, Shape, VersionStep};
 use crucible_policy::{Config, Finding, Renames, Severity};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{ApiVersion, Hook, Operation, Paginated, Service, Shape, VersionStep};
 use serde_json::Value as Json;
 
 use crate::ast::{Decl, Dotted, Ident, Key, Migration, RequireHow, StepKind, Value};
@@ -442,7 +442,7 @@ impl<'a> Context<'a> {
                     ),
                 )]);
             }
-            let problems: Vec<_> = crucible_smithy::validate::value(
+            let problems: Vec<_> = crucible_ir::validate::value(
                 &self.new.shapes,
                 &format!("the migration default for `{}`", member.name),
                 &member.target,

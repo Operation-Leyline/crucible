@@ -420,7 +420,7 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
         assert!(
             matches!(
                 &versions[0].steps[..],
-                [crucible_smithy::ir::VersionStep::Require { default, .. }] if default == &expected
+                [crucible_ir::ir::VersionStep::Require { default, .. }] if default == &expected
             ),
             "{name}: {:?}",
             versions[0].steps
@@ -485,7 +485,7 @@ fn timestamp_requirement_defaults_use_the_destination_wire_format() {
         assert!(
             matches!(
                 &versions[0].steps[..],
-                [crucible_smithy::ir::VersionStep::Require { default, .. }] if default == &expected
+                [crucible_ir::ir::VersionStep::Require { default, .. }] if default == &expected
             ),
             "{name}: {:?}",
             versions[0].steps
@@ -511,7 +511,7 @@ fn integer_enum_requirement_defaults_accept_symbols_and_emit_numbers() {
     let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
     assert!(matches!(
         &versions[0].steps[..],
-        [crucible_smithy::ir::VersionStep::Require { default, .. }] if default == &serde_json::json!(1)
+        [crucible_ir::ir::VersionStep::Require { default, .. }] if default == &serde_json::json!(1)
     ));
 }
 
@@ -805,7 +805,7 @@ fn a_step_declares_only_its_own_kind_of_change() {
 
 #[test]
 fn the_versions_served_are_the_chain_of_frozen_releases() {
-    use crucible_smithy::ir::VersionStep;
+    use crucible_ir::ir::VersionStep;
 
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-chain");
     let _ = std::fs::remove_dir_all(&dir);
@@ -969,7 +969,7 @@ fn an_edited_release_is_refused() {
 
 #[test]
 fn a_hooked_requirement_named_by_its_shape_reaches_its_operations() {
-    use crucible_smithy::ir::VersionStep;
+    use crucible_ir::ir::VersionStep;
 
     let current = V1.replace("        limit?: integer", "        limit: integer");
     let dir = package(
@@ -1269,7 +1269,7 @@ fn a_renamed_member_can_also_be_required_or_retyped() {
 
 #[test]
 fn a_renamed_member_lowers_its_other_steps_under_both_names() {
-    use crucible_smithy::ir::{Hook, VersionStep};
+    use crucible_ir::ir::{Hook, VersionStep};
 
     let current = with_create(V1).replace("description?: string", "notes: integer");
     let dir = package_from(

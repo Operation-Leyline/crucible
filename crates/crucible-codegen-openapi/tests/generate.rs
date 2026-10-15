@@ -10,22 +10,22 @@ fn package_dir(name: &str) -> std::path::PathBuf {
         .join(name)
 }
 
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     crucible_lang::load_service(&package_dir(name))
         .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
 }
 
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 
 /// Weather with each `(old, new)` pair replaced in its sources.
-fn edited(edits: &[(&str, &str)]) -> crucible_smithy::ir::Service {
+fn edited(edits: &[(&str, &str)]) -> crucible_ir::ir::Service {
     try_edited(edits).unwrap_or_else(|rendered| panic!("the edited weather compiles:\n{rendered}"))
 }
 
 /// [`edited`], or the diagnostics when the edited package does not compile.
-fn try_edited(edits: &[(&str, &str)]) -> Result<crucible_smithy::ir::Service, String> {
+fn try_edited(edits: &[(&str, &str)]) -> Result<crucible_ir::ir::Service, String> {
     let mut package = crucible_lang::load_package(&package_dir("weather")).unwrap();
     for (old, new) in edits {
         let mut found = false;
@@ -45,7 +45,7 @@ fn try_edited(edits: &[(&str, &str)]) -> Result<crucible_smithy::ir::Service, St
     }
 }
 
-fn document(service: &crucible_smithy::ir::Service) -> Value {
+fn document(service: &crucible_ir::ir::Service) -> Value {
     serde_json::from_str(&generate(service, &Options::default()).unwrap()).unwrap()
 }
 
@@ -72,7 +72,7 @@ fn weather_matches_reviewed_golden() {
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
-fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let mut package = crucible_lang::load_package(&dir).unwrap();
@@ -86,7 +86,7 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
 }
 
-fn leyline() -> crucible_smithy::ir::Service {
+fn leyline() -> crucible_ir::ir::Service {
     leyline_with(|text| text)
 }
 
@@ -98,16 +98,13 @@ fn leyline() -> crucible_smithy::ir::Service {
 fn permissions_match_reviewed_golden_per_audience() {
     let service = leyline();
     for (audience, file) in [
+        (crucible_ir::Audience::Internal, "permissions.openapi.json"),
         (
-            crucible_smithy::Audience::Internal,
-            "permissions.openapi.json",
-        ),
-        (
-            crucible_smithy::Audience::External,
+            crucible_ir::Audience::External,
             "permissions-external.openapi.json",
         ),
     ] {
-        let projected = crucible_smithy::project(&service, audience).unwrap();
+        let projected = crucible_ir::project(&service, audience).unwrap();
         let generated = generate(&projected, &Options::default()).unwrap();
         let path = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/golden")
@@ -131,7 +128,7 @@ fn permissions_match_reviewed_golden_per_audience() {
             let named = strings.iter().any(|s| s.contains(&value));
             assert_eq!(
                 named,
-                audience == crucible_smithy::Audience::Internal,
+                audience == crucible_ir::Audience::Internal,
                 "{file}: {value}"
             );
         }
@@ -139,7 +136,7 @@ fn permissions_match_reviewed_golden_per_audience() {
         // reaches a client, and its public clause is marked partial there.
         assert_eq!(
             strings.iter().any(|s| s.contains("auditTicket")),
-            audience == crucible_smithy::Audience::Internal,
+            audience == crucible_ir::Audience::Internal,
             "{file}"
         );
         let archive = document["paths"]["/orgs/{organizationId}/graphs/{graphId}/archive"]["post"]
@@ -147,13 +144,13 @@ fn permissions_match_reviewed_golden_per_audience() {
             .clone();
         assert_eq!(
             archive.get("partial").cloned(),
-            (audience == crucible_smithy::Audience::External).then_some(serde_json::json!(true)),
+            (audience == crucible_ir::Audience::External).then_some(serde_json::json!(true)),
             "{file}: {archive}"
         );
         let internal_tier = generated.contains("\"tier\": \"internal\"");
         assert_eq!(
             internal_tier,
-            audience == crucible_smithy::Audience::Internal,
+            audience == crucible_ir::Audience::Internal,
             "{file}"
         );
         // Requirements reach the document as `x-crucible-requires` alone:
@@ -182,7 +179,7 @@ fn permissions_match_reviewed_golden_per_audience() {
             .operations
             .iter()
             .map(|op| {
-                use crucible_smithy::ir::Requirements;
+                use crucible_ir::ir::Requirements;
                 let kind = match &op.requirements {
                     Requirements::Undeclared => None,
                     Requirements::None => Some("none"),
@@ -197,14 +194,14 @@ fn permissions_match_reviewed_golden_per_audience() {
         let pending = expected.values().flatten().any(|kind| kind == "pending");
         assert_eq!(
             pending,
-            audience == crucible_smithy::Audience::Internal,
+            audience == crucible_ir::Audience::Internal,
             "{file}"
         );
     }
 }
 
 /// The values of the model's internal permissions and of their aliases.
-fn internal_values(service: &crucible_smithy::ir::Service) -> Vec<String> {
+fn internal_values(service: &crucible_ir::ir::Service) -> Vec<String> {
     let values: Vec<String> = service
         .permissions
         .values()
@@ -215,8 +212,7 @@ fn internal_values(service: &crucible_smithy::ir::Service) -> Vec<String> {
                     .as_deref()
                     .and_then(|symbol| resource.permission(symbol))
                     .unwrap_or(permission);
-                (primary.tier == crucible_smithy::ir::Tier::Internal)
-                    .then(|| permission.value.clone())
+                (primary.tier == crucible_ir::ir::Tier::Internal).then(|| permission.value.clone())
             })
         })
         .collect();
@@ -594,8 +590,8 @@ fn incompatible_path_templates_and_methods_are_collected() {
         .find(|op| op.name() == "Ping")
         .unwrap();
     ping.uri.segments = vec![
-        crucible_smithy::ir::Segment::Literal("cities".into()),
-        crucible_smithy::ir::Segment::Label("id".into()),
+        crucible_ir::ir::Segment::Literal("cities".into()),
+        crucible_ir::ir::Segment::Label("id".into()),
     ];
     ping.method = "CONNECT".into();
     let errors = generate(&svc, &Options::default()).unwrap_err().to_string();

@@ -45,8 +45,8 @@ pub use names::escape_identifier;
 pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
 
-use crucible_smithy::ir::{Service, Shape};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Service, Shape};
+use crucible_ir::{Diagnostics, ShapeId};
 
 /// Verified Crucible Git revision embedded when this emitter was built.
 /// Packaged or vendored emitters without source provenance return `None`.
@@ -74,7 +74,7 @@ pub struct Options {
     /// Generate External-audience MCP tool descriptors. Serving remains opt-in.
     pub mcp: bool,
     /// Generate an embedded Explorer description for this audience.
-    pub explorer: Option<crucible_smithy::Audience>,
+    pub explorer: Option<crucible_ir::Audience>,
     /// The error a rejected request becomes. Unset, the service's one error
     /// named `*Validation*`, if it has exactly one. Set, it must be an error
     /// crucible can fill (`message`, and a `fieldList` of `path`/`name` +
@@ -101,9 +101,9 @@ pub struct Options {
 }
 
 /// The generated file's contents.
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::Sparse,
         Feature::IntEnum,
@@ -116,7 +116,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 }
 
 /// Constructs supported by the generated client and its bundled runtime.
-pub fn client_capabilities() -> crucible_smithy::Capabilities {
+pub fn client_capabilities() -> crucible_ir::Capabilities {
     capabilities()
 }
 
@@ -273,7 +273,7 @@ pub(crate) fn body_with(
     let explorer = match options.explorer {
         Some(audience) => {
             let description =
-                crucible_smithy::project(explorer_service, audience).and_then(|projected| {
+                crucible_ir::project(explorer_service, audience).and_then(|projected| {
                     crucible_codegen_common::describe::describe_for_explorer(&projected)
                 });
             match description {

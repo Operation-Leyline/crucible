@@ -1,8 +1,8 @@
 //! Compiling a package: parse every file, resolve names across them and the
 //! packages it imports, check the model, and lower one service to
-//! `crucible_smithy::ir`.
+//! `crucible_ir::ir`.
 
-use crucible_smithy::ir;
+use crucible_ir::ir;
 
 use crate::diagnostic::Diagnostic;
 use crate::span::{LineIndex, Span};
@@ -109,7 +109,7 @@ pub struct Location {
 /// Declaration sites of the service, its operations, shapes and members, by
 /// IR id (`namespace#Shape` or `namespace#Shape$member`). The IR stays free of
 /// positions; rules and compatibility checks look them up here.
-pub type SourceMap = std::collections::BTreeMap<crucible_smithy::ShapeId, Location>;
+pub type SourceMap = std::collections::BTreeMap<crucible_ir::ShapeId, Location>;
 
 /// A diagnostic and the file it belongs to; `None` is the package itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -337,7 +337,7 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
 fn source_only_keys(
     parsed: &[Parsed],
     namespaces: &[String],
-) -> std::collections::BTreeSet<crucible_smithy::ShapeId> {
+) -> std::collections::BTreeSet<crucible_ir::ShapeId> {
     let mut keys = std::collections::BTreeSet::new();
     for (file, parsed) in parsed.iter().enumerate() {
         let Some(ns) = namespaces.get(file) else {
@@ -350,7 +350,7 @@ fn source_only_keys(
                     .as_ref()
                     .is_some_and(|retention| retention.name == "source")
             {
-                keys.insert(crucible_smithy::ShapeId::new(ns, &metadata.name.name));
+                keys.insert(crucible_ir::ShapeId::new(ns, &metadata.name.name));
             }
         }
     }

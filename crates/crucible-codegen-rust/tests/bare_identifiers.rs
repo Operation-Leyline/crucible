@@ -13,7 +13,7 @@ use crucible_codegen_rust::{
     ClientOptions, Options, RuntimeDependency, emit_client_package, generate,
 };
 
-fn service() -> crucible_smithy::ir::Service {
+fn service() -> crucible_ir::ir::Service {
     // An integer enum generates `from_i32 -> Option<Self>`.
     let mut service = common::load_replacing(
         "weather",

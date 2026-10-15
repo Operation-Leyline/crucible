@@ -53,7 +53,7 @@ fn the_weather_test_model_package_compiles() {
     let service = crucible_lang::load_service(&dir).unwrap_or_else(|error| panic!("{error}"));
     assert_eq!(service.operations.len(), 7);
     let (_, example) = cru_weather();
-    let names = |service: &crucible_smithy::ir::Service| {
+    let names = |service: &crucible_ir::ir::Service| {
         let mut names: Vec<String> = service
             .operations
             .iter()

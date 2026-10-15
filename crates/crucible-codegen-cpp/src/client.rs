@@ -1,5 +1,5 @@
 use crate::{File, Options, models::Layout, names};
-use crucible_smithy::ir::{Service, Shape};
+use crucible_ir::ir::{Service, Shape};
 
 pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<File> {
     let client_name = format!("{}Client", service.id.name());

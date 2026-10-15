@@ -3,8 +3,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Operation, Service, Shape};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Operation, Service, Shape};
 
 use crate::names::{doc, documented, literal, method_name, optional};
 use crate::{Middleware, Options};

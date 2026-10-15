@@ -1,7 +1,7 @@
 use crate::checker::Checker;
 use crate::{Config, Report};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::Service;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::Service;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Members renamed between two releases: `(old structure, old member)` to

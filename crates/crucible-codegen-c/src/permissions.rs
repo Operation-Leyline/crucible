@@ -11,8 +11,8 @@ use crate::{File, Options, names};
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::Service;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::Service;
 
 /// `weather_graph_permission` for the resource shape `Graph`.
 fn type_name(service: &Service, client: &ClientResource<'_>, prefix: &str) -> String {

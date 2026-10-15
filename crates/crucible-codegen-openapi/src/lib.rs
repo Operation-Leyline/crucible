@@ -9,8 +9,8 @@ pub(crate) use crucible_codegen_common::json_schema::{Slot, annotate};
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{AuthScheme, Binding, Segment, Service, Shape, Traits};
-use crucible_smithy::{Capabilities, Diagnostics, Feature, ShapeId};
+use crucible_ir::ir::{AuthScheme, Binding, Segment, Service, Shape, Traits};
+use crucible_ir::{Capabilities, Diagnostics, Feature, ShapeId};
 use serde_json::{Map, Value, json};
 
 #[derive(Debug, Clone, Default)]

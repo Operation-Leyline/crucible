@@ -7,8 +7,8 @@
 
 use std::path::Path;
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::Service;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::Service;
 
 /// Whether `path` is a language package.
 pub(crate) fn is_package(path: &Path) -> bool {
@@ -79,7 +79,7 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
 pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Result<(), String> {
     let model = lower(path, service)?;
     let compiler = format!("crucible-build {}", env!("CARGO_PKG_VERSION"));
-    let text = crucible_smithy::snapshot::write(&model, &compiler);
+    let text = crucible_ir::snapshot::write(&model, &compiler);
     if std::fs::read_to_string(out).is_ok_and(|current| current == text) {
         return Ok(());
     }

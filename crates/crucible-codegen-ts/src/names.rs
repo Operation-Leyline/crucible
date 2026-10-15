@@ -1,8 +1,8 @@
 //! Spelling model things in TypeScript.
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::DocNotes;
-use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, Structure};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::DocNotes;
+use crucible_ir::ir::{Member, Service, Shape, SimpleKind, Structure};
 
 /// The TypeScript type of a member's target. `prefix` qualifies named shapes
 /// (`m.` in files that import the models as a namespace). `Unit` and

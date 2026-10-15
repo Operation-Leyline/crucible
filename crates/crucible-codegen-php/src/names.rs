@@ -1,4 +1,4 @@
-use crucible_smithy::{
+use crucible_ir::{
     ShapeId,
     ir::{Service, Shape, SimpleKind},
 };

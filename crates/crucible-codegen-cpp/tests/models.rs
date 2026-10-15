@@ -1,6 +1,6 @@
 use crucible_codegen_cpp::{Options, emit};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::Service;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::Service;
 use std::{fs, path::Path};
 
 fn options() -> Options {

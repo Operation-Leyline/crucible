@@ -1,7 +1,7 @@
 use crucible_codegen_rust::{Options, generate};
 mod common;
 
-fn emit(model: &str) -> Result<String, crucible_smithy::Diagnostics> {
+fn emit(model: &str) -> Result<String, crucible_ir::Diagnostics> {
     let service = common::load(model);
     generate(
         &service,

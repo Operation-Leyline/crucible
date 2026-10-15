@@ -1,9 +1,9 @@
-use crucible_smithy::ir::{
+use crucible_ir::ir::{
     Constraints, HeaderEncoding, Member, Service, Shape, SimpleKind, Structure, TimestampFormat,
 };
 use serde_json::{Map, Value, json};
 
-use crucible_smithy::ir::DocNotes;
+use crucible_ir::ir::DocNotes;
 
 /// Where a documentation note lands. OpenAPI spells `deprecated` and
 /// `externalDocs` only on some objects; elsewhere only the `x-smithy-*`
@@ -59,7 +59,7 @@ pub fn annotate(value: &mut Value, notes: &DocNotes, slot: Slot) {
     }
 }
 
-use crucible_smithy::{ShapeId, ir::Traits};
+use crucible_ir::{ShapeId, ir::Traits};
 
 pub fn shape(service: &Service, shape: &Shape) -> Value {
     let mut value = base(service, shape);

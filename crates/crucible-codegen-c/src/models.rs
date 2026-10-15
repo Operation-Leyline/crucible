@@ -1,5 +1,5 @@
 use crate::{File, Options, names};
-use crucible_smithy::{
+use crucible_ir::{
     ShapeId,
     ir::{Member, Service, Shape, SimpleKind, TimestampFormat},
 };

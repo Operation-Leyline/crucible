@@ -1,8 +1,8 @@
 //! `models.ts`: a type for every shape the service reaches. Error shapes are
 //! classes in `errors.ts` instead.
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Service, Shape, SimpleKind, Structure};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Service, Shape, SimpleKind, Structure};
 
 use crate::names::{documented, literal, optional, property, ts_type};
 

@@ -1,6 +1,6 @@
 use super::{Options, field, literal, method};
 use crucible_codegen_common::docs;
-use crucible_smithy::ir::{Operation, Service};
+use crucible_ir::ir::{Operation, Service};
 
 fn operation_docs(service: &Service, op: &Operation, pages: bool) -> String {
     let token = op.idempotency_token.as_deref().map(field);

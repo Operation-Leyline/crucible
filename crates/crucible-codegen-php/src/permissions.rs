@@ -11,8 +11,8 @@ use crucible_codegen_common::docs;
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{DocNotes, Service};
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::{DocNotes, Service};
 
 use crate::File;
 use crate::models::docblock;

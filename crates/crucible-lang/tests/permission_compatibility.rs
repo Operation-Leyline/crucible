@@ -2,9 +2,9 @@
 //! what breaks stored grants or SDK source, and what is an authorization
 //! change. The rules are `crucible-policy`'s, applied to the IR.
 
+use crucible_ir::ir::Service;
 use crucible_lang::{Package, SourceFile, compile};
 use crucible_policy::{Config, Finding, Severity, diff};
-use crucible_smithy::ir::Service;
 
 const BASE: &str = r#"
 service Leyline {
@@ -522,9 +522,8 @@ fn an_internal_requirement_added_is_an_authorization_change_in_the_client_view()
         "    requires read\n    input {\n        $organizationId\n        $graphId\n    }",
         "    requires read\n    requires read on Organization\n    input {\n        $organizationId\n        $graphId\n    }",
     );
-    let external = |model: &str| {
-        crucible_smithy::project(&lower(model), crucible_smithy::Audience::External).unwrap()
-    };
+    let external =
+        |model: &str| crucible_ir::project(&lower(model), crucible_ir::Audience::External).unwrap();
     let found = diff(&external(BASE), &external(&new), &Config::default()).findings;
     expect(
         &found,

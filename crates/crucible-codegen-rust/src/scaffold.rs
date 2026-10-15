@@ -17,7 +17,7 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use crucible_smithy::ir::{Operation, Service};
+use crucible_ir::ir::{Operation, Service};
 
 use crate::names::{self, function};
 use crate::operations::{input_type, output_type};

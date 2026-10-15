@@ -2,7 +2,7 @@ use crucible_codegen_r::{Options, emit};
 use std::{fs, path::Path};
 
 /// A package under `tests/models`, lowered.
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     compile_with(name, |text| text)
         .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
 }
@@ -12,7 +12,7 @@ fn load(name: &str) -> crucible_smithy::ir::Service {
 fn compile_with(
     name: &str,
     edit: impl Fn(String) -> String,
-) -> Result<crucible_smithy::ir::Service, String> {
+) -> Result<crucible_ir::ir::Service, String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);
@@ -25,11 +25,11 @@ fn compile_with(
 }
 
 /// The weather package with its sources rewritten first.
-fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
 }
 
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 fn options() -> Options {

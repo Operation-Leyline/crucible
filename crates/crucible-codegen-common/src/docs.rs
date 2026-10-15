@@ -4,7 +4,7 @@
 //! doc format here (DocC, dartdoc, PHPDoc, YARD) renders Markdown, so the text
 //! passes through and only what could break the comment itself or be mistaken
 //! for doc-tool syntax is neutralised.
-use crucible_smithy::ir::{DocNotes, Member, Operation, Service, Shape};
+use crucible_ir::ir::{DocNotes, Member, Operation, Service, Shape};
 
 const BACKSLASH: char = '\u{5c}';
 
@@ -30,8 +30,8 @@ pub fn is_redacted(service: &Service, owner_sensitive: bool, member: &Member) ->
 
 fn collection_redacted<'a>(
     service: &'a Service,
-    id: &'a crucible_smithy::ShapeId,
-    seen: &mut Vec<&'a crucible_smithy::ShapeId>,
+    id: &'a crucible_ir::ShapeId,
+    seen: &mut Vec<&'a crucible_ir::ShapeId>,
 ) -> bool {
     if seen.contains(&id) {
         return false;
@@ -408,7 +408,7 @@ mod tests {
 
     #[test]
     fn collections_of_sensitive_elements_are_redacted_whole() {
-        use crucible_smithy::ShapeId;
+        use crucible_ir::ShapeId;
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/models/client-docs-vault");
         let service = crucible_lang::load_service(&dir).unwrap();
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn every_member_of_a_sensitive_owner_is_redacted() {
-        use crucible_smithy::ShapeId;
+        use crucible_ir::ShapeId;
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/models/client-docs-vault");
         let service = crucible_lang::load_service(&dir).unwrap();

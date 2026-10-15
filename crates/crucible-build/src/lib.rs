@@ -81,7 +81,7 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "rust")]
 use crucible_codegen_rust::Options;
-use crucible_smithy::ShapeId;
+use crucible_ir::ShapeId;
 
 #[cfg(feature = "rust")]
 mod client_output;
@@ -579,7 +579,7 @@ impl ServerOutput {
         }
     }
 
-    fn lower(&self) -> Result<crucible_smithy::ir::Service, String> {
+    fn lower(&self) -> Result<crucible_ir::ir::Service, String> {
         let capabilities = match self.side {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
@@ -589,7 +589,7 @@ impl ServerOutput {
             check_policy(&service, policy)?;
         }
         let service = if self.side == Side::Client {
-            crucible_smithy::project(&service, self.audience).map_err(|e| e.to_string())?
+            crucible_ir::project(&service, self.audience).map_err(|e| e.to_string())?
         } else {
             service
         };
@@ -638,7 +638,7 @@ fn absolute(path: &Path) -> PathBuf {
     root.join(path)
 }
 
-fn check_policy(service: &crucible_smithy::ir::Service, policy: &Path) -> Result<(), String> {
+fn check_policy(service: &crucible_ir::ir::Service, policy: &Path) -> Result<(), String> {
     let config = crucible_policy::Config::load(policy)?;
     let report = crucible_policy::check(service, &config);
     for finding in &report.findings {
