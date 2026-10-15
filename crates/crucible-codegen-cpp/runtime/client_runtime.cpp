@@ -138,6 +138,7 @@ ClientRuntime::ClientRuntime(ClientConfig config, const Schema& schema, ErrorFac
 }
 void ClientRuntime::close() { if (!closed_.exchange(true) && !config_.transport) transport_->close(); }
 ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Json& operation, const Json& input, bool streaming) const {
+    (void)name;
     Prepared prepared;
     auto values = input.object();
     if (const auto* checksum = operation.find("checksum")) prepared.checksum = checksum_settings(*checksum, values, config_, streaming);

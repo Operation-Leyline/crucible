@@ -379,6 +379,7 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
 }
 status crucible_generated_binding_prepare(arena *storage, const yyjson_val *schema, string operation_name, const yyjson_val *op, const yyjson_val *input, string endpoint,
     crucible_generated_headers headers, crucible_generated_request *out, error *issue) {
+    (void)operation_name;
     if (!yyjson_is_obj(input)) return fail(issue, "Operation input must be an object");
     crucible_generated_request request = {0};
     request.method = text(get(op, "method")); request.headers = headers;

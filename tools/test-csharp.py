@@ -164,7 +164,7 @@ def qualify(output):
     for protocol, label in (("crucible.protocols#json", "payload-bindings"),):
         bindings = output / label
         generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", bindings,
-                 "Example.PayloadBindings", "Example.PayloadBindings", protocol=protocol, digest=False)
+                 "Example.PayloadBindings", "Example.PayloadBindings", digest=False)
         bindings_feed = output / (label + "-feed")
         run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(bindings_feed), cwd=bindings)
         bindings_consumer = output / (label + "-consumer")

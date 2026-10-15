@@ -133,7 +133,7 @@ export function map(value: Schema | (() => Schema), options: { sparse?: boolean 
 }
 
 /** Thunks also support recursive list/map aliases without declaration-order work. */
-export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[], jsonNames?: Readonly<Record<string, string>>: Schema {
+export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[], jsonNames?: Readonly<Record<string, string>>): Schema {
   let resolved: Record<string, Schema> | undefined;
   return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required, jsonNames, modelNames: reverseNames(jsonNames) };
 }
