@@ -1259,9 +1259,12 @@ these are working choices, changed freely as implementation teaches.
     their `links` metadata as today. The dependency entry pins the
     version, so imports name packages without a version suffix. Git and
     registry fetching wait for a second organisation to need them. Built so
-    far: bundled packages only (`crucible.errors`). `[model.dependencies]`
-    and Cargo discovery are not implemented, and the manifest check refuses
-    a `dependencies` key rather than ignore it.
+    far: bundled packages (`crucible.errors`) and path dependencies:
+    `"org.standards" = { path = "../standards" }` names the package by its
+    namespace (the directory must declare it) and a package that lists it in
+    `imports` loads it, and what it imports in turn, in the namespace of its
+    own. Version pins and Cargo discovery are not implemented; the manifest
+    check refuses an entry with any key but `path`.
 
 61. **Source positions live in a source map beside the IR.** Lowering
     returns `ir::Service` plus a map from shape and member ids to spans.

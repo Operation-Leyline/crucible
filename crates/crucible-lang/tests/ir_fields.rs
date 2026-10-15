@@ -47,6 +47,8 @@ fn service() -> (Service, crucible_lang::Compiled, Package) {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = compile(&package, None);
@@ -121,6 +123,8 @@ fn bad_mutability_and_retention_are_reported() {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = compile(&package, None);

@@ -143,7 +143,12 @@ fn collect_rules<'a>(
 ) -> Vec<RuleDef<'a>> {
     let mut defs: Vec<RuleDef<'a>> = Vec::new();
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
-    for (file, parsed) in inputs.parsed.iter().enumerate() {
+    // Imported rules first, so the importing package is the one that shadows.
+    let imported_first = (0..inputs.parsed.len())
+        .filter(|f| !is_own(inputs, *f))
+        .chain((0..inputs.parsed.len()).filter(|f| is_own(inputs, *f)));
+    for file in imported_first {
+        let parsed = &inputs.parsed[file];
         let package = inputs
             .namespaces
             .get(file)
@@ -162,6 +167,11 @@ fn collect_rules<'a>(
                 let first: &RuleDef<'_> = &defs[earlier];
                 let message = if first.package == package {
                     format!("rule `{}` is declared twice", rule.name.name)
+                } else if package != inputs.package {
+                    format!(
+                        "rule `{}` is declared by both `{}` and `{package}`: an exception could not say which, so one of them must be renamed",
+                        rule.name.name, first.package
+                    )
                 } else {
                     format!(
                         "rule `{}` shadows the rule of that name in `{}`: an importing package cannot replace a rule",
@@ -190,6 +200,10 @@ fn collect_rules<'a>(
     defs
 }
 
+fn is_own(inputs: &Inputs<'_>, file: usize) -> bool {
+    inputs.namespaces.get(file).map(String::as_str) == Some(inputs.package)
+}
+
 struct ExceptDef<'a> {
     file: usize,
     package: &'a str,
@@ -207,6 +221,11 @@ fn collect_exceptions<'a>(inputs: &Inputs<'a>) -> Vec<ExceptDef<'a>> {
             .get(file)
             .map_or(inputs.package, String::as_str);
         for item in &parsed.file.items {
+            // A dependency's exceptions excuse its own shapes, which were
+            // judged when it compiled: they are not this package's to check.
+            if package != inputs.package {
+                continue;
+            }
             if let Decl::Except(except) = &item.decl {
                 out.push(ExceptDef {
                     file,

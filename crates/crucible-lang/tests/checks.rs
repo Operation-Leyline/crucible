@@ -38,6 +38,8 @@ fn messages(extra: &str) -> Vec<String> {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = compile(&package, None);
@@ -280,6 +282,8 @@ fn split(extra: &str) -> (Vec<String>, Vec<String>) {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = compile(&package, None);
@@ -384,6 +388,8 @@ structure Note {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = compile(&package, None);
