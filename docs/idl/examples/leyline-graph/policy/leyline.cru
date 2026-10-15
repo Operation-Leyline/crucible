@@ -47,7 +47,24 @@ rule NoInlinePrimitives {
     must not type is inline primitive
 }
 
+/// HTTP methods keep their meaning: GET and HEAD read, PUT and DELETE can be
+/// repeated, and a readonly operation uses GET or HEAD. A batch read that must
+/// carry its keys in a body is excepted below.
+rule HttpMethodSemantics {
+    every operation where http.method in [GET, HEAD]
+    must readonly
+    every operation where http.method in [PUT, DELETE]
+    must idempotent or readonly
+    every operation where readonly
+    must http.method in [GET, HEAD]
+}
+
+/// A shape something reaches, or it is dead weight in the contract.
+rule Referenced strict {
+    every shape
+    must referenced
+}
+
 // NoDocument is `exceptable` in org.standards, so Leyline may except it here,
 // with a reason, and the exception is recorded in the compiled artifact.
-except NoDocument for CypherValue because "Cypher parameters are open JSON; the service bounds their size."
-except NoDocument for AuditRequest because "Audit captures the validated request projection; bounded by auditField rules."
+except NoDocument for SearchTerms because "Match detail is index-specific JSON; the service bounds its size."

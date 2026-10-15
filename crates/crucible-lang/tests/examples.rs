@@ -153,7 +153,7 @@ fn leyline_rules_parse_into_clauses() {
         .iter()
         .filter(|item| matches!(item.decl, Decl::Except(_)))
         .count();
-    assert_eq!(excepts, 2);
+    assert_eq!(excepts, 1);
 }
 
 #[test]
@@ -271,4 +271,64 @@ fn truncated_examples_never_panic() {
             let _ = crucible_lang::format(text, &Default::default());
         }
     }
+}
+
+/// The leyline-graph example's rules, its own and org.standards', fire on an
+/// operation and a shape that break them, and its exception is recorded.
+#[test]
+fn the_leyline_example_rules_fire() {
+    let dir = examples().join("leyline-graph");
+    let mut package = crucible_lang::load_package(&dir).expect("loads");
+    let clean = crucible_lang::compile(&package, None);
+    assert!(!clean.has_errors(), "{}", clean.render());
+    let service = clean.service.expect("service");
+    assert_eq!(service.exceptions.len(), 1);
+    assert_eq!(service.exceptions[0].rule, "NoDocument");
+    assert_eq!(service.exceptions[0].rule_package, "org.standards");
+    assert_eq!(service.exceptions[0].target, "SearchTerms");
+
+    package.files.push(crucible_lang::SourceFile {
+        path: "broken.cru".into(),
+        text: r#"
+string Loose
+
+/// Reads the loose string, but is neither classified nor audited, and a GET
+/// that is not marked readonly is a lie the standard forbids.
+operation GetLoose on Graph {
+    http POST "/v1/loose"
+    input {
+        $organizationId
+        $graphId
+        loose?: Loose
+    }
+}
+"#
+        .into(),
+    });
+    package.files.push(crucible_lang::SourceFile {
+        path: "excepts.cru".into(),
+        text: "except Classified for GetLoose because \"no\"
+except HttpMethodSemantics for GetGraph because \"stale\"
+"
+        .into(),
+    });
+    let broken = crucible_lang::compile(&package, None);
+    let messages: Vec<&str> = broken
+        .diagnostics
+        .iter()
+        .map(|d| d.diagnostic.message.as_str())
+        .collect();
+    let said = |needle: &str| {
+        assert!(
+            messages.iter().any(|m| m.contains(needle)),
+            "no message has {needle:?}: {messages:#?}"
+        );
+    };
+    // Its own rules.
+    said("rule Classified: `GetLoose`");
+    // org.standards' rules, which Leyline cannot weaken or except.
+    said("rule org.standards#BoundedStrings: `Loose`");
+    said("rule TenantInPath: `GetLoose`");
+    said("rule `Classified` is strict: no exception can excuse it");
+    said("`except HttpMethodSemantics for GetGraph` excuses nothing");
 }

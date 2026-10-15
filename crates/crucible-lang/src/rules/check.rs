@@ -6,7 +6,8 @@
 use super::metadata::{MetaIndex, MetaTy, applies_to};
 use super::subject::World;
 use super::vocabulary::{
-    FLAGS, Kind, PathType, flag_applies, flags_for, has_applies, path_type, type_is,
+    BUILT_IN, FLAGS, Kind, PathType, built_in_applies, flag_applies, flags_for, has_applies,
+    path_type, type_is,
 };
 use crate::ast::{Expr, ExprKind, Operand, Operator, Path, Ref, Value};
 use crate::diagnostic::Diagnostic;
@@ -68,6 +69,23 @@ impl Checker<'_, '_> {
             return None;
         }
         let name = &reference.name.name;
+        if BUILT_IN.contains(&name.as_str()) && !self.meta.contains_key(name) {
+            if !built_in_applies(name, kind) {
+                // `@deprecated` fits everything but a resource; the others
+                // are member annotations.
+                let message = if name == "deprecated" {
+                    format!(
+                        "`@deprecated` is not on {}: resources take no annotations",
+                        kind.indefinite()
+                    )
+                } else {
+                    format!("`@{name}` is on a member, not {}", kind.indefinite())
+                };
+                self.error(reference.name.span, message);
+                return None;
+            }
+            return Some(MetaTy::Flag);
+        }
         let Some(info) = self.meta.get(name) else {
             let known: Vec<&str> = self.meta.keys().map(String::as_str).collect();
             self.error(

@@ -152,7 +152,7 @@ impl Evaluator<'_, '_> {
                 return Err(Unknown);
             }
             let Some(key) = self.meta_key(reference) else {
-                return Ok(false);
+                return Ok(self.built_in(subject, &reference.name.name));
             };
             return Ok(self.traits(subject).is_some_and(|t| t.contains_key(&key)));
         }
@@ -165,6 +165,29 @@ impl Evaluator<'_, '_> {
                 _ => false,
             }),
         )
+    }
+
+    /// `@token`, `@query`, `@header`, `@payload` and `@deprecated`, which the
+    /// IR holds as typed fields.
+    fn built_in(&self, subject: &Subject<'_>, name: &str) -> bool {
+        match (&subject.entity, name) {
+            (Entity::Member { member, .. }, "token") => member.idempotency_token,
+            (Entity::Member { bindings, .. }, "query" | "header" | "payload") => {
+                bindings.contains(&name)
+            }
+            (Entity::Member { member, .. }, "deprecated") => member.notes.deprecated.is_some(),
+            (Entity::Operation(operation), "deprecated") => operation.notes.deprecated.is_some(),
+            (
+                Entity::Shape {
+                    shape: Some(shape), ..
+                },
+                "deprecated",
+            ) => shape
+                .notes()
+                .is_some_and(|notes| notes.deprecated.is_some()),
+            (Entity::Service(service), "deprecated") => service.notes.deprecated.is_some(),
+            _ => false,
+        }
     }
 
     fn flag(&self, subject: &Subject<'_>, path: &Path) -> Tri {
