@@ -185,6 +185,10 @@ pub enum Hook {
         old: ShapeId,
         new: ShapeId,
         member: String,
+        /// The member's name in the older version, when the same migration
+        /// renamed it; empty when it kept `member`.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        from: String,
     },
     /// `require S.m by hook`: the value an older request could not send,
     /// computed from the rest of it.

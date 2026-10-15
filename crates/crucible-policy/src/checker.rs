@@ -1,5 +1,5 @@
 use crate::direction::Direction;
-use crate::{Report, Severity};
+use crate::{Renames, Report, Severity};
 use crucible_smithy::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
 use crucible_smithy::validate::needs_not_found;
 use crucible_smithy::{Feature, Protocol, ShapeId};
@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 pub(crate) struct Checker<'a> {
     pub(crate) old: &'a Service,
     pub(crate) new: &'a Service,
+    pub(crate) renames: &'a Renames,
     pub(crate) severity: Severity,
     pub(crate) report: Report,
     pub(crate) seen: BTreeSet<(ShapeId, ShapeId, Direction, bool)>,
@@ -427,10 +428,17 @@ impl Checker<'_> {
     ) {
         for old_member in &old.members {
             let old_location = location(old_member, bindings.map(|b| b.0));
-            let new_member = new
-                .members
-                .iter()
-                .find(|member| location(member, bindings.map(|b| b.1)) == old_location);
+            // A renamed member is its new name's old self: compared with it,
+            // so a change made along with the rename is still reported. The
+            // rename decides before the wire location does, since a member
+            // added under the old name now holds that location.
+            let new_member = match self.renames.get(&(id.clone(), old_member.name.clone())) {
+                Some((_, to)) => new.member(to),
+                None => new
+                    .members
+                    .iter()
+                    .find(|member| location(member, bindings.map(|b| b.1)) == old_location),
+            };
             match new_member {
                 Some(new_member) => self.member(
                     &id.with_member(&old_member.name),
@@ -453,10 +461,14 @@ impl Checker<'_> {
         }
         for new_member in &new.members {
             let new_location = location(new_member, bindings.map(|b| b.1));
-            if old
-                .members
-                .iter()
-                .any(|member| location(member, bindings.map(|b| b.0)) == new_location)
+            // An old member that was renamed away no longer holds its
+            // location: a member added there is new.
+            if old.members.iter().any(|member| {
+                location(member, bindings.map(|b| b.0)) == new_location
+                    && !self
+                        .renames
+                        .contains_key(&(id.clone(), member.name.clone()))
+            }) || self.renamed_to(id, new_member)
             {
                 continue;
             }
@@ -478,6 +490,14 @@ impl Checker<'_> {
                 );
             }
         }
+    }
+
+    /// Whether `member` of the structure that was `old` is a renamed one,
+    /// already compared under its old name.
+    fn renamed_to(&self, old: &ShapeId, member: &Member) -> bool {
+        self.renames
+            .iter()
+            .any(|((from, _), (_, to))| from == old && *to == member.name)
     }
 
     fn member(
