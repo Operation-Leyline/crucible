@@ -558,3 +558,55 @@ fn rules_and_exceptions_survive_formatting() {
     let formatted = crucible_lang::format(source, &crucible_lang::FormatOptions::default());
     assert_eq!(formatted, source);
 }
+
+#[test]
+fn an_inline_built_in_type_is_a_kind_of_type() {
+    let model = MODEL.replace("note: Name", "note: string");
+    let found = messages(
+        &compiled_with(
+            &model,
+            "rule Plain { every member where type is string must not name == note }",
+        ),
+        true,
+    );
+    assert_eq!(found.len(), 1, "{found:#?}");
+    mentions(&found, "`PutOrderNoteInput.note`");
+}
+
+#[test]
+fn a_blank_doc_does_not_document_a_resource() {
+    let model = MODEL.replace("resource Organization {", "///\nresource Organization {");
+    let found = messages(
+        &compiled_with(&model, "rule Docs { every resource must documented }"),
+        true,
+    );
+    mentions(&found, "`Organization`");
+    mentions(&found, "`Order`");
+}
+
+#[test]
+fn a_members_own_name_does_not_excuse_it() {
+    let model = MODEL.replace("note: Name", "note: string");
+    let policy = r#"
+rule Named { every member must not type is inline primitive }
+except Named for note because "Only a shape or operation can be named."
+"#;
+    let found = messages(&compiled_with(&model, policy), true);
+    mentions(&found, "`except Named for note` excuses nothing");
+    mentions(&found, "rule Named: `PutOrderNoteInput.note`");
+}
+
+#[test]
+fn an_unknown_side_does_not_hide_what_the_other_decides() {
+    // `Orphan` is never lowered, so `has length` is unknown for it; `not
+    // referenced` decides the `or`.
+    let model = format!("{MODEL}\nstring Orphan {{ length 1..2 }}\n");
+    let found = messages(
+        &compiled_with(
+            &model,
+            "rule R { every string where not enum and (has length or not referenced) must documented }",
+        ),
+        true,
+    );
+    mentions(&found, "`Orphan`");
+}

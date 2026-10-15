@@ -33,6 +33,11 @@ pub(super) type MetaIndex = BTreeMap<String, MetaInfo>;
 
 pub(super) fn index(parsed: &[Parsed], namespaces: &[String]) -> MetaIndex {
     let mut out = MetaIndex::new();
+    // A value type may be declared in any file of the package or its imports.
+    let everywhere: Vec<&crate::ast::Item> = parsed
+        .iter()
+        .flat_map(|parsed| parsed.file.items.iter())
+        .collect();
     for (file, parsed) in parsed.iter().enumerate() {
         let ns = namespaces.get(file).cloned().unwrap_or_default();
         for item in &parsed.file.items {
@@ -44,7 +49,7 @@ pub(super) fn index(parsed: &[Parsed], namespaces: &[String]) -> MetaIndex {
                 Some(MetaType::Enum(values)) => {
                     MetaTy::Enum(values.iter().map(|v| v.name.name.clone()).collect())
                 }
-                Some(MetaType::Type(ty)) => named(parsed_decls(parsed), &ty.name.name),
+                Some(MetaType::Type(ty)) => named(&everywhere, &ty.name.name),
             };
             out.entry(metadata.name.name.clone()).or_insert(MetaInfo {
                 ns: ns.clone(),
@@ -66,17 +71,14 @@ pub(super) fn index(parsed: &[Parsed], namespaces: &[String]) -> MetaIndex {
     out
 }
 
-fn parsed_decls(parsed: &Parsed) -> &[crate::ast::Item] {
-    &parsed.file.items
-}
-
 /// The value type a metadata declaration names: a built-in scalar word, or a
 /// scalar or enum declared in the same file.
-fn named(items: &[crate::ast::Item], name: &str) -> MetaTy {
+fn named(items: &[&crate::ast::Item], name: &str) -> MetaTy {
     match name {
         "string" => return MetaTy::Str,
         "boolean" => return MetaTy::Bool,
-        "byte" | "short" | "integer" | "long" | "float" | "double" => return MetaTy::Num,
+        "byte" | "short" | "integer" | "long" | "float" | "double" | "bigInteger"
+        | "bigDecimal" => return MetaTy::Num,
         _ => {}
     }
     for item in items {
@@ -85,7 +87,8 @@ fn named(items: &[crate::ast::Item], name: &str) -> MetaTy {
                 return match s.kind.name.as_str() {
                     "string" => MetaTy::Str,
                     "boolean" => MetaTy::Bool,
-                    "byte" | "short" | "integer" | "long" | "float" | "double" => MetaTy::Num,
+                    "byte" | "short" | "integer" | "long" | "float" | "double" | "bigInteger"
+                    | "bigDecimal" => MetaTy::Num,
                     _ => MetaTy::Other,
                 };
             }
