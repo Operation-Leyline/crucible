@@ -6,9 +6,9 @@
 
 use std::path::Path;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use crucible_policy::{Config, Finding, Severity};
+use crucible_policy::{Config, Finding, Renames, Severity};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{ApiVersion, Hook, Operation, Paginated, Service, Shape, VersionStep};
 use serde_json::Value as Json;
@@ -96,7 +96,6 @@ pub fn guard(
         .and_then(Path::file_stem)
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let report = crucible_policy::diff(&old, service, config);
     let mut problems = Vec::new();
     // A release is named by its service's version, so migrations can name it.
     if old.version != version {
@@ -125,6 +124,9 @@ pub fn guard(
         }
     }
     let mut covers = Vec::new();
+    // A member the migration renames is compared with its new self, so the
+    // rename declares its name and nothing else about it.
+    let mut renames = Renames::new();
     if let Some(((file, migration), rest)) = from_baseline.split_first() {
         for (other, extra) in rest {
             problems.push(FileDiagnostic {
@@ -135,11 +137,8 @@ pub fn guard(
                 ),
             });
         }
-        let context = Context {
-            namespace: &compiled.namespace,
-            old: &old,
-            new: service,
-        };
+        let context = Context::new(&compiled.namespace, &old, service, migration);
+        renames = context.renames.clone();
         for step in &migration.steps {
             match context.checked_step(&step.kind) {
                 Ok(mut cover) => covers.append(&mut cover),
@@ -151,7 +150,7 @@ pub fn guard(
                 }
             }
         }
-        covers.extend(context.pagination_covers(migration));
+        covers.extend(context.pagination_covers());
         check_versions(migration, *file, &mut problems);
         if migration.version.value != service.version {
             problems.push(FileDiagnostic {
@@ -181,6 +180,7 @@ pub fn guard(
         });
     }
 
+    let report = crucible_policy::diff_renamed(&old, service, config, &renames);
     let mut undeclared = Vec::new();
     let mut declared = 0;
     for finding in report.findings {
@@ -240,12 +240,10 @@ enum At {
 
 /// The general steps declare any change within what they name.
 const ANY: &[&str] = &[];
-const RENAME: &[&str] = &[
-    "compatibility.member",
-    "compatibility.required",
-    "compatibility.nullability",
-    "compatibility.sdk",
-];
+/// A rename changes a member's name, which only generated code sees: the
+/// checker compares the renamed member with its new self, so any other
+/// change to it needs its own step.
+const RENAME: &[&str] = &["compatibility.sdk"];
 const REQUIRE: &[&str] = &[
     "compatibility.required",
     "compatibility.nullability",
@@ -291,6 +289,8 @@ struct Context<'a> {
     namespace: &'a str,
     old: &'a Service,
     new: &'a Service,
+    /// The migration's renames that name a member of both releases.
+    renames: Renames,
 }
 
 /// Where a dotted path points: a shape, or a member of one.
@@ -307,7 +307,45 @@ fn operation<'s>(service: &'s Service, name: &str) -> Option<&'s Operation> {
     service.operations.iter().find(|op| op.name() == name)
 }
 
-impl Context<'_> {
+impl<'a> Context<'a> {
+    fn new(namespace: &'a str, old: &'a Service, new: &'a Service, migration: &Migration) -> Self {
+        let mut context = Self {
+            namespace,
+            old,
+            new,
+            renames: Renames::new(),
+        };
+        for step in &migration.steps {
+            if let StepKind::Rename { path, to } = &step.kind
+                && let Ok((old, new)) = context.both(path)
+                && let Some(from) = old.member
+                && context.has_member(context.old, &old.shape, &from)
+                && context.has_member(context.new, &new.shape, &to.name)
+            {
+                context
+                    .renames
+                    .insert((old.shape, from), (new.shape, to.name.clone()));
+            }
+        }
+        context
+    }
+
+    /// The baseline's name for `member` of `shape`: the one a rename in
+    /// this migration gave it, else its own.
+    fn old_name<'m>(&'m self, shape: &ShapeId, member: &'m str) -> &'m str {
+        self.renames
+            .iter()
+            .find(|(_, (new, to))| new == shape && to == member)
+            .map_or(member, |((_, from), _)| from.as_str())
+    }
+
+    /// What a rename in this migration calls the baseline's `member`.
+    fn renamed(&self, shape: &ShapeId, member: &str) -> Option<&str> {
+        self.renames
+            .get(&(shape.clone(), member.to_owned()))
+            .map(|(_, to)| to.as_str())
+    }
+
     fn id(&self, name: &str) -> ShapeId {
         ShapeId::new(self.namespace, name)
     }
@@ -483,7 +521,7 @@ impl Context<'_> {
                     Cover::exact(new.shape.with_member(&to.name), RENAME),
                 ])
             }
-            StepKind::Require { path, .. } => {
+            StepKind::Require { path, how } => {
                 let (old, new) = self.both(path)?;
                 let Some(member) = &new.member else {
                     return Err(error(
@@ -491,17 +529,38 @@ impl Context<'_> {
                         "`require` names a member: `Operation.input.member`".into(),
                     ));
                 };
-                let optional = |service: &Service, shape: &ShapeId| match service.shapes.get(shape)
+                if let Some(to) = self.renamed(&old.shape, member) {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "`{member}` is renamed to `{to}` in this migration; `require` names the member as it is now, `{to}`"
+                        ),
+                    ));
+                }
+                // A member renamed in this migration had its old name in the
+                // baseline: `rename S.a -> b` with `require S.b default v`.
+                let was = self.old_name(&new.shape, member);
+                if was != member && matches!(how, RequireHow::Hook(_)) {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "`{member}` is renamed from `{was}` in this migration, which a hooked requirement cannot follow yet; declare `require .. default`"
+                        ),
+                    ));
+                }
+                let optional = |service: &Service, shape: &ShapeId, name: &str| match service
+                    .shapes
+                    .get(shape)
                 {
-                    Some(Shape::Structure(s)) => s.member(member).map(|m| m.optional_on_server()),
+                    Some(Shape::Structure(s)) => s.member(name).map(|m| m.optional_on_server()),
                     _ => None,
                 };
                 match (
-                    optional(self.old, &old.shape),
-                    optional(self.new, &new.shape),
+                    optional(self.old, &old.shape, was),
+                    optional(self.new, &new.shape, member),
                 ) {
                     (Some(true), Some(false)) => Ok(vec![
-                        Cover::exact(old.shape.with_member(member), REQUIRE),
+                        Cover::exact(old.shape.with_member(was), REQUIRE),
                         Cover::exact(new.shape.with_member(member), REQUIRE),
                     ]),
                     (None, _) => Err(error(
@@ -745,9 +804,21 @@ impl Context<'_> {
                         "`retype` names a member: `Shape.member -> Type`".into(),
                     ));
                 };
-                let target = |service: &Service, shape: &ShapeId| match service.shapes.get(shape) {
+                if let Some(to) = self.renamed(&old.shape, member) {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "`{member}` is renamed to `{to}` in this migration; `retype` names the member as it is now, `{to}`"
+                        ),
+                    ));
+                }
+                let was = self.old_name(&new.shape, member);
+                let target = |service: &Service, shape: &ShapeId, name: &str| match service
+                    .shapes
+                    .get(shape)
+                {
                     Some(Shape::Structure(s)) | Some(Shape::Union(s)) => {
-                        s.member(member).map(|m| m.target.clone())
+                        s.member(name).map(|m| m.target.clone())
                     }
                     _ => None,
                 };
@@ -756,12 +827,15 @@ impl Context<'_> {
                     id.name() == to.name
                         || (id.is_prelude() && id.name().eq_ignore_ascii_case(&to.name))
                 };
-                match (target(self.old, &old.shape), target(self.new, &new.shape)) {
-                    (Some(was), Some(now)) if named(&now) && was != now => Ok(vec![
-                        Cover::exact(old.shape.with_member(member), RETYPE),
+                match (
+                    target(self.old, &old.shape, was),
+                    target(self.new, &new.shape, member),
+                ) {
+                    (Some(left), Some(now)) if named(&now) && left != now => Ok(vec![
+                        Cover::exact(old.shape.with_member(was), RETYPE),
                         Cover::exact(new.shape.with_member(member), RETYPE),
                         // The checker reports the change on the type it left.
-                        Cover::exact(was, RETYPE),
+                        Cover::exact(left, RETYPE),
                     ]),
                     (Some(_), Some(now)) if !named(&now) => Err(error(
                         to.span,
@@ -801,17 +875,8 @@ impl Context<'_> {
     /// items or page size) changes the contract, and the rename step is
     /// what converts the member for older callers. A change the renames do
     /// not explain stays undeclared.
-    fn pagination_covers(&self, migration: &Migration) -> Vec<Cover> {
-        let mut renames: BTreeMap<(ShapeId, String), String> = BTreeMap::new();
-        for step in &migration.steps {
-            if let StepKind::Rename { path, to } = &step.kind
-                && let Ok((old, _)) = self.both(path)
-                && let Some(from) = old.member
-            {
-                renames.insert((old.shape, from), to.name.clone());
-            }
-        }
-        if renames.is_empty() {
+    fn pagination_covers(&self) -> Vec<Cover> {
+        if self.renames.is_empty() {
             return Vec::new();
         }
         // A pagination path's first segment is a member of the operation's
@@ -822,8 +887,8 @@ impl Context<'_> {
                 .map_or((path, None), |(h, r)| (h, Some(r)));
             let head = shape
                 .as_ref()
-                .and_then(|shape| renames.get(&(shape.clone(), head.to_owned())))
-                .map_or(head, String::as_str);
+                .and_then(|shape| self.renamed(shape, head))
+                .unwrap_or(head);
             rest.map_or_else(|| head.to_owned(), |rest| format!("{head}.{rest}"))
         };
         self.old
@@ -953,11 +1018,7 @@ pub fn versions(
                 old.version
             ));
         }
-        let context = Context {
-            namespace: &compiled.namespace,
-            old: &old,
-            new: &newer,
-        };
+        let context = Context::new(&compiled.namespace, &old, &newer, migration);
         let mut steps = Vec::new();
         let mut sunset = None;
         for step in &migration.steps {
@@ -1163,11 +1224,20 @@ impl Context<'_> {
                     kind: "retype".into(),
                     operations: operations_reaching(self.new, &new.shape),
                     hook: match hook {
-                        Some(_) => Hook::Retype {
-                            member: new.member.clone().unwrap_or_default(),
-                            old: old.shape,
-                            new: new.shape,
-                        },
+                        Some(_) => {
+                            let member = new.member.clone().unwrap_or_default();
+                            // Empty when the member kept its name.
+                            let from = match self.old_name(&new.shape, &member) {
+                                was if was == member => String::new(),
+                                was => was.to_owned(),
+                            };
+                            Hook::Retype {
+                                member,
+                                from,
+                                old: old.shape,
+                                new: new.shape,
+                            }
+                        }
                         None => Hook::Conversion,
                     },
                     is_async: hook.is_some_and(|hook| hook.is_async),

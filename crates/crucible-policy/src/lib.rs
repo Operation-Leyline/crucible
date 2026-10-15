@@ -22,7 +22,7 @@ mod severity;
 pub use check::Check;
 pub use compatibility::Compatibility;
 pub use config::{Config, ConfigError, POLICY_KEYS};
-pub use diff::diff;
+pub use diff::{Renames, diff, diff_renamed};
 pub use documentation::Documentation;
 pub use documentation_target::DocumentationTarget;
 pub use exception::Exception;

@@ -950,9 +950,13 @@ fn conversion(
                     old: old_shape,
                     new: new_shape,
                     member,
+                    from,
                 } => {
+                    // A member the same migration renamed had its old name
+                    // in the older version.
+                    let was = if from.is_empty() { member } else { from };
                     let (Some(old_member), Some(new_member)) = (
-                        member_of(old, old_shape, member),
+                        member_of(old, old_shape, was),
                         member_of(new, new_shape, member),
                     ) else {
                         continue;
