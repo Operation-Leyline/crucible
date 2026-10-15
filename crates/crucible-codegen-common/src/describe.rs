@@ -463,8 +463,7 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
             continue;
         };
         let wire = service.wire_example(m, value, b.timestamp_formats.get(&m.name).copied());
-        if b.body.contains(&m.name)
-        {
+        if b.body.contains(&m.name) {
             body.insert(m.wire_name.clone(), wire.clone());
         }
         if b.labels.contains(&m.name) {

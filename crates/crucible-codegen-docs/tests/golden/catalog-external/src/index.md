@@ -14,11 +14,7 @@ Service version: <code>2026-10</code>.
 
 ## Protocol
 
-Selected wire protocol: <code>rpcv2Json</code>.
-
-Declared protocols:
-
-- <code>smithy.protocols#rpcv2Json</code>
+Wire protocol: <code>crucibleJson</code>.
 
 ## Authentication
 

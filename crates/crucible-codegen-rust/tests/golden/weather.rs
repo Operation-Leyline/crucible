@@ -510,7 +510,6 @@ pub mod weather {
 
         impl ::crucible_server_runtime_rust::__generated::ModelledError for ConflictError {
             fn shape_id(&self) -> &'static str { "example.weather#ConflictError" }
-            fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
             fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {
                 &CONFLICT_ERROR_INFO
             }
@@ -571,7 +570,6 @@ pub mod weather {
 
         impl ::crucible_server_runtime_rust::__generated::ModelledError for NotFoundError {
             fn shape_id(&self) -> &'static str { "example.weather#NotFoundError" }
-            fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
             fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {
                 &NOT_FOUND_ERROR_INFO
             }
@@ -632,7 +630,6 @@ pub mod weather {
 
         impl ::crucible_server_runtime_rust::__generated::ModelledError for ThrottlingError {
             fn shape_id(&self) -> &'static str { "example.weather#ThrottlingError" }
-            fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
             fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {
                 &THROTTLING_ERROR_INFO
             }
@@ -701,7 +698,6 @@ pub mod weather {
 
         impl ::crucible_server_runtime_rust::__generated::ModelledError for ValidationError {
             fn shape_id(&self) -> &'static str { "example.weather#ValidationError" }
-            fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
             fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {
                 &VALIDATION_ERROR_INFO
             }

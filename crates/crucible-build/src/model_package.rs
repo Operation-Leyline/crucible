@@ -30,13 +30,6 @@ pub struct ModelPackage {
         feature = "cdk",
         feature = "terraform"
     ))]
-    selected_protocol: Option<crucible_smithy::Protocol>,
-    #[cfg(any(
-        feature = "rust",
-        feature = "docs",
-        feature = "cdk",
-        feature = "terraform"
-    ))]
     policy: Option<PathBuf>,
 }
 
@@ -49,13 +42,6 @@ impl ModelPackage {
         #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))] model_ast: Option<
             crucible_smithy::Model,
         >,
-        #[cfg(any(
-            feature = "rust",
-            feature = "docs",
-            feature = "cdk",
-            feature = "terraform"
-        ))]
-        selected_protocol: Option<crucible_smithy::Protocol>,
         #[cfg(any(
             feature = "rust",
             feature = "docs",
@@ -83,13 +69,6 @@ impl ModelPackage {
                 feature = "cdk",
                 feature = "terraform"
             ))]
-            selected_protocol,
-            #[cfg(any(
-                feature = "rust",
-                feature = "docs",
-                feature = "cdk",
-                feature = "terraform"
-            ))]
             policy,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
@@ -108,13 +87,9 @@ impl ModelPackage {
                     .model_ast
                     .as_ref()
                     .ok_or_else(|| crate::cru::unsupported("Infrastructure output", &self.model))?;
-                let service = match self.selected_protocol {
-                    Some(protocol) => {
-                        ast.lower_infrastructure_with_protocol(Some(&self.service.id), protocol)
-                    }
-                    None => ast.lower_infrastructure(Some(&self.service.id)),
-                }
-                .map_err(|error| error.to_string())?;
+                let service = ast
+                    .lower_infrastructure(Some(&self.service.id))
+                    .map_err(|error| error.to_string())?;
                 if let Some(policy) = &self.policy {
                     crate::check_policy(&service, policy)?;
                 }
@@ -133,7 +108,7 @@ impl ModelPackage {
                     .as_ref()
                     .ok_or_else(|| crate::cru::unsupported("Documentation output", &self.model))?;
                 let service = ast
-                    .lower_documentation(Some(&self.service.id), self.selected_protocol)
+                    .lower_documentation(Some(&self.service.id))
                     .map_err(|error| error.to_string())?;
                 if let Some(policy) = &self.policy {
                     crate::check_policy(&service, policy)?;
@@ -154,7 +129,6 @@ impl ModelPackage {
     pub fn server(&self) -> crate::ServerOutput {
         let mut output = crate::ServerOutput::new(&self.model).named(&self.service.id.to_string());
         output.options.require_rejection = self.server_requires_rejection;
-        output.protocol = self.selected_protocol;
         output.policy = self.policy.clone();
         output
     }

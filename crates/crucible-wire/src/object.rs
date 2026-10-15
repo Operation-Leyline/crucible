@@ -3,9 +3,8 @@
 //! serde_json offers one for `[`: left alone, `[]` or `["Oslo", 1]` would read
 //! as a structure, at any depth of a body or as a whole `@httpPayload`.
 //! [`Objects`] wraps a deserializer so every structure it reaches is refused
-//! unless it is a map, as the CBOR reader already does. Every typed JSON read
-//! of a model value goes through it, so all JSON protocols, on the server and
-//! in the Rust client, agree.
+//! unless it is a map. Every typed JSON read
+//! of a model value goes through it, so the server and the Rust client agree.
 
 use std::fmt;
 

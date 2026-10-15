@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, run, weather
-from xml_qualification import PACKAGES, REGRESSIONS, conformance_options, write_exclusions
 
 MAVEN = os.environ.get("MAVEN", "mvn")
 
@@ -80,12 +79,12 @@ def qualify(output):
     run("javac", "--release", "17", "-d", str(classes), "-cp", payload_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/PayloadTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), payload_classpath]), "example.wire.PayloadTest")
-    # Content-Type precedence on payload uploads, under each declared protocol.
-    for protocol in ("crucible.protocols#json", "aws.protocols#restJson1"):
+    # Content-Type precedence on payload uploads.
+    for protocol in ("crucible.protocols#json",):
         bindings = output / ("payload-bindings-" + protocol.split("#")[1])
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
             str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--out", str(bindings),
-            "--protocol", protocol, "--group-id", "example", "--artifact-id", "payload-bindings",
+            "--group-id", "example", "--artifact-id", "payload-bindings",
             "--package-name", "example.payload")
         run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=bindings)
         bindings_classpath = os.pathsep.join([str(bindings / "target/classes"), str(bindings / "target/dependency/*")])
@@ -140,16 +139,6 @@ def qualify(output):
     run("javac", "--release", "17", "-d", str(classes), "-cp", checksum_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/ChecksumTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), checksum_classpath]), "example.checksums.ChecksumTest")
-    for protocol in ["restJson1", "awsJson1_0", "awsJson1_1"]:
-        generated = output / protocol
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-            str(ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json"), "--protocol", "aws.protocols#" + protocol,
-            "--out", str(generated), "--group-id", "example", "--artifact-id", "protocol", "--package-name", "example.json")
-        run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=generated)
-        protocol_classpath = os.pathsep.join([str(generated / "target/classes"), str(generated / "target/dependency/*")])
-        run("javac", "--release", "17", "-d", str(classes), "-cp", protocol_classpath,
-            str(ROOT / "crates/crucible-codegen-java/tests/ProtocolTest.java"))
-        run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.json.ProtocolTest", protocol)
     docs = output / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json"), "--out", str(docs),
@@ -163,7 +152,6 @@ def qualify(output):
     run("javac", "--release", "17", "-d", str(classes), "-cp", docs_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/DisplayTest.java"))
     run("java", "-cp", os.pathsep.join([str(classes), docs_classpath]), "example.docs.DisplayTest")
-    xml_protocols(output, classes)
     permissions(output, classes)
     defaults = output / "defaults"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
@@ -196,7 +184,7 @@ def permissions(output, classes):
 def waiter_identity(output, classes):
     model = ROOT / "tests/conformance/waiter-errors.json"
     packages = []
-    for label, service in [("query", "QueryIdentity"), ("json", "JsonIdentity")]:
+    for label, service in [("json", "JsonIdentity")]:
         package = output / ("waiter-identity-" + label)
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
             str(model), "--service", "example.waiter#" + service, "--out", str(package),
@@ -209,42 +197,7 @@ def waiter_identity(output, classes):
                                + [str(packages[0] / "target/dependency/*")])
     run("javac", "--release", "17", "-d", str(classes), "-cp", classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/WaiterIdentityTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.waiterquery.WaiterIdentityTest")
-
-
-def xml_protocols(output, classes):
-    """restXml, awsQuery and ec2Query: Smithy vectors through a native adapter, then real HTTP."""
-    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
-    write_exclusions(output)
-    adapter = (ROOT / "crates/crucible-codegen-java/tests/ProtocolAdapter.java").read_text(encoding="utf-8")
-    roots = []
-    for label, fixture, service, protocol in PACKAGES:
-        generated = output / ("xml-" + label)
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java", str(fixtures / fixture),
-            "--service", service, "--out", str(generated), "--group-id", "example", "--artifact-id", "xml-" + label,
-            "--package-name", "example." + label)
-        run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=generated)
-        if (label, fixture, service, protocol) in REGRESSIONS:
-            roots.append(generated)
-        package_classpath = os.pathsep.join([str(generated / "target/classes"), str(generated / "target/dependency/*")])
-        # The adapter reaches the package-private runtime, so it joins each generated package.
-        source = output / ("adapter-" + label) / "ProtocolAdapter.java"
-        source.parent.mkdir(parents=True, exist_ok=True)
-        source.write_text(adapter.replace("package example.xml;", f"package example.{label};", 1), encoding="utf-8")
-        adapter_classes = output / ("adapter-" + label + "-classes")
-        run("javac", "--release", "17", "-d", str(adapter_classes), "-cp", package_classpath, str(source))
-        vectors = output / ("vectors-" + label)
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance", str(fixtures / fixture),
-            "--service", service, "--target", "java", "--out", str(vectors))
-        run(sys.executable, str(ROOT / "tools/protocol_conformance.py"), str(vectors / "protocol-tests.json"),
-            "--protocol", protocol, "--report", str(vectors / "results.json"), *conformance_options(label), "--", "java", "-cp",
-            os.pathsep.join([str(adapter_classes), package_classpath]), f"example.{label}.ProtocolAdapter")
-    protocol_classpath = os.pathsep.join([str(root / "target/classes") for root in roots] + [str(roots[0] / "target/dependency/*")])
-    run("javac", "--release", "17", "-d", str(classes), "-cp", protocol_classpath,
-        str(ROOT / "crates/crucible-codegen-java/tests/XmlProtocolTest.java"),
-        str(ROOT / "crates/crucible-codegen-java/tests/QueryProtocolTest.java"))
-    run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.xml.XmlProtocolTest")
-    run("java", "-cp", os.pathsep.join([str(classes), protocol_classpath]), "example.query.QueryProtocolTest")
+    run("java", "-cp", os.pathsep.join([str(classes), classpath]), "example.waiterjson.WaiterIdentityTest")
 
 
 if __name__ == "__main__":

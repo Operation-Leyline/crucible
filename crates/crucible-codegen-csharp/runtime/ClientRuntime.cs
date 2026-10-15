@@ -64,14 +64,6 @@ internal sealed partial class ClientRuntime : IDisposable
     private static bool Flag(JsonNode? value) => value?.GetValue<bool>() == true;
     private JsonObject Shape(string id) => schema["shapes"]![id]!.AsObject();
     private string ErrorCode(string id) => Text(Shape(id)["error"]?["wireCode"]) ?? Text(Shape(id)["name"])!;
-    // RPC v2 CBOR carries non-finite floats natively; the wire values bridge them as these strings.
-    private bool ProtocolFlag(string name) => Flag(schema["protocolSettings"]?[name]) || name == "nonFiniteFloatStrings" && Text(schema["protocol"]) == "rpcv2Cbor";
-    private bool AwsJson => Text(schema["protocol"]) is "awsRestJson1" or "awsJson1_0" or "awsJson1_1";
-    private static double SpecialFloat(string value) => value switch
-    {
-        "NaN" => double.NaN, "Infinity" => double.PositiveInfinity, "-Infinity" => double.NegativeInfinity,
-        _ => throw new JsonException("Invalid floating point string")
-    };
     private string WireName(string? target, string name) => target is null ? name : Text(Shape(target)["members"]![name]?["jsonName"]) ?? name;
     private static PropertyInfo ModelProperty(Type type, string name) {
         var presence = type.GetProperty(name + "Presence");
@@ -96,17 +88,13 @@ internal sealed partial class ClientRuntime : IDisposable
         {
             case "float":
             case "double":
-                var number = Convert.ToDouble(value, CultureInfo.InvariantCulture);
-                if (ProtocolFlag("nonFiniteFloatStrings") && !double.IsFinite(number))
-                    return JsonValue.Create(double.IsNaN(number) ? "NaN" : number > 0 ? "Infinity" : "-Infinity");
                 return JsonSerializer.SerializeToNode(value, value.GetType(), JsonOptions);
             case "blob": return JsonValue.Create(Convert.ToBase64String((byte[])value));
             case "timestamp": return WriteTime((DateTimeOffset)value, format ?? Text(shape["format"]));
             case "enum": return JsonValue.Create(value.ToString());
             case "intEnum": return JsonValue.Create((int)value.GetType().GetProperty("Value")!.GetValue(value)!);
-            // RPC v2 JSON carries arbitrary-precision numbers as strings.
-            case "bigInteger": return ProtocolFlag("arbitraryPrecisionStrings") ? JsonValue.Create(((BigInteger)value).ToString(CultureInfo.InvariantCulture)) : JsonNode.Parse(((BigInteger)value).ToString(CultureInfo.InvariantCulture));
-            case "bigDecimal": return ProtocolFlag("arbitraryPrecisionStrings") ? JsonValue.Create(((BigDecimal)value).ToString()) : JsonNode.Parse(((BigDecimal)value).ToString());
+            case "bigInteger": return JsonNode.Parse(((BigInteger)value).ToString(CultureInfo.InvariantCulture));
+            case "bigDecimal": return JsonNode.Parse(((BigDecimal)value).ToString());
             case "document": return ((JsonNode)value).DeepClone();
             case "list":
                 var array = new JsonArray(); var item = shape["member"]!;
@@ -131,7 +119,6 @@ internal sealed partial class ClientRuntime : IDisposable
                     if (Streaming(description!)) continue;
                     var v = ModelProperty(value.GetType(), Text(description!["attribute"])!).GetValue(value);
                     if (v is IOptional optional) { if (!optional.IsSet) continue; v = optional.Untyped; }
-                    if (kind == "structure" && v is null && ProtocolFlag("omitNullStructureMembers") && Text(Shape(Text(description["target"])!)["kind"]) != "document") continue;
                     result.Add(WireName(target, name), Encode(Text(description["target"]), v, Text(description["format"])));
                 }
                 if (kind == "union")
@@ -165,27 +152,17 @@ internal sealed partial class ClientRuntime : IDisposable
             case "integer": return checked((int)Integer(value));
             case "long": return checked((long)Integer(value));
             case "float":
-                if (ProtocolFlag("nonFiniteFloatStrings") && value.GetValueKind() == JsonValueKind.String) return (float)SpecialFloat(value.GetValue<string>());
                 var f = value.GetValue<float>(); if (!float.IsFinite(f)) throw new JsonException("Float overflow"); return f;
             case "double":
-                if (ProtocolFlag("nonFiniteFloatStrings") && value.GetValueKind() == JsonValueKind.String) return SpecialFloat(value.GetValue<string>());
                 var d = value.GetValue<double>(); if (!double.IsFinite(d)) throw new JsonException("Double overflow"); return d;
             case "timestamp": return ReadTime(value, format ?? Text(shape["format"]));
             case "document": return value.DeepClone();
             case "enum": return Activator.CreateInstance(types[target], value.GetValue<string>());
             case "intEnum": return Activator.CreateInstance(types[target], checked((int)Integer(value)));
             case "bigInteger":
-                if (ProtocolFlag("arbitraryPrecisionStrings"))
-                {
-                    var digits = value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : throw new JsonException("Expected arbitrary precision integer string");
-                    if (!System.Text.RegularExpressions.Regex.IsMatch(digits, @"\A-?(?:0|[1-9][0-9]*)\z")) throw new JsonException("Invalid arbitrary precision integer");
-                    return BigInteger.Parse(digits, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
-                }
                 if (value.GetValueKind() != JsonValueKind.Number) throw new JsonException("Expected arbitrary precision integer");
                 return BigInteger.Parse(value.ToJsonString(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
             case "bigDecimal":
-                if (ProtocolFlag("arbitraryPrecisionStrings"))
-                    return new BigDecimal(value.GetValueKind() == JsonValueKind.String ? value.GetValue<string>() : throw new JsonException("Expected arbitrary precision decimal string"));
                 if (value.GetValueKind() != JsonValueKind.Number) throw new JsonException("Expected arbitrary precision decimal");
                 return new BigDecimal(value.ToJsonString());
             case "list":
@@ -207,8 +184,6 @@ internal sealed partial class ClientRuntime : IDisposable
                 var result = New(types[target]); var obj = value.AsObject(); var members = shape["members"]!.AsObject();
                 if (kind == "union")
                 {
-                    if (ProtocolFlag("ignoreUnknownUnionType") && !members.Any(entry => WireName(target, entry.Key) == "__type"))
-                    { obj = (JsonObject)obj.DeepClone(); obj.Remove("__type"); }
                     if (obj.Count != 1) throw new JsonException("A union must contain exactly one member");
                     var variant = obj.First();
                     if (!members.Any(entry => WireName(target, entry.Key) == variant.Key))
@@ -224,7 +199,6 @@ internal sealed partial class ClientRuntime : IDisposable
                     var property = ModelProperty(result.GetType(), Text(description!["attribute"])!);
                     bool optional = property.PropertyType.IsGenericType && property.PropertyType.GetGenericTypeDefinition() == typeof(Optional<>);
                     bool present = obj.TryGetPropertyValue(WireName(target, name), out var item);
-                    if (kind == "structure" && item is null && ProtocolFlag("omitNullStructureMembers") && Text(Shape(Text(description["target"])!)["kind"]) != "document") present = false;
                     if (!present && description!["default"] is JsonNode defaultValue) { item = defaultValue; present = true; }
                     // The generated Optional type carries the IR's client nullability.
                     if (!optional && (!present || item is null && Text(Shape(Text(description!["target"])!)["kind"]) != "document"))
@@ -319,8 +293,6 @@ internal sealed partial class ClientRuntime : IDisposable
             var raw = format == "epoch-seconds" ? JsonNode.Parse(value)! : JsonValue.Create(value)!;
             return WriteTime(ReadTime(raw, format), Text(member["format"]));
         }
-        // A non-finite float travels as the protocol's string, which Decode converts as it does for a body.
-        if (kind is "float" or "double" && ProtocolFlag("nonFiniteFloatStrings") && value.Trim() is "NaN" or "Infinity" or "-Infinity") return JsonValue.Create(value.Trim());
         if (kind is "byte" or "short" or "integer" or "long" or "float" or "double" or "boolean" or "intEnum" or "bigInteger" or "bigDecimal") return JsonNode.Parse(value);
         return JsonValue.Create(value);
     }
@@ -485,25 +457,8 @@ internal sealed partial class ClientRuntime : IDisposable
             if (!modelledContentType) headers["Content-Type"] = Text(request["payload"]![1]) ?? "application/octet-stream";
             if (stream.Sha256 is not null) headers["x-amz-content-sha256"] = stream.Sha256;
         }
-        if (Text(schema["protocol"]) is "awsJson1_0" or "awsJson1_1")
-        {
-            body ??= Encoding.UTF8.GetBytes("{}");
-            headers["Content-Type"] = "application/x-amz-json-" + (Text(schema["protocol"]) == "awsJson1_0" ? "1.0" : "1.1");
-            headers["X-Amz-Target"] = Text(schema["service"])!.Split('#')[^1] + "." + name;
-        }
         // The release this client was generated for (docs/api-versions-clients.md).
         if (Text(schema["apiVersion"]) is string apiVersion) headers["Crucible-Version"] = apiVersion;
-        if (Rpc is { } rpc)
-        {
-            // RPC v2: the lowered URI is /service/{Service}/operation/{Operation}; an operation without input sends no body.
-            headers["Smithy-Protocol"] = rpc.Marker; headers["Accept"] = rpc.Media; headers.Remove("Content-Type"); body = null;
-            if (Text(op["input"]) is string inputTarget)
-            {
-                var document = new JsonObject();
-                foreach (var m in request["body"]!.AsArray()) { var key = Wire(Text(m)!); if (values.ContainsKey(key)) document[key] = values[key]?.DeepClone(); }
-                body = RpcRequestBody(rpc, inputTarget, document); headers["Content-Type"] = rpc.Media;
-            }
-        }
         return new(op, new Uri(endpoint.TrimEnd('/') + path), headers, body, name, checksums, stream, minimum, maximum)
         {
             EndpointUrl = endpoint.TrimEnd('/'), EndpointSource = schema["endpointRules"] is null ? "configured" : "rules", Target = path,
@@ -753,8 +708,7 @@ internal sealed partial class ClientRuntime : IDisposable
                         trace.AttemptFinished(status, null, length, RequestIdOf(null, headers));
                         return output;
                     }
-                    bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null || prepared.Checksums.Response.Count != 0
-                        || Rpc is not null && op["output"] is not null;
+                    bool hasBody = op["response"]!["body"]!.AsArray().Count != 0 || payload is not null || prepared.Checksums.Response.Count != 0;
                     var bytes = response.IsSuccessStatusCode && !hasBody ? [] : await response.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
                     size = bytes.Length;
                     if (response.IsSuccessStatusCode)
@@ -801,7 +755,6 @@ internal sealed partial class ClientRuntime : IDisposable
     /// <summary>Decodes a buffered successful response; payloads occupy the whole body and are decoded by their modeled kind.</summary>
     private T Output<T>(JsonObject op, JsonArray? payload, byte[] bytes, int status, Dictionary<string, string> headers)
     {
-        if (Rpc is { } rpc) return RpcOutput<T>(rpc, op, bytes, headers);
         var body = payload is not null || bytes.Length == 0 ? new JsonObject() : JsonNode.Parse(bytes)!.AsObject();
         var target = Text(op["output"]);
         if (target is null) return (T)(object)new Unit();
@@ -828,16 +781,10 @@ internal sealed partial class ClientRuntime : IDisposable
     }
     private ServiceError Error(JsonObject op, int status, Dictionary<string, string> headers, byte[] bytes)
     {
-        if (Rpc is { } rpc) return RpcError(rpc, op, status, headers, bytes);
         JsonObject body;
         try { body = JsonNode.Parse(bytes) as JsonObject ?? new JsonObject(); } catch (JsonException) { body = new(); }
         static string? StringValue(JsonNode? v) => v is JsonValue j && j.TryGetValue<string>(out var s) ? s : null;
         var name = headers.GetValueOrDefault("x-crucible-error") ?? StringValue(body["__type"]);
-        if (AwsJson)
-        {
-            name = headers.GetValueOrDefault("x-amzn-errortype") ?? StringValue(body["code"]) ?? StringValue(body["__type"]);
-            if (name is not null) name = name.Split(':', 2)[0].Split('#')[^1];
-        }
         var candidates = op["errors"]!.AsArray().Select(n => Text(n)!).ToList();
         string? target;
         if (name is not null) target = candidates.Find(id => ErrorCode(id) == name);
@@ -860,8 +807,7 @@ internal sealed partial class ClientRuntime : IDisposable
         }
         name ??= target is null ? "UnknownError" : ErrorCode(target);
         var requestId = headers.GetValueOrDefault("x-request-id") ?? StringValue(body["requestId"]);
-        if (AwsJson) requestId = headers.GetValueOrDefault("x-amzn-requestid") ?? headers.GetValueOrDefault("x-amz-request-id") ?? requestId;
-        error.Initialize(name, StringValue(body["message"]) ?? (AwsJson ? StringValue(body["Message"]) : null) ?? $"HTTP {status}", status, requestId, headers, Flag(metadata?["retryable"]), Flag(metadata?["throttling"]));
+        error.Initialize(name, StringValue(body["message"]) ?? $"HTTP {status}", status, requestId, headers, Flag(metadata?["retryable"]), Flag(metadata?["throttling"]));
         return error;
     }
     /// <summary>The delay after the given (1-based) failed attempt: a valid Retry-After, or full-jitter backoff.</summary>

@@ -302,14 +302,9 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::Waiters,
         Feature::EndpointRules,
         Feature::EndpointHostPrefix,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
         Feature::EndpointDiscovery,
-        Feature::SmithyRpcV2Cbor,
-        Feature::SmithyRpcV2Json,
         Feature::DigestAuth,
         Feature::SigV4a,
     ])
@@ -415,32 +410,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             for v in &e.values {
                 if !values.insert(pascal(&v.name)) {
                     diagnostics.push(id, "C# integer enum constant name collision");
-                }
-            }
-        }
-    }
-    // The runtime carries a stream only as the whole HTTP body.
-    for op in &service.operations {
-        for (shape, bindings) in [(&op.input, &op.request), (&op.output, &op.response)] {
-            let Some(Shape::Structure(s)) = shape.as_ref().and_then(|id| service.shape(id)) else {
-                continue;
-            };
-            for m in &s.members {
-                let streaming =
-                    matches!(service.shape(&m.target), Some(Shape::Simple(t)) if t.streaming);
-                if streaming
-                    && !bindings
-                        .payload
-                        .as_ref()
-                        .is_some_and(|p| p.streaming && p.member == m.name)
-                {
-                    diagnostics.push(
-                        &op.id,
-                        format!(
-                            "C# streams only an HTTP payload; {} is not the streaming payload",
-                            m.name
-                        ),
-                    );
                 }
             }
         }
@@ -916,12 +885,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/ActivityTelemetryHook.cs"),
         ),
         (
-            "ClientRuntime.Rpc",
-            include_str!("../runtime/ClientRuntime.Rpc.cs"),
+            "ClientRuntime.Digest",
+            include_str!("../runtime/ClientRuntime.Digest.cs"),
         ),
-        ("Cbor", include_str!("../runtime/Cbor.cs")),
-        ("CborMap", include_str!("../runtime/CborMap.cs")),
-        ("CborTag", include_str!("../runtime/CborTag.cs")),
         ("Sha512_256", include_str!("../runtime/Sha512_256.cs")),
         (
             "DigestAuthentication",

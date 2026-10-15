@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crucible_codegen_openapi::{Options, capabilities, generate};
-use crucible_smithy::{Capabilities, Feature, Model, Protocol};
+use crucible_smithy::{Capabilities, Feature, Model};
 use serde_json::{Value, json};
 
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
@@ -656,46 +656,6 @@ fn incompatible_path_templates_and_methods_are_collected() {
 }
 
 #[test]
-fn aws_rest_json_uses_its_timestamp_and_error_rules() {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    let traits = model["shapes"]["example.weather#Weather"]["traits"]
-        .as_object_mut()
-        .unwrap();
-    traits.remove("crucible.protocols#json");
-    traits.insert("aws.protocols#restJson1".into(), json!({}));
-    model["shapes"]["example.weather#GetCityOutput"]["members"]["modified"] = json!({"target": "smithy.api#Timestamp", "traits": {"smithy.api#httpHeader": "Last-Modified"}});
-    let svc = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &capabilities())
-        .unwrap();
-    assert_eq!(svc.protocol, Protocol::AwsRestJson1);
-    let doc = document(&svc);
-    assert_eq!(
-        doc["components"]["schemas"]["smithy.api.Timestamp"]["type"],
-        "number"
-    );
-    assert_eq!(
-        doc["paths"]["/cities/{cityId}"]["get"]["responses"]["200"]["headers"]["Last-Modified"]["schema"]
-            ["x-smithy-timestamp-format"],
-        "http-date"
-    );
-    assert!(
-        doc["paths"]["/cities"]["post"]["responses"]["409"]["headers"]
-            .get("X-Amzn-Errortype")
-            .is_some()
-    );
-    let conflict = &doc["components"]["schemas"]["example.weather.ConflictError"];
-    assert!(
-        !conflict["required"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|v| v == "__type")
-    );
-    assert!(conflict["properties"].get("__type").is_none());
-}
-
-#[test]
 fn externally_lowered_unsupported_features_are_rechecked() {
     let model = include_str!("../../crucible-smithy/tests/fixtures/error-payloads.json");
     let svc = Model::from_json(model)
@@ -707,14 +667,6 @@ fn externally_lowered_unsupported_features_are_rechecked() {
             .unwrap_err()
             .to_string()
             .contains("prefix-headers")
-    );
-    let mut svc = service(|_| {});
-    svc.protocol = Protocol::SmithyRpcV2Cbor;
-    assert!(
-        generate(&svc, &Options::default())
-            .unwrap_err()
-            .to_string()
-            .contains("REST JSON only")
     );
 }
 

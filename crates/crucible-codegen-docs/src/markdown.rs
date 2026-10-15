@@ -105,17 +105,14 @@ fn link(label: &str, path: &str) -> String {
 pub(super) fn render(d: &Description) -> Vec<File> {
     let mut summary = "# Summary\n\n- [Service overview](index.md)\n".to_owned();
     let mut index = format!(
-        "# {}\n\n{}{}Service version: {}.\n\n## Protocol\n\nSelected wire protocol: {}.\n\nDeclared protocols:\n\n",
+        "# {}\n\n{}{}Service version: {}.\n\n## Protocol\n\nWire protocol: {}.\n\n",
         heading(string(&d.service["title"])),
         notes(&d.service),
         docs(&d.service),
         code(string(&d.service["version"])),
         code(string(&d.service["protocol"]))
     );
-    for protocol in list(&d.service["protocols"]) {
-        index.push_str(&format!("- {}\n", code(string(protocol))));
-    }
-    index.push_str("\n## Authentication\n\n");
+    index.push_str("## Authentication\n\n");
     if list(&d.service["auth"]).is_empty() {
         index.push_str("No default authentication schemes.\n\n");
     }

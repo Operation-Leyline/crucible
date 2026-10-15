@@ -12,7 +12,12 @@ use crate::ir::Service;
 /// teaches `read` the older one. A field added with a default needs no bump:
 /// an older compiler refuses a snapshot with a field it does not know
 /// rather than drop it.
-pub const FORMAT: u32 = 1;
+///
+/// Format 2 dropped what only the removed protocols used (XML shapes, the
+/// declared-protocol list, protocol tests, initial messages and the protocol
+/// settings that were never set for Crucible JSON); [`read`] drops them from
+/// a format 1 snapshot of a Crucible JSON service.
+pub const FORMAT: u32 = 2;
 
 #[derive(Serialize, Deserialize)]
 struct Snapshot {
@@ -159,6 +164,10 @@ pub fn read(text: &str) -> Result<Service, String> {
             "release snapshot format {format} is newer than this compiler reads ({FORMAT}); update Crucible"
         ));
     }
+    let mut value = value;
+    if format == 1 {
+        migrate_format_1(&mut value)?;
+    }
     let snapshot: Snapshot = serde_json::from_value(value.clone())
         .map_err(|error| format!("release snapshot format {format}: {error}"))?;
     // Whatever this compiler does not know would be dropped silently: a
@@ -170,6 +179,61 @@ pub fn read(text: &str) -> Result<Service, String> {
         ));
     }
     Ok(snapshot.service)
+}
+
+/// Reads a format 1 snapshot as format 2: removes the fields that only the
+/// removed protocols used. A snapshot frozen with another protocol cannot be
+/// read, since nothing implements that protocol any more.
+fn migrate_format_1(value: &mut serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let Some(service) = value.get_mut("service").and_then(Value::as_object_mut) else {
+        return Ok(());
+    };
+    if let Some(protocol) = service.get("protocol").and_then(Value::as_str)
+        && protocol != "crucibleJson"
+    {
+        return Err(format!(
+            "the release snapshot was frozen with protocol `{protocol}`, which Crucible no longer supports; only `crucibleJson` is supported"
+        ));
+    }
+    for field in ["protocols", "xml_namespace", "xml_shapes", "protocol_tests"] {
+        service.remove(field);
+    }
+    if let Some(settings) = service
+        .get_mut("protocol_settings")
+        .and_then(Value::as_object_mut)
+    {
+        for field in [
+            "noErrorWrapping",
+            "omitNullStructureMembers",
+            "ignoreUnknownUnionType",
+            "nonFiniteFloatStrings",
+            "arbitraryPrecisionStrings",
+        ] {
+            settings.remove(field);
+        }
+    }
+    for operation in service
+        .get_mut("operations")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+    {
+        if let Some(operation) = operation.as_object_mut() {
+            operation.remove("unwrapped_xml_output");
+            for side in ["request", "response"] {
+                if let Some(stream) = operation
+                    .get_mut(side)
+                    .and_then(|bindings| bindings.get_mut("event_stream"))
+                    .and_then(Value::as_object_mut)
+                {
+                    stream.remove("initial_message");
+                }
+            }
+        }
+    }
+    value["format"] = Value::from(2);
+    Ok(())
 }
 
 /// The first field `original` has that `read`, the same snapshot read and

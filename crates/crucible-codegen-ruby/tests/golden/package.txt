@@ -35,7 +35,6 @@ require_relative 'weather_client/runtime/query'
 require_relative 'weather_client/runtime/waiters'
 require_relative 'weather_client/runtime/endpoints'
 require_relative 'weather_client/runtime/checksums'
-require_relative 'weather_client/runtime/xml_protocol'
 require_relative 'weather_client/runtime/client_config'
 require_relative 'weather_client/runtime/http_request'
 require_relative 'weather_client/runtime/http_response'
@@ -1040,5 +1039,4 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'zlib', '>= 3.0', '< 4'
   spec.add_dependency 'ipaddr', '>= 1.2', '< 2'
   spec.add_dependency 'stringio', '>= 3.0', '< 4'
-  spec.add_dependency 'rexml', '>= 3.2', '< 4'
 end

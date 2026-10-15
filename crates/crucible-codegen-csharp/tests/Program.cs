@@ -447,21 +447,19 @@ static class Program
         var first = "Mon, 16 Dec 2019 23:48:18 GMT"; var second = "Tue, 17 Dec 2019 23:48:18 GMT";
         string[] Parse(object runtime, string wire) => ((JsonArray)Invoke(runtime, "Header", J("""{"target":"Times"}"""), wire, null)!).Select(item => item!.GetValue<string>()).ToArray();
         var shapes = """{"Time":{"kind":"timestamp","format":"http-date"},"Times":{"kind":"list","member":{"target":"Time","format":"http-date"}},"Ratio":{"kind":"float"}}""";
-        var runtime = Runtime(new() { Endpoint = "https://example.invalid" }, J("{\"shapes\":" + shapes + ",\"operations\":{},\"protocolSettings\":{\"nonFiniteFloatStrings\":true}}").AsObject(), new());
+        var runtime = Runtime(new() { Endpoint = "https://example.invalid" }, J("{\"shapes\":" + shapes + ",\"operations\":{}}").AsObject(), new());
         try
         {
             Check(Parse(runtime, first + ", " + second).SequenceEqual([first, second]), "unquoted HTTP-date list splits on date boundaries");
             Check(Parse(runtime, first).SequenceEqual([first]), "single HTTP-date");
             Check(Parse(runtime, "\"" + first + "\"").SequenceEqual([first]), "quoted HTTP-date");
-            foreach (var text in new[] { "NaN", "Infinity", "-Infinity" })
-                Check(((JsonNode)Invoke(runtime, "Header", J("""{"target":"Ratio"}"""), text, null)!).GetValue<string>() == text, "non-finite float header " + text);
             Check(((JsonNode)Invoke(runtime, "Header", J("""{"target":"Ratio"}"""), "1.5", null)!).GetValue<double>() == 1.5, "finite float header");
         }
         finally { ((IDisposable)runtime).Dispose(); }
         var strict = Runtime(new() { Endpoint = "https://example.invalid" }, J("{\"shapes\":" + shapes + ",\"operations\":{}}").AsObject(), new());
         try
         {
-            try { Invoke(strict, "Header", J("""{"target":"Ratio"}"""), "NaN", null); throw new Exception("NaN accepted without non-finite floats"); }
+            try { Invoke(strict, "Header", J("""{"target":"Ratio"}"""), "NaN", null); throw new Exception("NaN accepted as a float header"); }
             catch (JsonException) { }
         }
         finally { ((IDisposable)strict).Dispose(); }

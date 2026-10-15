@@ -196,39 +196,6 @@ fn streaming_blobs_use_byte_streams_and_response_targets() {
     assert!(client.contains(r"public function upload(\Example\Weather\UploadInput $input, ?Runtime\CancellationToken $cancellation = null): Runtime\Unit"));
 }
 
-#[test]
-fn rpc_v2_and_extended_auth_generate_packages() {
-    for fixture in [
-        include_str!("../../crucible-smithy/tests/fixtures/rpcv2-cbor.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/rpcv2-json.json"),
-    ] {
-        let service = lower_supported(&serde_json::from_str(fixture).unwrap());
-        let files = emit(&service, &options()).unwrap();
-        let manifest = &files
-            .iter()
-            .find(|f| f.path == "composer.json")
-            .unwrap()
-            .contents;
-        assert!(!manifest.contains("ext-openssl"));
-        assert!(files.iter().any(|f| f.path == "src/Runtime/Cbor.php"));
-    }
-    let service = lower_supported(
-        &serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/rpc-auth.json"
-        ))
-        .unwrap(),
-    );
-    let files = emit(&service, &options()).unwrap();
-    let file = |path: &str| &files.iter().find(|f| f.path == path).unwrap().contents;
-    // SigV4a signs with ECDSA through the openssl extension.
-    assert!(file("composer.json").contains("\"ext-openssl\": \"*\""));
-    assert!(
-        file("src/Runtime/DigestAuthentication.php")
-            .contains(r"namespace Example\Weather\Runtime;")
-    );
-    assert!(file("src/schema.json").contains(r#""kind":"sigV4a""#));
-}
-
 fn vault() -> (crucible_smithy::ir::Service, Options) {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/client-docs.json"

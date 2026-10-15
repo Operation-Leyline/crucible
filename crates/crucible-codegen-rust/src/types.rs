@@ -143,44 +143,14 @@ pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
             }
             Some(format!("{base}Map<{inner}>"))
         }
-        Shape::Simple(simple)
-            if matches!(simple.kind, SimpleKind::Float | SimpleKind::Double)
-                && (service.protocol_settings.non_finite_float_strings
-                    || service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor) =>
-        {
-            Some(format!("{base}NonFinite"))
-        }
         Shape::Simple(simple) if simple.kind == SimpleKind::Float => {
             Some(format!("{base}FiniteFloat"))
         }
         Shape::Simple(simple) if simple.kind == SimpleKind::Timestamp => {
-            if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
-                return Some(
-                    "::crucible_server_runtime_rust::__generated::cbor::Timestamp".to_owned(),
-                );
-            }
             match service.document_timestamp_format(member) {
                 TimestampFormat::EpochSeconds => Some(format!("{base}EpochSeconds")),
                 TimestampFormat::HttpDate => Some(format!("{base}HttpDate")),
                 TimestampFormat::DateTime => None,
-            }
-        }
-        Shape::Simple(simple)
-            if matches!(simple.kind, SimpleKind::BigInteger | SimpleKind::BigDecimal) =>
-        {
-            if service.protocol_settings.arbitrary_precision_strings {
-                Some("::crucible_server_runtime_rust::__generated::cbor::StringNumber".to_owned())
-            } else if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
-                Some(format!(
-                    "::crucible_server_runtime_rust::__generated::cbor::{}",
-                    if simple.kind == SimpleKind::BigInteger {
-                        "Integer"
-                    } else {
-                        "Decimal"
-                    }
-                ))
-            } else {
-                None
             }
         }
         _ => None,

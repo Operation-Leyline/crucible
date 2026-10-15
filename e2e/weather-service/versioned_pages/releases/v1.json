@@ -6,12 +6,7 @@
     "internal": false,
     "endpoint_discovery": null,
     "recursive_groups": [],
-    "xml_namespace": null,
-    "xml_shapes": {},
     "protocol": "crucibleJson",
-    "protocols": [
-      "crucibleJson"
-    ],
     "errors": [
       "crucible.errors#ValidationException",
       "crucible.errors#InternalServerException"
@@ -22,11 +17,7 @@
       ],
       "eventStreamHttp": [
         "http/1.1"
-      ],
-      "noErrorWrapping": false,
-      "omitNullStructureMembers": false,
-      "ignoreUnknownUnionType": false,
-      "nonFiniteFloatStrings": false
+      ]
     },
     "requirements": [],
     "id": "test.versioned_pages#Pages",
@@ -43,7 +34,6 @@
     "scopes": [],
     "auth_schemes": {},
     "endpoint_rules": null,
-    "protocol_tests": [],
     "operations": [
       {
         "protocol_headers": {},
@@ -51,7 +41,6 @@
           "Content-Type": "application/json"
         },
         "internal": false,
-        "unwrapped_xml_output": false,
         "unsigned_payload": false,
         "discovered_endpoint": null,
         "checksum": null,
@@ -133,7 +122,6 @@
           "Content-Type": "application/json"
         },
         "internal": false,
-        "unwrapped_xml_output": false,
         "unsigned_payload": false,
         "discovered_endpoint": null,
         "checksum": null,

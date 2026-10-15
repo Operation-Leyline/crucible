@@ -357,13 +357,11 @@ its change. Other bodyless requests receive no generated digest.
 Run `cargo test -p crucible-codegen-rust -p crucible-client-runtime-rust -p crucible-wire`,
 then `bash tools/test-e2e.sh` for the generated client over the weather service.
 The E2E client tests also drive generated clients for the shared
-`error-payloads`, `checksums` (with its vectors), and `protocol-json` fixtures
-(once per AWS JSON protocol) against loopback HTTP peers. Native server tests
-also cover AWS JSON and REST JSON, RPC v2 JSON/CBOR, and event streams in
-`tests/server_protocols.rs` and `tests/server_events.rs`. The `event-streams` fixture runs
-the same way under `restJson1`, `awsJson1_0`, and SigV4 (`tests/event_streams.rs`),
-and `crucible-wire` decodes the published framing vectors in
-`tests/conformance/event-streams.json`.
+`error-payloads` and `checksums` (with its vectors) fixtures against loopback
+HTTP peers. Native server tests cover event streams in `tests/server_events.rs`.
+The `event-streams` fixture runs the same way under SigV4
+(`tests/event_streams.rs`), and `crucible-wire` decodes the published framing
+vectors in `tests/conformance/event-streams.json`.
 The real loopback retry runner consumes the shared retry fixture. The E2E
 workspace is a separate Cargo workspace and uses a generated model package.
 
@@ -517,16 +515,11 @@ Each event is one AWS event stream message (`application/vnd.amazon.eventstream`
 with `:message-type`, `:event-type`, and `:content-type` headers. `@eventHeader`
 members are typed headers: booleans, byte, short, integer, long, blob, string
 (and enum), and timestamps in milliseconds. An `@eventPayload` blob or string
-is the raw payload, and a structure uses the protocol document format. Without an
-`@eventPayload`, the remaining members form a protocol document (CBOR for
-RPC v2 CBOR, JSON otherwise). Prelude and message
+is the raw payload, and a structure is a JSON document. Without an
+`@eventPayload`, the remaining members form a JSON document. Prelude and message
 CRC32s are verified. The server limits headers to 128 KiB and payloads to
 24 MiB; clients do not enforce these service-side size limits.
-With `restJson1` and `crucible.protocols#json`, the operation's other members
-use HTTP bindings. With `awsJson1_0` and `awsJson1_1`, they are sent as an
-`initial-request` message before the first event. An `initial-response`
-message, when the service sends one, fills the output's other members before
-the call returns.
+The operation's other members use HTTP bindings.
 
 With SigV4 authentication the request declares
 `x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-EVENTS`. Each message is
@@ -628,52 +621,6 @@ Header strings whose target has `@mediaType`, including list elements and
 `@httpPrefixHeaders` values, travel base64-encoded. The public model holds the
 decoded text. A response header that is not base64 of UTF-8 text is
 `Error::Decode`.
-
-### Smithy RPC v2
-
-Rust service and client generation support `smithy.protocols#rpcv2Json` and
-`smithy.protocols#rpcv2Cbor`. Calls use `POST` with
-`/service/Service/operation/Operation` and a matching `Smithy-Protocol` header.
-The transport supplies the buffered or event-stream `Accept` and `Content-Type`
-headers. Unit operations send no body or serialization media type; empty
-modeled structures still send a document. Successful responses use status 200.
-The client rejects a missing or mismatched response protocol header.
-
-RPC v2 ignores HTTP member bindings, `jsonName`, and timestamp-format overrides.
-JSON timestamps use epoch seconds and arbitrary-precision numbers use strings.
-CBOR blobs are byte strings, timestamps use tag 1, and arbitrary-precision
-integers and decimals use their CBOR tags. Non-finite floats remain native CBOR
-numbers. Error types use full Smithy shape ids and modeled `httpError` statuses;
-AWS error headers are ignored.
-
-Streaming unions use event-stream frames, with initial request and response
-documents in JSON or CBOR. Raw streaming blobs remain unsupported. The server
-`defaults()` selects the modeled protocol. Regenerate service and client
-contracts together with matching runtime and generator versions; handwritten
-`EventInfo` descriptions must include the document codec fields (`None` for
-JSON event documents). See the
-[framework guide](../framework.md#protocols) for authentication and hosting.
-
-### AWS JSON protocols
-
-A model can be generated for `aws.protocols#restJson1`, `awsJson1_0`, or
-`awsJson1_1`; a service that declares several needs one selected at generation.
-`restJson1` uses HTTP bindings like `crucible.protocols#json`, but body
-timestamps default to epoch seconds, header timestamps to HTTP dates (lists are
-sent unquoted), and query and label timestamps to RFC 3339. The two RPC
-protocols POST every member as a JSON body (`{}` for an empty input) to `/`
-with `X-Amz-Target: {Service}.{Operation}` and
-`application/x-amz-json-1.0` or `-1.1`.
-
-All three omit an explicit `Field::Null` structure member when sending and read
-a null member as `Field::Absent`; document members keep their nulls. `NaN`,
-`Infinity`, and `-Infinity` floats are sent and read as those strings. A
-`__type` key beside a union member is ignored. Errors are named by
-`X-Amzn-Errortype`, then the body's `__type` or `code`; namespaces and `:`
-suffixes are dropped, and renamed errors still match their wire name. A
-capitalized `Message` fills a modeled `message` member and
-`UnknownError::message`. Request IDs come from `x-request-id`,
-`x-amzn-requestid`, or `x-amz-request-id`.
 
 ### HTTP checksums
 

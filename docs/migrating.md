@@ -35,6 +35,17 @@ versions needs an authenticator for each scheme an older release's
 operations declare; otherwise `Builder::build` returns an error naming the
 API version and scheme.
 
+### Only Crucible JSON remains
+
+Crucible serves and generates clients for `@crucible.protocols#json` only.
+Smithy models that declare `restJson1`, `awsJson1_0`, `awsJson1_1`,
+`restXml`, `awsQuery`, `ec2Query`, `rpcv2Cbor` or `rpcv2Json`, or use the XML
+and query traits, fail with `protocol X is not supported`: declare
+`@crucible.protocols#json` and bind each operation with `@http`. Drop
+`.protocol(..)`, `.conformance()`, `--protocol` and `crucible conformance`
+from build scripts and CI. Release snapshots are format 2; format 1
+snapshots of Crucible JSON services still read, others are refused.
+
 ### `FrameworkError` is non-exhaustive, with `Conflict`, `NotFound` and `PermissionDenied`
 
 `FrameworkError` gained `Conflict { message }`, the 409 that idempotency
@@ -64,7 +75,7 @@ match error {
 }
 ```
 
-`name()`, `status()`, `message()` and the new `shape_id()` cover every
+`name()`, `status()` and `message()` cover every
 variant, so code that only calls those is unaffected.
 
 ### `OperationMetadata` is non-exhaustive
@@ -122,7 +133,6 @@ now does too:
 | Reader | 0.7 | Now |
 |---|---|---|
 | Crucible JSON server, `Option<Value>` member | `Some(Value::Null)` | `None` |
-| AWS REST JSON server | `Some(Value::Null)` | `Some(Value::Null)` |
 | Rust client response, `Field<Value>` member | `Field::Value(Value::Null)` | `Field::Null` |
 
 Replace a client match on `Field::Value(Value::Null)` with `is_null()`. A
@@ -140,7 +150,6 @@ of any length or sensitive:
 | Malformed value of an undeclared query parameter | the parameter (`ignored`) | `query` |
 | Malformed entry of an `@httpQueryParams` map | the query key | `<member>/[key]` |
 | Malformed entry of an `@httpPrefixHeaders` map | the header name | `<member>/[key]` |
-| CBOR input missing a required member | `""`, `cannotParse` | the member, `is required`, `fieldValidationFailed` |
 
 A declared query parameter, a label, a header and a missing member keep the
 model's name. An unsupported `Crucible-Version` is refused with the versions
@@ -350,7 +359,7 @@ Generated code now reaches the runtimes only through the hidden
 `__generated` module, which has no compatibility promise. Rebuild so bindings
 and SDKs are regenerated, including checked-in ones, and do not edit or call
 `__generated` from hand-written code. If hand-written code imported `codec`,
-`cbor`, `open` or `field` from a runtime root, use the documented
+`open` or `field` from a runtime root, use the documented
 `OpenEnum`, `UnknownUnion` and `Field` instead.
 
 ### Matches on metadata need a fallback arm

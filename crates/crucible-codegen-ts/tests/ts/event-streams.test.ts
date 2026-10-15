@@ -6,7 +6,6 @@ import { test } from "node:test";
 import { ChecksumError, EventStream, EventStreamError, EventsClient, EventsException, NetworkError, ThrottledError, TimeoutError, UnavailableError } from "./generated-events/src/index.js";
 import type { ClientEvents, ServerEvents } from "./generated-events/src/index.js";
 import { EventMessageDecoder, EventSigner, crc32, decodeEvent, decodeEventMessage, encodeEventMessage, encodeHeaders, type EventHeaderValue, type EventMessage } from "./generated-events/src/events.js";
-import { EventStream as RpcEventStream, EventsClient as RpcClient } from "./generated-events-rpc/src/index.js";
 import { EventStream as SignedEventStream, EventsClient as SignedClient } from "./generated-events-signed/src/index.js";
 
 interface VectorHeader { name: string; type: string; value: unknown }
@@ -414,44 +413,6 @@ test("a failing event source aborts the request", async () => {
   } finally { await server.close(); }
   assert.equal(count, 1);
   assert.equal(complete, false);
-});
-
-test("RPC protocols carry the other members in initial messages", async () => {
-  const requests: string[] = [];
-  let received: EventMessage[] = [];
-  const server = await serve(async (request, response) => {
-    const target = String(request.headers["x-amz-target"]);
-    requests.push(target);
-    assert.equal(request.url, "/");
-    if (target === "Events.Publish") {
-      assert.equal(request.headers["content-type"], "application/vnd.amazon.eventstream");
-      for await (const message of messages(request)) received.push(message);
-      response.writeHead(200, { "content-type": "application/x-amz-json-1.0" }); response.end('{"accepted":4}');
-      return;
-    }
-    let body = "";
-    for await (const chunk of request) body += new TextDecoder().decode(chunk);
-    start(response);
-    if (JSON.parse(body).limit === 2) await write(response, event("initial-response", '{"channel":"news"}'));
-    await write(response, event("ping", "{}"));
-    response.end();
-  });
-  try {
-    const client = new RpcClient({ endpoint: server.endpoint });
-    assert.equal((await client.publish({ channel: "general", events: new RpcEventStream(clientEvents()) })).accepted, 4n);
-    const [initial, ...events] = received;
-    assert.deepEqual(header(initial, ":event-type"), str("initial-request"));
-    assert.deepEqual(JSON.parse(new TextDecoder().decode(initial.payload)), { channel: "general" });
-    checkClientEvents(events, "count");
-    for (const limit of [2, undefined]) {
-      const output = await client.subscribe({ channel: "news", limit });
-      assert.equal(output.channel, limit === 2 ? "news" : undefined);
-      const seen = [];
-      for await (const item of output.events) seen.push(item);
-      assert.deepEqual(seen, [{ ping: {} }]);
-    }
-    assert.deepEqual(requests, ["Events.Publish", "Events.Subscribe", "Events.Subscribe"]);
-  } finally { await server.close(); }
 });
 
 const hmac = (key: Uint8Array | string, value: Uint8Array | string) => createHmac("sha256", key).update(value).digest();

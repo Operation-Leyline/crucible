@@ -72,8 +72,6 @@ final class ClientRuntime {
   private final JsonObject endpointBuiltins;
   private final Map<String, Class<?>> classes;
   private final boolean digest;
-  // The XML family's codec, or null for the JSON protocols.
-  private final XmlProtocol xml;
 
   private void checkCollectionValue(JsonObject container, JsonObject member, Object value) {
     if (!flag(container, "sparse") && (value == null || value instanceof JsonElement item && item.isJsonNull()))
@@ -146,7 +144,6 @@ final class ClientRuntime {
     this.schema = schema;
     this.classes = classes;
     this.digest = digest;
-    this.xml = XmlProtocol.handles(text(schema, "protocol")) ? new XmlProtocol(schema) : null;
   }
 
   private static JsonObject loadSchema() {
@@ -220,8 +217,6 @@ final class ClientRuntime {
     }
   }
 
-  private boolean policy(String name) { var settings=schema.getAsJsonObject("protocolSettings"); return settings!=null && flag(settings,name); }
-  private boolean awsJson() { return Set.of("awsRestJson1","awsJson1_0","awsJson1_1").contains(String.valueOf(text(schema,"protocol"))); }
 
   JsonElement encode(String target, Object value, String format) {
     if (target == null) return new JsonObject();
@@ -232,7 +227,7 @@ final class ClientRuntime {
     switch (kind) {
       case "float": case "double": {
         double number=((Number)value).doubleValue();
-        if(!Double.isFinite(number)) { if(!policy("nonFiniteFloatStrings")) throw new IllegalArgumentException("Nonfinite number"); return new JsonPrimitive(value.toString()); }
+        if(!Double.isFinite(number)) throw new IllegalArgumentException("Nonfinite number");
         return new JsonPrimitive((Number)value);
       }
       case "timestamp":
@@ -288,7 +283,6 @@ final class ClientRuntime {
                 if (!optional.present()) continue;
                 item = optional.value();
               }
-              if(item==null && policy("omitNullStructureMembers") && "structure".equals(kind) && !"document".equals(text(shape(text(member,"target")),"kind"))) continue;
               result.add(
                   wireName(target, entry.getKey()), encode(text(member, "target"), item, text(member, "format")));
             }
@@ -352,14 +346,12 @@ final class ClientRuntime {
         return number(value).longValueExact();
       case "float":
         {
-          if(policy("nonFiniteFloatStrings") && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && Set.of("NaN","Infinity","-Infinity").contains(value.getAsString())) return Float.valueOf(value.getAsString());
           float n = number(value).floatValue();
           if (!Float.isFinite(n)) throw new IllegalArgumentException("float overflow");
           return n;
         }
       case "double":
         {
-          if(policy("nonFiniteFloatStrings") && value.isJsonPrimitive() && value.getAsJsonPrimitive().isString() && Set.of("NaN","Infinity","-Infinity").contains(value.getAsString())) return Double.valueOf(value.getAsString());
           double n = number(value).doubleValue();
           if (!Double.isFinite(n)) throw new IllegalArgumentException("double overflow");
           return n;
@@ -404,8 +396,7 @@ final class ClientRuntime {
           var members = shape.getAsJsonObject("members");
           try {
             if ("union".equals(kind)) {
-              if(policy("ignoreUnknownUnionType") && !declaredWireName(target,"__type")) { object=object.deepCopy(); object.remove("__type"); }
-              if (object.size() != 1 || policy("ignoreUnknownUnionType") && object.entrySet().iterator().next().getValue().isJsonNull())
+              if (object.size() != 1)
                 throw new IllegalArgumentException("a union must contain exactly one member");
               var entry = object.entrySet().iterator().next();
               if (!declaredWireName(target, entry.getKey())) {
@@ -421,7 +412,6 @@ final class ClientRuntime {
               // A response stream is attached after decoding, from the body itself.
               if (flag(shape(text(member, "target")), "streaming")) continue;
               JsonElement item = object.get(wireName(target, entry.getKey()));
-              if(item!=null && item.isJsonNull() && policy("omitNullStructureMembers") && "structure".equals(kind) && !"document".equals(text(shape(text(member,"target")),"kind"))) item=null;
               if (item == null && !member.get("default").isJsonNull()) item = member.get("default");
               Field field = result.getClass().getField(text(member, "attribute"));
               // OptionalValue is emitted from the IR's client nullability.
@@ -565,7 +555,6 @@ final class ClientRuntime {
       case "long":
       case "intEnum": case "bigInteger": case "bigDecimal":
       case "float": case "double":
-        if(policy("nonFiniteFloatStrings") && Set.of("NaN","Infinity","-Infinity").contains(value)) return new JsonPrimitive(value);
         return JSON.fromJson(value,JsonElement.class);
       case "boolean":
         return JSON.fromJson(value, JsonElement.class);
@@ -704,19 +693,7 @@ final class ClientRuntime {
       headers.put(wire, headerText(shape(text(op,"input")).getAsJsonObject("members").getAsJsonObject(binding.get(0).getAsString()),headerEncoding(request, binding.get(0).getAsString(), value, true),text(formats,binding.get(0).getAsString())));
     }
     byte[] body = null;
-    String protocol=text(schema,"protocol");
-    List<String> bodyMembers = new ArrayList<>();
-    for (var member : request.getAsJsonArray("body")) bodyMembers.add(member.getAsString());
-    if (xml != null && xml.query()) {
-      // awsQuery and ec2Query always send a form naming the action and API version.
-      body = xml.form(name, text(op, "input"), values);
-      headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
-      headers.put("content-type", "application/x-www-form-urlencoded");
-    } else if (xml != null && !bodyMembers.isEmpty()) {
-      body = xml.document(text(op, "input"), bodyMembers, values);
-      headers.keySet().removeIf(key -> key.equalsIgnoreCase("content-type"));
-      headers.put("content-type", "application/xml");
-    } else if (!request.getAsJsonArray("body").isEmpty()) {
+    if (!request.getAsJsonArray("body").isEmpty()) {
       JsonObject object = new JsonObject();
       for (var member : request.getAsJsonArray("body")) {
         String key = member.getAsString();
@@ -733,7 +710,7 @@ final class ClientRuntime {
       if (value != null && (!value.isJsonNull() || "document".equals(text(request, "payloadKind")))) {
         String kind = text(request, "payloadKind");
         byte[] bytes = "string".equals(kind) ? value.getAsString().getBytes(StandardCharsets.UTF_8)
-            : "document".equals(kind) ? (xml != null ? xml.payload(text(op, "input"), payload.getAsJsonArray().get(0).getAsString(), value) : JSON.toJson(value).getBytes(StandardCharsets.UTF_8))
+            : "document".equals(kind) ? JSON.toJson(value).getBytes(StandardCharsets.UTF_8)
             : Base64.getDecoder().decode(value.getAsString());
         if (bytes.length > 0 || "string".equals(kind)) {
           body = bytes;
@@ -753,12 +730,6 @@ final class ClientRuntime {
       }
       stream.sha256().ifPresent(digest -> headers.put("x-amz-content-sha256", digest));
     }
-    if("awsJson1_0".equals(protocol) || "awsJson1_1".equals(protocol)) {
-      if(body==null) body="{}".getBytes(StandardCharsets.UTF_8);
-      headers.keySet().removeIf(key->key.equalsIgnoreCase("content-type") || key.equalsIgnoreCase("x-amz-target"));
-      headers.put("content-type","awsJson1_0".equals(protocol) ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1");
-      String service=text(schema,"service"); headers.put("x-amz-target",service.substring(service.indexOf('#')+1)+"."+name);
-    } else if("awsRestJson1".equals(protocol) && payloadMember(request)==null && headers.keySet().stream().noneMatch(key->key.equalsIgnoreCase("content-type"))) headers.put("content-type","application/json");
     // The release this client was generated for (docs/api-versions-clients.md).
     String apiVersion = text(schema, "apiVersion");
     if (apiVersion != null) headers.put("crucible-version", apiVersion);
@@ -1241,19 +1212,9 @@ final class ClientRuntime {
     String body = new String(bytes, StandardCharsets.UTF_8);
     if (status >= 200 && status < 300) {
       String payload = payloadMember(op.getAsJsonObject("response"));
-      if (xml != null && (payload == null || "document".equals(text(op.getAsJsonObject("response"), "payloadKind")))) {
-        List<String> members = new ArrayList<>();
-        for (var member : op.getAsJsonObject("response").getAsJsonArray("body")) members.add(member.getAsString());
-        values = xml.output(operation, text(op, "output"), members, payload, bytes);
-      }
       // A payload is the body as received, whatever it holds.
-      else if (payload != null) {
-        JsonObject member = shape(text(op, "output")).getAsJsonObject("members").getAsJsonObject(payload);
-        boolean absentBlob = xml != null && bytes.length == 0 && flag(member, "optional")
-            && "blob".equals(text(shape(text(member, "target")), "kind"));
-        if (!absentBlob)
-          values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), bytes));
-      }
+      if (payload != null)
+        values.add(wireName(text(op, "output"), payload), payloadValue(op.getAsJsonObject("response"), bytes));
       else if (!body.isEmpty()) values = JSON.fromJson(body, JsonObject.class);
       if (values == null) throw new IllegalArgumentException("response requires object");
       applyHeaders(
@@ -1263,23 +1224,13 @@ final class ClientRuntime {
           response);
       return values;
     }
-    XmlProtocol.ErrorEnvelope envelope = xml == null ? null : XmlProtocol.error(bytes);
-    if (xml == null) try {
+    try {
       JsonElement parsed = JSON.fromJson(body, JsonElement.class);
       if (parsed != null && parsed.isJsonObject()) values = parsed.getAsJsonObject();
     } catch (RuntimeException ignored) {
     }
     JsonElement named = values.get("__type");
-    if (envelope != null) {
-      named = envelope.code() == null ? null : new JsonPrimitive(envelope.code());
-      if (envelope.message() != null) values.addProperty("Message", envelope.message());
-      if (envelope.requestId() != null) values.addProperty("requestId", envelope.requestId());
-    } else if(awsJson()) {
-      String errorHeader=response.headers().firstValue("x-amzn-errortype").orElse(null);
-      if(errorHeader!=null) named=new JsonPrimitive(errorHeader);
-      if(named==null) named=values.get("code");
-      if(named!=null && named.isJsonPrimitive() && named.getAsJsonPrimitive().isString()) { String name=named.getAsString().split(":",2)[0]; named=new JsonPrimitive(name.substring(name.indexOf('#')+1)); }
-    } else if (named==null) named=response.headers().firstValue("x-crucible-error").map(JsonPrimitive::new).orElse(null);
+    if (named==null) named=response.headers().firstValue("x-crucible-error").map(JsonPrimitive::new).orElse(null);
     boolean explicit =
         named != null && named.isJsonPrimitive() && named.getAsJsonPrimitive().isString();
     String name = explicit ? named.getAsString() : null, target = null;
@@ -1300,9 +1251,7 @@ final class ClientRuntime {
     ServiceError error = new ServiceException();
     if (target != null) {
       try {
-        JsonObject typedValues = envelope != null
-            ? (envelope.error() == null ? new JsonObject() : xml.members(envelope.error(), target, shape(target).getAsJsonObject("members").keySet()))
-            : values.deepCopy();
+        JsonObject typedValues = values.deepCopy();
         String payload = payloadMember(traits);
         if (payload != null) typedValues.add(wireName(target, payload), payloadValue(traits, bytes));
         applyHeaders(typedValues, target, traits, response);
@@ -1316,13 +1265,13 @@ final class ClientRuntime {
     String message =
         values.has("message") && values.get("message").isJsonPrimitive()
             ? values.get("message").getAsString()
-            : values.has("Message") && values.get("Message").isJsonPrimitive() ? values.get("Message").getAsString() : "HTTP " + status;
+            : "HTTP " + status;
     JsonElement idValue = values.get("requestId");
     String fallback =
         idValue != null && idValue.isJsonPrimitive() && idValue.getAsJsonPrimitive().isString()
             ? idValue.getAsString()
             : null;
-    String requestId = response.headers().firstValue("x-amzn-requestid").orElse(response.headers().firstValue("x-amz-request-id").orElse(response.headers().firstValue("x-request-id").orElse(fallback)));
+    String requestId = response.headers().firstValue("x-request-id").orElse(fallback);
     error.initialize(
         name == null ? "UnknownError" : name,
         message,

@@ -101,9 +101,6 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::Waiters,
         Feature::EndpointRules,
         Feature::EndpointHostPrefix,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
         Feature::HttpChecksum,
     ])
 }
@@ -520,8 +517,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     client.push_str("  client\n}\n");
-    // The rest of the schema (auth schemes, endpoint rules, protocol settings
-    // and tests, the permission registry) also becomes R strings when the
+    // The rest of the schema (auth schemes, endpoint rules, the
+    // permission registry) also becomes R strings when the
     // package loads, so a NUL anywhere in it is refused as well. The version
     // was diagnosed above.
     if schema.as_object().is_some_and(|fields| {

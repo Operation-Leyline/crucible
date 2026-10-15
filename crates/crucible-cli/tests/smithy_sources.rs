@@ -209,12 +209,7 @@ fn every_client_route_matches_compiled_ast_from_split_smithy_sources() {
                     .args(["generate", target])
                     .arg(input)
                     .args(options)
-                    .args([
-                        "--service",
-                        "example.greeting#Greeting",
-                        "--protocol",
-                        "crucible.protocols#json",
-                    ])
+                    .args(["--service", "example.greeting#Greeting"])
                     .arg("--out")
                     .arg(output)
                     .output()
@@ -349,32 +344,11 @@ fn source_models_preserve_service_and_protocol_selection() {
         cli()
             .arg("check")
             .arg(&sources)
-            .args([
-                "--service",
-                "example.greeting#Greeting",
-                "--protocol",
-                "crucible.protocols#json",
-            ])
+            .args(["--service", "example.greeting#Greeting"])
             .output()
             .unwrap(),
     );
     assert!(String::from_utf8_lossy(&selected.stdout).contains("example.greeting#Greeting"));
-    let unsupported = cli()
-        .arg("check")
-        .arg(&sources)
-        .args([
-            "--service",
-            "example.greeting#Greeting",
-            "--protocol",
-            "example.unsupported#protocol",
-        ])
-        .output()
-        .unwrap();
-    assert!(!unsupported.status.success());
-    assert!(
-        String::from_utf8_lossy(&unsupported.stderr)
-            .contains("unsupported protocol example.unsupported#protocol")
-    );
 }
 
 #[test]

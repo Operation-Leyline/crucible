@@ -343,28 +343,8 @@ pub(crate) fn marker_for(
 /// A marker's protocol and checksum description, when they differ
 /// from the defaults: `crucible.protocols#json` and no checksum.
 fn wire(service: &Service, op: &Operation) -> String {
-    use crucible_smithy::Protocol;
     use crucible_smithy::ir::{Checksum, ChecksumAlgorithm};
     let mut out = String::new();
-    let protocol = match service.protocol {
-        Protocol::AwsRestJson1 => Some("AwsRestJson1".to_owned()),
-        Protocol::AwsJson10 => Some(format!(
-            "AwsJson10 {{ service: {} }}",
-            literal(service.id.name())
-        )),
-        Protocol::AwsJson11 => Some(format!(
-            "AwsJson11 {{ service: {} }}",
-            literal(service.id.name())
-        )),
-        Protocol::SmithyRpcV2Json => Some("SmithyRpcV2Json".to_owned()),
-        Protocol::SmithyRpcV2Cbor => Some("SmithyRpcV2Cbor".to_owned()),
-        _ => None,
-    };
-    if let Some(protocol) = protocol {
-        out.push_str(&format!(
-            "    const PROTOCOL: ::crucible_server_runtime_rust::__generated::operation::Protocol = ::crucible_server_runtime_rust::__generated::operation::Protocol::{protocol};\n"
-        ));
-    }
     // The release a generated client names in `Crucible-Version`.
     if let Some(version) = &service.api_version {
         out.push_str(&format!(

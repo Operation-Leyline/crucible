@@ -46,7 +46,6 @@ private fun collectionKey(value: JsonElement): String = when (value) {
 }
 
 internal class JsonCodec(val schema: JsonObject) {
-    private fun policy(name: String) = (schema["protocolSettings"] as? JsonObject)?.flag(name) == true
     fun parse(text: String): JsonElement = checkedJson(Json.parseToJsonElement(text))
     private fun checkedJson(value: JsonElement): JsonElement {
         when (value) {
@@ -122,8 +121,8 @@ internal class JsonCodec(val schema: JsonObject) {
             "structure", "union", "enum", "intEnum" -> ModelCodecs.encode(target, value, this)
             "boolean" -> JsonPrimitive(value as Boolean)
             "string" -> JsonPrimitive(value as String)
-            "float" -> (value as Float).let { if (it.isFinite()) JsonPrimitive(it) else { require(policy("nonFiniteFloatStrings")) { "Float overflow" }; JsonPrimitive(it.toString()) } }
-            "double" -> (value as Double).let { if (it.isFinite()) JsonPrimitive(it) else { require(policy("nonFiniteFloatStrings")) { "Double overflow" }; JsonPrimitive(it.toString()) } }
+            "float" -> (value as Float).let { if (it.isFinite()) JsonPrimitive(it) else throw IllegalArgumentException("Float overflow") }
+            "double" -> (value as Double).let { if (it.isFinite()) JsonPrimitive(it) else throw IllegalArgumentException("Double overflow") }
             else -> JsonPrimitive(value as Number)
         }
     }
@@ -141,8 +140,8 @@ internal class JsonCodec(val schema: JsonObject) {
             "long" -> integer(value, Long.MIN_VALUE, Long.MAX_VALUE)
             "bigInteger" -> com.ionspin.kotlin.bignum.integer.BigInteger.parseString(WireDecimal(number(value)).integerText())
             "bigDecimal" -> com.ionspin.kotlin.bignum.decimal.BigDecimal.parseString(number(value))
-            "float" -> if (policy("nonFiniteFloatStrings") && value is JsonPrimitive && value.isString && value.content in setOf("NaN", "Infinity", "-Infinity")) value.content.toFloat() else number(value).toFloat().also { require(it.isFinite()) { "Float overflow" } }
-            "double" -> if (policy("nonFiniteFloatStrings") && value is JsonPrimitive && value.isString && value.content in setOf("NaN", "Infinity", "-Infinity")) value.content.toDouble() else number(value).toDouble().also { require(it.isFinite()) { "Double overflow" } }
+            "float" -> number(value).toFloat().also { require(it.isFinite()) { "Float overflow" } }
+            "double" -> number(value).toDouble().also { require(it.isFinite()) { "Double overflow" } }
             "timestamp" -> readTime(value, format ?: shape.text("format"))
             "document" -> checkedJson(value)
             "blob" -> if(shape.flag("streaming")) ByteStream.fromBytes(byteArrayOf()) else Base64.decode(string(value))
@@ -169,12 +168,11 @@ internal class JsonCodec(val schema: JsonObject) {
     fun put(result: MutableMap<String, JsonElement>, target: String, name: String, input: Any?) {
         val value = if (input is OptionalValue<*>) { if (!input.present) return; input.value } else input
         val member = shape(target).obj("members").obj(name)
-        if(value==null && policy("omitNullStructureMembers") && shape(target).text("kind")=="structure" && shape(member.text("target")!!).text("kind")!="document") return
         result[wireName(target, name)] = encode(member.text("target"), value, member.text("format"))
     }
     fun readMember(target: String, body: JsonObject, name: String, optional: Boolean): Any? {
         val member = shape(target).obj("members").obj(name)
-        val actual = body[wireName(target, name)]?.takeUnless { it==JsonNull && policy("omitNullStructureMembers") && shape(member.text("target")!!).text("kind")!="document" }
+        val actual = body[wireName(target, name)]
         val value = actual ?: member["default"]?.takeUnless { it == JsonNull }
         if (value == null) return if (optional) OptionalValue.unset<Any>() else null
         val decoded = decode(member.text("target"), value, member.text("format"))
@@ -182,9 +180,8 @@ internal class JsonCodec(val schema: JsonObject) {
     }
     fun union(target: String, value: JsonElement): Pair<String, JsonElement> {
         require(value is JsonObject) { "Union requires object" }
-        val fields=if (policy("ignoreUnknownUnionType") && shape(target).obj("members").keys.none { wireName(target,it)=="__type" }) value.filterKeys { it!="__type" } else value
-        require(fields.size == 1 && (!policy("ignoreUnknownUnionType") || fields.values.single()!=JsonNull)) { "Union requires exactly one nonnull member" }
-        return fields.entries.first().let { it.key to it.value }
+        require(value.size == 1) { "Union requires exactly one nonnull member" }
+        return value.entries.first().let { it.key to it.value }
     }
     fun readUnionMember(target: String, name: String, value: JsonElement): Any? {
         val member = shape(target).obj("members").obj(name)
@@ -245,7 +242,7 @@ internal class JsonCodec(val schema: JsonObject) {
                     JsonArray(timestamps)
                 } else JsonArray(parts.map { header(child, if (it.startsWith('"')) string(parse(it)) else it,format) })
             }
-            "float", "double" -> if(policy("nonFiniteFloatStrings") && value in setOf("NaN","Infinity","-Infinity")) JsonPrimitive(value) else parse(value)
+            "float", "double" -> parse(value)
             "byte", "short", "integer", "long", "intEnum", "bigInteger", "bigDecimal", "boolean" -> parse(value)
             "timestamp" -> if ((format ?: member.text("format")) == "epoch-seconds") parse(value) else JsonPrimitive(value)
             else -> JsonPrimitive(value)

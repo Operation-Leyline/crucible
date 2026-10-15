@@ -2,4 +2,4 @@
 # is never edited; the build refuses one that no longer matches.
 
 [releases]
-"v1.json" = "sha256:a33591721d64f8638274cd8b64f43e012301e6958b9495881071bb90de123030"
+"v1.json" = "sha256:b6a9d2dde1794b414090a108bc1bfbd66a3de47a9ec252180271155264216572"

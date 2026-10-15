@@ -377,13 +377,7 @@ func (s shapeDescription) knownWire(name string) bool {
 }
 type schemaDescription struct {
 	Service string
-	Protocol string
 	APIVersion string `json:"apiVersion"`
-	ProtocolSettings struct {
-		OmitNullStructureMembers bool
-		IgnoreUnknownUnionType bool
-		NonFiniteFloatStrings bool
-	}
 	EndpointRules map[string]any
 	EndpointDiscovery *endpointDiscoveryDescription
 	AuthSchemes map[string]authScheme
@@ -517,12 +511,6 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 	switch shape.Kind {
 	case "enum", "string": return value.String(), nil
 	case "float", "double":
-		if schema.ProtocolSettings.NonFiniteFloatStrings {
-			n := value.Float()
-			if math.IsNaN(n) { return "NaN", nil }
-			if math.IsInf(n, 1) { return "Infinity", nil }
-			if math.IsInf(n, -1) { return "-Infinity", nil }
-		}
 		return value.Interface(), nil
 	case "bigInteger":
 		number, ok := value.Interface().(big.Int)
@@ -563,7 +551,6 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 						continue
 					}
 					if field.FieldByName("Null").Bool() {
-						if shape.Kind == "structure" && schema.ProtocolSettings.OmitNullStructureMembers && schema.Shapes[member.Target].Kind != "document" { continue }
 						result[wire] = nil
 						continue
 					}
@@ -573,7 +560,7 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 				if err != nil {
 					return nil, fmt.Errorf("%s: %w", wire, err)
 				}
-				if !(encoded == nil && shape.Kind == "structure" && schema.ProtocolSettings.OmitNullStructureMembers && schema.Shapes[member.Target].Kind != "document") { result[wire] = encoded }
+				result[wire] = encoded
 			}
 		}
 		if shape.Kind == "union" {
@@ -692,11 +679,6 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 			return fmt.Errorf("%s requires an object", shape.Name)
 		}
 		if shape.Kind == "union" {
-			if schema.ProtocolSettings.IgnoreUnknownUnionType && !shape.knownWire("__type") {
-				clean := make(map[string]any, len(object))
-				for key, value := range object { if key != "__type" { clean[key] = value } }
-				object = clean
-			}
 			if len(object) != 1 {
 				return errors.New("a union must contain exactly one member")
 			}
@@ -710,7 +692,6 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		for key, member := range shape.Members {
 			wire := shape.wireName(key)
 			item, present := object[wire]
-			if shape.Kind == "structure" && item == nil && schema.ProtocolSettings.OmitNullStructureMembers && schema.Shapes[member.Target].Kind != "document" { present = false }
 			if !present && member.Default != nil {
 				item = member.Default
 				present = true
@@ -789,16 +770,6 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		}
 		out.SetInt(n)
 	case "float", "double":
-		if schema.ProtocolSettings.NonFiniteFloatStrings {
-			if text, ok := value.(string); ok {
-				switch text {
-				case "NaN": out.SetFloat(math.NaN()); return nil
-				case "Infinity": out.SetFloat(math.Inf(1)); return nil
-				case "-Infinity": out.SetFloat(math.Inf(-1)); return nil
-				default: return errors.New("invalid floating point string")
-				}
-			}
-		}
 		number, ok := value.(json.Number)
 		if !ok {
 			return errors.New("expected number")
@@ -988,12 +959,6 @@ func headerValue(schema *schemaDescription, member memberDescription, text strin
 		}
 		return values, nil
 	case "byte", "short", "integer", "long", "float", "double", "intEnum", "bigInteger", "bigDecimal":
-		// A non-finite float travels as the protocol's string, which decodeModel converts as it does for a body.
-		if schema.ProtocolSettings.NonFiniteFloatStrings && (shape.Kind == "float" || shape.Kind == "double") {
-			switch trimmed := strings.TrimSpace(text); trimmed {
-			case "NaN", "Infinity", "-Infinity": return trimmed, nil
-			}
-		}
 		return parseJSON([]byte(text))
 	case "boolean":
 		if text != "true" && text != "false" {
@@ -1243,7 +1208,6 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		if !modelledContentType { headers.Set("Content-Type", op.Request.Payload[1]) }
 		if source.sha256 != "" { headers.Set("X-Amz-Content-Sha256", source.sha256) }
 	} else if len(op.Request.Payload) == 2 && !op.Request.Streaming {
-		// The codec has already applied the protocol's null-member policy.
 		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && (payload != nil || op.Request.PayloadKind == "document") {
 			switch op.Request.PayloadKind {
 			case "string": body = []byte(payload.(string))
@@ -1252,13 +1216,6 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			}
 			if !modelledContentType { headers.Set("Content-Type", op.Request.Payload[1]) }
 		}
-	}
-	if c.schema.Protocol == "awsJson1_0" || c.schema.Protocol == "awsJson1_1" {
-		if body == nil { body = []byte("{}") }
-		version := "1.1"; if c.schema.Protocol == "awsJson1_0" { version = "1.0" }
-		headers.Set("Content-Type", "application/x-amz-json-" + version)
-		service := strings.Split(c.schema.Service, "#")
-		headers.Set("X-Amz-Target", service[len(service)-1] + "." + name)
 	}
 	// The release this client was generated for (docs/api-versions-clients.md).
 	if c.schema.APIVersion != "" { headers.Set("Crucible-Version", c.schema.APIVersion) }
@@ -1526,13 +1483,6 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 	}
 	name, _ := values["__type"].(string)
 	if header := response.Header.Get("X-Crucible-Error"); header != "" { name = header }
-	awsJSON := c.schema.Protocol == "awsRestJson1" || c.schema.Protocol == "awsJson1_0" || c.schema.Protocol == "awsJson1_1"
-	if awsJSON {
-		if code, ok := values["code"].(string); ok { name = code }
-		if header := response.Header.Get("X-Amzn-Errortype"); header != "" { name = header }
-		name = strings.SplitN(name, ":", 2)[0]
-		if index := strings.LastIndex(name, "#"); index >= 0 { name = name[index+1:] }
-	}
 	target := ""
 	if name != "" {
 		for _, id := range op.Errors {
@@ -1557,14 +1507,10 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		name = "UnknownError"
 	}
 	message, ok := values["message"].(string)
-	if !ok && awsJSON { message, ok = values["Message"].(string) }
 	if !ok {
 		message = fmt.Sprintf("HTTP %d", response.StatusCode)
 	}
 	metadata := &ServiceError{Name: name, Message: message, Metadata: ResponseMetadata{Status: response.StatusCode, RequestID: response.Header.Get("x-request-id"), Headers: response.Header.Clone(), Body: bytes.Clone(data)}}
-	if awsJSON {
-		if id := response.Header.Get("X-Amzn-Requestid"); id != "" { metadata.Metadata.RequestID = id } else if id := response.Header.Get("X-Amz-Request-Id"); id != "" { metadata.Metadata.RequestID = id }
-	}
 	if metadata.Metadata.RequestID == "" {
 		metadata.Metadata.RequestID, _ = values["requestId"].(string)
 	}

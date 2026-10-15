@@ -2,7 +2,7 @@ use axum::{body::Body, http::Request};
 use crucible_server_runtime_rust::__generated as generated;
 use crucible_server_runtime_rust::{
     Crucible, FrameworkError, InvokeProtocol, Operation, Operations,
-    operation::{AuthScheme, OperationInfo, Protocol, Segment, ServiceInfo, Unit},
+    operation::{AuthScheme, OperationInfo, Segment, ServiceInfo, Unit},
     protocol::Invocation,
 };
 use serde_json::Value;
@@ -38,32 +38,20 @@ static SERVICE: ServiceInfo = generated::service_info(
     None,
 );
 
-struct Probe<const P: u8>;
-impl<const P: u8> Operation for Probe<P> {
+struct Probe;
+impl Operation for Probe {
     const INFO: &'static OperationInfo = &INFO;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
     const HAS_INPUT: bool = false;
     const HAS_OUTPUT: bool = false;
-    const PROTOCOL: Protocol = match P {
-        0 => Protocol::CrucibleJson,
-        1 => Protocol::AwsRestJson1,
-        2 => Protocol::AwsJson10 {
-            service: "Refusals",
-        },
-        3 => Protocol::AwsJson11 {
-            service: "Refusals",
-        },
-        4 => Protocol::SmithyRpcV2Json,
-        _ => Protocol::SmithyRpcV2Cbor,
-    };
     type Input = Unit;
     type Output = Unit;
 }
 
-async fn check<const P: u8>(invoke: bool) {
+async fn check(invoke: bool) {
     for error in [FrameworkError::Unauthenticated, FrameworkError::Forbidden] {
         let operations = Operations::builder(&SERVICE)
-            .add::<Probe<P>, _, _>(Arc::new(error.clone()), |error, _| async move {
+            .add::<Probe, _, _>(Arc::new(error.clone()), |error, _| async move {
                 Err((*error).clone().into())
             })
             .build()
@@ -74,35 +62,10 @@ async fn check<const P: u8>(invoke: bool) {
             .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
             .build()
             .unwrap();
-        let path = if P >= 4 {
-            "/service/Refusals/operation/Probe"
-        } else if P >= 2 {
-            "/"
-        } else {
-            "/refusal"
-        };
-        let media = match P {
-            2 => "application/x-amz-json-1.0",
-            3 => "application/x-amz-json-1.1",
-            5 => "application/cbor",
-            _ => "application/json",
-        };
-        let mut request = Request::post(path).header("content-type", media);
-        if P == 2 || P == 3 {
-            request = request.header("x-amz-target", "Refusals.Probe");
-        }
-        if P >= 4 {
-            request = request.header(
-                "smithy-protocol",
-                if P == 4 { "rpc-v2-json" } else { "rpc-v2-cbor" },
-            );
-        }
-        let body = if P >= 4 && !invoke {
-            Body::empty()
-        } else {
-            Body::from("{}")
-        };
-        let mut request = request.body(body).unwrap();
+        let mut request = Request::post("/refusal")
+            .header("content-type", "application/json")
+            .body(Body::from("{}"))
+            .unwrap();
         if invoke {
             request.extensions_mut().insert(Invocation {
                 operation: "Probe".into(),
@@ -112,7 +75,7 @@ async fn check<const P: u8>(invoke: bool) {
         assert_eq!(
             response.status().as_u16(),
             error.status(),
-            "protocol {P}, invoke {invoke}"
+            "invoke {invoke}"
         );
         assert_eq!(
             response.headers()["www-authenticate"],
@@ -125,28 +88,14 @@ async fn check<const P: u8>(invoke: bool) {
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
-        let value: Value = if P == 5 && !invoke {
-            crucible_server_runtime_rust::__generated::cbor::read(&bytes).unwrap()
-        } else {
-            serde_json::from_slice(&bytes).unwrap()
-        };
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
         let value = if invoke { &value["error"] } else { &value };
-        let expected = if P >= 4 && !invoke {
-            format!("smithy.framework#{}", error.name())
-        } else {
-            error.name().to_owned()
-        };
-        assert_eq!(value["__type"], expected);
+        assert_eq!(value["__type"], error.name());
     }
 }
 
 #[tokio::test]
-async fn every_serving_protocol_preserves_typed_authentication_refusals() {
-    check::<0>(false).await;
-    check::<1>(false).await;
-    check::<2>(false).await;
-    check::<3>(false).await;
-    check::<4>(false).await;
-    check::<5>(false).await;
-    check::<0>(true).await;
+async fn typed_authentication_refusals_are_preserved() {
+    check(false).await;
+    check(true).await;
 }

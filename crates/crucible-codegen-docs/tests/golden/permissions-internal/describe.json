@@ -1926,21 +1926,6 @@
       }
     ],
     "protocol": "crucibleJson",
-    "protocolSettings": {
-      "eventStreamHttp": [
-        "http/1.1"
-      ],
-      "http": [
-        "http/1.1"
-      ],
-      "ignoreUnknownUnionType": false,
-      "noErrorWrapping": false,
-      "nonFiniteFloatStrings": false,
-      "omitNullStructureMembers": false
-    },
-    "protocols": [
-      "crucible.protocols#json"
-    ],
     "resourceRoots": [],
     "scopes": [],
     "title": "Leyline",

@@ -315,13 +315,8 @@ version's section when it is prepared.
   one for an internal permission, without the `insufficient_scope`
   challenge `Forbidden` carries.
 
-- `FrameworkError::shape_id()`: the absolute shape id the RPC v2 protocols
-  name a framework error by (`smithy.framework#ForbiddenException`,
-  `crucible.errors#NotFoundException`), beside `name()`, `status()` and
-  `message()`.
-
 - `FrameworkError::Conflict { message }`: HTTP 409 `ConflictException`
-  (`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
+  (a tool error in MCP),
   what `Idempotency` answers by default without a modelled conflict error.
 
 - `DecodedJob::replay_output(json)` ends an invocation with an output read
@@ -455,6 +450,48 @@ version's section when it is prepared.
 - `McpAuthenticator` accepts an `aud` sent as a one-member array holding the
   MCP resource, which RFC 7519 makes equivalent to the string. A token for
   several audiences is still refused.
+
+### Removed
+
+- **Every wire protocol except Crucible JSON.** Crucible's own JSON protocol
+  (`@crucible.protocols#json`, `.cru` `protocol json`) and the direct
+  `InvokeProtocol` are all that remain. Gone from the Rust server runtime,
+  the Rust client runtime, `crucible-wire` and every client generator and
+  runtime (Rust, TypeScript, Python, Go, Java, Kotlin, C#, Swift, Dart, PHP,
+  Ruby, C++, C, R), the OpenAPI, documentation, CLI and Terraform
+  generators and the explorer: `aws.protocols#restJson1`, `awsJson1_0`,
+  `awsJson1_1`, `restXml`, `awsQuery` and `ec2Query`, and
+  `smithy.protocols#rpcv2Cbor` and `rpcv2Json` (Smithy RPC v2), with their
+  routing, the `Smithy-Protocol` and `X-Amz-Target` headers, the CBOR codec
+  (`crucible_wire::cbor`, the `ciborium` dependency and the C#/PHP CBOR
+  runtimes), XML shapes, namespaces and serialization, AWS query
+  compatibility, and the settings that only they used (non-finite floats as
+  strings, arbitrary-precision numbers as strings, omitted null members,
+  unknown union members, XML error unwrapping). The wire behaviour of
+  Crucible JSON is unchanged.
+- **The Smithy protocol test suites.** `smithy.test` request/response/
+  malformed-message vectors are no longer lowered (`Service::protocol_tests`
+  and the `HttpProtocolTest` types are gone), `crucible-codegen-rust` no
+  longer generates server conformance tests from them, `crucible export`
+  no longer writes `protocol-tests.json`, and the conformance harness,
+  `e2e/rpcv2-json-service`, `tools/protocol_conformance.py` with its
+  adapters, `tools/xml_qualification.py`, `tools/import-smithy-xml.py` and
+  `docs/xml-qualification.md` are deleted.
+- **IR and API.** `crucible_smithy::Protocol` has the single variant
+  `CrucibleJson`; `Protocol::{uses_http_bindings, is_rpc_v2,
+  respects_timestamp_format, uses_json_names, request_headers}`,
+  `Model::lower_with_protocol` and `lower_infrastructure_with_protocol` are
+  removed, and `Model::lower_documentation` no longer takes a protocol.
+  `ProtocolSettings` keeps only `http` and `event_stream_http`. `Service`
+  loses `protocols`, `xml_namespace`, `xml_shapes` and `protocol_tests`,
+  `Operation` loses `unwrapped_xml_output`, `EventStreamBinding` loses
+  `initial_message`, and `Feature` loses the eight protocol variants. The
+  runtime schema no longer carries `protocol`, `protocolSettings`,
+  `xmlNamespace`, `xmlShapes`, `unwrappedXmlOutput` or `protocolTests`.
+- **Build and CLI surface.** `crucible_build`'s `.protocol(..)` and server
+  `.conformance()`, `.skip_vector()` and `.seed_request()` builders and
+  `render_conformance`, the `--protocol` option of `crucible generate` and
+  `crucible check`, and the `crucible conformance` subcommand.
 
 ### Fixed
 
@@ -954,7 +991,7 @@ version's section when it is prepared.
   `_ => ..`, after arms for `Conflict { .. }` (HTTP 409), `NotFound { .. }`
   (404) and `PermissionDenied { .. }` (403) if the code treats them
   differently. Variants added later are then not breaking. Code that only
-  calls `name()`, `status()`, `message()` or the new `shape_id()` is
+  calls `name()`, `status()` or `message()` is
   unaffected. No shim is possible: the attribute is on the type. See
   [migrating](docs/migrating.md#unreleased).
 
@@ -1014,6 +1051,29 @@ version's section when it is prepared.
   deprecated public field would keep the uncapped path open for another
   minor, so this removal is named here instead. See
   [migrating](docs/migrating.md#unreleased).
+
+- **Only Crucible JSON remains; XML, RPC v2 and the AWS protocols are
+  removed.** A Smithy model that declares `restJson1`, `awsJson1_0`,
+  `awsJson1_1`, `restXml`, `awsQuery`, `ec2Query`, `rpcv2Cbor` or
+  `rpcv2Json` now fails lowering with `protocol X is not supported`, as does
+  one that uses `@xmlName`, `@xmlFlattened`, `@xmlAttribute`,
+  `@xmlNamespace`, `@awsQueryCompatible`, `@awsQueryError`,
+  `@ec2QueryName` or `@s3UnwrappedXmlOutput`; declare
+  `@crucible.protocols#json` (or `protocol json` in `.cru`) instead and give
+  each operation an `@http` binding. Generated clients and servers for the
+  other protocols must be regenerated from a Crucible JSON model; there is
+  no server that speaks both. Callers of `Model::lower_with_protocol`,
+  `lower_infrastructure_with_protocol` or `lower_documentation(service,
+  protocol)` drop the protocol argument, as do build scripts calling
+  `.protocol(..)` or `.conformance()` and scripts passing `--protocol` or
+  running `crucible conformance`; code that matched
+  `Protocol::AwsRestJson1` and its siblings, read `Service::xml_*`,
+  `protocols` or `protocol_tests`, or generated tests from `smithy.test`
+  vectors has no replacement. Release snapshots move to format 2: a format 1
+  snapshot of a Crucible JSON service still reads (the removed fields are
+  dropped), one frozen with another protocol is refused with a message
+  naming it. No shim is possible: the protocols, not an API, are removed.
+  See [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12
 

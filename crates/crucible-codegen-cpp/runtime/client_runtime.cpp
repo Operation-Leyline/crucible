@@ -64,8 +64,6 @@ Json payload_value(const Schema& schema, std::string_view target, const Json& bi
     return Json(base64(blob(body)));
 }
 std::optional<std::string> get(const Headers& headers, const std::string& name) { const auto found = headers.find(name); return found == headers.end() ? std::nullopt : std::optional<std::string>(found->second); }
-std::string protocol(const Schema& schema) { const auto* value = schema.description().find("protocol"); return value ? value->string() : std::string{}; }
-bool aws_json(const std::string& protocol) { return protocol == "awsRestJson1" || protocol == "awsJson1_0" || protocol == "awsJson1_1"; }
 bool iequals(std::string_view left, std::string_view right) { return left.size() == right.size() && lower(std::string(left)) == lower(std::string(right)); }
 bool flag(const Json& object, std::string_view name) { const auto* value = object.find(name); return value && value->boolean(); }
 ChecksumSettings checksum_settings(const Json& description, Json::Object& values, const ClientConfig& config, bool streaming) {
@@ -275,14 +273,6 @@ ClientRuntime::Prepared ClientRuntime::prepare(const std::string& name, const Js
         }
         if (sent && !modelled_content_type) request.headers.insert_or_assign("content-type", payload.array()[1].string());
     }
-    const auto wire = protocol(*schema_);
-    if (wire == "awsJson1_0" || wire == "awsJson1_1") {
-        // AWS JSON RPC always sends an object body and names the operation in X-Amz-Target.
-        if (!request.body) request.body = "{}";
-        request.headers.insert_or_assign("content-type", wire == "awsJson1_0" ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1");
-        const auto& service = schema_->description().at("service").string();
-        request.headers.insert_or_assign("x-amz-target", service.substr(service.rfind('#') + 1) + "." + name);
-    }
     // The release this client was generated for (docs/api-versions-clients.md).
     if (const auto* api_version = schema_->description().find("apiVersion"))
         request.headers.insert_or_assign("crucible-version", api_version->string());
@@ -392,33 +382,20 @@ Json ClientRuntime::success(const Json& operation, const HttpResponse& response)
 std::pair<ErrorMetadata, std::exception_ptr> ClientRuntime::failure(const Json& operation, const HttpResponse& response) const {
     Json body(Json::Object{});
     try { auto decoded = Json::parse(response.body); (void)decoded.object(); body = std::move(decoded); } catch (const std::invalid_argument&) {}
-    const bool aws = aws_json(protocol(*schema_));
     std::optional<std::string> name;
     if (const auto* type = body.find("__type"); type && string(*type)) name = type->string();
     if (const auto header_name = get(response.headers, "x-crucible-error"); header_name && !header_name->empty()) name = header_name;
-    if (aws) {
-        // AWS JSON discriminators may be qualified shape IDs and may carry a ":" suffix.
-        if (const auto* code = body.find("code"); code && string(*code)) name = code->string();
-        if (const auto header_name = get(response.headers, "x-amzn-errortype"); header_name && !header_name->empty()) name = header_name;
-        if (name) {
-            *name = name->substr(0, name->find(':'));
-            if (const auto hash = name->rfind('#'); hash != std::string::npos) *name = name->substr(hash + 1);
-            if (name->empty()) name.reset();
-        }
-    }
     std::vector<std::string> matches;
     for (const auto& error : operation.at("errors").array()) { const auto& shape = schema_->shape(error.string()); if (name ? (shape.at("error").find("wireCode") ? shape.at("error").at("wireCode").string() : shape.at("name").string()) == *name : shape.at("error").at("status").number().integer() == response.status) matches.push_back(error.string()); }
     const Json* shape = matches.size() == 1 ? &schema_->shape(matches[0]) : nullptr;
     const Json* traits = shape ? &shape->at("error") : nullptr;
     const auto* message = body.find("message");
-    if (aws && !(message && string(*message))) message = body.find("Message");
     ErrorMetadata metadata;
     metadata.name = name ? *name : shape ? shape->at("name").string() : "UnknownError";
     metadata.message = message && string(*message) ? message->string() : "HTTP " + std::to_string(response.status);
     metadata.status = response.status;
     metadata.headers = response.headers;
     metadata.request_id = get(response.headers, "x-request-id");
-    if (aws) { if (auto id = get(response.headers, "x-amzn-requestid")) metadata.request_id = id; else if (auto amz = get(response.headers, "x-amz-request-id")) metadata.request_id = amz; }
     if (!metadata.request_id) { const auto* id = body.find("requestId"); if (id && string(*id)) metadata.request_id = id->string(); }
     metadata.retryable = traits && traits->at("retryable").boolean();
     metadata.throttling = traits && traits->at("throttling").boolean();

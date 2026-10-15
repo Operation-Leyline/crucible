@@ -221,8 +221,8 @@ fn value_kind(unexpected: &str) -> &str {
         "character",
         "string",
     ];
-    // `number` is serde_json's own, under `arbitrary_precision`; `string`
-    // through `break` are ciborium's names for CBOR's kinds.
+    // `number` is serde_json's own, under `arbitrary_precision`; the rest
+    // are serde's names for the kinds a value can have.
     const BARE: [&str; 19] = [
         "number",
         "string",

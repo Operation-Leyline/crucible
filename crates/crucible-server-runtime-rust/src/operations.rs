@@ -32,7 +32,6 @@ pub(crate) type DecodeBound = for<'a> fn(
 pub(crate) type OutputFromJson = fn(Value) -> Result<Box<dyn Output>>;
 
 pub(crate) type DecodeEvents = for<'a> fn(
-    &'a [u8],
     Vec<(&'static str, BoundValue<'a>)>,
     crucible_wire::event_stream::Incoming,
 ) -> std::result::Result<Box<dyn Input>, Rejection>;
@@ -42,7 +41,6 @@ pub(crate) struct Entry {
     pub metadata: OperationMetadata,
     pub decode: Decode,
     pub decode_json: DecodeJson,
-    pub decode_cbor: DecodeJson,
     pub decode_bound: DecodeBound,
     pub decode_events: DecodeEvents,
     pub invoke: Invoke,
@@ -233,26 +231,6 @@ pub(crate) fn decode_json<O: Operation>(
     Ok(Box::new(input))
 }
 
-pub(crate) fn decode_cbor<O: Operation>(
-    bytes: &[u8],
-) -> std::result::Result<Box<dyn Input>, Rejection> {
-    if !O::HAS_INPUT && !bytes.is_empty() {
-        return Err(Rejection::malformed(
-            "",
-            "an operation without input requires an empty body",
-        ));
-    }
-    let bytes = if bytes.is_empty() {
-        b"\xA0".as_slice()
-    } else {
-        bytes
-    };
-    let input: O::Input =
-        crucible_wire::cbor::read(bytes).map_err(|message| unreadable_message(&message))?;
-    Validator::check(&input)?;
-    Ok(Box::new(input))
-}
-
 /// The input from its bound members and its JSON body, in one pass.
 pub(crate) fn decode_bound<'a, O: Operation>(
     body: &'a [u8],
@@ -269,21 +247,11 @@ pub(crate) fn decode_bound<'a, O: Operation>(
 }
 
 pub(crate) fn decode_events<O: Operation>(
-    body: &[u8],
     bound: Vec<(&'static str, BoundValue<'_>)>,
     events: crucible_wire::event_stream::Incoming,
 ) -> std::result::Result<Box<dyn Input>, Rejection> {
-    let mut input: O::Input = if O::PROTOCOL == crucible_wire::operation::Protocol::SmithyRpcV2Cbor
-    {
-        let body = if body.is_empty() {
-            b"\xA0".as_slice()
-        } else {
-            body
-        };
-        crucible_wire::cbor::read(body).map_err(|message| unreadable_message(&message))?
-    } else {
-        crucible_wire::bound::read_http(body, bound, O::INFO.input).map_err(unreadable)?
-    };
+    let mut input: O::Input =
+        crucible_wire::bound::read_http(&[], bound, O::INFO.input).map_err(unreadable)?;
     O::set_input_events(&mut input, events);
     Validator::check(&input)?;
     Ok(Box::new(input))
@@ -318,9 +286,6 @@ pub(crate) fn output_from_json<O: Operation>(value: Value) -> Result<Box<dyn Out
 
 pub(crate) struct StreamingOutput<O: Operation>(pub(crate) O::Output);
 impl<O: Operation> Output for StreamingOutput<O> {
-    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
-        crucible_wire::cbor::write(&self.0, out)
-    }
     fn response_status(&self) -> Option<u16> {
         O::output_status(&self.0)
     }
@@ -357,7 +322,7 @@ impl<O: Operation> Output for StreamingOutput<O> {
 
 #[cfg(test)]
 mod tests {
-    use super::{unreadable, unreadable_message};
+    use super::unreadable;
     use crate::validate::ViolationKind;
 
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -367,31 +332,23 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_member_is_refused_without_naming_it_in_json_or_cbor() {
+    fn an_unknown_member_is_refused_without_naming_it() {
         let secret = "hunter2`, expected `name".repeat(100);
         let value = serde_json::json!({ "name": "a", secret.as_str(): 1 });
-        let json = unreadable(serde_json::from_value::<Strict>(value.clone()).unwrap_err());
-        let mut bytes = Vec::new();
-        crucible_wire::cbor::write(&value, &mut bytes).unwrap();
-        let cbor = unreadable_message(&crucible_wire::cbor::read::<Strict>(&bytes).unwrap_err());
-        for rejection in [json, cbor] {
-            assert_eq!(rejection.violations().len(), 1);
-            let violation = &rejection.violations()[0];
-            assert_eq!(violation.path, "[key]");
-            assert_eq!(violation.message, "is not a member of this structure");
-            assert_eq!(violation.kind, ViolationKind::Malformed);
-        }
+        let rejection = unreadable(serde_json::from_value::<Strict>(value).unwrap_err());
+        assert_eq!(rejection.violations().len(), 1);
+        let violation = &rejection.violations()[0];
+        assert_eq!(violation.path, "[key]");
+        assert_eq!(violation.message, "is not a member of this structure");
+        assert_eq!(violation.kind, ViolationKind::Malformed);
     }
 
     #[test]
-    fn a_missing_member_is_named_in_json_and_cbor() {
-        let json = unreadable(serde_json::from_str::<Strict>("{}").unwrap_err());
-        let cbor = unreadable_message(&crucible_wire::cbor::read::<Strict>(b"\xA0").unwrap_err());
-        for rejection in [json, cbor] {
-            let violation = &rejection.violations()[0];
-            assert_eq!(violation.path, "name");
-            assert_eq!(violation.message, "is required");
-            assert_eq!(violation.kind, ViolationKind::Constraint);
-        }
+    fn a_missing_member_is_named() {
+        let rejection = unreadable(serde_json::from_str::<Strict>("{}").unwrap_err());
+        let violation = &rejection.violations()[0];
+        assert_eq!(violation.path, "name");
+        assert_eq!(violation.message, "is required");
+        assert_eq!(violation.kind, ViolationKind::Constraint);
     }
 }

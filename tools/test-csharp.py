@@ -7,11 +7,10 @@ import tempfile
 from sdk_test_support import ROOT, run, weather
 
 
-def generate(model, output, namespace="Example.Weather", package="Example.Weather", protocol=None, digest=True):
+def generate(model, output, namespace="Example.Weather", package="Example.Weather", digest=True):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "csharp",
         str(model), "--out", str(output), "--namespace", namespace, "--package-id", package,
-        "--package-version", "0.0.0-test", *(["--content-sha256"] if digest else []),
-        *(["--protocol", protocol] if protocol else []))
+        "--package-version", "0.0.0-test", *(["--content-sha256"] if digest else []))
 
 
 def streaming(output):
@@ -61,10 +60,10 @@ def policy(output):
     run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), str(ROOT / "tests/conformance"), cwd=consumer)
 
 
-def consume(output, model, name, namespace, program, args=(), protocol=None):
+def consume(output, model, name, namespace, program, args=()):
     """Generate a package, pack it, install it in a fresh consumer, and run one test program against it."""
     package = output / name
-    generate(model, package, namespace, namespace, protocol=protocol, digest=False)
+    generate(model, package, namespace, namespace, digest=False)
     feed = output / (name + "-feed")
     run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
     consumer = output / (name + "-consumer")
@@ -79,13 +78,9 @@ def consume(output, model, name, namespace, program, args=(), protocol=None):
     run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"), *args, cwd=consumer)
 
 
-def rpc(output):
-    """Smithy RPC v2: the official protocol tests (lowered into each package's schema), then published CBOR,
-    Digest and SigV4a vectors, client behavior, and a loopback server that verifies Digest and SigV4a itself."""
-    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
-    for name in () if os.environ.get("CSHARP_RPC") == "vault" else ("rpcv2-cbor", "rpcv2-json"):
-        consume(output, fixtures / f"{name}.json", name, "Example.Rpc", "RpcProtocol.cs")
-    consume(output, fixtures / "rpc-auth.json", "vault", "Example.Vault", "RpcAuth.cs")
+def vault(output):
+    """Digest and SigV4a: published vectors, client behavior, and a loopback server that verifies both itself."""
+    consume(output, ROOT / "crates/crucible-codegen-csharp/tests/vault.json", "vault", "Example.Vault", "VaultAuth.cs")
 
 
 def permissions(output):
@@ -97,7 +92,7 @@ def qualify(output):
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
     consume(output, ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json", "display", "Example.Docs", "Display.cs")
     permissions(output)
-    rpc(output)
+    vault(output)
     policy(output)
     streaming(output)
     checksum = output / "checksum"
@@ -114,25 +109,6 @@ def qualify(output):
     shutil.copyfile(ROOT / "tests/conformance/checksums.json", checksum_consumer / "checksums.json")
     run("dotnet", "restore", "--source", str(checksum_feed), "--packages", str(output / "checksum-installed"), cwd=checksum_consumer)
     run("dotnet", "run", "--no-restore", "--project", str(checksum_consumer), cwd=checksum_consumer)
-    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
-    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
-    protocol_path = output / "protocol.json"
-    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
-    for protocol in ("restJson1", "awsJson1_0", "awsJson1_1"):
-        package = output / protocol
-        generate(protocol_path, package,
-                 "Example.Protocol", "Example.Protocol", "aws.protocols#" + protocol)
-        feed = output / (protocol + "-feed")
-        run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
-        consumer = output / (protocol + "-consumer")
-        consumer.mkdir()
-        (consumer / "Consumer.csproj").write_text('''<Project Sdk="Microsoft.NET.Sdk">
-          <PropertyGroup><TargetFramework>net8.0</TargetFramework><OutputType>Exe</OutputType><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
-          <ItemGroup><PackageReference Include="Example.Protocol" Version="0.0.0-test"/></ItemGroup>
-        </Project>''', encoding="utf-8")
-        shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Protocols.cs", consumer / "Program.cs")
-        run("dotnet", "restore", "--source", str(feed), "--packages", str(output / (protocol + "-installed")), cwd=consumer)
-        run("dotnet", "run", "--no-restore", "--project", str(consumer), cwd=consumer)
     behavior = output / "behavior"
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", behavior, "Example.Behavior", "Example.Behavior")
     behavior_feed = output / "behavior-feed"
@@ -185,7 +161,7 @@ def qualify(output):
     shutil.copyfile(ROOT / "crates/crucible-codegen-csharp/tests/Payloads.cs", wire_consumer / "Program.cs")
     run("dotnet", "restore", "--source", str(wire_feed), "--packages", str(output / "wire-installed"), cwd=wire_consumer)
     run("dotnet", "run", "--no-restore", "--project", str(wire_consumer), cwd=wire_consumer)
-    for protocol, label in (("crucible.protocols#json", "payload-bindings"), ("aws.protocols#restJson1", "rest-payload-bindings")):
+    for protocol, label in (("crucible.protocols#json", "payload-bindings"),):
         bindings = output / label
         generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", bindings,
                  "Example.PayloadBindings", "Example.PayloadBindings", protocol=protocol, digest=False)
@@ -278,8 +254,8 @@ if __name__ == "__main__":
             streaming(Path(directory))
         elif os.environ.get("CSHARP_ONLY") == "policy":
             policy(Path(directory))
-        elif os.environ.get("CSHARP_ONLY") == "rpc":
-            rpc(Path(directory))
+        elif os.environ.get("CSHARP_ONLY") == "vault":
+            vault(Path(directory))
         elif os.environ.get("CSHARP_ONLY") == "permissions":
             permissions(Path(directory))
         else:

@@ -1,4 +1,3 @@
-.crucible_setting <- function(name) .crucible_schema[['protocolSettings']][[name]]
 .crucible_shape <- function(target) {
   shape <- .crucible_schema$shapes[[target]]
   if (is.null(shape)) stop('Unknown model shape: ', target, call. = FALSE)
@@ -118,11 +117,6 @@ big_decimal <- function(value) {
     return(result)
   }
   if (kind %in% c('float', 'double')) {
-    # AWS JSON protocols carry nonfinite values as these JSON strings.
-    if (isTRUE(.crucible_setting('nonFiniteFloatStrings'))) {
-      if (encode && is.numeric(value) && length(value) == 1L && !is.object(value) && !is.finite(value)) return(if (is.nan(value)) 'NaN' else if (value > 0) 'Infinity' else '-Infinity')
-      if (!encode && .crucible_query_is_string(value) && value %in% c('NaN', 'Infinity', '-Infinity')) return(switch(value, `NaN` = NaN, Infinity = Inf, -Inf))
-    }
     result <- suppressWarnings(as.numeric(as.character(.crucible_number_value(value))))
     if (kind == 'float') result <- readBin(writeBin(result, raw(), size = 4L), 'numeric', n = 1L, size = 4L)
     if (!is.finite(result)) stop('Floating point overflow', call. = FALSE)
@@ -174,7 +168,6 @@ big_decimal <- function(value) {
       if (!is.null(description) && !is.null(item)) item <- child(item, description) else if (is.null(description)) json_encode(item)
       output <- json_object(); output[member] <- list(item); return(output)
     }
-    if (.crucible_is_object(value) && isTRUE(.crucible_setting('ignoreUnknownUnionType')) && !'__type' %in% names(shape$members) && '__type' %in% names(value)) value <- .crucible_object(value[names(value) != '__type'])
     if (!.crucible_is_object(value) || length(value) != 1L) stop('Union requires exactly one member', call. = FALSE)
     member <- names(value)[1L]; item <- value[[1L]]; description <- shape$members[[member]]
     if (!is.null(description) && !is.null(item)) item <- child(item, description)
@@ -183,12 +176,11 @@ big_decimal <- function(value) {
   if (kind == 'structure') {
     if (encode && (!inherits(value, shape$name) || !identical(attr(value, 'crucible_target'), target))) stop('Wrong model type for ', target, call. = FALSE)
     if (!is.list(value) || (!encode && !.crucible_is_object(value))) stop('Expected structure object', call. = FALSE)
-    output <- json_object(); omit_null <- isTRUE(.crucible_setting('omitNullStructureMembers'))
+    output <- json_object()
     for (name in names(shape$members)) {
       description <- shape$members[[name]]; attribute <- description$attribute; optional <- isTRUE(description$optional)
       key <- if (encode) attribute else name
       present <- key %in% names(value); item <- value[[key]]
-      if (present && is.null(item) && omit_null && .crucible_shape(description$target)$kind != 'document') present <- FALSE
       if (encode) {
         if (!present || inherits(item, 'crucible_unset')) { if (!optional) stop('Missing required member: ', name, call. = FALSE); next }
       } else if (!present) {

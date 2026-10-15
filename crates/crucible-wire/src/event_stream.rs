@@ -397,11 +397,7 @@ impl MessageDecoder {
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct EventStreamInfo {
-    /// The protocol sends the structure's other members as an
-    /// `initial-request` / `initial-response` event (protocols without HTTP
-    /// bindings) instead of in HTTP bindings.
-    pub initial_message: bool,
-    /// The `:content-type` of a JSON document payload and of the initial message.
+    /// The `:content-type` of a JSON document payload.
     pub document_type: &'static str,
     pub events: &'static [EventInfo],
 }
@@ -418,13 +414,7 @@ pub struct EventInfo {
     /// Members bound to headers or to the payload. The others form a JSON
     /// document payload, unless one member is bound to the payload.
     pub members: &'static [EventMember],
-    /// Native document codecs, when the event's document is CBOR.
-    pub encode_document: Option<DocumentEncoder>,
-    pub decode_document: Option<DocumentDecoder>,
 }
-
-pub type DocumentEncoder = fn(&Value) -> Result<Bytes, String>;
-pub type DocumentDecoder = fn(&[u8]) -> Result<Value, String>;
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -541,39 +531,21 @@ impl EventStreamInfo {
             Some((EventPayloadKind::Document, Value::Null)) => (self.document_type, Bytes::new()),
             Some((EventPayloadKind::Document, value)) => (
                 self.document_type,
-                match info.encode_document {
-                    Some(encode) => encode(&value)?,
-                    None => serde_json::to_vec(&value)
-                        .map_err(|error| error.to_string())?
-                        .into(),
-                },
+                serde_json::to_vec(&value)
+                    .map_err(|error| error.to_string())?
+                    .into(),
             ),
             None => (
                 self.document_type,
-                match info.encode_document {
-                    Some(encode) => encode(&Value::Object(fields))?,
-                    None => serde_json::to_vec(&Value::Object(fields))
-                        .map_err(|error| error.to_string())?
-                        .into(),
-                },
+                serde_json::to_vec(&Value::Object(fields))
+                    .map_err(|error| error.to_string())?
+                    .into(),
             ),
         };
         message = message.with_header(":content-type", HeaderValue::String(content_type.into()));
         message.headers.extend(headers);
         message.payload = bytes;
         Ok(message)
-    }
-
-    /// The `initial-request` message: the structure's other members, as
-    /// the protocol's JSON document.
-    pub fn initial_request(&self, document: Bytes) -> Message {
-        Message::new(document)
-            .with_header(":message-type", HeaderValue::String("event".into()))
-            .with_header(":event-type", HeaderValue::String("initial-request".into()))
-            .with_header(
-                ":content-type",
-                HeaderValue::String(self.document_type.into()),
-            )
     }
 
     /// What a received message is.
@@ -583,9 +555,6 @@ impl EventStreamInfo {
                 let name = message
                     .string(":event-type")
                     .ok_or("an event message has no :event-type")?;
-                if matches!(name, "initial-response" | "initial-request") {
-                    return Ok(Decoded::Initial(message.payload.clone()));
-                }
                 match self.event(name).filter(|event| !event.error) {
                     Some(info) => Ok(Decoded::Event(self.fields(info, message)?)),
                     // A newer service's event: the union's unknown member.
@@ -638,10 +607,7 @@ impl EventStreamInfo {
         });
         let mut fields = match payload {
             None if message.payload.is_empty() => Map::new(),
-            None => match match info.decode_document {
-                Some(decode) => decode(&message.payload),
-                None => serde_json::from_slice(&message.payload).map_err(|error| error.to_string()),
-            } {
+            None => match serde_json::from_slice(&message.payload) {
                 Ok(Value::Object(object)) => object,
                 _ => return Err(format!("event `{name}` payload is not a JSON object")),
             },
@@ -655,11 +621,8 @@ impl EventStreamInfo {
                             .to_owned(),
                     ),
                     EventPayloadKind::Document if message.payload.is_empty() => Value::Null,
-                    EventPayloadKind::Document => match info.decode_document {
-                        Some(decode) => decode(&message.payload)?,
-                        None => serde_json::from_slice(&message.payload)
-                            .map_err(|_| format!("event `{name}` payload is not JSON"))?,
-                    },
+                    EventPayloadKind::Document => serde_json::from_slice(&message.payload)
+                        .map_err(|_| format!("event `{name}` payload is not JSON"))?,
                 };
                 if !value.is_null() {
                     fields.insert(member.to_owned(), value);
@@ -690,8 +653,6 @@ impl EventStreamInfo {
 pub enum Decoded {
     /// An event, as the union's JSON form.
     Event(Value),
-    /// An `initial-response` (or `initial-request`) event's payload.
-    Initial(Bytes),
     /// A modeled error, as the union's JSON form. The stream ends.
     Exception(Value),
     /// An unmodeled error. The stream ends.
@@ -1058,7 +1019,7 @@ impl Reader {
         Some(decoded)
     }
 
-    /// Server inputs accept event messages only; an initial document belongs at the beginning.
+    /// Server inputs accept event messages only.
     pub fn into_request_incoming(self) -> Incoming {
         Box::pin(futures_util::stream::unfold(
             Some(self),
@@ -1077,36 +1038,21 @@ impl Reader {
         ))
     }
 
-    /// The events, starting with `pending` when the transport already read
-    /// one while looking for an initial response. A modeled exception or
-    /// error ends the stream.
-    pub fn into_incoming(
-        self,
-        pending: Option<Result<Decoded, EventStreamError<Value>>>,
-    ) -> Incoming {
+    /// The events. A modeled exception or error ends the stream.
+    pub fn into_incoming(self) -> Incoming {
         Box::pin(futures_util::stream::unfold(
-            Some((self, pending)),
+            Some(self),
             |state| async move {
-                let (mut reader, mut pending) = state?;
-                loop {
-                    let next = match pending.take() {
-                        Some(next) => next,
-                        None => reader.next().await?,
-                    };
-                    let error = match next {
-                        Ok(Decoded::Event(event)) => {
-                            return Some((Ok(event), Some((reader, None))));
-                        }
-                        // A late or repeated initial message carries no event.
-                        Ok(Decoded::Initial(_)) => continue,
-                        Ok(Decoded::Exception(error)) => EventStreamError::Exception(error),
-                        Ok(Decoded::Error { code, message }) => {
-                            EventStreamError::Error { code, message }
-                        }
-                        Err(error) => error,
-                    };
-                    return Some((Err(error), None));
-                }
+                let mut reader = state?;
+                let error = match reader.next().await? {
+                    Ok(Decoded::Event(event)) => return Some((Ok(event), Some(reader))),
+                    Ok(Decoded::Exception(error)) => EventStreamError::Exception(error),
+                    Ok(Decoded::Error { code, message }) => {
+                        EventStreamError::Error { code, message }
+                    }
+                    Err(error) => error,
+                };
+                Some((Err(error), None))
             },
         ))
     }

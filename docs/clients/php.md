@@ -139,51 +139,6 @@ retry traits even if modeled members are malformed. Retries follow the
 Generation diagnoses reserved names, case-insensitive naming collisions,
 and recursive collection aliases. Nominal recursive structures are supported.
 
-## Protocols
-
-Besides Crucible JSON, packages speak `aws.protocols#restJson1`,
-`awsJson1_0`, and `awsJson1_1`; pass `--protocol` when a service declares more
-than one. The schema carries each protocol's rules, so the runtime needs no
-protocol configuration:
-
-- AWS JSON 1.0 and 1.1 send every call as `POST /` with `X-Amz-Target:
-  Service.Operation`, an `application/x-amz-json-1.x` content type, and `{}`
-  when the input is empty. Members use their Smithy names, not `jsonName`.
-- REST JSON keeps HTTP bindings. Header timestamps default to HTTP dates and
-  query and label timestamps to date-time; bodies use epoch seconds.
-- All three omit a structure member set to `null` (document members keep an
-  explicit null), ignore an unknown `__type` member in unions, and write
-  non-finite floats as `"NaN"`, `"Infinity"`, and `"-Infinity"`.
-- Errors are identified by `x-amzn-errortype`, then `code`, then `__type`,
-  without a namespace prefix or a `:detail` suffix. `Message` is accepted as the
-  message, and `x-amzn-requestid` or `x-amz-request-id` as the request ID.
-
-### Smithy RPC v2
-
-`smithy.protocols#rpcv2Cbor` and `smithy.protocols#rpcv2Json` send every call as
-`POST {endpoint}/service/{Service}/operation/{Operation}`, keeping any path
-prefix on the endpoint, with `Smithy-Protocol: rpc-v2-cbor` (or `rpc-v2-json`)
-and a matching `Accept`. HTTP binding traits and `jsonName` are ignored. An
-operation without input sends no body and no `Content-Type`; an empty input
-structure sends an empty map. Every timestamp is epoch seconds, whatever its
-`@timestampFormat`.
-
-- CBOR is a pure-PHP RFC 8949 codec (`Runtime\Cbor`). Blobs are byte strings,
-  timestamps tag 1 epochs, `bigInteger` a 64-bit integer or tag 2/3 bignum, and
-  `bigDecimal` a tag 4 decimal fraction. Floats use the smallest of single or
-  double precision that is exact, never half precision; NaN and infinities are
-  native floats. Decoding accepts indefinite lengths, half floats, and
-  `undefined` (as null), and rejects truncated, non-UTF-8, duplicate-key, or
-  trailing input. CBOR protocol models cannot use documents.
-- JSON writes `bigInteger` and `bigDecimal` as strings, non-finite floats as
-  `"NaN"`, `"Infinity"`, and `"-Infinity"`, and documents as any JSON value.
-- Both omit null structure members and ignore an unknown `__type` in unions.
-  Errors are identified only by the body's `__type` (the error's absolute shape
-  ID); `X-Amzn-ErrorType` and `code` are ignored. A response whose
-  `Smithy-Protocol` header is missing or different is malformed: a success
-  throws `UnexpectedValueException`, and an error becomes an
-  `UnknownServiceError` carrying only its status.
-
 ## Authentication
 
 Besides bearer, Basic, API-key, and SigV4 credentials, packages answer
@@ -420,8 +375,8 @@ native weather-service calls, body interruption and proxy behavior, Composer
 archive installation, and empty and renamed packages. Generated packages also
 cover waiters (every matcher kind, the JMESPath function library, backoff,
 deadlines, and cancellation), endpoint rules and host prefixes, the shared
-checksum vectors and request and response checksum flows, the three AWS
-JSON protocols, and both Smithy RPC v2 protocols, through an injected transport, and streaming blobs: every
+checksum vectors and request and response checksum flows, through an injected
+transport, and streaming blobs: every
 source kind, replay and one-shot rules, length checks, digests and checksums,
 response targets, and retries. The typed permissions of
 `tests/fixtures/permissions` are read through a Composer install
@@ -431,17 +386,6 @@ transport: 256 MiB uploads (chunked and sized) and a 256 MiB download under a
 streamed response checksums, a waiter, and request and response checksums. The
 memory limit covers PHP allocations, not cURL's own buffers.
 
-RPC v2 runs every client-applicable official Smithy protocol test (from
-`smithy-lang/smithy` `smithy-protocol-tests`, converted to the fixtures
-`rpcv2-cbor.json` and `rpcv2-json.json`): 72 CBOR and 73 JSON request and
-response cases. The CBOR codec runs the RFC 8949 Appendix A examples and
-malformed-input cases. HTTP Digest is checked against the RFC 7616 section 3.9
-examples (the SHA-512-256 example as corrected by reported erratum 4897). SigV4a
-is checked against the AWS CRT `aws-signing-test-suite` v4a cases: the derived
-public key, the canonical request and string to sign, and the published
-signatures. A second loopback server then checks RPC v2 CBOR framing over cURL,
-verifies each Digest algorithm and `qop`, nonce counts, and stale nonces with
-its own hash computation, and verifies SigV4a signatures by rebuilding the
-canonical request from the received bytes. Set `PHP` to
+Set `PHP` to
 choose the executable and `COMPOSER_PHAR` to use a specific Composer archive. These checks
 do not establish published-package or authenticated deployed-Leyline compatibility.

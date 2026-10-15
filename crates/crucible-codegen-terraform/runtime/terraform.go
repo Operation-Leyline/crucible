@@ -9,7 +9,6 @@ import (
 	"os"
 	"sort"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/hashicorp/terraform-plugin-framework/attr"
@@ -330,34 +329,17 @@ func (r *infraResource) missing(err error) bool {
 	}
 	return false
 }
-// explicitErrorName is the error name the response itself carried, normalised
-// the way the client normalises it into ServiceError.Name. Where the name lives
-// is protocol-specific: a body __type for the plain JSON protocol, and for the
-// AWS JSON protocols also a body code or the X-Amzn-Errortype header (restJson1
-// bodies carry no __type; awsJson prefixes it with the namespace).
+// explicitErrorName is the error name the response itself carried: the
+// X-Crucible-Error header, or else the body's __type.
 func explicitErrorName(e *ServiceError) string {
 	var envelope struct {
 		Type string `json:"__type"`
-		Code string `json:"code"`
 	}
 	// An unparseable body simply carries no name.
 	_ = json.Unmarshal(e.Metadata.Body, &envelope)
 	name := envelope.Type
 	if header := e.Metadata.Headers.Get("X-Crucible-Error"); header != "" {
 		name = header
-	}
-	switch wireSchema.Protocol {
-	case "awsRestJson1", "awsJson1_0", "awsJson1_1":
-		if envelope.Code != "" {
-			name = envelope.Code
-		}
-		if header := e.Metadata.Headers.Get("X-Amzn-Errortype"); header != "" {
-			name = header
-		}
-		name = strings.SplitN(name, ":", 2)[0]
-		if index := strings.LastIndex(name, "#"); index >= 0 {
-			name = name[index+1:]
-		}
 	}
 	return name
 }

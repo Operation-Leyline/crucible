@@ -1,6 +1,5 @@
 """Generate, type-check, and exercise a Python SDK with this interpreter."""
 import os
-import json
 import queue
 from pathlib import Path
 import subprocess
@@ -18,11 +17,10 @@ def run(*args, **kwargs):
 
 def qualify(package):
     payload_bindings = []
-    for protocol, module in (("crucible.protocols#json", "payloadbindings_client"),
-                             ("aws.protocols#restJson1", "restpayloadbindings_client")):
+    for protocol, module in (("crucible.protocols#json", "payloadbindings_client"),):
         output = package.parent / module
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-            "crates/crucible-codegen-python/tests/payload-bindings.json", "--protocol", protocol,
+            "crates/crucible-codegen-python/tests/payload-bindings.json",
             "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
         run(sys.executable, "-m", "mypy", str(output / "src"))
         payload_bindings.append(output)
@@ -69,10 +67,6 @@ def qualify(package):
         "tests/fixtures/permissions", "--out", str(permissions),
         "--package-name", "leyline-client", "--module-name", "leyline_client")
     protocols = []
-    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
-    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
-    protocol_path = package.parent / "protocol.json"
-    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
     docs = package.parent / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
         "tests/fixtures/client-docs.json", "--out", str(docs),
@@ -85,15 +79,6 @@ def qualify(package):
         "--package-name", "checksum-client", "--module-name", "checksum_client")
     run(sys.executable, "-m", "mypy", str(checksum / "src"))
     protocols.append(checksum)
-    for protocol, module in (("aws.protocols#restJson1", "restjson_client"),
-                             ("aws.protocols#awsJson1_0", "json10_client"),
-                             ("aws.protocols#awsJson1_1", "json11_client")):
-        output = package.parent / module
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-            str(protocol_path), "--protocol", protocol,
-            "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
-        protocols.append(output)
-        run(sys.executable, "-m", "mypy", str(output / "src"))
     env = dict(os.environ, PYTHONPATH=os.pathsep.join(str(item / "src") for item in (package, dynamic, extended, payload, auth, jobs, behavior, stream, policy, permissions, *protocols, *payload_bindings)))
     run(sys.executable, "-m", "mypy", str(package / "src"))
     run(sys.executable, "-m", "mypy", str(dynamic / "src"))
@@ -105,18 +90,6 @@ def qualify(package):
     run(sys.executable, "-m", "mypy", str(stream / "src"))
     run(sys.executable, "-m", "mypy", str(policy / "src"))
     run(sys.executable, "-m", "mypy", str(permissions / "src"))
-    vectors = package.parent / "protocol-tests"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance",
-        "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", "--target", "python", "--out", str(vectors))
-    run(sys.executable, "tools/protocol_conformance.py", str(vectors / "protocol-tests.json"),
-        "--report", str(vectors / "results.json"), "--", sys.executable,
-        "tools/protocol_python_adapter.py", "dynamic_client", env=env)
-    error_vectors = package.parent / "error-protocol-tests"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "conformance",
-        "crates/crucible-smithy/tests/fixtures/error-payloads.json", "--target", "python", "--out", str(error_vectors))
-    run(sys.executable, "tools/protocol_conformance.py", str(error_vectors / "protocol-tests.json"),
-        "--report", str(error_vectors / "results.json"), "--", sys.executable,
-        "tools/protocol_python_adapter.py", "wire_client", env=env)
     if not os.environ.get("WEATHER_BIN"):
         run("cargo", "build", "--locked", "-q", "--manifest-path", "e2e/Cargo.toml", "-p", "weather-service")
     target = Path(os.environ.get("CARGO_TARGET_DIR", "e2e/target"))

@@ -144,23 +144,19 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
             XCTAssertEqual(try codec.header(.object(["target": .string("example.weather#Tags")]), codec.bound(test["values"]!)), test["values"]!)
         }
     }
-    func testUnquotedHTTPDateHeaderListsAndNonFiniteFloatHeaders() throws {
+    func testUnquotedHTTPDateHeaderLists() throws {
         let shapes = """
             "shapes":{"Time":{"kind":"timestamp","format":"http-date"},"Times":{"kind":"list","member":{"target":"Time","format":"http-date"}},"Ratio":{"kind":"float"}}
             """
-        let codec = WireCodec(schema: try json("{\(shapes),\"protocolSettings\":{\"nonFiniteFloatStrings\":true}}"))
+        let codec = WireCodec(schema: try json("{\(shapes)}"))
         let first = "Mon, 16 Dec 2019 23:48:18 GMT", second = "Tue, 17 Dec 2019 23:48:18 GMT"
         let times = JSONValue.object(["target": .string("Times")])
         XCTAssertEqual(try codec.header(times, "\(first), \(second)"), .array([.string(first), .string(second)]))
         XCTAssertEqual(try codec.header(times, first), .array([.string(first)]))
         XCTAssertEqual(try codec.header(times, "\"\(first)\""), .array([.string(first)]))
         let ratio = JSONValue.object(["target": .string("Ratio")])
-        for text in ["NaN", "Infinity", "-Infinity"] {
-            XCTAssertEqual(try codec.header(ratio, text), .string(text))
-        }
         XCTAssertEqual(try codec.header(ratio, "1.5"), try json("1.5"))
-        let strict = WireCodec(schema: try json("{\(shapes)}"))
-        XCTAssertThrowsError(try strict.header(ratio, "NaN"))
+        XCTAssertThrowsError(try codec.header(ratio, "NaN"))
     }
     func testRetriesReplayBytesRefreshCredentialsAndPreserveInput() async throws {
         let credentials = Counter()

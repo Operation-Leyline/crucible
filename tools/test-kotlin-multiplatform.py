@@ -142,14 +142,6 @@ def qualify(output, native=False):
             raise RuntimeError("Native qualification requires macOS or Windows")
     run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
         *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=sdk, timeout=3600)
-    for label, protocol in [("rest", "restJson1"), ("json10", "awsJson1_0"), ("json11", "awsJson1_1")]:
-        protocol_sdk = output / label
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
-            str(ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json"), "--protocol", "aws.protocols#" + protocol,
-            "--out", str(protocol_sdk), "--group-id", "example", "--artifact-id", "json-" + label + "-kotlin-mpp",
-            "--package-name", "example.json." + label, "--package-version", "0.0.0-test")
-        run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
-            *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=protocol_sdk, timeout=3600)
     # Streaming bodies use their own package: no body digest, so unsized bodies need no precomputed SHA-256.
     stream_sdk = output / "stream"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",

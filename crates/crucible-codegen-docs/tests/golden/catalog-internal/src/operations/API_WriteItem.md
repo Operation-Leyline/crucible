@@ -1,7 +1,7 @@
 # WriteItem
 
 
-Protocol: <code>rpcv2Json</code>.
+Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
@@ -10,10 +10,8 @@ Effective schemes: <code>[]</code>. Optional authentication: false.
 ## Request syntax
 
 ```http
-POST /service/Catalog/operation/WriteItem HTTP/1.1
-Accept: application/json
+POST /WriteItem HTTP/1.1
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 ```
 
 ### Request body
@@ -35,7 +33,6 @@ Smithy-Protocol: rpc-v2-json
 ```http
 HTTP/1.1 200
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 ```
 
 ### Response body
@@ -74,14 +71,12 @@ Idempotency token: <code>clientToken</code>. SDKs send this automatically. When 
 Request:
 
 ```http
-POST /service/Catalog/operation/WriteItem HTTP/1.1
-Accept: application/json
+POST /WriteItem HTTP/1.1
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 
 {
   "item": {
-    "amount": "1234567890123456789"
+    "amount": 1234567890123456789
   }
 }
 ```
@@ -91,10 +86,9 @@ Response:
 ```http
 HTTP/1.1 200
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 
 {
-  "at": 1767323045,
+  "at": "2026-01-02T03:04:05Z",
   "state": "READY"
 }
 ```
@@ -105,10 +99,8 @@ Smithy-Protocol: rpc-v2-json
 Request:
 
 ```http
-POST /service/Catalog/operation/WriteItem HTTP/1.1
-Accept: application/json
+POST /WriteItem HTTP/1.1
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 
 {
   "item": {
@@ -122,10 +114,10 @@ Error response:
 ```http
 HTTP/1.1 503
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
+X-Crucible-Error: Unavailable
 
 {
-  "__type": "example.docs#Unavailable",
+  "__type": "Unavailable",
   "message": "Try later"
 }
 ```

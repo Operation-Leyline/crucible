@@ -202,20 +202,6 @@ fn declared_client_features_generate() {
         let files = emit(&service, &options()).unwrap_or_else(|error| panic!("{path}: {error}"));
         assert!(files.iter().any(|file| file.path == "src/endpoints.cpp"));
     }
-    let model = Model::from_json(
-        &feature_model("../crucible-smithy/tests/fixtures/protocol-json.json").to_string(),
-    )
-    .unwrap();
-    for protocol in [
-        crucible_smithy::Protocol::AwsRestJson1,
-        crucible_smithy::Protocol::AwsJson10,
-        crucible_smithy::Protocol::AwsJson11,
-    ] {
-        let service = model
-            .lower_with_protocol(None, &capabilities, protocol)
-            .unwrap();
-        emit(&service, &options()).unwrap();
-    }
     let service = lower_features(&feature_model(
         "../crucible-codegen-java/tests/waiters.json",
     ));

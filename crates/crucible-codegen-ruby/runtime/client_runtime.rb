@@ -16,8 +16,6 @@ module CrucibleGenerated
         end
         @builtins = {'AWS::Region' => config.region, 'SDK::Endpoint' => @endpoint}.merge(config.endpoint_builtins)
         @transport, @closed = config.transport || NetHttpTransport.new, false
-        # The XML family's codec, or nil for the JSON protocols.
-        @xml = XmlProtocol.handles?(protocol) ? XmlProtocol.new(codec.schema) : nil
       end
       def close
         @transport.close unless @closed || @config.transport
@@ -101,9 +99,7 @@ module CrucibleGenerated
         raise ::ArgumentError, error.message
       end
       private
-      AWS_PROTOCOLS = %w[awsRestJson1 awsJson1_0 awsJson1_1].freeze
       def operation(name) = @codec.schema.fetch('operations').fetch(name)
-      def protocol = @codec.schema.fetch('protocol', 'crucibleJson')
       def escape(text) = Endpoints.encode(text)
       def execute(name, op, values, scope, response_target: nil, block: nil)
         result = exchange(name, op, values, scope, response_target: response_target, block: block)
@@ -223,12 +219,7 @@ module CrucibleGenerated
           end
         end
         body = nil
-        if @xml&.query?
-          # awsQuery and ec2Query always send a form naming the action and API version.
-          body, headers['content-type'] = @xml.form(name, op['input'], values), 'application/x-www-form-urlencoded'
-        elsif @xml && !bindings.fetch('body').empty?
-          body, headers['content-type'] = @xml.document(op.fetch('input'), bindings.fetch('body'), values), 'application/xml'
-        elsif !bindings.fetch('body').empty?
+        if !bindings.fetch('body').empty?
           object = bindings.fetch('body').filter_map { |member| [member, values[member]] if values.key?(member) }.to_h
           body, headers['content-type'] = ExactJson.encode(@codec.document(op.fetch('input'), object, encode: true)), 'application/json'
         end
@@ -238,16 +229,10 @@ module CrucibleGenerated
           body = case bindings.fetch('payloadKind', 'blob')
           when 'string' then WireCodec.string(value).encode(::Encoding::UTF_8)
           when 'document'
-            @xml ? @xml.payload(op.fetch('input'), payload[0], value) : ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
+            ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
           else bindings['streaming'] ? stream_payload(op, bindings, payload, value) : ::Base64.strict_decode64(value)
           end
           headers['content-type'] = payload[1] unless modelled_content_type
-        end
-        if %w[awsJson1_0 awsJson1_1].include?(protocol)
-          # AWS JSON RPC always sends an object and names the operation in X-Amz-Target.
-          body ||= '{}'
-          headers['content-type'] = 'application/x-amz-json-' + (protocol == 'awsJson1_0' ? '1.0' : '1.1')
-          headers['x-amz-target'] = @codec.schema.fetch('service').split('#').last + '.' + name
         end
         # The release this client was generated for (docs/api-versions-clients.md).
         api_version = @codec.schema['apiVersion']
@@ -338,13 +323,8 @@ module CrucibleGenerated
         payload = bindings['payload']
         body = if sink
           {payload[0] => sink.body}
-        elsif @xml && (payload.nil? || bindings['payloadKind'] == 'document')
-          @xml.output(name, op['output'], bindings.fetch('body'), payload&.first, response.body)
         elsif payload
-          member = @codec.shape(op.fetch('output')).fetch('members').fetch(payload[0])
-          absent_blob = @xml && response.body.empty? && member['optional'] &&
-            @codec.shape(member.fetch('target'))['kind'] == 'blob'
-          absent_blob ? {} : {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
+          {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
         elsif bindings.fetch('body').empty? || response.body.empty?
           {}
         else WireCodec.object(@codec.document(op.fetch('output'), ExactJson.decode(response.body), encode: false))
@@ -383,28 +363,15 @@ module CrucibleGenerated
         object
       end
       def failure(op, response)
-        envelope = @xml && XmlProtocol.error(response.body)
         begin
-          body = envelope ? {} : WireCodec.object(ExactJson.decode(response.body))
+          body = WireCodec.object(ExactJson.decode(response.body))
         rescue ::ArgumentError
           body = {}
         end
         text = ->(value) { value.is_a?(::String) ? value : nil }
-        aws = AWS_PROTOCOLS.include?(protocol)
-        if envelope
-          name, message = envelope.code, envelope.message
-          request_id = response.headers['x-amzn-requestid'] || response.headers['x-amz-request-id'] || envelope.request_id
-        elsif aws
-          # AWS JSON names errors in a header or body, possibly with a namespace and a ':' suffix.
-          name = response.headers['x-amzn-errortype'] || text.(body['code']) || text.(body['__type'])
-          name = name&.split(':', 2)&.first&.split('#')&.last
-          request_id = response.headers['x-amzn-requestid'] || response.headers['x-amz-request-id'] || response.headers['x-request-id']
-          message = text.(body['message']) || text.(body['Message'])
-        else
-          name = response.headers['x-crucible-error'] || text.(body['__type'])
-          request_id = response.headers['x-request-id'] || text.(body['requestId'])
-          message = text.(body['message'])
-        end
+        name = response.headers['x-crucible-error'] || text.(body['__type'])
+        request_id = response.headers['x-request-id'] || text.(body['requestId'])
+        message = text.(body['message'])
         matches = op.fetch('errors').select do |target|
           shape = @codec.shape(target)
           name ? (shape.fetch('error')['wireCode'] || shape.fetch('name')) == name : shape.fetch('error').fetch('status') == response.status
@@ -420,7 +387,6 @@ module CrucibleGenerated
           begin
             payload = traits['payload']
             body = if payload then {payload[0] => payload_value(target, traits, response.body)}
-            elsif envelope then envelope.error ? @xml.read_members(envelope.error, target, shape.fetch('members').keys) : {}
             else @codec.document(target, body, encode: false)
             end
             object = apply_headers(target, traits, response, body)

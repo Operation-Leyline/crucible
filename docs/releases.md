@@ -65,8 +65,7 @@ The `consumers` job builds three things the way a downstream service does, one
 OS, one shared Cargo cache (`tools/test-consumers.py`):
 
 1. the starter produced by `crucible new`, built against this checkout;
-2. `e2e/weather-service` (model, service, Rust client and the generated
-   `smithy.test` conformance suite);
+2. `e2e/weather-service` (model, service, Rust client and their HTTP tests);
 3. a Leyline-shaped fixture (`tests/consumers/leyline`): a separate model crate;
    `AuthenticatorChain` and scope checks from `crucible-auth`; a custom async
    `Middleware` and `OperationAwareMiddleware`; an `Interceptor`; a modelled

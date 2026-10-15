@@ -132,57 +132,6 @@ scope's deadline/cancellation and the body-read decision. Modeled errors
 inherit `ServiceError`; metadata retains wire status, error name, request ID,
 headers, and retry traits even when modeled members cannot be decoded.
 
-## Protocols
-
-Besides Crucible JSON, generated clients speak AWS `restJson1`, `awsJson1_0`
-and `awsJson1_1`, chosen at generation time with
-`--protocol aws.protocols#...`. The RPC variants POST an object (`{}` when the
-input is empty) to `/` with `X-Amz-Target: Service.Operation` and
-`application/x-amz-json-1.x`. `restJson1` applies the binding timestamp
-formats: HTTP dates in headers (lists of them are unquoted) and date-time in
-query strings and labels. Under the AWS protocols a structure member's `null`
-is treated as absent (documents keep `null`), non-finite floats travel as
-`"NaN"`/`"Infinity"`/`"-Infinity"`, a union's `__type` is ignored, and errors
-are named by `X-Amzn-ErrorType`, `code`, or `__type` with any namespace or `:`
-suffix removed. `X-Amzn-RequestId` becomes `metadata.request_id`.
-
-`aws.protocols#restXml`, `aws.protocols#awsQuery`, and `aws.protocols#ec2Query`
-are generated the same way. XML is read with REXML (the gem declares `rexml`);
-the runtime refuses any document type declaration and any undeclared entity
-reference before using a value, preventing DTD-defined entity expansion.
-Predefined references such as `&amp;` remain part of normal XML parsing.
-Element and query names, flattening, attributes, and namespaces come from the
-lowered IR (`@xmlName`, `@xmlFlattened`, `@xmlAttribute`, `@xmlNamespace`,
-`aws.protocols#ec2QueryName`). restXml applies the HTTP bindings and writes the
-remaining members under the input's root element, in the input's namespace or
-else the service's; a structure `@httpPayload` is named by the member's
-`@xmlName`, else the target's name. Lists wrap `<member>` (or the list member's
-`@xmlName`) elements, maps wrap `<entry><key>...</key><value>...</value></entry>`,
-and flattened collections repeat the member's own element. awsQuery and ec2Query
-POST `application/x-www-form-urlencoded` forms that start with `Action` and the
-service `Version`: awsQuery lists are `Name.member.N` (`Name.N` when flattened, a
-bare `Name=` when empty) and maps `Name.entry.N.key`/`.value`; ec2Query always
-flattens, leaves empty lists out, and names members by `ec2QueryName` or the
-capitalized XML name. Timestamps default to date-time; non-finite floats are
-`NaN`, `Infinity`, and `-Infinity`; blobs are base64.
-
-Responses are read by local element name, so namespace prefixes do not matter.
-awsQuery reads the `<OperationResult>` element and ignores `<ResponseMetadata>`;
-ec2Query reads the root element. Errors are found in `<ErrorResponse><Error>`,
-restXml's unwrapped `<Error>` (`noErrorWrapping`, as S3 sends), or ec2Query's
-`<Response><Errors><Error>`: `Code` selects the modeled error (an
-`aws.protocols#awsQueryError` code under awsQuery), `Message` becomes the
-error message, and `RequestId`/`RequestID` is the request ID unless an
-`x-amzn-requestid` or `x-amz-request-id` header supplies one. A success
-response's request ID is not exposed. Nesting is limited to 256 elements, and
-malformed XML fails the call.
-A restXml body with text XML 1.0 cannot carry (most control characters) is
-rejected before sending. Sparse collections are refused for these protocols at
-generation time, because XML has no null element; document shapes and raw restXml error payloads are refused as
-well, and `awsQueryCompatible` is not supported.
-Errors carry the envelope's code as `metadata.name` and its message as
-`metadata.message`; a modeled `Message` member is `message_value`.
-
 ## Waiters
 
 Each modeled waiter becomes `wait_until_<name>(input, timeout:, min_delay:
@@ -302,16 +251,10 @@ HTTP, interruptions and proxy handling, gem installation into a separate
 consumer, and empty and renamed models. It also runs native suites for
 waiters (every acceptor kind, the JMESPath functions, jitter, deadlines and
 cancellation), endpoint rules and host prefixes, the published checksum
-vectors and policies, the three AWS JSON protocols, the restXml, awsQuery and
-ec2Query vectors (through `tests/protocol_adapter.rb` and
-`tools/protocol_conformance.py`) and their consumer suite (fake and loopback
-HTTP transports, error envelopes, hostile XML), and streaming blobs
+vectors and policies, and streaming blobs
 (replay rules, length rules, cancellation, and 256 MiB each way over loopback
 HTTP with bounded peak memory), and the typed permissions of
 `tests/fixtures/permissions` (`tests/permissions.rb`). Set `RUBY` to select
 the executable.
 These checks do not establish published-gem or authenticated deployed-Leyline
 compatibility.
-The [XML qualification scope](../xml-qualification.md) records pinned official
-sources, exact unsupported compression/S3 addressing cases, and the separate
-handwritten regression fixtures.

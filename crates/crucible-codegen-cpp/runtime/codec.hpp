@@ -24,12 +24,6 @@ class Schema {
     Json description_;
 public:
     explicit Schema(Json description) : description_(std::move(description)) {}
-    /// Protocol encoding switches, such as AWS JSON's nonFiniteFloatStrings.
-    [[nodiscard]] bool setting(std::string_view name) const {
-        const auto* settings = description_.find("protocolSettings");
-        const auto* value = settings && !settings->is_null() ? settings->find(name) : nullptr;
-        return value && value->boolean();
-    }
     [[nodiscard]] const Json& description() const noexcept { return description_; }
     [[nodiscard]] const Json& shape(std::string_view target) const { return description_.at("shapes").at(target); }
     [[nodiscard]] Context context(std::string_view target) const { return Context(*this, shape(target)); }
@@ -63,18 +57,12 @@ template<std::signed_integral T> struct Codec<T> {
     static Json encode(T value, const Context&) { return Json(static_cast<std::int64_t>(value)); }
 };
 template<std::floating_point T> struct Codec<T> {
-    static T decode(const Json& value, const Context& context) {
-        if (const auto* text = std::get_if<std::string>(&value.value()); text && context.schema().setting("nonFiniteFloatStrings")) {
-            if (*text == "NaN") return std::numeric_limits<T>::quiet_NaN();
-            if (*text == "Infinity") return std::numeric_limits<T>::infinity();
-            if (*text == "-Infinity") return -std::numeric_limits<T>::infinity();
-        }
+    static T decode(const Json& value, const Context&) {
         const auto result = static_cast<T>(value.number().floating());
         if (!std::isfinite(result)) throw std::invalid_argument("Float out of range");
         return result;
     }
-    static Json encode(T value, const Context& context) {
-        if (!std::isfinite(value) && context.schema().setting("nonFiniteFloatStrings")) return Json(std::isnan(value) ? "NaN" : value > 0 ? "Infinity" : "-Infinity");
+    static Json encode(T value, const Context&) {
         return Json(static_cast<double>(value));
     }
 };

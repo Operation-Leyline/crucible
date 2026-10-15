@@ -261,7 +261,6 @@ class _Codec:
         self.schema = schema
         self.shapes = schema["shapes"]
         self.classes = classes
-        self.settings = schema.get("protocolSettings", {})
 
     def convert(self, target: str | None, value: Any, *, decode: bool = False,
                 fmt: str | None = None) -> Any:
@@ -312,18 +311,12 @@ class _Codec:
         if kind in ("structure", "union"):
             if decode and not isinstance(value, dict):
                 raise ValueError(f"expected an object for {shape['name']}")
-            if (decode and kind == "union" and self.settings.get("ignoreUnknownUnionType")
-                    and "__type" not in shape["members"]):
-                value = {key: item for key, item in value.items() if key != "__type"}
             out: dict[str, Any] = {}
             wire_names = {m.get("jsonName", key) for key, m in shape["members"].items()}
             for key, m in shape["members"].items():
                 wire = m.get("jsonName", key)
                 native = m["attribute"]
                 item = value.get(wire if decode else key, UNSET) if isinstance(value, dict) else getattr(value, native, UNSET)
-                if (kind == "structure" and item is None and self.settings.get("omitNullStructureMembers")
-                        and self.shapes[m["target"]]["kind"] != "document"):
-                    item = UNSET
                 if isinstance(item, Unset) and decode and m["default"] is not None:
                     item = copy.deepcopy(m["default"])
                 if isinstance(item, Unset):
@@ -355,13 +348,6 @@ class _Codec:
             if isinstance(value, bool) or not isinstance(value, int) or not -(2 ** (bits - 1)) <= value < 2 ** (bits - 1):
                 raise ValueError(f"{kind} requires a signed {bits}-bit integer")
         if kind in ("float", "double"):
-            if self.settings.get("nonFiniteFloatStrings"):
-                if decode and isinstance(value, str):
-                    if value not in ("NaN", "Infinity", "-Infinity"):
-                        raise ValueError("invalid floating point string")
-                    return float(value)
-                if not decode and isinstance(value, (float, Decimal)) and not math.isfinite(value):
-                    return "NaN" if math.isnan(value) else "Infinity" if value > 0 else "-Infinity"
             if isinstance(value, Decimal):
                 return float(value)
         return value
@@ -716,7 +702,6 @@ class _Base:
         elif payload is not None:
             # The bytes go as they are: a body digest covers exactly these.
             value = original(payload[0])
-            # The codec has already applied the protocol's null-member policy.
             kind = op["request"].get("payloadKind", "blob")
             if json_name(payload[0]) in values and (value is not None or kind == "document"):
                 if kind == "string":
@@ -731,11 +716,6 @@ class _Base:
                     body = bytes(value)
                 if not modelled_content_type:
                     headers["content-type"] = payload[1]
-        protocol = self._codec.schema.get("protocol", "crucibleJson")
-        if protocol in ("awsJson1_0", "awsJson1_1"):
-            body = body if body is not None else b"{}"
-            headers["content-type"] = "application/x-amz-json-" + ("1.0" if protocol == "awsJson1_0" else "1.1")
-            headers["x-amz-target"] = self._codec.schema["service"].split("#")[-1] + "." + name
         # The release this client was generated for (docs/api-versions-clients.md).
         if api_version := self._codec.schema.get("apiVersion"):
             headers["crucible-version"] = api_version
@@ -893,11 +873,6 @@ class _Base:
         if not isinstance(fields, dict):
             fields = {}
         name = response.headers.get("x-crucible-error", fields.get("__type"))
-        aws_json = self._codec.schema.get("protocol") in ("awsRestJson1", "awsJson1_0", "awsJson1_1")
-        if aws_json:
-            name = response.headers.get("x-amzn-errortype", fields.get("code", fields.get("__type")))
-            if isinstance(name, str):
-                name = name.split(":", 1)[0].rsplit("#", 1)[-1]
         if not isinstance(name, str):
             name = None
         declared = {self._codec.shapes[t]["error"].get("wireCode", self._codec.shapes[t]["name"]): t for t in op["errors"]}
@@ -907,8 +882,6 @@ class _Base:
                 name = matches[0]
         target = declared.get(name)
         request_id = response.headers.get("x-request-id", fields.get("requestId"))
-        if aws_json:
-            request_id = response.headers.get("x-amzn-requestid", response.headers.get("x-amz-request-id", request_id))
         metadata = ResponseMetadata(response.status_code, request_id if isinstance(request_id, str) else None,
                                     httpx.Headers(response.headers), body)
         converted: dict[str, Any] = {}
@@ -928,7 +901,7 @@ class _Base:
             except (ValueError, TypeError, OverflowError, AttributeError):
                 # A malformed modeled member must not hide the HTTP failure or its retry policy.
                 converted = {}
-        message = fields.get("message", fields.get("Message") if aws_json else None)
+        message = fields.get("message")
         raise cls(name=name if name is not None else "UnknownError",
                   message=message if isinstance(message, str) else f"HTTP {response.status_code}",
                   metadata=metadata, retryable=error.get("retryable", False),

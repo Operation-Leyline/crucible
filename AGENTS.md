@@ -44,19 +44,19 @@ reviewed by CodeRabbit; never push to main.
 
 | Crate | Owns |
 |---|---|
-| `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda), and the `test-support` conformance harness |
+| `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`), and the release snapshot format (`snapshot.rs`): the IR's serde names are an on-disk format, so renaming an IR field, or adding one without `#[serde(default)]`, breaks committed releases |
 | `crucible-lang` | the Crucible modelling language front end (`docs/idl/`): lossless lexer, parser with recovery, typed syntax tree, name resolution, checks, and lowering to the same IR `crucible-smithy` produces, plus a source map, the compatibility guard and frozen releases (`release.rs`: `releases/<version>.json` and their lock) |
 | `crucible-lsp` | the language server for `.cru` files and `crucible.toml`: package-wide diagnostics, completion, semantic tokens, navigation, rename, folding, formatting and quick fixes. Editor plugins live in their own repositories (`crucible-intellij`), bundle its release binaries and only start it |
 | `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
-| `crucible-codegen-rust` | IR → Rust server/client bindings, server conformance tests from `smithy.test` vectors, and complete Cargo SDK packages with automatic runtime dependencies |
+| `crucible-codegen-rust` | IR → Rust server/client bindings, and complete Cargo SDK packages with automatic runtime dependencies |
 | `crucible-codegen` | shared native client and document/infrastructure/CLI output selection, target checks, generated-file ownership and stable output publication |
 | `crucible-build` | Cargo build scripts: compile/publish models, generate/export named client, document, infrastructure and CLI outputs and generate service contracts |
 | `crucible-policy` | configurable build-time API policy and directional compatibility checks; consumes only the lowered IR |
 | `crucible-codegen-ts` | the TypeScript client: IR → `.ts` files, and `runtime/runtime.ts`, copied into every generated package |
-| `crucible-codegen-openapi` | IR → OpenAPI 3.1 JSON for supported REST JSON wire contracts |
+| `crucible-codegen-openapi` | IR → OpenAPI 3.1 JSON for the Crucible JSON wire contract |
 | `crucible-revision` | the Crucible Git revision the generators were built from (and whether that checkout was dirty), in a leaf crate so a commit rebuilds only what records it |
 | `crucible-codegen-common` | compact descriptions of already-lowered wire semantics for bundled client runtimes, and the doc-comment escaping and `@sensitive` redaction rules native clients share |
 | `crucible-codegen-infra` | explicit provisioning bindings resolved against the shared resource IR |
@@ -72,9 +72,7 @@ reviewed by CodeRabbit; never push to main.
 `weather-service` (a service package that generates in `build.rs`, laid out
 as `docs/framework.md` "Laying out a service" says: `operations/<resource>/`,
 one file per operation; `middlewares/` and `interceptors/`, one file per extension),
-`weather-client` (a client package, tested against the service over HTTP) and
-`rpcv2-json-service` (Smithy's official RPC v2 JSON protocol tests, run against the
-server with stub operations: `docs/framework.md` "Protocol conformance").
+and `weather-client` (a client package, tested against the service over HTTP).
 Code here follows the same rule: one type per file, named for it. It is the
 example service and the integration test. Keep these rules:
 

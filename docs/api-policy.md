@@ -274,8 +274,7 @@ are conservative findings when inclusion cannot be proven. Member removal is
 conservative because some readers reject unknown fields. New modelled errors
 are reported for callers relying on the previous exhaustive error contract.
 
-Wire coverage currently supports Crucible JSON and AWS restJson1. Other
-protocol families, streaming, checksums, endpoint rules/discovery, and other
+Wire coverage currently supports Crucible JSON. Streaming, checksums, endpoint rules/discovery, and other
 unassessed advanced features produce `compatibility.unchecked` findings.
 They require an explicit assessment or exception; they do not silently pass.
 

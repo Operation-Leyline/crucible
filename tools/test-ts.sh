@@ -28,12 +28,6 @@ crucible generate ts crates/crucible-codegen-ts/tests/fixtures/hardening.json \
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/dynamic-bindings.json \
   --out "$dir/generated-dynamic" --package-name @example/dynamic \
   --endpoint https://dynamic.example >/dev/null
-crucible generate ts crates/crucible-codegen-ts/tests/fixtures/non-finite-bindings.json \
-  --out "$dir/generated-non-finite" --package-name @example/floats >/dev/null
-crucible generate ts crates/crucible-smithy/tests/fixtures/dynamic-bindings.json \
-  --out "$dir/generated-protocol" --package-name @example/protocol >/dev/null
-crucible conformance crates/crucible-smithy/tests/fixtures/dynamic-bindings.json \
-  --target ts --out "$dir/generated-protocol-vectors" >/dev/null
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/streaming.json \
   --out "$dir/generated-streaming" --package-name @example/streaming >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/extended-types.json \
@@ -49,17 +43,14 @@ crucible generate ts crates/crucible-codegen-ts/tests/fixtures/sigv4.json \
 crucible generate ts crates/crucible-smithy/tests/fixtures/error-payloads.json \
   --out "$dir/generated-payloads" --package-name @example/payloads >/dev/null
 crucible generate ts crates/crucible-codegen-python/tests/payload-bindings.json \
-  --protocol 'crucible.protocols#json' --out "$dir/generated-payloadbindings" --package-name @example/payloadbindings >/dev/null
-crucible generate ts crates/crucible-codegen-python/tests/payload-bindings.json \
-  --protocol 'aws.protocols#restJson1' --out "$dir/generated-rest-payloadbindings" --package-name @example/rest-payloadbindings >/dev/null
+  --out "$dir/generated-payloadbindings" --package-name @example/payloadbindings >/dev/null
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/globals.json \
   --out "$dir/generated-globals" --package-name @example/globals >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/checksums.json \
   --out "$dir/generated-checksums" --package-name @example/checksums >/dev/null
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/checksum-streaming.json \
   --out "$dir/generated-checksum-streaming" --package-name @example/checksum-streaming >/dev/null
-# The event stream fixture under each protocol shape: HTTP bindings, an
-# initial message (awsJson1_0), and SigV4-signed events.
+# The event stream fixture: HTTP bindings, and SigV4-signed events.
 events=crates/crucible-smithy/tests/fixtures/event-streams.json
 variant() {
   node -e 'const fs = require("fs"); const model = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
@@ -67,18 +58,9 @@ variant() {
     fs.writeFileSync(process.argv[2], JSON.stringify(model));' "$events" "$1" "$2"
 }
 mkdir -p "$dir/generated-fixtures"
-variant "$dir/generated-fixtures/events-rpc.json" '{"aws.protocols#awsJson1_0":{}}'
-variant "$dir/generated-fixtures/events-signed.json" '{"aws.protocols#restJson1":{},"aws.auth#sigv4":{"name":"events"},"smithy.api#auth":["aws.auth#sigv4"]}'
+variant "$dir/generated-fixtures/events-signed.json" '{"crucible.protocols#json":{},"aws.auth#sigv4":{"name":"events"},"smithy.api#auth":["aws.auth#sigv4"]}'
 crucible generate ts "$events" --out "$dir/generated-events" --package-name @example/events >/dev/null
-crucible generate ts "$dir/generated-fixtures/events-rpc.json" --out "$dir/generated-events-rpc" --package-name @example/events-rpc >/dev/null
 crucible generate ts "$dir/generated-fixtures/events-signed.json" --out "$dir/generated-events-signed" --package-name @example/events-signed >/dev/null
-for protocol in restJson1 awsJson1_0 awsJson1_1; do
-  crucible generate ts crates/crucible-smithy/tests/fixtures/protocol-json.json \
-    --protocol "aws.protocols#$protocol" --out "$dir/generated-$protocol" --package-name "@example/$protocol" >/dev/null
-done
 rm -rf "$dir/dist"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir"
 node --test "$dir"/dist/*.test.js
-
-${PYTHON:-python} tools/protocol_conformance.py "$dir/generated-protocol-vectors/protocol-tests.json" \
-  --report "$dir/generated-protocol-vectors/protocol-report.json" -- node tools/protocol_ts_adapter.mjs "$dir/dist/generated-protocol/src"

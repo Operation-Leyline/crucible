@@ -243,20 +243,6 @@ the first modeled algorithm the server returned; a mismatch raises
 `ChecksumException`, and `checksumValidated` reports each verified algorithm.
 An unsupported requested algorithm is an `ArgumentError` before sending.
 
-## AWS JSON protocols
-
-Models using `aws.protocols#restJson1`, `awsJson1_0`, or `awsJson1_1` (select
-one with `--protocol` when a service lists several) use the same client API.
-restJson1 keeps the HTTP bindings, with HTTP-date headers and ISO 8601 query
-and label timestamps. The AWS JSON 1.0 and 1.1 protocols POST every member as
-JSON to `/` with `X-Amz-Target: <Service>.<Operation>` and their content type,
-sending `{}` for empty input. All three use epoch-second body timestamps,
-send `NaN` and infinities as strings, treat null structure members as absent,
-and ignore a union's `__type`. Errors are identified by `X-Amzn-ErrorType`,
-`code`, or `__type` (namespace and URI suffix removed); request IDs come from
-`X-Amzn-RequestId` or `X-Amz-Request-Id`, and messages from `message` or
-`Message`.
-
 ## Migrating existing callers
 
 Pass ordinary typed values instead of `Field.value(...)` and read response
@@ -269,11 +255,10 @@ remain available. Regenerate and rebuild the package and its consumers together.
 `python tools/test-dart.py` checks shared retry and header cases,
 real HTTP, minimum-version analysis, native and JavaScript consumer compilation,
 and empty and renamed packages. It also generates the authentication, waiter,
-endpoint-rules, checksum, and three AWS JSON protocol models and runs their
+endpoint-rules, and checksum models and runs their
 tests on the VM and in Chrome: the published S3 SigV4 vector, credential
 selection and refresh, the shared checksum vectors, rules functions and host
-labels, waiter matchers, deadlines and cancellation, and protocol dispatch and
-error decoding. Set `DART` to select the SDK executable and
+labels, waiter matchers, deadlines and cancellation, and error decoding. Set `DART` to select the SDK executable and
 `CHROME_EXECUTABLE` if Chrome is not on its usual path. These checks do not
 establish Flutter device, published-package, or authenticated deployed-Leyline
 compatibility.

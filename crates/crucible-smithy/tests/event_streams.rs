@@ -1,5 +1,5 @@
 //! Event streams: which member carries the stream, where the other members
-//! travel per protocol, event bindings, and the constructs refused.
+//! travel, event bindings, and the constructs refused.
 use crucible_smithy::ir::{EventBinding, Operation, PayloadKind, Service, Shape};
 use crucible_smithy::{Capabilities, Feature, Model, Protocol};
 use serde_json::{Value, json};
@@ -17,12 +17,6 @@ fn lower(model: &Value) -> Result<Service, String> {
         .map_err(|error| error.to_string())
 }
 
-fn with_protocol(protocol: &str) -> Value {
-    let mut model: Value = serde_json::from_str(MODEL).unwrap();
-    model["shapes"]["example.events#Events"]["traits"] = json!({ protocol: {} });
-    model
-}
-
 fn op<'s>(service: &'s Service, name: &str) -> &'s Operation {
     service
         .operations
@@ -35,7 +29,7 @@ fn op<'s>(service: &'s Service, name: &str) -> &'s Operation {
 fn event_streams_require_the_target_capability() {
     let model = Model::from_json(MODEL).unwrap();
     let error = model
-        .lower_with_capabilities(None, &Capabilities::new([Feature::AwsRestJson1]))
+        .lower_with_capabilities(None, &Capabilities::default())
         .unwrap_err()
         .to_string();
     assert!(error.contains("event-streams"), "{error}");
@@ -43,14 +37,13 @@ fn event_streams_require_the_target_capability() {
 }
 
 #[test]
-fn http_binding_protocols_send_other_members_in_http_bindings() {
+fn other_members_travel_in_http_bindings() {
     let service = lower(&serde_json::from_str(MODEL).unwrap()).unwrap();
-    assert_eq!(service.protocol, Protocol::AwsRestJson1);
+    assert_eq!(service.protocol, Protocol::CrucibleJson);
     let publish = op(&service, "Publish");
     let stream = publish.request.event_stream.as_ref().unwrap();
     assert_eq!(stream.member, "events");
     assert_eq!(stream.target.to_string(), "example.events#ClientEvents");
-    assert!(!stream.initial_message);
     let payload = publish.request.payload.as_ref().unwrap();
     assert_eq!(payload.kind, PayloadKind::EventStream);
     assert_eq!(payload.media_type, "application/vnd.amazon.eventstream");
@@ -67,22 +60,6 @@ fn http_binding_protocols_send_other_members_in_http_bindings() {
 
     let chat = op(&service, "Chat");
     assert!(chat.request.event_stream.is_some() && chat.response.event_stream.is_some());
-}
-
-#[test]
-fn rpc_protocols_send_other_members_in_an_initial_message() {
-    for protocol in ["aws.protocols#awsJson1_0", "aws.protocols#awsJson1_1"] {
-        let service = lower(&with_protocol(protocol)).unwrap();
-        let publish = op(&service, "Publish");
-        let stream = publish.request.event_stream.as_ref().unwrap();
-        assert!(stream.initial_message, "{protocol}");
-        assert_eq!(publish.request.body, ["channel"], "{protocol}");
-        assert!(publish.request.payload.is_none());
-        let subscribe = op(&service, "Subscribe");
-        let stream = subscribe.response.event_stream.as_ref().unwrap();
-        assert!(stream.initial_message);
-        assert_eq!(subscribe.response.body, ["channel"]);
-    }
 }
 
 #[test]

@@ -208,8 +208,6 @@ export interface EventSpec {
 /** An input or output member that carries an event stream. */
 export interface EventStreamSpec {
   readonly member: string;
-  /** Protocols without HTTP bindings send the other members as an initial-request/initial-response event. */
-  readonly initial?: boolean;
   /** By union member name, which is each event's `:event-type`. */
   readonly events: Readonly<Record<string, EventSpec>>;
 }
@@ -296,18 +294,9 @@ export function encodeEvent(spec: EventStreamSpec, event: unknown): EventMessage
   return { headers: [...headers, { name: ":content-type", value: string(contentType) }, ...bound], payload };
 }
 
-/** The `initial-request` message: the input's other members, as the document the body would have been. */
-export function initialRequest(document: string): EventMessage {
-  return {
-    headers: [{ name: ":message-type", value: string("event") }, { name: ":event-type", value: string("initial-request") }, { name: ":content-type", value: string("application/json") }],
-    payload: utf8.encode(document),
-  };
-}
-
 /** Decoded event, modeled exception or unmodeled stream failure. */
 export type Received =
   | { readonly kind: "event"; readonly value: unknown }
-  | { readonly kind: "initial"; readonly payload: Uint8Array }
   | { readonly kind: "exception"; readonly name: string; readonly fields?: Record<string, unknown>; readonly message: string }
   | { readonly kind: "error"; readonly code: string; readonly message: string };
 
@@ -338,7 +327,6 @@ export function decodeEvent(spec: EventStreamSpec, message: EventMessage): Recei
   if (type === "event") {
     const name = stringHeader(message, ":event-type");
     if (name === undefined) throw new TypeError("an event message has no :event-type");
-    if (name === "initial-response" || name === "initial-request") return { kind: "initial", payload: message.payload };
     const info = Object.hasOwn(spec.events, name) ? spec.events[name] : undefined;
     if (info === undefined || info.error) {
       // A newer service's event: the union's unknown member.
@@ -425,17 +413,14 @@ async function* fromSync<T>(iterator: Iterator<T>): AsyncGenerator<T> {
 const releases = new WeakMap<EventStream<unknown>, (reason?: unknown) => Promise<void>>();
 
 /** For the transport: the events of a response, typed. */
-export function receivedEvents<T>(spec: EventStreamSpec, reader: EventMessageReader, pending: EventMessage | undefined, errors: Readonly<Record<string, ErrorSpec>>, metadata: ResponseMetadata): EventStream<T> {
+export function receivedEvents<T>(spec: EventStreamSpec, reader: EventMessageReader, errors: Readonly<Record<string, ErrorSpec>>, metadata: ResponseMetadata): EventStream<T> {
   async function* events(): AsyncGenerator<T> {
-    let next = pending;
     try {
       for (;;) {
-        const message = next ?? await reader.next();
-        next = undefined;
+        const message = await reader.next();
         if (message === undefined) return;
         const received = decodeEvent(spec, message);
         if (received.kind === "event") { yield received.value as T; continue; }
-        if (received.kind === "initial") continue;
         if (received.kind === "error") throw new EventStreamError(received.code, received.message);
         const error = Object.hasOwn(errors, received.name) ? errors[received.name] : undefined;
         let fields: Record<string, unknown> | undefined;
@@ -499,13 +484,11 @@ export function eventSigning(): EventSigning {
 }
 
 /**
- * The request body: the initial request first when the protocol has one,
- * then one message per event, pulled from the caller's source only when the
+ * The request body: one message per event, pulled from the caller's source only when the
  * connection asks for more. A signed stream ends with an empty signed message.
  */
-export function eventBody<T>(spec: EventStreamSpec, events: AsyncIterable<T> | Iterable<T>, initial: string | undefined, signing: EventSigning): ReadableStream<Uint8Array> {
+export function eventBody<T>(spec: EventStreamSpec, events: AsyncIterable<T> | Iterable<T>, signing: EventSigning): ReadableStream<Uint8Array> {
   const source = events instanceof EventStream ? events[Symbol.asyncIterator]() : new EventStream(events)[Symbol.asyncIterator]();
-  let pendingInitial = initial;
   let finished = false;
   const frame = async (message: EventMessage, signer: EventSigner | undefined) => {
     const bytes = encodeEventMessage(message);
@@ -514,10 +497,6 @@ export function eventBody<T>(spec: EventStreamSpec, events: AsyncIterable<T> | I
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       const signer = await signing.ready;
-      if (pendingInitial !== undefined) {
-        const document = pendingInitial; pendingInitial = undefined;
-        controller.enqueue(await frame(initialRequest(document), signer)); return;
-      }
       const next = await source.next();
       if (next.done) {
         finished = true;

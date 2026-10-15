@@ -42,6 +42,18 @@ const REFUSED_PROTOCOLS: &[(&str, &str)] = &[
     ("smithy.protocols", "rpcv2Json"),
 ];
 
+/// Traits that only XML and query protocols give meaning to.
+const REFUSED_XML_AND_QUERY_TRAITS: &[(&str, &str)] = &[
+    ("smithy.api", "xmlName"),
+    ("smithy.api", "xmlFlattened"),
+    ("smithy.api", "xmlAttribute"),
+    ("smithy.api", "xmlNamespace"),
+    ("aws.protocols", "awsQueryCompatible"),
+    ("aws.protocols", "awsQueryError"),
+    ("aws.protocols", "ec2QueryName"),
+    ("aws.customizations", "s3UnwrappedXmlOutput"),
+];
+
 /// The typed permission traits (`crucible.auth#<name>`), which only `.cru`
 /// models declare (docs/permissions.md §4.11). `crucible-traits` no longer
 /// defines them, so a Smithy model that uses one is refused: here at
@@ -307,8 +319,10 @@ impl<'m> Lowerer<'m> {
             }
         }
         if !declared_json {
-            self.diagnostics
-                .push(id, "the service must use the @crucible.protocols#json protocol");
+            self.diagnostics.push(
+                id,
+                "the service must use the @crucible.protocols#json protocol",
+            );
         }
         self.protocol = Protocol::CrucibleJson;
     }
@@ -1150,6 +1164,15 @@ impl<'m> Lowerer<'m> {
             self.diagnostics
                 .push(id, "@requestCompression is not supported");
         }
+        for (namespace, name) in REFUSED_XML_AND_QUERY_TRAITS {
+            let trait_id = ShapeId::new(namespace, name);
+            if traits.contains_key(&trait_id) {
+                self.diagnostics.push(
+                    id,
+                    format!("@{trait_id} is not supported: XML and query serialization are gone"),
+                );
+            }
+        }
         // Behavior traits outside smithy.api must not silently disappear into raw traits.
         {
             let trait_id = ShapeId::new("smithy.rules", "endpointBdd");
@@ -1386,9 +1409,7 @@ impl<'m> Lowerer<'m> {
                 simple(SimpleKind::BigDecimal)
             }
             Kind::Timestamp => simple(SimpleKind::Timestamp),
-            Kind::Document => {
-                simple(SimpleKind::Document)
-            }
+            Kind::Document => simple(SimpleKind::Document),
             Kind::Blob => simple(SimpleKind::Blob),
             Kind::Enum => Shape::Enum(Enum {
                 internal: shape.traits.contains_key(&smithy("internal")),

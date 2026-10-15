@@ -217,17 +217,7 @@ modeled input members or paths. Endpoint headers and SigV4 overrides apply to th
 request. Modeled host prefixes are validated as DNS labels before sending; set
 `disableHostPrefix` to opt out.
 
-## Protocols and checksums
-
-Select a declared protocol with `--protocol aws.protocols#restJson1`,
-`aws.protocols#awsJson1_0` or `aws.protocols#awsJson1_1`. The lowered model
-settles wire names, timestamp formats and bindings; the runtime adds the
-`X-Amz-Target` and `application/x-amz-json-1.x` headers for RPC protocols,
-omits ordinary structure nulls (explicit document nulls survive), ignores a
-union `__type` marker, sends non-finite floats as `"NaN"`/`"Infinity"`/
-`"-Infinity"`, and decodes AWS error codes from `X-Amzn-Errortype`, `code` or
-`__type` (namespace and `:` suffix removed) with `Message` and
-`X-Amzn-RequestId` metadata. Renamed error types keep their wire codes.
+## Checksums
 
 Modeled checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256 and SHA512
 (pure-Swift CRCs; Swift Crypto for the digests) over buffered payloads.
@@ -255,11 +245,11 @@ Regenerate and rebuild the Swift package and its consumers together.
 `python tools/test-swift.py` compiles the native package and a separate consumer,
 runs shared retry and header fixtures, exercises URLSession and the real weather
 service over loopback, and compiles empty and adversarially renamed packages.
-It also generates the authentication, checksum, endpoint-rule, waiter and three
-AWS JSON protocol fixtures and runs their XCTest suites over URLSession against
+It also generates the authentication, checksum, endpoint-rule and waiter
+fixtures and runs their XCTest suites over URLSession against
 a scripted loopback server: the published SigV4 vector plus an independent
 server-side signature check, the shared checksum vectors, concurrent credential
-refresh, waiter deadlines and cancellation, and AWS error decoding.
+refresh, waiter deadlines and cancellation, and error decoding.
 `SWIFT` can name a specific compiler executable. CI checks Linux with Swift 6.0.3
 and Apple's toolchain on macOS. The complete Leyline projection is compiled
 separately. These checks do not establish published-package or authenticated

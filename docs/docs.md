@@ -20,10 +20,7 @@ cargo run -p crucible-cli -- generate docs crates/crucible-smithy/tests/fixtures
 ```
 
 Smithy source directories and compiled JSON ASTs use the same command. Select a
-service with `--service example.weather#Weather`. For a service declaring several
-protocols, select one with `--protocol smithy.protocols#rpcv2Json`; each output
-describes the selected protocol's resolved wire bindings and lists all declared
-supported protocols. Generate separate named outputs to document alternatives.
+service with `--service example.weather#Weather`.
 
 The default audience is `external`. Internal output includes internal operations,
 resources, types, members, and enum values with an **Internal** badge:
@@ -133,20 +130,14 @@ is how `tests/site/` checks them under Node.
 
 ## Supported wire rendering and diagnostics
 
-This first renderer supports Crucible JSON, AWS REST JSON, AWS JSON 1.0/1.1,
-and Smithy RPC v2 JSON. HTTP member bindings come from the IR. RPC pages show
-the resolved POST path, target or protocol header, and content type; HTTP
-binding traits do not leak into RPC request tables.
+The renderer supports Crucible JSON. HTTP member bindings come from the IR.
 
 All supported lowered shape kinds can be described. Streaming payload and
 event-stream metadata appear in the contract and pages, but buffered examples
-cannot represent a stream. XML-family protocols and CBOR require additional
-wire renderers and currently produce a diagnostic. These limits apply to docs
-output, independently of client and server protocol support.
+cannot represent a stream.
 
 | Diagnostic | Meaning | Regression coverage |
 |---|---|---|
-| `describe.protocol` | The selected protocol has no faithful wire renderer | `service-docs-unsupported.json`; docs `unsupported_protocols_and_missing_targets_are_collected` |
 | `describe.target` | Supplied IR has an unresolved shape target | Modified `service-docs.json`; same collection test |
 | `describe.resources` | Resource metadata is missing from supplied IR | Operation-only Weather lowering; docs `documentation_requires_the_resource_projection_and_detects_filename_collisions` |
 | `describe.example_streaming` | A buffered example is attached to a streaming operation | Weather with a streaming payload; docs `streaming_examples_are_refused_without_partial_output` |
@@ -201,7 +192,7 @@ with nullable `message` and `since` strings; `since` is a nullable string;
 | Object | Fields and types |
 |---|---|
 | `service` | `id`, `name`, `title`, `version`: strings; `internal`: boolean; `documentation`, `notes`: common objects |
-| Protocol metadata | `protocol`: selected protocol string; `protocols`: declared protocol trait-ID array; `protocolSettings`: lowered settings object |
+| Protocol metadata | `protocol`: protocol string |
 | Authentication | `auth`: effective default scheme-ID array; `authSchemes`: scheme ID to lowered authentication configuration; `scopes`: service-default string array |
 | Service references | `errors`: service-declared error-ID array; `resourceRoots`: direct resource-ID array |
 | Each resource | `id`, `name`: strings; `internal`, `documentation`, `notes`; `identifiers`, `properties`: member-name to target-ID maps; `resources`: child-ID array; `operations`: sorted unique operation-ID array |
@@ -233,8 +224,7 @@ provisioning member bindings or interpreting design-time resource references.
 
 The JSON Schemas come from `crucible-codegen-common::json_schema`, also used by
 OpenAPI and MCP. They describe logical document values rather than an HTTP
-envelope; binding descriptions separately determine the wire location. RPC v2
-JSON arbitrary-precision numbers use string schemas. Nullable/required/default
+envelope; binding descriptions separately determine the wire location. Nullable/required/default
 behavior, effective constraints, and documentation notes reuse the shared schema
 implementation.
 

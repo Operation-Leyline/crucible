@@ -8,8 +8,6 @@ use serde_json::Value;
 
 const WEATHER: &str =
     include_str!("../../crucible-smithy/tests/fixtures/service-docs-weather.json");
-const UNSUPPORTED: &str =
-    include_str!("../../crucible-smithy/tests/fixtures/service-docs-unsupported.json");
 
 #[test]
 fn docs_probe() {
@@ -58,13 +56,6 @@ fn docs_probe() {
             .unwrap()
             .contains("Internal API")
     );
-    let previous = fs::read("exports/describe.json").unwrap();
-    let rejected = crucible_build::model("unsupported.json")
-        .docs("reference")
-        .try_generate_into("exports")
-        .unwrap_err();
-    assert!(rejected.contains("describe.protocol"));
-    assert_eq!(fs::read("exports/describe.json").unwrap(), previous);
     let index: Value =
         serde_json::from_slice(&fs::read("out/crucible-artifacts.json").unwrap()).unwrap();
     assert!(index.is_object());
@@ -75,7 +66,6 @@ fn docs_share_artifact_ownership_stable_exports_and_failure_preservation() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     fs::write(root.join("model.json"), WEATHER).unwrap();
-    fs::write(root.join("unsupported.json"), UNSUPPORTED).unwrap();
     fs::create_dir(root.join("exports")).unwrap();
     fs::write(root.join("exports/keep.txt"), "consumer-owned").unwrap();
     let result = Command::new(std::env::current_exe().unwrap())

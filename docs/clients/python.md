@@ -153,11 +153,9 @@ the typed operation output.
 
 ## Protocols and checksums
 
-Use `--protocol aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, or
-`aws.protocols#awsJson1_1` to select a declared AWS JSON protocol. The generator
-settles field names, timestamps, and bindings for that protocol. AWS JSON omits
-ordinary null structure members; explicit document nulls remain intact. Renaming
-an error's Python class does not change the error code used on the wire.
+The generator settles field names, timestamps, and bindings for the Crucible JSON
+protocol. Renaming an error's Python class does not change the error code used
+on the wire.
 
 Modeled checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512.
 Checksums cover the final body after middleware. Explicit checksum headers are
@@ -353,5 +351,5 @@ typed permissions of `tests/fixtures/permissions` (`tests/test_permissions.py`),
 wheel construction, and clean installation. Generate, import, and type-check
 Leyline separately from its current public-service projection. Record its model
 fingerprint and operation coverage using the [shared qualification levels](../clients.md#qualification).
-Local package tests do not establish deployed restJson1 compatibility,
+Local package tests do not establish deployed service compatibility,
 published SDK packages, or authenticated live workflows.

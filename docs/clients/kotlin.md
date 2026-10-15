@@ -154,15 +154,9 @@ Event streams (`@streaming` unions) are not supported and are diagnosed.
 The JVM and Android CIO engine streams both directions. Ktor's JavaScript engine
 reads a request body into memory before calling `fetch`; responses still stream.
 
-## AWS JSON protocols and checksums
+## Protocol and checksums
 
-The generator accepts `aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, and
-`aws.protocols#awsJson1_1`. Use `--protocol aws.protocols#restJson1` to choose
-among multiple protocol traits declared by one service. RPC protocols send the
-modeled operation through `X-Amz-Target` and serialize an empty input as `{}`.
-REST JSON applies the lowered HTTP bindings and timestamp formats. AWS JSON
-omits null ordinary structure members, retains explicit document nulls, and
-supports the protocol's string representations of nonfinite floating-point values.
+The Crucible JSON protocol applies the lowered HTTP bindings and timestamp formats.
 
 Payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`.
 The supported algorithms are CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and

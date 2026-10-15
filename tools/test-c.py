@@ -9,7 +9,6 @@ from pathlib import Path
 import tempfile
 import threading
 import time
-from urllib.parse import parse_qs, urlsplit
 
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
@@ -55,7 +54,7 @@ def generate(model, output, package="weather_client", prefix="weather", *extra, 
 
 @contextmanager
 def features():
-    """Loopback service for authentication, checksum, waiter and AWS JSON protocol tests.
+    """Loopback service for authentication, checksum, and waiter tests.
 
     Every response echoes the request in a base64 JSON x-echo header so native tests can
     assert on exactly what the transport sent. x-mode selects behavior; x-run scopes
@@ -108,7 +107,7 @@ def features():
                 return self.checksum(mode)
             if self.path == "/read":
                 return self.waiter(mode)
-            return self.protocol(mode)
+            return self.problem("unexpected POST " + self.path)
 
         def checksum(self, mode):
             algorithm = self.headers.get("x-algorithm", "")
@@ -140,46 +139,6 @@ def features():
                 time.sleep(0.5)
             self.respond(404 if "__type" in body else 200, json.dumps(body).encode())
 
-        def protocol(self, mode):
-            target = self.headers.get("x-amz-target")
-            if mode == "empty":
-                if target and (self.body != b"{}" or target != "JsonService.Empty"):
-                    return self.problem("empty RPC request")
-                return self.respond(200)
-            if mode == "error":
-                return self.respond(409, b'{"__type":"Other","Message":"bad"}', {
-                    "X-Amzn-Errortype": "example.json#Problem:detail", "X-Amzn-Requestid": "request-42"})
-            body = json.loads(self.body)
-            failures = []
-            if body.get("when") != -0.25 or body.get("iso") != "1969-12-31T23:59:59.75Z":
-                failures.append("timestamps")
-            if "nullable" in body or "document" not in body or body["document"] is not None:
-                failures.append("null handling")
-            if body.get("floatValue") != "NaN" or body.get("doubleValue") != "Infinity":
-                failures.append("nonfinite")
-            if target:
-                content = self.headers.get("content-type")
-                if self.path != "/" or target != "JsonService.Echo" or body.get("renamed") != "hello" or body.get("date") != -0.25:
-                    failures.append("RPC binding")
-                if content not in ("application/x-amz-json-1.0", "application/x-amz-json-1.1"):
-                    failures.append("RPC content type")
-            else:
-                url = urlsplit(self.path)
-                if (url.path != "/echo" or self.headers.get("x-date") != "Wed, 31 Dec 1969 23:59:59 GMT"
-                        or parse_qs(url.query).get("time") != ["1969-12-31T23:59:59.75Z"] or body.get("wire-name") != "hello"):
-                    failures.append("REST binding")
-                # List items use the binding's timestamp format, not the document's epoch seconds; http-dates hold a comma, so they are quoted.
-                if (self.headers.get("x-dates") != '"Wed, 31 Dec 1969 23:59:59 GMT"'
-                        or parse_qs(url.query).get("times") != ["1969-12-31T23:59:59.75Z"]):
-                    failures.append("REST list timestamp binding")
-            if failures:
-                return self.problem(", ".join(failures) + ": " + self.body.decode())
-            body["choice"] = {"text": "ok", "__type": "ignored"}
-            body["nullable"] = None
-            # Response headers carry HTTP dates, which the client must read as timestamps; the list is unquoted, so each item holds a comma.
-            self.respond(200, json.dumps(body).encode(), None if target else {
-                "x-float": "NaN", "x-date": "Wed, 31 Dec 1969 23:59:59 GMT", "x-dates": "Wed, 31 Dec 1969 23:59:59 GMT, Thu, 01 Jan 1970 00:00:01 GMT"})
-
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -193,7 +152,7 @@ def features():
 def models(output):
     for name, fixture_name, prefix in [("dynamic", "dynamic-bindings", "dynamic"), ("extended", "extended-types", "types"), ("wire", "error-payloads", "wire")]:
         generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", output / name, f"{prefix}_client", prefix)
-    # Payload Content-Type precedence under both protocols. C has no streaming
+    # Payload Content-Type precedence. C has no streaming
     # input, so the streaming operation is dropped from the shared fixture.
     bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text(encoding="utf-8"))
     bindings_shapes = bindings["shapes"]
@@ -203,8 +162,7 @@ def models(output):
         del bindings_shapes["example.payload#" + name]
     bindings_path = output / "payload-bindings.json"
     bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
-    for prefix, protocol in [("payload", "crucible.protocols#json"), ("payload_rest", "aws.protocols#restJson1")]:
-        generate(bindings_path, output / prefix, prefix + "_client", prefix, "--protocol", protocol)
+    generate(bindings_path, output / "payload", "payload_client", "payload")
     source = qualification_model(output)
     model = json.loads(source.read_text(encoding="utf-8"))
     shapes = model["shapes"]
@@ -242,7 +200,7 @@ def models(output):
 
 
 def qualify_features(output):
-    """Authentication, checksums, endpoint rules, waiters and AWS JSON protocols."""
+    """Authentication, checksums, endpoint rules and waiters."""
     tests = ROOT / "crates/crucible-codegen-c/tests"
     fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
     packages = [
@@ -251,22 +209,10 @@ def qualify_features(output):
         ("behavior", fixtures / "client-behaviors.json", ()),
         ("jobs", ROOT / "crates/crucible-codegen-java/tests/waiters.json", ()),
     ]
-    protocols = [("rest", "restJson1"), ("json10", "awsJson1_0"), ("json11", "awsJson1_1")]
-    # The shared fixture has no float header; restJson1 carries non-finite floats there as NaN, Infinity and -Infinity.
-    protocol_model = json.loads((fixtures / "protocol-json.json").read_text(encoding="utf-8"))
-    protocol_model["shapes"]["example.json#ValuesOutput"]["members"]["ratio"] = {
-        "target": "smithy.api#Float", "traits": {"smithy.api#httpHeader": "x-float"}}
-    protocol_path = output / "protocol-json.json"
-    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
-    packages += [(prefix, protocol_path, ("--protocol", "aws.protocols#" + name)) for prefix, name in protocols]
     for prefix, model, extra in packages:
         generate(model, output / "features" / prefix, prefix + "_client", prefix, *extra)
     consumer = output / "features-consumer"
     consumer.mkdir(exist_ok=True)
-    template = (tests / "protocols.c").read_text(encoding="utf-8")
-    for prefix, _ in protocols:
-        (consumer / f"protocol_{prefix}.c").write_text(
-            ("#define REST_HEADERS 1\n" if prefix == "rest" else "") + template.replace("proto_", prefix + "_").replace("PREFIX proto", "PREFIX " + prefix), encoding="utf-8")
     executables = {"auth_test": ("auth.c", "auth"), "checksum_test": ("checksums.c", "checksum"),
                    "endpoint_test": ("endpoints.c", "behavior"), "waiter_test": ("waiters.c", "jobs")}
     lines = ["cmake_minimum_required(VERSION 3.20)", "project(features LANGUAGES C)", "find_package(Threads REQUIRED)"]
@@ -275,10 +221,7 @@ def qualify_features(output):
     for name, (source, prefix) in executables.items():
         lines.append(f'add_executable({name} "{tests.as_posix()}/{source}")')
         lines.append(f"target_link_libraries({name} PRIVATE {prefix}_client Threads::Threads)")
-    for prefix, _ in protocols:
-        lines.append(f"add_executable(protocol_{prefix} protocol_{prefix}.c)")
-        lines.append(f"target_link_libraries(protocol_{prefix} PRIVATE {prefix}_client)")
-    names = list(executables) + [f"protocol_{prefix}" for prefix, _ in protocols]
+    names = list(executables)
     lines += [f"foreach(name {' '.join(names)})",
               f'  target_include_directories(${{name}} PRIVATE "{tests.as_posix()}")',
               "  target_compile_features(${name} PRIVATE c_std_17)",
@@ -326,9 +269,8 @@ def qualify(output):
     tests = ROOT / "crates/crucible-codegen-c/tests"
     (consumer / "core.c").write_text((tests / "core.c").read_text(encoding="utf-8").replace("crucible_generated", "weather"), encoding="utf-8")
     (consumer / "recursive.c").write_text((tests / "models_recursive.c").read_text(encoding="utf-8").replace('"weather_client/models.h"', '"recursive_client/models.h"'), encoding="utf-8")
-    for prefix in ["payload", "payload_rest"]:
-        (consumer / f"{prefix}_content_type.c").write_text(
-            (tests / "payload_content_type.c").read_text(encoding="utf-8").replace("payload_", prefix + "_"), encoding="utf-8")
+    (consumer / "payload_content_type.c").write_text(
+        (tests / "payload_content_type.c").read_text(encoding="utf-8"), encoding="utf-8")
     (consumer / "edge.c").write_text('''#include "edge_client/client.h"
 #include "empty_client/client.h"
 #include <stdio.h>
@@ -355,11 +297,8 @@ add_subdirectory("{(output / 'permissions').as_posix()}" permissions-sdk)
 add_executable(permissions_test "{tests.as_posix()}/permissions.c")
 target_link_libraries(permissions_test PRIVATE leyline_client)
 add_subdirectory("{(output / 'payload').as_posix()}" payload-sdk)
-add_subdirectory("{(output / 'payload_rest').as_posix()}" payload-rest-sdk)
 add_executable(payload_content_type payload_content_type.c)
 target_link_libraries(payload_content_type PRIVATE payload_client)
-add_executable(payload_rest_content_type payload_rest_content_type.c)
-target_link_libraries(payload_rest_content_type PRIVATE payload_rest_client)
 add_executable(extensions "{tests.as_posix()}/extensions.c")
 target_link_libraries(extensions PRIVATE dynamic_client types_client)
 add_executable(edge edge.c)
@@ -375,7 +314,7 @@ foreach(name core models runtime proxy serialization)
   target_link_libraries(${{name}} PRIVATE weather_client::weather_client)
   target_include_directories(${{name}} PRIVATE "{install.as_posix()}/include/weather_client/runtime")
 endforeach()
-foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test payload_content_type payload_rest_content_type)
+foreach(name core models runtime proxy serialization edge recursive extensions wire_test permissions_test payload_content_type)
   target_compile_features(${{name}} PRIVATE c_std_17)
   set_target_properties(${{name}} PROPERTIES C_EXTENSIONS OFF)
   if(MSVC)
@@ -392,7 +331,7 @@ endforeach()
     if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
         dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
         runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
-    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "permissions_test", "payload_content_type", "payload_rest_content_type"]:
+    for name in ["core", "models", "recursive", "edge", "extensions", "wire_test", "permissions_test", "payload_content_type"]:
         run(str(executable(consumer_build, name)), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))

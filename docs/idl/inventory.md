@@ -216,12 +216,10 @@ consistency, trait target checks, shape ID resolution and conflicts.
 |---|---|---|---|
 | `@crucible.protocols#json` | yes | yes | yes |
 | `@crucible.protocols#strict` | 0 | 0 | 1 |
-| restJson1, awsJson 1.0/1.1, RPC v2, restXml, awsQuery, ec2Query | 0 | 0 | fixtures only |
 | `@cors` | 0 | 0 | 0 |
 
-One protocol in real use. The AWS protocol support in the server, clients
-and conformance harness is exercised only by fixtures and the official
-Smithy test suites.
+`crucibleJson` is the only protocol. A Smithy model declaring any other is
+refused with "protocol X is not supported".
 
 ## In the IR but in no real model
 
@@ -237,8 +235,6 @@ fixtures:
 - `@cors`, `@examples`, `@deprecated`, `@since`, `@unstable`,
   `@externalDocumentation`
 - `@crucible.auth#scopes`, API key, Basic, Digest, SigV4 auth
-- XML shapes and namespaces, AWS query compatibility
-- `smithy.test` protocol test vectors
 
 Each of these is a decision for the semantics page: keep (the IR and
 generators already pay for it), defer (leave the IR field, give the

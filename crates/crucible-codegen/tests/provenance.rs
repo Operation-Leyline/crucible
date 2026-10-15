@@ -244,33 +244,3 @@ fn other_languages_are_not_stamped_yet() {
         assert!(!files.iter().any(|file| file.path == "crucible-model.json"));
     }
 }
-
-/// Nothing the external audience cannot see reaches the snapshot, in any
-/// field: raw trait copies included.
-#[test]
-fn the_external_snapshot_reveals_no_internal_names_or_values() {
-    let full = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/internal-protocol-tests.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(
-        None,
-        &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
-    )
-    .unwrap();
-    for client in [rust(), ts()] {
-        let files = client.emit(&full).unwrap();
-        let snapshot = find(&files, "crucible-model.json");
-        for private in [
-            "secret",
-            "\"hidden\"",
-            "X-Private",
-            "x-private-secret",
-            "PrivateNestedRequest",
-            "#Secret",
-            "InternalFault",
-        ] {
-            assert!(!snapshot.contains(private), "{private} is in the snapshot");
-        }
-    }
-}

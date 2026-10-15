@@ -25,10 +25,6 @@ mod rest {
     include!(concat!(env!("OUT_DIR"), "/events_rest_client.rs"));
 }
 #[allow(dead_code)]
-mod rpc {
-    include!(concat!(env!("OUT_DIR"), "/events_rpc_client.rs"));
-}
-#[allow(dead_code)]
 mod signed {
     include!(concat!(env!("OUT_DIR"), "/events_signed_client.rs"));
 }
@@ -449,7 +445,7 @@ async fn output_events_arrive_in_order_and_a_modeled_exception_ends_the_stream()
                 "structured",
                 vec![],
                 "application/json",
-                br#"{"text":"two","itemCount":2,"at":1.5}"#,
+                br#"{"text":"two","itemCount":2,"at":"1970-01-01T00:00:01.5Z"}"#,
             ),
             event(
                 "payload",
@@ -816,103 +812,6 @@ async fn a_failing_event_source_aborts_the_request() {
         "{result:?}"
     );
     assert_eq!(server.await.unwrap(), 1);
-}
-
-#[tokio::test]
-async fn rpc_protocols_carry_other_members_in_initial_messages() {
-    let (listener, endpoint) = listen().await;
-    let server = tokio::spawn(async move {
-        // Publish: initial-request first, then the events.
-        let mut exchange = Exchange::accept(&listener).await;
-        assert_eq!(exchange.target, "/");
-        assert_eq!(exchange.header("x-amz-target"), Some("Events.Publish"));
-        assert_eq!(
-            exchange.header("content-type"),
-            Some("application/vnd.amazon.eventstream")
-        );
-        let mut decoder = MessageDecoder::new();
-        let initial = exchange.message(&mut decoder).await.unwrap();
-        assert_eq!(initial.string(":event-type"), Some("initial-request"));
-        let document: serde_json::Value = serde_json::from_slice(&initial.payload).unwrap();
-        assert_eq!(document, serde_json::json!({"channel": "general"}));
-        let mut messages = Vec::new();
-        while let Some(message) = exchange.message(&mut decoder).await {
-            messages.push(message);
-        }
-        check_client_events(&messages, "count");
-        exchange
-            .respond(
-                200,
-                &[("content-type", "application/x-amz-json-1.0")],
-                br#"{"accepted":4}"#,
-            )
-            .await;
-        // Subscribe: the output's other members arrive as initial-response.
-        let mut exchange = Exchange::accept(&listener).await;
-        let request: serde_json::Value = serde_json::from_slice(&exchange.body().await).unwrap();
-        assert_eq!(request, serde_json::json!({"channel": "news", "limit": 2}));
-        exchange.start(&[]).await;
-        exchange
-            .send(&event(
-                "initial-response",
-                vec![],
-                "application/json",
-                br#"{"channel":"news"}"#,
-            ))
-            .await
-            .unwrap();
-        exchange
-            .send(&event("ping", vec![], "application/json", b"{}"))
-            .await
-            .unwrap();
-        exchange.finish().await;
-        // Without an initial-response the first message is an event.
-        let mut exchange = Exchange::accept(&listener).await;
-        exchange.body().await;
-        exchange.start(&[]).await;
-        exchange
-            .send(&event("ping", vec![], "application/json", b"{}"))
-            .await
-            .unwrap();
-        exchange.finish().await;
-    });
-    let client = rpc::EventsClient::new(Config::new(endpoint));
-    let output = client
-        .publish(rpc::PublishInput {
-            channel: "general".into(),
-            events: EventStream::from_events(client_events!(rpc)),
-        })
-        .await
-        .unwrap();
-    assert_eq!(output.accepted, 4);
-    let output = client
-        .subscribe(rpc::SubscribeInput {
-            channel: "news".into(),
-            limit: Field::Value(2),
-        })
-        .await
-        .unwrap();
-    assert_eq!(output.channel.value().map(String::as_str), Some("news"));
-    let mut events = output.events.open().unwrap();
-    assert!(matches!(
-        events.recv().await.unwrap(),
-        Some(rpc::ServerEvents::Ping(_))
-    ));
-    assert!(events.recv().await.unwrap().is_none());
-    let output = client
-        .subscribe(rpc::SubscribeInput {
-            channel: "news".into(),
-            limit: Field::Absent,
-        })
-        .await
-        .unwrap();
-    assert_eq!(output.channel, Field::Absent);
-    let mut events = output.events.open().unwrap();
-    assert!(matches!(
-        events.recv().await.unwrap(),
-        Some(rpc::ServerEvents::Ping(_))
-    ));
-    server.await.unwrap();
 }
 
 #[tokio::test]

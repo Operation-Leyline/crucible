@@ -294,9 +294,6 @@ FEATURES = [
     ("jobs", "crates/crucible-codegen-java/tests/waiters.json", "jobs_client", "jobs_sdk", []),
     ("checksum", "crates/crucible-smithy/tests/fixtures/checksums.json", "checksum_client", "checksum_sdk", []),
     ("streaming", "crates/crucible-codegen-java/tests/streaming.json", "streaming_client", "streaming_sdk", []),
-    ("restjson", "crates/crucible-smithy/tests/fixtures/protocol-json.json", "restjson_client", "restjson_sdk", ["--protocol", "aws.protocols#restJson1"]),
-    ("json10", "crates/crucible-smithy/tests/fixtures/protocol-json.json", "json10_client", "json10_sdk", ["--protocol", "aws.protocols#awsJson1_0"]),
-    ("json11", "crates/crucible-smithy/tests/fixtures/protocol-json.json", "json11_client", "json11_sdk", ["--protocol", "aws.protocols#awsJson1_1"]),
 ]
 
 
@@ -309,16 +306,12 @@ def feature_cmake(output, tests):
         lines.append(f'add_executable({name} "{tests.as_posix()}/{source}.cpp")')
         lines.append(f'target_link_libraries({name} PRIVATE {package})')
         lines.append(f'target_compile_definitions({name} PRIVATE _CRT_SECURE_NO_WARNINGS)')
-    for directory, version in [("restjson", "rest"), ("json10", "1.0"), ("json11", "1.1")]:
-        lines.append(f'add_executable(protocol_{directory} "{tests.as_posix()}/protocols.cpp")')
-        lines.append(f'target_link_libraries(protocol_{directory} PRIVATE {directory}_client)')
-        lines.append(f'target_compile_definitions(protocol_{directory} PRIVATE PROTOCOL_HEADER="{directory}_client/client.hpp" PROTOCOL_NAMESPACE={directory}_sdk PROTOCOL_VERSION="{version}" _CRT_SECURE_NO_WARNINGS)')
     return "\n".join(lines) + "\n"
 
 
 def payload_cmake(output, tests):
     lines = []
-    for name in ["payload", "payload_rest"]:
+    for name in ["payload"]:
         lines.append(f'add_subdirectory("{(output / name).as_posix()}" {name}-sdk)')
         lines.append(f'add_executable({name}_content_type "{tests.as_posix()}/payload_content_type.cpp")')
         lines.append(f'target_link_libraries({name}_content_type PRIVATE {name}_client)')
@@ -341,11 +334,10 @@ def qualify(output):
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
             str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
             "--package-name", {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client"}[name], "--namespace", namespace)
-    # Payload Content-Type precedence, buffered and streaming, under both protocols.
-    for directory, protocol in [("payload", "crucible.protocols#json"), ("payload_rest", "aws.protocols#restJson1")]:
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
-            str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--protocol", protocol,
-            "--out", str(output / directory), "--package-name", directory + "_client", "--namespace", directory + "_sdk")
+    # Payload Content-Type precedence, buffered and streaming.
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
+        str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"),
+        "--out", str(output / "payload"), "--package-name", "payload_client", "--namespace", "payload_sdk")
     edge_packages(output)
     # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
@@ -412,7 +404,6 @@ endforeach()
     run(str(executable(consumer_build, "extensions")), env=runtime_env)
     run(str(executable(consumer_build, "wire_test")), env=runtime_env)
     run(str(executable(consumer_build, "payload_content_type")), env=runtime_env)
-    run(str(executable(consumer_build, "payload_rest_content_type")), env=runtime_env)
     run(str(executable(consumer_build, "serialization")), env=dict(runtime_env,
         SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
     run(str(executable(consumer_build, "behavior_test")), env=runtime_env)
@@ -422,7 +413,7 @@ endforeach()
     with scripted() as scripted_url:
         feature_env = dict(runtime_env, SCRIPTED_URL=scripted_url, CHECKSUM_CASES=str(ROOT / "tests/conformance/checksums.json"),
                            CREDENTIALS_FILE=str(output / "aws-credentials"))
-        for name in ["auth_test", "waiters_test", "checksums_test", "protocol_restjson", "protocol_json10", "protocol_json11"]:
+        for name in ["auth_test", "waiters_test", "checksums_test"]:
             run(str(executable(consumer_build, name)), env=feature_env)
     with weather() as endpoint, fixture() as fixture_url:
         run(str(executable(consumer_build, "runtime")), env=dict(runtime_env, WEATHER_URL=endpoint,

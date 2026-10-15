@@ -47,13 +47,8 @@ fn docs_cli_projects_audiences_and_preserves_outputs_on_diagnostics() {
         fs::read_to_string(out.join("keep.txt")).unwrap(),
         "consumer-owned"
     );
-    fs::write(
-        &model,
-        include_str!("../../crucible-smithy/tests/fixtures/service-docs-unsupported.json"),
-    )
-    .unwrap();
+    fs::write(&model, r#"{"smithy":"2.0","shapes":{}}"#).unwrap();
     let result = run("external");
     assert!(!result.status.success());
-    assert!(String::from_utf8_lossy(&result.stderr).contains("describe.protocol"));
     assert_eq!(fs::read(out.join("describe.json")).unwrap(), bytes);
 }

@@ -242,29 +242,19 @@ func TestCreatePreservesIdentityWhenRefreshFails(t *testing.T) {
 	}
 }
 
-// withProtocol swaps the generated wire schema's protocol for one test.
-func withProtocol(t *testing.T, protocol string) {
-	t.Helper()
-	previous := wireSchema.Protocol
-	wireSchema.Protocol = protocol
-	t.Cleanup(func() { wireSchema.Protocol = previous })
-}
-
-func TestMissingRecognisesProtocolErrorNames(t *testing.T) {
+func TestMissingRecognisesErrorNames(t *testing.T) {
 	r := &infraResource{desc: infraDescriptions[0]}
 	for _, tc := range []struct {
-		name, protocol, body string
-		headers              http.Header
-		found                bool
+		name, body string
+		headers    http.Header
+		found      bool
 	}{
-		{"restJson1 header only", "awsRestJson1", `{"message":"gone"}`, http.Header{"X-Amzn-Errortype": {"NotFound:http://internal.amazon.com/"}}, true},
-		{"awsJson namespaced body", "awsJson1_1", `{"__type":"crucible.infra#NotFound"}`, nil, true},
-		{"awsJson code", "awsJson1_0", `{"code":"NotFound"}`, nil, true},
-		{"restJson1 other error", "awsRestJson1", `{}`, http.Header{"X-Amzn-Errortype": {"AccessDenied"}}, false},
-		{"restJson1 no name", "awsRestJson1", `{}`, nil, false},
+		{"header only", `{"message":"gone"}`, http.Header{"X-Crucible-Error": {"NotFound"}}, true},
+		{"body type", `{"__type":"NotFound"}`, nil, true},
+		{"other header", `{}`, http.Header{"X-Crucible-Error": {"AccessDenied"}}, false},
+		{"no name", `{}`, nil, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			withProtocol(t, tc.protocol)
 			name := "AccessDenied"
 			if tc.found {
 				name = "NotFound"

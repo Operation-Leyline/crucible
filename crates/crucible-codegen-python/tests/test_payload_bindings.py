@@ -7,7 +7,7 @@ import httpx
 
 class PayloadBindingTests(unittest.TestCase):
     def clients(self):
-        for module in ("payloadbindings_client", "restpayloadbindings_client"):
+        for module in ("payloadbindings_client",):
             yield module, importlib.import_module(module)
 
     def test_document_payload_keeps_null_distinct_from_omitted(self):
@@ -27,11 +27,10 @@ class PayloadBindingTests(unittest.TestCase):
                     if expected:
                         self.assertEqual(requests[0].headers["content-type"], "application/json")
 
-    def test_record_null_follows_protocol_member_presence(self):
+    def test_record_null_is_sent_as_null(self):
         for module, sdk in self.clients():
-            null_body = b"null" if module == "payloadbindings_client" else b""
             for input, expected in ((sdk.RecordInput(), b""),
-                                    (sdk.RecordInput(record=None), null_body),
+                                    (sdk.RecordInput(record=None), b"null"),
                                     (sdk.RecordInput(record=sdk.Record(name="record")), b'{"name":"record"}')):
                 with self.subTest(protocol=module, expected=expected):
                     def reply(request):

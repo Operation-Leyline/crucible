@@ -63,13 +63,6 @@ impl Model {
         self
     }
 
-    /// Select a declared protocol by Smithy trait ID.
-    pub fn protocol(mut self, id: &str) -> Self {
-        self.package.take();
-        self.builder = self.builder.protocol(id);
-        self
-    }
-
     /// Apply API policy to generated bindings and named outputs.
     pub fn policy(mut self, path: impl AsRef<Path>) -> Self {
         self.package.take();
@@ -123,7 +116,6 @@ impl Model {
         let mut output = crate::ServerOutput::new(self.path());
         output.service = self.builder.service.clone();
         output.policy = self.builder.policy.clone();
-        output.protocol = self.builder.protocol;
         output.options.require_rejection = !self.builder.json || self.builder.cru;
         output
     }

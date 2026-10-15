@@ -4,20 +4,7 @@ namespace CrucibleGenerated\Runtime;
 
 final readonly class WireCodec
 {
-    private bool $omitNulls;
-    private bool $ignoreUnionType;
-    private bool $nonFinite;
-    private bool $bigStrings;
-    public function __construct(public JsonObject $schema, private \Closure $models)
-    {
-        $settings = $schema->get('protocolSettings');
-        $setting = static fn(string $name): bool => $settings instanceof JsonObject && $settings->get($name) === true;
-        $this->omitNulls = $setting('omitNullStructureMembers');
-        $this->ignoreUnionType = $setting('ignoreUnknownUnionType');
-        // The CBOR bridge carries non-finite floats as these strings between Cbor and this codec.
-        $this->nonFinite = $setting('nonFiniteFloatStrings') || $schema->get('protocol') === 'rpcv2Cbor';
-        $this->bigStrings = $setting('arbitraryPrecisionStrings');
-    }
+    public function __construct(public JsonObject $schema, private \Closure $models) {}
     public static function object(mixed $value): JsonObject
     {
         if (!$value instanceof JsonObject) throw new \UnexpectedValueException('Expected object');
@@ -66,20 +53,16 @@ final readonly class WireCodec
         switch ($shape->get('kind')) {
             case 'structure': case 'union':
                 $object = self::object($value); $result = []; $known = []; $wireNames = [];
-                $structure = $shape->get('kind') === 'structure';
                 foreach (self::object($shape->get('members'))->members as $name => $member) {
                     $wire = $member->get('jsonName') ?? $name;
                     $source = $encode ? $name : $wire;
                     $known[$source] = true; $wireNames[$wire] = true;
                     if (!$object->has($source)) continue;
                     $item = $object->get($source);
-                    // JSON protocols treat a structure member's null as absence, except in documents.
-                    if ($item === null && $structure && $this->omitNulls && $this->shape($member->get('target'))->get('kind') !== 'document') continue;
                     $result[$encode ? $wire : $name] = $this->document($member->get('target'), $item, $encode);
                 }
                 if ($shape->get('kind') === 'union') foreach ($object->members as $name => $item) {
                     if (isset($known[$name])) continue;
-                    if (!$encode && $name === '__type' && $this->ignoreUnionType) continue;
                     if ($encode && isset($wireNames[$name])) throw new \UnexpectedValueException('Unknown variant name is declared');
                     $result[$name] = $item;
                 }
@@ -88,13 +71,6 @@ final readonly class WireCodec
             case 'map': return new JsonObject(array_map(fn($item) => $this->document($shape->get('value')->get('target'), $item, $encode), self::object($value)->members));
             default: return $value;
         }
-    }
-    /** Arbitrary-precision text: a JSON number, or a string matching $grammar when the protocol uses strings. */
-    private function bigText(mixed $value, string $grammar): string
-    {
-        if (!$this->bigStrings) return $this->number($value)->text;
-        if (!is_string($value) || !preg_match($grammar, $value)) throw new \UnexpectedValueException('Expected arbitrary-precision number string');
-        return $value;
     }
     private function number(mixed $value): JsonNumber
     {
@@ -118,13 +94,10 @@ final readonly class WireCodec
             case 'short': return $this->number($value)->integer(-32768, 32767);
             case 'integer': return $this->number($value)->integer(-2147483648, 2147483647);
             case 'long': return $this->number($value)->integer();
-            case 'bigInteger': return new BigInteger($this->bigText($value, '/^-?(?:0|[1-9][0-9]*)$/D'));
-            case 'bigDecimal': return new BigDecimal($this->bigText($value, '/^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$/D'));
+            case 'bigInteger': return new BigInteger($this->number($value)->text);
+            case 'bigDecimal': return new BigDecimal($this->number($value)->text);
             case 'float':
             case 'double':
-                if ($this->nonFinite && is_string($value)) {
-                    return match ($value) { 'NaN' => NAN, 'Infinity' => INF, '-Infinity' => -INF, default => throw new \UnexpectedValueException('Invalid floating point string') };
-                }
                 $number = $this->number($value)->floating();
                 if ($kind === 'float') $number = unpack('f', pack('f', $number))[1];
                 if (!is_finite($number)) throw new \UnexpectedValueException('Float out of range');
@@ -176,9 +149,7 @@ final readonly class WireCodec
         }
         if ($kind === 'bigInteger' || $kind === 'bigDecimal') {
             if ($kind === 'bigInteger' ? !$value instanceof BigInteger : !$value instanceof BigDecimal) throw new \UnexpectedValueException('Expected exact number');
-            if (!$this->bigStrings) return $value->number;
-            // RPC v2 JSON strings use plain integer digits for bigInteger.
-            return $kind === 'bigInteger' ? $value->number->scaled(0, 100000) : $value->number->text;
+            return $value->number;
         }
         if ($kind === 'timestamp') {
             if (!$value instanceof Timestamp) throw new \UnexpectedValueException('Expected Timestamp');
@@ -218,10 +189,7 @@ final readonly class WireCodec
         }
         if ($kind === 'float' || $kind === 'double') {
             if (!is_int($value) && !is_float($value)) throw new \UnexpectedValueException('Expected number');
-            if (is_float($value) && !is_finite($value)) {
-                if (!$this->nonFinite) throw new \UnexpectedValueException('Non-finite number');
-                return is_nan($value) ? 'NaN' : ($value > 0 ? 'Infinity' : '-Infinity');
-            }
+            if (is_float($value) && !is_finite($value)) throw new \UnexpectedValueException('Non-finite number');
             return new JsonNumber(ExactJson::encode($this->decode(new JsonNumber(ExactJson::encode($value)), $context)));
         }
         $this->decode($value, $context);

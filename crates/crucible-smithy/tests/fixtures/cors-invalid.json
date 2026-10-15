@@ -24,7 +24,7 @@
           "additionalExposedHeaders": "bad",
           "unknown": true
         },
-        "aws.protocols#awsJson1_1": {}
+        "crucible.protocols#json": {}
       }
     },
     "example.cors#Read": {

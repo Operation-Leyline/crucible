@@ -208,7 +208,6 @@ mod errors {
 
     impl ::crucible_client_runtime_rust::__generated::ModelledError for PublicFault {
         fn shape_id(&self) -> &'static str { "example.audience#PublicFault" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ::crucible_client_runtime_rust::__generated::operation::ErrorInfo {
             &PUBLIC_FAULT_INFO
         }

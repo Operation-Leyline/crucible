@@ -2,7 +2,7 @@ use crate::direction::Direction;
 use crate::{Report, Severity};
 use crucible_smithy::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
 use crucible_smithy::validate::needs_not_found;
-use crucible_smithy::{Feature, Protocol, ShapeId};
+use crucible_smithy::{Feature, ShapeId};
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
@@ -37,16 +37,6 @@ impl Checker<'_> {
             );
         }
         for service in [self.old, self.new] {
-            if !matches!(
-                service.protocol,
-                Protocol::CrucibleJson | Protocol::AwsRestJson1
-            ) {
-                self.push(
-                    "compatibility.unchecked",
-                    &service.id,
-                    "wire compatibility currently supports Crucible JSON and restJson1 only",
-                );
-            }
             for usage in &service.requirements {
                 if !matches!(
                     usage.feature,
@@ -64,7 +54,6 @@ impl Checker<'_> {
                         | Feature::ErrorPayload
                         | Feature::MediaTypeHeaders
                         | Feature::OptionalAuth
-                        | Feature::AwsRestJson1
                 ) {
                     self.push(
                         "compatibility.unchecked",

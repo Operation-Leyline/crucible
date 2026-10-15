@@ -30,9 +30,6 @@ struct Source {
     /// The service to lower, when the model defines several.
     #[arg(long)]
     service: Option<ShapeId>,
-    /// Select a declared protocol by trait ID, for example aws.protocols#restJson1.
-    #[arg(long)]
-    protocol: Option<ShapeId>,
 }
 
 #[derive(Subcommand)]
@@ -94,18 +91,6 @@ enum Command {
     },
     /// Print the tested extended Smithy capabilities of each client as JSON.
     Capabilities,
-    /// Export lowered Smithy HTTP protocol tests for a client's native runner.
-    Conformance {
-        #[command(flatten)]
-        source: Source,
-        #[arg(long, value_enum)]
-        target: ClientLanguage,
-        #[arg(long)]
-        out: PathBuf,
-        /// Select the same audience as the generated client under test.
-        #[arg(long, value_enum, default_value = "external")]
-        audience: AudienceArg,
-    },
     /// Generate code for one target.
     Generate {
         /// Public outputs omit @internal API unless explicitly selected.
@@ -663,18 +648,6 @@ fn version() -> String {
 
 // Keep parsing separate from dispatch: their debug-build stack frames together
 // can exceed Windows' main-thread stack as the CLI's target portfolio grows.
-/// Server-only cases are not client contract, and a native runner may parse `kind` first.
-fn client_tests(
-    service: &crucible_smithy::ir::Service,
-) -> Vec<&crucible_smithy::ir::HttpProtocolTest> {
-    let server = Some(crucible_smithy::ir::TestAppliesTo::Server);
-    service
-        .protocol_tests
-        .iter()
-        .filter(|test| test.applies_to != server)
-        .collect()
-}
-
 fn run(command: Command) -> ExitCode {
     let result = match command {
         Command::ExportArtifact(args) => export_artifact::run(&args),
@@ -750,24 +723,6 @@ fn run(command: Command) -> ExitCode {
             );
             Ok(())
         }
-        Command::Conformance {
-            source,
-            target,
-            out,
-            audience,
-        } => lower_for_audience(&source, audience.into(), &target.capabilities()).and_then(
-            |service| {
-                let tests = client_tests(&service);
-                let value =
-                    serde_json::json!({"schemaVersion":1, "service":service.id, "tests":tests});
-                let json =
-                    serde_json::to_string_pretty(&value).expect("protocol tests are JSON values");
-                output::write(&out, [("protocol-tests.json", json.as_str())])
-                    .map_err(|error| format!("cannot write {}: {error}", out.display()))?;
-                println!("wrote {} protocol tests to {}", tests.len(), out.display());
-                Ok(())
-            },
-        ),
         Command::Generate { target, audience } => generate(*target, audience.into()),
         Command::Freeze { package, out, from } => freeze(&package, out.as_deref(), from.as_deref()),
         Command::Sdk(args) => sdk::run(args),
@@ -809,18 +764,9 @@ fn lower_with_capabilities(
         return Ok(service);
     }
     let model = load_model(source)?;
-    match &source.protocol {
-        Some(id) => {
-            let protocol = crucible_smithy::Protocol::ALL
-                .iter()
-                .copied()
-                .find(|protocol| protocol.trait_id() == *id)
-                .ok_or_else(|| format!("unsupported protocol {id}"))?;
-            model.lower_with_protocol(source.service.as_ref(), capabilities, protocol)
-        }
-        None => model.lower_with_capabilities(source.service.as_ref(), capabilities),
-    }
-    .map_err(|error| error.to_string())
+    model
+        .lower_with_capabilities(source.service.as_ref(), capabilities)
+        .map_err(|error| error.to_string())
 }
 
 fn lower_for_audience(
@@ -852,16 +798,6 @@ fn is_cru_package(path: &Path) -> bool {
 /// no Smithy compiler and no JVM.
 fn lower_cru(source: &Source) -> Result<Service, String> {
     let path = &source.model;
-    // The service declares its protocol; naming that one (Crucible JSON) is
-    // harmless, any other cannot be selected, as in `crucible_build`.
-    if let Some(id) = &source.protocol
-        && *id != crucible_smithy::Protocol::CrucibleJson.trait_id()
-    {
-        return Err(format!(
-            "{}: a .cru package declares its protocol with `protocol ..` in the service; --protocol {id} cannot be selected",
-            path.display()
-        ));
-    }
     let package = crucible_lang::load_package(path)?;
     if let Some(id) = &source.service
         && id.namespace() != package.namespace
@@ -1060,19 +996,8 @@ fn load_model(source: &Source) -> Result<Model, String> {
 fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
         Target::Docs { source, out } => {
-            let protocol = source
-                .protocol
-                .as_ref()
-                .map(|id| {
-                    crucible_smithy::Protocol::ALL
-                        .iter()
-                        .copied()
-                        .find(|p| p.trait_id() == *id)
-                        .ok_or_else(|| format!("unsupported protocol {id}"))
-                })
-                .transpose()?;
             let full = load_model(&source)?
-                .lower_documentation(source.service.as_ref(), protocol)
+                .lower_documentation(source.service.as_ref())
                 .map_err(|e| e.to_string())?;
             let service = crucible_smithy::project(&full, audience).map_err(|e| e.to_string())?;
             let files = crucible_codegen_docs::generate(&service).map_err(|e| e.to_string())?;

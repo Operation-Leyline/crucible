@@ -139,10 +139,7 @@ impl Model {
 
     /// Lower API reference metadata, including resource lifecycle and resource-only
     /// shapes, without imposing provisioning member-binding restrictions.
-    pub fn lower_documentation(
-        &self,
-        service: Option<&ShapeId>,
-    ) -> Result<ir::Service, Error> {
+    pub fn lower_documentation(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
         let id = self.service_id(service)?;
         lower::lower(
             &self.shapes,

@@ -836,51 +836,6 @@ fn scaffold_escapes_keyword_identifiers_in_modules_and_preserves_file_stems() {
 }
 
 #[test]
-fn aws_json_protocols_describe_their_wire_in_client_markers() {
-    use crucible_smithy::Protocol;
-    let model = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/protocol-json.json"
-    ))
-    .unwrap();
-    for (protocol, marker) in [
-        (Protocol::AwsRestJson1, "Protocol::AwsRestJson1;"),
-        (
-            Protocol::AwsJson10,
-            "Protocol::AwsJson10 { service: \"JsonService\" };",
-        ),
-        (
-            Protocol::AwsJson11,
-            "Protocol::AwsJson11 { service: \"JsonService\" };",
-        ),
-    ] {
-        let service = model
-            .lower_with_protocol(
-                None,
-                &crucible_codegen_rust::client_capabilities(),
-                protocol,
-            )
-            .unwrap();
-        let client = generate_client(&service).unwrap();
-        assert!(client.contains(marker), "{protocol:?}");
-        assert!(client.contains("const IGNORE_TYPE: bool = true;"));
-        assert!(client.contains("codec::NullAbsent<"));
-        assert!(client.contains("codec::NonFinite"));
-        assert!(client.contains(
-            "skip_serializing_if = \"::crucible_client_runtime_rust::__generated::Field::is_unset\""
-        ));
-        // Documents keep explicit nulls.
-        assert!(client.contains(
-            "#[serde(rename = \"document\", default, skip_serializing_if = \"::crucible_client_runtime_rust::__generated::Field::is_absent\")]"
-        ));
-        let rest = protocol == Protocol::AwsRestJson1;
-        assert_eq!(
-            client.contains("Scalar::Timestamp { text: ::crucible_client_runtime_rust::__generated::operation::TimestampFormat::HttpDate, json: ::crucible_client_runtime_rust::__generated::operation::TimestampFormat::EpochSeconds }"),
-            rest
-        );
-    }
-}
-
-#[test]
 fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/checksums.json"
@@ -928,23 +883,6 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
             .unwrap()
             .contains("Scalar::Base64")
     );
-}
-
-#[test]
-fn rpc_v2_official_models_generate_both_rust_targets() {
-    for fixture in [
-        include_str!("../../crucible-smithy/tests/fixtures/rpcv2-cbor.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/rpcv2-json.json"),
-    ] {
-        let service = Model::from_json(fixture)
-            .unwrap()
-            .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-            .unwrap();
-        let server = generate(&service, &Options::default()).unwrap();
-        let client = generate_client(&service).unwrap();
-        assert!(server.contains("SmithyRpcV2"));
-        assert!(client.contains("SmithyRpcV2"));
-    }
 }
 
 #[test]

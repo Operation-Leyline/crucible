@@ -83,7 +83,7 @@
 use std::path::{Path, PathBuf};
 
 #[cfg(feature = "rust")]
-use crucible_codegen_rust::{ConformanceOptions, Options, Seed, Skip};
+use crucible_codegen_rust::Options;
 #[cfg(feature = "rust")]
 use crucible_smithy::Model as SmithyModel;
 use crucible_smithy::ShapeId;
@@ -469,12 +469,10 @@ pub struct ServerOutput {
     pub(crate) service: Option<ShapeId>,
     options: Options,
     side: Side,
-    pub(crate) protocol: Option<crucible_smithy::Protocol>,
     audience: Audience,
     explorer_audience: Audience,
     pub(crate) policy: Option<PathBuf>,
     model_output: Option<PathBuf>,
-    conformance: Option<ConformanceOptions>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -494,12 +492,10 @@ impl ServerOutput {
             service: None,
             options: Options::default(),
             side: Side::Server,
-            protocol: None,
             audience: Audience::External,
             explorer_audience: Audience::Internal,
             policy: None,
             model_output: None,
-            conformance: None,
         }
     }
 
@@ -593,65 +589,6 @@ impl ServerOutput {
         self
     }
 
-    /// Also generate the model's `smithy.test` vectors as server tests, into
-    /// `OUT_DIR/crucible_conformance.rs`. Server side only. Request vectors
-    /// run against a stub that captures the decoded input, response vectors
-    /// have a stub return their `params`, and malformed-request vectors must
-    /// be refused before any operation runs; the checks live in
-    /// `crucible_server_runtime_rust::conformance`. Include the tests in the
-    /// crate's test build with `crucible_server_runtime_rust::include_conformance!()`,
-    /// with that crate's `test-support` feature enabled. A model without an
-    /// applicable vector fails the build.
-    pub fn conformance(mut self) -> Self {
-        self.conformance.get_or_insert_with(Default::default);
-        self
-    }
-
-    /// Keeps a vector the server is known to fail in the run as an ignored
-    /// test carrying `reason`, instead of dropping it. `vector` is the id
-    /// `crucible conformance` exports (`Id[name=value]` for a `testParameters` case,
-    /// or the template id for all of its cases). A name matching no vector
-    /// fails the build, so a skip cannot outlive its vector. Implies
-    /// [`conformance`](Self::conformance).
-    pub fn skip_vector(mut self, vector: &str, reason: &str) -> Self {
-        self.conformance
-            .get_or_insert_with(Default::default)
-            .skip
-            .push(Skip {
-                vector: vector.to_owned(),
-                reason: reason.to_owned(),
-            });
-        self
-    }
-
-    /// A request `operation` accepts, for the response vectors of an operation
-    /// that has no request vector and cannot be called empty (an RPC operation,
-    /// say: its request is a route and headers, not input). The headers it
-    /// needs are the protocol's. Implies [`conformance`](Self::conformance).
-    pub fn seed_request(
-        mut self,
-        operation: &str,
-        method: &str,
-        uri: &str,
-        headers: &[(&str, &str)],
-        body: Option<&str>,
-    ) -> Self {
-        self.conformance
-            .get_or_insert_with(Default::default)
-            .seeds
-            .push(Seed {
-                operation: operation.to_owned(),
-                method: method.to_owned(),
-                uri: uri.to_owned(),
-                headers: headers
-                    .iter()
-                    .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
-                    .collect(),
-                body: body.map(str::to_owned),
-            });
-        self
-    }
-
     /// Writes the code into `OUT_DIR`. A model crucible cannot generate from
     /// fails the build with every reason listed.
     pub fn generate(self) {
@@ -670,13 +607,6 @@ impl ServerOutput {
             Side::Client => "crucible_client.rs",
         };
         std::fs::write(out.join(file), code).expect("crucible: cannot write the generated code");
-        if self.conformance.is_some() {
-            let tests = self
-                .render_conformance()
-                .unwrap_or_else(|message| panic!("crucible: {message}"));
-            std::fs::write(out.join("crucible_conformance.rs"), tests)
-                .expect("crucible: cannot write the generated conformance tests");
-        }
         if self.side == Side::Client {
             println!(
                 "cargo::rustc-env=CRUCIBLE_CLIENT_SOURCE={}",
@@ -724,20 +654,16 @@ impl ServerOutput {
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
         let service = if cru::is_package(&self.model) {
-            cru::lower(&self.model, self.service.as_ref(), self.protocol)?
+            cru::lower(&self.model, self.service.as_ref())?
         } else {
             let json = std::fs::read_to_string(&self.model)
                 .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
             let model = SmithyModel::from_json(&json).map_err(|error| error.to_string())?;
             let capabilities_all =
                 crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
-            match self.protocol {
-                Some(protocol) => {
-                    model.lower_with_protocol(self.service.as_ref(), &capabilities_all, protocol)
-                }
-                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities_all),
-            }
-            .map_err(|error| error.to_string())?
+            model
+                .lower_with_capabilities(self.service.as_ref(), &capabilities_all)
+                .map_err(|error| error.to_string())?
         };
         if let Some(policy) = &self.policy {
             check_policy(&service, policy)?;
@@ -751,26 +677,6 @@ impl ServerOutput {
             .require_capabilities(&capabilities)
             .map_err(|e| e.to_string())?;
         Ok(service)
-    }
-
-    /// The conformance tests, or why there are none.
-    pub fn render_conformance(&self) -> Result<String, String> {
-        let options = self
-            .conformance
-            .as_ref()
-            .ok_or("conformance tests were not requested: call `.conformance()`")?;
-        if self.side != Side::Server {
-            return Err("conformance tests test a server, not a client".to_owned());
-        }
-        crucible_codegen_rust::generate_conformance(&self.lower()?, options).map_err(
-            |diagnostics| {
-                format!(
-                    "cannot generate conformance tests from {}:
-{diagnostics}",
-                    self.model.display()
-                )
-            },
-        )
     }
 
     /// The generated code, or why there is none.
@@ -793,7 +699,7 @@ impl ServerOutput {
                     let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
                     Some(
                         model
-                            .lower_documentation(self.service.as_ref(), self.protocol)
+                            .lower_documentation(self.service.as_ref())
                             .map_err(|e| e.to_string())?,
                     )
                 } else {

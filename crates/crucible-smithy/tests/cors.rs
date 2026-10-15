@@ -75,7 +75,6 @@ fn malformed_and_inapplicable_cors_collects_all_diagnostics() {
         .unwrap_err()
         .to_string();
     for message in [
-        "requires an HTTP-binding protocol",
         "only apply to a service",
         "origin must",
         "maxAge must",

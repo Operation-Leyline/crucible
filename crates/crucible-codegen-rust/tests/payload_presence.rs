@@ -11,37 +11,32 @@ use serde_json::json;
 fn generated_document_payloads_preserve_presence_and_structure_omission() {
     let directory = tempfile::tempdir().unwrap();
     fs::create_dir_all(directory.path().join("src")).unwrap();
-    let mut source = String::new();
-    for (module, protocol) in [
-        ("crucible", "crucible.protocols#json"),
-        ("rest_json", "aws.protocols#restJson1"),
-    ] {
-        let model = json!({
-            "smithy": "2.0",
-            "shapes": {
-                "test.payloads#Payloads": {"type": "service", "version": "1", "traits": {protocol: {}}, "operations": [{"target": "test.payloads#Document"}, {"target": "test.payloads#Structure"}, {"target": "test.payloads#Required"}]},
-                "test.payloads#Document": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/document", "code": 200}}, "input": {"target": "test.payloads#DocumentInput"}, "output": {"target": "test.payloads#DocumentOutput"}},
-                "test.payloads#Structure": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/structure", "code": 200}}, "input": {"target": "test.payloads#StructureInput"}, "output": {"target": "test.payloads#StructureOutput"}},
-                "test.payloads#DocumentInput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
-                "test.payloads#DocumentOutput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
-                "test.payloads#StructureInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
-                "test.payloads#StructureOutput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
-                "test.payloads#Required": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/required", "code": 200}}, "input": {"target": "test.payloads#RequiredInput"}},
-                "test.payloads#RequiredInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}}}}},
-                "test.payloads#Record": {"type": "structure", "members": {"name": {"target": "smithy.api#String"}}}
-            }
-        });
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
-            .unwrap();
-        source.push_str(&format!(
-            "mod {module} {{\n{}\nmod sdk {{\n{}\n}}\n{}\n}}\n",
-            generate(&service, &Options::default()).unwrap(),
-            generate_client(&service).unwrap(),
-            CONSUMER,
-        ));
-    }
+    let protocol = "crucible.protocols#json";
+    let model = json!({
+        "smithy": "2.0",
+        "shapes": {
+            "test.payloads#Payloads": {"type": "service", "version": "1", "traits": {protocol: {}}, "operations": [{"target": "test.payloads#Document"}, {"target": "test.payloads#Structure"}, {"target": "test.payloads#Required"}]},
+            "test.payloads#Document": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/document", "code": 200}}, "input": {"target": "test.payloads#DocumentInput"}, "output": {"target": "test.payloads#DocumentOutput"}},
+            "test.payloads#Structure": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/structure", "code": 200}}, "input": {"target": "test.payloads#StructureInput"}, "output": {"target": "test.payloads#StructureOutput"}},
+            "test.payloads#DocumentInput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
+            "test.payloads#DocumentOutput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
+            "test.payloads#StructureInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
+            "test.payloads#StructureOutput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
+            "test.payloads#Required": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/required", "code": 200}}, "input": {"target": "test.payloads#RequiredInput"}},
+            "test.payloads#RequiredInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}}}}},
+            "test.payloads#Record": {"type": "structure", "members": {"name": {"target": "smithy.api#String"}}}
+        }
+    });
+    let service = Model::from_json(&model.to_string())
+        .unwrap()
+        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
+        .unwrap();
+    let source = format!(
+        "mod crucible {{\n{}\nmod sdk {{\n{}\n}}\n{}\n}}\n",
+        generate(&service, &Options::default()).unwrap(),
+        generate_client(&service).unwrap(),
+        CONSUMER,
+    );
     fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     fs::write(
@@ -120,12 +115,7 @@ mod tests {
         let input = sdk::StructureInput { payload: Field::Null };
         let mut body = Vec::new();
         split::write_bound(&input, sdk::Structure::INFO.input, &mut body).unwrap();
-        let expected = if sdk::Structure::PROTOCOL == crucible_wire::operation::Protocol::AwsRestJson1 {
-            b"".as_slice()
-        } else {
-            b"null".as_slice()
-        };
-        assert_eq!(body, expected);
+        assert_eq!(body, b"null".as_slice());
     }
 
     // A JSON payload of `null` reads as the member's explicit null, as it
@@ -134,21 +124,18 @@ mod tests {
     #[test]
     fn null_json_payloads_read_as_the_members_null() {
         use crucible_wire::bound::{BoundValue, read_http};
-        let aws = sdk::Structure::PROTOCOL == crucible_wire::operation::Protocol::AwsRestJson1;
         let null = || vec![("payload", BoundValue::RawJson(b"null"))];
         let input: payloads::StructureInput =
             read_http(b"", null(), payloads::Structure::INFO.input).unwrap();
         assert!(input.payload.is_none());
         let output: sdk::StructureOutput =
             read_http(b"", null(), sdk::Structure::INFO.output).unwrap();
-        // AWS REST JSON reads a null structure as absence.
-        assert_eq!(output.payload.is_null(), !aws);
+        assert!(output.payload.is_null());
         assert!(output.payload.is_unset());
-        // Documents follow the same body rule: Crucible JSON servers read a
-        // null document member as absent, AWS REST JSON servers keep it.
+        // Crucible JSON servers read a null document member as absent.
         let input: payloads::DocumentInput =
             read_http(b"", null(), payloads::Document::INFO.input).unwrap();
-        assert_eq!(input.payload, aws.then_some(Value::Null));
+        assert_eq!(input.payload, None);
         let output: sdk::DocumentOutput =
             read_http(b"", null(), sdk::Document::INFO.output).unwrap();
         assert!(output.payload.is_null());

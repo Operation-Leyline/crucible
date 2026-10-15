@@ -7,8 +7,7 @@ unions, modeled errors, defaults, pagination, and idempotency tokens.
 
 The service framework provides validation, a phased request pipeline, error
 translation, logging, and HTTP or Lambda hosting. The Rust server supports
-Crucible JSON, AWS REST JSON, AWS JSON 1.0/1.1, and Smithy RPC v2 JSON/CBOR,
-including HTTP event streams. Client runtimes provide
+Crucible JSON, including HTTP event streams. Client runtimes provide
 transport, authentication, retries, and pagination using each language's APIs.
 Public clients carry the service name, such as `LeylineClient`. Requests use
 native values, collections, and language-appropriate builders or constructors;
@@ -143,7 +142,7 @@ See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and
 wire rules, and [agent instructions](AGENTS.md) for repository boundaries and
 development commands.
 
-Export a model's REST JSON contract as an OpenAPI 3.1 document:
+Export a model's contract as an OpenAPI 3.1 document:
 
 ```sh
 cargo run -p crucible-cli -- generate openapi model.json --out openapi.json --endpoint https://api.example.com

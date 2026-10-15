@@ -6,11 +6,6 @@
 #error "yyjson 0.13.0 or newer is required"
 #endif
 
-/* Service-wide JSON protocol behavior, emitted with the generated models. */
-#define CRUCIBLE_GENERATED_NONFINITE_STRINGS 1u
-#define CRUCIBLE_GENERATED_OMIT_NULL_MEMBERS 2u
-#define CRUCIBLE_GENERATED_IGNORE_UNION_TYPE 4u
-extern const unsigned crucible_generated_protocol_flags;
 crucible_generated_status crucible_generated_fail(crucible_generated_error *error, crucible_generated_status status, const char *message);
 crucible_generated_status crucible_generated_arena_own(crucible_generated_arena *arena, void *resource, void (*destroy)(void *), crucible_generated_error *error);
 bool crucible_generated_utf8(crucible_generated_string value);

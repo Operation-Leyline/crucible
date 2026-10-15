@@ -23,12 +23,11 @@ cargo run -p crucible-cli -- generate openapi crates/crucible-smithy/tests/fixtu
 `--out` names a file, which is overwritten after successful generation. Its
 parent directory must exist. Omit `--endpoint` to use relative API paths.
 Include a deployment path prefix in the endpoint when needed. Use
-`--service example.weather#Weather` when the model defines several services, and
-`--protocol aws.protocols#restJson1` to select a declared protocol explicitly.
+`--service example.weather#Weather` when the model defines several services.
 
 ## Supported contract
 
-The emitter supports Crucible JSON and AWS REST JSON. It exports:
+The emitter supports Crucible JSON. It exports:
 
 - HTTP methods, paths, literal query parameters, labels, query parameters,
   request and response headers, and successful response status codes.
@@ -87,9 +86,8 @@ omitted. The raw `smithy.api#examples` trait is not repeated in `x-smithy-traits
 ## Diagnostics and limits
 
 Unsupported capabilities produce diagnostics against their Smithy shapes.
-The initial exporter rejects XML, query, AWS JSON, and Smithy RPC protocols;
-event streams and streaming blobs; AWS signing; endpoint rules, discovery and
-host prefixes; waiters; checksum traits; greedy labels; arbitrary query maps;
+The initial exporter rejects event streams and streaming blobs; AWS signing;
+endpoint rules, discovery and host prefixes; waiters; checksum traits; greedy labels; arbitrary query maps;
 prefix headers; and dynamic response status bindings.
 
 OpenAPI permits one operation per method and path. Routes that share that pair

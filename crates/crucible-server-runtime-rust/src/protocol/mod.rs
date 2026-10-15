@@ -1,32 +1,39 @@
 //! Protocols identify an operation, decode its input, and encode its outcome.
 //! Several can serve one service; the first to claim a request serves it.
 
-mod aws_json_protocol;
 mod invoke_protocol;
 mod json_protocol;
 mod json_response;
-mod rest_json_protocol;
-mod rpc_routing;
-mod rpc_v2_cbor_protocol;
-mod rpc_v2_json_protocol;
 mod server_events;
 
 use axum::http::request::Parts;
 use axum::response::Response;
 
-pub use aws_json_protocol::AwsJsonProtocol;
 pub use crucible_wire::bound::BoundValue;
 pub use invoke_protocol::{Invocation, InvokeProtocol};
 pub use json_protocol::JsonProtocol;
-pub use rest_json_protocol::RestJsonProtocol;
-pub use rpc_v2_cbor_protocol::RpcV2CborProtocol;
-pub use rpc_v2_json_protocol::RpcV2JsonProtocol;
 
 use crate::error::ModelledError;
 use crate::operation::OperationInfo;
 use crate::operations::Operations;
 use crate::validate::Rejection;
 use crate::{Hook, Job, Prepare, Result};
+
+/// Whether the request's `content-type` is `expected`, ignoring case and
+/// parameters.
+pub(super) fn content_type(request: &Parts, expected: &str) -> bool {
+    request
+        .headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| {
+            v.split(';')
+                .next()
+                .unwrap_or("")
+                .trim()
+                .eq_ignore_ascii_case(expected)
+        })
+}
 
 /// Carries serialization diagnostics to completion observers, never the wire.
 #[derive(Debug, Clone)]
@@ -169,5 +176,38 @@ pub trait Protocol: Send + Sync + 'static {
     #[doc(hidden)]
     fn decorate_response(&self, response: &mut Response) {
         let _ = response;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::Request;
+
+    #[test]
+    fn media_type_matching_ignores_case_and_parameters_but_not_other_types() {
+        for (value, matches) in [
+            ("application/json", true),
+            ("Application/JSON; charset=utf-8", true),
+            (
+                " application/json ; charset=\"UTF-8\"; custom=parameter",
+                true,
+            ),
+            ("application/hal+json", false),
+            ("application/json, application/json", false),
+            ("text/plain", false),
+        ] {
+            let (parts, _) = Request::post("/")
+                .header("content-type", value)
+                .body(())
+                .unwrap()
+                .into_parts();
+            assert_eq!(
+                super::content_type(&parts, "application/json"),
+                matches,
+                "{value}"
+            );
+        }
+        let (parts, _) = Request::post("/").body(()).unwrap().into_parts();
+        assert!(!super::content_type(&parts, "application/json"));
     }
 }

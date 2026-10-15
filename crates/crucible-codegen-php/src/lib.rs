@@ -171,13 +171,8 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::Waiters,
         Feature::EndpointRules,
         Feature::EndpointHostPrefix,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
-        Feature::SmithyRpcV2Cbor,
-        Feature::SmithyRpcV2Json,
         Feature::DigestAuth,
         Feature::SigV4a,
     ])
@@ -270,9 +265,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/ChecksumHasher.php"),
         ),
         ("ByteStream", include_str!("../runtime/ByteStream.php")),
-        ("Cbor", include_str!("../runtime/Cbor.php")),
-        ("CborBytes", include_str!("../runtime/CborBytes.php")),
-        ("CborTag", include_str!("../runtime/CborTag.php")),
         ("StreamBody", include_str!("../runtime/StreamBody.php")),
         (
             "StreamException",

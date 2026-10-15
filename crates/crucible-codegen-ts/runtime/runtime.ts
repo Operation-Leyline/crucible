@@ -90,7 +90,7 @@ export type TimestampFormat = "date-time" | "http-date" | "epoch-seconds";
 /** Static wire conversion and validation metadata emitted from the Smithy IR. */
 export type Schema =
   | { readonly kind: "string" | "boolean" | "document" | "blob" | "bigInteger" | "bigDecimal" }
-  | { readonly kind: "number"; readonly nonFinite?: boolean }
+  | { readonly kind: "number" }
   | { readonly kind: "integer"; readonly bits: 8 | 16 | 32 | 64 }
   | { readonly kind: "timestamp"; readonly format: TimestampFormat }
   | { readonly kind: "list"; readonly member: Schema; readonly sparse?: boolean; readonly unique?: boolean }
@@ -103,8 +103,6 @@ export type Schema =
       readonly required?: readonly string[];
       readonly jsonNames?: Readonly<Record<string, string>>;
       readonly modelNames?: Readonly<Record<string, string>>;
-      readonly omitNull?: boolean;
-      readonly ignoreType?: boolean;
     };
 
 /** Static schema for a string value. */
@@ -135,14 +133,14 @@ export function map(value: Schema | (() => Schema), options: { sparse?: boolean 
 }
 
 /** Thunks also support recursive list/map aliases without declaration-order work. */
-export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[], jsonNames?: Readonly<Record<string, string>>, omitNull=false): Schema {
+export function structure(members: () => Record<string, Schema>, defaults?: Record<string, unknown>, required?: readonly string[], jsonNames?: Readonly<Record<string, string>>: Schema {
   let resolved: Record<string, Schema> | undefined;
-  return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required, jsonNames, modelNames: reverseNames(jsonNames), omitNull };
+  return { kind: "structure", get members() { return (resolved ??= members()); }, defaults, required, jsonNames, modelNames: reverseNames(jsonNames) };
 }
 /** Create a lazy union schema enforcing exactly one member; unknown wire members are preserved. */
-export function union(members: () => Record<string, Schema>, jsonNames?: Readonly<Record<string, string>>, ignoreType=false): Schema {
+export function union(members: () => Record<string, Schema>, jsonNames?: Readonly<Record<string, string>>): Schema {
   let resolved: Record<string, Schema> | undefined;
-  return { kind: "union", get members() { return (resolved ??= members()); }, jsonNames, modelNames: reverseNames(jsonNames), ignoreType };
+  return { kind: "union", get members() { return (resolved ??= members()); }, jsonNames, modelNames: reverseNames(jsonNames) };
 }
 
 function reverseNames(names: Readonly<Record<string, string>> | undefined): Readonly<Record<string, string>> {
@@ -221,7 +219,6 @@ export function toWire(schema: Schema | undefined, value: unknown): unknown {
     }
     case "number":
       if (typeof value !== "number") throw new TypeError("expected number");
-      if (schema.nonFinite && !Number.isFinite(value)) return Number.isNaN(value)?"NaN":value>0?"Infinity":"-Infinity";
       if (!Number.isFinite(value)) throw new TypeError("expected finite number");
       return value;
     case "string": case "boolean":
@@ -251,7 +248,6 @@ export function fromWire(schema: Schema | undefined, value: unknown): unknown {
       return schema.bits === 64 ? result : Number(result);
     }
     case "number": {
-      if (schema.nonFinite && ["NaN","Infinity","-Infinity"].includes(value as string)) return Number(value);
       const result = value instanceof JsonNumber ? Number(value.text) : value;
       if (typeof result !== "number" || !Number.isFinite(result)) throw new TypeError("expected finite number");
       return result;
@@ -309,7 +305,7 @@ function convertMembers(
   value: Record<string, unknown>,
   convert: (schema: Schema | undefined, value: unknown) => unknown,
 ): Record<string, unknown> {
-  const names = Object.keys(value).filter(name => value[name] !== undefined && !(schema.ignoreType && convert===fromWire && name==="__type"));
+  const names = Object.keys(value).filter(name => value[name] !== undefined);
   if (schema.kind === "union") {
     if (names.length !== 1) throw new TypeError("a union must have exactly one member");
     const name = names[0];
@@ -331,7 +327,6 @@ function convertMembers(
   const native: Record<string, unknown> = Object.create(null);
   for (const name of Object.keys(value)) {
     const model = convert === fromWire && schema.modelNames && Object.hasOwn(schema.modelNames, name) ? schema.modelNames[name] : name;
-    if (schema.omitNull && value[name]===null && schema.members[model]?.kind!=="document") continue;
     // A stale wire property must not masquerade as a renamed modeled member.
     if (convert === fromWire && Object.hasOwn(schema.members, model) && wireName(schema, model) !== name) continue;
     native[model] = value[name];
@@ -468,10 +463,8 @@ export function parseTimestamp(value: string | number): Date {
 
 /** Where each member of an operation's input and output travels. */
 export interface OperationSpec {
-  readonly protocol?: "crucibleJson" | "awsRestJson1" | "awsJson1_0" | "awsJson1_1";
   /** The release this client was generated for, sent as `Crucible-Version` (docs/api-versions-clients.md). */
   readonly apiVersion?: string;
-  readonly target?: string;
   readonly headerEncodings?: Readonly<Record<string,"base64">>;
   readonly unsignedPayload?: boolean;
   /** Request and response checksums (`@httpChecksumRequired`, `@aws.protocols#httpChecksum`). */
@@ -868,20 +861,11 @@ export class Transport {
     if (expected !== undefined) source = verifyingStream(source, expected.algorithm, expected.expected, () => this.#config.checksumValidated?.(operation.name, expected.algorithm));
     const reader = new EventMessageReader(lifetimeStream(source, signal, () => settled.settle()));
     try {
-      // Without HTTP bindings the output's other members arrive first, as an initial-response event.
-      let document: unknown = {};
-      let pending: EventMessage | undefined;
-      if (spec.initial) {
-        const first = await reader.next();
-        if (first !== undefined && decodeEvent(spec, first).kind === "initial") {
-          document = readJson(new TextDecoder("utf-8", { fatal: true }).decode(first.payload)) ?? {};
-        } else pending = first;
-      }
-      const fields = object(document);
+      const fields = object({});
       readHeaders(response.headers, output.headers, fields, true, output.schema, output.headerEncodings);
       readDynamicHeaders(response, output, fields);
       const metadata: ResponseMetadata = { status: response.status, requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? undefined, headers: response.headers };
-      const events = receivedEvents(spec, reader, pending, this.#errors, metadata);
+      const events = receivedEvents(spec, reader, this.#errors, metadata);
       settlements.set(events as EventStream<unknown>, settled);
       Object.defineProperty(fields, wireName(output.schema, spec.member), { value: events, enumerable: true, writable: true, configurable: true });
       return fromWire(output.schema, fields) as O;
@@ -1016,18 +1000,13 @@ export class Transport {
         if (!modelledContentType) headers.set("content-type", operation.payload.mediaType);
       }
     }
-    if (operation.protocol==="awsJson1_0" || operation.protocol==="awsJson1_1") {
-      body ??="{}";headers.set("content-type",`application/x-amz-json-${operation.protocol==="awsJson1_0"?"1.0":"1.1"}`);headers.set("x-amz-target",operation.target!);
-    }
     if (operation.apiVersion !== undefined) headers.set("crucible-version", operation.apiVersion);
     if (operation.inputEvents && events) {
       const source = values[operation.inputEvents.member] ?? [];
       if (typeof source !== "object" || (!(Symbol.asyncIterator in source) && !(Symbol.iterator in source))) throw new TypeError(`${operation.name}: an event stream member is an EventStream or an iterable of events`);
       const sigV4 = operation.auth?.some(scheme => scheme.kind === "sigV4") ?? false;
       if (this.#middleware.includes(contentSha256) && !sigV4) throw new TypeError("an event stream has no body digest to precompute");
-      // Without HTTP bindings the document the body would have been is the stream's first message.
-      const initial = operation.inputEvents.initial ? (typeof body === "string" ? body : "{}") : undefined;
-      body = eventBody(operation.inputEvents, source as AsyncIterable<unknown> | Iterable<unknown>, initial, events);
+      body = eventBody(operation.inputEvents, source as AsyncIterable<unknown> | Iterable<unknown>, events);
       headers.set("content-type", EVENT_STREAM_CONTENT_TYPE);
       // Declared before middleware runs, so a digest middleware leaves the stream alone; removed again if no signature follows.
       if (sigV4) headers.set("x-amz-content-sha256", STREAMING_EVENTS);
@@ -1060,19 +1039,16 @@ export class Transport {
       requestId: response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? response.headers.get("x-amz-request-id") ?? stringField(body, "requestId"),
       headers: response.headers,
     };
-    const aws=operation.protocol!==undefined && operation.protocol!=="crucibleJson";
-    const discriminator=response.headers.get("x-crucible-error") ?? (aws?response.headers.get("x-amzn-errortype") ?? stringField(body,"__type") ?? stringField(body,"code"):null) ?? errorName(body,operation,this.#errors,response.status);
-    const name=aws?discriminator?.split(":")[0].split("#").at(-1):discriminator;
+    const name=response.headers.get("x-crucible-error") ?? errorName(body,operation,this.#errors,response.status);
     const spec = name !== undefined && operation.errors.includes(name) && Object.hasOwn(this.#errors, name)
       ? this.#errors[name] : undefined;
     if (spec === undefined) {
-      const message = stringField(body, "message") ?? (aws?stringField(body,"Message"):undefined) ?? `${operation.name} failed with HTTP ${response.status}`;
+      const message = stringField(body, "message") ?? `${operation.name} failed with HTTP ${response.status}`;
       return new ServiceException(name ?? "UnknownError", message, metadata, response.status >= 500 ? "server" : "client");
     }
     let fields: Record<string, unknown>;
     try {
       if (spec.payload!==undefined) Object.defineProperty(body,wireName(spec.schema,spec.payload),{value:decodePayload(spec.payloadKind,bytes),writable:true,configurable:true,enumerable:true});
-      if (aws && body.message===undefined && typeof body.Message==="string") body.message=body.Message;
       readHeaders(response.headers, spec.headers, body, true, spec.schema,spec.headerEncodings);
       readDynamicHeaders(response, spec, body);
       fields = fromWire(spec.schema, body) as Record<string, unknown>;
@@ -1168,8 +1144,7 @@ function parseHeader(text: string, schema: Schema | undefined, wire = false): un
       return wire ? new JsonNumber(text.trim()) : fromWire(schema, new JsonNumber(text.trim()));
     case "number": {
       const trimmed = text.trim();
-      const value = schema.nonFinite && ["NaN", "Infinity", "-Infinity"].includes(trimmed) ? trimmed : new JsonNumber(trimmed);
-      // The enclosing output schema must see the protocol string, so it converts non-finite values only once.
+      const value = new JsonNumber(trimmed);
       return wire ? value : fromWire(schema, value);
     }
     case "boolean":

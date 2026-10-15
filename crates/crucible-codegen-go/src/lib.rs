@@ -128,9 +128,6 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::Waiters,
         Feature::EndpointRules,
         Feature::EndpointHostPrefix,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
         Feature::HttpChecksum,
         Feature::Streaming,
         Feature::EndpointDiscovery,
@@ -310,29 +307,6 @@ fn emit_package(
                     errors.push(
                         &id.with_member(&m.name),
                         "member collides with a Go model field or method",
-                    );
-                }
-            }
-        }
-    }
-    // The runtime carries a stream only as the whole HTTP body.
-    for op in &service.operations {
-        for (shape, bindings) in [(&op.input, &op.request), (&op.output, &op.response)] {
-            let Some(Shape::Structure(s)) = shape.as_ref().and_then(|id| service.shape(id)) else {
-                continue;
-            };
-            for m in s.members.iter().filter(|m| is_stream(service, &m.target)) {
-                if !bindings
-                    .payload
-                    .as_ref()
-                    .is_some_and(|p| p.streaming && p.member == m.name)
-                {
-                    errors.push(
-                        &op.id,
-                        format!(
-                            "Go streams only an HTTP payload; {} is not the streaming payload",
-                            m.name
-                        ),
                     );
                 }
             }

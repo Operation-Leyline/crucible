@@ -1,7 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crucible_smithy::{Capabilities, Feature, Model, Protocol, ShapeId};
+use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
 
 use crate::{ModelPackage, absolute, parse};
 
@@ -15,7 +15,6 @@ pub struct ModelConfig {
     /// starter defaults such as requiring a fillable validation error.
     pub(crate) cru: bool,
     pub(crate) service: Option<ShapeId>,
-    pub(crate) protocol: Option<Protocol>,
     pub(crate) policy: Option<PathBuf>,
 }
 
@@ -31,7 +30,6 @@ impl ModelConfig {
             json: json || cru,
             cru,
             service: None,
-            protocol: None,
             policy,
         }
     }
@@ -39,18 +37,6 @@ impl ModelConfig {
     /// Select a service when the model declares several.
     pub fn named(mut self, id: &str) -> Self {
         self.service = Some(parse(id));
-        self
-    }
-
-    /// Select a declared protocol by Smithy trait ID.
-    pub fn protocol(mut self, id: &str) -> Self {
-        self.protocol = Some(
-            Protocol::ALL
-                .iter()
-                .copied()
-                .find(|p| p.trait_id().to_string() == id)
-                .unwrap_or_else(|| panic!("crucible: unsupported protocol {id}")),
-        );
         self
     }
 
@@ -104,22 +90,15 @@ impl ModelConfig {
         // Lower shared semantics once. Each selected emitter still checks its
         // own supported capabilities before producing output.
         let (service, model) = if crate::cru::is_package(&path) {
-            (
-                crate::cru::lower(&path, self.service.as_ref(), self.protocol)?,
-                None,
-            )
+            (crate::cru::lower(&path, self.service.as_ref())?, None)
         } else {
             let text = std::fs::read_to_string(&path)
                 .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
             let model = Model::from_json(&text).map_err(|e| e.to_string())?;
             let capabilities = Capabilities::new(Feature::ALL.iter().copied());
-            let service = match self.protocol {
-                Some(protocol) => {
-                    model.lower_with_protocol(self.service.as_ref(), &capabilities, protocol)
-                }
-                None => model.lower_with_capabilities(self.service.as_ref(), &capabilities),
-            }
-            .map_err(|e| e.to_string())?;
+            let service = model
+                .lower_with_capabilities(self.service.as_ref(), &capabilities)
+                .map_err(|e| e.to_string())?;
             (service, Some(model))
         };
         #[cfg(not(any(feature = "docs", feature = "cdk", feature = "terraform")))]
@@ -135,13 +114,6 @@ impl ModelConfig {
             output,
             #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
             model,
-            #[cfg(any(
-                feature = "rust",
-                feature = "docs",
-                feature = "cdk",
-                feature = "terraform"
-            ))]
-            self.protocol,
             #[cfg(any(
                 feature = "rust",
                 feature = "docs",

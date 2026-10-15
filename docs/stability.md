@@ -101,8 +101,7 @@ supported building blocks. `LogRecord` and `RequestRecord` expose observation
 fields and are non-exhaustive; sinks and recorders read them instead of
 constructing them.
 
-The built-in protocols are `JsonProtocol`, `RestJsonProtocol`, `AwsJsonProtocol`,
-`RpcV2JsonProtocol`, `RpcV2CborProtocol`, and `InvokeProtocol`. The `protocol`
+The built-in protocols are `JsonProtocol` and `InvokeProtocol`. The `protocol`
 module documents the interface types used by custom protocol implementations.
 The wire metadata enum `operation::Protocol` is separate from the server's
 `Protocol` trait and is non-exhaustive.
@@ -179,7 +178,7 @@ non-exhaustive; application matches must handle future variants.
 Generated bindings construct descriptions using hidden `const fn` constructors.
 Descriptions and their slices remain `'static`; this boundary adds no
 per-request metadata construction. Registration, codecs, dependency re-exports,
-error writers, conformance infrastructure, and generated MCP descriptions use
+error writers, and generated MCP descriptions use
 `__generated`. They are omitted from ordinary runtime documentation.
 
 ## Version mismatch diagnostics

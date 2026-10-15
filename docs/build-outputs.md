@@ -134,8 +134,7 @@ all API; the default external variant omits `@internal` API. Java settings also 
 
 To apply project conventions before publication and generation, use
 `crucible_build::model("model").policy("../crucible.toml")` with
-your policy file. `.named("example.weather#Weather")` selects a service;
-`.protocol("aws.protocols#restJson1")` selects a declared protocol. See
+your policy file. `.named("example.weather#Weather")` selects a service. See
 [API policy and compatibility](api-policy.md) for policy and CI comparisons.
 For an already compiled AST, use `model("model.json")`.
 
@@ -165,11 +164,6 @@ The CLI accepts `--audience external|internal` on every `generate` target:
 crucible generate ts model.json --audience internal \
   --out target/internal-ts --package-name @example/internal-api
 ```
-
-`crucible conformance` accepts the same audience selector and defaults to external.
-Export vectors for the audience used to generate the client. Projection removes
-vectors whose parameters or request expectations need removed members, enum values
-or errors; response bodies may still contain unknown server fields.
 
 External projection refuses contracts that need removed API. It collects every
 required internal member, external reference to an internal shape, paginator,
@@ -336,7 +330,7 @@ model.cli("weather")
 ```
 
 OpenAPI exports a directory containing `openapi.json`. It supports the existing
-REST JSON subset and reports unsupported wire semantics before replacing an
+supported subset and reports unsupported wire semantics before replacing an
 existing document. The CLI exports a standalone Cargo package. Its runtime
 paths default to the build helper's matching Crucible source checkout; use
 `.runtime_path(...)` to select another local checkout. Generation verifies that

@@ -1283,7 +1283,6 @@ mod errors {
 
     impl ::crucible_client_runtime_rust::__generated::ModelledError for InternalServerException {
         fn shape_id(&self) -> &'static str { "crucible.errors#InternalServerException" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ::crucible_client_runtime_rust::__generated::operation::ErrorInfo {
             &INTERNAL_SERVER_EXCEPTION_INFO
         }
@@ -1379,7 +1378,6 @@ mod errors {
 
     impl ::crucible_client_runtime_rust::__generated::ModelledError for NotFoundException {
         fn shape_id(&self) -> &'static str { "crucible.errors#NotFoundException" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ::crucible_client_runtime_rust::__generated::operation::ErrorInfo {
             &NOT_FOUND_EXCEPTION_INFO
         }
@@ -1486,7 +1484,6 @@ mod errors {
 
     impl ::crucible_client_runtime_rust::__generated::ModelledError for ValidationException {
         fn shape_id(&self) -> &'static str { "crucible.errors#ValidationException" }
-        fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_client_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
         fn info(&self) -> &'static ::crucible_client_runtime_rust::__generated::operation::ErrorInfo {
             &VALIDATION_EXCEPTION_INFO
         }

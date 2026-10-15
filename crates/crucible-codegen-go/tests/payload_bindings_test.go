@@ -32,7 +32,7 @@ func TestDocumentPayloadPresence(t *testing.T) {
     }
 }
 
-func TestRecordNullFollowsProtocolMemberPresence(t *testing.T) {
+func TestRecordNullIsSentAsNull(t *testing.T) {
     for _, state := range []string{"omitted", "null", "value"} {
         t.Run(state, func(t *testing.T) {
             expected := ""
@@ -40,7 +40,7 @@ func TestRecordNullFollowsProtocolMemberPresence(t *testing.T) {
             switch state {
             case "null":
                 input.SetRecord(nil)
-                if !wireSchema.ProtocolSettings.OmitNullStructureMembers { expected = "null" }
+                expected = "null"
             case "value":
                 record := &Record{}; record.SetName("record")
                 input.SetRecord(record); expected = `{"name":"record"}`
