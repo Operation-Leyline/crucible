@@ -303,11 +303,15 @@ fn framework_response(error: &FrameworkError, format: Format) -> Response {
         error.name()
     };
     let body = serde_json::json!({ "__type": type_name, "message": error.message() });
-    let mut headers = if format.aws() {
-        vec![("x-amzn-errortype".to_owned(), error.name().to_owned())]
-    } else {
-        Vec::new()
-    };
+    // The protocol's discriminator, as a modelled error sends it: clients
+    // read it before the body's `__type`.
+    let mut headers = Vec::new();
+    if matches!(format, Format::Crucible) {
+        headers.push(("x-crucible-error".to_owned(), error.name().to_owned()));
+    }
+    if format.aws() {
+        headers.push(("x-amzn-errortype".to_owned(), error.name().to_owned()));
+    }
     if let FrameworkError::MethodNotAllowed { allowed } = error {
         headers.push(("allow".to_owned(), allowed.join(", ")));
     }
@@ -471,6 +475,45 @@ mod tests {
             let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
             assert_eq!(body["__type"], name);
             assert_eq!(body["message"], conflict.message());
+        }
+    }
+
+    #[test]
+    fn every_framework_error_is_named_by_its_protocol_header() {
+        let errors = [
+            FrameworkError::Unauthenticated,
+            FrameworkError::Forbidden,
+            FrameworkError::UnknownOperation,
+            FrameworkError::MethodNotAllowed {
+                allowed: vec!["GET"],
+            },
+            FrameworkError::UnsupportedMediaType,
+            FrameworkError::InternalFailure,
+            FrameworkError::Conflict { message: "taken" },
+            FrameworkError::NotFound { resource: &INBOX },
+            FrameworkError::PermissionDenied { permission: &SEND },
+        ];
+        for error in &errors {
+            for format in [
+                Format::Crucible,
+                Format::RestJson,
+                Format::AwsJson10,
+                Format::AwsJson11,
+                Format::RpcV2Json,
+                Format::RpcV2Cbor,
+            ] {
+                let response = framework_response(error, format);
+                let header = |name| {
+                    response
+                        .headers()
+                        .get(name)
+                        .map(|value| value.to_str().unwrap())
+                };
+                let crucible = matches!(format, Format::Crucible).then_some(error.name());
+                let aws = format.aws().then_some(error.name());
+                assert_eq!(header("x-crucible-error"), crucible, "{error:?} {format:?}");
+                assert_eq!(header("x-amzn-errortype"), aws, "{error:?} {format:?}");
+            }
         }
     }
 
