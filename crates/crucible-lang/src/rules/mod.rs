@@ -372,17 +372,32 @@ fn is_kind(subject: &Subject<'_>, kind: Kind) -> bool {
     }
 }
 
-/// The names an exception may give for a subject: a shape, operation or
-/// resource by its name, and a member only through its shape or operation, so
-/// a member's own name never excuses every member that shares it.
-fn targets<'a>(subject: &'a Subject<'_>) -> Vec<&'a str> {
+/// The names an exception may give for a subject directly: a shape,
+/// operation or resource by its name, and a member through its shape. A
+/// member's own name never excuses every member that shares it.
+fn direct_targets<'a>(subject: &'a Subject<'_>) -> Vec<&'a str> {
     use self::subject::Entity;
-    let mut out = Vec::new();
-    if !matches!(subject.entity, Entity::Member { .. }) {
-        out.push(subject.name.as_str());
+    match subject.entity {
+        Entity::Member { .. } => subject
+            .aliases
+            .first()
+            .map(String::as_str)
+            .into_iter()
+            .collect(),
+        _ => vec![subject.name.as_str()],
     }
-    out.extend(subject.aliases.iter().map(String::as_str));
-    out
+}
+
+/// The operations whose input or output a member belongs to. A structure
+/// several operations share is excused through them only when every one of
+/// them is excepted, so one operation's exception does not hide a violation
+/// the others also bring.
+fn operations_of<'a>(subject: &'a Subject<'_>) -> &'a [String] {
+    use self::subject::Entity;
+    match subject.entity {
+        Entity::Member { .. } => subject.aliases.get(1..).unwrap_or(&[]),
+        _ => &[],
+    }
 }
 
 fn report(
@@ -470,13 +485,27 @@ fn report(
     for violation in violations {
         let def = &defs[violation.rule];
         let subject = &world.subjects[violation.subject];
-        let excused: Vec<usize> = targets(subject)
+        let lookup = |target: &str| -> Vec<usize> {
+            by_key
+                .get(&(def.name, target))
+                .into_iter()
+                .flatten()
+                .copied()
+                .filter(|index| allowed[*index])
+                .collect()
+        };
+        let mut excused: Vec<usize> = direct_targets(subject)
             .into_iter()
-            .filter_map(|target| by_key.get(&(def.name, target)))
-            .flatten()
-            .copied()
-            .filter(|index| allowed[*index])
+            .flat_map(lookup)
             .collect();
+        let operations = operations_of(subject);
+        if excused.is_empty() && !operations.is_empty() {
+            let per_operation: Vec<Vec<usize>> =
+                operations.iter().map(|op| lookup(op.as_str())).collect();
+            if per_operation.iter().all(|found| !found.is_empty()) {
+                excused = per_operation.into_iter().flatten().collect();
+            }
+        }
         if !excused.is_empty() {
             for index in excused {
                 used[index] = true;
