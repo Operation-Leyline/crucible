@@ -72,7 +72,7 @@ class RuntimeTests(unittest.TestCase):
         with httpx.Client(transport=httpx.MockTransport(lambda r: (sent.append(r), httpx.Response(200, json={}))[1])) as http:
             client = WeatherClient(http=http, token=lambda: "token")
             client.ping()
-            self.assertNotIn("crucible-version", sent[-1].headers)
+            self.assertEqual(sent[-1].headers["crucible-version"], "2026-10-01")
             client._codec.schema = copy.deepcopy(client._codec.schema)
             client._codec.schema["apiVersion"] = "2026-09-04"
             client.ping()
@@ -153,7 +153,9 @@ class RuntimeTests(unittest.TestCase):
     def test_ir_nullability_preserves_client_optional_and_document_null(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         self.assertIs(codec.convert("example.weather#ListCitiesInput", {}, decode=True).max_results, UNSET)
-        self.assertEqual(codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name=None)), {"name": None})
+        self.assertEqual(codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name="n", location=None)), {"name": "n", "location": None})
+        with self.assertRaises(ValueError):
+            codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name=None))
         for population in (None, UNSET):
             with self.assertRaises(ValueError):
                 codec.convert("example.weather#CitySummary", m.CitySummary(id="c", name="n", population=population))

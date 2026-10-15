@@ -1,5 +1,5 @@
 {
-  "description": "Telemetry event scenarios for a client generated from crates/crucible-smithy/tests/fixtures/runtime-policy.json with endpoint https://records.example, bearer token 'api-key-secret' and backoff disabled. Each call answers its requests from 'responses' in order ('transport': 'timeout' is a transport timeout). 'events' lists every event in order; each object names the event and the fields it must have (fields not listed are not compared). No event field, at any depth, may contain any 'secrets' string. An expected value of \"*\" matches any non-null value (the runtime's own exception name).",
+  "description": "Telemetry event scenarios for a client generated from tests/models/runtime-policy with endpoint https://records.example, bearer token 'api-key-secret' and backoff disabled. Each call answers its requests from 'responses' in order ('transport': 'timeout' is a transport timeout). 'events' lists every event in order; each object names the event and the fields it must have (fields not listed are not compared). No event field, at any depth, may contain any 'secrets' string. An expected value of \"*\" matches any non-null value (the runtime's own exception name).",
   "scenarios": [
     {
       "name": "retry-then-success",

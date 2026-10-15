@@ -1,0 +1,15 @@
+/// Stores a city's photo exactly as sent.
+idempotent operation PutCityPhoto on City {
+    http PUT "/cities/{cityId}/photo"
+    input {
+        $cityId
+        @header("X-Photo-Caption")
+        caption?: string
+        @payload
+        photo: Photo
+    }
+    output {
+        photo: PhotoSummary
+    }
+    errors [NotFoundError]
+}

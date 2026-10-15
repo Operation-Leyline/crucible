@@ -1,5 +1,4 @@
 """Qualify native Ruby gems against shared fixtures and real HTTP."""
-import json
 import os
 from pathlib import Path
 import subprocess
@@ -7,9 +6,23 @@ import sys
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
+from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 from sdk_http_fixture import fixture
 
 RUBY = os.environ.get("RUBY", "ruby")
+
+
+def void_package(output):
+    """A service whose one operation has no input or output."""
+    return write_package(output / "void", "example.void", **{"void.cru": (
+        "service Service {\n    version \"1\"\n    protocol json\n    operations [Ping]\n}\n\n"
+        "readonly operation Ping {\n    http GET \"/ping\"\n}\n")})
+
+
+def add_input_members(package, *names):
+    """Optional string members on CreateCity's input."""
+    replace_once(package, "        clientToken?: string\n",
+                 "        clientToken?: string\n" + "".join(f"        {name}?: string\n" for name in names))
 
 
 def gem(*args, **kwargs):
@@ -35,7 +48,7 @@ def qualify(output):
     # String representations must hide sensitive members from every inspection path.
     vault = output / "vault"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json"), "--out", str(vault),
+        str(ROOT / "tests/models/client-docs-vault"), "--out", str(vault),
         "--package-name", "vault_client", "--module-name", "Vault")
     for source in sorted(vault.rglob("*.rb")):
         run(RUBY, "-c", str(source), stdout=subprocess.DEVNULL)
@@ -49,41 +62,32 @@ def qualify(output):
     run(RUBY, "-r", "weather_client", "-e", "raise unless Weather::CreateCityInput.new(name: 'consumer').name == 'consumer'; Weather::WeatherClient.new(Weather::Runtime::ClientConfig.new(endpoint: 'https://example.invalid')).close",
         env=consumer_env)
     print("Ruby native gem consumer passed")
-    void_model = output / "void.json"
-    void_model.write_text(json.dumps({"smithy": "2.0", "shapes": {
-        "example.void#Service": {"type": "service", "version": "1", "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.void#Ping"}]},
-        "example.void#Ping": {"type": "operation", "traits": {"smithy.api#http": {"method": "GET", "uri": "/ping"}}},
-    }}), encoding="utf-8")
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time",
-        "example.weather#Coordinates": "ArgumentError", "example.weather#PhotoSummary": "IOError",
-    }
-    for member in ["self", "context", "object", "metadata", "class", "message", "toWire", "describe"]:
-        renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
-    renamed_model = output / "renamed.json"
-    renamed_model.write_text(json.dumps(renamed), encoding="utf-8")
-    for name, model in [("empty", ROOT / "tests/conformance/empty-service.json"), ("void", void_model), ("renamed", renamed_model)]:
+    void_model = void_package(output)
+    renamed_model = copy_package("weather", output / "renamed")
+    rename_shapes(renamed_model, {"CitySummary": "String", "Location": "Array", "Sky": "Time",
+                                  "Coordinates": "ArgumentError", "PhotoSummary": "IOError"})
+    add_input_members(renamed_model, "self", "context", "object", "metadata", "class", "message", "toWire", "describe")
+    for name, model in [("empty", ROOT / "tests/models/empty-service"), ("void", void_model), ("renamed", renamed_model)]:
         generated = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby", str(model),
             "--out", str(generated), "--package-name", "weather_client", "--module-name", "Weather")
         client_name = {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]
         script = f"Weather::{client_name}.new(Weather::Runtime::ClientConfig.new(endpoint: 'http://127.0.0.1')).close"
         if name == "renamed":
-            script += "; input = Weather::CreateCityInput.new(class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'class'=>'x','toWire'=>'y'}"
+            script += "; input = Weather::CreateCityInput.new(name: 'n', class_value: 'x', to_wire_value: 'y'); raise unless Weather.codec.encode(input, Weather.codec.context('example.weather#CreateCityInput')) == {'name'=>'n','class'=>'x','toWire'=>'y'}"
             script += "; begin; Weather::Runtime::WireCodec.string(7); raise 'Expected native argument error'; rescue ::ArgumentError; end"
         run(RUBY, "-I", str(generated / "lib"), "-r", "weather_client", "-e", script)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json"), "--out", str(output / "extended"),
+        str(ROOT / "tests/models/extended-types"), "--out", str(output / "extended"),
         "--package-name", "types_client", "--module-name", "Types")
     run(RUBY, "-I", str(output / "extended/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/extensions.rb"))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "ruby",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
+        str(ROOT / "tests/models/error-payloads"), "--out", str(output / "wire"),
         "--package-name", "wire_client", "--module-name", "WireSdk")
     run(RUBY, "-I", str(output / "wire/lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/wire.rb"))
     # Payload Content-Type precedence.
     payload = output / "payload"
-    generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", payload, "payload_client", "PayloadSdk")
+    generate(ROOT / "tests/models/payload-bindings", payload, "payload_client", "PayloadSdk")
     run(RUBY, "-I", str(payload / "lib"), str(ROOT / "crates/crucible-codegen-ruby/tests/payload_bindings.rb"))
     # Typed permissions: the open permission classes and the registry, from the shared .cru fixture.
     generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "Leyline")

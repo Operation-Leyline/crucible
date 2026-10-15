@@ -1,0 +1,13 @@
+operation GetItem {
+    http POST "/v1/items" -> 200
+    input {
+        name?: Name
+        filter?: State
+        node?: Node
+    }
+    output {
+        name: Name
+        state?: State
+        node?: Node
+    }
+}

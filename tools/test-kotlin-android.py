@@ -12,7 +12,7 @@ def qualify(output, build_only):
     sdk = output / "sdk"
     repo = ROOT / "target/maven-repo"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/weather.json"), "--out", str(sdk),
+        str(ROOT / "tests/models/weather"), "--out", str(sdk),
         "--group-id", "example", "--artifact-id", "weather-kotlin-android", "--package-name", "example.weather",
         "--package-version", "0.0.0-test")
     run(os.environ.get("MAVEN", "mvn"), "-q", "-Dmaven.repo.local=" + str(repo), "install", cwd=sdk)

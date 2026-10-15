@@ -1,0 +1,3 @@
+readonly public operation PublicPing {
+    http GET "/public" -> 200
+}

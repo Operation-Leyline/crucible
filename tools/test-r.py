@@ -1,15 +1,24 @@
 """Qualify generated native R packages, shared wire behavior, and real HTTP."""
-import json
 import os
 from pathlib import Path
 import tempfile
 from sdk_test_support import ROOT, run, weather
+from sdk_cru_packages import replace_once
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from r_http_fixture import edge_fixture
 
 R = os.environ.get("R", "R")
 RSCRIPT = os.environ.get("RSCRIPT", "Rscript")
+
+# Exact document, default and optional-long members, recursive through `next`.
+EXACT_VALUES = """structure ExactValues {
+    document: document
+    defaultLong: long = 9223372036854775807
+    optionalLong?: long
+    next?: ExactValues
+}
+"""
 
 
 def generate(model, output, package="weather.client", *extra):
@@ -20,15 +29,9 @@ def generate(model, output, package="weather.client", *extra):
 def qualify(output):
     package = output / "sdk"
     model_path = qualification_model(output)
-    model = json.loads(model_path.read_text(encoding="utf-8"))
-    model["shapes"]["example.weather#ExactValues"] = {"type": "structure", "members": {
-        "document": {"target": "smithy.api#Document", "traits": {"smithy.api#required": {}}},
-        "defaultLong": {"target": "smithy.api#Long", "traits": {"smithy.api#default": 9223372036854775807}},
-        "optionalLong": {"target": "smithy.api#Long"},
-        "next": {"target": "example.weather#ExactValues"},
-    }}
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["exactValues"] = {"target": "example.weather#ExactValues"}
-    model_path.write_text(json.dumps(model), encoding="utf-8")
+    (model_path / "exact.cru").write_text(EXACT_VALUES, encoding="utf-8", newline="\n")
+    replace_once(model_path, "        clientToken?: string\n",
+                 "        clientToken?: string\n        exactValues?: ExactValues\n")
     generate(model_path, package)
     run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(package / "man"))
     library = output / "library"
@@ -49,13 +52,13 @@ def qualify(output):
         run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/transport_edges.R"), str(library),
             env=dict(os.environ, EDGE_URL=endpoint))
     run(RSCRIPT, "-e", "library(weather.client, lib.loc=commandArgs(TRUE)[1]); stopifnot(CreateCityInput(name='consumer')$name == 'consumer')", str(library))
-    for name, model in [("empty", ROOT / "tests/conformance/empty-service.json")]:
+    for name, model in [("empty", ROOT / "tests/models/empty-service")]:
         generated = output / name
         generate(model, generated, "empty.client")
         run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
         run(RSCRIPT, "-e", "library(empty.client, lib.loc=commandArgs(TRUE)[1]); EmptyClient(client_config(endpoint='http://127.0.0.1'))$close()", str(library))
     generated = output / "extended"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", generated, "types.client")
+    generate(ROOT / "tests/models/extended-types", generated, "types.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/extensions.R"), str(library))
     # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
@@ -63,11 +66,11 @@ def qualify(output):
     run(RSCRIPT, "-e", "options(warn=2); for (p in list.files(commandArgs(TRUE)[1], pattern=\"[.]Rd$\", full.names=TRUE)) tools::parse_Rd(p)", str(output / "permissions" / "man"))
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "permissions"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/permissions.R"), str(library))
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", output / "wire", "wire.client")
+    generate(ROOT / "tests/models/error-payloads", output / "wire", "wire.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "wire"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/wire.R"), str(library))
     # Payload Content-Type precedence.
-    generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", output / "payload", "payload.client")
+    generate(ROOT / "tests/models/payload-bindings", output / "payload", "payload.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "payload"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/payload_content_type.R"), str(library), "payload.client")
     print("R native package build/install and consumer qualification passed")

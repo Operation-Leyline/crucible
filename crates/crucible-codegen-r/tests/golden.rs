@@ -112,12 +112,9 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
     }
     let compiled = crucible_lang::compile(&package, None);
     let rendered = compiled.render();
-    let service = compiled.service.unwrap_or_else(|| {
-        panic!(
-            "the fixture compiles:
-{rendered}"
-        )
-    });
+    let service = compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
     crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap()
 }
 
@@ -156,11 +153,9 @@ fn colliding_permission_names_are_diagnostics() {
 /// A model without permissions gets no permission files or exports.
 #[test]
 fn a_model_without_permissions_has_no_permission_files() {
-    let weather = crucible_smithy::Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
+    let weather = crucible_lang::load_service(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather"),
+    )
     .unwrap();
     let files = emit(&weather, &options()).unwrap();
     assert!(files.iter().all(|file| !file.path.contains("permissions")));

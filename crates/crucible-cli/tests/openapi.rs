@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde_json::{Value, json};
+use serde_json::Value;
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
 fn temporary(name: &str) -> PathBuf {
     let nonce = SystemTime::now()
@@ -23,9 +23,9 @@ fn temporary(name: &str) -> PathBuf {
 #[test]
 fn cli_writes_a_spec_file_and_preserves_sibling_files() {
     let directory = temporary("success");
-    let model = directory.join("model.json");
+    common::install_shared(&directory, "weather");
+    let model = directory.join("weather");
     let output = directory.join("openapi.json");
-    fs::write(&model, WEATHER).unwrap();
     fs::write(directory.join("keep.txt"), "consumer-owned").unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
         .args(["generate", "openapi"])
@@ -58,12 +58,17 @@ fn cli_writes_a_spec_file_and_preserves_sibling_files() {
 #[test]
 fn cli_diagnostics_do_not_replace_an_existing_document() {
     let directory = temporary("rejected");
-    let model = directory.join("model.json");
+    common::install_shared(&directory, "weather");
+    let model = directory.join("weather");
     let output = directory.join("openapi.json");
-    let mut value: Value = serde_json::from_str(WEATHER).unwrap();
-    value["shapes"]["example.weather#Status"]["traits"]["smithy.api#http"]["uri"] =
-        json!("/ping?mode=status");
-    fs::write(&model, value.to_string()).unwrap();
+    let status = model.join("operations/service/Status.cru");
+    let text = fs::read_to_string(&status).unwrap();
+    assert!(text.contains(r#""/status""#));
+    fs::write(
+        &status,
+        text.replace(r#""/status""#, r#""/ping?mode=status""#),
+    )
+    .unwrap();
     fs::write(&output, "previous document").unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
         .args(["generate", "openapi"])

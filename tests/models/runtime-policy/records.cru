@@ -1,0 +1,6 @@
+service Records {
+    version "2026-10-01"
+    protocol json
+    auth bearer
+    operations [DescribeEndpoints, GetRecord, ListRecords, PutRecord]
+}

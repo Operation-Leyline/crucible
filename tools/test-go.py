@@ -21,7 +21,7 @@ def qualify(output):
     for protocol, name in (("crucible.protocols#json", "payloadbindings"),):
         package = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-            "crates/crucible-codegen-python/tests/payload-bindings.json",
+            "tests/models/payload-bindings",
             "--out", str(package), "--module-path", "example.com/" + name, "--package-name", "payloadbindings")
         shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/payload_bindings_test.go", package / "payload_bindings_test.go")
         run(GO, "fmt", "./...", cwd=package)
@@ -29,7 +29,7 @@ def qualify(output):
         run(GO, "test", "-count=1", "-v", "./...", cwd=package)
     docs = output / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "tests/fixtures/client-docs.json", "--out", str(docs),
+        "tests/models/client-docs", "--out", str(docs),
         "--module-path", "example.com/docs", "--package-name", "docs")
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/docs_test.go", docs / "docs_test.go")
     run(GO, "fmt", "./...", cwd=docs)
@@ -38,21 +38,21 @@ def qualify(output):
     run(GO, "doc", "-all", ".", cwd=docs, stdout=subprocess.DEVNULL)
     wire = output / "wire"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "crates/crucible-smithy/tests/fixtures/error-payloads.json", "--out", str(wire),
+        "tests/models/error-payloads", "--out", str(wire),
         "--module-path", "example.com/wire", "--package-name", "wire")
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/payloads_test.go", wire / "payloads_test.go")
     run(GO, "fmt", "./...", cwd=wire)
     run(GO, "test", "-count=1", "-v", "./...", cwd=wire)
     extended = output / "extended"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "crates/crucible-smithy/tests/fixtures/extended-types.json", "--out", str(extended),
+        "tests/models/extended-types", "--out", str(extended),
         "--module-path", "example.com/types", "--package-name", "types")
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/types_test.go", extended / "types_test.go")
     run(GO, "fmt", "./...", cwd=extended)
     run(GO, "test", "-count=1", "-v", "./...", cwd=extended)
     policy = output / "policy"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "crates/crucible-smithy/tests/fixtures/runtime-policy.json", "--out", str(policy),
+        "tests/models/runtime-policy", "--out", str(policy),
         "--module-path", "example.com/policy", "--package-name", "policy")
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/policy_test.go", policy / "policy_test.go")
     for vector in ("retry-quota", "adaptive-retry", "telemetry"):
@@ -65,7 +65,7 @@ def qualify(output):
         run(GO, "test", "-race", "-count=3", "./...", cwd=policy)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
+        "tests/models/weather", "--out", str(package),
         "--module-path", "example.com/weather", "--package-name", "weather",
         "--endpoint", "https://weather.example")
     shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/runtime_test.go", package / "runtime_test.go")
@@ -149,7 +149,7 @@ func main() {
     run(GO, "run", ".", cwd=consumer)
     empty = output / "empty"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-        "tests/conformance/empty-service.json", "--out", str(empty),
+        "tests/models/empty-service", "--out", str(empty),
         "--module-path", "example.com/empty", "--package-name", "empty")
     run(GO, "test", "./...", cwd=empty)
     permissions(output)

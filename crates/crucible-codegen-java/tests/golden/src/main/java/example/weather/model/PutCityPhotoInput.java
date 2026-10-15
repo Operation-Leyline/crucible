@@ -11,9 +11,9 @@ package example.weather.model;
         public PutCityPhotoInput() {}
         /**
          * <p>The <code>cityId</code> member.</p>
-         * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
+         * <p>Required.</p>
          */
-        public example.weather.OptionalValue<java.lang.String> cityId = example.weather.OptionalValue.unset();
+        public java.lang.String cityId;
         /**
          * <p>The <code>caption</code> member.</p>
          * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
@@ -21,9 +21,9 @@ package example.weather.model;
         public example.weather.OptionalValue<java.lang.String> caption = example.weather.OptionalValue.unset();
         /**
          * <p>The <code>photo</code> member.</p>
-         * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
+         * <p>Required.</p>
          */
-        public example.weather.OptionalValue<byte[]> photo = example.weather.OptionalValue.unset();
+        public byte[] photo;
         /**
          * <p>Returns a new builder for <code>PutCityPhotoInput</code>.</p>
          *
@@ -31,11 +31,11 @@ package example.weather.model;
          */
         public static Builder builder() { return new Builder(); }
         /**
-         * <p>Returns the <code>cityId</code> member, or null when unset.</p>
+         * <p>Returns the <code>cityId</code> member.</p>
          *
-         * @return the <code>cityId</code> member, or null when unset
+         * @return the <code>cityId</code> member
          */
-        public java.lang.String cityId() { return cityId.value(); }
+        public java.lang.String cityId() { return cityId; }
         /**
          * <p>Returns the <code>caption</code> member, or null when unset.</p>
          *
@@ -43,11 +43,11 @@ package example.weather.model;
          */
         public java.lang.String caption() { return caption.value(); }
         /**
-         * <p>Returns the <code>photo</code> member, or null when unset.</p>
+         * <p>Returns the <code>photo</code> member.</p>
          *
-         * @return the <code>photo</code> member, or null when unset
+         * @return the <code>photo</code> member
          */
-        public byte[] photo() { return photo.value(); }
+        public byte[] photo() { return photo; }
         /**
          * <p>Builds <code>PutCityPhotoInput</code>; each setter returns the builder.</p>
          */
@@ -63,7 +63,7 @@ package example.weather.model;
              * @param item the new value
              * @return this builder
              */
-            public Builder cityId(java.lang.String item) { value.cityId = example.weather.OptionalValue.of(item); return this; }
+            public Builder cityId(java.lang.String item) { value.cityId = item; return this; }
             /**
              * <p>Sets the <code>caption</code> member.</p>
              *
@@ -77,7 +77,7 @@ package example.weather.model;
              * @param item the new value
              * @return this builder
              */
-            public Builder photo(byte[] item) { value.photo = example.weather.OptionalValue.of(item); return this; }
+            public Builder photo(byte[] item) { value.photo = item; return this; }
             /**
              * <p>Returns a new <code>PutCityPhotoInput</code>.</p>
              *

@@ -1,0 +1,6 @@
+service Inventory {
+    version "1"
+    protocol json
+    auth bearer
+    resources [Widget]
+}

@@ -9,9 +9,21 @@ import tempfile
 
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
+from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 from dart_http_fixture import fixture
 
 DART = os.environ.get("DART", "dart")
+
+VOID = """service Service {
+    version "1"
+    protocol json
+    operations [Ping]
+}
+
+readonly operation Ping {
+    http GET "/ping"
+}
+"""
 
 
 def dart(*args, **kwargs):
@@ -90,25 +102,14 @@ Future<void> main() async {
     dart("compile", "js", "main.dart", "-o", "consumer.js", cwd=consumer)
     empty = output / "empty"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
-        str(ROOT / "tests/conformance/empty-service.json"), "--out", str(empty), "--package-name", "empty_client")
+        str(ROOT / "tests/models/empty-service"), "--out", str(empty), "--package-name", "empty_client")
     dart("pub", "get", cwd=empty)
     dart("analyze", cwd=empty)
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#CitySummaries": "List",
-        "example.weather#Location": "Object", "example.weather#Sky": "Future",
-    }
-    for member in ["class", "object", "context", "core", "wire", "json", "typed", "stamp", "errors", "describe"]:
-        renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
-    renamed_path = output / "renamed.json"
-    renamed_path.write_text(json.dumps(renamed))
-    void_path = output / "void.json"
-    void_path.write_text(json.dumps({"smithy": "2.0", "shapes": {
-        "example.void#Service": {"type": "service", "version": "1",
-            "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.void#Ping"}]},
-        "example.void#Ping": {"type": "operation",
-            "traits": {"smithy.api#http": {"method": "GET", "uri": "/ping"}}},
-    }}))
+    renamed_path = copy_package("weather", output / "renamed-model")
+    members = ["class", "object", "context", "core", "wire", "json", "typed", "stamp", "errors", "describe"]
+    replace_once(renamed_path, "location?: Location\n", "location?: Location\n" + "".join(f"        {member}?: string\n" for member in members))
+    rename_shapes(renamed_path, {"CitySummary": "String", "CitySummaries": "List", "Location": "Object", "Sky": "Future"})
+    void_path = write_package(output / "void-model", "example.void", **{"void.cru": VOID})
     for name, model in [("renamed", renamed_path), ("void", void_path)]:
         generated = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
@@ -123,7 +124,7 @@ import 'package:renamed_client/src/runtime/json.dart';
 import 'package:renamed_client/src/schema.dart';
 void main() {
   final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
-  const input = sdk.CreateCityInput(object:'object', context:'context',
+  const input = sdk.CreateCityInput(name:'name', object:'object', context:'context',
     coreValue:'core', wireValue:'wire', jsonValue:'json',
     typedValue:'typed', stampValue:'stamp', errorsValue:'errors', describeValue:'describe');
   final context = codec.context('example.weather#CreateCityInput');
@@ -136,11 +137,11 @@ void main() {
 }
 """, encoding="utf-8")
             dart("run", "main.dart", cwd=generated)
-    for name, fixture_name in [("extended", "extended-types"), ("wire", "error-payloads"), ("describe", "client-docs")]:
+    for name, fixture_name in [("extended", "extended-types"), ("wire", "error-payloads"), ("describe", "client-docs-vault")]:
         generated = output / name
         package_name = {"extended": "types_client", "wire": "wire_client", "describe": "vault_client"}[name]
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
-            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"),
+            str(ROOT / "tests/models" / fixture_name),
             "--out", str(generated), "--package-name", package_name)
         manifest = json.loads((generated / "pubspec.yaml").read_text())
         manifest["dev_dependencies"] = {"test": "^1.25.15"}
@@ -220,15 +221,7 @@ void main() {
 
 def qualify_payload_bindings(output):
     """Payload Content-Type precedence under both JSON protocols."""
-    model = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text())
-    # The fixture is shared with other languages; drop whatever Smithy-only streaming it still carries.
-    shapes = model["shapes"]
-    service = shapes["example.payload#PayloadBindings"]
-    service["operations"] = [item for item in service["operations"] if item["target"] != "example.payload#UploadStream"]
-    for name in ("example.payload#UploadStream", "example.payload#StreamInput", "example.payload#Stream"):
-        shapes.pop(name, None)
-    path = output / "payload-bindings.json"
-    path.write_text(json.dumps(model), encoding="utf-8")
+    path = ROOT / "tests/models/payload-bindings"
     for name in ("payload_bindings",):
         generated = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart", str(path),

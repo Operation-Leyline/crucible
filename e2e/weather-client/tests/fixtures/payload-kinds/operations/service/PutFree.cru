@@ -1,0 +1,11 @@
+idempotent operation PutFree {
+    http PUT "/free" -> 200
+    input {
+        @payload
+        document?: document
+    }
+    output {
+        @payload
+        document?: document
+    }
+}

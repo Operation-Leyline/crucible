@@ -47,27 +47,6 @@ public final class WeatherClient {
     }
     /**
      * <p>Calls the <code>CreateCity</code> operation.</p>
-     * <p>Calls the operation with an empty request, since every input member is optional.</p>
-     * <p>The <code>clientToken</code> member is filled with a fresh idempotency token when omitted, so retries are safe.</p>
-     *
-     * @return the response
-     * @throws example.weather.model.ConflictError if the service returns <code>example.weather#ConflictError</code>
-     * @throws example.weather.model.ThrottlingError if the service returns <code>example.weather#ThrottlingError</code>
-     * @throws example.weather.model.ValidationError if the service returns <code>example.weather#ValidationError</code>
-     * @throws example.weather.WeatherException for any other error response
-     * @throws example.weather.NetworkError if the transport fails
-     */
-    public example.weather.model.CreateCityOutput createCity() { return createCity(example.weather.model.CreateCityInput.builder().build()); }
-    /**
-     * <p>Calls the <code>CreateCity</code> operation.</p>
-     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
-     * <p>The <code>clientToken</code> member is filled with a fresh idempotency token when omitted, so retries are safe.</p>
-     *
-     * @return a future of the response
-     */
-    public java.util.concurrent.CompletableFuture<example.weather.model.CreateCityOutput> createCityAsync() { return createCityAsync(example.weather.model.CreateCityInput.builder().build()); }
-    /**
-     * <p>Calls the <code>CreateCity</code> operation.</p>
      * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
      * <p>The <code>clientToken</code> member is filled with a fresh idempotency token when omitted, so retries are safe.</p>
      *
@@ -122,27 +101,6 @@ public final class WeatherClient {
     }
     /**
      * <p>Calls the <code>GetCity</code> operation.</p>
-     * <p>Calls the operation with an empty request, since every input member is optional.</p>
-     * <p>This operation is read-only; the client may retry it.</p>
-     *
-     * @return the response
-     * @throws example.weather.model.NotFoundError if the service returns <code>example.weather#NotFoundError</code>
-     * @throws example.weather.model.ThrottlingError if the service returns <code>example.weather#ThrottlingError</code>
-     * @throws example.weather.model.ValidationError if the service returns <code>example.weather#ValidationError</code>
-     * @throws example.weather.WeatherException for any other error response
-     * @throws example.weather.NetworkError if the transport fails
-     */
-    public example.weather.model.GetCityOutput getCity() { return getCity(example.weather.model.GetCityInput.builder().build()); }
-    /**
-     * <p>Calls the <code>GetCity</code> operation.</p>
-     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
-     * <p>This operation is read-only; the client may retry it.</p>
-     *
-     * @return a future of the response
-     */
-    public java.util.concurrent.CompletableFuture<example.weather.model.GetCityOutput> getCityAsync() { return getCityAsync(example.weather.model.GetCityInput.builder().build()); }
-    /**
-     * <p>Calls the <code>GetCity</code> operation.</p>
      * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
      * <p>This operation is read-only; the client may retry it.</p>
      *
@@ -195,27 +153,6 @@ public final class WeatherClient {
     public example.weather.model.GetCityPhotoOutput getCityPhoto(example.weather.model.GetCityPhotoInput input) {
         return ClientRuntime.await(getCityPhotoAsync(input));
     }
-    /**
-     * <p>Calls the <code>GetCityPhoto</code> operation.</p>
-     * <p>Calls the operation with an empty request, since every input member is optional.</p>
-     * <p>This operation is read-only; the client may retry it.</p>
-     *
-     * @return the response
-     * @throws example.weather.model.NotFoundError if the service returns <code>example.weather#NotFoundError</code>
-     * @throws example.weather.model.ThrottlingError if the service returns <code>example.weather#ThrottlingError</code>
-     * @throws example.weather.model.ValidationError if the service returns <code>example.weather#ValidationError</code>
-     * @throws example.weather.WeatherException for any other error response
-     * @throws example.weather.NetworkError if the transport fails
-     */
-    public example.weather.model.GetCityPhotoOutput getCityPhoto() { return getCityPhoto(example.weather.model.GetCityPhotoInput.builder().build()); }
-    /**
-     * <p>Calls the <code>GetCityPhoto</code> operation.</p>
-     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
-     * <p>This operation is read-only; the client may retry it.</p>
-     *
-     * @return a future of the response
-     */
-    public java.util.concurrent.CompletableFuture<example.weather.model.GetCityPhotoOutput> getCityPhotoAsync() { return getCityPhotoAsync(example.weather.model.GetCityPhotoInput.builder().build()); }
     /**
      * <p>Calls the <code>GetCityPhoto</code> operation.</p>
      * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>
@@ -441,27 +378,6 @@ public final class WeatherClient {
     public example.weather.model.PutCityPhotoOutput putCityPhoto(example.weather.model.PutCityPhotoInput input) {
         return ClientRuntime.await(putCityPhotoAsync(input));
     }
-    /**
-     * <p>Stores a city's photo exactly as sent.</p>
-     * <p>Calls the operation with an empty request, since every input member is optional.</p>
-     * <p>This operation is idempotent; the client may retry it.</p>
-     *
-     * @return the response
-     * @throws example.weather.model.NotFoundError if the service returns <code>example.weather#NotFoundError</code>
-     * @throws example.weather.model.ThrottlingError if the service returns <code>example.weather#ThrottlingError</code>
-     * @throws example.weather.model.ValidationError if the service returns <code>example.weather#ValidationError</code>
-     * @throws example.weather.WeatherException for any other error response
-     * @throws example.weather.NetworkError if the transport fails
-     */
-    public example.weather.model.PutCityPhotoOutput putCityPhoto() { return putCityPhoto(example.weather.model.PutCityPhotoInput.builder().build()); }
-    /**
-     * <p>Stores a city's photo exactly as sent.</p>
-     * <p>Asynchronous form: the future completes exceptionally with the errors of the blocking form.</p>
-     * <p>This operation is idempotent; the client may retry it.</p>
-     *
-     * @return a future of the response
-     */
-    public java.util.concurrent.CompletableFuture<example.weather.model.PutCityPhotoOutput> putCityPhotoAsync() { return putCityPhotoAsync(example.weather.model.PutCityPhotoInput.builder().build()); }
     /**
      * <p>Stores a city's photo exactly as sent.</p>
      * <p>Builds the request with a lambda: {@code client.call(b -> b.member(value))}.</p>

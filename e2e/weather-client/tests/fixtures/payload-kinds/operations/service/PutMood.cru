@@ -1,0 +1,11 @@
+idempotent operation PutMood {
+    http PUT "/mood" -> 200
+    input {
+        @payload
+        mood?: Mood
+    }
+    output {
+        @payload
+        mood: Mood
+    }
+}

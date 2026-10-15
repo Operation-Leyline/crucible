@@ -1,0 +1,19 @@
+string Id
+
+string Name { length 1..100 }
+
+structure WidgetState for Widget {
+    id: Id
+    $name
+    $enabled
+    $capacity
+    $slug
+}
+
+resource Widget {
+    id widgetId: Id
+    property name: Name
+    property enabled: boolean
+    property capacity: integer
+    property slug?: string
+}

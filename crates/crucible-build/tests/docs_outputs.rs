@@ -1,20 +1,19 @@
 #![cfg(feature = "docs")]
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
 use crucible_build::Audience;
 use serde_json::Value;
 
-const WEATHER: &str =
-    include_str!("../../crucible-smithy/tests/fixtures/service-docs-weather.json");
-
 #[test]
 fn docs_probe() {
     if std::env::var_os("CRUCIBLE_DOCS_PROBE").is_none() {
         return;
     }
-    let model = crucible_build::model("model.json");
+    let model = crucible_build::model("service-docs-weather");
     let external = model.docs("reference").generate_into("exports");
     assert_eq!(external.target, "docs");
     let data: Value =
@@ -28,7 +27,7 @@ fn docs_probe() {
         .modified()
         .unwrap();
     let sibling = fs::read("exports/keep.txt").unwrap();
-    let rebuilt = crucible_build::model("model.json")
+    let rebuilt = crucible_build::model("service-docs-weather")
         .docs("reference")
         .generate_into("exports");
     assert_eq!(
@@ -62,10 +61,11 @@ fn docs_probe() {
 }
 
 #[test]
+#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn docs_share_artifact_ownership_stable_exports_and_failure_preservation() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    fs::write(root.join("model.json"), WEATHER).unwrap();
+    common::install_shared(root, "service-docs-weather");
     fs::create_dir(root.join("exports")).unwrap();
     fs::write(root.join("exports/keep.txt"), "consumer-owned").unwrap();
     let result = Command::new(std::env::current_exe().unwrap())

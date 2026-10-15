@@ -1,0 +1,9 @@
+string Name { length 1..100 }
+
+structure Node {
+    next?: Node
+}
+
+enum State {
+    READY = "ready"
+}

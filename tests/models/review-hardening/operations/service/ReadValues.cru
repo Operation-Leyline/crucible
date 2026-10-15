@@ -1,0 +1,8 @@
+readonly operation ReadValues {
+    http GET "/values" -> 200
+    output {
+        optionalDefault: integer = 7
+        strings?: Strings
+        mapping?: StringMap
+    }
+}

@@ -1,0 +1,33 @@
+union Choice {
+    unknown
+    unknownValue: string
+    unknownValue2: string
+    text: string
+    document: document
+}
+
+list Items: document
+
+structure Root {
+    requiredDocument: document
+    document?: document
+    items?: Items
+    next?: Root
+    choice?: Choice
+    state?: State
+    builder?: string
+    validate?: string
+    memberBuilder?: string
+    build?: string
+    memberBuild?: string
+    related?: RootBuilder
+    fallback: integer = 3
+    httpDate?: timestamp { format http-date }
+}
+
+string RootBuilder
+
+enum State {
+    UNKNOWN = "unknown"
+    UNKNOWN_VALUE = "known"
+}

@@ -183,22 +183,22 @@ namespace VaultSdk;
 final class GetSecretInput implements \VaultSdk\Runtime\WireModel
 {
     /**
-     * @param string|null|\VaultSdk\Runtime\Absent $name
+     * @param string $name
      */
     public function __construct(
-        public readonly string|null|\VaultSdk\Runtime\Absent $name = \VaultSdk\Runtime\Absent::Value,
+        public readonly string $name,
     ) {}
     public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
     {
         $object = \VaultSdk\Runtime\WireCodec::object($value);
         return new self(
-            name: $context->optional('name', $object),
+            name: $context->read('name', $object),
         );
     }
     public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'name', $this->name, true);
+        $context->put($object, 'name', $this->name, false);
         return new \VaultSdk\Runtime\JsonObject($object);
     }
     public function __debugInfo(): array
@@ -379,25 +379,25 @@ namespace VaultSdk;
 final class PutSecretInput implements \VaultSdk\Runtime\WireModel
 {
     /**
-     * @param \VaultSdk\Secret|null|\VaultSdk\Runtime\Absent $secret
+     * @param \VaultSdk\Secret $secret
      * @param string|null|\VaultSdk\Runtime\Absent $clientToken
      */
     public function __construct(
-        public readonly \VaultSdk\Secret|null|\VaultSdk\Runtime\Absent $secret = \VaultSdk\Runtime\Absent::Value,
+        public readonly \VaultSdk\Secret $secret,
         public readonly string|null|\VaultSdk\Runtime\Absent $clientToken = \VaultSdk\Runtime\Absent::Value,
     ) {}
     public static function fromWire(mixed $value, \VaultSdk\Runtime\WireContext $context): self
     {
         $object = \VaultSdk\Runtime\WireCodec::object($value);
         return new self(
-            secret: $context->optional('secret', $object),
+            secret: $context->read('secret', $object),
             clientToken: $context->optional('clientToken', $object),
         );
     }
     public function toWire(\VaultSdk\Runtime\WireContext $context): \VaultSdk\Runtime\JsonObject
     {
         $object = [];
-        $context->put($object, 'secret', $this->secret, true);
+        $context->put($object, 'secret', $this->secret, false);
         $context->put($object, 'clientToken', $this->clientToken, true);
         return new \VaultSdk\Runtime\JsonObject($object);
     }

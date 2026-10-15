@@ -1,0 +1,14 @@
+idempotent operation UpdateWidget updates Widget {
+    http PUT "/widgets/{widgetId}" -> 200
+    input {
+        $widgetId
+        $name
+        $enabled
+        $capacity
+        $slug?
+    }
+    output {
+        widget: WidgetState
+    }
+    errors [NotFound]
+}

@@ -8,7 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 const RUNTIME: &str = r#"runtime = { git = "https://github.com/Operation-Leyline/crucible", rev = "0123456789abcdef0123456789abcdef01234567", version = "0.6" }"#;
 
 struct Service {
@@ -27,11 +27,11 @@ impl Service {
         let repo = service.repo();
         fs::create_dir_all(repo.join("sdk")).unwrap();
         fs::create_dir_all(repo.join("consumer")).unwrap();
-        fs::write(repo.join("model.json"), WEATHER).unwrap();
+        common::install_shared(&repo, "weather");
         fs::write(repo.join("sdk/README.md"), "# Weather\n\nThe SDK.\n").unwrap();
         fs::write(repo.join("consumer/Cargo.lock"), lock("0.6.1")).unwrap();
         let file = format!(
-            "schema_version = 1\nmodel = \"model.json\"\n\n[defaults]\ndescription = \"Client for the Weather API.\"\nreadme = \"sdk/README.md\"\n\n{}",
+            "schema_version = 1\nmodel = \"weather\"\n\n[defaults]\ndescription = \"Client for the Weather API.\"\nreadme = \"sdk/README.md\"\n\n{}",
             sdks.replace("{remote}", &service.remote_url())
                 .replace(
                     "{remote2}",

@@ -1,0 +1,13 @@
+operation CreateWidget creates Widget {
+    http POST "/widgets" -> 200
+    input {
+        $name
+        $enabled
+        $capacity
+        $slug?
+    }
+    output {
+        widget: WidgetState
+    }
+    errors [NotFound]
+}

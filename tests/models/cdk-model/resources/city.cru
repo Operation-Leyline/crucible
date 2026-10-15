@@ -1,0 +1,20 @@
+map Labels: Name -> string
+
+enum Mode {
+    FAST = "fast"
+    SLOW = "slow"
+}
+
+string Name { length 1..40; pattern "^[A-Za-z].*$" }
+
+/// Settings. */ @internal must be escaped.
+structure Settings {
+    enabled: boolean
+    replicas?: integer { range 1..3 }
+}
+
+list Tags: string { length ..3; unique }
+
+resource City {
+    id cityId: string
+}

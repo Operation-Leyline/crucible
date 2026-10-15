@@ -58,11 +58,12 @@ int main(void) {
     weather_models_create_city_input_clear_name(&input);
     assert(!weather_models_create_city_input_has_name(&input));
     assert(weather_models_create_city_input_get_name(&input).length == 0);
-    weather_models_create_city_input_null_name(&input);
+    weather_models_create_city_input_set_name(&input, weather_string_view("ordinary"));
+    weather_models_create_city_input_null_client_token(&input);
     input.location.state = weather_present; input.location.value = &location;
     good(weather_models_create_city_input_encode(encoded, &input, &wire, &error), &error);
-    assert(weather_json_type(weather_json_get(wire, weather_string_view("name"))) == weather_json_null);
-    assert(!weather_json_get(wire, weather_string_view("clientToken")));
+    assert(weather_json_type(weather_json_get(wire, weather_string_view("clientToken"))) == weather_json_null);
+    assert(!weather_json_get(wire, weather_string_view("expectedRevision")));
     { const weather_models_create_city_input *copy;
       good(weather_models_create_city_input_decode(decoded, wire, &copy, &error), &error);
       assert(copy->location.value->tag == weather_models_location_unknown);

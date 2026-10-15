@@ -1,6 +1,6 @@
 use crucible_codegen_swift::{Options, emit};
-use crucible_smithy::{Model, ir::Service};
-use serde_json::{Value, json};
+use crucible_smithy::ir::Service;
+use serde_json::Value;
 use std::{fs, path::Path};
 
 fn options() -> Options {
@@ -12,42 +12,49 @@ fn options() -> Options {
     }
 }
 
-fn weather() -> Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
+/// A package under `tests/models`, lowered, or the rendered diagnostics.
+fn compile_with(
+    name: &str,
+    edit: impl Fn(String) -> String,
+    extra: &[(&str, &str)],
+) -> Result<Service, String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    for (path, text) in extra {
+        package.files.push(crucible_lang::SourceFile {
+            path: (*path).to_owned(),
+            text: (*text).to_owned(),
+        });
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    compiled.service.clone().ok_or_else(|| compiled.render())
 }
 
-fn lower(model: &Value) -> Service {
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+fn load_with(name: &str, edit: impl Fn(String) -> String) -> Service {
+    compile_with(name, edit, &[]).unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+fn weather_with(edit: impl Fn(String) -> String) -> Service {
+    load_with("weather", edit)
+}
+
+fn weather() -> Service {
+    weather_with(|text| text)
 }
 
 fn void_service(operation: &str) -> Service {
-    let target = format!("example.empty#{operation}");
-    lower(&json!({
-        "smithy": "2.0",
-        "shapes": {
-            "example.empty#Empty": {
-                "type": "service", "version": "1",
-                "traits": {"crucible.protocols#json": {}},
-                "operations": [{"target": target}]
-            },
-            target: {
-                "type": "operation",
-                "traits": {"smithy.api#http": {"method": "GET", "uri": "/"}}
-            }
-        }
-    }))
+    load_with("void-service", |text| text.replace("Ping", operation))
 }
 
 #[test]
 fn weather_matches_goldens() {
     let mut snapshots = 0;
-    for file in emit(&lower(&weather()), &options()).unwrap() {
+    for file in emit(&weather(), &options()).unwrap() {
         if file.path.ends_with(".swift")
             && !["Models.swift", "WeatherClient.swift", "Package.swift"]
                 .iter()
@@ -77,7 +84,7 @@ fn weather_matches_goldens() {
 
 #[test]
 fn repeated_emission_is_identical() {
-    let service = lower(&weather());
+    let service = weather();
     let first = emit(&service, &options()).unwrap();
     let second = emit(&service, &options()).unwrap();
     assert_eq!(
@@ -94,13 +101,15 @@ fn repeated_emission_is_identical() {
 
 #[test]
 fn enum_constants_use_swift_names_and_diagnose_normalized_collisions() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Sky"]["members"] = json!({
-        "CLEAR": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "clear"}},
-        "PARTLY_CLOUDY": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "partly"}},
-        "alreadyCamel": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "camel"}}
-    });
-    let files = emit(&lower(&model), &options()).unwrap();
+    let sky = |extra: &'static str| {
+        weather_with(move |text| {
+            text.replace(
+                "    CLOUDY = \"cloudy\"\n",
+                &format!("    PARTLY_CLOUDY = \"partly\"\n    alreadyCamel = \"camel\"\n{extra}"),
+            )
+        })
+    };
+    let files = emit(&sky(""), &options()).unwrap();
     let models = &files
         .iter()
         .find(|file| file.path.ends_with("Models.swift"))
@@ -112,9 +121,9 @@ fn enum_constants_use_swift_names_and_diagnose_normalized_collisions() {
             "{name}"
         );
     }
-    model["shapes"]["example.weather#Sky"]["members"]["partlyCloudy"] =
-        json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "duplicate"}});
-    let diagnostics = emit(&lower(&model), &options()).err().unwrap();
+    let diagnostics = emit(&sky("    partlyCloudy = \"duplicate\"\n"), &options())
+        .err()
+        .unwrap();
     assert!(
         diagnostics
             .iter()
@@ -124,7 +133,7 @@ fn enum_constants_use_swift_names_and_diagnose_normalized_collisions() {
 
 #[test]
 fn reserved_and_path_names_are_diagnosed() {
-    let service = lower(&weather());
+    let service = weather();
     for name in ["../bad", "bad/name", "_"] {
         for module in [false, true] {
             let mut config = options();
@@ -147,24 +156,26 @@ fn reserved_and_path_names_are_diagnosed() {
 
 #[test]
 fn model_and_member_collisions_are_collected() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        json!({"example.weather#Location": "WeatherClient"});
-    for name in ["metadata", "metadataValue"] {
-        model["shapes"]["example.weather#CreateCityInput"]["members"][name] =
-            json!({"target": "smithy.api#String"});
-    }
-    model["shapes"]["example.weather#Location"]["members"]["unknownVariant"] =
-        json!({"target": "smithy.api#String"});
-    let diagnostics = emit(&lower(&model), &options()).err().unwrap();
+    let service = weather_with(|text| {
+        text.replace("Location", "WeatherClient")
+            .replace(
+                "        clientToken?: string\n",
+                "        clientToken?: string\n        metadata?: string\n        metadataValue?: string\n",
+            )
+            .replace(
+                "    unknown\n}",
+                "    unknown\n    unknownVariant: string\n}",
+            )
+    });
+    let diagnostics = emit(&service, &options()).err().unwrap();
     assert_eq!(diagnostics.len(), 3, "{diagnostics}");
     assert!(diagnostics.iter().any(|d| {
-        d.shape.to_string() == "example.weather#Location"
+        d.shape.to_string() == "example.weather#WeatherClient"
             && d.message == "invalid or colliding Swift model name"
     }));
     for member in [
         "example.weather#CreateCityInput$metadataValue",
-        "example.weather#Location$unknownVariant",
+        "example.weather#WeatherClient$unknownVariant",
     ] {
         assert!(diagnostics.iter().any(|d| {
             d.shape.to_string() == member && d.message == "Swift member name collision"
@@ -181,12 +192,14 @@ fn close_operation_and_get_body_are_diagnosed() {
         "Swift operation name collision"
     );
 
-    let mut model = weather();
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
-        "GET".into();
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["uri"] =
-        "/create-city".into();
-    let diagnostics = emit(&lower(&model), &options()).err().unwrap();
+    let mut service = weather();
+    service
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id.name() == "CreateCity")
+        .unwrap()
+        .method = "GET".into();
+    let diagnostics = emit(&service, &options()).err().unwrap();
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(
         diagnostics.iter().next().unwrap().message,
@@ -198,7 +211,7 @@ fn close_operation_and_get_body_are_diagnosed() {
 fn endpoint_escapes_backslashes_and_swift_interpolation() {
     let mut config = options();
     config.endpoint = Some("https://example/\\foo/\\(danger)/\u{000c}/\"/\n".into());
-    let files = emit(&lower(&weather()), &config).unwrap();
+    let files = emit(&weather(), &config).unwrap();
     let client = files
         .iter()
         .find(|file| file.path.ends_with("Client.swift"))
@@ -379,81 +392,51 @@ fn imported_type_module_names_are_diagnosed() {
     }
 }
 
-fn recursive_model(shapes: Value) -> Value {
-    let mut model = json!({
-        "smithy": "2.0",
-        "shapes": {
-            "example.recursive#Recursive": {
-                "type": "service", "version": "1",
-                "traits": {"crucible.protocols#json": {}},
-                "operations": [{"target": "example.recursive#Read"}]
-            },
-            "example.recursive#Read": {
-                "type": "operation", "output": {"target": "example.recursive#Output"},
-                "traits": {"smithy.api#http": {"method": "GET", "uri": "/"}}
-            },
-            "example.recursive#Output": {
-                "type": "structure", "members": {"root": {"target": "example.recursive#A", "traits": {"smithy.api#required": {}}}}
-            }
-        }
-    });
-    model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .extend(shapes.as_object().unwrap().clone());
-    model
+/// The `recursive-output` package with the test's shapes (`.cru` source)
+/// added; `A` is the type of the output's required `root`.
+fn recursive_compile(shapes: &str) -> Result<Service, String> {
+    compile_with("recursive-output", |text| text, &[("shapes.cru", shapes)])
 }
 
-fn recursive_service(shapes: Value) -> Service {
-    lower(&recursive_model(shapes))
+fn recursive_service(shapes: &str) -> Service {
+    recursive_compile(shapes).unwrap_or_else(|rendered| panic!("{shapes}\n{rendered}"))
 }
 
-fn assert_recursive_diagnostics(shapes: Value, expected: &[&str], message: &str) {
-    let lowered = Model::from_json(&recursive_model(shapes).to_string())
-        .unwrap()
-        .lower(None);
-    let diagnostics = match lowered {
+fn assert_recursive_diagnostics(shapes: &str, expected: &[&str], message: &str) {
+    let diagnostics = match recursive_compile(shapes) {
         Ok(service) => {
             let diagnostics = emit(&service, &options()).err().unwrap();
             assert_eq!(diagnostics, emit(&service, &options()).err().unwrap());
-            diagnostics
+            assert_eq!(
+                diagnostics
+                    .iter()
+                    .map(|d| d.shape.to_string())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+            assert!(diagnostics.iter().all(|d| d.message == message));
+            return;
         }
-        Err(crucible_smithy::Error::Unsupported(diagnostics)) => diagnostics,
-        Err(other) => panic!("unexpected lowering error: {other}"),
+        Err(rendered) => rendered,
     };
-    assert_eq!(
-        diagnostics
-            .iter()
-            .map(|d| d.shape.to_string())
-            .collect::<Vec<_>>(),
-        expected
-    );
-    assert!(diagnostics.iter().all(|d| d.message == message));
+    assert!(diagnostics.contains(message), "{diagnostics}");
+    for shape in expected {
+        let name = shape.rsplit('#').next().unwrap();
+        assert!(diagnostics.contains(name), "{name}: {diagnostics}");
+    }
 }
 
 #[test]
 fn required_structure_cycles_are_diagnosed_once_per_involved_shape() {
-    // Refused at lowering, for every generator, as Smithy refuses it.
+    // Refused at lowering, for every generator, as the model language refuses it.
     let message = "this structure reaches itself through required members alone, so no finite value of it exists; make one of them optional";
     assert_recursive_diagnostics(
-        json!({
-            "example.recursive#A": {"type": "structure", "members": {
-                "next": {"target": "example.recursive#A", "traits": {"smithy.api#required": {}}},
-                "again": {"target": "example.recursive#A", "traits": {"smithy.api#required": {}}}
-            }}
-        }),
+        "structure A {\n    next: A\n    again: A\n}\n",
         &["example.recursive#A"],
         message,
     );
     assert_recursive_diagnostics(
-        json!({
-            "example.recursive#A": {"type": "structure", "members": {
-                "next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}
-            }},
-            "example.recursive#B": {"type": "structure", "members": {
-                "next": {"target": "example.recursive#A", "traits": {"smithy.api#required": {}}}
-            }}
-        }),
+        "structure A {\n    next: B\n}\n\nstructure B {\n    next: A\n}\n",
         &["example.recursive#A", "example.recursive#B"],
         message,
     );
@@ -461,26 +444,11 @@ fn required_structure_cycles_are_diagnosed_once_per_involved_shape() {
 
 #[test]
 fn recursive_collection_aliases_are_diagnosed_once_per_involved_shape() {
-    let message = "recursive collections must pass through a structure or union; a collection-only cycle is invalid Smithy";
+    let message = "recursive collections must pass through a structure or union; a collection-only cycle is invalid";
+    assert_recursive_diagnostics("list A: A\n", &["example.recursive#A"], message);
+    assert_recursive_diagnostics("map A: string -> A\n", &["example.recursive#A"], message);
     assert_recursive_diagnostics(
-        json!({
-            "example.recursive#A": {"type": "list", "member": {"target": "example.recursive#A"}}
-        }),
-        &["example.recursive#A"],
-        message,
-    );
-    assert_recursive_diagnostics(
-        json!({
-            "example.recursive#A": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.recursive#A"}}
-        }),
-        &["example.recursive#A"],
-        message,
-    );
-    assert_recursive_diagnostics(
-        json!({
-            "example.recursive#A": {"type": "list", "member": {"target": "example.recursive#B"}},
-            "example.recursive#B": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.recursive#A"}}
-        }),
+        "list A: B\n\nmap B: string -> A\n",
         &["example.recursive#A", "example.recursive#B"],
         message,
     );
@@ -488,29 +456,16 @@ fn recursive_collection_aliases_are_diagnosed_once_per_involved_shape() {
 
 #[test]
 fn recursion_through_indirect_or_nominal_representations_is_accepted() {
-    // Valid Smithy only: a required self-reference (`@clientOptional` or not)
-    // and a union whose one member leads back through a required member are
-    // refused by Smithy's ShapeRecursionValidator, and so at lowering.
+    // Valid models only: a required self-reference and a union whose one
+    // member leads back through a required member are refused at lowering.
     for shapes in [
-        json!({"example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#A"}}}}),
-        json!({
-            "example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}}},
-            "example.recursive#B": {"type": "structure", "members": {"next": {"target": "example.recursive#A"}}}
-        }),
-        json!({
-            "example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}}},
-            "example.recursive#B": {"type": "list", "member": {"target": "example.recursive#A"}}
-        }),
-        json!({
-            "example.recursive#A": {"type": "structure", "members": {"next": {"target": "example.recursive#B", "traits": {"smithy.api#required": {}}}}},
-            "example.recursive#B": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.recursive#A"}}
-        }),
-        json!({
-            "example.recursive#A": {"type": "list", "member": {"target": "example.recursive#B"}},
-            "example.recursive#B": {"type": "union", "members": {"next": {"target": "example.recursive#A"}}}
-        }),
+        "structure A {\n    next?: A\n}\n",
+        "structure A {\n    next: B\n}\n\nstructure B {\n    next?: A\n}\n",
+        "structure A {\n    next: B\n}\n\nlist B: A\n",
+        "structure A {\n    next: B\n}\n\nmap B: string -> A\n",
+        "list A: B\n\nunion B {\n    next: A\n}\n",
     ] {
-        if let Err(diagnostics) = emit(&recursive_service(shapes.clone()), &options()) {
+        if let Err(diagnostics) = emit(&recursive_service(shapes), &options()) {
             panic!("Representable recursion rejected: {shapes}\n{diagnostics}");
         }
     }
@@ -518,24 +473,12 @@ fn recursion_through_indirect_or_nominal_representations_is_accepted() {
 
 #[test]
 fn service_client_name_is_reserved() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
-    assert!(emit(&lower(&model), &options()).is_err());
+    let service = weather_with(|text| text.replace("CitySummary", "WeatherClient"));
+    assert!(emit(&service, &options()).is_err());
 }
 
-fn vault_model() -> Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
-    ))
-    .unwrap()
-}
-
-fn vault_service(model: &Value) -> Service {
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_swift::capabilities())
-        .unwrap()
+fn vault_service(edit: impl Fn(String) -> String) -> Service {
+    load_with("client-docs-vault", edit)
 }
 
 fn vault_golden(name: &str, source: &str) {
@@ -557,7 +500,7 @@ fn vault_golden(name: &str, source: &str) {
 
 #[test]
 fn smithy_documentation_reaches_models_and_client() {
-    let files = emit(&vault_service(&vault_model()), &options()).unwrap();
+    let files = emit(&vault_service(|text| text), &options()).unwrap();
     let file = |suffix: &str| {
         &files
             .iter()
@@ -597,7 +540,7 @@ fn smithy_documentation_reaches_models_and_client() {
 
 #[test]
 fn sensitive_members_are_redacted_in_string_representations() {
-    let files = emit(&vault_service(&vault_model()), &options()).unwrap();
+    let files = emit(&vault_service(|text| text), &options()).unwrap();
     let models = &files
         .iter()
         .find(|f| f.path.ends_with("/Models.swift"))
@@ -622,20 +565,26 @@ fn sensitive_members_are_redacted_in_string_representations() {
 #[test]
 fn description_collisions_are_diagnosed() {
     for name in ["description", "debugDescription", "customMirror"] {
-        let mut model = vault_model();
-        model["shapes"]["example.vault#Credential"]["members"][name] =
-            json!({"target": "smithy.api#String"});
-        let diagnostics = emit(&vault_service(&model), &options()).err().unwrap();
+        let service = vault_service(|text| {
+            text.replace(
+                "union Credential {\n",
+                &format!("union Credential {{\n    {name}: string\n"),
+            )
+        });
+        let diagnostics = emit(&service, &options()).err().unwrap();
         assert!(
             diagnostics
                 .iter()
                 .any(|d| d.message.contains("Swift member name collision")),
             "{name}"
         );
-        let mut model = vault_model();
-        model["shapes"]["example.vault#Kind"]["members"][name] =
-            json!({"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": name}});
-        let diagnostics = emit(&vault_service(&model), &options()).err().unwrap();
+        let service = vault_service(|text| {
+            text.replace(
+                "enum Kind {\n",
+                &format!("enum Kind {{\n    {name} = \"{name}\"\n"),
+            )
+        });
+        let diagnostics = emit(&service, &options()).err().unwrap();
         assert!(
             diagnostics
                 .iter()
@@ -745,12 +694,9 @@ fn permissions_service() -> crucible_smithy::ir::Service {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let rendered = compiled.render();
-    let full = compiled.service.unwrap_or_else(|| {
-        panic!(
-            "the fixture compiles:
-{rendered}"
-        )
-    });
+    let full = compiled
+        .service
+        .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
     crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
 }
 
@@ -799,7 +745,7 @@ fn permissions_without_a_model_namespace_clash_or_twin_constants() {
         "{namespace}"
     );
     // Without permissions there is no namespace to clash with.
-    let files = emit(&lower(&weather()), &options()).unwrap();
+    let files = emit(&weather(), &options()).unwrap();
     assert!(!files.iter().any(|f| f.path.ends_with("Permissions.swift")));
 }
 

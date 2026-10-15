@@ -238,13 +238,12 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
         .to_string();
     let consumer = directory.path().join("consumer");
     fs::create_dir_all(consumer.join("src")).unwrap();
-    fs::write(consumer.join("Cargo.toml"), format!("[package]\nname = 'git-source-sdk-emitter'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\ncrucible-codegen-rust = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-smithy = {{ git = {url:?}, rev = {revision:?} }}\n[workspace]\n")).unwrap();
-    fs::write(
-        consumer.join("src/model.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/weather.json"),
-    )
-    .unwrap();
-    fs::write(consumer.join("src/main.rs"), "fn main() { let service = crucible_smithy::Model::from_json(include_str!(\"model.json\")).unwrap().lower(None).unwrap(); let files = crucible_codegen_rust::emit_client_package(&service, &Default::default()).unwrap(); print!(\"{}\", files[0].contents); }\n").unwrap();
+    fs::write(consumer.join("Cargo.toml"), format!("[package]\nname = 'git-source-sdk-emitter'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\ncrucible-codegen-rust = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-smithy = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-lang = {{ git = {url:?}, rev = {revision:?} }}\n[workspace]\n")).unwrap();
+    copy_tree(
+        &root.join("tests/models/weather"),
+        &consumer.join("weather"),
+    );
+    fs::write(consumer.join("src/main.rs"), "fn main() { let service = crucible_lang::load_service(&std::path::Path::new(env!(\"CARGO_MANIFEST_DIR\")).join(\"weather\")).unwrap(); let files = crucible_codegen_rust::emit_client_package(&service, &Default::default()).unwrap(); print!(\"{}\", files[0].contents); }\n").unwrap();
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let target = cargo_target::target_dir();
     let output = success(

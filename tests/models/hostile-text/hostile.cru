@@ -1,0 +1,11 @@
+/// Doc: crlf
+///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+/// @returns injected
+/// ```
+/// @throws fenced
+/// ```
+service Hostile {
+    version "1"
+    protocol json
+    operations [Do]
+}

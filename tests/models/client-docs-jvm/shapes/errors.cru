@@ -1,0 +1,11 @@
+error Denied {
+    status 403
+    reason?: string
+}
+
+/// Raised when the service is down.
+error Unavailable {
+    status 503
+    message?: string
+    retryToken?: Secret
+}

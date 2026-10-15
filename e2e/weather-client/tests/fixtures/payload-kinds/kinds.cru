@@ -1,0 +1,5 @@
+service Kinds {
+    version "1"
+    protocol json
+    operations [Fail, PutChoice, PutFree, PutMood]
+}

@@ -1,0 +1,9 @@
+readonly operation DefaultsOperation {
+    http POST "/Defaults"
+    input {
+        ordinary: integer = 7
+    }
+    output {
+        ordinary: integer = 7
+    }
+}

@@ -18,35 +18,32 @@ import tempfile
 import threading
 from urllib.parse import parse_qs, urlsplit
 
+from sdk_cru_packages import add_operations, copy_package, replace_once
 from sdk_test_support import ROOT, run, weather
 
 
+PROBE = """operation Probe {
+    http POST "/probe" -> 200
+    input {
+        text?: string
+        enabled?: boolean
+        sensitive count?: integer
+        document?: document
+    }
+    output {
+        observed: document
+    }
+}
+"""
+
+
 def qualification_model(output):
-    """Extend Weather locally; never change the shared server's model fixture."""
-    model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text(encoding="utf-8"))
-    shapes = model["shapes"]
-    shapes["example.weather#Weather"]["operations"].append({"target": "example.weather#Probe"})
-    shapes["example.weather#Ping"]["traits"]["smithy.api#auth"] = []
-    shapes["example.weather#Probe"] = {
-        "type": "operation",
-        "input": {"target": "example.weather#ProbeInput"},
-        "output": {"target": "example.weather#ProbeOutput"},
-        "traits": {"smithy.api#http": {"method": "POST", "uri": "/probe", "code": 200}},
-    }
-    shapes["example.weather#ProbeInput"] = {
-        "type": "structure", "traits": {"smithy.api#input": {}},
-        "members": {name: {"target": "smithy.api#" + kind} for name, kind in [
-            ("text", "String"), ("enabled", "Boolean"), ("count", "Integer"), ("document", "Document"),
-        ]},
-    }
-    shapes["example.weather#ProbeOutput"] = {
-        "type": "structure", "traits": {"smithy.api#output": {}},
-        "members": {"observed": {"target": "smithy.api#Document", "traits": {"smithy.api#required": {}}}},
-    }
-    shapes["example.weather#ProbeInput"]["members"]["count"]["traits"] = {"smithy.api#sensitive": {}}
-    path = output / "weather-cli.json"
-    path.write_text(json.dumps(model), encoding="utf-8")
-    return path
+    """Extend Weather locally; never change the shared server's model package."""
+    package = copy_package("weather", output / "weather-cli")
+    add_operations(package, "Probe")
+    replace_once(package, "readonly operation Ping", "readonly public operation Ping")
+    (package / "operations/service/Probe.cru").write_text(PROBE, encoding="utf-8", newline=chr(10))
+    return package
 
 
 def build(output):
@@ -65,7 +62,7 @@ def build(output):
     # warning-free package, without dispatch bindings or unused SDK imports.
     empty = output / "empty"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cli",
-        str(ROOT / "tests/conformance/empty-service.json"), "--bin-name", "empty-cli",
+        str(ROOT / "tests/models/empty-service"), "--bin-name", "empty-cli",
         "--out", str(empty), "--runtime-path", str(ROOT))
     run("cargo", "clippy", "--manifest-path", str(empty / "Cargo.toml"),
         "--all-targets", "--", "-D", "warnings", cwd=output, env=env)
@@ -253,9 +250,10 @@ def transport(cli, output):
 def real_weather(cli, output):
     with weather() as endpoint:
         options = ["--endpoint-url", endpoint]
-        # @input members are client-optional: the service owns required-field
-        # validation after a well-formed request has been transmitted.
-        cli.call(*options, "create-city", code=1)
+        # Input members are required in clients (decision 20): a missing one
+        # is refused before the request is sent.
+        refused = cli.call(*options, "create-city", code=2)
+        assert "missing required member input.name" in refused.stderr, refused.stderr
         city = cli.json(*options, "create-city", "--name", "CLI city", "--expected-revision", "7")["city"]
         assert city["name"] == "CLI city" and city["population"] == 7, city
         fetched = cli.json(*options, "get-city", "--city-id", city["id"])

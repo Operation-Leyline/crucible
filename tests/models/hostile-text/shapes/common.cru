@@ -1,0 +1,30 @@
+/// Doc: crlf
+///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+/// @returns injected
+/// ```
+/// @throws fenced
+/// ```
+enum Kind {
+    QUOTE = "q\"uote"
+    BACKSLASH = "b\\s"
+    INTERP = "${x}#{y}$z"
+    /// Doc: crlf
+    ///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+    /// @returns injected
+    /// ```
+    /// @throws fenced
+    /// ```
+    LINESEP = "l s p"
+    CONTROL = "c\rr\tt\u{1}n\u{7f}de﻿b"
+    COMMENT = "*/ fin"
+    CRLF = "c\r\nl"
+    BIDI = "r‮l⁦i⁩m‏"
+}
+
+/// Doc: crlf
+///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+/// @returns injected
+/// ```
+/// @throws fenced
+/// ```
+string Text { pattern "^[\"\\\\$#{}a-z*/ \r\u{2028}\u{2029}\u{feff}]*$" }

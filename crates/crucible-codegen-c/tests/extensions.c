@@ -9,14 +9,14 @@ static const types_json *parse(types_arena *arena, const char *text, types_error
     return result;
 }
 int main(void) {
-    types_arena *arena = types_arena_new(); types_error issue = {0}; const types_models_output *output = NULL;
+    types_arena *arena = types_arena_new(); types_error issue = {0}; const types_models_read_output *output = NULL;
     const types_json *wire = parse(arena, "{\"mode\":42,\"sparseNames\":[null,\"x\"],\"sparseMap\":{\"nil\":null,\"mode\":42}}", &issue);
-    assert(types_models_output_decode(arena, wire, &output, &issue) == types_ok);
+    assert(types_models_read_output_decode(arena, wire, &output, &issue) == types_ok);
     assert(types_string_equal(output->integer.value, types_string_view("12345678901234567890123456789012345678901234567890")));
     assert(types_string_equal(output->decimal.value, types_string_view("12345678901234567890.12345678901234567890123456789")));
     assert(output->mode.value == 42 && output->sparse_names.value->items[0].state == types_null);
     assert(output->sparse_map.value->items[0].state == types_null && output->sparse_map.value->items[1].value == 42);
-    assert(types_models_output_encode(arena, output, &wire, &issue) == types_ok);
+    assert(types_models_read_output_encode(arena, output, &wire, &issue) == types_ok);
     const types_models_names *names = NULL; const types_models_integers *integers = NULL; const types_models_decimals *decimals = NULL;
     assert(types_models_names_decode(arena, parse(arena, "[null]", &issue), &names, &issue) == types_invalid);
     assert(types_models_names_decode(arena, parse(arena, "[\"a\",\"a\"]", &issue), &names, &issue) == types_invalid);

@@ -3,6 +3,8 @@
 #[path = "../../../tests/support/cargo_target.rs"]
 mod cargo_target;
 
+mod common;
+
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
@@ -27,6 +29,24 @@ fn successful(output: Output) {
     );
 }
 
+/// Drops every `example` block of an operation (four-space indented, closed
+/// by a four-space `}`).
+fn without_examples(text: &str) -> String {
+    let mut kept = String::new();
+    let mut inside = false;
+    for line in text.lines() {
+        if line.starts_with("    example ") {
+            inside = true;
+        } else if inside {
+            inside = line != "    }";
+        } else {
+            kept.push_str(line);
+            kept.push('\n');
+        }
+    }
+    kept
+}
+
 #[test]
 fn native_exports_build_independently_and_restore_deleted_files_without_cache_churn() {
     let directory = tempfile::tempdir().unwrap();
@@ -34,11 +54,7 @@ fn native_exports_build_independently_and_restore_deleted_files_without_cache_ch
     let producer = root.join("producer");
     fs::create_dir_all(producer.join("src")).unwrap();
     fs::write(producer.join("src/lib.rs"), "pub fn model_package() {}\n").unwrap();
-    fs::write(
-        producer.join("model.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/weather.json"),
-    )
-    .unwrap();
+    common::install_shared(&producer, "weather");
     let build_crate = Path::new(env!("CARGO_MANIFEST_DIR"))
         .to_string_lossy()
         .replace('\\', "/");
@@ -67,7 +83,7 @@ fn native_exports_build_independently_and_restore_deleted_files_without_cache_ch
             r#"
 fn main() {{
     println!("cargo::rerun-if-changed=build.rs");
-    let model = crucible_build::model("model.json").compile_with(|_, _| unreachable!());
+    let model = crucible_build::model("weather").compile_with(|_, _| unreachable!());
     model.publish();
     model.rust_client("rust").package("independent-weather-sdk")
         .version("2.3.4").runtime_path({runtime:?}).generate_into("../native/rust");
@@ -141,32 +157,22 @@ fn main() {{
     let consumer = root.join("consumer");
     fs::create_dir_all(consumer.join("src")).unwrap();
     fs::write(consumer.join("Cargo.toml"), "[package]\nname = 'independent-native-sdk-consumer'\nversion = '0.1.0'\nedition = '2024'\n[workspace]\n[dependencies]\nindependent-weather-sdk = { path = '../native/rust' }\n").unwrap();
-    fs::write(consumer.join("src/lib.rs"), "use independent_weather_sdk::{Config, WeatherClient, CitySummary as City, GetCityInput};\npub fn client() -> WeatherClient { WeatherClient::new(Config::new(\"http://127.0.0.1:3000\")) }\npub fn input() -> GetCityInput { GetCityInput::builder().city_id(\"oslo\").build() }\npub fn name(city: City) -> String { city.name }\n").unwrap();
+    fs::write(consumer.join("src/lib.rs"), "use independent_weather_sdk::{Config, WeatherClient, CitySummary as City, GetCityInput};\npub fn client() -> WeatherClient { WeatherClient::new(Config::new(\"http://127.0.0.1:3000\")) }\npub fn input() -> GetCityInput { GetCityInput::builder().city_id(\"oslo\").build().unwrap() }\npub fn name(city: City) -> String { city.name }\n").unwrap();
     successful(cargo(&consumer.join("Cargo.toml"), "check"));
-    let mut model: serde_json::Value =
-        serde_json::from_slice(&fs::read(producer.join("model.json")).unwrap()).unwrap();
-    let city = model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|(id, _)| id.ends_with("#CitySummary"))
-        .unwrap()
-        .1;
-    let members = city["members"].as_object_mut().unwrap();
-    let member = members.remove("name").unwrap();
-    members.insert("displayName".into(), member);
-    // Examples are checked against the shapes, so the renamed member would
-    // otherwise make the (now stale) weather examples a build error.
-    for shape in model["shapes"].as_object_mut().unwrap().values_mut() {
-        if let Some(traits) = shape.get_mut("traits").and_then(|t| t.as_object_mut()) {
-            traits.remove("smithy.api#examples");
-        }
-    }
+    let city = producer.join("weather/resources/city.cru");
+    let text = fs::read_to_string(&city).unwrap();
+    assert!(text.contains("    name: CityName\n"));
     fs::write(
-        producer.join("model.json"),
-        serde_json::to_vec(&model).unwrap(),
+        &city,
+        text.replace("    name: CityName\n", "    displayName: CityName\n"),
     )
     .unwrap();
+    // Examples are checked against the shapes, so the renamed member would
+    // otherwise make the (now stale) weather examples a build error.
+    for entry in fs::read_dir(producer.join("weather/operations/city")).unwrap() {
+        let path = entry.unwrap().path();
+        fs::write(&path, without_examples(&fs::read_to_string(&path).unwrap())).unwrap();
+    }
     successful(cargo(&manifest, "build"));
     let changed = cargo(&consumer.join("Cargo.toml"), "check");
     assert!(

@@ -1,0 +1,11 @@
+readonly operation GetRecord {
+    http GET "/records/{table}/{key}" -> 200
+    input {
+        table: string
+        key: Secret
+    }
+    output {
+        value?: string
+    }
+    errors [InvalidEndpointException, Throttled, Unavailable]
+}

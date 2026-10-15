@@ -11,9 +11,9 @@ package example.weather.model;
         public CreateCityInput() {}
         /**
          * <p>The <code>name</code> member.</p>
-         * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
+         * <p>Required.</p>
          */
-        public example.weather.OptionalValue<java.lang.String> name = example.weather.OptionalValue.unset();
+        public java.lang.String name;
         /**
          * <p>The <code>location</code> member.</p>
          * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
@@ -36,11 +36,11 @@ package example.weather.model;
          */
         public static Builder builder() { return new Builder(); }
         /**
-         * <p>Returns the <code>name</code> member, or null when unset.</p>
+         * <p>Returns the <code>name</code> member.</p>
          *
-         * @return the <code>name</code> member, or null when unset
+         * @return the <code>name</code> member
          */
-        public java.lang.String name() { return name.value(); }
+        public java.lang.String name() { return name; }
         /**
          * <p>Returns the <code>location</code> member, or null when unset.</p>
          *
@@ -74,7 +74,7 @@ package example.weather.model;
              * @param item the new value
              * @return this builder
              */
-            public Builder name(java.lang.String item) { value.name = example.weather.OptionalValue.of(item); return this; }
+            public Builder name(java.lang.String item) { value.name = item; return this; }
             /**
              * <p>Sets the <code>location</code> member.</p>
              *

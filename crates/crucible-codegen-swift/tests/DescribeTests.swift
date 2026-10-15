@@ -1,4 +1,4 @@
-// Run against a package generated from crates/crucible-smithy/tests/fixtures/client-docs.json.
+// Run against a package generated from tests/models/client-docs-vault.
 import Foundation
 import XCTest
 @testable import Vault

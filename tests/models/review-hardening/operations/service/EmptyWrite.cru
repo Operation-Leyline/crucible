@@ -1,0 +1,3 @@
+operation EmptyWrite {
+    http POST "/empty" -> 204
+}

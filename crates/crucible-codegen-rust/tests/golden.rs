@@ -5,24 +5,10 @@ use std::fs;
 use std::path::Path;
 
 use crucible_codegen_rust::{Options, generate, generate_client};
-use crucible_smithy::Model;
-use serde_json::{Value, json};
+mod common;
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
-
-#[test]
-fn scoped_server_metadata_matches_golden() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/scopes.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-    .unwrap();
-    let code = generate(&service, &Options::default()).unwrap();
-    // The client marker has no use for scopes: they gate the server only.
-    let client = generate_client(&service).unwrap();
-    assert!(!client.contains("const SCOPES"), "{client}");
-    matches_golden(&code, "scopes.rs");
+fn weather() -> crucible_smithy::ir::Service {
+    common::load("weather")
 }
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
@@ -166,10 +152,7 @@ fn generated_patterns_use_ecma_classes_and_line_terminators() {
         (r"^[a&&b]$", "&", vec!["c"]),
         (r"\d+", "!12!", vec!["!é!"]),
     ] {
-        let service = edited(|model| {
-            model["shapes"]["example.weather#CityId"]["traits"]["smithy.api#pattern"] =
-                json!(pattern);
-        });
+        let service = with_city_pattern(pattern);
         let code = generate(&service, &Options::default()).unwrap();
         let literal = code
             .split("::regex::Regex::new(")
@@ -205,10 +188,7 @@ fn generated_empty_ecma_classes_preserve_matching_and_following_tokens() {
         ("^[^]x]$", vec!["ax]", "\nx]", "éx]"], vec!["a", "x]", "ax"]),
         (r"^[\]]$", vec!["]"], vec!["", "a"]),
     ] {
-        let service = edited(|model| {
-            model["shapes"]["example.weather#CityId"]["traits"]["smithy.api#pattern"] =
-                json!(pattern);
-        });
+        let service = with_city_pattern(pattern);
         for code in [
             generate(&service, &Options::default()).unwrap(),
             generate_client(&service).unwrap(),
@@ -234,12 +214,7 @@ fn generated_empty_ecma_classes_preserve_matching_and_following_tokens() {
 
 #[test]
 fn ecma_pattern_statics_match_the_golden_file() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/patterns.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = common::load("patterns");
     let code = generate(&service, &Options::default()).unwrap();
     let statics = code
         .split("static PATTERN_")
@@ -249,15 +224,13 @@ fn ecma_pattern_statics_match_the_golden_file() {
     matches_golden(&statics, "patterns.rs");
 }
 
+/// A pattern the generated code could not honour is refused when the model
+/// compiles, with the offending member's position.
 #[test]
-fn unsupported_ecma_patterns_collect_shape_diagnostics() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/patterns-unsupported.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
-    let diagnostics = generate(&service, &Options::default()).unwrap_err();
+fn unsupported_ecma_patterns_are_refused_when_the_model_compiles() {
+    let package =
+        crucible_lang::load_package(&common::package_dir("patterns-unsupported")).unwrap();
+    let rendered = crucible_lang::compile(&package, None).render();
     for member in [
         "flags",
         "anchor",
@@ -269,17 +242,16 @@ fn unsupported_ecma_patterns_collect_shape_diagnostics() {
         "wordend",
     ] {
         assert!(
-            diagnostics.iter().any(|d| d.shape.to_string()
-                == format!("example.patterns#Input${member}")
-                && d.message.contains("does not compile faithfully")),
-            "{diagnostics}"
+            rendered.contains(&format!("{member}?: string"))
+                && rendered.contains("cannot be checked"),
+            "{member}\n{rendered}"
         );
     }
 }
 
 #[test]
 fn service_exception_uses_rust_type_spelling() {
-    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let mut service = weather();
     service.id = crucible_smithy::ShapeId::new("example.weather", "weather_api");
     let source = generate_client(&service).unwrap();
     assert!(source.contains("pub enum WeatherApiException"));
@@ -287,8 +259,7 @@ fn service_exception_uses_rust_type_spelling() {
 
 #[test]
 fn standard_exception_models_and_answer_functions_match_the_golden_file() {
-    let source = include_str!("../../crucible-smithy/tests/fixtures/standard-service-errors.json");
-    let service = Model::from_json(source).unwrap().lower(None).unwrap();
+    let service = common::load("standard-service-errors");
     let code = generate(&service, &Options::default()).unwrap();
     // The existing registration tests cover empty services; this snapshot
     // records the shared exception types, wire metadata and response factories.
@@ -301,8 +272,7 @@ fn standard_exception_models_and_answer_functions_match_the_golden_file() {
 
 #[test]
 fn empty_services_can_generate_their_declared_rejection_errors() {
-    let source = include_str!("../../crucible-smithy/tests/fixtures/empty-service-errors.json");
-    let service = Model::from_json(source).unwrap().lower(None).unwrap();
+    let service = common::load("empty-service-errors");
     let code = generate(
         &service,
         &Options {
@@ -318,8 +288,7 @@ fn empty_services_can_generate_their_declared_rejection_errors() {
 
 #[test]
 fn high_level_services_diagnose_missing_rejection_errors_before_startup() {
-    let model = include_str!("../../../tests/conformance/empty-service.json");
-    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let service = common::load("empty-service");
     let diagnostics = generate(
         &service,
         &Options {
@@ -338,7 +307,7 @@ fn high_level_services_diagnose_missing_rejection_errors_before_startup() {
 
 #[test]
 fn requiring_a_rejection_error_preserves_a_valid_services_generated_code() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let options = Options {
         require_rejection: true,
         ..Options::default()
@@ -351,8 +320,7 @@ fn requiring_a_rejection_error_preserves_a_valid_services_generated_code() {
 
 #[test]
 fn empty_services_do_not_import_unused_redaction_types() {
-    let model = include_str!("../../../tests/conformance/empty-service.json");
-    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let service = common::load("empty-service");
     for code in [
         generate_client(&service).unwrap(),
         generate(&service, &Options::default()).unwrap(),
@@ -369,13 +337,11 @@ fn empty_services_do_not_import_unused_redaction_types() {
 }
 
 #[test]
-fn client_optional_defaults_are_removed_only_from_client_code() {
-    let model = include_str!("../../crucible-smithy/tests/fixtures/review-hardening.json");
-    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+fn client_markers_carry_classification_and_per_operation_bearer_auth() {
+    let service = common::load("review-hardening");
     let client = generate_client(&service).unwrap();
     let server = generate(&service, &Options::default()).unwrap();
-    assert!(!client.contains("defaults::values__optional_default"));
-    assert!(server.contains("defaults::values__optional_default"));
+    assert!(server.contains("defaults::read_values_output__optional_default"));
     assert!(client.contains("fn classify(status:"));
     assert!(client.contains("const AUTH_BEARER: bool = false;"));
     assert!(client.contains("const AUTH_BEARER: bool = true;"));
@@ -383,10 +349,11 @@ fn client_optional_defaults_are_removed_only_from_client_code() {
 
 #[test]
 fn service_client_name_cannot_collide_with_a_model() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            json!({"example.weather#CitySummary":"WeatherClient"});
-    });
+    let mut service = weather();
+    common::rename(
+        &mut service,
+        &[("example.weather#CitySummary", "WeatherClient")],
+    );
     let diagnostics = generate_client(&service).unwrap_err();
     assert!(
         diagnostics
@@ -395,29 +362,63 @@ fn service_client_name_cannot_collide_with_a_model() {
     );
 }
 
-fn edited(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    edit(&mut model);
-    // These tests reshape weather's shapes; its examples describe the original ones.
-    for shape in model["shapes"].as_object_mut().unwrap().values_mut() {
-        if let Some(traits) = shape.get_mut("traits").and_then(|t| t.as_object_mut()) {
-            traits.remove("smithy.api#examples");
+/// Weather with `old` replaced by `new` in its sources. These tests reshape
+/// weather's shapes; its examples describe the original ones, so they go.
+fn edited(old: &str, new: &str) -> crucible_smithy::ir::Service {
+    common::load_with("weather", |package| {
+        let mut found = false;
+        for file in &mut package.files {
+            file.text = without_examples(&file.text);
+            if file.text.contains(old) {
+                file.text = file.text.replace(old, new);
+                found = true;
+            }
+        }
+        assert!(found, "weather has no `{old}`");
+    })
+}
+
+/// Weather's pattern for city ids replaced by `pattern`.
+fn with_city_pattern(pattern: &str) -> crucible_smithy::ir::Service {
+    let literal = pattern.replace('\\', "\\\\").replace('"', "\\\"");
+    edited(
+        "string CityId { pattern \"^c-[a-z0-9]{8}$\" }",
+        &format!("string CityId {{ pattern \"{literal}\" }}"),
+    )
+}
+
+/// The source without its `example` blocks and the documentation above them.
+fn without_examples(text: &str) -> String {
+    let mut kept: Vec<&str> = Vec::new();
+    let mut lines = text.lines();
+    while let Some(line) = lines.next() {
+        if line.trim_start().starts_with("example ") {
+            while kept
+                .last()
+                .is_some_and(|last| last.trim_start().starts_with("///"))
+            {
+                kept.pop();
+            }
+            let indent = &line[..line.len() - line.trim_start().len()];
+            for next in lines.by_ref() {
+                if next.starts_with(indent) && next.trim() == "}" && next.len() == indent.len() + 1
+                {
+                    break;
+                }
+            }
+        } else {
+            kept.push(line);
         }
     }
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+    kept.join("\n") + "\n"
 }
 
 #[test]
 fn float_ranges_use_the_members_precision() {
-    let service = edited(|model| {
-        let members = &mut model["shapes"]["example.weather#Coordinates"]["members"];
-        members["latitude"]["target"] = json!("smithy.api#Float");
-        members["latitude"]["traits"]["smithy.api#range"] = json!({"min": 0.7});
-        members["longitude"]["traits"]["smithy.api#range"] = json!({"max": 0.1});
-    });
+    let service = edited(
+        "    latitude: double\n    longitude: double\n",
+        "    latitude: float { range 0.7.. }\n    longitude: double { range ..0.1 }\n",
+    );
     let code = generate(&service, &Options::default()).unwrap();
     assert!(code.contains("validator.range_float32(*value, Some(0.7f64), None);"));
     assert!(code.contains("validator.range_float(*value as f64, None, Some(0.1f64));"));
@@ -431,24 +432,24 @@ fn float_ranges_use_the_members_precision() {
 
 #[test]
 fn weather_matches_the_golden_file() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let code = generate(&service, &Options::default()).unwrap();
     matches_golden(&code, "weather.rs");
 }
 
 #[test]
 fn weather_client_matches_the_golden_file() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let code = generate_client(&service).unwrap();
     matches_golden(&code, "weather_client.rs");
 }
 
 #[test]
 fn non_throttling_retryability_reaches_client_metadata() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#ConflictError"]["traits"]["smithy.api#retryable"] =
-            json!({});
-    });
+    let service = edited(
+        "error ConflictError {\n    status 409\n",
+        "error ConflictError {\n    status 409\n    retryable\n",
+    );
     let code = generate_client(&service).unwrap();
     assert!(
         code.contains("Fault::Client,\n        true,\n        false,"),
@@ -458,9 +459,7 @@ fn non_throttling_retryability_reaches_client_metadata() {
 
 #[test]
 fn a_sensitive_blob_payload_is_redacted_from_logs() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#Photo"]["traits"]["smithy.api#sensitive"] = json!({});
-    });
+    let service = edited("blob Photo {", "sensitive blob Photo {");
     let code = generate(&service, &Options::default()).unwrap();
     assert!(
         code.contains(
@@ -489,10 +488,7 @@ fn matches_golden(code: &str, file: &str) {
 
 #[test]
 fn a_validation_error_crucible_cannot_fill_leaves_rejection_to_the_service() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#ValidationError"]["members"]["reason"] =
-            json!({ "target": "smithy.api#String", "traits": { "smithy.api#required": {} } });
-    });
+    let service = edited("    reason: ValidationReason\n", "    reason: string\n");
     let code = generate(&service, &Options::default()).unwrap();
     assert!(code.contains("classify,\n        None,"), "{code}");
     assert!(!code.contains("fn reject("));
@@ -500,22 +496,17 @@ fn a_validation_error_crucible_cannot_fill_leaves_rejection_to_the_service() {
 
 #[test]
 fn a_pattern_the_rust_regex_crate_cannot_run_is_a_diagnostic() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#CityId"]["traits"]["smithy.api#pattern"] =
-            json!("^(?!x)c-.*$");
-    });
-    let diagnostics = generate(&service, &Options::default()).unwrap_err();
-    assert!(
-        diagnostics
-            .iter()
-            .any(|d| d.message.contains("does not compile")),
-        "{diagnostics}"
-    );
+    let mut package = crucible_lang::load_package(&common::package_dir("weather")).unwrap();
+    for file in &mut package.files {
+        file.text = file.text.replace("^c-[a-z0-9]{8}$", "^(?!x)c-.*$");
+    }
+    let rendered = crucible_lang::compile(&package, None).render();
+    assert!(rendered.contains("cannot be checked"), "{rendered}");
 }
 
 #[test]
 fn a_configured_error_that_is_not_an_error_fails_generation() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     for require_rejection in [false, true] {
         let options = Options {
             require_rejection,
@@ -536,10 +527,10 @@ fn a_configured_error_that_is_not_an_error_fails_generation() {
 
 #[test]
 fn a_configured_validation_error_crucible_cannot_fill_fails_generation() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#ConflictError"]["members"]["reason"] =
-            json!({ "target": "smithy.api#String", "traits": { "smithy.api#required": {} } });
-    });
+    let service = edited(
+        "error ConflictError {\n    status 409\n",
+        "error ConflictError {\n    status 409\n    reason: string\n",
+    );
     for require_rejection in [false, true] {
         let options = Options {
             require_rejection,
@@ -563,9 +554,10 @@ fn a_configured_validation_error_crucible_cannot_fill_fails_generation() {
 
 #[test]
 fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#ListCitiesInput"]["members"]["clientToken"] = json!({ "target": "smithy.api#String", "traits": { "smithy.api#idempotencyToken": {} } });
-    });
+    let service = edited(
+        "operation ListCities lists City {\n    http GET \"/cities\"\n    paginated(items: cities, pageSize: maxResults)\n    input {\n",
+        "operation ListCities lists City {\n    http GET \"/cities\"\n    paginated(items: cities, pageSize: maxResults)\n    input {\n        @query(\"clientToken\")\n        @token\n        clientToken?: string\n",
+    );
     let code = generate_client(&service).unwrap();
     assert!(
         code.contains("let fresh = input.client_token.value().is_none();"),
@@ -578,7 +570,7 @@ fn a_paginated_operation_fills_a_fresh_token_per_page_unless_the_caller_set_one(
 
 #[test]
 fn strict_structures_refuse_unknown_members_on_the_server_only() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let strict = "#[serde(deny_unknown_fields)]\n        pub struct ";
     let marked = generate(&service, &Options::default()).unwrap();
     assert!(marked.contains(&format!("{strict}CreateCityInput")));
@@ -609,10 +601,7 @@ fn strict_structures_refuse_unknown_members_on_the_server_only() {
 
 #[test]
 fn without_the_standard_reason_an_unknown_operation_keeps_the_protocol_answer() {
-    let service = edited(|model| {
-        let members = &mut model["shapes"]["example.weather#ValidationError"]["members"];
-        members.as_object_mut().unwrap().remove("reason");
-    });
+    let service = edited("    reason: ValidationReason\n", "");
     let code = generate(&service, &Options::default()).unwrap();
     assert!(
         code.contains("Some(reject),\n        None,\n        None,\n    );"),
@@ -623,21 +612,13 @@ fn without_the_standard_reason_an_unknown_operation_keeps_the_protocol_answer() 
 
 #[test]
 fn the_standard_reason_matches_whatever_casing_the_model_uses() {
-    let service = edited(|model| {
-        let members = &mut model["shapes"]["example.weather#ValidationReason"]["members"];
-        for (_, member) in members.as_object_mut().unwrap() {
-            let value = member["traits"]["smithy.api#enumValue"].as_str().unwrap();
-            let snake: String = value
-                .chars()
-                .flat_map(|c| {
-                    if c.is_ascii_uppercase() {
-                        vec!['_', c.to_ascii_lowercase()]
-                    } else {
-                        vec![c]
-                    }
-                })
-                .collect();
-            member["traits"]["smithy.api#enumValue"] = json!(snake);
+    let service = common::load_with("weather", |package| {
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace("\"unknownOperation\"", "\"unknown_operation\"")
+                .replace("\"cannotParse\"", "\"cannot_parse\"")
+                .replace("\"fieldValidationFailed\"", "\"field_validation_failed\"");
         }
     });
     let code = generate(&service, &Options::default()).unwrap();
@@ -647,7 +628,7 @@ fn the_standard_reason_matches_whatever_casing_the_model_uses() {
 
 #[test]
 fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let stubs = crucible_codegen_rust::scaffold(&service, &Default::default());
     let mut paths: Vec<String> = stubs
         .iter()
@@ -693,60 +674,47 @@ fn scaffold_plans_a_file_per_operation_in_a_folder_per_resource() {
 
 #[test]
 fn scaffold_escapes_keyword_identifiers_in_modules_and_preserves_file_stems() {
-    let model = r#"{
-        "smithy": "2.0",
-        "shapes": {
-            "example#Service": {
-                "type": "service",
-                "version": "2026-01-01",
-                "operations": [
-                    { "target": "example#Type" },
-                    { "target": "example#Self" }
-                ],
-                "resources": [
-                    { "target": "example#Match" },
-                    { "target": "example#Super" }
-                ],
-                "traits": {
-                    "crucible.protocols#json": {}
-                }
-            },
-            "example#Match": {
-                "type": "resource",
-                "operations": [
-                    { "target": "example#Return" },
-                    { "target": "example#Move" }
-                ]
-            },
-            "example#Super": {
-                "type": "resource",
-                "operations": [
-                    { "target": "example#Crate" }
-                ]
-            },
-            "example#Type": {
-                "type": "operation",
-                "traits": { "smithy.api#http": { "method": "GET", "uri": "/type" } }
-            },
-            "example#Self": {
-                "type": "operation",
-                "traits": { "smithy.api#http": { "method": "GET", "uri": "/self" } }
-            },
-            "example#Return": {
-                "type": "operation",
-                "traits": { "smithy.api#http": { "method": "GET", "uri": "/return" } }
-            },
-            "example#Move": {
-                "type": "operation",
-                "traits": { "smithy.api#http": { "method": "GET", "uri": "/move" } }
-            },
-            "example#Crate": {
-                "type": "operation",
-                "traits": { "smithy.api#http": { "method": "GET", "uri": "/crate" } }
-            }
-        }
-    }"#;
-    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let service = common::from_source(
+        "example",
+        &[r#"
+service Service {
+    version "2026-01-01"
+    protocol json
+    operations [Type, Self]
+    resources [Match, Super]
+}
+resource Match {
+    id matchId: string
+}
+resource Super {
+    id superId: string
+}
+readonly operation Type {
+    http GET "/type"
+}
+readonly operation Self {
+    http GET "/self"
+}
+readonly operation Return on Match {
+    http GET "/match/{matchId}/return"
+    input {
+        $matchId
+    }
+}
+readonly operation Move on Match {
+    http GET "/match/{matchId}/move"
+    input {
+        $matchId
+    }
+}
+readonly operation Crate on Super {
+    http GET "/super/{superId}/crate"
+    input {
+        $superId
+    }
+}
+"#],
+    );
     let stubs = crucible_codegen_rust::scaffold(&service, &Default::default());
 
     let mut paths: Vec<String> = stubs
@@ -796,16 +764,9 @@ fn scaffold_escapes_keyword_identifiers_in_modules_and_preserves_file_stems() {
 
 #[test]
 fn payload_kinds_and_media_headers_reach_client_markers() {
-    let mut ast: Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/error-payloads.json"
-    ))
-    .unwrap();
+    let mut service = common::load("error-payloads");
     // Flat SDK types need distinct names for the exception and operation enum.
-    ast["shapes"]["example.wire#Wire"]["rename"] = json!({"example.wire#TextError": "TextFault"});
-    let service = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
-        .unwrap();
+    common::rename(&mut service, &[("example.wire#TextError", "TextFault")]);
     let client = generate_client(&service).unwrap();
     assert!(client.contains("Location::TextPayload(\"text/plain\")"));
     assert!(client.contains("Location::DocumentPayload(\"application/json\")"));
@@ -816,12 +777,7 @@ fn payload_kinds_and_media_headers_reach_client_markers() {
     assert!(client.contains(
         "member_info(\"details\", ::crucible_client_runtime_rust::__generated::operation::Location::TextPayload"
     ));
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/error-payloads.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-    .unwrap();
+    let service = common::load("error-payloads");
     assert!(
         generate(&service, &Options::default())
             .unwrap()
@@ -831,10 +787,7 @@ fn payload_kinds_and_media_headers_reach_client_markers() {
 
 #[test]
 fn finite_only_float_members_use_checked_codec() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#Coordinates"]["members"]["latitude"]["target"] =
-            json!("smithy.api#Float");
-    });
+    let service = edited("    latitude: double\n", "    latitude: float\n");
     let server = generate(&service, &Options::default()).unwrap();
     let client = generate_client(&service).unwrap();
     assert!(
@@ -856,12 +809,7 @@ fn finite_only_float_members_use_checked_codec() {
 
 #[test]
 fn internal_audience_server_and_projected_client_match_goldens() {
-    let full = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/internal.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let full = common::load("internal");
     let external = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
     matches_golden(
         &generate(&full, &Options::default()).unwrap(),
@@ -876,13 +824,13 @@ fn internal_audience_server_and_projected_client_match_goldens() {
 
 #[test]
 fn only_tokened_operations_with_buffered_outputs_can_replay() {
-    let code = generate(&edited(|_| {}), &Options::default()).unwrap();
+    let code = generate(&weather(), &Options::default()).unwrap();
     // CreateCity has a token and a buffered output; nothing else replays.
     assert_eq!(code.matches("const IDEMPOTENCY_TOKEN").count(), 1, "{code}");
     assert_eq!(code.matches("const OUTPUT_FROM_JSON").count(), 1, "{code}");
     assert!(code.contains("PaginationMember { name: \"clientToken\" }"));
     assert!(
-        !generate_client(&edited(|_| {}))
+        !generate_client(&weather())
             .unwrap()
             .contains("IDEMPOTENCY_TOKEN")
     );

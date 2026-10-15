@@ -1,0 +1,7 @@
+map Lookup: string -> long
+
+enum Mode {
+    Known = "known"
+}
+
+list Strings: string

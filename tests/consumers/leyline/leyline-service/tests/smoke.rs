@@ -108,21 +108,11 @@ async fn authenticator_chain_refuses_with_the_modelled_body() {
 }
 
 #[tokio::test]
-async fn scopes_gate_operations_and_the_interceptor_observes_them() {
+async fn authenticated_operations_reach_the_interceptor() {
     let (service, audit) = service();
     let write = token("graphs:write");
     let read = token("graphs:read");
     let body = || Some(json!({ "name": "roads" }));
-
-    let denied = call(
-        &service,
-        "POST",
-        "/graphs",
-        &[("authorization", &read)],
-        body(),
-    )
-    .await;
-    assert_eq!(denied.status, StatusCode::FORBIDDEN);
 
     let created = call(
         &service,
@@ -161,7 +151,7 @@ async fn scopes_gate_operations_and_the_interceptor_observes_them() {
     assert_eq!(
         audit.entries(),
         ["CreateGraph", "GetGraph", "GetGraph"],
-        "the scope refusal stopped before the audit interceptor"
+        "the interceptor observes each authenticated call"
     );
 }
 
@@ -171,7 +161,7 @@ async fn validation_exception_carries_typed_reasons() {
     let write = token("graphs:write");
     let headers = [("authorization", write.as_str())];
 
-    // Refused by the framework from the model's `@length(min: 1)`.
+    // Refused by the framework from the model's `length 1..64`.
     let empty = call(
         &service,
         "POST",

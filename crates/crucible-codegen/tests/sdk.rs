@@ -7,13 +7,16 @@ use std::process::Command;
 
 use crucible_codegen::sdk::{self, Channel, Endpoint, Language};
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
 /// A service repository holding `text` as its SDK file, a model and a README.
 fn repository(text: &str) -> (tempfile::TempDir, PathBuf) {
     let directory = tempfile::tempdir().unwrap();
     fs::create_dir(directory.path().join(".git")).unwrap();
-    fs::write(directory.path().join("model.json"), WEATHER).unwrap();
+    common::copy_package(
+        &common::package_dir("weather"),
+        &directory.path().join("model"),
+    );
     fs::create_dir_all(directory.path().join("sdk/rust")).unwrap();
     fs::write(directory.path().join("sdk/README.md"), "# Weather\n").unwrap();
     fs::write(directory.path().join("sdk/rust/README.md"), "# Rust\n").unwrap();
@@ -43,7 +46,7 @@ fn assert_error(errors: &[String], key: &str, message: &str) {
 
 const PIGEON: &str = r#"
 schema_version = 1
-model = "model.json"
+model = "model"
 
 [defaults]
 description = "Client for the Weather API."
@@ -87,7 +90,7 @@ out = "generated/weather-java-internal"
 fn defaults_apply_key_by_key_and_an_sdk_overrides_them() {
     let (_directory, path) = repository(PIGEON);
     let file = sdk::load(&path).unwrap();
-    assert_eq!(file.model, "model.json");
+    assert_eq!(file.model, "model");
     assert_eq!(
         file.sdks.keys().collect::<Vec<_>>(),
         ["java-internal", "rust", "ts"]
@@ -146,7 +149,7 @@ fn every_error_is_reported_at_its_key_in_one_run() {
     let errors = errors(
         r#"
 schema_version = 1
-model = "C:/model.json"
+model = "C:/model"
 colour = "blue"
 
 [defaults]
@@ -348,7 +351,7 @@ fn language_keys_are_typed() {
 
 #[test]
 fn endpoints_from_the_environment_are_read_by_resolve_not_load() {
-    let text = "schema_version = 1\nmodel = \"model.json\"\n[sdk.ts]\npackage = \"x\"\nout = \"o\"\nendpoint = { env = \"WEATHER_SDK_ENDPOINT\" }\n";
+    let text = "schema_version = 1\nmodel = \"model\"\n[sdk.ts]\npackage = \"x\"\nout = \"o\"\nendpoint = { env = \"WEATHER_SDK_ENDPOINT\" }\n";
     let (_directory, path) = repository(text);
     let loaded = sdk::load(&path).unwrap();
     assert_eq!(
@@ -378,8 +381,8 @@ fn endpoints_from_the_environment_are_read_by_resolve_not_load() {
 /// written, and moves with any value.
 #[test]
 fn the_configuration_digest_is_canonical() {
-    let a = "schema_version = 1\nmodel = \"model.json\"\n[defaults]\nlicense = \"MIT\"\n[sdk.ts]\npackage = \"x\"\nout = \"o\"\npackage_json = { bugs = \"https://b\", author = \"a\" }\n";
-    let b = "model = \"model.json\"\nschema_version = 1\n[sdk.ts]\npackage_json = { author = \"a\", bugs = \"https://b\" }\nout = \"o\"\nlicense = \"MIT\"\npackage = \"x\"\n";
+    let a = "schema_version = 1\nmodel = \"model\"\n[defaults]\nlicense = \"MIT\"\n[sdk.ts]\npackage = \"x\"\nout = \"o\"\npackage_json = { bugs = \"https://b\", author = \"a\" }\n";
+    let b = "model = \"model\"\nschema_version = 1\n[sdk.ts]\npackage_json = { author = \"a\", bugs = \"https://b\" }\nout = \"o\"\nlicense = \"MIT\"\npackage = \"x\"\n";
     let digest = |text: &str| {
         let (_directory, path) = repository(text);
         let file = sdk::load(&path).unwrap();
@@ -396,7 +399,7 @@ fn the_effective_configuration_is_json_with_digests() {
     let file = sdk::load(&path).unwrap();
     let json = file.to_json();
     assert_eq!(json["schema_version"], 1);
-    assert_eq!(json["model"], "model.json");
+    assert_eq!(json["model"], "model");
     let rust = &json["sdks"]["rust"];
     assert_eq!(rust["language"], "rust");
     assert_eq!(rust["package"], "weather-sdk");
@@ -442,10 +445,7 @@ fn select_names_unknown_sdks() {
 fn a_declared_sdk_generates_at_its_development_version_with_its_metadata() {
     let (directory, path) = repository(PIGEON);
     let file = sdk::load(&path).unwrap();
-    let service = crucible_smithy::Model::from_json(WEATHER)
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = common::load("weather");
     let ts = &file.sdks["ts"];
     let crucible_codegen::Client::Ts(options) = ts.client(&file, None).unwrap() else {
         panic!("a TypeScript client");
@@ -545,12 +545,12 @@ fn the_source_commit_must_reproduce_every_input() {
             "https://token@github.com/example/weather.git",
         ],
     );
-    fs::write(root.join("model.json"), WEATHER).unwrap();
+    common::copy_package(&common::package_dir("weather"), &root.join("model"));
     fs::create_dir(root.join("sdk")).unwrap();
     fs::write(root.join("sdk/README.md"), "# Weather\n").unwrap();
     fs::write(
         root.join(sdk::FILE_NAME),
-        "schema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"generated/rust\"\nreadme = \"sdk/README.md\"\n",
+        "schema_version = 1\nmodel = \"model\"\n[sdk.rust]\nout = \"generated/rust\"\nreadme = \"sdk/README.md\"\n",
     )
     .unwrap();
     git(root, &["add", "."]);
@@ -576,9 +576,11 @@ fn the_source_commit_must_reproduce_every_input() {
     );
     assert!(sdk::source(&file, rust, true).unwrap().dirty);
     git(root, &["checkout", "--", "sdk/README.md"]);
-    fs::write(root.join("model.json"), WEATHER.replace("2026", "2027")).unwrap();
+    let service_file = root.join("model/weather.cru");
+    let original = fs::read_to_string(&service_file).unwrap();
+    fs::write(&service_file, original.replace("2026", "2027")).unwrap();
     assert!(sdk::source(&file, rust, false).is_err());
-    git(root, &["checkout", "--", "model.json"]);
+    git(root, &["checkout", "--", "model"]);
     fs::remove_file(root.join("sdk/README.md")).unwrap();
     git(root, &["rm", "-q", "--cached", "sdk/README.md"]);
     fs::write(root.join("sdk/README.md"), "# Weather\n").unwrap();
@@ -601,7 +603,7 @@ fn paths_stay_inside_the_sdk_files_directory() {
     let errors = errors(
         r#"
 schema_version = 1
-model = "../model.json"
+model = "../model"
 [sdk.rust]
 out = "../escaped"
 readme = "../secret.md"
@@ -635,7 +637,7 @@ fn a_readme_symlinked_outside_the_service_is_refused() {
     let outside = tempfile::tempdir().unwrap();
     fs::write(outside.path().join("secret.md"), SENTINEL).unwrap();
     let (directory, path) = repository(
-        "schema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"o\"\nreadme = \"sdk/linked.md\"\n",
+        "schema_version = 1\nmodel = \"model\"\n[sdk.rust]\nout = \"o\"\nreadme = \"sdk/linked.md\"\n",
     );
     let link = directory.path().join("sdk/linked.md");
     #[cfg(unix)]
@@ -777,7 +779,7 @@ fn one_run_reports_errors_that_hide_behind_others() {
 /// checked like a written endpoint.
 #[test]
 fn endpoints_are_read_only_for_the_selected_sdks_and_checked() {
-    let text = "schema_version = 1\nmodel = \"model.json\"\n[sdk.ts]\npackage = \"x\"\nout = \"ts\"\nendpoint = { env = \"WEATHER_TS_ENDPOINT\" }\n[sdk.python]\npackage = \"x\"\nmodule_name = \"x\"\nout = \"py\"\nendpoint = { env = \"WEATHER_PY_ENDPOINT\" }\n";
+    let text = "schema_version = 1\nmodel = \"model\"\n[sdk.ts]\npackage = \"x\"\nout = \"ts\"\nendpoint = { env = \"WEATHER_TS_ENDPOINT\" }\n[sdk.python]\npackage = \"x\"\nmodule_name = \"x\"\nout = \"py\"\nendpoint = { env = \"WEATHER_PY_ENDPOINT\" }\n";
     let (_directory, path) = repository(text);
     let mut file = sdk::load(&path).unwrap();
     file.resolve_endpoints(&["ts".into()], |name| {
@@ -816,10 +818,10 @@ fn endpoints_are_read_only_for_the_selected_sdks_and_checked() {
 #[test]
 fn declared_reads_names_leniently() {
     let (directory, path) = repository(
-        "schema_version = 99\nmodel = \"model.json\"\nfuture_key = 1\n[sdk.rust]\nprivate = true\n[sdk.ts]\n",
+        "schema_version = 99\nmodel = \"model\"\nfuture_key = 1\n[sdk.rust]\nprivate = true\n[sdk.ts]\n",
     );
     let declared = sdk::declared(&path).unwrap();
-    assert_eq!(declared.model.as_deref(), Some("model.json"));
+    assert_eq!(declared.model.as_deref(), Some("model"));
     assert_eq!(declared.names, ["rust", "ts"]);
     assert_eq!(
         sdk::find_in_repository(directory.path()),
@@ -913,7 +915,7 @@ fn outs_that_fold_together_overlap() {
 #[test]
 fn outs_are_compared_as_the_filesystem_resolves_them() {
     let (directory, path) = repository(
-        "schema_version = 1\nmodel = \"model.json\"\n[sdk.a]\nlanguage = \"rust\"\nout = \"generated-sdk\"\n[sdk.b]\nlanguage = \"rust\"\nout = \"GENERA~1\"\n",
+        "schema_version = 1\nmodel = \"model\"\n[sdk.a]\nlanguage = \"rust\"\nout = \"generated-sdk\"\n[sdk.b]\nlanguage = \"rust\"\nout = \"GENERA~1\"\n",
     );
     let file = sdk::load(&path).unwrap();
     assert!(file.check_outs().is_ok());

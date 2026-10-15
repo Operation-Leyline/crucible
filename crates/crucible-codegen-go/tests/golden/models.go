@@ -113,7 +113,7 @@ func (m *Coordinates) SetLongitude(value float64) { m.Longitude = value }
 func (m *Coordinates) GetLongitude() float64 { return m.Longitude }
 
 type CreateCityInput struct {
-    Name Optional[CityName]
+    Name CityName
     Location Optional[*Location]
     ClientToken Optional[string]
     ExpectedRevision Optional[int64]
@@ -124,16 +124,10 @@ func (m CreateCityInput) String() string { return formatModel(wireSchema, "examp
 func (m CreateCityInput) GoString() string { return m.String() }
 // SetName:
 // Set the member value.
-func (m *CreateCityInput) SetName(value CityName) { m.Name = Some(value) }
+func (m *CreateCityInput) SetName(value CityName) { m.Name = value }
 // GetName:
 // Return the member value; absent and null optional members return the zero value.
-func (m *CreateCityInput) GetName() CityName { if m != nil && m.Name.Set && !m.Name.Null { return m.Name.Value }; var zero CityName; return zero }
-// HasName:
-// Report whether the member is present, including explicit null.
-func (m *CreateCityInput) HasName() bool { return m != nil && m.Name.Set }
-// IsNullName:
-// Report whether the member is explicitly null.
-func (m *CreateCityInput) IsNullName() bool { return m != nil && m.Name.Set && m.Name.Null }
+func (m *CreateCityInput) GetName() CityName { return m.Name }
 // SetLocation:
 // Set the member value.
 func (m *CreateCityInput) SetLocation(value *Location) { m.Location = Some(value) }
@@ -195,7 +189,7 @@ func (m Forecast) String() string { return formatModel(wireSchema, "example.weat
 func (m Forecast) GoString() string { return m.String() }
 
 type GetCityInput struct {
-    CityId Optional[CityId]
+    CityId CityId
     At Optional[DateTime]
 }
 // String describes present members and redacts sensitive values.
@@ -204,16 +198,10 @@ func (m GetCityInput) String() string { return formatModel(wireSchema, "example.
 func (m GetCityInput) GoString() string { return m.String() }
 // SetCityId:
 // Set the member value.
-func (m *GetCityInput) SetCityId(value CityId) { m.CityId = Some(value) }
+func (m *GetCityInput) SetCityId(value CityId) { m.CityId = value }
 // GetCityId:
 // Return the member value; absent and null optional members return the zero value.
-func (m *GetCityInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
-// HasCityId:
-// Report whether the member is present, including explicit null.
-func (m *GetCityInput) HasCityId() bool { return m != nil && m.CityId.Set }
-// IsNullCityId:
-// Report whether the member is explicitly null.
-func (m *GetCityInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+func (m *GetCityInput) GetCityId() CityId { return m.CityId }
 // SetAt:
 // Set the member value.
 func (m *GetCityInput) SetAt(value DateTime) { m.At = Some(value) }
@@ -268,7 +256,7 @@ func (m *GetCityOutput) HasRequestId() bool { return m != nil && m.RequestId.Set
 func (m *GetCityOutput) IsNullRequestId() bool { return m != nil && m.RequestId.Set && m.RequestId.Null }
 
 type GetCityPhotoInput struct {
-    CityId Optional[CityId]
+    CityId CityId
 }
 // String describes present members and redacts sensitive values.
 func (m GetCityPhotoInput) String() string { return formatModel(wireSchema, "example.weather#GetCityPhotoInput", m) }
@@ -276,16 +264,10 @@ func (m GetCityPhotoInput) String() string { return formatModel(wireSchema, "exa
 func (m GetCityPhotoInput) GoString() string { return m.String() }
 // SetCityId:
 // Set the member value.
-func (m *GetCityPhotoInput) SetCityId(value CityId) { m.CityId = Some(value) }
+func (m *GetCityPhotoInput) SetCityId(value CityId) { m.CityId = value }
 // GetCityId:
 // Return the member value; absent and null optional members return the zero value.
-func (m *GetCityPhotoInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
-// HasCityId:
-// Report whether the member is present, including explicit null.
-func (m *GetCityPhotoInput) HasCityId() bool { return m != nil && m.CityId.Set }
-// IsNullCityId:
-// Report whether the member is explicitly null.
-func (m *GetCityPhotoInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+func (m *GetCityPhotoInput) GetCityId() CityId { return m.CityId }
 
 type GetCityPhotoOutput struct {
     Caption Optional[string]
@@ -503,9 +485,9 @@ func (m *PhotoSummary) HasCaption() bool { return m != nil && m.Caption.Set }
 func (m *PhotoSummary) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
 
 type PutCityPhotoInput struct {
-    CityId Optional[CityId]
+    CityId CityId
     Caption Optional[string]
-    Photo Optional[Photo]
+    Photo Photo
 }
 // String describes present members and redacts sensitive values.
 func (m PutCityPhotoInput) String() string { return formatModel(wireSchema, "example.weather#PutCityPhotoInput", m) }
@@ -513,16 +495,10 @@ func (m PutCityPhotoInput) String() string { return formatModel(wireSchema, "exa
 func (m PutCityPhotoInput) GoString() string { return m.String() }
 // SetCityId:
 // Set the member value.
-func (m *PutCityPhotoInput) SetCityId(value CityId) { m.CityId = Some(value) }
+func (m *PutCityPhotoInput) SetCityId(value CityId) { m.CityId = value }
 // GetCityId:
 // Return the member value; absent and null optional members return the zero value.
-func (m *PutCityPhotoInput) GetCityId() CityId { if m != nil && m.CityId.Set && !m.CityId.Null { return m.CityId.Value }; var zero CityId; return zero }
-// HasCityId:
-// Report whether the member is present, including explicit null.
-func (m *PutCityPhotoInput) HasCityId() bool { return m != nil && m.CityId.Set }
-// IsNullCityId:
-// Report whether the member is explicitly null.
-func (m *PutCityPhotoInput) IsNullCityId() bool { return m != nil && m.CityId.Set && m.CityId.Null }
+func (m *PutCityPhotoInput) GetCityId() CityId { return m.CityId }
 // SetCaption:
 // Set the member value.
 func (m *PutCityPhotoInput) SetCaption(value string) { m.Caption = Some(value) }
@@ -537,16 +513,10 @@ func (m *PutCityPhotoInput) HasCaption() bool { return m != nil && m.Caption.Set
 func (m *PutCityPhotoInput) IsNullCaption() bool { return m != nil && m.Caption.Set && m.Caption.Null }
 // SetPhoto:
 // Set the member value.
-func (m *PutCityPhotoInput) SetPhoto(value Photo) { m.Photo = Some(value) }
+func (m *PutCityPhotoInput) SetPhoto(value Photo) { m.Photo = value }
 // GetPhoto:
 // Return the member value; absent and null optional members return the zero value.
-func (m *PutCityPhotoInput) GetPhoto() Photo { if m != nil && m.Photo.Set && !m.Photo.Null { return m.Photo.Value }; var zero Photo; return zero }
-// HasPhoto:
-// Report whether the member is present, including explicit null.
-func (m *PutCityPhotoInput) HasPhoto() bool { return m != nil && m.Photo.Set }
-// IsNullPhoto:
-// Report whether the member is explicitly null.
-func (m *PutCityPhotoInput) IsNullPhoto() bool { return m != nil && m.Photo.Set && m.Photo.Null }
+func (m *PutCityPhotoInput) GetPhoto() Photo { return m.Photo }
 
 type PutCityPhotoOutput struct {
     Photo *PhotoSummary

@@ -351,6 +351,7 @@ pub mod vault {
     impl ::crucible_server_runtime_rust::__generated::Operation for Put {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUT_OPERATION;
         type Input = model::PutInput;
         type Output = model::PutOutput;
@@ -398,7 +399,7 @@ pub mod vault {
     }
 
     pub fn builder() -> OperationsBuilder {
-        OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))
+        OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE).versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, "1"), &[]))
     }
 
     /// Every operation, served by one type: checked at compile time.

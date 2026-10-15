@@ -1,0 +1,6 @@
+/// Temporarily unavailable.
+error Unavailable {
+    status 503
+    retryable
+    message?: string
+}

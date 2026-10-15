@@ -1,0 +1,31 @@
+/// Greets **someone**: see [docs](https://example.com/a_b).
+///
+/// - first item `a */ b`
+/// - second <b>html</b> @param {@code x} & "quotes"
+///
+/// Trailing */ terminator /* nested <T>
+operation Greet {
+    http POST "/greet" -> 200
+    input {
+        /// Greets **someone**: see [docs](https://example.com/a_b).
+        ///
+        /// - first item `a */ b`
+        /// - second <b>html</b> @param {@code x} & "quotes"
+        ///
+        /// Trailing */ terminator /* nested <T>
+        name: string
+        sensitive password?: string
+        token?: Secret
+        secrets?: Secrets
+        names?: Names
+        profile?: Profile
+        choice?: Choice
+        mode?: Mode
+    }
+    output {
+        message?: string
+        profile?: Profile
+        classified?: Classified
+    }
+    errors [Unavailable]
+}

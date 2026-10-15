@@ -152,8 +152,8 @@ mod model {
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
     #[non_exhaustive]
     pub struct CreateCityInput {
-        #[serde(rename = "name", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
-        pub name: ::crucible_client_runtime_rust::__generated::Field<CityName>,
+        #[serde(rename = "name")]
+        pub name: CityName,
         #[serde(rename = "location", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub location: ::crucible_client_runtime_rust::__generated::Field<Location>,
         #[serde(rename = "clientToken", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
@@ -174,8 +174,7 @@ mod model {
     impl CreateCityInput {
         /// Starts a builder with all optional members absent.
         pub fn builder() -> CreateCityInputBuilder { CreateCityInputBuilder::default() }
-        /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn name(&self) -> ::std::option::Option<&CityName> { self.name.value() }
+        pub fn name(&self) -> &CityName { &self.name }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn location(&self) -> ::std::option::Option<&Location> { self.location.value() }
         /// The value when present; inspect the public field to distinguish absent and null.
@@ -186,7 +185,7 @@ mod model {
     /// Builds CreateCityInput; build checks required members and applies modeled defaults.
     #[derive(Clone, Default)]
     pub struct CreateCityInputBuilder {
-        name: ::crucible_client_runtime_rust::__generated::Field<CityName>,
+        name: ::std::option::Option<CityName>,
         location: ::crucible_client_runtime_rust::__generated::Field<Location>,
         client_token: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
         expected_revision: ::crucible_client_runtime_rust::__generated::Field<i64>,
@@ -203,21 +202,21 @@ mod model {
     }
     impl CreateCityInputBuilder {
         /// Sets this member to a value.
-        pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
+        pub fn name(mut self, value: impl ::std::convert::Into<CityName>) -> Self { self.name = Some(value.into()); self }
         /// Sets this member to a value.
         pub fn location(mut self, value: impl ::std::convert::Into<Location>) -> Self { self.location = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Sets this member to a value.
         pub fn client_token(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.client_token = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Sets this member to a value.
         pub fn expected_revision(mut self, value: impl ::std::convert::Into<i64>) -> Self { self.expected_revision = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
-        /// Builds the model and applies modeled defaults.
-        pub fn build(self) -> CreateCityInput {
-            CreateCityInput {
-                name: self.name,
+        /// Builds the model; fails when a required member without a default is unset.
+        pub fn build(self) -> ::std::result::Result<CreateCityInput, ::crucible_client_runtime_rust::__generated::BuildError> {
+            Ok(CreateCityInput {
+                name: self.name.ok_or(::crucible_client_runtime_rust::__generated::build_error("CreateCityInput", "name"))?,
                 location: self.location,
                 client_token: self.client_token,
                 expected_revision: self.expected_revision,
-            }
+            })
         }
     }
 
@@ -271,8 +270,8 @@ mod model {
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
     #[non_exhaustive]
     pub struct GetCityInput {
-        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
-        pub city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
+        #[serde(rename = "cityId")]
+        pub city_id: CityId,
         #[serde(rename = "at", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub at: ::crucible_client_runtime_rust::__generated::Field<DateTime>,
     }
@@ -287,15 +286,14 @@ mod model {
     impl GetCityInput {
         /// Starts a builder with all optional members absent.
         pub fn builder() -> GetCityInputBuilder { GetCityInputBuilder::default() }
-        /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
+        pub fn city_id(&self) -> &CityId { &self.city_id }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn at(&self) -> ::std::option::Option<&DateTime> { self.at.value() }
     }
     /// Builds GetCityInput; build checks required members and applies modeled defaults.
     #[derive(Clone, Default)]
     pub struct GetCityInputBuilder {
-        city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
+        city_id: ::std::option::Option<CityId>,
         at: ::crucible_client_runtime_rust::__generated::Field<DateTime>,
     }
     impl ::std::fmt::Debug for GetCityInputBuilder {
@@ -308,15 +306,15 @@ mod model {
     }
     impl GetCityInputBuilder {
         /// Sets this member to a value.
-        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = Some(value.into()); self }
         /// Sets this member to a value.
         pub fn at(mut self, value: impl ::std::convert::Into<DateTime>) -> Self { self.at = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
-        /// Builds the model and applies modeled defaults.
-        pub fn build(self) -> GetCityInput {
-            GetCityInput {
-                city_id: self.city_id,
+        /// Builds the model; fails when a required member without a default is unset.
+        pub fn build(self) -> ::std::result::Result<GetCityInput, ::crucible_client_runtime_rust::__generated::BuildError> {
+            Ok(GetCityInput {
+                city_id: self.city_id.ok_or(::crucible_client_runtime_rust::__generated::build_error("GetCityInput", "cityId"))?,
                 at: self.at,
-            }
+            })
         }
     }
 
@@ -386,8 +384,8 @@ mod model {
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
     #[non_exhaustive]
     pub struct GetCityPhotoInput {
-        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
-        pub city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
+        #[serde(rename = "cityId")]
+        pub city_id: CityId,
     }
     impl ::std::fmt::Debug for GetCityPhotoInput {
         fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -399,13 +397,12 @@ mod model {
     impl GetCityPhotoInput {
         /// Starts a builder with all optional members absent.
         pub fn builder() -> GetCityPhotoInputBuilder { GetCityPhotoInputBuilder::default() }
-        /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
+        pub fn city_id(&self) -> &CityId { &self.city_id }
     }
     /// Builds GetCityPhotoInput; build checks required members and applies modeled defaults.
     #[derive(Clone, Default)]
     pub struct GetCityPhotoInputBuilder {
-        city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
+        city_id: ::std::option::Option<CityId>,
     }
     impl ::std::fmt::Debug for GetCityPhotoInputBuilder {
         fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -416,12 +413,12 @@ mod model {
     }
     impl GetCityPhotoInputBuilder {
         /// Sets this member to a value.
-        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
-        /// Builds the model and applies modeled defaults.
-        pub fn build(self) -> GetCityPhotoInput {
-            GetCityPhotoInput {
-                city_id: self.city_id,
-            }
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
+        pub fn build(self) -> ::std::result::Result<GetCityPhotoInput, ::crucible_client_runtime_rust::__generated::BuildError> {
+            Ok(GetCityPhotoInput {
+                city_id: self.city_id.ok_or(::crucible_client_runtime_rust::__generated::build_error("GetCityPhotoInput", "cityId"))?,
+            })
         }
     }
 
@@ -708,12 +705,12 @@ mod model {
     #[serde(crate = "::crucible_client_runtime_rust::__generated::serde")]
     #[non_exhaustive]
     pub struct PutCityPhotoInput {
-        #[serde(rename = "cityId", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
-        pub city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
+        #[serde(rename = "cityId")]
+        pub city_id: CityId,
         #[serde(rename = "caption", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
         pub caption: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
-        #[serde(rename = "photo", default, skip_serializing_if = "::crucible_client_runtime_rust::__generated::Field::is_absent")]
-        pub photo: ::crucible_client_runtime_rust::__generated::Field<Photo>,
+        #[serde(rename = "photo")]
+        pub photo: Photo,
     }
     impl ::std::fmt::Debug for PutCityPhotoInput {
         fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -727,19 +724,17 @@ mod model {
     impl PutCityPhotoInput {
         /// Starts a builder with all optional members absent.
         pub fn builder() -> PutCityPhotoInputBuilder { PutCityPhotoInputBuilder::default() }
-        /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn city_id(&self) -> ::std::option::Option<&CityId> { self.city_id.value() }
+        pub fn city_id(&self) -> &CityId { &self.city_id }
         /// The value when present; inspect the public field to distinguish absent and null.
         pub fn caption(&self) -> ::std::option::Option<&::std::string::String> { self.caption.value() }
-        /// The value when present; inspect the public field to distinguish absent and null.
-        pub fn photo(&self) -> ::std::option::Option<&Photo> { self.photo.value() }
+        pub fn photo(&self) -> &Photo { &self.photo }
     }
     /// Builds PutCityPhotoInput; build checks required members and applies modeled defaults.
     #[derive(Clone, Default)]
     pub struct PutCityPhotoInputBuilder {
-        city_id: ::crucible_client_runtime_rust::__generated::Field<CityId>,
+        city_id: ::std::option::Option<CityId>,
         caption: ::crucible_client_runtime_rust::__generated::Field<::std::string::String>,
-        photo: ::crucible_client_runtime_rust::__generated::Field<Photo>,
+        photo: ::std::option::Option<Photo>,
     }
     impl ::std::fmt::Debug for PutCityPhotoInputBuilder {
         fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -752,18 +747,18 @@ mod model {
     }
     impl PutCityPhotoInputBuilder {
         /// Sets this member to a value.
-        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
+        pub fn city_id(mut self, value: impl ::std::convert::Into<CityId>) -> Self { self.city_id = Some(value.into()); self }
         /// Sets this member to a value.
         pub fn caption(mut self, value: impl ::std::convert::Into<::std::string::String>) -> Self { self.caption = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
         /// Sets this member to a value.
-        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = ::crucible_client_runtime_rust::__generated::Field::Value(value.into()); self }
-        /// Builds the model and applies modeled defaults.
-        pub fn build(self) -> PutCityPhotoInput {
-            PutCityPhotoInput {
-                city_id: self.city_id,
+        pub fn photo(mut self, value: impl ::std::convert::Into<Photo>) -> Self { self.photo = Some(value.into()); self }
+        /// Builds the model; fails when a required member without a default is unset.
+        pub fn build(self) -> ::std::result::Result<PutCityPhotoInput, ::crucible_client_runtime_rust::__generated::BuildError> {
+            Ok(PutCityPhotoInput {
+                city_id: self.city_id.ok_or(::crucible_client_runtime_rust::__generated::build_error("PutCityPhotoInput", "cityId"))?,
                 caption: self.caption,
-                photo: self.photo,
-            }
+                photo: self.photo.ok_or(::crucible_client_runtime_rust::__generated::build_error("PutCityPhotoInput", "photo"))?,
+            })
         }
     }
 
@@ -1033,7 +1028,8 @@ mod model {
 
     impl ::crucible_client_runtime_rust::__generated::validate::Validate for CreateCityInput {
         fn validate(&self, validator: &mut ::crucible_client_runtime_rust::__generated::validate::Validator) {
-            if let ::crucible_client_runtime_rust::__generated::Field::Value(value) = &self.name {
+            {
+                let value = &self.name;
                 validator.at("name", |validator| {
                     validator.length(value.chars().count(), None, Some(40));
                 });
@@ -1048,7 +1044,8 @@ mod model {
 
     impl ::crucible_client_runtime_rust::__generated::validate::Validate for GetCityInput {
         fn validate(&self, validator: &mut ::crucible_client_runtime_rust::__generated::validate::Validator) {
-            if let ::crucible_client_runtime_rust::__generated::Field::Value(value) = &self.city_id {
+            {
+                let value = &self.city_id;
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
@@ -1058,7 +1055,8 @@ mod model {
 
     impl ::crucible_client_runtime_rust::__generated::validate::Validate for GetCityPhotoInput {
         fn validate(&self, validator: &mut ::crucible_client_runtime_rust::__generated::validate::Validator) {
-            if let ::crucible_client_runtime_rust::__generated::Field::Value(value) = &self.city_id {
+            {
+                let value = &self.city_id;
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
@@ -1098,12 +1096,14 @@ mod model {
 
     impl ::crucible_client_runtime_rust::__generated::validate::Validate for PutCityPhotoInput {
         fn validate(&self, validator: &mut ::crucible_client_runtime_rust::__generated::validate::Validator) {
-            if let ::crucible_client_runtime_rust::__generated::Field::Value(value) = &self.city_id {
+            {
+                let value = &self.city_id;
                 validator.at("cityId", |validator| {
                     validator.pattern(value, &PATTERN_0, "^c-[a-z0-9]{8}$");
                 });
             }
-            if let ::crucible_client_runtime_rust::__generated::Field::Value(value) = &self.photo {
+            {
+                let value = &self.photo;
                 validator.at("photo", |validator| {
                     validator.length(value.len(), Some(1), Some(4096));
                 });
@@ -1658,6 +1658,7 @@ static CREATE_CITY_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
 impl ::crucible_client_runtime_rust::__generated::Operation for CreateCity {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &CREATE_CITY_OPERATION;
     type Input = model::CreateCityInput;
     type Output = CreateCityOutput;
@@ -1745,6 +1746,7 @@ static GET_CITY_OPERATION: ::crucible_client_runtime_rust::__generated::Operatio
 impl ::crucible_client_runtime_rust::__generated::Operation for GetCity {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_CITY_OPERATION;
     type Input = model::GetCityInput;
     type Output = GetCityOutput;
@@ -1830,6 +1832,7 @@ static GET_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::__generated::Op
 impl ::crucible_client_runtime_rust::__generated::Operation for GetCityPhoto {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &GET_CITY_PHOTO_OPERATION;
     type Input = model::GetCityPhotoInput;
     type Output = GetCityPhotoOutput;
@@ -1917,6 +1920,7 @@ static LIST_CITIES_OPERATION: ::crucible_client_runtime_rust::__generated::Opera
 impl ::crucible_client_runtime_rust::__generated::Operation for ListCities {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &LIST_CITIES_OPERATION;
     type Input = model::ListCitiesInput;
     type Output = ListCitiesOutput;
@@ -1995,6 +1999,7 @@ static PING_OPERATION: ::crucible_client_runtime_rust::__generated::OperationInf
 impl ::crucible_client_runtime_rust::__generated::Operation for Ping {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const HAS_INPUT: bool = false;
     const HAS_OUTPUT: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &PING_OPERATION;
@@ -2079,6 +2084,7 @@ static PUT_CITY_PHOTO_OPERATION: ::crucible_client_runtime_rust::__generated::Op
 impl ::crucible_client_runtime_rust::__generated::Operation for PutCityPhoto {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
     type Input = model::PutCityPhotoInput;
     type Output = PutCityPhotoOutput;
@@ -2159,6 +2165,7 @@ static STATUS_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Status {
     const AUTH_BEARER: bool = true;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_client_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &STATUS_OPERATION;
     type Input = model::StatusInput;
     type Output = StatusOutput;

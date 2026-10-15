@@ -1,0 +1,10 @@
+union Choice {
+    public: string
+    internal private: SecretValue
+}
+
+structure PrivateDetails {
+    value?: string
+}
+
+internal string SecretValue

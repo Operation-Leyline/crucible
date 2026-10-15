@@ -12,5 +12,8 @@ crucible-codegen-infra = { path = "../crucible-codegen-infra" }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 
+[dev-dependencies]
+crucible-lang.workspace = true
+
 [lints]
 workspace = true

@@ -1,0 +1,42 @@
+/// A **documented** value.
+///
+/// Use `code`, [a link](https://example.invalid), and literal */ or @param safely.
+sensitive string DebugSecret
+
+/// A **documented** value.
+///
+/// Use `code`, [a link](https://example.invalid), and literal */ or @param safely.
+structure DebugModel {
+    /// A public label.
+    label?: string
+    /// A sensitive member.
+    sensitive secret?: string
+    ticket?: DebugSecret
+    nested?: DebugNested
+    items?: DebugItems
+    values?: DebugValues
+    choice?: DebugChoice
+    enumeration?: DebugEnum
+}
+
+structure DebugNested {
+    label?: string
+    secret?: DebugSecret
+}
+
+list DebugItems: DebugNested
+
+list DebugValues: DebugSecret
+
+/// A documented union.
+union DebugChoice {
+    /// The sensitive arm.
+    secret: DebugSecret
+    label: string
+}
+
+/// Sensitive enum.
+sensitive enum DebugEnum {
+    /// Known secret value.
+    KNOWN = "SECRET-ENUM"
+}

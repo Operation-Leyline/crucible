@@ -1,0 +1,22 @@
+operation WriteItem on Item {
+    http POST "/WriteItem"
+    input {
+        $itemId
+        item: Content
+        @token
+        clientToken?: string
+    }
+    output {
+        state?: State
+        at?: timestamp
+        total: bigInteger = 1234567890123456789
+    }
+    example "Write an item" {
+        input { itemId: "i1", item: { amount: 1234567890123456789 } }
+        output { state: "READY", at: "2026-01-02T03:04:05Z" }
+    }
+    example "Service unavailable" {
+        input { itemId: "i1", item: { text: "retry" } }
+        error Unavailable { message: "Try later" }
+    }
+}

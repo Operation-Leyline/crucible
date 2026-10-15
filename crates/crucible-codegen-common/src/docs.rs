@@ -408,13 +408,10 @@ mod tests {
 
     #[test]
     fn collections_of_sensitive_elements_are_redacted_whole() {
-        use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/client-docs.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new([Feature::IntEnum]))
-        .unwrap();
+        use crucible_smithy::ShapeId;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/models/client-docs-vault");
+        let service = crucible_lang::load_service(&dir).unwrap();
         let id: ShapeId = "example.vault#Secret".parse().unwrap();
         let Some(Shape::Structure(secret)) = service.shape(&id) else {
             panic!("structure")
@@ -442,13 +439,10 @@ mod tests {
 
     #[test]
     fn every_member_of_a_sensitive_owner_is_redacted() {
-        use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/client-docs.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new([Feature::IntEnum]))
-        .unwrap();
+        use crucible_smithy::ShapeId;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/models/client-docs-vault");
+        let service = crucible_lang::load_service(&dir).unwrap();
         let id: ShapeId = "example.vault#Secret".parse().unwrap();
         let Some(Shape::Structure(secret)) = service.shape(&id) else {
             panic!("structure")

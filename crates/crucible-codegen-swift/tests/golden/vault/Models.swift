@@ -85,25 +85,20 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         }
     }
     public struct `GetSecretInput`: Swift.Sendable, WireCodable, ModelDescription {
-        /// Whether `name` was omitted, set to null, or given a value.
-        public var `namePresence`: OptionalValue<Swift.String>
-        public var `name`: Swift.String? {
-            get { `namePresence`.value }
-            set { `namePresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `name`: Swift.String
         public var description: Swift.String { Describe.format("GetSecretInput", [("name", `name`)]) }
-        public init(`name`: Swift.String? = nil, `namePresence`: OptionalValue<Swift.String>? = nil) {
-            self.`namePresence` = `namePresence` ?? (`name`.map { .value($0) } ?? .unset)
+        public init(`name`: Swift.String) {
+            self.`name` = `name`
         }
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
             let object = try value.object
             return try Self(
-                namePresence: context.codec.optional(context.target, "name", object, as: Swift.String.self)
+                name: context.codec.read(context.target, "name", object, as: Swift.String.self)
             )
         }
         func toWire(_ context: WireContext) throws -> JSONValue {
             var object: [Swift.String: JSONValue] = [:]
-            try context.codec.put(context.target, "name", self.`namePresence`, into: &object)
+            try context.codec.put(context.target, "name", self.`name`, into: &object)
             return .object(object)
         }
     }
@@ -218,12 +213,7 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
     public typealias `Passwords` = Swift.Array<Swift.String>
     public typealias `PasswordsByName` = Swift.Dictionary<Swift.String, Swift.String>
     public struct `PutSecretInput`: Swift.Sendable, WireCodable, ModelDescription {
-        /// Whether `secret` was omitted, set to null, or given a value.
-        public var `secretPresence`: OptionalValue<`Secret`>
-        public var `secret`: `Secret`? {
-            get { `secretPresence`.value }
-            set { `secretPresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `secret`: `Secret`
         /// Whether `clientToken` was omitted, set to null, or given a value.
         public var `clientTokenPresence`: OptionalValue<Swift.String>
         public var `clientToken`: Swift.String? {
@@ -231,20 +221,20 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
             set { `clientTokenPresence` = newValue.map { .value($0) } ?? .null }
         }
         public var description: Swift.String { Describe.format("PutSecretInput", [("secret", `secret`), ("clientToken", `clientToken`)]) }
-        public init(`secret`: `Secret`? = nil, `secretPresence`: OptionalValue<`Secret`>? = nil, `clientToken`: Swift.String? = nil, `clientTokenPresence`: OptionalValue<Swift.String>? = nil) {
-            self.`secretPresence` = `secretPresence` ?? (`secret`.map { .value($0) } ?? .unset)
+        public init(`secret`: `Secret`, `clientToken`: Swift.String? = nil, `clientTokenPresence`: OptionalValue<Swift.String>? = nil) {
+            self.`secret` = `secret`
             self.`clientTokenPresence` = `clientTokenPresence` ?? (`clientToken`.map { .value($0) } ?? .unset)
         }
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
             let object = try value.object
             return try Self(
-                secretPresence: context.codec.optional(context.target, "secret", object, as: `Secret`.self),
+                secret: context.codec.read(context.target, "secret", object, as: `Secret`.self),
                 clientTokenPresence: context.codec.optional(context.target, "clientToken", object, as: Swift.String.self)
             )
         }
         func toWire(_ context: WireContext) throws -> JSONValue {
             var object: [Swift.String: JSONValue] = [:]
-            try context.codec.put(context.target, "secret", self.`secretPresence`, into: &object)
+            try context.codec.put(context.target, "secret", self.`secret`, into: &object)
             try context.codec.put(context.target, "clientToken", self.`clientTokenPresence`, into: &object)
             return .object(object)
         }

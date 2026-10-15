@@ -170,12 +170,12 @@ static class Program
             Check(city.Population == long.MaxValue && city.CreatedAt == DateTimeOffset.UnixEpoch.AddTicks(-1), "number and timestamp precision");
             Check(((CitySummary)Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x"}""")).Population == 0, "absent default");
             try { Decode(runtime, "example.weather#CitySummary", """{"id":"c","name":"x","population":null}"""); throw new Exception("null default accepted"); } catch (JsonException) { }
-            var ordinary = new CreateCityInput { Name = "", ExpectedRevision = 0L };
-            Check(ordinary.Name == "" && ordinary.ExpectedRevision == 0L && ordinary.NamePresence.IsSet, "ordinary values retain presence");
-            ordinary.Name = null;
-            Check(ordinary.Name is null && ordinary.NamePresence.IsNull, "nullable assignment is explicit null");
-            ordinary.NamePresence = default;
-            Check(ordinary.Name is null && !ordinary.NamePresence.IsSet, "advanced absence reset");
+            var ordinary = new CreateCityInput { Name = "", ClientToken = "", ExpectedRevision = 0L };
+            Check(ordinary.Name == "" && ordinary.ExpectedRevision == 0L && ordinary.ClientTokenPresence.IsSet, "ordinary values retain presence");
+            ordinary.ClientToken = null;
+            Check(ordinary.ClientToken is null && ordinary.ClientTokenPresence.IsNull, "nullable assignment is explicit null");
+            ordinary.ClientTokenPresence = default;
+            Check(ordinary.ClientToken is null && !ordinary.ClientTokenPresence.IsSet, "advanced absence reset");
             var input = new CreateCityInput { Name = "x", LocationPresence = Optional<Location>.Null };
             var encoded = Encode(runtime, "example.weather#CreateCityInput", input).AsObject();
             Check(encoded.ContainsKey("location") && encoded["location"] is null && !encoded.ContainsKey("clientToken"), "presence");

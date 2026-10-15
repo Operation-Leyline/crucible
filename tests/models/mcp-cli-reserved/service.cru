@@ -1,0 +1,5 @@
+service Service {
+    version "1"
+    protocol json
+    operations [Mcp]
+}

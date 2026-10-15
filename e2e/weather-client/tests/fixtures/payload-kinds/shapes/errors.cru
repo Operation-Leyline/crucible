@@ -1,0 +1,18 @@
+error BinaryError {
+    status 503
+    @payload
+    dump?: blob
+}
+
+structure Detail {
+    reason?: string
+    code?: integer
+}
+
+error RecordError {
+    status 409
+    @payload
+    detail?: Detail
+    @header("x-request-tag")
+    requestTag?: string
+}

@@ -1,0 +1,6 @@
+readonly operation GetItem {
+    http GET "/items/{key}" -> 200
+    input {
+        key: string
+    }
+}

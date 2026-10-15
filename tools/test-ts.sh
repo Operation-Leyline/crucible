@@ -12,26 +12,26 @@ crucible() {
 }
 
 dir=crates/crucible-codegen-ts/tests/ts
-crucible generate ts crates/crucible-smithy/tests/fixtures/internal.json \
+crucible generate ts tests/models/internal \
   --out "$dir/generated-audience" --package-name @example/audience >/dev/null
-crucible generate ts crates/crucible-smithy/tests/fixtures/internal.json \
+crucible generate ts tests/models/internal \
   --audience internal --out "$dir/generated-audience-internal" --package-name @example/audience-internal >/dev/null
 crucible generate ts tests/fixtures/permissions \
   --out "$dir/generated-permissions" --package-name @example/permissions >/dev/null
-crucible generate ts tests/fixtures/client-docs.json --out "$dir/generated-docs" --package-name @example/docs >/dev/null
-crucible generate ts crates/crucible-smithy/tests/fixtures/weather.json \
+crucible generate ts tests/models/client-docs --out "$dir/generated-docs" --package-name @example/docs >/dev/null
+crucible generate ts tests/models/weather \
   --out "$dir/generated" --package-name @example/weather \
   --endpoint https://weather.example --middleware content-sha256 >/dev/null
-crucible generate ts crates/crucible-codegen-ts/tests/fixtures/hardening.json \
+crucible generate ts tests/models/hardening \
   --out "$dir/generated-hardening" --package-name @example/hardening \
   --endpoint https://hardening.example >/dev/null
-crucible generate ts crates/crucible-smithy/tests/fixtures/extended-types.json \
+crucible generate ts tests/models/extended-types \
   --out "$dir/generated-types" --package-name @example/types >/dev/null
-crucible generate ts crates/crucible-smithy/tests/fixtures/error-payloads.json \
+crucible generate ts tests/models/error-payloads \
   --out "$dir/generated-payloads" --package-name @example/payloads >/dev/null
-crucible generate ts crates/crucible-codegen-python/tests/payload-bindings.json \
+crucible generate ts tests/models/payload-bindings \
   --out "$dir/generated-payloadbindings" --package-name @example/payloadbindings >/dev/null
-crucible generate ts crates/crucible-codegen-ts/tests/fixtures/globals.json \
+crucible generate ts tests/models/globals \
   --out "$dir/generated-globals" --package-name @example/globals >/dev/null
 rm -rf "$dir/dist"
 ${TSC:-npx --yes -p typescript@5.9.3 tsc} -p "$dir"

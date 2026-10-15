@@ -43,7 +43,7 @@ async fn client() -> WeatherClient {
 }
 
 fn create(name: &str) -> CreateCityInput {
-    CreateCityInput::builder().name(name).build()
+    CreateCityInput::builder().name(name).build().unwrap()
 }
 
 #[tokio::test]
@@ -61,7 +61,8 @@ async fn a_created_city_reads_back_with_every_member_intact() {
                         .build()
                         .unwrap(),
                 ))
-                .build(),
+                .build()
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -88,7 +89,8 @@ async fn a_created_city_reads_back_with_every_member_intact() {
             GetCityInput::builder()
                 .city_id(created.city.id())
                 .at(at)
-                .build(),
+                .build()
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -114,7 +116,8 @@ async fn the_same_idempotency_token_replays_instead_of_creating_twice() {
     let input = CreateCityInput::builder()
         .name("bergen")
         .client_token("token-1")
-        .build();
+        .build()
+        .unwrap();
     let first = client.create_city(input.clone()).await.unwrap();
     let second = client.create_city(input).await.unwrap();
     assert_eq!(second.city.id, first.city.id);
@@ -135,7 +138,12 @@ async fn a_modelled_error_arrives_as_its_variant() {
         other => panic!("expected a conflict, got {other:?}"),
     }
     match client
-        .get_city(GetCityInput::builder().city_id("c-99999999").build())
+        .get_city(
+            GetCityInput::builder()
+                .city_id("c-99999999")
+                .build()
+                .unwrap(),
+        )
         .await
         .map_err(|error| error.map_service(WeatherException::from))
     {
@@ -183,7 +191,7 @@ async fn a_broken_constraint_is_a_validation_error_naming_the_member() {
 async fn labels_are_percent_encoded() {
     let client = client().await;
     match client
-        .get_city(GetCityInput::builder().city_id("a/b c").build())
+        .get_city(GetCityInput::builder().city_id("a/b c").build().unwrap())
         .await
     {
         Err(Error::Service(crucible_client_runtime_rust::ServiceError {
@@ -322,7 +330,8 @@ async fn a_payload_travels_raw_both_ways() {
                 .city_id(city.id.clone())
                 .caption("aurora")
                 .photo(photo)
-                .build(),
+                .build()
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -336,7 +345,8 @@ async fn a_payload_travels_raw_both_ways() {
         .get_city_photo(
             GetCityPhotoInput::builder()
                 .city_id(city.id.clone())
-                .build(),
+                .build()
+                .unwrap(),
         )
         .await
         .unwrap();
@@ -348,7 +358,8 @@ async fn a_payload_travels_raw_both_ways() {
             PutCityPhotoInput::builder()
                 .city_id(city.id)
                 .photo(vec![0; 4097])
-                .build(),
+                .build()
+                .unwrap(),
         )
         .await;
     assert!(
@@ -387,7 +398,10 @@ async fn generated_call_options_expose_deadlines_and_shared_cancellation() {
     assert!(matches!(
         client
             .get_city_with_options(
-                GetCityInput::builder().city_id("never-sent").build(),
+                GetCityInput::builder()
+                    .city_id("never-sent")
+                    .build()
+                    .unwrap(),
                 CallOptions {
                     timeout: None,
                     cancellation: Some(cancellation),

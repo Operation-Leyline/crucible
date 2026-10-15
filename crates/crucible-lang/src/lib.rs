@@ -33,6 +33,18 @@ pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
 pub use span::{LineIndex, Span};
 
+/// Loads the package in `dir`, compiles it and returns its service, or the
+/// rendered diagnostics. A convenience for tools and tests that only want
+/// the lowered IR of a package on disk.
+pub fn load_service(dir: &std::path::Path) -> Result<crucible_smithy::ir::Service, String> {
+    let package = load_package(dir)?;
+    let compiled = compile(&package, None);
+    match compiled.service.clone() {
+        Some(service) => Ok(service),
+        None => Err(compiled.render()),
+    }
+}
+
 /// One parsed file: its syntax tree, every token, and every problem found.
 #[derive(Debug, Clone)]
 pub struct Parsed {

@@ -9,6 +9,6 @@
   "audience": "external",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
-  "schemaSha256": "363aa138bc7abe3eb52d7cd85fb8631a7c512a5f4ccf3f36e2632482966e86c4",
-  "contentDigest": "crucible-content-1:sha256:441f633060f745d3d74145a3771733f67b6e69359de6df397a2375bc940a1e6e"
+  "schemaSha256": "022f5ab62a506566db876ae49423615f1d67d49afa50c533c967e80e0d82b966",
+  "contentDigest": "crucible-content-1:sha256:290c3fa5c3d5bb6ba593670aa6288674002bc63093a5384bbcde06541e37f2e4"
 }

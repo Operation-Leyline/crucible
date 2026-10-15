@@ -148,7 +148,7 @@ static void shared_cases(void) {
     for (size_t i = 0; i < weather_json_size(rows); ++i) {
         const weather_json *row = weather_json_at(rows, i), *values = get(row, "values");
         fake state = {header_case, row, 0, false}; weather_client *client = client_new(config(&state));
-        weather_models_tags tags = {0}; weather_models_header_input input = {0}; weather_operations_header_echo_result result = {0};
+        weather_models_tags tags = {0}; weather_models_header_echo_input input = {0}; weather_operations_header_echo_result result = {0};
         weather_string *items = weather_arena_alloc(arena, weather_json_size(values) * sizeof(*items), &error);
         check(items != NULL, "header values allocation");
         for (size_t j = 0; j < weather_json_size(values); ++j) items[j] = text(weather_json_at(values, j));

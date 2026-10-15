@@ -6,81 +6,72 @@ mod cargo_target;
 use std::{fs, path::Path, process::Command};
 
 use crucible_codegen_rust::{Options, generate};
-use crucible_smithy::Model;
-use serde_json::{Value, json};
+mod common;
 
 /// Every way a value becomes sensitive: the member, its target, a sensitive
 /// structure, a collection of sensitive values, a union arm, enums and errors.
-fn model(protocol: &str) -> Value {
-    let required = json!({"smithy.api#required": {}});
-    let sensitive_required = json!({"smithy.api#required": {}, "smithy.api#sensitive": {}});
-    json!({
-        "smithy": "2.0",
-        "shapes": {
-            "test.debug#Vault": {"type": "service", "version": "1", "traits": {protocol: {}}, "operations": [{"target": "test.debug#Put"}]},
-            "test.debug#Put": {
-                "type": "operation",
-                "traits": {"smithy.api#http": {"method": "POST", "uri": "/put", "code": 200}},
-                "input": {"target": "test.debug#PutInput"},
-                "output": {"target": "test.debug#PutOutput"},
-                "errors": [{"target": "test.debug#Leak"}]
-            },
-            "test.debug#PutInput": {"type": "structure", "traits": {"smithy.api#input": {}}, "members": {
-                "label": {"target": "smithy.api#String", "traits": required},
-                "secret": {"target": "smithy.api#String", "traits": sensitive_required},
-                "ticket": {"target": "test.debug#Secret", "traits": required},
-                "nested": {"target": "test.debug#Nested", "traits": required},
-                "items": {"target": "test.debug#NestedList", "traits": required},
-                "values": {"target": "test.debug#SecretList", "traits": required},
-                "scores": {"target": "test.debug#SecretMap", "traits": required},
-                "choice": {"target": "test.debug#Choice", "traits": required},
-                "whole": {"target": "test.debug#Whole", "traits": required},
-                "level": {"target": "test.debug#Level", "traits": required},
-                "tier": {"target": "test.debug#Tier", "traits": required}
-            }},
-            "test.debug#PutOutput": {"type": "structure", "traits": {"smithy.api#output": {}}, "members": {
-                "ticket": {"target": "test.debug#Secret", "traits": required}
-            }},
-            "test.debug#Leak": {"type": "structure", "traits": {"smithy.api#error": "client", "smithy.api#httpError": 400}, "members": {
-                "message": {"target": "smithy.api#String", "traits": sensitive_required},
-                "code": {"target": "smithy.api#String", "traits": required}
-            }},
-            "test.debug#Secret": {"type": "string", "traits": {"smithy.api#sensitive": {}}},
-            "test.debug#Nested": {"type": "structure", "members": {
-                "label": {"target": "smithy.api#String", "traits": required},
-                "secret": {"target": "test.debug#Secret", "traits": required}
-            }},
-            "test.debug#NestedList": {"type": "list", "member": {"target": "test.debug#Nested"}},
-            "test.debug#SecretList": {"type": "list", "member": {"target": "test.debug#Secret"}},
-            "test.debug#SecretMap": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "test.debug#Secret"}},
-            "test.debug#Choice": {"type": "union", "members": {
-                "secret": {"target": "test.debug#Secret"},
-                "label": {"target": "smithy.api#String"}
-            }},
-            "test.debug#Whole": {"type": "structure", "traits": {"smithy.api#sensitive": {}}, "members": {
-                "label": {"target": "smithy.api#String", "traits": required}
-            }},
-            "test.debug#Level": {"type": "enum", "traits": {"smithy.api#sensitive": {}}, "members": {
-                "KNOWN": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": "SECRET-ENUM"}}
-            }},
-            "test.debug#Tier": {"type": "intEnum", "traits": {"smithy.api#sensitive": {}}, "members": {
-                "SECRET_TIER": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": 7}}
-            }}
-        }
-    })
+const MODEL: &str = r#"
+service Vault {
+    version "1"
+    protocol json
+    operations [Put]
 }
+operation Put {
+    http POST "/put" -> 200
+    input {
+        label: string
+        sensitive secret: string
+        ticket: Secret
+        nested: Nested
+        items: NestedList
+        values: SecretList
+        scores: SecretMap
+        choice: Choice
+        whole: Whole
+        level: Level
+        tier: Tier
+    }
+    output {
+        ticket: Secret
+    }
+    errors [Leak]
+}
+error Leak {
+    status 400
+    sensitive message: string
+    code: string
+}
+sensitive string Secret
+structure Nested {
+    label: string
+    secret: Secret
+}
+list NestedList: Nested
+list SecretList: Secret
+map SecretMap: string -> Secret
+union Choice {
+    secret: Secret
+    label: string
+}
+sensitive structure Whole {
+    label: string
+}
+sensitive enum Level {
+    KNOWN = "SECRET-ENUM"
+}
+sensitive enum Tier: integer {
+    SECRET_TIER = 7
+}
+"#;
 
-fn server(protocol: &str) -> String {
-    let service = Model::from_json(&model(protocol).to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .unwrap();
+fn server() -> String {
+    let service = common::from_source("test.debug", &[MODEL]);
     generate(&service, &Options::default()).unwrap()
 }
 
 #[test]
 fn server_models_redact_sensitive_members_in_debug() {
-    let code = server("crucible.protocols#json");
+    let code = server();
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/sensitive_debug.rs");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
         fs::write(&path, &code).unwrap();
@@ -99,10 +90,7 @@ fn server_models_redact_sensitive_members_in_debug() {
 fn formatting_a_server_input_never_prints_sensitive_values() {
     let directory = tempfile::tempdir().unwrap();
     fs::create_dir_all(directory.path().join("src")).unwrap();
-    let source = format!(
-        "mod crucible {{\n{}\n{CONSUMER}\n}}\n",
-        server("crucible.protocols#json")
-    );
+    let source = format!("mod crucible {{\n{}\n{CONSUMER}\n}}\n", server());
     fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     fs::write(

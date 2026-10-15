@@ -73,12 +73,12 @@ int main() {
     check(!wire.find("clientToken"), "Absent input");
     const auto copy = Codec<CreateCityInput>::decode(wire, context);
     check(std::get<LocationUnknown>(copy.location.value().value).value.at("long").number().integer() == INT64_MAX, "Unknown union exact document");
-    input.name = "direct assignment";
-    check(input.name && *input.name == "direct assignment" && input.name->size() == 17, "Native optional-style field access");
-    input.name.reset();
-    check(!input.name && !input.name.is_set() && input.name.value_or("fallback") == "fallback", "Field reset and fallback");
-    input.name = Field<std::string>::null();
-    check(Codec<CreateCityInput>::encode(input, context).at("name").is_null(), "Explicit null input");
+    input.client_token = "direct assignment";
+    check(input.client_token && *input.client_token == "direct assignment" && input.client_token->size() == 17, "Native optional-style field access");
+    input.client_token.reset();
+    check(!input.client_token && !input.client_token.is_set() && input.client_token.value_or("fallback") == "fallback", "Field reset and fallback");
+    input.client_token = Field<std::string>::null();
+    check(Codec<CreateCityInput>::encode(input, context).at("clientToken").is_null(), "Explicit null input");
     const Schema simple(Json::parse(R"({"shapes":{"doc":{"kind":"document"},"long":{"kind":"long"},"float":{"kind":"float"},"double":{"kind":"double"},"str":{"kind":"string"},"list":{"kind":"list","member":{"target":"str"}},"parent":{"kind":"structure","members":{"doc":{"target":"doc","default":null},"count":{"target":"long","default":9223372036854775807},"optional":{"target":"long","default":2}}}}})"));
     const auto parent = simple.context("parent");
     check(read<Json>(Json::parse(R"({"doc":null})"), parent, "doc").is_null(), "Required document null");
@@ -155,7 +155,7 @@ int main() {
     const auto city = client.create_city(CreateCityInput("C++ city")).city;
     check(client.get_city(GetCityInput(city.id)).city.name == "C++ city", "Real create/read");
     const Blob photo{std::byte{0}, std::byte{128}, std::byte{255}};
-    (void)client.put_city_photo(PutCityPhotoInput(city.id, {}, photo));
+    (void)client.put_city_photo(PutCityPhotoInput(city.id, photo));
     check(client.get_city_photo(GetCityPhotoInput(city.id)).photo.value() == photo, "Real raw payload");
     check(client.list_cities_pages(ListCitiesInput({}, 1)).next().has_value(), "Real pagination");
     (void)rejects<ConflictError>([&] { (void)client.create_city(CreateCityInput("C++ city")); });

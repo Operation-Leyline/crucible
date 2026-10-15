@@ -1,0 +1,9 @@
+union Choice {
+    text: string
+    count: integer
+}
+
+enum Mood {
+    HAPPY = "happy"
+    GRUMPY = "grumpy"
+}

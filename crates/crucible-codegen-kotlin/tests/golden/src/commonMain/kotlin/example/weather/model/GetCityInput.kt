@@ -6,21 +6,14 @@ package example.weather.model
  * Build one with `GetCityInput { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#GetCityInput`.
  */
 class `GetCityInput` internal constructor(
-    internal val __crucibleField0: example.weather.OptionalValue<kotlin.String>,
-    internal val __crucibleField1: example.weather.OptionalValue<kotlin.time.Instant>,
-) {
     /**
      * The `cityId` member.
      *
-     * Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.
+     * Required.
      */
-    val `cityId`: kotlin.String? get() = __crucibleField0.value
-    /**
-     * Whether `cityId` was set, even to `null`.
-     *
-     * @return true when the member is present
-     */
-    fun hasCityId(): kotlin.Boolean = __crucibleField0.present
+    val `cityId`: kotlin.String,
+    internal val __crucibleField1: example.weather.OptionalValue<kotlin.time.Instant>,
+) {
     /**
      * The `at` member.
      *
@@ -36,28 +29,21 @@ class `GetCityInput` internal constructor(
     /**
      * Formats every set member as `Type(member=value, ...)`; sensitive members print as a redaction marker, never their value.
      */
-    override fun toString(): kotlin.String = example.weather.ModelFormat.format("GetCityInput", "cityId" to __crucibleField0, "at" to __crucibleField1)
+    override fun toString(): kotlin.String = example.weather.ModelFormat.format("GetCityInput", "cityId" to `cityId`, "at" to __crucibleField1)
     companion object {
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`GetCityInput` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`GetCityInput` = Builder().also { builder ->
-        builder.__crucibleField0 = __crucibleField0
+        builder.`cityId` = this.`cityId`
         builder.__crucibleField1 = __crucibleField1
     }.apply(block).build()
     class Builder {
-        internal var __crucibleField0: example.weather.OptionalValue<kotlin.String> = example.weather.OptionalValue.unset()
         /**
          * The `cityId` member.
          *
-         * Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.
+         * Required: `build()` fails when it is left unset.
          */
-        var `cityId`: kotlin.String?
-            get() = __crucibleField0.value
-            set(value) { __crucibleField0 = example.weather.OptionalValue.of(value) }
-        /**
-         * Clears `cityId` so it is omitted from requests.
-         */
-        fun unsetCityId() { __crucibleField0 = example.weather.OptionalValue.unset() }
+        var `cityId`: kotlin.String? = null
         internal var __crucibleField1: example.weather.OptionalValue<kotlin.time.Instant> = example.weather.OptionalValue.unset()
         /**
          * The `at` member.
@@ -72,7 +58,7 @@ class `GetCityInput` internal constructor(
          */
         fun unsetAt() { __crucibleField1 = example.weather.OptionalValue.unset() }
         fun build(): example.weather.model.`GetCityInput` = example.weather.model.`GetCityInput`(
-            __crucibleField0 = __crucibleField0,
+            `cityId` = requireNotNull(`cityId`) { "Missing required member: cityId" },
             __crucibleField1 = __crucibleField1,
         )
     }

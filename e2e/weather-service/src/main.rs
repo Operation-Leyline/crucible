@@ -14,12 +14,9 @@ async fn main() {
         .unwrap_or_else(|| "127.0.0.1:0".to_owned());
     let listener = tokio::net::TcpListener::bind(&address).await.expect("bind");
     println!("listening on {}", listener.local_addr().expect("address"));
-    let mut builder = weather_service::builder(Arc::new(MemoryCities::default()));
-    if cfg!(debug_assertions) {
-        builder = builder.explorer(crucible_server_runtime_rust::explorer::Explorer::new(
-            weather_service::weather::DESCRIPTION,
-        ));
-    }
+    // The Explorer is not mounted until the language lowers resources
+    // (decision 63): the weather description lists the City resource.
+    let builder = weather_service::builder(Arc::new(MemoryCities::default()));
     crucible_server_runtime_rust::host::http_on(
         builder.build().expect("weather service"),
         listener,

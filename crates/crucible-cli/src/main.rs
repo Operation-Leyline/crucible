@@ -1745,22 +1745,18 @@ operation Restore on Store {
             ),
             "{summary}"
         );
-        let weather = crucible_smithy::Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap()
-        .lower(None)
+        let weather = crucible_lang::load_service(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather"),
+        )
         .unwrap();
         assert!(!super::summary(&weather).contains("permissions"));
     }
 
     #[test]
     fn custom_trait_counts_use_the_multiplication_sign() {
-        let service = crucible_smithy::Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap()
-        .lower(None)
+        let service = crucible_lang::load_service(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather"),
+        )
         .unwrap();
         let report = super::summary(&service);
         assert!(report.contains(" \u{00d7}"), "{report}");

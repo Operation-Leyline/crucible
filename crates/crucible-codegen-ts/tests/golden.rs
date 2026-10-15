@@ -5,8 +5,39 @@
 use std::fs;
 use std::path::Path;
 
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    compile_with(name, |text| text)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first;
+/// the rendered diagnostics when it does not compile.
+fn compile_with(
+    name: &str,
+    edit: impl Fn(String) -> String,
+) -> Result<crucible_smithy::ir::Service, String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    compiled.service.clone().ok_or_else(|| compiled.render())
+}
+
+/// The weather package with its sources rewritten first.
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
+
 use crucible_codegen_ts::{Middleware, Options, emit};
-use crucible_smithy::Model;
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
@@ -102,12 +133,7 @@ fn permission_constants_match_golden() {
         permissions
     );
     // A model without permissions gets no file.
-    let weather = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let weather = weather();
     assert!(
         emit(&weather, &options)
             .unwrap()
@@ -222,8 +248,7 @@ fn a_permission_export_named_like_a_model_is_namespaced() {
 
 #[test]
 fn weather_client_matches_golden_files() {
-    let model = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
-    let service = Model::from_json(model).unwrap().lower(None).unwrap();
+    let service = weather();
     let options = Options {
         package_name: "@example/weather".into(),
         package_version: "0.0.0-dev".into(),
@@ -263,21 +288,17 @@ fn weather_client_matches_golden_files() {
 /// the global `Date`, so they must not resolve to that shape.
 #[test]
 fn a_shape_named_date_does_not_shadow_timestamps() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    let shapes = model["shapes"].as_object_mut().unwrap();
-    shapes.insert(
-        "example.weather#Date".into(),
-        serde_json::json!({ "type": "string" }),
-    );
-    shapes["example.weather#CitySummary"]["members"]["foundedOn"] =
-        serde_json::json!({ "target": "example.weather#Date" });
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather_with(|text| {
+        let text = text.replace(
+            "structure CitySummary {\n",
+            "structure CitySummary {\n    foundedOn?: Date\n",
+        );
+        if text.contains("structure CitySummary {") {
+            text + "\nstring Date\n"
+        } else {
+            text
+        }
+    });
     let options = Options {
         package_name: "@example/weather".into(),
         package_version: "0.0.0-dev".into(),
@@ -302,16 +323,12 @@ fn a_shape_named_date_does_not_shadow_timestamps() {
 
 #[test]
 fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.weather#CitySummary"]["members"]["population"]["traits"]["smithy.api#default"] =
-        serde_json::json!(i64::MAX);
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather_with(|text| {
+        text.replace(
+            "population: long = 0",
+            &format!("population: long = {}", i64::MAX),
+        )
+    });
     let files = emit(
         &service,
         &Options {
@@ -340,7 +357,7 @@ fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
         .lines()
         .find(|line| line.starts_with("export const S_CreateCityInput:"))
         .unwrap();
-    assert!(input.ends_with("[]);"));
+    assert!(input.ends_with("[\"name\"]);"));
     let models = &files
         .iter()
         .find(|f| f.path == "src/models.ts")
@@ -352,19 +369,12 @@ fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
 
 #[test]
 fn prototype_named_members_defaults_and_errors_are_own_metadata() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.weather#CitySummary"]["members"]["__proto__"] = serde_json::json!({
-        "target": "smithy.api#Long", "traits": { "smithy.api#default": 3 }
+    let service = weather_with(|text| {
+        text.replace("ConflictError", "__proto__").replace(
+            "structure CitySummary {\n",
+            "structure CitySummary {\n    __proto__: long = 3\n",
+        )
     });
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({ "example.weather#ConflictError": "__proto__" });
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
     let files = emit(
         &service,
         &Options {
@@ -385,16 +395,13 @@ fn prototype_named_members_defaults_and_errors_are_own_metadata() {
         .contents;
     assert!(schemas.contains("[\"__proto__\"]: integer(64)"));
     assert!(schemas.contains("[\"__proto__\"]: parseJson(\"3\")"));
-    assert!(schemas.contains("ConflictError: { status: 409"));
+    assert!(schemas.contains("[\"__proto__\"]: { status: 409"));
     assert!(schemas.contains("new e.__proto__(fields, metadata)"));
 }
 
 #[test]
 fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
-    let service = Model::from_json(include_str!("fixtures/hardening.json"))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load("hardening");
     let files = emit(
         &service,
         &Options {
@@ -439,15 +446,16 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
     assert!(schemas.contains("name: \"Protected\",\n  method: \"GET\",\n  bearer: true"));
     let defaults = schemas
         .lines()
-        .find(|line| line.starts_with("export const S_Defaults:"))
+        .find(|line| line.starts_with("export const S_DefaultsOperationOutput:"))
         .unwrap();
     assert!(defaults.contains("ordinary: parseJson(\"7\")"));
-    assert!(!defaults.contains("optional: parseJson"));
     let input = schemas
         .lines()
-        .find(|line| line.starts_with("export const S_DefaultInput:"))
+        .find(|line| line.starts_with("export const S_DefaultsOperationInput:"))
         .unwrap();
-    assert!(!input.contains("parseJson"));
+    // Input members are required in clients (decision 20), so an input
+    // default is kept like an output's.
+    assert!(input.contains("ordinary: parseJson(\"7\")"));
 
     // Generated method allocation must not depend on an input model's order.
     let mut reordered = service.clone();
@@ -486,12 +494,7 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
 /// docs/sdk-packaging.md's table says, and the README and license are copied.
 #[test]
 fn package_metadata_matches_golden() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let mut options = options("@example/weather");
     let metadata = &mut options.metadata;
     metadata.description = Some("Client for the Weather API.".into());
@@ -550,12 +553,7 @@ fn package_metadata_matches_golden() {
 /// without the generator writing either.
 #[test]
 fn the_package_lists_provenance_it_does_not_write() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let files = emit(&service, &options("weather")).unwrap();
     let package: serde_json::Value = serde_json::from_str(file(&files, "package.json")).unwrap();
     assert_eq!(
@@ -576,12 +574,7 @@ fn the_package_lists_provenance_it_does_not_write() {
 
 #[test]
 fn package_json_cannot_override_what_the_package_owns() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let mut options = options("weather");
     options.package_json = Some(serde_json::json!({
         "name": "other", "version": "9.9.9", "crucible": {}, "files": [],
@@ -625,10 +618,7 @@ fn file<'a>(files: &'a [crucible_codegen_ts::File], path: &str) -> &'a str {
 
 #[test]
 fn shapes_named_after_globals_do_not_shadow_them() {
-    let service = Model::from_json(include_str!("fixtures/globals.json"))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load("globals");
     let files = emit(&service, &options("globals")).unwrap();
     let models = file(&files, "src/models.ts");
     assert!(models.contains("export interface Record {"), "{models}");
@@ -654,16 +644,7 @@ fn shapes_named_after_globals_do_not_shadow_them() {
 #[test]
 fn reserved_names_are_diagnostics() {
     for name in ["globalThis", "m", "class"] {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({ "example.weather#CitySummary": name });
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let service = weather_with(|text| text.replace("CitySummary", name));
         let diagnostics = emit(&service, &options("weather")).unwrap_err().to_string();
         assert!(
             diagnostics.contains(&format!("`{name}` is reserved")),
@@ -674,12 +655,7 @@ fn reserved_names_are_diagnostics() {
 
 #[test]
 fn configured_client_cannot_shadow_the_service_exception() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let mut options = options("weather");
     options.client_name = Some("WeatherException".into());
     assert!(
@@ -695,10 +671,7 @@ fn configured_client_cannot_shadow_the_service_exception() {
 /// the import's name (TS2395) yet stay reachable as `spec.Schema`.
 #[test]
 fn operations_named_like_schemas_imports_are_exported_under_an_alias() {
-    let service = Model::from_json(include_str!("fixtures/globals.json"))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load("globals");
     let options = Options {
         package_name: "globals".into(),
         package_version: "0.0.0".into(),
@@ -740,29 +713,14 @@ fn operations_named_like_schemas_imports_are_exported_under_an_alias() {
 /// has that name must not be redeclared by it.
 #[test]
 fn the_import_alias_avoids_another_operations_name() {
-    let mut model: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/globals.json")).unwrap();
-    let shapes = model["shapes"].as_object_mut().unwrap();
-    let service_id = shapes
-        .iter()
-        .find(|(_, shape)| shape["type"] == "service")
-        .map(|(id, _)| id.clone())
-        .unwrap();
-    shapes.insert(
-        "example.globals#__op_Schema".into(),
-        serde_json::json!({
-            "type": "operation",
-            "traits": { "smithy.api#http": { "method": "GET", "uri": "/op-schema" } }
-        }),
-    );
-    shapes.get_mut(&service_id).unwrap()["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(serde_json::json!({ "target": "example.globals#__op_Schema" }));
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = compile_with("globals", |text| {
+        if !text.contains("service Globals") {
+            return text;
+        }
+        text.replace("operations [", "operations [__op_Schema, ")
+            + "\nreadonly operation __op_Schema {\n    http GET \"/op-schema\"\n}\n"
+    })
+    .unwrap_or_else(|rendered| panic!("globals compiles:\n{rendered}"));
     let options = Options {
         package_name: "globals".into(),
         package_version: "0.0.0".into(),
@@ -794,10 +752,7 @@ fn the_import_alias_avoids_another_operations_name() {
 
 #[test]
 fn documentation_and_formatting_use_the_lowered_contract() {
-    let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
-        .unwrap();
+    let service = load("client-docs");
     let files = emit(
         &service,
         &Options {
@@ -837,12 +792,7 @@ fn documentation_and_formatting_use_the_lowered_contract() {
 
 #[test]
 fn representation_method_collisions_are_diagnosed() {
-    let service = Model::from_json(include_str!(
-        "../../../tests/fixtures/client-docs-ts-collisions.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_ts::capabilities())
-    .unwrap();
+    let service = load("client-docs-ts-collisions");
     let diagnostics = emit(
         &service,
         &Options {

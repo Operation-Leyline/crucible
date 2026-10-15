@@ -1,0 +1,30 @@
+list Array: Record
+
+enum Color {
+    RED
+    BLUE
+}
+
+map ColorMap: Color -> Partial
+
+string Date
+
+map Map: string -> Record
+
+structure Partial {
+    value?: integer
+}
+
+structure Promise {
+    settled?: boolean
+}
+
+structure Record {
+    name?: string
+}
+
+list Set: string
+
+structure Uint8Array {
+    size?: integer
+}

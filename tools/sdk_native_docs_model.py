@@ -1,13 +1,13 @@
 """Add documentation and sensitivity examples only to native qualification models."""
-import json
-from sdk_test_support import ROOT
+import shutil
+
+from sdk_cru_packages import replace_once
 from sdk_conformance_model import qualification_model as base_model
+from sdk_test_support import ROOT
 
 
 def qualification_model(output):
-    path = base_model(output)
-    model = json.loads(path.read_text(encoding="utf-8"))
-    model["shapes"].update(json.loads((ROOT / "tests/conformance/native-docs.json").read_text(encoding="utf-8")))
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] = {"target": "example.weather#DebugModel"}
-    path.write_text(json.dumps(model), encoding="utf-8")
-    return path
+    package = base_model(output)
+    shutil.copyfile(ROOT / "tests/conformance/native-docs.cru", package / "native-docs.cru")
+    replace_once(package, "expectedRevision?: long\n", "expectedRevision?: long\n        debugModel?: DebugModel\n")
+    return package

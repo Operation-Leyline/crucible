@@ -12,7 +12,6 @@ weather-model = { path = "../weather-model" }
 
 [build-dependencies]
 crucible-build = { path = "../../crates/crucible-build" }
-serde_json = "1"
 
 [dev-dependencies]
 base64 = "0.22"

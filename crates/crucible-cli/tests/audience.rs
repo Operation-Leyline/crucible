@@ -1,6 +1,6 @@
 use std::{fs, process::Command};
 
-const MODEL: &str = include_str!("../../crucible-smithy/tests/fixtures/internal.json");
+mod common;
 
 fn run(arguments: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_crucible"))
@@ -12,8 +12,8 @@ fn run(arguments: &[&str]) -> std::process::Output {
 #[test]
 fn cli_defaults_external_and_explicit_internal_preserves_full_api() {
     let root = tempfile::tempdir().unwrap();
-    let model = root.path().join("model.json");
-    fs::write(&model, MODEL).unwrap();
+    common::install_shared(root.path(), "internal");
+    let model = root.path().join("internal");
     let model = model.to_str().unwrap();
     for target in ["ts", "openapi"] {
         for internal in [false, true] {
@@ -79,12 +79,8 @@ fn cli_defaults_external_and_explicit_internal_preserves_full_api() {
 #[test]
 fn projection_failure_preserves_existing_document_and_collects_refusals() {
     let root = tempfile::tempdir().unwrap();
-    let model = root.path().join("model.json");
-    fs::write(
-        &model,
-        include_str!("../../crucible-smithy/tests/fixtures/internal-required-member.json"),
-    )
-    .unwrap();
+    common::install_shared(root.path(), "internal-required-member");
+    let model = root.path().join("internal-required-member");
     let out = root.path().join("openapi.json");
     fs::write(&out, "previous publication").unwrap();
     let result = run(&[
@@ -118,20 +114,28 @@ fn service_cli_checks_capabilities_after_audience_projection_without_panicking()
             (true, "external", true),
         ] {
             let root = tempfile::tempdir().unwrap();
-            let model = root.path().join("model.json");
+            let model = root.path().join("internal");
             let out = root.path().join("cli");
             fs::create_dir(&out).unwrap();
             let previous = out.join("schema.json");
             if !succeeds {
                 fs::write(&previous, "previous publication").unwrap();
             }
-            let mut value: serde_json::Value = serde_json::from_str(MODEL).unwrap();
-            let mut member = serde_json::json!({"target": format!("smithy.api#{kind}")});
-            if hidden {
-                member["traits"] = serde_json::json!({"smithy.api#internal": {}});
-            }
-            value["shapes"]["example.audience#PublicInput"]["members"]["big"] = member;
-            fs::write(&model, value.to_string()).unwrap();
+            common::copy_package(&common::shared_package("internal"), &model);
+            let public = model.join("operations/service/Public.cru");
+            let text = fs::read_to_string(&public).unwrap();
+            let big = format!(
+                "        {}big?: {}\n",
+                if hidden { "internal " } else { "" },
+                if kind == "BigInteger" {
+                    "bigInteger"
+                } else {
+                    "bigDecimal"
+                }
+            );
+            let marker = "        value?: string\n";
+            assert!(text.contains(marker));
+            fs::write(&public, text.replacen(marker, &format!("{marker}{big}"), 1)).unwrap();
             let result = run(&[
                 "generate",
                 "cli",

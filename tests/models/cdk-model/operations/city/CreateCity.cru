@@ -1,0 +1,13 @@
+operation CreateCity creates City {
+    http POST "/cities" -> 201
+    input {
+        name: Name
+        settings?: Settings
+        tags?: Tags
+        mode?: Mode
+        labels?: Labels
+    }
+    output {
+        id: string
+    }
+}

@@ -1,0 +1,62 @@
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+operation Inspect {
+    http POST "/inspect" -> 200
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    input {
+        /// Member documentation.
+        value?: Record
+    }
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    output {
+        /// ## Details
+        ///
+        /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+        ///
+        /// ```text
+        /// line one
+        /// line two
+        /// ```
+        ///
+        /// Label marker.
+        label?: string
+        /// Member documentation.
+        sensitive secret?: string
+        /// Member documentation.
+        token?: Token
+        /// Member documentation.
+        children?: Records
+        /// Member documentation.
+        lookup?: RecordMap
+        /// Member documentation.
+        choice?: Choice
+        /// Member documentation.
+        hidden?: Hidden
+        /// Member documentation.
+        status?: Status
+        /// Member documentation.
+        code?: Code
+        sensitive __proto__?: string
+    }
+    errors [Problem]
+}

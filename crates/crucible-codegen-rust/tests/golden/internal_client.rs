@@ -546,6 +546,7 @@ static PUBLIC_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Public {
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &PUBLIC_OPERATION;
     type Input = model::PublicInput;
     type Output = PublicOutput;
@@ -624,6 +625,7 @@ static SECRET_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Secret {
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
+    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
     const HAS_OUTPUT: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &SECRET_OPERATION;
     type Input = model::SecretInput;

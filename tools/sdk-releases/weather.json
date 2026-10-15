@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "service": "example.weather#Weather",
-  "model": "../../crates/crucible-smithy/tests/fixtures/weather.json",
+  "model": "../../tests/models/weather",
   "generator": ["cargo", "run", "--locked", "--manifest-path", "{source}/../../Cargo.toml", "-q", "-p", "crucible-cli", "--"],
   "targets": {
     "python": {

@@ -5,11 +5,60 @@ import shutil
 from pathlib import Path
 import tempfile
 
+from sdk_cru_packages import add_operations, copy_package, rename_shapes, write_package
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from sdk_test_support import ROOT, run, weather
 
 CMAKE = os.environ.get("CMAKE", "cmake")
+
+HEADER_ECHO = """readonly operation HeaderEcho {
+    http GET "/header" -> 200
+    input {
+        @header("X-Items")
+        items?: Tags
+    }
+    output {
+        @header("X-Items")
+        items?: Tags
+    }
+}
+"""
+
+RECURSIVE = """service Service {
+    version "1"
+    protocol json
+    operations [Get]
+}
+
+readonly operation Get {
+    http GET "/" -> 200
+    output {
+        node?: Node
+        choice?: Choice
+        loop?: Loop
+        document: document
+    }
+}
+
+structure Node {
+    next?: Node
+    children?: Nodes
+    lookup?: NodeMap
+}
+
+list Nodes: Node
+
+map NodeMap: string -> Node
+
+list Loop: Node
+
+union Choice {
+    node: Node
+    choice: Choice
+    none
+}
+"""
 
 
 def configure(source, build, *args, prefix=None):
@@ -49,43 +98,21 @@ def generate(model, output, package="weather_client", prefix="weather", *extra):
 
 def models(output):
     for name, fixture_name, prefix in [("extended", "extended-types", "types"), ("wire", "error-payloads", "wire")]:
-        generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", output / name, f"{prefix}_client", prefix)
+        generate(ROOT / "tests/models" / fixture_name, output / name, f"{prefix}_client", prefix)
     # Payload Content-Type precedence, from the model shared with the Python generator's tests.
-    generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", output / "payload", "payload_client", "payload")
+    generate(ROOT / "tests/models/payload-bindings", output / "payload", "payload_client", "payload")
     source = qualification_model(output)
-    model = json.loads(source.read_text(encoding="utf-8"))
-    shapes = model["shapes"]
-    for name in ["HeaderInput", "HeaderOutput"]:
-        shapes["example.weather#" + name] = {"type": "structure", "members": {
-            "items": {"target": "example.weather#Tags", "traits": {"smithy.api#httpHeader": "X-Items"}}}}
-    shapes["example.weather#HeaderEcho"] = {"type": "operation", "input": {"target": "example.weather#HeaderInput"},
-        "output": {"target": "example.weather#HeaderOutput"}, "traits": {
-            "smithy.api#readonly": {}, "smithy.api#http": {"method": "GET", "uri": "/header", "code": 200}}}
-    shapes["example.weather#Weather"]["operations"].append({"target": "example.weather#HeaderEcho"})
-    source.write_text(json.dumps(model), encoding="utf-8")
+    (source / "header.cru").write_text(HEADER_ECHO, encoding="utf-8", newline="\n")
+    add_operations(source, "HeaderEcho")
     generate(source, output / "sdk")
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text(encoding="utf-8"))
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time"}
-    edge = output / "edge.json"
-    edge.write_text(json.dumps(renamed), encoding="utf-8")
+    edge = copy_package("weather", output / "edge-model")
+    rename_shapes(edge, {"CitySummary": "String", "Location": "Array", "Sky": "Time"})
     generate(edge, output / "edge", "edge_client", "edge")
-    generate(ROOT / "tests/conformance/empty-service.json", output / "empty", "empty_client", "empty")
+    generate(ROOT / "tests/models/empty-service", output / "empty", "empty_client", "empty")
     # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.
     generate(ROOT / "tests/fixtures/permissions", output / "permissions", "leyline_client", "leyline")
-    recursive = {"smithy": "2.0", "shapes": {
-        "test#Service": {"type": "service", "version": "1", "operations": [{"target": "test#Get"}], "traits": {"crucible.protocols#json": {}}},
-        "test#Get": {"type": "operation", "output": {"target": "test#Root"}, "traits": {"smithy.api#http": {"method": "GET", "uri": "/", "code": 200}}},
-        "test#Root": {"type": "structure", "members": {"node": {"target": "test#Node"}, "choice": {"target": "test#Choice"}, "loop": {"target": "test#Loop"}, "document": {"target": "smithy.api#Document", "traits": {"smithy.api#required": {}}}}},
-        "test#Node": {"type": "structure", "members": {"next": {"target": "test#Node"}, "children": {"target": "test#Nodes"}, "lookup": {"target": "test#NodeMap"}}},
-        "test#Nodes": {"type": "list", "member": {"target": "test#Node"}},
-        "test#NodeMap": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "test#Node"}},
-        "test#Loop": {"type": "list", "member": {"target": "test#Node"}},
-        "test#Choice": {"type": "union", "members": {"node": {"target": "test#Node"}, "choice": {"target": "test#Choice"}, "none": {"target": "smithy.api#Unit"}}},
-    }}
-    path = output / "recursive.json"
-    path.write_text(json.dumps(recursive), encoding="utf-8")
-    generate(path, output / "recursive", "recursive_client", "weather")
+    recursive = write_package(output / "recursive-model", "test", **{"recursive.cru": RECURSIVE})
+    generate(recursive, output / "recursive", "recursive_client", "weather")
 
 
 def check_docs(package):

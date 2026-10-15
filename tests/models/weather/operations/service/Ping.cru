@@ -1,0 +1,4 @@
+@deprecated(since: "2026-09", message: "Use Status instead.")
+readonly operation Ping {
+    http GET "/ping"
+}

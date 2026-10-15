@@ -1,0 +1,3 @@
+readonly operation Protected {
+    http GET "/Protected"
+}

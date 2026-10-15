@@ -1,0 +1,13 @@
+readonly operation Read {
+    http GET "/types"
+    output {
+        integer: bigInteger = 12345678901234567890123456789012345678901234567890
+        decimal: bigDecimal = 12345678901234567890.12345678901234567890123456789
+        mode?: Mode
+        names?: Names
+        integers?: Integers
+        decimals?: Decimals
+        sparseNames?: SparseNames
+        sparseMap?: SparseMap
+    }
+}

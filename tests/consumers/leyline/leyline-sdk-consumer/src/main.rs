@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // No credential: the service's modelled refusal arrives as a typed error.
     let refused = client
-        .get_graph(GetGraphInput::builder().graph_id("g-1").build())
+        .get_graph(GetGraphInput::builder().graph_id("g-1").build().unwrap())
         .await;
     match refused {
         Err(Error::Service(error)) => {

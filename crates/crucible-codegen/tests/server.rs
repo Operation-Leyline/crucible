@@ -1,16 +1,11 @@
 #![cfg(feature = "rust")]
 
 use crucible_codegen::{Generator, RustServerOptions, Server};
-use crucible_smithy::Model;
+mod common;
 
 #[test]
 fn server_artifacts_have_a_distinct_target_and_use_the_native_emitter() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = common::load("weather");
     let server = Server::Rust(RustServerOptions::default());
     assert_eq!(server.capabilities(), crucible_codegen_rust::capabilities());
     let generator = Generator::from(server);

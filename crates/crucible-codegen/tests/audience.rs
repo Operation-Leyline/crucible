@@ -1,16 +1,11 @@
 #![cfg(feature = "rust")]
 
 use crucible_codegen::{Audience, Client, Generator, Server};
-use crucible_smithy::Model;
+mod common;
 
 #[test]
 fn shared_selection_filters_clients_and_never_filters_server_outputs() {
-    let full = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/internal.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let full = common::load("internal");
     let client = Client::Rust(Default::default());
     let files = client.emit(&full).unwrap();
     assert!(

@@ -24,9 +24,9 @@ fn native_builders_preserve_omission_defaults_and_collision_names() {
     );
     assert_eq!(value.build().map(String::as_str), Some("collision"));
     assert_eq!(value.items().unwrap().len(), 1);
-    assert!(
-        value.fallback.is_absent(),
-        "optional defaults remain omitted in requests"
+    assert_eq!(
+        value.fallback, 3,
+        "a default member holds its modeled value"
     );
     assert_eq!(value.document(), None);
     value.document = Field::Null;
@@ -35,8 +35,8 @@ fn native_builders_preserve_omission_defaults_and_collision_names() {
     let decoded: Root = serde_json::from_value(serde_json::to_value(value).unwrap()).unwrap();
     assert_eq!(
         decoded.fallback(),
-        None,
-        "clientOptional suppresses the modeled default"
+        &3,
+        "the modeled default survives a round trip"
     );
     let city = weather_client::CitySummary::builder()
         .id("city")
@@ -56,10 +56,10 @@ fn required_document_null_is_present_and_missing_is_rejected() {
     let value: Root = serde_json::from_str(r#"{"requiredDocument":null}"#).unwrap();
     assert_eq!(value.required_document, Value::Null);
     assert_eq!(value.document, Field::Absent);
-    assert_eq!(value.fallback, Field::Absent);
+    assert_eq!(value.fallback, 3);
     assert_eq!(
         serde_json::to_value(value).unwrap(),
-        json!({"requiredDocument":null})
+        json!({"requiredDocument":null,"fallback":3})
     );
 }
 
@@ -67,7 +67,7 @@ fn required_document_null_is_present_and_missing_is_rejected() {
 fn optional_documents_lists_recursive_members_and_defaults_keep_presence() {
     for wire in [
         json!({"requiredDocument":null,"fallback":3}),
-        json!({"requiredDocument":null,"document":null,"items":null,"next":null,"fallback":null,"httpDate":null}),
+        json!({"requiredDocument":null,"document":null,"items":null,"next":null,"fallback":3,"httpDate":null}),
         json!({"requiredDocument":{},"document":[],"items":[{"nil":null},{},[]],"next":{"requiredDocument":null,"fallback":3},"fallback":0,"httpDate":"Thu, 01 Jan 1970 00:00:00 GMT"}),
     ] {
         let value: Root = serde_json::from_value(wire.clone()).unwrap();

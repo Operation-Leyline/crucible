@@ -1,0 +1,3 @@
+structure Record {
+    name?: string
+}

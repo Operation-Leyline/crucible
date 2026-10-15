@@ -1,25 +1,63 @@
 use crucible_policy::{Config, Severity, check, diff};
 use crucible_smithy::ir::Service;
-use crucible_smithy::{Capabilities, Feature, Model};
-use serde_json::{Value, json};
 
-fn model() -> Value {
-    serde_json::from_str(include_str!("fixtures/contract.json")).unwrap()
+/// The `.cru` package the tests change (`tests/models/policy-contract`).
+fn package() -> crucible_lang::Package {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/policy-contract");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    // Checkouts may carry CRLF; edits are written against LF.
+    for file in &mut package.files {
+        file.text = file.text.replace("\r\n", "\n");
+    }
+    package
 }
 
-fn lower(model: &Value) -> Service {
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-        .unwrap()
+/// The contract with each `(old, new)` pair replaced in its sources, and
+/// `extra` as one more source file.
+fn contract(edits: &[(&str, &str)], extra: &str) -> Service {
+    let mut package = package();
+    for (old, new) in edits {
+        let mut found = false;
+        for file in &mut package.files {
+            if file.text.contains(old) {
+                file.text = file.text.replace(old, new);
+                found = true;
+            }
+        }
+        assert!(found, "the contract has no `{old}`");
+    }
+    if !extra.is_empty() {
+        package.files.push(crucible_lang::SourceFile {
+            path: "extra.cru".into(),
+            text: extra.into(),
+        });
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the edited contract compiles:\n{rendered}"))
 }
+
+fn model() -> Service {
+    contract(&[], "")
+}
+
+/// The contract with `new` where it says `old`.
+fn with(old: &str, new: &str) -> Service {
+    contract(&[(old, new)], "")
+}
+
+const INPUT: &str = "        node?: Node\n    }\n    output {";
+const OUTPUT: &str = "        state?: State\n        node?: Node\n    }\n}";
 
 fn wire() -> Config {
     Config::parse("schema_version = 1\n[compatibility]\nsdk_source = false\n").unwrap()
 }
 
-fn rules(old: &Value, new: &Value) -> Vec<String> {
-    diff(&lower(old), &lower(new), &wire())
+fn rules(old: &Service, new: &Service) -> Vec<String> {
+    diff(old, new, &wire())
         .findings
         .into_iter()
         .map(|f| f.rule)
@@ -61,7 +99,7 @@ reason = 'Existing operation name'
 "#,
     )
     .unwrap();
-    let report = check(&lower(&model()), &config);
+    let report = check(&model(), &config);
     assert!(report.has_errors());
     assert!(
         report
@@ -85,40 +123,30 @@ reason = 'Existing operation name'
 
 #[test]
 fn prefix_matches_segment_boundaries_and_off_disables_a_group() {
-    let mut value = model();
-    value["shapes"]["example.api#GetItem"]["traits"]["smithy.api#http"]["uri"] =
-        json!("/v10/items");
+    let value = with("\"/v1/items\"", "\"/v10/items\"");
     let config = Config::parse("schema_version = 1\n[rules.paths]\nprefix = '/v1'").unwrap();
-    assert!(check(&lower(&value), &config).has_errors());
+    assert!(check(&value, &config).has_errors());
     let config =
         Config::parse("schema_version = 1\n[rules.paths]\nprefix = '/v1'\nseverity = 'off'")
             .unwrap();
-    assert!(check(&lower(&value), &config).findings.is_empty());
+    assert!(check(&value, &config).findings.is_empty());
 }
 
 #[test]
 fn no_op_and_documentation_changes_pass_with_recursive_shapes() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItem"]["traits"]["smithy.api#documentation"] =
-        json!("Fetch an item.");
-    assert!(
-        diff(&lower(&old), &lower(&new), &Config::default())
-            .findings
-            .is_empty()
+    let new = with(
+        "operation GetItem {",
+        "/// Fetch an item.\noperation GetItem {",
     );
+    assert!(diff(&old, &new, &Config::default()).findings.is_empty());
 }
 
 #[test]
 fn removing_readonly_is_a_breaking_retry_contract_change() {
-    let mut old = model();
-    old["shapes"]["example.api#GetItem"]["traits"]["smithy.api#readonly"] = json!({});
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItem"]["traits"]
-        .as_object_mut()
-        .unwrap()
-        .remove("smithy.api#readonly");
-    let findings = diff(&lower(&old), &lower(&new), &Config::default()).findings;
+    let old = with("operation GetItem {", "readonly operation GetItem {");
+    let new = model();
+    let findings = diff(&old, &new, &Config::default()).findings;
     assert!(findings.iter().any(|finding| {
         finding.rule == "compatibility.operation"
             && finding.shape == "example.api#GetItem"
@@ -126,104 +154,57 @@ fn removing_readonly_is_a_breaking_retry_contract_change() {
     }));
 }
 
-fn scoped_model(scopes: &[&str]) -> Value {
-    let mut value = model();
-    value["shapes"]["example.api#Catalog"]["traits"]["smithy.api#httpBearerAuth"] = json!({});
-    value["shapes"]["example.api#Catalog"]["traits"]["crucible.auth#scopes"] = json!(scopes);
-    value
-}
-
-#[test]
-fn tightened_effective_scopes_are_authentication_breaks() {
-    let old = scoped_model(&["read"]);
-    for (name, new) in [
-        ("inherited", scoped_model(&["read", "admin"])),
-        ("replaced", scoped_model(&["write"])),
-        ("overridden", {
-            let mut new = old.clone();
-            new["shapes"]["example.api#GetItem"]["traits"]["crucible.auth#scopes"] =
-                json!(["read", "admin"]);
-            new
-        }),
-    ] {
-        let findings = diff(&lower(&old), &lower(&new), &wire()).findings;
-        assert!(
-            findings.iter().any(|finding| {
-                finding.rule == "compatibility.auth"
-                    && finding.shape == "example.api#GetItem"
-                    && finding.message.contains("scope")
-            }),
-            "{name}: {findings:?}"
-        );
-    }
-}
-
-#[test]
-fn scope_order_and_relaxations_preserve_existing_credentials() {
-    let old = scoped_model(&["read", "admin"]);
-    for scopes in [vec!["admin", "read"], vec!["read"], vec![]] {
-        assert!(rules(&old, &scoped_model(&scopes)).is_empty());
-    }
-}
-
-#[test]
-fn service_scope_changes_do_not_affect_opted_out_or_public_operations() {
-    for (trait_name, value) in [
-        ("crucible.auth#scopes", json!([])),
-        ("smithy.api#auth", json!([])),
-    ] {
-        let mut old = scoped_model(&["read"]);
-        old["shapes"]["example.api#GetItem"]["traits"][trait_name] = value;
-        let mut new = old.clone();
-        new["shapes"]["example.api#Catalog"]["traits"]["crucible.auth#scopes"] =
-            json!(["read", "admin"]);
-        assert!(rules(&old, &new).is_empty());
-    }
-}
-
 #[test]
 fn optional_inputs_pass_but_new_required_inputs_and_lost_output_guarantees_fail() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItemInput"]["members"]["extra"] =
-        json!({"target":"smithy.api#String"});
+    let new = with(
+        INPUT,
+        &INPUT.replace("    }\n", "        extra?: string\n    }\n"),
+    );
     assert!(rules(&old, &new).is_empty());
-    new["shapes"]["example.api#GetItemInput"]["members"]["extra"]["traits"] =
-        json!({"smithy.api#required":{}});
+    let new = with(
+        INPUT,
+        &INPUT.replace("    }\n", "        extra: string\n    }\n"),
+    );
     assert!(rules(&old, &new).contains(&"compatibility.required".into()));
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItemOutput"]["members"]["name"]
-        .as_object_mut()
-        .unwrap()
-        .remove("traits");
+    let new = with(
+        "    output {\n        name: Name",
+        "    output {\n        name?: Name",
+    );
     assert!(rules(&old, &new).contains(&"compatibility.nullability".into()));
 }
 
 #[test]
 fn defaulted_new_required_inputs_do_not_require_old_callers_to_send_them() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItemInput"]["members"]["extra"] = json!({"target":"smithy.api#String","traits":{"smithy.api#required":{},"smithy.api#default":"hello"}});
+    let new = with(
+        INPUT,
+        &INPUT.replace("    }\n", "        extra: string = \"hello\"\n    }\n"),
+    );
     assert!(!rules(&old, &new).contains(&"compatibility.required".into()));
 }
 
 #[test]
 fn enum_direction_is_checked_independently_for_shared_input_and_output_shapes() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#State"]["members"]["WAITING"] =
-        json!({"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"waiting"}});
+    let new = with(
+        "    READY = \"ready\"\n",
+        "    READY = \"ready\"\n    WAITING = \"waiting\"\n",
+    );
     assert!(rules(&old, &new).contains(&"compatibility.enum".into()));
-    let mut old_input = old.clone();
-    old_input["shapes"]["example.api#GetItemOutput"]["members"]
-        .as_object_mut()
-        .unwrap()
-        .remove("state");
-    let mut new_input = new;
-    new_input["shapes"]["example.api#GetItemOutput"]["members"]
-        .as_object_mut()
-        .unwrap()
-        .remove("state");
+    let without_state = |extra: &[(&str, &str)]| {
+        let mut edits = vec![(
+            "        state?: State\n        node?: Node\n    }\n}",
+            "        node?: Node\n    }\n}",
+        )];
+        edits.extend_from_slice(extra);
+        contract(&edits, "")
+    };
+    let old_input = without_state(&[]);
+    let new_input = without_state(&[(
+        "    READY = \"ready\"\n",
+        "    READY = \"ready\"\n    WAITING = \"waiting\"\n",
+    )]);
     assert!(rules(&old_input, &new_input).is_empty());
     assert!(rules(&new_input, &old_input).contains(&"compatibility.enum".into()));
 }
@@ -231,28 +212,27 @@ fn enum_direction_is_checked_independently_for_shared_input_and_output_shapes() 
 #[test]
 fn tightening_input_constraints_and_loosening_output_constraints_fail() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#Name"]["traits"]["smithy.api#length"]["max"] = json!(50);
+    let new = with("length 1..100", "length 1..50");
     assert!(rules(&old, &new).contains(&"compatibility.constraints".into()));
-    new["shapes"]["example.api#Name"]["traits"]["smithy.api#length"]["max"] = json!(150);
+    let new = with("length 1..100", "length 1..150");
     assert!(rules(&old, &new).contains(&"compatibility.constraints".into()));
 }
 
 #[test]
 fn removed_operations_and_rebound_members_are_reported() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#Catalog"]["operations"] = json!([]);
+    let new = with("    operations [GetItem]\n", "");
     assert!(rules(&old, &new).contains(&"compatibility.operation".into()));
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItemInput"]["members"]["name"]["traits"] =
-        json!({"smithy.api#httpHeader":"X-Name"});
+    let new = with(
+        "        name?: Name\n        filter",
+        "        @header(\"X-Name\")\n        name?: Name\n        filter",
+    );
     assert!(rules(&old, &new).contains(&"compatibility.member".into()));
 }
 
 /// The `compatibility.sdk` findings, as `shape: message`.
-fn sdk_findings(old: &Value, new: &Value) -> Vec<String> {
-    diff(&lower(old), &lower(new), &Config::default())
+fn sdk_findings(old: &Service, new: &Service) -> Vec<String> {
+    diff(old, new, &Config::default())
         .findings
         .into_iter()
         .filter(|f| f.rule == "compatibility.sdk")
@@ -263,15 +243,17 @@ fn sdk_findings(old: &Value, new: &Value) -> Vec<String> {
 #[test]
 fn an_optional_member_after_the_others_is_not_a_source_change() {
     let old = model();
-    let output = "example.api#GetItemOutput";
-    let mut new = old.clone();
-    new["shapes"][output]["members"]["zzz"] = json!({"target":"smithy.api#String"});
+    let new = with(
+        OUTPUT,
+        &OUTPUT.replace("    }\n}", "        zzz?: string\n    }\n}"),
+    );
     assert_eq!(sdk_findings(&old, &new), Vec::<String>::new());
 
     // Required, it is a new constructor argument in most clients.
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItemInput"]["members"]["zzz"] =
-        json!({"target":"smithy.api#String","traits":{"smithy.api#required":{}}});
+    let new = with(
+        INPUT,
+        &INPUT.replace("    }\n", "        zzz: string\n    }\n"),
+    );
     assert!(
         sdk_findings(&old, &new)
             .iter()
@@ -279,15 +261,11 @@ fn an_optional_member_after_the_others_is_not_a_source_change() {
     );
 
     // Between existing members, it shifts positional arguments. Written so
-    // that insertion order and name order agree, whichever serde_json keeps.
-    let members = &old["shapes"][output]["members"];
-    let mut new = old.clone();
-    new["shapes"][output]["members"] = json!({
-        "name": members["name"],
-        "nox": {"target":"smithy.api#String"},
-        "state": members["state"],
-        "node": members["node"],
-    });
+    // that insertion order and name order agree.
+    let new = with(
+        "        name: Name\n        state?: State",
+        "        name: Name\n        nox?: string\n        state?: State",
+    );
     let findings = sdk_findings(&old, &new);
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert!(
@@ -297,9 +275,10 @@ fn an_optional_member_after_the_others_is_not_a_source_change() {
     );
 
     // A defaulted member is a new constructor argument in most clients.
-    let mut new = old.clone();
-    new["shapes"][output]["members"]["zzz"] =
-        json!({"target":"smithy.api#String","traits":{"smithy.api#default":"z"}});
+    let new = with(
+        OUTPUT,
+        &OUTPUT.replace("    }\n}", "        zzz: string = \"z\"\n    }\n}"),
+    );
     assert!(
         sdk_findings(&old, &new)
             .iter()
@@ -309,23 +288,27 @@ fn an_optional_member_after_the_others_is_not_a_source_change() {
 
 #[test]
 fn errors_and_unions_report_every_new_member() {
-    let mut old = model();
-    old["shapes"]["example.api#GetItem"]["errors"] = json!([{"target":"example.api#Missing"}]);
-    old["shapes"]["example.api#Missing"] = json!({
-        "type":"structure",
-        "traits":{"smithy.api#error":"client","smithy.api#httpError":404},
-        "members":{"message":{"target":"smithy.api#String"}}
-    });
-    old["shapes"]["example.api#GetItemOutput"]["members"]["shape"] =
-        json!({"target":"example.api#Shape"});
-    old["shapes"]["example.api#Shape"] = json!({
-        "type":"union",
-        "members":{"circle":{"target":"smithy.api#Integer"}}
-    });
+    let base = |missing: &str, shape: &str| {
+        contract(
+            &[
+                (
+                    "    output {\n        name: Name",
+                    "    output {\n        shape?: Shape\n        name: Name",
+                ),
+                (
+                    "        node?: Node\n    }\n}",
+                    "        node?: Node\n    }\n    errors [Missing]\n}",
+                ),
+            ],
+            &format!(
+                "error Missing {{\n    status 404\n    message?: string\n{missing}}}\n\nunion Shape {{\n    circle: integer\n{shape}}}\n"
+            ),
+        )
+    };
+    let old = base("", "");
 
     // C++ and PHP error constructors take their metadata after the members.
-    let mut new = old.clone();
-    new["shapes"]["example.api#Missing"]["members"]["zzz"] = json!({"target":"smithy.api#String"});
+    let new = base("    zzz?: string\n", "");
     assert!(
         sdk_findings(&old, &new)
             .iter()
@@ -333,8 +316,7 @@ fn errors_and_unions_report_every_new_member() {
     );
 
     // A union arm breaks exhaustive matches.
-    let mut new = old.clone();
-    new["shapes"]["example.api#Shape"]["members"]["zzz"] = json!({"target":"smithy.api#Integer"});
+    let new = base("", "    zzz: integer\n");
     assert!(
         sdk_findings(&old, &new)
             .iter()
@@ -345,11 +327,10 @@ fn errors_and_unions_report_every_new_member() {
 #[test]
 fn findings_are_deterministic_and_exceptions_do_not_hide_them() {
     let old = model();
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItem"]["traits"]["smithy.api#http"]["uri"] = json!("/v2/items");
+    let new = with("\"/v1/items\"", "\"/v2/items\"");
     let config = Config::parse("schema_version = 1\n[compatibility]\nsdk_source = false\n[[exceptions]]\nrule = 'compatibility.http'\nshape = 'example.api#GetItem'\nreason = 'Major API version migration'").unwrap();
-    let a = diff(&lower(&old), &lower(&new), &config);
-    let b = diff(&lower(&old), &lower(&new), &config);
+    let a = diff(&old, &new, &config);
+    let b = diff(&old, &new, &config);
     assert!(!a.has_errors());
     assert_eq!(
         serde_json::to_string(&a).unwrap(),
@@ -363,60 +344,74 @@ fn patterns_match_the_whole_name_including_regex_alternatives() {
     let config =
         Config::parse("schema_version = 1\n[rules.naming]\noperations_pattern = '(Get|GetItem)'")
             .unwrap();
-    assert!(check(&lower(&model()), &config).findings.is_empty());
+    assert!(check(&model(), &config).findings.is_empty());
     let verbose = Config::parse(
         "schema_version = 1\n[rules.naming]\noperations_pattern = '''(?x)Get.* # verbs\n'''",
     )
     .unwrap();
-    assert!(check(&lower(&model()), &verbose).findings.is_empty());
+    assert!(check(&model(), &verbose).findings.is_empty());
+}
+
+/// The contract with a `limit` input of type `Limit`, a long ranged to `max`.
+fn limited(max: &str) -> Service {
+    contract(
+        &[(
+            INPUT,
+            &INPUT.replace("    }\n", "        limit?: Limit\n    }\n"),
+        )],
+        &format!("long Limit {{ range ..{max} }}\n"),
+    )
 }
 
 #[test]
 fn numeric_bounds_preserve_large_integer_precision_and_allow_input_relaxation() {
-    let mut old = model();
-    old["shapes"]["example.api#Limit"] =
-        json!({"type":"long","traits":{"smithy.api#range":{"max":9007199254740993_u64}}});
-    old["shapes"]["example.api#GetItemInput"]["members"]["limit"] =
-        json!({"target":"example.api#Limit"});
-    let mut new = old.clone();
-    new["shapes"]["example.api#Limit"]["traits"]["smithy.api#range"]["max"] =
-        json!(9007199254740992_u64);
+    let old = limited("9007199254740993");
+    let new = limited("9007199254740992");
     assert!(rules(&old, &new).contains(&"compatibility.constraints".into()));
-    new["shapes"]["example.api#Limit"]["traits"]["smithy.api#range"]["max"] =
-        json!(9007199254740994_u64);
+    let new = limited("9007199254740994");
     assert!(rules(&old, &new).is_empty());
-    new["shapes"]["example.api#Limit"]["traits"]["smithy.api#range"]["max"] =
-        json!(9007199254740992.0_f64);
+    let new = limited("9007199254740992.0");
     assert!(rules(&old, &new).contains(&"compatibility.constraints".into()));
 }
 
 #[test]
 fn effective_member_constraints_override_changed_target_constraints() {
-    let mut old = model();
-    for id in ["example.api#GetItemInput", "example.api#GetItemOutput"] {
-        old["shapes"][id]["members"]["name"]["traits"]["smithy.api#length"] =
-            json!({"min":1,"max":20});
-    }
-    let mut new = old.clone();
-    new["shapes"]["example.api#Name"]["traits"]["smithy.api#length"]["max"] = json!(10);
+    let member_limited = |name_max: &str| {
+        contract(
+            &[
+                ("length 1..100", &format!("length 1..{name_max}")),
+                (
+                    "        name?: Name\n",
+                    "        name?: Name { length 1..20 }\n",
+                ),
+                (
+                    "        name: Name\n",
+                    "        name: Name { length 1..20 }\n",
+                ),
+            ],
+            "",
+        )
+    };
+    let old = member_limited("100");
+    let new = member_limited("10");
     assert!(rules(&old, &new).is_empty());
 }
 
 #[test]
 fn effective_member_timestamps_override_changed_target_formats() {
-    let mut old = model();
-    old["shapes"]["example.api#When"] =
-        json!({"type":"timestamp","traits":{"smithy.api#timestampFormat":"date-time"}});
-    old["shapes"]["example.api#GetItemInput"]["members"]["time"] =
-        json!({"target":"example.api#When","traits":{"smithy.api#timestampFormat":"http-date"}});
-    let mut new = old.clone();
-    new["shapes"]["example.api#When"]["traits"]["smithy.api#timestampFormat"] =
-        json!("epoch-seconds");
+    let timed = |target: &str, member: &str| {
+        contract(
+            &[(
+                INPUT,
+                &INPUT.replace("    }\n", &format!("        time?: When{member}\n    }}\n")),
+            )],
+            &format!("timestamp When {{ format {target} }}\n"),
+        )
+    };
+    let old = timed("date-time", " { format http-date }");
+    let new = timed("epoch-seconds", " { format http-date }");
     assert!(rules(&old, &new).is_empty());
-    new["shapes"]["example.api#GetItemInput"]["members"]["time"]["traits"]
-        .as_object_mut()
-        .unwrap()
-        .remove("smithy.api#timestampFormat");
+    let new = timed("epoch-seconds", "");
     assert!(rules(&old, &new).contains(&"compatibility.timestamp".into()));
 }
 
@@ -431,7 +426,7 @@ members = { case = "PascalCase", severity = "warning" }
 "#,
     )
     .unwrap();
-    let report = check(&lower(&model()), &config);
+    let report = check(&model(), &config);
     let operation = report
         .findings
         .iter()

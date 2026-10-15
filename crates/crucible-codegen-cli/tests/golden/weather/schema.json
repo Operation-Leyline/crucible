@@ -163,7 +163,7 @@
           "flag": "name",
           "target": "example.weather#CityName",
           "description": "",
-          "required": false,
+          "required": true,
           "sensitive": false
         },
         {
@@ -224,7 +224,7 @@
           "flag": "city-id",
           "target": "example.weather#CityId",
           "description": "",
-          "required": false,
+          "required": true,
           "sensitive": false
         },
         {
@@ -278,7 +278,7 @@
           "flag": "city-id",
           "target": "example.weather#CityId",
           "description": "",
-          "required": false,
+          "required": true,
           "sensitive": false
         }
       ],
@@ -444,7 +444,7 @@
           "flag": "city-id",
           "target": "example.weather#CityId",
           "description": "",
-          "required": false,
+          "required": true,
           "sensitive": false
         },
         {
@@ -460,7 +460,7 @@
           "flag": "photo",
           "target": "example.weather#Photo",
           "description": "",
-          "required": false,
+          "required": true,
           "sensitive": false
         }
       ],

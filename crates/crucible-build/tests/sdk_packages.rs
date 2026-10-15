@@ -1,11 +1,10 @@
-#![cfg(all(feature = "rust", feature = "smithy"))]
+#![cfg(feature = "rust")]
 
-use std::cell::Cell;
+mod common;
+
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
-
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
 fn package_probe() {
@@ -15,7 +14,7 @@ fn package_probe() {
     let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     if mode == "audience" {
-        let package = crucible_build::model("model.json").compile();
+        let package = crucible_build::model("internal").compile();
         let external = package.rust_client("public").generate();
         let internal = package
             .rust_client("internal")
@@ -68,20 +67,20 @@ fn package_probe() {
                 .unwrap()
                 .contains("WeatherClient")
         );
-        assert_eq!(package.model_path(), root.join("model.json"));
+        assert_eq!(package.model_path(), root.join("weather"));
         return;
     }
     if mode == "policy" {
         let old = fs::read(out.join("crucible-artifacts.json")).unwrap();
-        let result = crucible_build::model("model.json")
+        let result = crucible_build::model("weather")
             .policy("missing.toml")
-            .try_compile_with(|_, _| panic!("AST must not invoke compiler"));
+            .try_compile_with(|_, _| panic!("a package must not invoke the compiler"));
         assert!(result.is_err());
         assert_eq!(old, fs::read(out.join("crucible-artifacts.json")).unwrap());
         return;
     }
     if mode == "declared" {
-        let package = crucible_build::model("model.json").compile();
+        let package = crucible_build::model("weather").compile();
         let error = package.rust_client("rust").try_generate().unwrap_err();
         assert!(error.contains("[sdk.rust]"), "{error}");
         assert!(!out.join("outputs/rust").exists());
@@ -133,12 +132,12 @@ fn package_probe() {
         return;
     }
     if mode == "undeclared" {
-        let package = crucible_build::model("model.json").compile();
+        let package = crucible_build::model("weather").compile();
         package.rust_client("rust").try_generate().unwrap();
         return;
     }
     if mode == "empty" {
-        let package = crucible_build::model("model.json");
+        let package = crucible_build::model("weather");
         package.publish();
         let index: serde_json::Value =
             serde_json::from_slice(&fs::read(out.join("crucible-artifacts.json")).unwrap())
@@ -146,12 +145,7 @@ fn package_probe() {
         assert_eq!(index["artifacts"], serde_json::json!([]));
         return;
     }
-    let calls = Cell::new(0);
-    let package = crucible_build::model("model").compile_with(|_, output| {
-        calls.set(calls.get() + 1);
-        fs::create_dir_all(output.join("crucible/model"))?;
-        fs::write(output.join("crucible/model/model.json"), WEATHER)
-    });
+    let package = crucible_build::model("weather").compile();
     package.publish();
     let rust = package.rust_client("rust").generate();
     let git = package
@@ -211,7 +205,7 @@ fn package_probe() {
         let before = fs::read(java.path.join("pom.xml")).unwrap();
         // Another model generation session cannot replace a working native SDK
         // when its requested target configuration has diagnostics.
-        let next = crucible_build::model("model.json").compile_with(|_, _| unreachable!());
+        let next = crucible_build::model("weather").compile_with(|_, _| unreachable!());
         assert!(
             next.java_client("java")
                 .package("not a Java package")
@@ -225,11 +219,6 @@ fn package_probe() {
             .package("example.restored")
             .generate();
     }
-    assert_eq!(
-        calls.get(),
-        1,
-        "all SDK variants share a single Smithy compilation"
-    );
 }
 
 fn probe(root: &std::path::Path, mode: &str) -> String {
@@ -238,7 +227,7 @@ fn probe(root: &std::path::Path, mode: &str) -> String {
         .env("CRUCIBLE_SDK_PROBE", mode)
         .env("CARGO_MANIFEST_DIR", root)
         .env("OUT_DIR", root.join("build-output"))
-        .env("DEP_SOURCE_MODEL_MODEL", root.join("model.json"))
+        .env("DEP_SOURCE_MODEL_MODEL", root.join("weather"))
         .env(
             "DEP_SOURCE_MODEL_ARTIFACT_RUST",
             fs::canonicalize(root.join("build-output/outputs/rust"))
@@ -259,9 +248,7 @@ fn probe(root: &std::path::Path, mode: &str) -> String {
 fn one_compile_publishes_named_variants_with_stable_sources_and_explicit_export() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    fs::create_dir(root.join("model")).unwrap();
-    fs::write(root.join("model/api.smithy"), "// compiler seam fixture").unwrap();
-    fs::write(root.join("model.json"), WEATHER).unwrap();
+    common::install_shared(root, "weather");
     let stdout = probe(root, "producer");
     assert!(
         stdout.contains("cargo::metadata=model=")
@@ -287,7 +274,7 @@ fn one_compile_publishes_named_variants_with_stable_sources_and_explicit_export(
 #[test]
 fn a_separate_sdk_package_generates_from_its_model_dependency_without_compilation() {
     let directory = tempfile::tempdir().unwrap();
-    fs::write(directory.path().join("model.json"), WEATHER).unwrap();
+    common::install_shared(directory.path(), "weather");
     let stdout = probe(directory.path(), "dependent");
     assert!(stdout.contains("cargo::metadata=artifact_separate_rust="));
 }
@@ -317,11 +304,7 @@ fn artifact_export_rejects_paths_outside_the_generated_package_before_writing() 
 #[test]
 fn named_outputs_default_external_and_can_select_internal() {
     let root = tempfile::tempdir().unwrap();
-    fs::write(
-        root.path().join("model.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/internal.json"),
-    )
-    .unwrap();
+    common::install_shared(root.path(), "internal");
     probe(root.path(), "audience");
 }
 
@@ -332,12 +315,12 @@ fn a_declared_sdk_is_not_a_builder_output() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
     fs::create_dir(root.join(".git")).unwrap();
-    fs::write(root.join("model.json"), WEATHER).unwrap();
+    common::install_shared(root, "weather");
     fs::write(root.join("README.md"), "# Weather\r\n").unwrap();
     fs::write(root.join("LICENSE"), "Proprietary.\n").unwrap();
     fs::write(
         root.join("crucible-sdk.toml"),
-        "future_key = 1\nschema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"generated/rust\"\nprivate = true\n[sdk.ts]\npackage = \"@example/weather\"\nout = \"generated/ts\"\n",
+        "future_key = 1\nschema_version = 1\nmodel = \"weather\"\n[sdk.rust]\nout = \"generated/rust\"\nprivate = true\n[sdk.ts]\npackage = \"@example/weather\"\nout = \"generated/ts\"\n",
     )
     .unwrap();
     let stdout = probe(root, "declared");
@@ -346,7 +329,7 @@ fn a_declared_sdk_is_not_a_builder_output() {
     let text = fs::read_to_string(root.join("crucible-sdk.toml")).unwrap();
     fs::write(
         root.join("crucible-sdk.toml"),
-        text.replace("model.json", "other-model.json"),
+        text.replace("weather", "other-model"),
     )
     .unwrap();
     probe(root, "undeclared");

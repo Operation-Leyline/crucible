@@ -1,15 +1,41 @@
 use crucible_codegen_php::{Options, emit};
-use crucible_smithy::Model;
 use std::{fs, path::Path};
+
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    compile_with(name, |text| text)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first;
+/// the rendered diagnostics when it does not compile.
+fn compile_with(
+    name: &str,
+    edit: impl Fn(String) -> String,
+) -> Result<crucible_smithy::ir::Service, String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    compiled.service.clone().ok_or_else(|| compiled.render())
+}
+
+/// The weather package with its sources rewritten first.
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
 
 #[test]
 fn weather_models_generate() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let options = Options {
         package_name: "example/weather-client".into(),
         namespace: "Example\\Weather".into(),
@@ -56,21 +82,9 @@ fn options() -> Options {
         endpoint: None,
     }
 }
-fn weather() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-}
-fn lower(value: &serde_json::Value) -> crucible_smithy::ir::Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
-}
 #[test]
 fn configuration_and_reserved_names_are_diagnosed() {
-    let service = lower(&weather());
+    let service = weather();
     for name in [
         "../escape",
         "Example/client",
@@ -94,44 +108,41 @@ fn configuration_and_reserved_names_are_diagnosed() {
         "Schema",
         "Runtime",
     ] {
-        let mut model = weather();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({"example.weather#CitySummary":name});
-        assert!(emit(&lower(&model), &options()).is_err(), "{name}");
+        let service = weather_with(|text| text.replace("CitySummary", name));
+        assert!(emit(&service, &options()).is_err(), "{name}");
     }
 }
 #[test]
 fn model_field_and_union_collisions_are_collected() {
-    let mut model = weather();
-    for member in ["message", "messageValue"] {
-        model["shapes"]["example.weather#CreateCityInput"]["members"][member] =
-            serde_json::json!({"target":"smithy.api#String"});
-    }
-    model["shapes"]["example.weather#Location"]["members"]["unknownVariant"] =
-        serde_json::json!({"target":"smithy.api#String"});
-    assert_eq!(emit(&lower(&model), &options()).err().unwrap().len(), 2);
+    let service = weather_with(|text| {
+        text.replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        message?: string\n        messageValue?: string\n",
+        )
+        .replace(
+            "    unknown\n}",
+            "    unknown\n    unknownVariant: string\n}",
+        )
+    });
+    assert_eq!(emit(&service, &options()).err().unwrap().len(), 2);
 }
 #[test]
 fn recursive_aliases_are_diagnosed_before_doc_type_expansion() {
-    let mut model = weather();
-    model["shapes"]["example.weather#CitySummaries"]["member"]["target"] =
-        serde_json::json!("example.weather#CitySummaries");
-    assert!(
-        Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("recursive collection")
-    );
+    let rendered = compile_with("weather", |text| {
+        text.replace(
+            "list CitySummaries: CitySummary",
+            "list CitySummaries: CitySummaries",
+        )
+    })
+    .expect_err("a list of itself is refused");
+    assert!(rendered.contains("recursive"), "{rendered}");
 }
 #[test]
 fn reserved_enum_constants_are_escaped_with_collision_checks() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Sky"]["members"]["DEFAULT"] =
-        serde_json::json!({"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"default"}});
-    let files = emit(&lower(&model), &options()).unwrap();
+    let sky = |extra: &'static str| {
+        weather_with(move |text| text.replace("enum Sky {\n", &format!("enum Sky {{\n{extra}")))
+    };
+    let files = emit(&sky("    DEFAULT = \"default\"\n"), &options()).unwrap();
     assert!(
         files
             .iter()
@@ -140,16 +151,11 @@ fn reserved_enum_constants_are_escaped_with_collision_checks() {
             .contents
             .contains("const DEFAULT_VALUE = 'default'")
     );
-    model["shapes"]["example.weather#Sky"]["members"]["DEFAULT_VALUE"] = serde_json::json!({"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"different"}});
-    assert!(emit(&lower(&model), &options()).is_err());
+    let both = sky("    DEFAULT = \"default\"\n    DEFAULT_VALUE = \"different\"\n");
+    assert!(emit(&both, &options()).is_err());
 }
 fn vault() -> (crucible_smithy::ir::Service, Options) {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_php::capabilities())
-    .unwrap();
+    let service = load("client-docs-vault");
     let options = Options {
         package_name: "example/vault".into(),
         namespace: "VaultSdk".into(),
@@ -401,7 +407,7 @@ fn permissions_ship_only_with_permissions() {
         let file = files.iter().find(|f| f.path == "composer.json").unwrap();
         serde_json::from_str(&file.contents).unwrap()
     };
-    let files = emit(&lower(&weather()), &options()).unwrap();
+    let files = emit(&weather(), &options()).unwrap();
     assert!(!files.iter().any(|f| f.path.contains("Permission")));
     assert!(manifest(&files)["autoload"].get("files").is_none());
     let files = emit(&permissions_service(), &options()).unwrap();

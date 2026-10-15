@@ -1,0 +1,4 @@
+error Bad {
+    status 400
+    message?: string
+}

@@ -1,0 +1,5 @@
+service Defaults {
+    version "1"
+    protocol json
+    operations [Read]
+}

@@ -1,5 +1,7 @@
 #![cfg(feature = "rust")]
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
@@ -10,7 +12,7 @@ fn server_output_probe() {
     if std::env::var_os("CRUCIBLE_SERVER_OUTPUT_PROBE").is_none() {
         return;
     }
-    let model = crucible_build::model("model.json").compile();
+    let model = crucible_build::model("weather").compile();
     let artifact = model
         .output(
             "bindings",
@@ -35,11 +37,7 @@ fn named_server_bindings_export_without_setting_a_client_inclusion_hook() {
         "[package]\nname = 'server-model'\nversion = '0.1.0'\nedition = '2024'\n",
     )
     .unwrap();
-    fs::write(
-        root.path().join("model.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/weather.json"),
-    )
-    .unwrap();
+    common::install_shared(root.path(), "weather");
     let output = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "server_output_probe", "--nocapture"])
         .current_dir(root.path())

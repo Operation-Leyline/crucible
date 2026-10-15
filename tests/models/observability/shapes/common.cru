@@ -1,0 +1,46 @@
+union Choice {
+    profile: Profile
+    sensitive secret: string
+}
+
+map HiddenKeys: Secret -> string
+
+sensitive map PrivateScores: string -> Score
+
+structure Profile {
+    name?: string
+    sensitive password?: string
+    child?: Profile
+}
+
+list Profiles: Profile
+
+map ProfilesByName: string -> Profile
+
+integer Score { range 0..10 }
+
+list ScoreMapList: PrivateScores
+
+map ScoreMaps: string -> PrivateScores
+
+map Scores: string -> Score
+
+sensitive string Secret
+
+map SecretScores: Secret -> Score
+
+sensitive enum SecretTier {
+    GOLD = "gold"
+}
+
+map SecretTierScores: SecretTier -> Score
+
+enum Tier {
+    GOLD = "gold"
+}
+
+map TierScores: Tier -> Score
+
+sensitive structure Whole {
+    value?: string
+}

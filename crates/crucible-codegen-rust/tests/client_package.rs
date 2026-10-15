@@ -8,12 +8,10 @@ use std::process::{Command, Output};
 use crucible_codegen_rust::{
     ClientOptions, File, RuntimeDependency, emit_client_package, generate_client,
 };
-use crucible_smithy::Model;
-
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
 fn service() -> crucible_smithy::ir::Service {
-    Model::from_json(WEATHER).unwrap().lower(None).unwrap()
+    common::load("weather")
 }
 
 fn explicit() -> ClientOptions {
@@ -290,13 +288,11 @@ fn model_and_exception_names_take_precedence_over_runtime_shortcuts() {
         ("NotFoundError", "Error"),
         ("Location", "Field"),
     ] {
-        let mut ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
-        ast["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({format!("example.weather#{shape}"): shortcut});
-        let service = Model::from_json(&ast.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let mut service = service();
+        common::rename(
+            &mut service,
+            &[(&format!("example.weather#{shape}"), shortcut)],
+        );
         let files = emit_client_package(&service, &explicit()).unwrap();
         let exports = files[1]
             .contents
@@ -322,32 +318,34 @@ fn an_independent_cargo_application_depends_only_on_the_generated_sdk() {
         .unwrap();
     let mut options = explicit();
     options.runtime = RuntimeDependency::Path(runtime);
-    let mut documented_ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
-    let examples: serde_json::Value =
-        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
-    documented_ast["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .extend(examples.as_object().unwrap().clone());
-    documented_ast["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
-        serde_json::json!({"target": "example.weather#DebugModel"});
-    documented_ast["shapes"]["example.weather#NotFoundError"]["members"]["message"]["traits"]["smithy.api#sensitive"] =
-        serde_json::json!({});
-    let documented = Model::from_json(&documented_ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
-    save(&sdk, &emit_client_package(&documented, &options).unwrap());
-    let mut ast: serde_json::Value = serde_json::from_str(WEATHER).unwrap();
-    ast["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({
-        "example.weather#CityId": "Config",
-        "example.weather#NotFoundError": "Error",
-        "example.weather#Location": "Field",
+    let documented = common::load_with("weather", |package| {
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace(
+                    "        location?: Location\n",
+                    "        location?: Location\n        debugModel?: DebugModel\n",
+                )
+                .replace(
+                    "error NotFoundError {\n    status 404\n    message: string",
+                    "error NotFoundError {\n    status 404\n    sensitive message: string",
+                );
+        }
+        package.files.push(crucible_lang::SourceFile {
+            path: "native-docs.cru".into(),
+            text: include_str!("../../../tests/conformance/native-docs.cru").into(),
+        });
     });
-    let renamed = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    save(&sdk, &emit_client_package(&documented, &options).unwrap());
+    let mut renamed = service();
+    common::rename(
+        &mut renamed,
+        &[
+            ("example.weather#CityId", "Config"),
+            ("example.weather#NotFoundError", "Error"),
+            ("example.weather#Location", "Field"),
+        ],
+    );
     let mut renamed_options = options.clone();
     renamed_options.package_name = Some("renamed-weather-sdk".into());
     save(
@@ -373,14 +371,14 @@ fn main() {
     let error = weather_sdk::NotFoundError::builder().message("SECRET-ERROR").build().unwrap();
     assert!(!format!("{error:?} {error}").contains("SECRET-"));
     let client = WeatherClient::new(Config::new("http://localhost:8080").token(Token::fixed("secret")));
-    let future = client.get_city(GetCityInput::builder().city_id("seattle").build());
+    let future = client.get_city(GetCityInput::builder().city_id("seattle").build().unwrap());
     drop(future);
     let _: Option<Error<GetCityError>> = None;
     let _ = CallOptions::default();
     let _ = runtime::CancellationToken::new();
     let id: renamed_weather_sdk::Config = "seattle".into();
     let client = renamed_weather_sdk::WeatherClient::new(renamed_weather_sdk::runtime::Config::new("http://localhost:8080"));
-    drop(client.get_city(renamed_weather_sdk::GetCityInput::builder().city_id(id).build()));
+    drop(client.get_city(renamed_weather_sdk::GetCityInput::builder().city_id(id).build().unwrap()));
     let _: Option<renamed_weather_sdk::Error> = None;
     let _: Option<renamed_weather_sdk::Field> = None;
     let _: Option<renamed_weather_sdk::runtime::Error<renamed_weather_sdk::GetCityError>> = None;

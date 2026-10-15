@@ -1,0 +1,7 @@
+readonly operation BearerOnly {
+    http GET "/bearer" -> 200
+    output {
+        subject?: string
+        kind?: string
+    }
+}

@@ -1,0 +1,10 @@
+structure Endpoint {
+    Address: string
+    CachePeriodInMinutes: long
+}
+
+list EndpointList: Endpoint
+
+map IdentifierMap: string -> string
+
+sensitive string Secret

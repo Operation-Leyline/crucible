@@ -1,0 +1,23 @@
+operation GetCity reads City {
+    http GET "/cities/{cityId}"
+    input {
+        $cityId
+        @query
+        at?: DateTime
+    }
+    output {
+        city: CitySummary
+        forecast?: Forecast
+        @header("X-Request-Id")
+        requestId?: string
+    }
+    errors [NotFoundError]
+    example "Read a city" {
+        input { cityId: "c-0a1b2c3d", at: "2026-01-02T03:04:05Z" }
+        output { city: { id: "c-0a1b2c3d", name: "Lisbon", secret: "INTERNAL_EXAMPLE_SECRET" }, forecast: { clear: { highC: 21 } }, requestId: "req-1" }
+    }
+    example "Read a missing city" {
+        input { cityId: "c-ffffffff" }
+        error NotFoundError { message: "No such city", resourceId: "c-ffffffff" }
+    }
+}

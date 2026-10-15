@@ -1,0 +1,11 @@
+error Error {
+    status 500
+    message?: string
+}
+
+error Object {
+    status 400
+    message?: string
+    data?: blob
+    record?: Record
+}

@@ -1,6 +1,34 @@
 use crucible_codegen_kotlin::{Options, emit};
-use crucible_smithy::Model;
 use std::{fs, path::Path};
+
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    crucible_lang::load_service(&dir)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first.
+fn load_with(name: &str, edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("{name} compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
 
 fn options() -> Options {
     Options {
@@ -14,12 +42,7 @@ fn options() -> Options {
 
 #[test]
 fn client_name_follows_service_identity() {
-    let mut service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let mut service = weather();
     service.id = crucible_smithy::ShapeId::new("dev.leyline", "Leyline");
     let files = emit(&service, &options()).unwrap();
     let client = files
@@ -36,12 +59,7 @@ fn client_name_follows_service_identity() {
 
 #[test]
 fn weather_matches_goldens() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".kt")
             && !file.path.contains("/model/")
@@ -71,46 +89,33 @@ fn weather_matches_goldens() {
 
 #[test]
 fn rejects_jvm_accessor_and_union_collisions() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    for name in ["foo", "Foo", "isBar", "bar"] {
-        model["shapes"]["example.weather#CreateCityInput"]["members"][name] =
-            serde_json::json!({"target":"smithy.api#String"});
-    }
-    model["shapes"]["example.weather#Location"]["members"]["location"] =
-        serde_json::json!({"target":"smithy.api#String"});
-    model["shapes"]["example.weather#Location"]["members"]["models"] =
-        serde_json::json!({"target":"smithy.api#Unit"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let edit = |text: String| {
+        text.replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        foo?: string\n        Foo?: string\n        isBar?: string\n        bar?: string\n",
+        )
+        .replace(
+            "    unknown\n}",
+            "    unknown\n    location: string\n    models\n}",
+        )
+    };
+    let service = load_with("weather", edit);
     assert_eq!(emit(&service, &options()).err().unwrap().len(), 4);
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#Location":"UnknownVariant"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load_with("weather", |text| {
+        edit(text).replace("Location", "UnknownVariant")
+    });
     assert_eq!(emit(&service, &options()).err().unwrap().len(), 4);
 }
 
 #[test]
 fn configuration_and_get_body_are_diagnosed() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
-        "GET".into();
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["uri"] =
-        "/create-city".into();
-    let service = Model::from_json(&model.to_string())
+    let mut service = weather();
+    service
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id.name() == "CreateCity")
         .unwrap()
-        .lower(None)
-        .unwrap();
+        .method = "GET".into();
     let mut config = options();
     config.package_name = "../bad".into();
     config.group_id = "<bad>".into();
@@ -119,12 +124,7 @@ fn configuration_and_get_body_are_diagnosed() {
 
 #[test]
 fn escapes_kotlin_literals_without_rewriting_literal_backslashes() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let mut config = options();
     config.endpoint = Some("https://example/\\foo/$bar/\u{000c}/\"/\n".into());
     let files = emit(&service, &config).unwrap();
@@ -141,11 +141,7 @@ fn escapes_kotlin_literals_without_rewriting_literal_backslashes() {
 
 #[test]
 fn runtime_policy_model_generates_and_reserves_the_quota_accessor() {
-    let fixture = include_str!("../../crucible-smithy/tests/fixtures/runtime-policy.json");
-    let service = Model::from_json(fixture)
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_kotlin::capabilities())
-        .unwrap();
+    let service = load("runtime-policy");
     let mut config = options();
     config.package_name = "example.policy".into();
     let files = emit(&service, &config).unwrap();
@@ -161,28 +157,20 @@ fn runtime_policy_model_generates_and_reserves_the_quota_accessor() {
 
     // The quota accessor and its JVM getter are client member names an operation cannot take.
     for name in ["RetryQuota", "GetRetryQuota"] {
-        let mut model: serde_json::Value = serde_json::from_str(fixture).unwrap();
-        model["shapes"][format!("example.policy#{name}")] = serde_json::json!({"type": "operation",
-            "traits": {"smithy.api#http": {"method": "GET", "uri": format!("/{name}")}, "smithy.api#readonly": {}}});
-        model["shapes"]["example.policy#Records"]["operations"]
-            .as_array_mut()
-            .unwrap()
-            .push(serde_json::json!({"target": format!("example.policy#{name}")}));
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_with_capabilities(None, &crucible_codegen_kotlin::capabilities())
-            .unwrap();
+        let service = load_with("runtime-policy", |text| {
+            if !text.contains("service Records") {
+                return text;
+            }
+            let operation =
+                format!("\nreadonly operation {name} {{\n    http GET \"/{name}\"\n}}\n");
+            text.replace("operations [", &format!("operations [{name}, ")) + &operation
+        });
         assert_eq!(emit(&service, &config).err().unwrap().len(), 1, "{name}");
     }
 }
 
 fn docs_files() -> Vec<crucible_codegen_kotlin::File> {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = load("client-docs-jvm");
     emit(&service, &options()).unwrap()
 }
 
@@ -243,12 +231,9 @@ fn sensitive_members_are_redacted_in_to_string() {
 
 #[test]
 fn enum_wire_values_cannot_break_out_of_kdoc() {
-    let fixture = include_str!("../../crucible-smithy/tests/fixtures/client-docs-jvm.json")
-        .replace(
-            r#""smithy.api#enumValue": "fast""#,
-            r#""smithy.api#enumValue": "a*/ b/* c`d""#,
-        );
-    let service = Model::from_json(&fixture).unwrap().lower(None).unwrap();
+    let service = load_with("client-docs-jvm", |text| {
+        text.replace("Fast = \"fast\"", "Fast = \"a*/ b/* c`d\"")
+    });
     let files = emit(&service, &options()).unwrap();
     let mode = &files
         .iter()

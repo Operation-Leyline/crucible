@@ -12,17 +12,17 @@ export const S_ConflictError: Schema = structure(() => ({ message: string }), { 
 
 export const S_Coordinates: Schema = structure(() => ({ latitude: number, longitude: number }), {  }, ["latitude", "longitude"]);
 
-export const S_CreateCityInput: Schema = structure(() => ({ name: string, location: S_Location, clientToken: string, expectedRevision: integer(64) }), {  }, []);
+export const S_CreateCityInput: Schema = structure(() => ({ name: string, location: S_Location, clientToken: string, expectedRevision: integer(64) }), {  }, ["name"]);
 
 export const S_CreateCityOutput: Schema = structure(() => ({ city: S_CitySummary }), {  }, ["city"]);
 
 export const S_Forecast: Schema = map(() => document);
 
-export const S_GetCityInput: Schema = structure(() => ({ cityId: string, at: timestamp("date-time") }), {  }, []);
+export const S_GetCityInput: Schema = structure(() => ({ cityId: string, at: timestamp("date-time") }), {  }, ["cityId"]);
 
 export const S_GetCityOutput: Schema = structure(() => ({ city: S_CitySummary, forecast: S_Forecast, requestId: string }), {  }, ["city"]);
 
-export const S_GetCityPhotoInput: Schema = structure(() => ({ cityId: string }), {  }, []);
+export const S_GetCityPhotoInput: Schema = structure(() => ({ cityId: string }), {  }, ["cityId"]);
 
 export const S_GetCityPhotoOutput: Schema = structure(() => ({ caption: string }), {  }, []);
 
@@ -36,7 +36,7 @@ export const S_NotFoundError: Schema = structure(() => ({ message: string, resou
 
 export const S_PhotoSummary: Schema = structure(() => ({ size: integer(32), thumbnail: blob, caption: string }), {  }, ["size", "thumbnail"]);
 
-export const S_PutCityPhotoInput: Schema = structure(() => ({ cityId: string, caption: string }), {  }, []);
+export const S_PutCityPhotoInput: Schema = structure(() => ({ cityId: string, caption: string }), {  }, ["cityId", "photo"]);
 
 export const S_PutCityPhotoOutput: Schema = structure(() => ({ photo: S_PhotoSummary }), {  }, ["photo"]);
 
@@ -58,6 +58,7 @@ export const CreateCity: OperationSpec = {
   name: "CreateCity",
   method: "POST",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["cities"],
   input: S_CreateCityInput,
   headers: [["expectedRevision", "X-Expected-Revision", integer(64)]],
@@ -72,6 +73,7 @@ export const GetCity: OperationSpec = {
   name: "GetCity",
   method: "GET",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["cities", { label: "cityId" }],
   input: S_GetCityInput,
   query: [["at", "at", timestamp("date-time")]],
@@ -84,6 +86,7 @@ export const GetCityPhoto: OperationSpec = {
   name: "GetCityPhoto",
   method: "GET",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["cities", { label: "cityId" }, "photo"],
   input: S_GetCityPhotoInput,
   output: { body: false, payload: "photo", schema: S_GetCityPhotoOutput, headers: [["caption", "X-Photo-Caption"]] },
@@ -95,6 +98,7 @@ export const ListCities: OperationSpec = {
   name: "ListCities",
   method: "GET",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["cities"],
   input: S_ListCitiesInput,
   query: [["nextToken", "nextToken"], ["maxResults", "maxResults", integer(32)], ["tags", "tag", list(string)]],
@@ -107,6 +111,7 @@ export const Ping: OperationSpec = {
   name: "Ping",
   method: "GET",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["ping"],
   errors: ["ThrottlingError", "ValidationError"],
   retrySafe: true,
@@ -116,6 +121,7 @@ export const PutCityPhoto: OperationSpec = {
   name: "PutCityPhoto",
   method: "PUT",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["cities", { label: "cityId" }, "photo"],
   input: S_PutCityPhotoInput,
   headers: [["caption", "X-Photo-Caption"]],
@@ -129,6 +135,7 @@ export const Status: OperationSpec = {
   name: "Status",
   method: "GET",
   bearer: true,
+  apiVersion: "2026-10-01",
   path: ["status"],
   input: S_StatusInput,
   output: { body: false, schema: S_StatusOutput },

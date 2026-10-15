@@ -1,0 +1,17 @@
+operation Public {
+    http POST "/public" -> 200
+    input {
+        value?: string
+        internal privateValue?: SecretValue
+        @header("x-private")
+        internal privateHeader?: string
+        internal requiredSecret: string
+    }
+    output {
+        value?: string
+        internal privateValue?: SecretValue
+        choice?: Choice
+        internal requiredSecret: string
+    }
+    errors [PublicFault, InternalFault]
+}

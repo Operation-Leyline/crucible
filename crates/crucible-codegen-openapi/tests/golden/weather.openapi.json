@@ -17,10 +17,7 @@
                   "type": "object",
                   "properties": {
                     "city": {
-                      "$ref": "#/components/schemas/example.weather.CitySummary",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.CitySummary"
                     }
                   },
                   "required": [
@@ -53,16 +50,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -117,10 +108,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -163,10 +151,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -183,10 +168,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -213,13 +195,7 @@
         ],
         "x-smithy-shape": "example.weather#CreateCity",
         "x-smithy-traits": {
-          "example.weather#tier": "write",
-          "smithy.api#idempotent": {},
-          "smithy.api#http": {
-            "method": "POST",
-            "uri": "/cities",
-            "code": 201
-          }
+          "example.weather#tier": "write"
         },
         "tags": [
           "City"
@@ -234,14 +210,10 @@
                 "properties": {
                   "name": {
                     "type": "string",
+                    "maxLength": 40,
                     "x-smithy-traits": {
-                      "example.weather#audited": {},
-                      "smithy.api#length": {
-                        "max": 40
-                      },
-                      "smithy.api#required": {}
-                    },
-                    "maxLength": 40
+                      "example.weather#audited": {}
+                    }
                   },
                   "location": {
                     "anyOf": [
@@ -262,10 +234,7 @@
                         "type": "null"
                       }
                     ],
-                    "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.",
-                    "x-smithy-traits": {
-                      "smithy.api#idempotencyToken": {}
-                    }
+                    "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
                   }
                 },
                 "required": [
@@ -304,10 +273,7 @@
             "in": "header",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/smithy.api.Long",
-              "x-smithy-traits": {
-                "smithy.api#httpHeader": "X-Expected-Revision"
-              }
+              "$ref": "#/components/schemas/smithy.api.Long"
             },
             "style": "simple",
             "explode": false,
@@ -332,10 +298,7 @@
                   "type": "object",
                   "properties": {
                     "cities": {
-                      "$ref": "#/components/schemas/example.weather.CitySummaries",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.CitySummaries"
                     },
                     "nextToken": {
                       "anyOf": [
@@ -377,16 +340,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -441,10 +398,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -461,10 +415,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -490,17 +441,7 @@
           }
         ],
         "x-smithy-shape": "example.weather#ListCities",
-        "x-smithy-traits": {
-          "smithy.api#readonly": {},
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/cities"
-          },
-          "smithy.api#paginated": {
-            "items": "cities",
-            "pageSize": "maxResults"
-          }
-        },
+        "x-smithy-traits": {},
         "tags": [
           "City"
         ],
@@ -517,10 +458,7 @@
             "in": "query",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/smithy.api.String",
-              "x-smithy-traits": {
-                "smithy.api#httpQuery": "nextToken"
-              }
+              "$ref": "#/components/schemas/smithy.api.String"
             },
             "style": "form",
             "explode": true
@@ -533,14 +471,7 @@
               "type": "integer",
               "format": "int32",
               "minimum": 1,
-              "maximum": 100,
-              "x-smithy-traits": {
-                "smithy.api#httpQuery": "maxResults",
-                "smithy.api#range": {
-                  "min": 1,
-                  "max": 100
-                }
-              }
+              "maximum": 100
             },
             "style": "form",
             "explode": true,
@@ -561,9 +492,6 @@
                 "$ref": "#/components/schemas/smithy.api.String"
               },
               "uniqueItems": false,
-              "x-smithy-traits": {
-                "smithy.api#httpQuery": "tag"
-              },
               "maxItems": 5
             },
             "style": "form",
@@ -593,10 +521,7 @@
                   "type": "object",
                   "properties": {
                     "city": {
-                      "$ref": "#/components/schemas/example.weather.CitySummary",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.CitySummary"
                     },
                     "forecast": {
                       "anyOf": [
@@ -634,10 +559,7 @@
             "headers": {
               "X-Request-Id": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.String",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "X-Request-Id"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.String"
                 },
                 "style": "simple",
                 "explode": false,
@@ -658,16 +580,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -722,10 +638,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceId": {
                       "anyOf": [
@@ -779,10 +692,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -799,10 +709,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -828,13 +735,7 @@
           }
         ],
         "x-smithy-shape": "example.weather#GetCity",
-        "x-smithy-traits": {
-          "smithy.api#readonly": {},
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/cities/{cityId}"
-          }
-        },
+        "x-smithy-traits": {},
         "tags": [
           "City"
         ],
@@ -846,10 +747,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^c-[a-z0-9]{8}$"
             },
             "style": "simple",
@@ -871,10 +768,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "format": "date-time",
-              "x-smithy-traits": {
-                "smithy.api#httpQuery": "at"
-              }
+              "format": "date-time"
             },
             "style": "form",
             "explode": true,
@@ -910,10 +804,7 @@
             "headers": {
               "X-Photo-Caption": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.String",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "X-Photo-Caption"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.String"
                 },
                 "style": "simple",
                 "explode": false
@@ -928,16 +819,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -992,10 +877,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceId": {
                       "anyOf": [
@@ -1039,10 +921,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1059,10 +938,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1088,13 +964,7 @@
           }
         ],
         "x-smithy-shape": "example.weather#GetCityPhoto",
-        "x-smithy-traits": {
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/cities/{cityId}/photo"
-          },
-          "smithy.api#readonly": {}
-        },
+        "x-smithy-traits": {},
         "tags": [
           "City"
         ],
@@ -1106,10 +976,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^c-[a-z0-9]{8}$"
             },
             "style": "simple",
@@ -1128,10 +994,7 @@
                   "type": "object",
                   "properties": {
                     "photo": {
-                      "$ref": "#/components/schemas/example.weather.PhotoSummary",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.PhotoSummary"
                     }
                   },
                   "required": [
@@ -1149,16 +1012,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -1213,10 +1070,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "resourceId": {
                       "anyOf": [
@@ -1260,10 +1114,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1280,10 +1131,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1309,14 +1157,7 @@
           }
         ],
         "x-smithy-shape": "example.weather#PutCityPhoto",
-        "x-smithy-traits": {
-          "smithy.api#documentation": "Stores a city's photo exactly as sent.",
-          "smithy.api#http": {
-            "method": "PUT",
-            "uri": "/cities/{cityId}/photo"
-          },
-          "smithy.api#idempotent": {}
-        },
+        "x-smithy-traits": {},
         "description": "Stores a city's photo exactly as sent.",
         "tags": [
           "City"
@@ -1345,10 +1186,6 @@
             "required": true,
             "schema": {
               "type": "string",
-              "x-smithy-traits": {
-                "smithy.api#httpLabel": {},
-                "smithy.api#required": {}
-              },
               "pattern": "^c-[a-z0-9]{8}$"
             },
             "style": "simple",
@@ -1359,10 +1196,7 @@
             "in": "header",
             "required": false,
             "schema": {
-              "$ref": "#/components/schemas/smithy.api.String",
-              "x-smithy-traits": {
-                "smithy.api#httpHeader": "X-Photo-Caption"
-              }
+              "$ref": "#/components/schemas/smithy.api.String"
             },
             "style": "simple",
             "explode": false
@@ -1385,16 +1219,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -1449,10 +1277,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1469,10 +1294,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1498,17 +1320,7 @@
           }
         ],
         "x-smithy-shape": "example.weather#Ping",
-        "x-smithy-traits": {
-          "smithy.api#deprecated": {
-            "message": "Use Status instead.",
-            "since": "2026-09"
-          },
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/ping"
-          },
-          "smithy.api#readonly": {}
-        },
+        "x-smithy-traits": {},
         "deprecated": true,
         "x-smithy-deprecation": {
           "message": "Use Status instead.",
@@ -1540,16 +1352,10 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "reason": {
-                      "$ref": "#/components/schemas/example.weather.ValidationReason",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/example.weather.ValidationReason"
                     },
                     "fieldList": {
                       "anyOf": [
@@ -1604,10 +1410,7 @@
                   "type": "object",
                   "properties": {
                     "message": {
-                      "$ref": "#/components/schemas/smithy.api.String",
-                      "x-smithy-traits": {
-                        "smithy.api#required": {}
-                      }
+                      "$ref": "#/components/schemas/smithy.api.String"
                     },
                     "__type": {
                       "type": "string",
@@ -1624,10 +1427,7 @@
             "headers": {
               "Retry-After": {
                 "schema": {
-                  "$ref": "#/components/schemas/smithy.api.Integer",
-                  "x-smithy-traits": {
-                    "smithy.api#httpHeader": "Retry-After"
-                  }
+                  "$ref": "#/components/schemas/smithy.api.Integer"
                 },
                 "style": "simple",
                 "explode": false
@@ -1653,13 +1453,7 @@
           }
         ],
         "x-smithy-shape": "example.weather#Status",
-        "x-smithy-traits": {
-          "smithy.api#http": {
-            "method": "GET",
-            "uri": "/status"
-          },
-          "smithy.api#readonly": {}
-        },
+        "x-smithy-traits": {},
         "x-smithy-readonly": true
       }
     }
@@ -1668,19 +1462,10 @@
     "schemas": {
       "example.weather.CityId": {
         "type": "string",
-        "x-smithy-traits": {
-          "smithy.api#pattern": "^c-[a-z0-9]{8}$"
-        },
         "pattern": "^c-[a-z0-9]{8}$"
       },
       "example.weather.CityName": {
         "type": "string",
-        "x-smithy-traits": {
-          "smithy.api#length": {
-            "min": 1,
-            "max": 100
-          }
-        },
         "minLength": 1,
         "maxLength": 100
       },
@@ -1696,24 +1481,15 @@
         "properties": {
           "id": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            },
             "pattern": "^c-[a-z0-9]{8}$"
           },
           "name": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            },
             "minLength": 1,
             "maxLength": 100
           },
           "population": {
             "$ref": "#/components/schemas/smithy.api.Long",
-            "x-smithy-traits": {
-              "smithy.api#default": 0
-            },
             "default": 0,
             "x-smithy-default": 0
           },
@@ -1742,13 +1518,6 @@
             "x-smithy-deprecation": {
               "message": "Use updatedAt.",
               "since": "2026-08"
-            },
-            "x-smithy-traits": {
-              "smithy.api#deprecated": {
-                "message": "Use updatedAt.",
-                "since": "2026-08"
-              },
-              "smithy.api#timestampFormat": "epoch-seconds"
             }
           }
         },
@@ -1761,34 +1530,21 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           }
         },
         "required": [
           "message"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#error": "client",
-          "smithy.api#httpError": 409
-        }
+        ]
       },
       "example.weather.Coordinates": {
         "type": "object",
         "properties": {
           "latitude": {
-            "$ref": "#/components/schemas/smithy.api.Double",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.Double"
           },
           "longitude": {
-            "$ref": "#/components/schemas/smithy.api.Double",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.Double"
           }
         },
         "required": [
@@ -1801,14 +1557,10 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 40,
             "x-smithy-traits": {
-              "example.weather#audited": {},
-              "smithy.api#length": {
-                "max": 40
-              },
-              "smithy.api#required": {}
-            },
-            "maxLength": 40
+              "example.weather#audited": {}
+            }
           },
           "location": {
             "anyOf": [
@@ -1829,10 +1581,7 @@
                 "type": "null"
               }
             ],
-            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.",
-            "x-smithy-traits": {
-              "smithy.api#idempotencyToken": {}
-            }
+            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
           },
           "expectedRevision": {
             "anyOf": [
@@ -1842,44 +1591,28 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpHeader": "X-Expected-Revision"
-            }
+            ]
           }
         },
         "required": [
           "name"
         ],
-        "additionalProperties": false,
-        "x-smithy-traits": {
-          "crucible.protocols#strict": {},
-          "smithy.api#input": {}
-        }
+        "additionalProperties": false
       },
       "example.weather.CreateCityOutput": {
         "type": "object",
         "properties": {
           "city": {
-            "$ref": "#/components/schemas/example.weather.CitySummary",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/example.weather.CitySummary"
           }
         },
         "required": [
           "city"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#output": {}
-        }
+        ]
       },
       "example.weather.DateTime": {
         "type": "string",
-        "format": "date-time",
-        "x-smithy-traits": {
-          "smithy.api#timestampFormat": "date-time"
-        }
+        "format": "date-time"
       },
       "example.weather.Forecast": {
         "type": "object",
@@ -1895,10 +1628,6 @@
         "properties": {
           "cityId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^c-[a-z0-9]{8}$"
           },
           "at": {
@@ -1910,27 +1639,18 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpQuery": "at"
-            }
+            ]
           }
         },
         "required": [
           "cityId"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#input": {}
-        }
+        ]
       },
       "example.weather.GetCityOutput": {
         "type": "object",
         "properties": {
           "city": {
-            "$ref": "#/components/schemas/example.weather.CitySummary",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/example.weather.CitySummary"
           },
           "forecast": {
             "anyOf": [
@@ -1950,37 +1670,24 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpHeader": "X-Request-Id"
-            }
+            ]
           }
         },
         "required": [
           "city"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#output": {}
-        }
+        ]
       },
       "example.weather.GetCityPhotoInput": {
         "type": "object",
         "properties": {
           "cityId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^c-[a-z0-9]{8}$"
           }
         },
         "required": [
           "cityId"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#input": {}
-        }
+        ]
       },
       "example.weather.GetCityPhotoOutput": {
         "type": "object",
@@ -1993,10 +1700,7 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpHeader": "X-Photo-Caption"
-            }
+            ]
           },
           "photo": {
             "anyOf": [
@@ -2004,14 +1708,6 @@
                 "type": "string",
                 "contentEncoding": "base64",
                 "description": "A photo, carried unparsed.",
-                "x-smithy-traits": {
-                  "smithy.api#documentation": "A photo, carried unparsed.",
-                  "smithy.api#length": {
-                    "min": 1,
-                    "max": 4096
-                  },
-                  "smithy.api#mediaType": "image/jpeg"
-                },
                 "x-smithy-length": {
                   "unit": "bytes",
                   "min": 1,
@@ -2021,14 +1717,8 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpPayload": {}
-            }
+            ]
           }
-        },
-        "x-smithy-traits": {
-          "smithy.api#output": {}
         }
       },
       "example.weather.ListCitiesInput": {
@@ -2042,10 +1732,7 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpQuery": "nextToken"
-            }
+            ]
           },
           "maxResults": {
             "anyOf": [
@@ -2058,14 +1745,7 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpQuery": "maxResults",
-              "smithy.api#range": {
-                "min": 1,
-                "max": 100
-              }
-            }
+            ]
           },
           "tags": {
             "anyOf": [
@@ -2075,34 +1755,20 @@
                   "$ref": "#/components/schemas/smithy.api.String"
                 },
                 "uniqueItems": false,
-                "x-smithy-traits": {
-                  "smithy.api#length": {
-                    "max": 5
-                  }
-                },
                 "maxItems": 5
               },
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpQuery": "tag"
-            }
+            ]
           }
-        },
-        "x-smithy-traits": {
-          "smithy.api#input": {}
         }
       },
       "example.weather.ListCitiesOutput": {
         "type": "object",
         "properties": {
           "cities": {
-            "$ref": "#/components/schemas/example.weather.CitySummaries",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/example.weather.CitySummaries"
           },
           "nextToken": {
             "anyOf": [
@@ -2117,10 +1783,7 @@
         },
         "required": [
           "cities"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#output": {}
-        }
+        ]
       },
       "example.weather.Location": {
         "oneOf": [
@@ -2154,10 +1817,7 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           },
           "resourceId": {
             "anyOf": [
@@ -2172,24 +1832,12 @@
         },
         "required": [
           "message"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#error": "client",
-          "smithy.api#httpError": 404
-        }
+        ]
       },
       "example.weather.Photo": {
         "type": "string",
         "contentEncoding": "base64",
         "description": "A photo, carried unparsed.",
-        "x-smithy-traits": {
-          "smithy.api#documentation": "A photo, carried unparsed.",
-          "smithy.api#length": {
-            "min": 1,
-            "max": 4096
-          },
-          "smithy.api#mediaType": "image/jpeg"
-        },
         "x-smithy-length": {
           "unit": "bytes",
           "min": 1,
@@ -2200,18 +1848,12 @@
         "type": "object",
         "properties": {
           "size": {
-            "$ref": "#/components/schemas/smithy.api.Integer",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.Integer"
           },
           "thumbnail": {
             "type": "string",
             "contentEncoding": "base64",
             "description": "The photo's first bytes: base64 in JSON.",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            },
             "x-smithy-length": {
               "unit": "bytes",
               "min": null,
@@ -2241,14 +1883,6 @@
         },
         "x-smithy-external-docs": {
           "Reference": "https://weather.example/docs/photos/reference"
-        },
-        "x-smithy-traits": {
-          "smithy.api#externalDocumentation": {
-            "Reference": "https://weather.example/docs/photos/reference",
-            "Photo guide": "https://weather.example/docs/photos"
-          },
-          "smithy.api#since": "2026-10",
-          "smithy.api#unstable": {}
         }
       },
       "example.weather.PutCityPhotoInput": {
@@ -2256,10 +1890,6 @@
         "properties": {
           "cityId": {
             "type": "string",
-            "x-smithy-traits": {
-              "smithy.api#httpLabel": {},
-              "smithy.api#required": {}
-            },
             "pattern": "^c-[a-z0-9]{8}$"
           },
           "caption": {
@@ -2270,19 +1900,12 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpHeader": "X-Photo-Caption"
-            }
+            ]
           },
           "photo": {
             "type": "string",
             "contentEncoding": "base64",
             "description": "A photo, carried unparsed.",
-            "x-smithy-traits": {
-              "smithy.api#httpPayload": {},
-              "smithy.api#required": {}
-            },
             "x-smithy-length": {
               "unit": "bytes",
               "min": 1,
@@ -2293,27 +1916,18 @@
         "required": [
           "cityId",
           "photo"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#input": {}
-        }
+        ]
       },
       "example.weather.PutCityPhotoOutput": {
         "type": "object",
         "properties": {
           "photo": {
-            "$ref": "#/components/schemas/example.weather.PhotoSummary",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/example.weather.PhotoSummary"
           }
         },
         "required": [
           "photo"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#output": {}
-        }
+        ]
       },
       "example.weather.Sky": {
         "type": "string",
@@ -2324,17 +1938,11 @@
       },
       "example.weather.StatusInput": {
         "type": "object",
-        "properties": {},
-        "x-smithy-traits": {
-          "smithy.api#input": {}
-        }
+        "properties": {}
       },
       "example.weather.StatusOutput": {
         "type": "object",
-        "properties": {},
-        "x-smithy-traits": {
-          "smithy.api#output": {}
-        }
+        "properties": {}
       },
       "example.weather.Tags": {
         "type": "array",
@@ -2342,21 +1950,13 @@
           "$ref": "#/components/schemas/smithy.api.String"
         },
         "uniqueItems": false,
-        "x-smithy-traits": {
-          "smithy.api#length": {
-            "max": 5
-          }
-        },
         "maxItems": 5
       },
       "example.weather.ThrottlingError": {
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           },
           "retryAfter": {
             "anyOf": [
@@ -2366,33 +1966,17 @@
               {
                 "type": "null"
               }
-            ],
-            "x-smithy-traits": {
-              "smithy.api#httpHeader": "Retry-After"
-            }
+            ]
           }
         },
         "required": [
           "message"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#error": "client",
-          "smithy.api#httpError": 429,
-          "smithy.api#retryable": {
-            "throttling": true
-          }
-        }
+        ]
       },
       "example.weather.Thumbnail": {
         "type": "string",
         "contentEncoding": "base64",
         "description": "The photo's first bytes: base64 in JSON.",
-        "x-smithy-traits": {
-          "smithy.api#documentation": "The photo's first bytes: base64 in JSON.",
-          "smithy.api#length": {
-            "max": 8
-          }
-        },
         "x-smithy-length": {
           "unit": "bytes",
           "min": null,
@@ -2403,16 +1987,10 @@
         "type": "object",
         "properties": {
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           },
           "reason": {
-            "$ref": "#/components/schemas/example.weather.ValidationReason",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/example.weather.ValidationReason"
           },
           "fieldList": {
             "anyOf": [
@@ -2438,26 +2016,16 @@
         "required": [
           "message",
           "reason"
-        ],
-        "x-smithy-traits": {
-          "smithy.api#error": "client",
-          "smithy.api#httpError": 400
-        }
+        ]
       },
       "example.weather.ValidationField": {
         "type": "object",
         "properties": {
           "path": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           },
           "message": {
-            "$ref": "#/components/schemas/smithy.api.String",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/components/schemas/smithy.api.String"
           }
         },
         "required": [
@@ -2519,18 +2087,7 @@
   },
   "x-smithy-service": "example.weather#Weather",
   "x-smithy-protocol": "crucible.protocols#json",
-  "x-smithy-traits": {
-    "crucible.protocols#json": {},
-    "smithy.api#externalDocumentation": {
-      "Home": "https://weather.example/docs"
-    },
-    "smithy.api#httpBearerAuth": {},
-    "smithy.api#paginated": {
-      "inputToken": "nextToken",
-      "outputToken": "nextToken"
-    },
-    "smithy.api#title": "Weather"
-  },
+  "x-smithy-traits": {},
   "externalDocs": {
     "url": "https://weather.example/docs",
     "description": "Home"

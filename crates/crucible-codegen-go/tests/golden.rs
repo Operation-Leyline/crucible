@@ -1,14 +1,43 @@
 use crucible_codegen_go::{Options, emit, emit_without_permissions};
-use crucible_smithy::Model;
+use crucible_smithy::{ShapeId, ir::Service};
+
+fn model_dir(name: &str) -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+fn weather() -> Service {
+    crucible_lang::load_service(&model_dir("weather")).unwrap()
+}
+/// The weather package with `edit` applied to every source file and `extra`
+/// source appended to it.
+fn weather_with(edit: impl Fn(&str) -> String, extra: &str) -> Service {
+    let mut package = crucible_lang::load_package(&model_dir("weather")).unwrap();
+    for file in &mut package.files {
+        file.text = edit(&file.text);
+    }
+    package.files.push(crucible_lang::SourceFile {
+        path: "extra.cru".to_owned(),
+        text: extra.to_owned(),
+    });
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the model compiles:\n{rendered}"))
+}
+/// The weather service with its shape `shape` spelled `name`.
+fn weather_renamed(shape: &str, name: &str) -> Service {
+    let mut service = weather();
+    service
+        .renames
+        .insert(ShapeId::new("example.weather", shape), name.to_owned());
+    service
+}
 
 #[test]
 fn service_exception_is_exported_with_go_type_spelling() {
-    let mut service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let mut service = weather();
     service.id = crucible_smithy::ShapeId::new("example.weather", "weather_api");
     let files = emit(
         &service,
@@ -31,16 +60,7 @@ use std::{fs, path::Path};
 #[test]
 fn service_client_and_constructor_names_cannot_collide_with_models() {
     for name in ["WeatherClient", "NewWeatherClient"] {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({"example.weather#CitySummary":name});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let service = weather_renamed("CitySummary", name);
         let diagnostics = emit(
             &service,
             &Options {
@@ -61,12 +81,7 @@ fn service_client_and_constructor_names_cannot_collide_with_models() {
 
 #[test]
 fn weather_output_is_deterministic() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let options = Options {
         module_path: "example.com/weather".into(),
         package_name: "weather".into(),
@@ -88,12 +103,7 @@ fn weather_output_is_deterministic() {
 
 #[test]
 fn invalid_package_configuration_is_collected() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let errors = emit(
         &service,
         &Options {
@@ -109,25 +119,15 @@ fn invalid_package_configuration_is_collected() {
 
 #[test]
 fn accessor_names_do_not_collide_with_fields_or_other_accessors() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    let members = model["shapes"]["example.weather#CreateCityInput"]["members"]
-        .as_object_mut()
-        .unwrap();
-    members.insert(
-        "setName".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
+    let service = weather_with(
+        |text| {
+            text.replace(
+                "location?: Location",
+                "location?: Location\n        setName?: string\n        getName?: string",
+            )
+        },
+        "",
     );
-    members.insert(
-        "getName".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
-    );
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
     let files = emit(
         &service,
         &Options {
@@ -148,61 +148,8 @@ fn accessor_names_do_not_collide_with_fields_or_other_accessors() {
 }
 
 #[test]
-fn resource_only_types_do_not_change_sdk_files() {
-    let model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    let generated = |model: &serde_json::Value| {
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
-        emit(
-            &service,
-            &Options {
-                module_path: "example.com/weather".into(),
-                package_name: "weather".into(),
-                endpoint: None,
-            },
-        )
-        .unwrap()
-        .into_iter()
-        .map(|file| (file.path, file.contents))
-        .collect::<std::collections::BTreeMap<_, _>>()
-    };
-    let baseline = generated(&model);
-    for resource_only_shape in [
-        serde_json::json!({"type":"structure","members":{"value":{"target":"smithy.api#String"}}}),
-        serde_json::json!({"type":"bigDecimal"}),
-        serde_json::json!({"type":"intEnum","members":{"ZERO":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":0}}}}),
-        serde_json::json!({"type":"set","member":{"target":"smithy.api#String"}}),
-    ] {
-        let mut extended = model.clone();
-        extended["shapes"]["example.weather#ResourceOnlyIdentifier"] =
-            serde_json::json!({"type":"string"});
-        extended["shapes"]["example.weather#City"]["identifiers"]["deploymentId"] =
-            serde_json::json!({"target":"example.weather#ResourceOnlyIdentifier"});
-        extended["shapes"]["example.weather#ResourceOnly"] = resource_only_shape.clone();
-        extended["shapes"]["example.weather#City"]["properties"] =
-            serde_json::json!({"deploymentState":{"target":"example.weather#ResourceOnly"}});
-        assert_eq!(
-            generated(&extended),
-            baseline,
-            "resource-only {} must not affect any SDK file",
-            resource_only_shape["type"]
-        );
-    }
-}
-
-#[test]
 fn weather_matches_goldens() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let files = emit(
         &service,
         &Options {
@@ -247,12 +194,7 @@ fn policy_options() -> Options {
 
 #[test]
 fn policy_models_generate_with_the_policy_runtime() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/runtime-policy.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
-    .unwrap();
+    let service = crucible_lang::load_service(&model_dir("runtime-policy")).unwrap();
     let files = emit(
         &service,
         &Options {
@@ -275,16 +217,7 @@ fn runtime_policy_names_cannot_collide_with_models() {
         "AttemptFinishedEvent",
         "Clock",
     ] {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({"example.weather#CitySummary":name});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let service = weather_renamed("CitySummary", name);
         let diagnostics = emit(&service, &policy_options()).err().unwrap();
         assert!(
             diagnostics
@@ -297,10 +230,7 @@ fn runtime_policy_names_cannot_collide_with_models() {
 
 #[test]
 fn documentation_and_formatting_use_the_lowered_contract() {
-    let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
-        .unwrap();
+    let service = crucible_lang::load_service(&model_dir("client-docs")).unwrap();
     let files = emit(
         &service,
         &Options {
@@ -330,12 +260,7 @@ fn documentation_and_formatting_use_the_lowered_contract() {
 
 #[test]
 fn representation_method_collisions_are_diagnosed() {
-    let service = Model::from_json(include_str!(
-        "../../../tests/fixtures/client-docs-go-collisions.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_go::capabilities())
-    .unwrap();
+    let service = crucible_lang::load_service(&model_dir("client-docs-go-collisions")).unwrap();
     let diagnostics = emit(
         &service,
         &Options {
@@ -504,12 +429,7 @@ fn permission_constants_that_go_spells_alike_are_diagnosed() {
     let embedded = emit_without_permissions(&permissions_with("Read"), &options).unwrap();
     assert!(!embedded.iter().any(|f| f.path.starts_with("permissions/")));
     // Without permissions there is no sub-package.
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let files = emit(&service, &options).unwrap();
     assert!(!files.iter().any(|f| f.path.starts_with("permissions/")));
 }

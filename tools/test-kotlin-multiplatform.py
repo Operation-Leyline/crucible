@@ -1,7 +1,5 @@
 """Publish a generated KMP SDK, then test a separate package consumer on JVM, JS, and native hosts."""
 import argparse
-import json
-from decimal import Decimal
 import os
 from pathlib import Path
 import platform
@@ -9,17 +7,29 @@ import shutil
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from sdk_cru_packages import MODELS, add_operations, copy_package
 from sdk_test_support import ROOT, run
 
 
-def model_json(value):
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, dict):
-        return "{" + ",".join(json.dumps(key) + ":" + model_json(item) for key, item in value.items()) + "}"
-    if isinstance(value, list):
-        return "[" + ",".join(model_json(item) for item in value) + "]"
-    return json.dumps(value)
+def combined_model(output):
+    """Weather plus the extended-types and error-payloads models, one `.cru` package, and a public write."""
+    package = copy_package("weather", output / "model")
+    for source, name in [("extended-types/shapes/common.cru", "extended-shapes.cru"),
+                         ("error-payloads/shapes/common.cru", "payload-shapes.cru"),
+                         ("error-payloads/shapes/errors.cru", "payload-errors.cru"),
+                         ("extended-types/operations/service/Read.cru", "extended-read.cru"),
+                         ("error-payloads/operations/service/Document.cru", "payload-document.cru"),
+                         ("error-payloads/operations/service/Text.cru", "payload-text.cru")]:
+        shutil.copyfile(MODELS / source, package / name)
+    # Echo takes and returns the members Read returns.
+    read = (MODELS / "extended-types/operations/service/Read.cru").read_text(encoding="utf-8")
+    members = read.split("output {\n", 1)[1].rsplit("    }\n}", 1)[0]
+    echo = ('operation Echo {\n    http POST "/types"\n    input {\n' + members
+            + "    }\n    output {\n" + members + "    }\n}\n\n"
+            + 'public operation AnonymousWrite {\n    http POST "/anonymous"\n}\n')
+    (package / "echo.cru").write_text(echo, encoding="utf-8", newline="\n")
+    add_operations(package, "AnonymousWrite", "Read", "Echo", "Document", "Text")
+    return package
 
 
 def gradle_executable():
@@ -35,25 +45,7 @@ def qualify(output, native=False):
     executable = gradle_executable()
     sdk = output / "sdk"
     repository = output / "repository"
-    model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    model["shapes"]["example.weather#AnonymousWrite"] = {"type": "operation", "traits": {
-        "smithy.api#http": {"method": "POST", "uri": "/anonymous"}, "smithy.api#auth": []}}
-    model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#AnonymousWrite"})
-    extended = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json").read_text(), parse_float=Decimal)
-    extended["shapes"].pop("example.types#Types")
-    model["shapes"].update(extended["shapes"])
-    service = model["shapes"]["example.weather#Weather"]
-    service.setdefault("rename", {})["example.types#Output"] = "ExtendedValues"
-    service["operations"].append({"target": "example.types#Read"})
-    model["shapes"]["example.types#Echo"] = {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/types"}},
-        "input": {"target": "example.types#Output"}, "output": {"target": "example.types#Output"}}
-    service["operations"].append({"target": "example.types#Echo"})
-    payloads = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json").read_text())
-    payload_operations = payloads["shapes"].pop("example.wire#Wire")["operations"]
-    model["shapes"].update(payloads["shapes"])
-    service["operations"].extend(payload_operations)
-    model_path = output / "model.json"
-    model_path.write_text(model_json(model), encoding="utf-8")
+    model_path = combined_model(output)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
         str(model_path), "--out", str(sdk),
         "--group-id", "example", "--artifact-id", "weather-kotlin-mpp", "--package-name", "example.weather",
@@ -86,7 +78,7 @@ def qualify(output, native=False):
     # Runtime policy (retry modes, telemetry) runs the shared vectors against its own client.
     policy_sdk = output / "policy"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/runtime-policy.json"), "--out", str(policy_sdk),
+        str(ROOT / "tests/models/runtime-policy"), "--out", str(policy_sdk),
         "--group-id", "example", "--artifact-id", "policy-kotlin-mpp", "--package-name", "example.policy",
         "--package-version", "0.0.0-test")
     run(*gradle, "-PqualificationRepository=" + repository.as_uri(),

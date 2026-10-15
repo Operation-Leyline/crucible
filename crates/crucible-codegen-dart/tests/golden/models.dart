@@ -98,11 +98,7 @@ final class Coordinates implements wire.WireModel {
   core.String toString() => describe.describe('Coordinates', <core.String, core.Object?>{"latitude": latitude, "longitude": longitude});
 }
 final class CreateCityInput implements wire.WireModel {
-  final core.String? _name;
-  final wire.Field<core.String>? _namePresence;
-  core.String? get name => _namePresence != null ? _namePresence.value : _name;
-  /// Whether `name` was omitted, set to null, or given a value.
-  wire.Field<core.String> get namePresence => _namePresence ?? (_name == null ? const wire.Field.unset() : wire.Field.value(_name));
+  final core.String name;
   final Location? _location;
   final wire.Field<Location>? _locationPresence;
   Location? get location => _locationPresence != null ? _locationPresence.value : _location;
@@ -118,11 +114,11 @@ final class CreateCityInput implements wire.WireModel {
   core.BigInt? get expectedRevision => _expectedRevisionPresence != null ? _expectedRevisionPresence.value : _expectedRevision;
   /// Whether `expectedRevision` was omitted, set to null, or given a value.
   wire.Field<core.BigInt> get expectedRevisionPresence => _expectedRevisionPresence ?? (_expectedRevision == null ? const wire.Field.unset() : wire.Field.value(_expectedRevision));
-  const CreateCityInput({core.String? name, wire.Field<core.String>? namePresence, Location? location, wire.Field<Location>? locationPresence, core.String? clientToken, wire.Field<core.String>? clientTokenPresence, core.BigInt? expectedRevision, wire.Field<core.BigInt>? expectedRevisionPresence}) : _name = name, _namePresence = namePresence, _location = location, _locationPresence = locationPresence, _clientToken = clientToken, _clientTokenPresence = clientTokenPresence, _expectedRevision = expectedRevision, _expectedRevisionPresence = expectedRevisionPresence;
+  const CreateCityInput({required this.name, Location? location, wire.Field<Location>? locationPresence, core.String? clientToken, wire.Field<core.String>? clientTokenPresence, core.BigInt? expectedRevision, wire.Field<core.BigInt>? expectedRevisionPresence}) : _location = location, _locationPresence = locationPresence, _clientToken = clientToken, _clientTokenPresence = clientTokenPresence, _expectedRevision = expectedRevision, _expectedRevisionPresence = expectedRevisionPresence;
   factory CreateCityInput.fromWire(core.Object? value, wire.WireContext context) {
     final object = wire.wireObject(value);
     return CreateCityInput(
-      namePresence: context.optional<core.String>("name", object),
+      name: context.read<core.String>("name", object),
       locationPresence: context.optional<Location>("location", object),
       clientTokenPresence: context.optional<core.String>("clientToken", object),
       expectedRevisionPresence: context.optional<core.BigInt>("expectedRevision", object),
@@ -131,7 +127,7 @@ final class CreateCityInput implements wire.WireModel {
   @core.override
   core.Object toWire(wire.WireContext context) {
     final object = <core.String, core.Object?>{};
-    context.put(object, "name", this.namePresence);
+    context.put(object, "name", this.name);
     context.put(object, "location", this.locationPresence);
     context.put(object, "clientToken", this.clientTokenPresence);
     context.put(object, "expectedRevision", this.expectedRevisionPresence);
@@ -160,28 +156,24 @@ final class CreateCityOutput implements wire.WireModel {
 }
 typedef Forecast = core.Map<Sky, json.JsonValue>;
 final class GetCityInput implements wire.WireModel {
-  final core.String? _cityId;
-  final wire.Field<core.String>? _cityIdPresence;
-  core.String? get cityId => _cityIdPresence != null ? _cityIdPresence.value : _cityId;
-  /// Whether `cityId` was omitted, set to null, or given a value.
-  wire.Field<core.String> get cityIdPresence => _cityIdPresence ?? (_cityId == null ? const wire.Field.unset() : wire.Field.value(_cityId));
+  final core.String cityId;
   final stamp.Timestamp? _at;
   final wire.Field<stamp.Timestamp>? _atPresence;
   stamp.Timestamp? get at => _atPresence != null ? _atPresence.value : _at;
   /// Whether `at` was omitted, set to null, or given a value.
   wire.Field<stamp.Timestamp> get atPresence => _atPresence ?? (_at == null ? const wire.Field.unset() : wire.Field.value(_at));
-  const GetCityInput({core.String? cityId, wire.Field<core.String>? cityIdPresence, stamp.Timestamp? at, wire.Field<stamp.Timestamp>? atPresence}) : _cityId = cityId, _cityIdPresence = cityIdPresence, _at = at, _atPresence = atPresence;
+  const GetCityInput({required this.cityId, stamp.Timestamp? at, wire.Field<stamp.Timestamp>? atPresence}) : _at = at, _atPresence = atPresence;
   factory GetCityInput.fromWire(core.Object? value, wire.WireContext context) {
     final object = wire.wireObject(value);
     return GetCityInput(
-      cityIdPresence: context.optional<core.String>("cityId", object),
+      cityId: context.read<core.String>("cityId", object),
       atPresence: context.optional<stamp.Timestamp>("at", object),
     );
   }
   @core.override
   core.Object toWire(wire.WireContext context) {
     final object = <core.String, core.Object?>{};
-    context.put(object, "cityId", this.cityIdPresence);
+    context.put(object, "cityId", this.cityId);
     context.put(object, "at", this.atPresence);
     return object;
   }
@@ -221,22 +213,18 @@ final class GetCityOutput implements wire.WireModel {
   core.String toString() => describe.describe('GetCityOutput', <core.String, core.Object?>{"city": city, "forecast": forecast, "requestId": requestId});
 }
 final class GetCityPhotoInput implements wire.WireModel {
-  final core.String? _cityId;
-  final wire.Field<core.String>? _cityIdPresence;
-  core.String? get cityId => _cityIdPresence != null ? _cityIdPresence.value : _cityId;
-  /// Whether `cityId` was omitted, set to null, or given a value.
-  wire.Field<core.String> get cityIdPresence => _cityIdPresence ?? (_cityId == null ? const wire.Field.unset() : wire.Field.value(_cityId));
-  const GetCityPhotoInput({core.String? cityId, wire.Field<core.String>? cityIdPresence}) : _cityId = cityId, _cityIdPresence = cityIdPresence;
+  final core.String cityId;
+  const GetCityPhotoInput({required this.cityId});
   factory GetCityPhotoInput.fromWire(core.Object? value, wire.WireContext context) {
     final object = wire.wireObject(value);
     return GetCityPhotoInput(
-      cityIdPresence: context.optional<core.String>("cityId", object),
+      cityId: context.read<core.String>("cityId", object),
     );
   }
   @core.override
   core.Object toWire(wire.WireContext context) {
     final object = <core.String, core.Object?>{};
-    context.put(object, "cityId", this.cityIdPresence);
+    context.put(object, "cityId", this.cityId);
     return object;
   }
   @core.override
@@ -437,36 +425,28 @@ final class PhotoSummary implements wire.WireModel {
   core.String toString() => describe.describe('PhotoSummary', <core.String, core.Object?>{"size": size, "thumbnail": thumbnail, "caption": caption});
 }
 final class PutCityPhotoInput implements wire.WireModel {
-  final core.String? _cityId;
-  final wire.Field<core.String>? _cityIdPresence;
-  core.String? get cityId => _cityIdPresence != null ? _cityIdPresence.value : _cityId;
-  /// Whether `cityId` was omitted, set to null, or given a value.
-  wire.Field<core.String> get cityIdPresence => _cityIdPresence ?? (_cityId == null ? const wire.Field.unset() : wire.Field.value(_cityId));
+  final core.String cityId;
   final core.String? _caption;
   final wire.Field<core.String>? _captionPresence;
   core.String? get caption => _captionPresence != null ? _captionPresence.value : _caption;
   /// Whether `caption` was omitted, set to null, or given a value.
   wire.Field<core.String> get captionPresence => _captionPresence ?? (_caption == null ? const wire.Field.unset() : wire.Field.value(_caption));
-  final typed.Uint8List? _photo;
-  final wire.Field<typed.Uint8List>? _photoPresence;
-  typed.Uint8List? get photo => _photoPresence != null ? _photoPresence.value : _photo;
-  /// Whether `photo` was omitted, set to null, or given a value.
-  wire.Field<typed.Uint8List> get photoPresence => _photoPresence ?? (_photo == null ? const wire.Field.unset() : wire.Field.value(_photo));
-  const PutCityPhotoInput({core.String? cityId, wire.Field<core.String>? cityIdPresence, core.String? caption, wire.Field<core.String>? captionPresence, typed.Uint8List? photo, wire.Field<typed.Uint8List>? photoPresence}) : _cityId = cityId, _cityIdPresence = cityIdPresence, _caption = caption, _captionPresence = captionPresence, _photo = photo, _photoPresence = photoPresence;
+  final typed.Uint8List photo;
+  const PutCityPhotoInput({required this.cityId, core.String? caption, wire.Field<core.String>? captionPresence, required this.photo}) : _caption = caption, _captionPresence = captionPresence;
   factory PutCityPhotoInput.fromWire(core.Object? value, wire.WireContext context) {
     final object = wire.wireObject(value);
     return PutCityPhotoInput(
-      cityIdPresence: context.optional<core.String>("cityId", object),
+      cityId: context.read<core.String>("cityId", object),
       captionPresence: context.optional<core.String>("caption", object),
-      photoPresence: context.optional<typed.Uint8List>("photo", object),
+      photo: context.read<typed.Uint8List>("photo", object),
     );
   }
   @core.override
   core.Object toWire(wire.WireContext context) {
     final object = <core.String, core.Object?>{};
-    context.put(object, "cityId", this.cityIdPresence);
+    context.put(object, "cityId", this.cityId);
     context.put(object, "caption", this.captionPresence);
-    context.put(object, "photo", this.photoPresence);
+    context.put(object, "photo", this.photo);
     return object;
   }
   @core.override

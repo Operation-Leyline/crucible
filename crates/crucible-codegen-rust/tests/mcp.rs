@@ -1,11 +1,8 @@
 use crucible_codegen_rust::{Options, generate};
-use crucible_smithy::Model;
+mod common;
 
 fn emit(model: &str) -> Result<String, crucible_smithy::Diagnostics> {
-    let service = Model::from_json(model)
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .unwrap();
+    let service = common::load(model);
     generate(
         &service,
         &Options {
@@ -16,10 +13,7 @@ fn emit(model: &str) -> Result<String, crucible_smithy::Diagnostics> {
 }
 #[test]
 fn static_descriptors_match_golden() {
-    let code = emit(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
+    let code = emit("weather").unwrap();
     assert!(code.contains("Some(MCP_TOOLS),"));
     let descriptors = code
         .split("    /// MCP tools for the selected audience.")
@@ -41,10 +35,7 @@ fn static_descriptors_match_golden() {
 }
 #[test]
 fn tool_name_diagnostics_are_collected() {
-    let diagnostics = emit(include_str!(
-        "../../crucible-smithy/tests/fixtures/mcp-tool-names.json"
-    ))
-    .unwrap_err();
+    let diagnostics = emit("mcp-tool-names").unwrap_err();
     assert_eq!(diagnostics.len(), 2);
     assert!(
         diagnostics
@@ -55,12 +46,7 @@ fn tool_name_diagnostics_are_collected() {
 
 #[test]
 fn strict_inputs_remain_strict_after_external_projection() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = common::load("weather");
     let code = generate(
         &service,
         &Options {
@@ -92,10 +78,7 @@ fn strict_inputs_remain_strict_after_external_projection() {
 }
 #[test]
 fn server_keeps_internal_api_but_descriptors_use_external_projection() {
-    let code = emit(include_str!(
-        "../../crucible-smithy/tests/fixtures/internal.json"
-    ))
-    .unwrap();
+    let code = emit("internal").unwrap();
     assert!(code.contains("pub trait SecretOperation"));
     let descriptors = code.split("pub static MCP_TOOLS").nth(1).unwrap();
     assert!(!descriptors.contains("Secret"));

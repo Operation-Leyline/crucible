@@ -1,0 +1,9 @@
+operation Get {
+    http POST "/get" -> 200
+    input {
+        id: string
+    }
+    output {
+        children?: Nodes
+    }
+}

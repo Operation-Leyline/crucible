@@ -14,5 +14,8 @@ serde_json.workspace = true
 toml = "0.8"
 regex = "1"
 
+[dev-dependencies]
+crucible-lang.workspace = true
+
 [lints]
 workspace = true

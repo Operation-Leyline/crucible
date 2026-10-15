@@ -1,0 +1,16 @@
+error InvalidEndpointException {
+    status 421
+    message?: string
+}
+
+error Throttled {
+    status 429
+    retryable throttling
+    message?: string
+}
+
+error Unavailable {
+    status 503
+    retryable
+    message?: string
+}

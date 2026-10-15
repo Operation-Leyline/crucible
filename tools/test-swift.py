@@ -11,8 +11,22 @@ import time
 
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
+from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 
 SWIFT = os.environ.get("SWIFT", "swift")
+
+
+def void_package(output):
+    """A service whose one operation has no input or output."""
+    return write_package(output / "void", "example.void", **{"void.cru": (
+        "service Service {\n    version \"1\"\n    protocol json\n    operations [Ping]\n}\n\n"
+        "readonly operation Ping {\n    http GET \"/ping\"\n}\n")})
+
+
+def add_input_members(package, *names):
+    """Optional string members on CreateCity's input."""
+    replace_once(package, "        clientToken?: string\n",
+                 "        clientToken?: string\n" + "".join(f"        {name}?: string\n" for name in names))
 
 
 def generate(model, output, module="Weather", *extra):
@@ -174,14 +188,7 @@ def qualify(output):
             FIXTURE_URL=fixture_url, RETRY_CASES=str(ROOT / "tests/conformance/retry.json"),
             HEADER_CASES=str(ROOT / "tests/conformance/header-lists.json"),
             SERIALIZATION_CASES=str(ROOT / "tests/conformance/serialization.json")))
-    void_model = {"smithy": "2.0", "shapes": {
-        "example.void#Service": {"type": "service", "version": "1",
-            "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.void#Ping"}]},
-        "example.void#Ping": {"type": "operation",
-            "traits": {"smithy.api#http": {"method": "GET", "uri": "/ping"}}},
-    }}
-    void_path = output / "void.json"
-    void_path.write_text(json.dumps(void_model))
+    void_path = void_package(output)
     generate(void_path, output / "void", "VoidSDK")
     consumer = output / "consumer"
     sources = consumer / "Sources/Consumer"
@@ -218,20 +225,15 @@ struct Fake: VoidSDK.HTTPTransport {
 ''')
     swift("run", consumer, scratch, "Consumer")
     qualify_permissions(output, scratch)
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#CitySummaries": "OptionalValue",
-        "example.weather#Location": "Request",
-    }
-    renamed["shapes"]["example.weather#CreateCityInput"]["members"]["class"] = {"target": "smithy.api#String"}
-    path = output / "renamed.json"
-    path.write_text(json.dumps(renamed))
-    for name, model in [("Empty", ROOT / "tests/conformance/empty-service.json"), ("Renamed", path)]:
+    path = copy_package("weather", output / "renamed")
+    rename_shapes(path, {"CitySummary": "String", "CitySummaries": "OptionalValue", "Location": "Request"})
+    add_input_members(path, "class")
+    for name, model in [("Empty", ROOT / "tests/models/empty-service"), ("Renamed", path)]:
         generated = output / name
         generate(model, generated, name)
         swift("build", generated, scratch)
     extended = output / "extended"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", extended, "Types")
+    generate(ROOT / "tests/models/extended-types", extended, "Types")
     manifest = extended / "Package.swift"
     manifest.write_text(manifest.read_text().replace(
         'resources: [.process("Resources")])]',
@@ -241,7 +243,7 @@ struct Fake: VoidSDK.HTTPTransport {
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/ExtendedTests.swift", tests / "ExtendedTests.swift")
     swift("test", extended, scratch)
     wire = output / "wire"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", wire, "Wire")
+    generate(ROOT / "tests/models/error-payloads", wire, "Wire")
     manifest = wire / "Package.swift"
     manifest.write_text(manifest.read_text().replace(
         'resources: [.process("Resources")])]',
@@ -251,7 +253,7 @@ struct Fake: VoidSDK.HTTPTransport {
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/WireTests.swift", tests / "WireTests.swift")
     swift("test", wire, scratch)
     # Payload Content-Type precedence.
-    bindings_path = ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"
+    bindings_path = ROOT / "tests/models/payload-bindings"
     # Distinct module names, since every package here shares one scratch path.
     for module in ("Payload",):
         payload = output / module
@@ -269,7 +271,7 @@ struct Fake: VoidSDK.HTTPTransport {
     # String representations hide sensitive members from description, debug
     # description and reflection alike.
     vault = output / "vault"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json", vault, "Vault")
+    generate(ROOT / "tests/models/client-docs-vault", vault, "Vault")
     manifest = vault / "Package.swift"
     manifest.write_text(manifest.read_text().replace(
         'resources: [.process("Resources")])]',

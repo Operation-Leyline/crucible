@@ -1,0 +1,23 @@
+readonly operation CollectionsOperation {
+    http POST "/Collections"
+    input {
+        texts?: Texts
+        flags?: Flags
+        numbers?: Numbers
+        documents?: Documents
+        textsMap?: TextsMap
+        flagsMap?: FlagsMap
+        numbersMap?: NumbersMap
+        documentsMap?: DocumentsMap
+    }
+    output {
+        texts?: Texts
+        flags?: Flags
+        numbers?: Numbers
+        documents?: Documents
+        textsMap?: TextsMap
+        flagsMap?: FlagsMap
+        numbersMap?: NumbersMap
+        documentsMap?: DocumentsMap
+    }
+}

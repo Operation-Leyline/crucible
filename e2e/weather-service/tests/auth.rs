@@ -23,7 +23,7 @@ use std::{
 };
 
 include!(concat!(env!("OUT_DIR"), "/auth_chain.rs"));
-use auth_weather::{BearerOnly, Identity, Protected, Public};
+use auth_weather::{BearerOnly, Protected, Public};
 
 #[tokio::test]
 async fn mcp_authenticator_chain_preserves_http_refusals_and_principals() {
@@ -108,12 +108,17 @@ fn issuer() -> &'static TestTokenIssuer {
     ISSUER.get_or_init(|| TestTokenIssuer::new("https://issuer.example", "rsa-1").unwrap())
 }
 
-fn identity() -> Identity {
+/// The caller as the operations report it. Each operation has an output of
+/// its own with the same two members, so the handlers build whichever they
+/// return from the wire form.
+fn identity<O: serde::de::DeserializeOwned>() -> O {
     let principal = Context::current().attribute::<Principal>();
-    Identity {
-        subject: principal.as_ref().map(|p| p.subject.clone()),
-        kind: principal.map(|p| format!("{:?}", p.token_kind)),
+    let mut identity = serde_json::Map::new();
+    if let Some(principal) = &principal {
+        identity.insert("subject".into(), json!(principal.subject));
+        identity.insert("kind".into(), json!(format!("{:?}", principal.token_kind)));
     }
+    serde_json::from_value(Value::Object(identity)).unwrap()
 }
 
 fn operations() -> Operations {
@@ -668,7 +673,7 @@ struct LegacyProbe;
 impl Operation for LegacyProbe {
     const INFO: &'static crucible_server_runtime_rust::OperationInfo = Protected::INFO;
     type Input = crucible_server_runtime_rust::operation::Unit;
-    type Output = Identity;
+    type Output = auth_weather::ProtectedOutput;
 }
 static LEGACY_SERVICE: ServiceInfo = generated::service_info(
     "example.auth#Legacy",

@@ -1,15 +1,13 @@
 #![cfg(feature = "all-clients")]
 
 use crucible_codegen::{Client, File};
-use crucible_smithy::Model;
+
+mod common;
 
 #[test]
 fn adapters_preserve_every_native_emitters_output() {
-    for fixture in [
-        include_str!("../../crucible-smithy/tests/fixtures/weather.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/internal.json"),
-    ] {
-        let full = Model::from_json(fixture).unwrap().lower(None).unwrap();
+    for fixture in ["weather", "internal"] {
+        let full = common::load(fixture);
         let service =
             crucible_smithy::project(&full, crucible_codegen::Audience::External).unwrap();
         let rust_options = crucible_codegen::RustOptions {

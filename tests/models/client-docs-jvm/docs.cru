@@ -1,0 +1,7 @@
+/// Service docs with a */ terminator.
+service Docs {
+    version "1"
+    protocol json
+    operations [Greet]
+    errors [Denied]
+}
