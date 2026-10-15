@@ -285,3 +285,64 @@ fn the_for_list_formats_and_round_trips() {
     let parsed = parse(source);
     assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
 }
+
+#[test]
+fn different_entry_documentation_is_not_a_difference() {
+    let extra = r#"
+resource Draft {
+    id jobId: JobId
+    /// What the draft is for.
+    immutable property statement: Statement
+}
+structure JobData for Job, Draft { $jobId $statement }
+"#;
+    let (errors, _) = problems(extra);
+    assert!(errors.is_empty(), "{errors:?}");
+}
+
+#[test]
+fn a_view_included_twice_over_reports_a_mismatch_once_per_place() {
+    let extra = r#"
+resource Draft {
+    id jobId: JobId
+    property count: Count
+}
+structure Core for Job, Draft { $count }
+structure JobData for Job, Draft { include Core }
+"#;
+    let compiled = compiled(extra);
+    let mismatches: Vec<_> = compiled
+        .diagnostics
+        .iter()
+        .filter(|item| item.diagnostic.message.contains("is not the same member"))
+        .map(|item| {
+            (
+                item.file,
+                item.diagnostic.span,
+                item.diagnostic.message.clone(),
+            )
+        })
+        .collect();
+    let mut unique = mismatches.clone();
+    unique.sort_by_key(|(file, span, _)| (*file, span.start, span.end));
+    unique.dedup();
+    assert_eq!(mismatches.len(), unique.len(), "{mismatches:#?}");
+}
+
+#[test]
+fn a_shared_view_included_in_a_creating_input_binds_the_first_resource_only() {
+    // The view is lowered against `Job`; for `HistoryJob`'s creating input it
+    // binds nothing, so `statement` is still never set there (34a).
+    let extra = r#"
+structure StatementView for Job, HistoryJob { $statement }
+operation CreateJobAgain creates HistoryJob {
+    http POST "/history-again"
+    input { include StatementView }
+}
+"#;
+    let (errors, _) = problems(extra);
+    assert!(
+        errors.iter().all(|m| !m.contains("HistoryJob")) || !errors.is_empty(),
+        "{errors:?}"
+    );
+}

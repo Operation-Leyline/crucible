@@ -197,11 +197,6 @@ struct EntryRef<'a> {
     own: bool,
 }
 
-/// A property's declared mutability (decision 34a); an identifier has
-/// none. Combinations `check_resources` refuses lower as their first
-/// keyword would.
-/// The fields in which two lowerings of one view member disagree, by name.
-/// Documentation is the first resource's.
 /// Whether `structure` is a `for` view that covers `resource`, as its first
 /// or one of its other resources.
 fn view_of(structure: &crate::ast::Structure, resource: &str) -> bool {
@@ -212,10 +207,13 @@ fn view_of(structure: &crate::ast::Structure, resource: &str) -> bool {
         .any(|r| r.name == resource)
 }
 
+/// The fields in which two lowerings of one view member disagree, by name.
+/// Documentation is the first resource's, so it is not compared.
 fn member_differences(a: &IrMember, b: &IrMember) -> Vec<String> {
     fn fields(member: &IrMember) -> serde_json::Map<String, Json> {
         let mut member = member.clone();
         member.docs = None;
+        member.traits.remove(&smithy("documentation"));
         match serde_json::to_value(member) {
             Ok(Json::Object(map)) => map,
             _ => serde_json::Map::new(),
@@ -228,6 +226,9 @@ fn member_differences(a: &IrMember, b: &IrMember) -> Vec<String> {
         .collect()
 }
 
+/// A property's declared mutability (decision 34a); an identifier has
+/// none. Combinations `check_resources` refuses lower as their first
+/// keyword would.
 fn entry_mutability(entry: &ResourceEntry) -> Option<Mutability> {
     if entry.kind == ResourceEntryKind::Id {
         return None;
@@ -817,7 +818,10 @@ impl<'a> Lowerer<'a> {
                 MemberKind::Include(name) if !including.contains(&name.name.as_str()) => {
                     if let Some(Decl::Structure(structure)) =
                         self.decl(&name.name).map(|d| &d.item.decl)
-                        && (structure.resource.is_none() || view_of(structure, resource))
+                        && structure
+                            .resource
+                            .as_ref()
+                            .is_none_or(|r| r.name == resource)
                     {
                         including.push(&name.name);
                         self.written(&structure.members, resource, including, out);
@@ -3114,10 +3118,21 @@ impl<'a> Lowerer<'a> {
                 let own = structure.resource.as_ref().map(|r| r.name.as_str());
                 // The included view's other resources stay checked; so do the
                 // including view's, when both are views of the same resource.
-                let mut others: Vec<&str> =
-                    structure.also.iter().map(|r| r.name.as_str()).collect();
-                if own.is_some() && own == context.resource {
-                    others.extend_from_slice(context.also);
+                let mut others: Vec<&str> = Vec::new();
+                let inherited = if own.is_some() && own == context.resource {
+                    context.also
+                } else {
+                    &[]
+                };
+                for other in structure
+                    .also
+                    .iter()
+                    .map(|r| r.name.as_str())
+                    .chain(inherited.iter().copied())
+                {
+                    if Some(other) != own && !others.contains(&other) {
+                        others.push(other);
+                    }
                 }
                 // Its members are a representation unless they land in an
                 // input, where they bind what the operation takes; the
@@ -3504,16 +3519,23 @@ impl<'a> Lowerer<'a> {
                 .extend(added.into_iter().filter(|new| !known.contains(new)));
             let Some(twin) = twin else { continue };
             let differing = member_differences(&lowered, &twin);
-            if !differing.is_empty() {
-                self.error(
-                    file,
-                    member.span,
-                    format!(
-                        "`{}` is not the same member of `{first}` and `{other}` ({}): a view of several resources shows only what each declares identically",
-                        lowered.name,
-                        differing.join(", ")
-                    ),
-                );
+            if differing.is_empty() {
+                continue;
+            }
+            let message = format!(
+                "`{}` is not the same member of `{first}` and `{other}` ({}): a view of several resources shows only what each declares identically",
+                lowered.name,
+                differing.join(", ")
+            );
+            // A view lowered for itself and again where it is included says
+            // the same thing at the same place.
+            let said = self.diagnostics.iter().any(|item| {
+                item.file == Some(file)
+                    && item.diagnostic.span == member.span
+                    && item.diagnostic.message == message
+            });
+            if !said {
+                self.error(file, member.span, message);
             }
         }
         Some(lowered)

@@ -488,7 +488,7 @@ impl Walker<'_> {
             }
             Decl::Template(template) => self.entries(&template.entries),
             Decl::Structure(structure) => {
-                if let Some(resource) = &structure.resource {
+                for resource in structure.resource.iter().chain(&structure.also) {
                     self.reference_kind(resource, Some(Role::Class), RESOURCE);
                 }
                 self.members(&structure.members);
@@ -955,6 +955,20 @@ operation GetCity reads City {
         assert_eq!(doc.modifiers, DOCUMENTATION);
         assert!(highlights.iter().any(|h| h.role == Role::String));
         assert!(highlights.iter().any(|h| h.role == Role::Number));
+    }
+
+    #[test]
+    fn every_resource_of_a_view_is_a_reference() {
+        let source = "resource Job {\n    id jobId: string\n}\nresource Old {\n    id jobId: string\n}\nstructure Data for Job, Old {\n    $jobId\n}\n";
+        let parsed = crucible_lang::parse(source);
+        let index = Index::new(std::slice::from_ref(&parsed));
+        let highlights = highlights(&parsed, &index);
+        let role = |word: &str| {
+            let start = source.find(&format!("for Job, {word}")).unwrap() + "for Job, ".len();
+            let found = highlights.iter().find(|h| h.start == start as u32).unwrap();
+            (found.role, found.modifiers)
+        };
+        assert_eq!(role("Old"), (Role::Class, RESOURCE));
     }
 
     #[test]
