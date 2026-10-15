@@ -11,6 +11,13 @@ the namespace, the language version and the source directories. Every
 `.cru` file under those directories belongs to the package's single
 namespace. File and declaration order never matter.
 
+A package imports others in its manifest: `imports = ["crucible.errors"]`
+names a bundled package, and `imports = ["org.standards"]` with
+`[model.dependencies]` `"org.standards" = { path = "../standards" }` loads
+the package in that directory, which must declare the namespace. A package's
+declarations and `metadata` are visible to the packages that import it, and
+its rules apply to them (see Policy rules).
+
 ## Lexical structure
 
 - **Whitespace and newlines** separate tokens and carry no meaning.

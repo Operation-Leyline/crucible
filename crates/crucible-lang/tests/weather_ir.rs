@@ -30,6 +30,8 @@ fn cru_weather() -> (Package, crucible_lang::Compiled) {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = compile(&package, None);

@@ -17,6 +17,13 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: `[model.dependencies]` imports a package by path,
+  `"org.standards" = { path = "../standards" }`. An importing package sees the
+  dependency's shapes and metadata, and the dependency's rules apply to it:
+  an importer cannot weaken them, and may except one only if it is declared
+  `exceptable`. `crucible_lang::Package` gains `dependencies` and `dir`;
+  `crucible-build` reruns when a dependency's directory changes.
+
 - `.cru`: `rule` and `except` declarations compile. A rule is `every <kind>
   [where ..] must ..` or `no <kind> [where ..]` over operations, shapes and
   members, with conditions on keywords, metadata (including `retention

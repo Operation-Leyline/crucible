@@ -52,6 +52,17 @@ pub fn load_package_with_overlays(
     text: &str,
     overlays: &[SourceFile],
 ) -> Result<Package, String> {
+    load_inner(dir, text, overlays, &mut Vec::new())
+}
+
+/// [`load_package_with_overlays`], with the directories of the packages being
+/// loaded above this one, so a dependency cycle is refused.
+fn load_inner(
+    dir: &Path,
+    text: &str,
+    overlays: &[SourceFile],
+    loading: &mut Vec<PathBuf>,
+) -> Result<Package, String> {
     let manifest = dir.join("crucible.toml");
     // The build and the editor apply the same checks, so a manifest the
     // editor marks wrong never builds.
@@ -100,6 +111,7 @@ pub fn load_package_with_overlays(
     };
     let sources = strings("sources", &["."])?;
     let imports = strings("imports", &[])?;
+    let dependencies = load_dependencies(dir, model, &imports, loading)?;
     let mut naming = Naming::default();
     if let Some(table) = model.get("naming").and_then(toml::Value::as_table) {
         for (key, slot) in [("input", &mut naming.input), ("output", &mut naming.output)] {
@@ -211,8 +223,72 @@ pub fn load_package_with_overlays(
         files,
         naming,
         imports,
+        dependencies,
+        dir: Some(dir.to_path_buf()),
         baseline,
     })
+}
+
+/// The packages `imports` names that `[model.dependencies]` points at, loaded
+/// from their directories, with what they import in turn.
+fn load_dependencies(
+    dir: &Path,
+    model: &toml::Table,
+    imports: &[String],
+    loading: &mut Vec<PathBuf>,
+) -> Result<Vec<Package>, String> {
+    let Some(table) = model.get("dependencies").and_then(toml::Value::as_table) else {
+        return Ok(Vec::new());
+    };
+    let here = std::fs::canonicalize(dir).unwrap_or_else(|_| dir.to_path_buf());
+    loading.push(here.clone());
+    let mut out: Vec<Package> = Vec::new();
+    for import in imports {
+        let Some(path) = table
+            .get(import)
+            .and_then(toml::Value::as_table)
+            .and_then(|entry| entry.get("path"))
+            .and_then(toml::Value::as_str)
+        else {
+            continue;
+        };
+        let target = dir.join(path);
+        let canonical = std::fs::canonicalize(&target).unwrap_or_else(|_| target.clone());
+        if loading.contains(&canonical) {
+            return Err(format!(
+                "{}: dependency `{import}` imports this package back (a cycle through {})",
+                dir.join("crucible.toml").display(),
+                target.display()
+            ));
+        }
+        let manifest = target.join("crucible.toml");
+        let text = std::fs::read_to_string(&manifest)
+            .map_err(|error| format!("cannot read {}: {error}", manifest.display()))?;
+        let mut package = load_inner(&target, &text, &[], loading)?;
+        let nested = std::mem::take(&mut package.dependencies);
+        package.baseline = None;
+        for dependency in nested.into_iter().chain([package]) {
+            match out.iter().find(|p| p.namespace == dependency.namespace) {
+                Some(seen) if seen.dir != dependency.dir => {
+                    return Err(format!(
+                        "two dependencies are the package `{}`: {} and {}",
+                        dependency.namespace,
+                        seen.dir
+                            .as_deref()
+                            .map_or_else(String::new, |d| d.display().to_string()),
+                        dependency
+                            .dir
+                            .as_deref()
+                            .map_or_else(String::new, |d| d.display().to_string())
+                    ));
+                }
+                Some(_) => {}
+                None => out.push(dependency),
+            }
+        }
+    }
+    loading.pop();
+    Ok(out)
 }
 
 /// Why a `sources` entry is not allowed, if it is not. Sources stay inside
@@ -462,11 +538,8 @@ pub fn check_manifest_with_overlays(
             ));
         }
     }
-    if let Some(at) = model.dependencies.as_ref().map(|d| d.span()) {
-        out.push(Diagnostic::new(
-            span(at),
-            "`[model.dependencies]` is not supported by the compiler yet",
-        ));
+    if let Some(dependencies) = &model.dependencies {
+        out.extend(check_dependencies(dir, text, dependencies, &header));
     }
     if let Some(Baseline { path }) = &model.baseline {
         let at = span(path.span());
@@ -492,13 +565,7 @@ pub fn check_manifest_with_overlays(
         .unwrap_or_default();
     for import in model.imports.unwrap_or_default() {
         if dependencies.contains(import.get_ref()) {
-            out.push(Diagnostic::new(
-                span(import.span()),
-                format!(
-                    "`{}` is a dependency package; importing one is not supported by the compiler yet",
-                    import.get_ref()
-                ),
-            ));
+            // Loaded and checked with the package.
         } else if !crate::compile::BUNDLED
             .iter()
             .any(|(namespace, _)| namespace == import.get_ref())
@@ -510,7 +577,7 @@ pub fn check_manifest_with_overlays(
             out.push(Diagnostic::new(
                 span(import.span()),
                 format!(
-                    "unknown import `{}`; the bundled packages are {}",
+                    "unknown import `{}`; the bundled packages are {}, and a dependency is named in `[model.dependencies]`",
                     import.get_ref(),
                     known.join(", ")
                 ),
@@ -553,6 +620,91 @@ pub fn check_manifest_with_overlays(
                 at,
                 "the input and output naming patterns must differ, or both bodies get one name",
             ));
+        }
+    }
+    out
+}
+
+/// The `[model.dependencies]` table: each entry names a package by its
+/// namespace and points at its directory, `"org.standards" = { path =
+/// "../standards" }`. The package there must exist and declare that
+/// namespace. (The entry pins what the package is: a path is the only place
+/// resolved in v1, decision 60.)
+fn check_dependencies(
+    dir: &Path,
+    text: &str,
+    table: &toml::Spanned<toml::Table>,
+    fallback: &Span,
+) -> Vec<Diagnostic> {
+    let range = table.span();
+    let inside = &text[range.clone()];
+    let at = |name: &str| {
+        // The entry's key, quoted or bare, inside the table's text.
+        [format!("\"{name}\""), name.to_owned()]
+            .iter()
+            .find_map(|key| inside.find(key.as_str()).map(|i| (i, key.len())))
+            .map_or(*fallback, |(i, len)| {
+                Span::new(range.start + i, range.start + i + len)
+            })
+    };
+    let mut out = Vec::new();
+    for (name, value) in table.get_ref() {
+        let here = at(name);
+        if let Some(problem) = crate::compile::namespace_problem(name) {
+            out.push(Diagnostic::new(here, problem));
+            continue;
+        }
+        let Some(entry) = value.as_table() else {
+            out.push(Diagnostic::new(
+                here,
+                format!(
+                    "`{name}` is a dependency: write `\"{name}\" = {{ path = \"../{name}\" }}`"
+                ),
+            ));
+            continue;
+        };
+        if let Some(key) = entry.keys().find(|key| *key != "path") {
+            out.push(Diagnostic::new(
+                here,
+                format!("unknown key `{key}` in the dependency `{name}`; it has `path`"),
+            ));
+        }
+        let Some(path) = entry.get("path").and_then(toml::Value::as_str) else {
+            out.push(Diagnostic::new(
+                here,
+                format!("the dependency `{name}` needs a `path` to its package directory"),
+            ));
+            continue;
+        };
+        let target = dir.join(path);
+        let manifest = target.join("crucible.toml");
+        let declared = std::fs::read_to_string(&manifest)
+            .ok()
+            .and_then(|text| text.parse::<toml::Table>().ok())
+            .and_then(|table| {
+                table
+                    .get("model")?
+                    .as_table()?
+                    .get("namespace")?
+                    .as_str()
+                    .map(str::to_owned)
+            });
+        match declared {
+            None => out.push(Diagnostic::new(
+                here,
+                format!(
+                    "`{}` is not a package: the dependency `{name}` needs a directory with a crucible.toml that has [model]",
+                    target.display()
+                ),
+            )),
+            Some(namespace) if namespace != *name => out.push(Diagnostic::new(
+                here,
+                format!(
+                    "`{}` declares the namespace `{namespace}`, not `{name}`",
+                    target.display()
+                ),
+            )),
+            Some(_) => {}
         }
     }
     out

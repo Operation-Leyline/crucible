@@ -25,6 +25,14 @@ pub struct Package {
     /// Packages whose declarations this one uses: the bundled
     /// `crucible.errors` today (decision 60).
     pub imports: Vec<String>,
+    /// The packages `imports` names that are not bundled: each of
+    /// `[model.dependencies]` the package imports, and what those import in
+    /// turn, flattened and deepest first. Their own `dependencies` are empty.
+    /// A dependency's rules apply to this package (decision 47).
+    pub dependencies: Vec<Package>,
+    /// Where the package was loaded from, when it was: a build reruns when
+    /// anything under it changes.
+    pub dir: Option<std::path::PathBuf>,
     /// The last release's snapshot, from `[model.baseline]`
     /// (`releases/<version>.json`): the contract this one must stay
     /// compatible with (decision 47d).
@@ -38,6 +46,8 @@ impl Package {
             files,
             naming: Naming::default(),
             imports: Vec::new(),
+            dependencies: Vec::new(),
+            dir: None,
             baseline: None,
         }
     }
@@ -112,7 +122,7 @@ pub struct FileDiagnostic {
 #[derive(Debug)]
 pub struct Compiled {
     pub namespace: String,
-    /// Every file compiled: the package's own, then its imports'.
+    /// Every file compiled: the package's own, then its dependencies', then the bundled ones.
     pub files: Vec<SourceFile>,
     pub parsed: Vec<Parsed>,
     /// Present when the package compiled without a diagnostic.
@@ -206,12 +216,31 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
             diagnostic: Diagnostic::new(Span::default(), problem),
         });
     }
-    let mut imported = Vec::new();
-    for import in &package.imports {
-        if imported.contains(import) {
+    // A dependency's files follow the package's own, in namespaces of their own.
+    for dependency in &package.dependencies {
+        for file in &dependency.files {
+            files.push(file.clone());
+            namespaces.push(dependency.namespace.clone());
+        }
+    }
+    // The bundled packages the package, and the dependencies it imports by
+    // path, import.
+    let dependency_names: Vec<&str> = package
+        .dependencies
+        .iter()
+        .map(|d| d.namespace.as_str())
+        .collect();
+    let wanted: Vec<&String> = package
+        .imports
+        .iter()
+        .chain(package.dependencies.iter().flat_map(|d| &d.imports))
+        .collect();
+    let mut imported: Vec<&String> = Vec::new();
+    for import in wanted {
+        if imported.contains(&import) || dependency_names.contains(&import.as_str()) {
             continue;
         }
-        imported.push(import.clone());
+        imported.push(import);
         match BUNDLED.iter().find(|(namespace, _)| namespace == import) {
             Some((namespace, text)) => {
                 files.push(SourceFile {
@@ -227,7 +256,7 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
                     diagnostic: Diagnostic::new(
                         Span::default(),
                         format!(
-                            "unknown import `{import}`; the bundled packages are {}",
+                            "unknown import `{import}`; the bundled packages are {}, and a dependency is named in `[model.dependencies]`",
                             known.join(", ")
                         ),
                     ),
