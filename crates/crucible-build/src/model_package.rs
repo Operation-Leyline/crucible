@@ -10,65 +10,29 @@ use crate::{Artifact, Output};
 /// A compiled model and its named generated outputs for one Cargo package build.
 pub struct ModelPackage {
     pub(crate) model: PathBuf,
-    /// What the build script named: Smithy sources, a `.cru` package or a
-    /// JSON AST. A `crucible-sdk.toml` naming it declares this model's SDKs.
+    /// What the build script named: the `.cru` package. A `crucible-sdk.toml`
+    /// naming it declares this model's SDKs.
     pub(crate) source: PathBuf,
-    pub(crate) server_requires_rejection: bool,
     pub(crate) service: Service,
     pub(crate) output: PathBuf,
     pub(crate) artifacts: RefCell<BTreeMap<String, Artifact>>,
-    #[cfg(feature = "docs")]
-    documentation: std::cell::OnceCell<Result<Service, String>>,
-    #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
-    /// `None` for a `.cru` package, which has no Smithy AST.
-    model_ast: Option<crucible_smithy::Model>,
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
-    infrastructure: std::cell::OnceCell<Result<Service, String>>,
-    #[cfg(any(
-        feature = "rust",
-        feature = "docs",
-        feature = "cdk",
-        feature = "terraform"
-    ))]
+    #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     policy: Option<PathBuf>,
 }
 
 impl ModelPackage {
     pub(crate) fn new(
         model: PathBuf,
-        server_requires_rejection: bool,
         service: Service,
         output: PathBuf,
-        #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))] model_ast: Option<
-            crucible_smithy::Model,
-        >,
-        #[cfg(any(
-            feature = "rust",
-            feature = "docs",
-            feature = "cdk",
-            feature = "terraform"
-        ))]
         policy: Option<PathBuf>,
     ) -> Result<Self, String> {
         let package = Self {
             source: model.clone(),
             model,
-            server_requires_rejection,
             service,
             output,
             artifacts: RefCell::new(BTreeMap::new()),
-            #[cfg(feature = "docs")]
-            documentation: std::cell::OnceCell::new(),
-            #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
-            model_ast,
-            #[cfg(any(feature = "cdk", feature = "terraform"))]
-            infrastructure: std::cell::OnceCell::new(),
-            #[cfg(any(
-                feature = "rust",
-                feature = "docs",
-                feature = "cdk",
-                feature = "terraform"
-            ))]
             policy,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
@@ -77,49 +41,22 @@ impl ModelPackage {
         Ok(package)
     }
 
+    // The language does not lower resources yet (decision 63), so the
+    // infrastructure and documentation lowerings have nothing to read.
     #[cfg(any(feature = "cdk", feature = "terraform"))]
     pub(crate) fn infrastructure(&self) -> Result<&Service, String> {
-        // Provisioning diagnostics must not prevent operation-only SDK outputs.
-        // Cache this separate lowering so all infrastructure variants share it.
-        self.infrastructure
-            .get_or_init(|| {
-                let ast = self
-                    .model_ast
-                    .as_ref()
-                    .ok_or_else(|| crate::cru::unsupported("Infrastructure output", &self.model))?;
-                let service = ast
-                    .lower_infrastructure(Some(&self.service.id))
-                    .map_err(|error| error.to_string())?;
-                if let Some(policy) = &self.policy {
-                    crate::check_policy(&service, policy)?;
-                }
-                Ok(service)
-            })
-            .as_ref()
-            .map_err(Clone::clone)
+        Err(crate::cru::unsupported(
+            "Infrastructure output",
+            &self.model,
+        ))
     }
 
     #[cfg(feature = "docs")]
     pub(crate) fn documentation(&self) -> Result<&Service, String> {
-        self.documentation
-            .get_or_init(|| {
-                let ast = self
-                    .model_ast
-                    .as_ref()
-                    .ok_or_else(|| crate::cru::unsupported("Documentation output", &self.model))?;
-                let service = ast
-                    .lower_documentation(Some(&self.service.id))
-                    .map_err(|error| error.to_string())?;
-                if let Some(policy) = &self.policy {
-                    crate::check_policy(&service, policy)?;
-                }
-                Ok(service)
-            })
-            .as_ref()
-            .map_err(Clone::clone)
+        Err(crate::cru::unsupported("Documentation output", &self.model))
     }
 
-    /// Publish the compiled AST through this package's Cargo `links` metadata.
+    /// Publish the package through this package's Cargo `links` metadata.
     pub fn publish(&self) {
         crate::publish_path(&self.model);
     }
@@ -128,7 +65,7 @@ impl ModelPackage {
     #[cfg(feature = "rust")]
     pub fn server(&self) -> crate::ServerOutput {
         let mut output = crate::ServerOutput::new(&self.model).named(&self.service.id.to_string());
-        output.options.require_rejection = self.server_requires_rejection;
+        output.options.require_rejection = true;
         output.policy = self.policy.clone();
         output
     }
@@ -270,7 +207,7 @@ impl ModelPackage {
         crate::CliOutput::new(self, name)
     }
 
-    /// The compiled AST path for integrations that need the model artifact.
+    /// The package path for integrations that need the model artifact.
     pub fn model_path(&self) -> &std::path::Path {
         &self.model
     }

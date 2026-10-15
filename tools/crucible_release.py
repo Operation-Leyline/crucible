@@ -5,8 +5,6 @@ from pathlib import Path
 import re
 import tomllib
 
-from build_traits_jar import version as traits_version
-
 
 ROOT = Path(__file__).resolve().parents[1]
 # Every checked-in lockfile that pins the workspace crates by path. The root one
@@ -100,8 +98,6 @@ def changelog_entry(root, version):
 def check(root, version):
     version_tuple(version)
     _, _, current, packages = workspace(root)
-    if traits_version(root) != current:
-        raise ValueError("The traits model JAR must use the workspace version")
     if version != current:
         raise ValueError(f"Requested {version}, but the merged workspace version is {current}")
     changelog_entry(root, version)

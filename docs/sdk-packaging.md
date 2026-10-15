@@ -54,13 +54,12 @@ describe is deployed.
 ### The SDK file *(built)*
 
 A service declares its releasable SDKs in `crucible-sdk.toml`, in its own
-repository. The file names the model it generates from: a `.cru` package,
-Smithy sources, or a JSON AST.
+repository. The file names the model it generates from: a `.cru` package.
 
 ```toml
 # crucible-sdk.toml, at the root of the Pigeon repository
 schema_version = 1
-model = "model/api"                     # a .cru package, Smithy sources, or a JSON AST
+model = "model/api"                     # a .cru package
 # service = "vip.mailpigeon#Pigeon"     # when the model has several
 
 [defaults]                              # every SDK below, unless it sets its own
@@ -85,9 +84,7 @@ lockfiles = ["sdk/rust-tests/Cargo.lock"]
 channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{version}", adopt = ["tests", "docs", "Cargo.lock", "sdk-release.json", ".gitignore"] }
 ```
 
-It is not a table in the model package's `crucible.toml`. Not every
-model has one: Leyline publishes a Gradle-built JSON AST nobody commits,
-and the Weather fixture is one too. Output paths, tests and channels
+It is not a table in the model package's `crucible.toml`. Output paths, tests and channels
 belong to the service repository, not to the API contract. And a `.cru`
 manifest refuses unknown keys, so an `[sdk]` table would break every older
 compiler that reads the model.
@@ -267,11 +264,10 @@ plan collects every signal, and the kind is the strongest one:
 | the public surface grew without a finding: an operation, shape, member, enum value or error | additive |
 | anything else: documentation, metadata, README, runtime pin, fixes | patch |
 
-- **A changed `version` is a major for a `.cru` service,** as decision 57a
+- **A changed `version` is a major,** as decision 57a
   says. The new SDK sends a release that an older server refuses with
   `400` ([api-versions-clients.md](api-versions-clients.md)), so moving to
-  it must be the consumer's choice, not a caret update. A Smithy service's
-  `version` names no release its server checks, so it is not a signal.
+  it must be the consumer's choice, not a caret update.
 - **The model check always runs both families, at error.** The service's
   `[compatibility]` settings tune its build, not its releases. An
   excepted finding is still a break: the exception only lets it compile.
@@ -666,14 +662,8 @@ reconcile the SDK's own entry.
 
 ### Leyline (phase 3)
 
-Leyline follows Pigeon's pattern from an older Crucible. Its
-`model/build.rs` calls `publish_model` on the Gradle-built `model.json`.
-`codegen.sh` runs `crucible generate` for TypeScript and for Rust (a
-single `generated.rs`), and `tools/contracts/package_sdks.py` turns the
-output into packages.
-
-Once it is on a current Crucible, its `crucible-sdk.toml` names the JSON
-AST, which the Smithy build writes before `crucible sdk` runs; the
+Leyline follows Pigeon's pattern. Its model is a `.cru` package, so its
+`crucible-sdk.toml` names that package and `crucible sdk` compiles it; the
 TypeScript endpoint is `{ env = "LEYLINE_SDK_ENDPOINT" }`, set from
 `infra/deployment.json`; and the first release needs `--bump`, with no
 earlier snapshot and no source to recompile.

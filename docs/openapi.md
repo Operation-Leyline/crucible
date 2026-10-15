@@ -1,23 +1,23 @@
 # OpenAPI generation
 
-Crucible exports an OpenAPI 3.1.1 JSON document from the same lowered Smithy IR
-used by its server and client generators. Smithy remains the source of truth.
+Crucible exports an OpenAPI 3.1.1 JSON document from the same lowered IR
+used by its server and client generators. The `.cru` package remains the source of truth.
 
 For a human-readable reference with resources, pagination, idempotency, and RPC
 JSON protocol support, use [service API reference generation](docs.md).
 
 ## Generating a document
 
-Build the Smithy JSON AST with `flattenAndRemoveMixins`, then run:
+Point the command at a `.cru` package directory:
 
 ```sh
-cargo run -p crucible-cli -- generate openapi model.json --out openapi.json --endpoint https://api.example.com
+cargo run -p crucible-cli -- generate openapi model --out openapi.json --endpoint https://api.example.com
 ```
 
-For the checked-in Weather fixture:
+For the checked-in Weather package:
 
 ```sh
-cargo run -p crucible-cli -- generate openapi crates/crucible-smithy/tests/fixtures/weather.json --out weather.openapi.json --endpoint http://localhost:8080
+cargo run -p crucible-cli -- generate openapi tests/models/weather --out weather.openapi.json --endpoint http://localhost:8080
 ```
 
 `--out` names a file, which is overwritten after successful generation. Its
@@ -46,10 +46,11 @@ namespaces and service renames. Operation IDs use the service's resolved names.
 References preserve recursion. Operations and shapes are emitted deterministically;
 member order follows the model.
 
-## Smithy metadata
+## Extension metadata
 
 Standard OpenAPI fields describe the representable wire contract. Extensions
-retain semantics that OpenAPI does not express directly:
+retain semantics that OpenAPI does not express directly (the `x-smithy-` prefix
+is the extension namespace, kept for existing consumers):
 
 | Extension | Meaning |
 |---|---|
@@ -79,11 +80,11 @@ parameters and response headers for bound members, on the request and response
 bodies, and on the error response whose shape the example names. Bodies use JSON
 names and each member's timestamp format. Members whose bytes are re-encoded
 (media-type headers) and raw blob payloads have no faithful rendering and are
-omitted. The raw `smithy.api#examples` trait is not repeated in `x-smithy-traits`.
+omitted. The raw examples annotation is not repeated in `x-smithy-traits`.
 
 ## Diagnostics and limits
 
-Unsupported capabilities produce diagnostics against their Smithy shapes.
+Unsupported capabilities produce diagnostics against their shapes.
 The initial exporter rejects greedy labels.
 
 OpenAPI permits one operation per method and path. Routes that share that pair
@@ -93,8 +94,8 @@ methods, duplicate parameters or headers, modeled `Accept`, `Content-Type`, or
 `Authorization` request headers, and modeled `Content-Type` response headers
 are also rejected. OpenAPI ignores these header definitions; model content types
 or authentication through their normal
-Smithy semantics instead.
+model constructs instead.
 
 Unsupported models leave the destination untouched. No Swagger UI assets are
 generated. Broader protocol support belongs in this emitter and its capability
-tests; it must not reinterpret the Smithy AST.
+tests; it must not reinterpret model source.

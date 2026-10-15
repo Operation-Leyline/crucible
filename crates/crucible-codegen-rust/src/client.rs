@@ -50,9 +50,13 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             );
         }
     }
+    let before = out.len();
     documented(&mut out, "", service.docs.as_deref(), &service.notes);
+    // A blank line after the service's own docs would detach them from the
+    // client they describe (clippy::empty_line_after_doc_comments).
+    let separator = if out.len() == before { "\n" } else { "" };
     out.push_str(&format!(
-        "\n/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::__generated::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::__generated::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::__generated::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
+        "{separator}/// A client for {}. Construct with `new(Config)`. Cheap to clone: clones share connections.\n/// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.\n#[derive(Clone)]\npub struct {client} {{\n    transport: ::crucible_server_runtime_rust::__generated::Transport,\n}}\n\n#[allow(dead_code, deprecated)]\nimpl {client} {{\n    /// Constructs the shared HTTP transport from configuration.\n    pub fn new(config: ::crucible_server_runtime_rust::__generated::Config) -> Self {{\n        Self {{\n            transport: ::crucible_server_runtime_rust::__generated::Transport::new(config),\n        }}\n    }}\n{methods}}}\n",
         service.id.name()
     ));
     out

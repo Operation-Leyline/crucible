@@ -1,8 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "smithy", "tools/smithy-to-cru"]
+members = ["crates/*"]
 # The end-to-end harness builds generated crates: its own workspace.
-exclude = ["e2e", "tests/consumers/leyline", "vendor/smithy-tooling"]
+exclude = ["e2e", "tests/consumers/leyline"]
 
 [workspace.package]
 version = "0.7.0"
@@ -24,8 +24,6 @@ crucible-sdk-release = { path = "crates/crucible-sdk-release" }
 crucible-codegen-rust = { path = "crates/crucible-codegen-rust" }
 crucible-smithy = { path = "crates/crucible-smithy" }
 crucible-lang = { path = "crates/crucible-lang" }
-crucible-traits = { path = "smithy" }
-smithy-tooling = { path = "vendor/smithy-tooling" }
 crucible-codegen-ts = { path = "crates/crucible-codegen-ts" }
 crucible-codegen-openapi = { path = "crates/crucible-codegen-openapi" }
 crucible-codegen-docs = { path = "crates/crucible-codegen-docs" }

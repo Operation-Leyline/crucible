@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use crucible_policy::{Config, Report};
+use crucible_smithy::ShapeId;
 use crucible_smithy::ir::Service;
-use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
 
 pub(crate) fn check(service: &Service, path: &Path) -> Result<(), String> {
     emit(crucible_policy::check(service, &Config::load(path)?), false)
@@ -22,13 +22,16 @@ pub(crate) fn diff(
 }
 
 fn load(path: &Path, service: Option<&ShapeId>) -> Result<Service, String> {
-    let json = crate::smithy_input::read(path)?;
-    let model = Model::from_json(&json).map_err(|error| format!("{}: {error}", path.display()))?;
-    // Lower all recognized semantics. The comparator diagnoses its own coverage;
-    // generator-specific capability limits must not hide a contract change.
-    model
-        .lower_with_capabilities(service, &Capabilities::new(Feature::ALL.iter().copied()))
-        .map_err(|error| format!("{}: {error}", path.display()))
+    // The comparator diagnoses its own coverage, so no generator capability
+    // limit is applied; and the baseline guard is skipped, since the two
+    // packages named here are the comparison.
+    crate::lower_cru(
+        &crate::Source {
+            model: path.to_path_buf(),
+            service: service.cloned(),
+        },
+        false,
+    )
 }
 
 fn emit(report: Report, json: bool) -> Result<(), String> {

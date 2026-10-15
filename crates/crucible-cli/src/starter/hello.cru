@@ -1,0 +1,20 @@
+/// A greeting service.
+service HelloService {
+    version "1"
+    protocol json
+    operations [SayHello]
+    errors [ValidationException, InternalServerException, UnknownOperationException]
+}
+
+/// Return a greeting for the supplied name.
+operation SayHello {
+    http POST "/hello" -> 200
+
+    input {
+        name: string { length 1.. }
+    }
+
+    output {
+        message: string
+    }
+}

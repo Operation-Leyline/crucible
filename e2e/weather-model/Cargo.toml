@@ -1,4 +1,4 @@
-# A model package: the weather fixture's Smithy JSON AST, published to the
+# A model package: the weather fixture's `.cru` package, published to the
 # packages that depend on it.
 [package]
 name = "weather-model"

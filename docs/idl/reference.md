@@ -192,8 +192,8 @@ Beyond the grammar, the compiler refuses a model that breaks the rules in
 rules of decision 35c (labels, query and header targets, header names,
 bodiless responses, one payload, unique routes) and the checks on
 pagination members, examples and name collisions run on the IR in
-`crucible_smithy::validate`, shared with the Smithy front end. So do
-Smithy's limits on recursive shapes, which are otherwise allowed (a
+`crucible_smithy::validate`. So do
+the limits on recursive shapes, which are otherwise allowed (a
 structure or union may reach itself through its members): a cycle must
 pass through a structure or union, not lists and maps alone, and a value
 must be finite, so a structure needs a way back to itself that is not all
@@ -313,9 +313,7 @@ documents nothing.
 A resource lists the permissions it accepts; an operation says what it
 requires and on which resource. Crucible never decides: the service's
 `Authorizer` does ([permissions.md](../permissions.md)). Permissions are
-declared in `.cru` only: a Smithy model cannot declare them, and lowering
-one that uses a `crucible.auth` permission trait is refused, so a Smithy
-consumer migrates its model to `.cru` first.
+declared in `.cru`.
 
 ```
 resource Inbox in Workspace {

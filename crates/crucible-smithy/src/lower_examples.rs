@@ -1,104 +1,16 @@
-//! `@examples`: lowered with the operation and checked against the lowered
-//! input, output and error shapes, so an example is held to the same member,
-//! type and constraint rules as a value on the wire.
+//! `examples`: checked against the lowered input, output and error shapes, so
+//! an example is held to the same member, type and constraint rules as a value
+//! on the wire.
 
 use std::collections::BTreeMap;
 
 use base64::Engine as _;
-use serde::Deserialize;
 use serde_json::{Map, Number, Value};
 
-use crate::ast;
 use crate::ir::{
-    Constraints, Example, ExampleError, Member, Service, Shape, Simple, SimpleKind, Structure,
-    TimestampFormat,
+    Constraints, Member, Service, Shape, Simple, SimpleKind, Structure, TimestampFormat,
 };
-use crate::lower::Lowerer;
 use crate::shape_id::ShapeId;
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct Entry {
-    title: String,
-    documentation: Option<String>,
-    input: Option<Value>,
-    output: Option<Value>,
-    error: Option<ErrorEntry>,
-    #[serde(default)]
-    allow_constraint_errors: bool,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct ErrorEntry {
-    shape_id: String,
-    #[serde(default = "empty_object")]
-    content: Value,
-}
-
-fn empty_object() -> Value {
-    Value::Object(Map::new())
-}
-
-impl Lowerer<'_> {
-    pub(crate) fn examples(
-        &mut self,
-        id: &ShapeId,
-        operation: &ast::Shape,
-        errors: &[ShapeId],
-    ) -> Vec<Example> {
-        let Some(value) = operation
-            .traits
-            .get(&ShapeId::new("smithy.api", "examples"))
-        else {
-            return Vec::new();
-        };
-        let Some(entries) = value.as_array() else {
-            self.diagnostics.push(id, "@examples must be a list");
-            return Vec::new();
-        };
-        let mut examples = Vec::new();
-        for (index, entry) in entries.iter().enumerate() {
-            let entry: Entry = match serde_json::from_value(entry.clone()) {
-                Ok(entry) => entry,
-                Err(error) => {
-                    self.diagnostics
-                        .push(id, format!("@examples[{index}] is malformed: {error}"));
-                    continue;
-                }
-            };
-            // Values are checked against the lowered shapes by
-            // crate::validate, shared with the .cru front end.
-            let mut error = None;
-            if let Some(entry_error) = &entry.error {
-                match entry_error.shape_id.parse::<ShapeId>() {
-                    Ok(shape) if errors.contains(&shape) => {
-                        error = Some(ExampleError {
-                            shape,
-                            content: entry_error.content.clone(),
-                        });
-                    }
-                    _ => self.diagnostics.push(
-                        id,
-                        format!(
-                            "@examples[{index}] {:?}: error.shapeId {:?} is not an error of this operation",
-                            entry.title, entry_error.shape_id
-                        ),
-                    ),
-                }
-            }
-            examples.push(Example {
-                title: entry.title,
-                docs: entry.documentation,
-                input: entry.input,
-                output: entry.output,
-                error,
-                allow_constraint_errors: entry.allow_constraint_errors,
-            });
-        }
-        examples
-    }
-}
 
 /// Checks model values against lowered shapes: examples and defaults.
 pub(crate) struct Check<'a> {

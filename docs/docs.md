@@ -1,32 +1,36 @@
 # Service API reference documentation
 
 Crucible generates a service API reference directly from the audience-projected
-Smithy IR. Each operation has request syntax, parameters, body members, response
+IR. Each operation has request syntax, parameters, body members, response
 syntax, modeled errors, pagination, idempotency, and examples. Resource lifecycle
 tables and data-type pages connect those operation pages.
 
 The output is Markdown in mdBook layout, a versioned `describe.json` contract,
-and a static single-page HTML reference that renders that contract in a browser. It retains Smithy information that an OpenAPI conversion cannot carry,
+and a static single-page HTML reference that renders that contract in a browser. It retains information that an OpenAPI conversion cannot carry,
 including resources, pagination, idempotency tokens, retryable errors, and all
 documentation notes. The Markdown and HTML renderers, and the in-service Explorer, read the same
 description data.
 
 ## Generating a reference
 
-From a checkout, generate the Weather reference:
+> The reference describes resources, which only a `.cru` package with resource
+> lowering can supply (decision 63 in [idl/decisions.md](idl/decisions.md)).
+> Until that lands, `generate docs` refuses a `.cru` package and the
+> resource-dependent generator tests are ignored.
+
+From a checkout, generate the Weather reference from a package directory:
 
 ```sh
-cargo run -p crucible-cli -- generate docs crates/crucible-smithy/tests/fixtures/weather.json --out generated/weather-docs
+cargo run -p crucible-cli -- generate docs tests/models/service-docs-weather --out generated/weather-docs
 ```
 
-Smithy source directories and compiled JSON ASTs use the same command. Select a
-service with `--service example.weather#Weather`.
+Select a service with `--service example.weather#Weather`.
 
 The default audience is `external`. Internal output includes internal operations,
 resources, types, members, and enum values with an **Internal** badge:
 
 ```sh
-cargo run -p crucible-cli -- generate docs model.json --out generated/internal-reference --audience internal
+cargo run -p crucible-cli -- generate docs tests/models/service-docs-weather --out generated/internal-reference --audience internal
 ```
 
 External projection happens in `crucible-smithy`, before rendering. It also
@@ -39,7 +43,7 @@ and publish a named build artifact:
 
 ```rust,ignore
 fn main() {
-    let model = crucible_build::model("smithy");
+    let model = crucible_build::model("model");
     model.docs("reference")
         .generate_into("generated/reference");
     model.docs("internal-reference")
@@ -136,12 +140,12 @@ All supported lowered shape kinds can be described.
 
 | Diagnostic | Meaning | Regression coverage |
 |---|---|---|
-| `describe.target` | Supplied IR has an unresolved shape target | Modified `service-docs.json`; same collection test |
+| `describe.target` | Supplied IR has an unresolved shape target | A modified Weather IR; same collection test |
 | `describe.resources` | Resource metadata is missing from supplied IR | Operation-only Weather lowering; docs `documentation_requires_the_resource_projection_and_detects_filename_collisions` |
-| `docs.filename` | Page names collide on a case-insensitive filesystem | Modified `service-docs.json`; docs resource-projection/filename test |
-| `audience.example_reference` | External projection removes an example's selected union arm or enum value | `service-docs-examples-refused.json`; Smithy `examples_using_removed_union_or_enum_values_are_diagnosed` |
+| `docs.filename` | Page names collide on a case-insensitive filesystem | A modified Weather IR; docs resource-projection/filename test |
+| `audience.example_reference` | External projection removes an example's selected union arm or enum value | a `.cru` package with an example naming a removed arm; `examples_using_removed_union_or_enum_values_are_diagnosed` |
 
-Existing lowering and audience diagnostics remain authoritative. No new Smithy
+Existing lowering and audience diagnostics remain authoritative. No new
 construct is accepted by this output.
 
 ## The `crucible.describe/1` contract
@@ -159,7 +163,7 @@ construct is accepted by this output.
 ```
 
 The following tables define version 1's schema. Object maps are keyed by absolute
-Smithy shape ID unless stated otherwise. References use those IDs, never file
+shape ID unless stated otherwise. References use those IDs, never file
 paths. Consumers must reject unknown `format` versions, ignore unknown object
 fields, and handle additional protocol/kind strings. Additive fields may join
 version 1; incompatible field meanings require a new format version. Nullable
@@ -167,7 +171,7 @@ fields are always represented by JSON `null`, not by a string sentinel.
 
 JSON object keys are sorted recursively, including schemas and examples. Shape,
 operation, and resource maps are sorted by shape ID. Member arrays preserve
-Smithy source order; examples and enum values preserve model order. Generation
+source order; examples and enum values preserve model order. Generation
 adds no clocks, build paths, or deployment-specific values.
 
 ### Common documentation and notes
@@ -190,7 +194,7 @@ with nullable `message` and `since` strings; `since` is a nullable string;
 |---|---|
 | `service` | `id`, `name`, `title`, `version`: strings; `internal`: boolean; `documentation`, `notes`: common objects |
 | Protocol metadata | `protocol`: protocol string |
-| Authentication | `auth`: effective default scheme-ID array; `authSchemes`: scheme ID to lowered authentication configuration; `scopes`: service-default string array |
+| Authentication | `auth`: effective default scheme-ID array; `authSchemes`: scheme ID to lowered authentication configuration |
 | Service references | `errors`: service-declared error-ID array; `resourceRoots`: direct resource-ID array |
 | Each resource | `id`, `name`: strings; `internal`, `documentation`, `notes`; `identifiers`, `properties`: member-name to target-ID maps; `resources`: child-ID array; `operations`: sorted unique operation-ID array |
 | Resource `lifecycle` | `create`, `put`, `read`, `update`, `delete`, `list`: nullable operation IDs |
@@ -212,7 +216,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `input`, `output` | Nullable shape IDs; null means no modeled value/Unit |
 | `inputSchema`, `outputSchema` | Self-contained shared JSON Schemas for the entire input/output's document value, including bound members; `$defs` and local `$ref` references |
 | `errors` | Effective operation and inherited service error-ID array |
-| `auth`, `scopes` | Effective authentication scheme IDs, required scope strings |
+| `auth` | Effective authentication scheme IDs |
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
 | `pagination` | Null or `{inputToken, outputToken, items, pageSize}`; token strings and nullable item/page-size member paths |
 | `examples` | Ordered example objects described below |

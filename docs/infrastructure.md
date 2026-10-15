@@ -1,15 +1,20 @@
 # Generating infrastructure packages
 
 Crucible generates CDK construct libraries and Terraform/OpenTofu providers from
-the same Smithy resource model. Deployment bindings select the supported surface
+the same resource model. Deployment bindings select the supported surface
 and supply policy that an HTTP API cannot establish.
+
+> Resources come from a `.cru` package, and the language does not lower them
+> yet (decision 63 in [idl/decisions.md](idl/decisions.md)). Until it does,
+> `generate cdk`, `generate terraform` and the resource-dependent generator
+> tests are unavailable (the tests are `#[ignore]`d), and the commands below
+> describe the intended use.
 
 ## Architecture
 
 ```text
-Smithy build with flattenAndRemoveMixins
-  -> model.json
-  -> crucible-smithy: operations, shapes, resource graph and lifecycle mappings
+crucible.toml + .cru sources
+  -> crucible-lang: operations, shapes, resource graph and lifecycle mappings
   -> crucible-codegen-infra: validated provisioning bindings
      -> crucible-codegen-cdk: TypeScript constructs -> jsii language packages
      -> crucible-codegen-terraform: Go provider using the generated Go client
@@ -19,12 +24,11 @@ The shared resource IR preserves identifiers, properties, nested resources,
 lifecycle slots, collection operations, and resource references. It resolves
 `resourceIdentifier`, `property`, and `nestedProperties` member paths before a
 generator runs. Collection element mappings remain separate from instance paths.
-Smithy validates and flattens the source; generators never read the AST directly.
+Generators never read the source; they read the IR.
 
-Library callers use `Model::lower_infrastructure` to include resource metadata,
-resource-only shapes, and provisioning diagnostics. The CDK and Terraform CLI
-targets select this path automatically. `Model::lower`, SDK/server generation,
-and `crucible check` retain the operation-only contract.
+The CDK and Terraform CLI targets include resource metadata, resource-only
+shapes, and provisioning diagnostics. SDK/server generation and `crucible check`
+retain the operation-only contract.
 
 CDK packages bind to an existing custom-resource provider. They do not deploy a
 service backend, create a provider Lambda, or implement CloudFormation lifecycle
@@ -33,7 +37,7 @@ Terraform's Plugin Framework and Crucible's Go client runtime.
 
 ## Deployment bindings
 
-The JSON manifest selects resources by absolute Smithy shape ID. Unknown fields,
+The JSON manifest selects resources by absolute shape ID. Unknown fields,
 missing member paths, invalid refinements, and unbound resources are errors.
 For example:
 
@@ -91,7 +95,7 @@ This complete example uses the checked-in test model and publishing metadata:
 
 ```sh
 cargo run -p crucible-cli -- generate cdk \
-  crates/crucible-codegen-cdk/tests/fixtures/model.json \
+  tests/models/cdk-model \
   --bindings crates/crucible-codegen-cdk/tests/fixtures/bindings.json \
   --config crates/crucible-codegen-cdk/tests/fixtures/options.json \
   --out generated/weather-cdk
@@ -147,7 +151,7 @@ Rust, Swift, Dart, and other SDK languages are not native AWS CDK targets.
 
 ```sh
 cargo run -p crucible-cli -- generate terraform \
-  crates/crucible-codegen-terraform/tests/fixtures/inventory.json \
+  tests/models/terraform-inventory \
   --bindings crates/crucible-codegen-terraform/tests/fixtures/bindings.json \
   --module-path example.com/terraform-provider-inventory \
   --provider-name inventory \
@@ -214,8 +218,8 @@ publication or service credentials are needed for that test.
 [`examples/infra/leyline.bindings.json`](../examples/infra/leyline.bindings.json)
 maps the existing `CfnGraph`, `CfnIndex`, and `CfnGraphBackupSchedule` surface to
 the existing `Custom::Leyline*` provider. Its baseline is `leyline-cdk` commit
-`faaf9df0e9502258cdd2faad0fa71250d052d45a`, which imports backend Smithy commit
-`6ef539695b378d74e540d16df33167df68cf80e1` with Smithy 1.72.1.
+`faaf9df0e9502258cdd2faad0fa71250d052d45a`, which imports a backend model commit
+`6ef539695b378d74e540d16df33167df68cf80e1`.
 
 The backend baseline predates Crucible's protocol; compatibility qualification
 adds the Crucible protocol annotation to an isolated built model. This proves
@@ -258,7 +262,6 @@ provider compatibility does not by itself prove Pulumi bridge compatibility.
 ## References
 
 - [jsii public API restrictions](https://aws.github.io/jsii/user-guides/lib-author/typescript-restrictions/)
-- [Smithy resource semantics](https://smithy.io/2.0/spec/service-types.html)
 - [CloudFormation custom-resource lifecycle](https://docs.aws.amazon.com/cdk/api/v2/python/aws_cdk.custom_resources/README.html)
 - [Terraform resource plan modification](https://developer.hashicorp.com/terraform/plugin/framework/resources/plan-modification)
 - [Pulumi provider bridge](https://www.pulumi.com/docs/iac/concepts/providers/)

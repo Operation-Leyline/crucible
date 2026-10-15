@@ -221,7 +221,6 @@ pub(crate) fn marker_for(
         "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[{auth}]);\n"
     );
     if !client {
-        auth.push_str(&scope_items(service, op));
         auth.push_str(&pagination_items(service, op));
         auth.push_str(&idempotency_items(service, op, output_ty));
         auth.push_str(server_items);
@@ -355,35 +354,6 @@ fn registration(service: &Service) -> String {
         bounds.join(" + ")
     ));
     out
-}
-
-/// Scope lists are `'static` data like the rest of the marker; an empty list is
-/// the trait default, so unscoped services are unchanged.
-fn scope_items(service: &Service, op: &Operation) -> String {
-    let list = |scopes: &[String]| {
-        format!(
-            "&[{}]",
-            scopes
-                .iter()
-                .map(|scope| literal(scope))
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
-    };
-    let mut items = String::new();
-    if !op.scopes.is_empty() {
-        items.push_str(&format!(
-            "    const SCOPES: &'static [&'static str] = {};\n",
-            list(&op.scopes)
-        ));
-    }
-    if !service.scopes.is_empty() && !op.auth.is_empty() {
-        items.push_str(&format!(
-            "    const SERVICE_SCOPES: &'static [&'static str] = {};\n",
-            list(&service.scopes)
-        ));
-    }
-    items
 }
 
 /// `IDEMPOTENCY_TOKEN` for an operation with an idempotency token, naming

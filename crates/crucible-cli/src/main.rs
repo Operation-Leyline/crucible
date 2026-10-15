@@ -7,14 +7,13 @@ mod output;
 mod policy;
 mod scaffold;
 mod sdk;
-mod smithy_input;
 mod starter;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
+use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Service, Shape, Traits};
-use crucible_smithy::{Model, ShapeId};
 
-/// Generate servers, clients, and infrastructure packages from a Smithy model.
+/// Generate servers, clients, and infrastructure packages from a Crucible model.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -24,8 +23,7 @@ struct Cli {
 
 #[derive(Args)]
 struct Source {
-    /// A Smithy source directory, .smithy file, compiled JSON AST, or a
-    /// Crucible language package (a directory whose crucible.toml has [model]).
+    /// A Crucible language package (a directory whose crucible.toml has [model]).
     model: PathBuf,
     /// The service to lower, when the model defines several.
     #[arg(long)]
@@ -36,7 +34,7 @@ struct Source {
 enum Command {
     /// Export a named artifact from a Cargo model package.
     ExportArtifact(export_artifact::Args),
-    /// Create a single-crate Hello service or Rust client with Smithy generation.
+    /// Create a single-crate Hello service or Rust client with Crucible generation.
     New {
         /// Cargo package name, for example hello-service.
         name: String,
@@ -52,9 +50,6 @@ enum Command {
         /// Use a local Crucible checkout for development and qualification.
         #[arg(long)]
         runtime_path: Option<PathBuf>,
-        /// Select an upstream Smithy X.Y.Z release instead of the tested default.
-        #[arg(long)]
-        smithy_version: Option<String>,
     },
     /// Load a model and report every construct crucible cannot generate from.
     Check {
@@ -70,9 +65,9 @@ enum Command {
     },
     /// Compare an old contract with a proposed one, reporting compatibility findings.
     Diff {
-        /// Baseline Smithy source directory or assembled JSON model.
+        /// Baseline package directory (holding crucible.toml with [model]).
         old: PathBuf,
-        /// Proposed Smithy source directory or assembled JSON model.
+        /// Proposed package directory.
         new: PathBuf,
         #[arg(long)]
         service: Option<ShapeId>,
@@ -82,15 +77,7 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    // The compiler helper emits Cargo directives. Isolate assembly so diff's
-    // stdout remains a JSON report when used by CI.
-    #[command(name = "_assemble-model", hide = true)]
-    AssembleModel {
-        source: PathBuf,
-        #[arg(long)]
-        out: PathBuf,
-    },
-    /// Print the tested extended Smithy capabilities of each client as JSON.
+    /// Print the tested extended capabilities of each client as JSON.
     Capabilities,
     /// Generate code for one target.
     Generate {
@@ -650,10 +637,9 @@ fn run(command: Command) -> ExitCode {
             out,
             crucible_rev,
             runtime_path,
-            smithy_version,
         } => {
             let out = out.unwrap_or_else(|| PathBuf::from(&name));
-            starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), smithy_version.as_deref(), client)
+            starter::create(&name, &out, crucible_rev.as_deref(), runtime_path.as_deref(), client)
                 .map(|()| {
                     if client {
                         println!("Created {}. Build with: cd {} && cargo build; call a Hello service with: cargo run --example hello -- <endpoint>", name, out.display());
@@ -695,7 +681,6 @@ fn run(command: Command) -> ExitCode {
             config,
             json,
         } => policy::diff(&old, &new, service.as_ref(), config.as_deref(), json),
-        Command::AssembleModel { source, out } => smithy_input::assemble(&source, &out),
         Command::Capabilities => {
             let capabilities: BTreeMap<_, _> = ClientLanguage::ALL
                 .into_iter()
@@ -759,17 +744,11 @@ fn lower_with_capabilities(
     source: &Source,
     capabilities: &crucible_smithy::Capabilities,
 ) -> Result<Service, String> {
-    if is_cru_package(&source.model) {
-        let service = lower_cru(source)?;
-        service
-            .require_capabilities(capabilities)
-            .map_err(|d| d.to_string())?;
-        return Ok(service);
-    }
-    let model = load_model(source)?;
-    model
-        .lower_with_capabilities(source.service.as_ref(), capabilities)
-        .map_err(|error| error.to_string())
+    let service = lower_cru(source, true)?;
+    service
+        .require_capabilities(capabilities)
+        .map_err(|d| d.to_string())?;
+    Ok(service)
 }
 
 fn lower_for_audience(
@@ -786,21 +765,31 @@ fn lower_for_audience(
     Ok(projected)
 }
 
-fn lower_infrastructure(source: &Source) -> Result<Service, String> {
-    load_model(source)?
-        .lower_infrastructure(source.service.as_ref())
-        .map_err(|error| error.to_string())
+/// The language does not lower resources yet (decision 63), so documentation
+/// and infrastructure have nothing to read from a package.
+fn lower_resources(source: &Source) -> Result<Service, String> {
+    Err(format!(
+        "documentation and infrastructure from a .cru package ({}) are not supported yet: the language does not lower resources for them",
+        source.model.display()
+    ))
 }
 
-/// Whether `path` is a Crucible language package rather than Smithy sources.
+/// Whether `path` is a Crucible language package.
 fn is_cru_package(path: &Path) -> bool {
     path.is_dir() && crucible_lang::is_package(path)
 }
 
-/// Compiles a language package straight to the IR, as `crucible-build` does:
-/// no Smithy compiler and no JVM.
-fn lower_cru(source: &Source) -> Result<Service, String> {
+/// Compiles a language package straight to the IR, as `crucible-build` does.
+/// `guarded` also runs the compatibility guard against the package's baseline,
+/// which a build and `check` want and an explicit `diff` does not.
+fn lower_cru(source: &Source, guarded: bool) -> Result<Service, String> {
     let path = &source.model;
+    if !is_cru_package(path) {
+        return Err(format!(
+            "{} is not a Crucible language package (a directory whose crucible.toml has [model])",
+            path.display()
+        ));
+    }
     let package = crucible_lang::load_package(path)?;
     if let Some(id) = &source.service
         && id.namespace() != package.namespace
@@ -826,6 +815,9 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
     }
     // The compatibility guard: a breaking change against the package's
     // frozen baseline that no migration declares fails, as it does in a build.
+    if !guarded {
+        return Ok(service);
+    }
     let manifest = path.join("crucible.toml");
     let config = std::fs::read_to_string(&manifest)
         .ok()
@@ -851,16 +843,13 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
 /// `crucible compile --json`: the package's lowered model as the release
 /// snapshot format, documentation and custom metadata included.
 fn compile(package: PathBuf, service: Option<ShapeId>, out: Option<&Path>) -> Result<(), String> {
-    if !is_cru_package(&package) {
-        return Err(format!(
-            "{} is not a Crucible language package (a directory whose crucible.toml has [model])",
-            package.display()
-        ));
-    }
-    let service = lower_cru(&Source {
-        model: package,
-        service,
-    })?;
+    let service = lower_cru(
+        &Source {
+            model: package,
+            service,
+        },
+        true,
+    )?;
     let compiler = format!("crucible {}", env!("CARGO_PKG_VERSION"));
     let text = crucible_smithy::snapshot::write(&service, &compiler);
     match out {
@@ -1002,38 +991,10 @@ fn package_at(package: &Path, reference: &str) -> Result<tempfile::TempDir, Stri
     Ok(directory)
 }
 
-fn load_model(source: &Source) -> Result<Model, String> {
-    if is_cru_package(&source.model) {
-        return Err(format!(
-            "documentation and infrastructure from a .cru package ({}) are not supported yet: the language does not lower resources for them",
-            source.model.display()
-        ));
-    }
-    let workspace;
-    let model = if source.model.is_dir()
-        || source
-            .model
-            .extension()
-            .is_some_and(|extension| extension == "smithy")
-    {
-        workspace = tempfile::tempdir()
-            .map_err(|error| format!("cannot create Smithy compilation directory: {error}"))?;
-        crucible_build::compile_smithy(&source.model, workspace.path())
-            .map_err(|error| error.to_string())?
-    } else {
-        source.model.clone()
-    };
-    let json = std::fs::read_to_string(&model)
-        .map_err(|error| format!("cannot read {}: {error}", model.display()))?;
-    Model::from_json(&json).map_err(|error| error.to_string())
-}
-
 fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
         Target::Docs { source, out } => {
-            let full = load_model(&source)?
-                .lower_documentation(source.service.as_ref())
-                .map_err(|e| e.to_string())?;
+            let full = lower_resources(&source)?;
             let service = crucible_smithy::project(&full, audience).map_err(|e| e.to_string())?;
             let files = crucible_codegen_docs::generate(&service).map_err(|e| e.to_string())?;
             let files = files
@@ -1070,7 +1031,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             config,
             out,
         } => {
-            let service = crucible_smithy::project(&lower_infrastructure(&source)?, audience)
+            let service = crucible_smithy::project(&lower_resources(&source)?, audience)
                 .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let options = read_config(&config)?;
@@ -1094,7 +1055,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             provider_address,
             out,
         } => {
-            let service = crucible_smithy::project(&lower_infrastructure(&source)?, audience)
+            let service = crucible_smithy::project(&lower_resources(&source)?, audience)
                 .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)

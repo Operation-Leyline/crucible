@@ -1,6 +1,6 @@
 # Generating a service CLI
 
-Crucible generates a standalone Rust command-line package from the same Smithy
+Crucible generates a standalone Rust command-line package from the same
 model as its SDKs. Commands call the generated Rust client, which owns HTTP
 bindings, bearer authentication, retries, modeled errors, and pagination.
 
@@ -10,7 +10,7 @@ Run from a Crucible checkout with Rust installed:
 
 ```sh
 cargo run -p crucible-cli -- generate cli \
-  crates/crucible-smithy/tests/fixtures/weather.json \
+  tests/models/weather \
   --bin-name weather --out e2e/generated/weather-cli --runtime-path .
 cargo build --manifest-path e2e/generated/weather-cli/Cargo.toml
 ```

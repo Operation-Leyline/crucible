@@ -45,10 +45,10 @@ operation's protocol header:
 | CDK | none: it calls no API | |
 
 - **The IR carries it.** `ir::Service::api_version` is the service's
-  `version` for a `.cru` service and `None` for a Smithy model, whose
-  `version` names no release a server serves by. `schema()` already has a
-  `"version"` field for every service; `apiVersion` is separate so only
-  `.cru` clients send it. A `version` that cannot travel in a header
+  `version`, or `None` for a service whose `version` names no release a
+  server serves by. `schema()` already has a `"version"` field for every
+  service; `apiVersion` is separate so only clients of a versioned service
+  send it. A `version` that cannot travel in a header
   (empty, or not visible ASCII) is a diagnostic, and so is an `@header`
   binding named `Crucible-Version`.
 - **When it is sent.** A client sends the header only for a `.cru` service,
@@ -86,18 +86,17 @@ operation's protocol header:
   without migrations. It serves the release named and refuses any other
   with `400`, including a newer client calling a server that has no
   migrations yet. A request without the header is served as `Unversioned`
-  says. A Smithy-sourced service ignores the header, as today. A client
+  says. A service without releases ignores the header. A client
   therefore names a release its server still serves, which is the point
   of a sunset.
-- **Testing.** The conformance fixtures are Smithy models, which send no
-  release, so the header is tested where a client can name one:
+- **Testing.** The conformance fixtures declare no release, so they send none, so the header is tested where a client can name one:
   - the Rust client, generated from the e2e versioned package, calls the
     versioned service over HTTP;
   - Python edits a generated client's description;
   - a unit test pins that every runtime reads `apiVersion` and sends
     `Crucible-Version`.
 
-  Smithy goldens do not change. A `.cru`-sourced fixture every harness
+  Their goldens do not change. A versioned fixture every harness
   compiles is a follow-up.
 
 ## 5b. Releases as the current model sees them
@@ -233,8 +232,8 @@ Each part lands as its own PR, in this order:
 1. **The release travels as a service-level value** in each client's
    description, not as an operation's protocol header. No client reads
    those today, and the release is the same for every operation.
-2. **Generated `.cru` clients always send their release,** from the first
-   release, and it is not configurable. Smithy-sourced clients never do.
+2. **Generated clients of a versioned service always send their release,** from
+   the first release, and it is not configurable.
    The header name is fixed until a second protocol needs another carrier
    (decision 57).
 3. **Every change of `version` has a migration,** empty when nothing

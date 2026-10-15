@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crucible_auth::{Authenticator, AuthenticatorChain, ScopeEnforcer};
+use crucible_auth::{Authenticator, AuthenticatorChain};
 use crucible_server_runtime_rust::{Crucible, InvokeProtocol, JsonProtocol};
 
 use crate::leyline::{self, AccessDeniedException};
@@ -21,7 +21,6 @@ pub fn service(authenticators: Vec<Arc<dyn Authenticator>>, audit: Audit) -> Cru
         .middleware(RequestTag)
         .operation_middleware(TenantGate)
         .operation_middleware(chain)
-        .interceptor(ScopeEnforcer::strict())
         .interceptor(audit)
         .protocol(JsonProtocol)
         // Direct Lambda invokes: `{"operation": .., "input": ..}`.

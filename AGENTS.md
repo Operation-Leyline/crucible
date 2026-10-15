@@ -1,6 +1,6 @@
 # crucible — agent instructions
 
-crucible is a service framework for Smithy-modelled APIs (`crates/crucible-server-runtime-rust`, the Rust server runtime)
+crucible is a service framework for APIs modelled in `.cru` (`crates/crucible-server-runtime-rust`, the Rust server runtime)
 plus the generators that plug an API into it. `CLAUDE.md` is a one-line
 `@AGENTS.md` import: edit this file. Read `docs/framework.md` before changing
 the framework or the Rust codegen, `docs/design.md` before changing the model
@@ -12,8 +12,8 @@ layer or the TypeScript client.
 cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo test
-cargo run -p crucible-cli -- check <model.json>
-# build.rs: crucible_build::model("smithy").server().generate();
+cargo run -p crucible-cli -- check <package-dir>
+# build.rs: crucible_build::model("model").server().generate();
 bash tools/test-ts.sh             # generated TS client vs a fake fetch (TSC=... to reuse a local tsc)
 bash tools/test-e2e.sh            # e2e/: framework tests, the Rust client over HTTP, then the TS client
 python tools/test-c.py           # installed C17 consumer, shared fixtures, native HTTP
@@ -47,11 +47,9 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
-| `crucible-smithy` | JSON AST parsing, the supported-subset check, lowering to the IR (`ir.rs`), and the release snapshot format (`snapshot.rs`): the IR's serde names are an on-disk format, so renaming an IR field, or adding one without `#[serde(default)]`, breaks committed releases |
-| `crucible-lang` | the Crucible modelling language front end (`docs/idl/`): lossless lexer, parser with recovery, typed syntax tree, name resolution, checks, and lowering to the same IR `crucible-smithy` produces, plus a source map, the compatibility guard and frozen releases (`release.rs`: `releases/<version>.json` and their lock) |
+| `crucible-smithy` | the IR (`ir.rs`) every front end lowers to (the crate is renamed `crucible-ir` later; the Smithy front end is gone), and the release snapshot format (`snapshot.rs`): the IR's serde names are an on-disk format, so renaming an IR field, or adding one without `#[serde(default)]`, breaks committed releases |
+| `crucible-lang` | the Crucible modelling language front end (`docs/idl/`): lossless lexer, parser with recovery, typed syntax tree, name resolution, checks, and lowering to the IR in `crucible-smithy`, plus a source map, the compatibility guard and frozen releases (`release.rs`: `releases/<version>.json` and their lock) |
 | `crucible-lsp` | the language server for `.cru` files and `crucible.toml`: package-wide diagnostics, completion, semantic tokens, navigation, rename, folding, formatting and quick fixes. Editor plugins live in their own repositories (`crucible-intellij`), bundle its release binaries and only start it |
-| `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
-| `smithy-to-cru` (`tools/`) | one-shot Smithy JSON AST to `.cru` migration, with an IR-equality self-check; unpublished, removed with Smithy support. It leans on `crucible-smithy` lowering and `crucible-lang` compile/format only |
 | `crucible-codegen-rust` | IR → Rust server/client bindings, and complete Cargo SDK packages with automatic runtime dependencies |
 | `crucible-codegen` | shared native client and document/infrastructure/CLI output selection, target checks, generated-file ownership and stable output publication |
 | `crucible-build` | Cargo build scripts: compile/publish models, generate/export named client, document, infrastructure and CLI outputs and generate service contracts |
@@ -77,7 +75,7 @@ and `weather-client` (a client package, tested against the service over HTTP).
 Code here follows the same rule: one type per file, named for it. It is the
 example service and the integration test. Keep these rules:
 
-- Smithy semantics are settled once, in `crucible-smithy`: nullability,
+- Model semantics are settled once, in `crucible-smithy`: nullability,
   effective constraints, HTTP bindings, errors, pagination, timestamp
   formats. A generator that re-derives one of them will disagree with the
   others.
@@ -88,7 +86,7 @@ example service and the integration test. Keep these rules:
 - The framework is extended through its interfaces (`Middleware`, `OperationAwareMiddleware`, `Protocol`,
   `Interceptor`, `TypedInterceptor`, `LogSink`, `Recorder`, exception rules), never through
   a check of a service or operation name inside the framework.
-- Unsupported Smithy is a diagnostic against the shape that uses it, never a
+- An unsupported construct is a diagnostic against the shape that uses it, never a
   silent skip. Every diagnostic is collected, so one run lists all of them.
 
 ## Conventions
@@ -102,9 +100,8 @@ example service and the integration test. Keep these rules:
 - The TypeScript runtime has no dependencies and targets what browsers and
   Node 22 both provide (`fetch`, `Request`, `crypto.subtle`, `structuredClone`).
   A behaviour change gets a case in `crates/crucible-codegen-ts/tests/ts/`.
-- Every new Smithy construct the subset accepts gets a fixture case in
-  `crates/crucible-smithy/tests/fixtures/` and a test. So does every
-  construct it refuses.
+- Every new `.cru` construct gets a package under `tests/models/` and a test.
+  So does every construct the compiler refuses.
 - Generated code must be deterministic: sort by shape id or name, never by
   hash order or model-file order (member order is source order, which is
   part of the model).

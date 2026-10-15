@@ -123,22 +123,17 @@ def qualify_client(cli, directory, env, source):
     assert original == {path.relative_to(project): path.read_bytes() for path in project.rglob("*") if path.is_file()}
     run(["cargo", "build", "--examples"], project, env)
     run(["cargo", "fmt", "--all", "--check"], project, env)
-    model = project / "smithy/hello.smithy"
+    model = project / "model/hello.cru"
     # Clients of external services must not inherit server rejection requirements.
-    model.write_text(source.replace("errors: [ValidationException, InternalServerException, UnknownOperationException]", "errors: []"), encoding="utf-8")
+    model.write_text(source.replace("    errors [ValidationException, InternalServerException, UnknownOperationException]\n", ""), encoding="utf-8")
     run(["cargo", "build", "--offline", "--examples"], project, env)
-    model.write_text(source.replace("message: String", "salutation: String"), encoding="utf-8")
+    model.write_text(source.replace("message: string", "salutation: string"), encoding="utf-8")
     failed = run(["cargo", "build", "--offline", "--examples"], project, env, success=False)
     assert "message" in failed.stderr and "salutation" in failed.stderr, failed.stderr
-    model.write_text(source.replace("name: String", "name: DefinitelyNotAShape"), encoding="utf-8")
+    model.write_text(source.replace("name: string", "name: DefinitelyNotAShape"), encoding="utf-8")
     failed = run(["cargo", "build", "--offline"], project, env, success=False)
     assert "DefinitelyNotAShape" in failed.stderr, failed.stderr
     model.write_text(source, encoding="utf-8")
-    # Exercise the explicit compiler seam without reaching a remote tooling tag.
-    manifest = project / "Cargo.toml"
-    manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, features = ["rust"], path =') +
-                        f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::model("smithy").compile_with(|config, out| smithy_tooling::build(config, out)).client().policy("crucible.toml").generate(); }\n', encoding="utf-8")
     run(["cargo", "clippy", "--offline", "--all-targets", "--", "-D", "warnings"], project, env)
     # A separate downstream crate must see the generated public library API.
     consumer = directory / "client consumer"
@@ -147,19 +142,20 @@ def qualify_client(cli, directory, env, source):
                                         f'greeting-sdk = {{ path = {json.dumps(str(project))} }}\n', encoding="utf-8")
     (consumer / "src/main.rs").write_text('use greeting_sdk::{HelloServiceClient, SayHelloInput};\nfn main() { let _ = std::mem::size_of::<HelloServiceClient>(); let _ = SayHelloInput::builder().name("World").build(); }\n', encoding="utf-8")
     run(["cargo", "run", "--offline"], consumer, env)
-    print("Client regeneration, diagnostics, explicit compiler and independent Cargo consumer passed")
+    print("Client regeneration, diagnostics and independent Cargo consumer passed")
     return project
 
 
-def qualify_model_package(directory, env, source):
+def qualify_model_package(directory, env, source, manifest):
     project = directory / "shared contract"
     (project / "src").mkdir(parents=True)
-    (project / "smithy").mkdir()
+    (project / "model").mkdir()
     (project / "src/lib.rs").write_text("", encoding="utf-8")
     (project / "Cargo.toml").write_text('[package]\nname = "shared-model"\nversion = "0.1.0"\nedition = "2024"\nlinks = "shared_model"\n[build-dependencies]\n' +
                                        f'crucible-build = {{ path = {json.dumps(str(ROOT / "crates/crucible-build"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::model("smithy").publish(); }\n', encoding="utf-8")
-    model = project / "smithy/hello.smithy"
+    (project / "build.rs").write_text('fn main() { crucible_build::model("model").publish(); }\n', encoding="utf-8")
+    (project / "model/crucible.toml").write_text(manifest, encoding="utf-8")
+    model = project / "model/hello.cru"
     model.write_text(source, encoding="utf-8")
     consumer = directory / "shared client"
     (consumer / "src").mkdir(parents=True)
@@ -171,30 +167,17 @@ def qualify_model_package(directory, env, source):
     client_source = 'crucible_client_runtime_rust::include_client!();\npub fn message(output: SayHelloOutput) -> String { output.message }\n'
     (consumer / "src/lib.rs").write_text(client_source, encoding="utf-8")
     run(["cargo", "build", "--offline"], consumer, env)
-    models = list(Path(env["CARGO_TARGET_DIR"]).glob("debug/build/shared-model-*/out/smithy/model.json"))
-    assert len(models) == 1, models
-    ast = models[0]
-    before = ast.read_bytes(), ast.stat().st_mtime_ns
     model.write_text(source + "\n// Recompile an unchanged contract.\n", encoding="utf-8")
     run(["cargo", "build", "--offline"], consumer, env)
-    assert before == (ast.read_bytes(), ast.stat().st_mtime_ns), "published AST must stay stable when its contents do"
-    model.write_text(source.replace("message: String", "salutation: String"), encoding="utf-8")
+    model.write_text(source.replace("message: string", "salutation: string"), encoding="utf-8")
     failed = run(["cargo", "build", "--offline"], consumer, env, success=False)
     assert "message" in failed.stderr and "salutation" in failed.stderr, failed.stderr
-    assert '"salutation"' in ast.read_text(), "model edits must reach dependents"
     (consumer / "src/lib.rs").write_text(client_source.replace("output.message", "output.salutation"), encoding="utf-8")
     run(["cargo", "build", "--offline"], consumer, env)
-    # Compile/publish with default features disabled and an explicit compiler too.
-    manifest = project / "Cargo.toml"
-    manifest.write_text(manifest.read_text().replace('crucible-build = { path =', 'crucible-build = { default-features = false, path =') +
-                        f'smithy-tooling = {{ path = {json.dumps(str(ROOT / "vendor/smithy-tooling"))} }}\n', encoding="utf-8")
-    (project / "build.rs").write_text('fn main() { crucible_build::model("smithy").compile_with(|config, out| smithy_tooling::build(config, out)).publish(); }\n', encoding="utf-8")
-    run(["cargo", "build", "--offline"], consumer, env)
-    print("One-line shared model publication, stable AST and downstream regeneration passed")
+    print("One-line shared model publication and downstream regeneration passed")
 
 
 def main():
-    run(["python", "tools/sync_smithy_tooling.py", "--verify-local"])
     run(["cargo", "build", "-p", "crucible-cli", "--locked"])
     target = Path(json.loads(run(["cargo", "metadata", "--no-deps", "--format-version", "1"], quiet=True).stdout)["target_directory"])
     cli = target / "debug" / ("crucible.exe" if os.name == "nt" else "crucible")
@@ -210,11 +193,8 @@ def main():
             assert '.client()' in contents.read("hello-client/build.rs").decode()
             assert "hello-client/crucible.toml" in contents.namelist()
             assert '.policy("crucible.toml")' in contents.read("hello-client/build.rs").decode()
-        selected = directory / "selected compiler client"
-        run([str(cli), "new", "selected-client", "--client", "--out", str(selected), "--crucible-rev", "test-revision", "--smithy-version", "1.74.0"])
-        selected_manifest = (selected / "Cargo.toml").read_text()
-        assert 'smithy-1.74.0-wrapper-0.3.0' in selected_manifest and 'default-features = false' in selected_manifest
-        assert 'compile_with' in (selected / "build.rs").read_text()
+            assert "hello-client/model/hello.cru" in contents.namelist()
+            assert not any("smithy" in name for name in contents.namelist())
         project = directory / "hello service"
         run([str(cli), "new", "hello-service", "--out", str(project), "--runtime-path", str(ROOT)])
         assert not (project / "src/contract.rs").exists()
@@ -225,19 +205,17 @@ def main():
         failed = run([str(cli), "new", "hello-service", "--out", str(project)], success=False)
         assert "empty directory" in failed.stderr
         assert files == {path.relative_to(project): hashlib.sha256(path.read_bytes()).digest() for path in project.rglob("*") if path.is_file()}
-        env = {**os.environ, "CARGO_TARGET_DIR": str(directory / "consumer target"), "CARGO_BUILD_JOBS": "2", "SMITHY_TOOLING_CACHE": str(directory / "runtime cache")}
-        for variable in ["JAVA_HOME", "SMITHY_JAVA", "SMITHY_OFFLINE", "CARGO_NET_OFFLINE"]:
-            env.pop(variable, None)
+        env = {**os.environ, "CARGO_TARGET_DIR": str(directory / "consumer target"), "CARGO_BUILD_JOBS": "2"}
+        env.pop("CARGO_NET_OFFLINE", None)
         run(["cargo", "build"], project, env)
-        assert list((directory / "runtime cache").rglob("distribution.zip"))
-        source = (project / "smithy/hello.smithy").read_text(encoding="utf-8")
+        source = (project / "model/hello.cru").read_text(encoding="utf-8")
         client = qualify_client(cli, directory, env, source)
-        env.update(SMITHY_OFFLINE="1", CARGO_NET_OFFLINE="true")
-        qualify_model_package(directory, env, source)
+        env.update(CARGO_NET_OFFLINE="true")
+        qualify_model_package(directory, env, source, (project / "model/crucible.toml").read_text(encoding="utf-8"))
         binary = directory / "consumer target/debug" / ("hello-service.exe" if os.name == "nt" else "hello-service")
         serve(binary, env, directory / "server.log", client=client)
         run(["cargo", "fmt", "--all", "--check"], project, env)
-        model = project / "smithy/hello.smithy"
+        model = project / "model/hello.cru"
         source = model.read_text(encoding="utf-8")
         handler = project / "src/operations/service/say_hello.rs"
         handler_source = handler.read_text(encoding="utf-8")
@@ -247,30 +225,28 @@ def main():
         run(["cargo", "build", "--offline"], project, env)
         serve(binary, env, directory / "internal-error.log", internal=True)
         handler.write_text(handler_source, encoding="utf-8")
-        model.write_text(source.replace("message: String", "salutation: String"), encoding="utf-8")
+        model.write_text(source.replace("message: string", "salutation: string"), encoding="utf-8")
         failed = run(["cargo", "build", "--offline"], project, env, success=False)
         assert "message" in failed.stderr and "salutation" in failed.stderr, failed.stderr
         handler = project / "src/operations/service/say_hello.rs"
         handler.write_text(handler.read_text().replace("message:", "salutation:"), encoding="utf-8")
         run(["cargo", "build", "--offline"], project, env)
         serve(binary, env, directory / "rebuilt.log", "salutation")
-        model.write_text(source.replace("name: String", "name: DefinitelyNotAShape"), encoding="utf-8")
+        model.write_text(source.replace("name: string", "name: DefinitelyNotAShape"), encoding="utf-8")
         failed = run(["cargo", "build", "--offline"], project, env, success=False)
         assert "DefinitelyNotAShape" in failed.stderr, failed.stderr
-        model.write_text(source.replace("errors: [ValidationException, InternalServerException, UnknownOperationException]", "errors: [InternalServerException, UnknownOperationException]"), encoding="utf-8")
+        model.write_text(source.replace("errors [ValidationException, InternalServerException, UnknownOperationException]", "errors [InternalServerException, UnknownOperationException]"), encoding="utf-8")
         failed = run(["cargo", "build", "--offline"], project, env, success=False)
         assert "the service needs a fillable validation error" in failed.stderr, failed.stderr
         model.write_text(source, encoding="utf-8")
         handler.write_text(handler.read_text().replace("salutation:", "message:"), encoding="utf-8")
-        # Removing Cargo output must not remove the provisioned runtime cache.
+        # A clean build must regenerate everything from the model alone.
         run(["cargo", "clean"], project, env)
         run(["cargo", "build", "--offline"], project, env)
         serve(binary, env, directory / "clean-rebuilt.log")
-        before_operation = source[:source.index("@http")].rstrip().splitlines()
         # Documentation belongs to the removed operation, not to the preceding service.
-        while before_operation and before_operation[-1].lstrip().startswith("///"):
-            before_operation.pop()
-        model.write_text("\n".join(before_operation).replace("operations: [SayHello]", "operations: []") + "\n", encoding="utf-8")
+        before_operation = source[:source.index("/// Return a greeting")].rstrip()
+        model.write_text(before_operation.replace("    operations [SayHello]\n", "") + "\n", encoding="utf-8")
         (project / "src/operations/mod.rs").write_text("pub struct Service;\n", encoding="utf-8")
         run(["cargo", "clippy", "--all-targets", "--offline", "--", "-D", "warnings"], project, env)
         run(["cargo", "build", "--offline"], project, env)

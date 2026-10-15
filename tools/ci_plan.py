@@ -11,7 +11,7 @@ import subprocess
 GROUPS = frozenset({
     "rust", "e2e", "service_cli", "cdk", "terraform", "c", "cpp", "r",
     "ruby", "php", "dart", "swift", "kotlin", "csharp", "java", "go",
-    "python", "typescript", "onboarding", "editor", "consumers", "docs_site",
+    "python", "typescript", "onboarding", "consumers", "docs_site",
 })
 # Rust checks include every generator's unit/golden tests. Real HTTP and the
 # dependency-free TS runtime cover the server path on every shared-code PR.
@@ -52,9 +52,6 @@ TOOLS = {
     "tools/test-api-policy.py": CORE_GROUPS,
     "tools/test-onboarding.py": {"onboarding"},
     "tools/package_starter.py": {"onboarding"},
-    "tools/sync_smithy_tooling.py": {"onboarding"},
-    "tools/test_smithy_snapshot.py": {"onboarding"},
-    "tools/build_traits_jar.py": CORE_GROUPS,
     **{f"tools/test-{name}.py": groups for name, groups in GENERATORS.items()},
     "tools/test-ts.sh": {"typescript", "e2e"},
     "tools/test-docs-site.sh": {"docs_site"},
@@ -81,8 +78,7 @@ TOOLS = {
 # PRs; release (full) runs keep every host.
 ONBOARDING_HOST_PATHS = (
     "tools/test-onboarding.py", "tools/package_starter.py",
-    "tools/sync_smithy_tooling.py", "tools/test_smithy_snapshot.py",
-    "crates/crucible-cli/src/starter", "vendor/smithy-tooling/",
+    "crates/crucible-cli/src/starter",
 )
 ALL_HOSTS = ["ubuntu-latest", "windows-latest", "macos-latest"]
 # Runs that never reach the extra platforms: a merged commit was qualified as a
@@ -104,11 +100,6 @@ def affected_groups(paths):
     for path in paths:
         if path in {"crates/crucible-codegen-docs/runtime/explorer.js", "crates/crucible-codegen-docs/tests/site/fake-dom.mjs"}:
             selected.add("e2e")
-        if path.startswith("ide/smithy-cargo/"):
-            selected.add("editor")
-            continue
-        if path in {"Cargo.toml", "crates/crucible-build/Cargo.toml", "smithy/Cargo.toml", "vendor/smithy-tooling/Cargo.toml"} or path.startswith("crates/crucible-cli/src/starter"):
-            selected.add("editor")
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == "crates":
             # Models live in several generator test directories but are reused
@@ -160,10 +151,6 @@ def affected_groups(paths):
             selected.update({"c", "cpp"})
         elif path.startswith("tests/consumers/"):
             selected.add("consumers")
-        elif path.startswith(("smithy/", "vendor/smithy-tooling/")):
-            selected.update(CORE_GROUPS)
-            if path.startswith("smithy/"):
-                selected.add("consumers")
         elif path.startswith("e2e/"):
             selected.update(CORE_GROUPS)
         elif path.startswith("tests/conformance/") or path in {"Cargo.toml", "Cargo.lock", "tools/sdk_test_support.py"}:

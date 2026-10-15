@@ -72,12 +72,9 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(affected_groups(["crates/crucible-sdk-release/src/git.rs"]), {"rust"})
         self.assertEqual(affected_groups(["tools/package_lsp.py"]), {"rust", "e2e"})
 
-    def test_onboarding_and_editor_integration_paths_keep_their_gates(self):
-        self.assertEqual(affected_groups(["smithy/errors.smithy"]), CORE_GROUPS | CONSUMERS)
-        self.assertEqual(affected_groups(["vendor/smithy-tooling/src/runtime.rs"]), CORE_GROUPS)
-        self.assertEqual(affected_groups(["ide/smithy-cargo/src/main/resources/META-INF/plugin.xml"]), {"rust", "editor"})
-        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), SDK_GROUPS | CONSUMERS | {"editor"})
-        self.assertEqual(affected_groups(["crates/crucible-cli/src/starter/hello.smithy"]), CORE_GROUPS | {"editor", "service_cli"})
+    def test_onboarding_paths_keep_their_gates(self):
+        self.assertEqual(affected_groups(["crates/crucible-build/Cargo.toml"]), SDK_GROUPS | CONSUMERS)
+        self.assertEqual(affected_groups(["crates/crucible-cli/src/starter/hello.cru"]), CORE_GROUPS | {"service_cli"})
 
     def test_shared_model_changes_keep_representative_native_consumers(self):
         for path in (
@@ -86,7 +83,7 @@ class PlanTests(unittest.TestCase):
             "tools/sdk_test_support.py",
         ):
             with self.subTest(path=path):
-                self.assertEqual(affected_groups([path]), MODEL_GROUPS | ({"editor"} if path == "Cargo.toml" else set()))
+                self.assertEqual(affected_groups([path]), MODEL_GROUPS)
 
     def test_shared_output_engine_keeps_native_output_consumers(self):
         for path in (
@@ -136,7 +133,7 @@ class PlanTests(unittest.TestCase):
         for path in (
             "crates/crucible-build/src/lib.rs", "crates/crucible-server-runtime-rust/src/host.rs",
             "crates/crucible-wire/src/error.rs", "crates/crucible-codegen-rust/src/lib.rs",
-            "crates/crucible-auth/src/principal.rs", "smithy/crucible.smithy",
+            "crates/crucible-auth/src/principal.rs",
             # The Leyline SDK consumer pins this runtime through `runtime_path`.
             "crates/crucible-client-runtime-rust/src/lib.rs",
             "tests/consumers/leyline/leyline-service/src/lib.rs", "tools/test-consumers.py",
@@ -235,9 +232,9 @@ class PlanTests(unittest.TestCase):
         def hosts(*paths):
             return onboarding_hosts("pull_request", EVENT, Mock(return_value=list(paths)))
         self.assertEqual(hosts("crates/crucible-server-runtime-rust/src/lib.rs"), ["ubuntu-latest"])
-        self.assertEqual(hosts("e2e/weather-service/src/main.rs", "smithy/errors.smithy"), ["ubuntu-latest"])
+        self.assertEqual(hosts("e2e/weather-service/src/main.rs", "crates/crucible-lang/bundled/crucible.errors.cru"), ["ubuntu-latest"])
         for path in ("tools/test-onboarding.py", "tools/package_starter.py",
-                     "crates/crucible-cli/src/starter/hello.smithy", "vendor/smithy-tooling/src/runtime.rs"):
+                     "crates/crucible-cli/src/starter/hello.cru"):
             with self.subTest(path=path):
                 self.assertEqual(hosts("README.md", path), ALL_HOSTS)
         self.assertEqual(onboarding_hosts("pull_request", {}, Mock()), ALL_HOSTS)
@@ -343,9 +340,9 @@ class PlanTests(unittest.TestCase):
         # Python and Go reuse one tools build instead of compiling twice.
         self.assertEqual(len(selected_jobs(MODEL_GROUPS, False)), 9)
         self.assertEqual(len(selected_jobs({"rust", "kotlin"}, False)), 6)
-        # Preserve the 37 test variants (including consumers) plus planner/aggregate, one tools build
+        # Preserve the 36 test variants (including consumers) plus planner/aggregate, one tools build
         # and the release-only language server build.
-        self.assertEqual(len(selected_jobs(GROUPS, True)), 41)
+        self.assertEqual(len(selected_jobs(GROUPS, True)), 40)
         for name, variant in selected_jobs(GROUPS, False)[2:]:
             self.assertNotIn(name, {"c-windows", "cpp-windows", "swift-apple", "kotlin-android"})
             if isinstance(variant, dict):
@@ -413,15 +410,6 @@ class PlanTests(unittest.TestCase):
             with self.subTest(job=name):
                 self.assertRegex(body, r"(?m)^    timeout-minutes: \d+$")
                 self.assertEqual(len(re.findall(r"uses: Swatinem/rust-cache@", body)), body.count(save_on_main))
-        # The large editor SDK and Gradle caches restore on PRs and save from
-        # main only.
-        self.assertNotRegex(jobs["editor"], r"uses: actions/cache@")
-        saves = re.findall(r"uses: actions/cache/save@.*\n\s+if: (.*)", jobs["editor"])
-        # Every save step has a main-only condition on its next line.
-        self.assertEqual(len(saves), jobs["editor"].count("uses: actions/cache/save@"))
-        self.assertTrue(saves)
-        for save in saves:
-            self.assertIn("github.ref == 'refs/heads/main'", save)
         self.assertIn("cache-read-only: ${{ github.ref != 'refs/heads/main' }}", jobs["kotlin-multiplatform"])
 
 

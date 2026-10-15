@@ -13,9 +13,7 @@ Denied listing (the addendum to decision 5). Phase C, the consumers'
 adoption (§10), has begun: Pigeon enforces its declared requirements
 through the interceptor. Leyline has not started.
 
-**Permissions are declared in `.cru` models only.** A Smithy model cannot
-declare them: a consumer whose model is Smithy, such as Leyline, migrates
-it to `.cru` first (§4.11). This document specifies how a model declares
+**Permissions are declared in `.cru` models.** This document specifies how a model declares
 the permissions its resources accept and the permissions each operation
 requires, and how the Rust runtime enforces them through a
 service-supplied `Authorizer`. The implementation plan is §10.
@@ -94,7 +92,7 @@ design does that split for permissions.
   policy code (§3.4).
 - **No implication, wildcard permissions or freshness in the model**
   (§4.8, decisions 1 and 3).
-- **No authentication changes.** `crucible-auth`, `Principal` and scopes are
+- **No authentication changes.** `crucible-auth` and `Principal` are
   unchanged (decision 10).
 
 ## 3. What the consumers do today
@@ -185,8 +183,8 @@ Handler-side checks have let these slip. Each one is a consequence of
 
 ### 3.4 Leyline
 
-Leyline's model is Smithy only (`smithy/src/main/smithy/`; the `.smithy`
-files below are under it). Its vocabulary is roles at scopes:
+Leyline's model was Smithy only when this survey was taken (the `.smithy`
+files cited below). Its vocabulary is roles at scopes:
 
 - 14 fixed **roles** (`RoleBinding.smithy:76-125`) are bound to principals
   (users and API keys) at five **scopes**: organization, allGraphs, graph,
@@ -210,7 +208,7 @@ files below are under it). Its vocabulary is roles at scopes:
   "no credentials" and "no rights", `shapes/errors.smithy:138-149`).
   Another organization's graph is a **404**, found by looking it up inside
   the caller's own organization (`errors.smithy:151-158`).
-- It uses neither `crucible.auth#scopes` nor `ScopeEnforcer`.
+- It uses no OAuth scopes: Crucible has none.
 
 **What this design takes from Leyline.** Actions become permissions on
 three resources (Organization, Graph, History). The `*` binding covers
@@ -615,22 +613,10 @@ readonly operation GetUsage {
 
 `fresh` does not appear (decision 3).
 
-### 4.11 Smithy models
+### 4.11 Shared pieces
 
-Typed permissions are a `.cru` feature. `crucible-smithy` lowers no
-permissions and no requirements, and it refuses a model that uses a
-`crucible.auth` permission trait (`permissionsOf`, `requires`,
-`requiresNone`, `requiresPending` and the like) with a diagnostic that
-says permissions are declared in `.cru` models, rather than lowering it as
-if it declared none. `crucible-traits` no longer defines those traits, so
-the official Smithy compiler fails first on `.smithy` sources
-(`Model.UnresolvedTrait`); `crucible-build` adds the same migrate-to-`.cru`
-explanation to that failure for each of the nine names. Leyline, the one
-Smithy consumer, migrates its model to `.cru` before it adopts them (§8.2).
-
-Two pieces are shared all the same. `@auth([])` still marks an operation
-`public` in the IR (§6.1): that is authentication, not permissions. And
-`crucible.errors#NotFoundException` is in `smithy/errors.smithy` as well as
+`@auth([])` marks an operation `public` in the IR (§6.1): that is
+authentication, not permissions. And `crucible.errors#NotFoundException` is in
 the bundled `crucible.errors` package: it is the shared error vocabulary.
 
 ## 5. Compiler checks
@@ -820,8 +806,7 @@ And two facts carried in existing fields:
 - `Operation::readonly` and `Operation::idempotent` are unchanged and reach
   the Authorizer (§7.1).
 
-`Service::all_permissions()` returns the sorted registry, the way
-`all_scopes()` does. Client audience projection drops `Internal`
+`Service::all_permissions()` returns the sorted registry. Client audience projection drops `Internal`
 permissions, aliases of them, and requirements that name them, as it drops
 internal members.
 
@@ -837,8 +822,8 @@ Additions to the contract above, made in phase A1:
 ```rust
 // ir::Operation
 #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-pub public: bool,      // declared public: Smithy `@auth([])` on the operation, or on the
-                       // service when the operation has no `@auth`; `.cru` `public`.
+pub public: bool,      // declared public: `@auth([])` on the operation, or on the
+                       // service when the operation has no `@auth`; `public`.
                        // `auth.is_empty()` alone is not: a service that declares no
                        // scheme leaves every operation without one.
 
@@ -923,7 +908,7 @@ pub struct InboxRef { pub workspace_id: String, pub inbox_id: Target }   // Targ
 impl InboxRef { pub fn not_found(&self) -> Error; }                       // the framework NotFound, §7.4
 ```
 
-Per operation, beside `SCOPES`, `PAGINATION` and `IDEMPOTENCY_TOKEN`:
+Per operation, beside `PAGINATION` and `IDEMPOTENCY_TOKEN`:
 
 ```rust
 impl Operation for SendMessage {
@@ -1051,7 +1036,7 @@ that type (`float` as `f32`).
   (the lowered requirements: value, resource type, mode, bindings as member
   paths, condition as text) and a sentence in its description. The
   document gets `x-crucible-permissions` with the registry, including tier
-  and aliases. OAuth security requirements stay scopes-only. Permissions
+  and aliases. Crucible has no OAuth scopes. Permissions
   are not OAuth scopes, OpenAPI's scope lists cannot name a target
   resource, and emitting them as scopes would invite clients to request
   them from Cognito. Internal permissions appear only in the
@@ -1230,7 +1215,6 @@ pub enum Visibility { All, Only(BTreeSet<String>), Hidden, Denied }   // Denied:
 ```rust
 builder
     .operation_middleware(chain)                     // authentication
-    .interceptor(ScopeEnforcer::exempt_id_tokens())  // if the service uses scopes
     .interceptor(Permissions::new(authorizer).refusal_factory(refused))
     .interceptor(PageTokens::new(keys, Principal::caller_binding_of))
     .interceptor(Idempotency::new(store, Principal::caller_binding_of))
@@ -1275,7 +1259,6 @@ The order is fixed (decision 11):
 authenticate          Middleware, or model-driven OperationAwareMiddleware right after routing
 route                 Protocol.identify
 deserialize           Protocol.decode: parse + model-constraint validation        -> 400
-[ScopeEnforcer]       token scopes, if the service uses them                       -> 401/403
 Permissions           declared authorization: checks, filters, obligations opened -> 403/404
 PageTokens            page token checks                                            -> 400
 Idempotency           claim, or replay a stored response                           -> 409
@@ -1310,8 +1293,7 @@ handler               loads; data-dependent validation; obligations discharged
   a Denied or Hidden request never claims, so the client can retry the
   same token after being granted access, and every replay is
   re-authorized against current grants. `docs/framework.md`, "Idempotency
-  tokens", already tells services to register `ScopeEnforcer` first, and
-  the same sentence names `Permissions`. `Idempotency::prepare` warns when
+  tokens", names `Permissions` among the interceptors it must precede. `Idempotency::prepare` warns when
   a `Permissions` is registered after it. This is a check of the runtime's
   own built-ins, not of a service name, so the framework rule holds.
   Idempotency keys stay scoped by principal (the `caller` function of
@@ -1422,14 +1404,14 @@ Permissions::new(authorizer).refusal_factory(|refusal: &PermissionRefusal| {
 })
 ```
 
-The naming follows `AuthenticatorChain::refusal_factory`,
-`ScopeEnforcer::refusal_factory` and `Idempotency::refusal_factory`. As
+The naming follows `AuthenticatorChain::refusal_factory`
+and `Idempotency::refusal_factory`. As
 with those, the error must be declared by the operation or the service.
 The refusal is stored as a typed context attribute. Without a factory,
 Denied is `FrameworkError::Forbidden`, whose message names the missing
 permission's value and resource type unless the permission is internal.
-Unlike a scope refusal, a permission refusal sends no `WWW-Authenticate:
-insufficient_scope`: no token the caller could obtain would carry a grant.
+A permission refusal sends no `WWW-Authenticate` challenge: no token the
+caller could obtain would carry a grant.
 
 Leyline's "another organization's graph is 404" falls out of authorizing
 against the organization in the path and then reading inside it; under
@@ -1575,9 +1557,7 @@ Each step ships alone and changes no behaviour until the step that says so.
 
 ### 8.2 Leyline
 
-Leyline's model is Smithy, which cannot declare permissions (§4.11): it
-migrates to `.cru` first. Its steps are then the same in outline, after
-Pigeon:
+Leyline's model is `.cru`. Its steps follow Pigeon's in outline:
 
 1. Declare `internal` `permission` entries on Organization, Graph and
    History, and `requires pending because` on every authenticated
@@ -1650,10 +1630,7 @@ streams.
   / `by handler` clauses, through lexer, parser, syntax tree, name
   resolution and lowering; `crucible-lsp` completion, semantic tokens and
   diagnostics for them.
-- Smithy: no permission traits; `crucible-smithy` refuses them (§4.11).
-- `crucible.errors#NotFoundException` in `smithy/errors.smithy`, attached
-  by `.cru` lowering (check 17; a Smithy model declares no requirement, so
-  its lowering attaches nothing).
+- `crucible.errors#NotFoundException`, attached by `.cru` lowering (check 17).
 - The IR fields of §6.1, all `#[serde(default)]`, and the client audience
   projection.
 - Checks 1-18 in `crucible_smithy::validate`, with a fixture for every
@@ -1715,7 +1692,7 @@ log agreeing, enforce, then delete `guard.rs` and `pigeon-web`'s
 
 The base design in §§4-7 is accepted: permissions are declared on
 resources, operations declare `requires`, `filters`, `requires none` or
-`requires pending` in `.cru` (Smithy models declare none, §4.11), the
+`requires pending` in `.cru`, the
 runtime enforces through a `Permissions` interceptor over a service
 `Authorizer` that answers `Allowed`, `Denied` or
 `Hidden` per check in one batch, and handlers check what the model cannot
@@ -1965,8 +1942,8 @@ service frameworks.
     keys are a ceiling in the permission vocabulary itself ([Stripe
     restricted keys](https://docs.stripe.com/keys/restricted-api-keys)),
     which avoids the parallel namespace GitHub maintains. *Changed from the
-    draft:* the future ceiling is stated; `.cru` `scopes` syntax remains a
-    separate change.
+    draft:* the future ceiling is stated; Crucible has since dropped OAuth
+    scopes, so there is no `.cru` `scopes` syntax.
 
 11. **Ordering: authenticate → route → deserialize and model-constraint
     validation → declared authorization (`Permissions`) → idempotency claim

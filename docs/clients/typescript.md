@@ -16,11 +16,10 @@ See [API audience selection](../build-outputs.md#selecting-an-api-audience).
 
 ## Generating and installing
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate ts smithy \
+crucible generate ts model \
   --out target/weather-ts --package-name @example/weather \
   --endpoint http://127.0.0.1:3000 --middleware content-sha256
 cd target/weather-ts
@@ -111,7 +110,7 @@ modeled width. Client optionality comes from the lowered IR, including
 `@clientOptional` and `@input`; TypeScript input interfaces continue to require
 `@required` input properties at compile time.
 
-Smithy `long` uses native `bigint`, covering the complete signed 64-bit range.
+`long` uses native `bigint`, covering the complete signed 64-bit range.
 The client preserves numeric JSON tokens until typed decoding, so a valid
 `9223372036854775807` is accepted exactly while `9223372036854775808` is rejected.
 The wire still uses ordinary, unquoted JSON numbers. Byte, short, and integer

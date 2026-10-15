@@ -50,7 +50,6 @@ jobs:
       dart: ${{ steps.select.outputs.dart }}
       e2e: ${{ steps.select.outputs.e2e }}
       onboarding: ${{ steps.select.outputs.onboarding }}
-      editor: ${{ steps.select.outputs.editor }}
       go: ${{ steps.select.outputs.go }}
       java: ${{ steps.select.outputs.java }}
       kotlin: ${{ steps.select.outputs.kotlin }}
@@ -751,47 +750,6 @@ jobs:
           CARGO_BUILD_JOBS: '2'
           CARGO_INCREMENTAL: '0'
 
-  editor:
-    needs: [plan, rust]
-    if: needs.plan.outputs.editor == 'true'
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with: { persist-credentials: false }
-      - uses: actions/setup-python@v7
-        with: { python-version: '3.11' }
-      # Restored everywhere, saved from main only: a PR-scoped copy of this
-      # 1.3 GB SDK is invisible to other PRs and evicts main's caches.
-      - uses: actions/cache/restore@v6
-        id: sdk
-        with:
-          path: .sdk/rustrover
-          key: rustrover-linux-262.10968.75-fac0d503
-      - name: Download the pinned IDE SDK
-        if: steps.sdk.outputs.cache-hit != 'true'
-        run: |
-          curl --fail --location --retry 3 https://download.jetbrains.com/rustrover/RustRover-2026.2.3.tar.gz --output /tmp/rustrover-sdk.tar.gz
-          python3 - <<'PY'
-          import hashlib, pathlib
-          path = pathlib.Path('/tmp/rustrover-sdk.tar.gz')
-          with path.open('rb') as source:
-              digest = hashlib.file_digest(source, 'sha256').hexdigest()
-          assert digest == 'fac0d50307301ecdb69998feeb338f1287a96e9c02d205165ec4e1d8c0ed40a6', digest
-          PY
-          mkdir -p .sdk/rustrover
-          tar -xzf /tmp/rustrover-sdk.tar.gz --strip-components=1 -C .sdk/rustrover
-      - uses: actions/cache/save@v6
-        if: github.ref == 'refs/heads/main' && steps.sdk.outputs.cache-hit != 'true'
-        with:
-          path: .sdk/rustrover
-          key: rustrover-linux-262.10968.75-fac0d503
-      - run: python ide/smithy-cargo/build.py --ide-home .sdk/rustrover --out dist
-      - uses: actions/upload-artifact@v7
-        with:
-          name: smithy-cargo-plugin
-          path: dist/smithy-cargo-0.1.0.zip
-
   # The language server for editors, per platform, built on release (full)
   # runs only. The release attaches these; the crucible-intellij plugin
   # bundles them.
@@ -853,7 +811,7 @@ jobs:
   # A stable aggregate reports failures while allowing intentionally omitted jobs.
   ci:
     if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.draft)
-    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, editor, lsp-binaries]
+    needs: [plan, qualification-tools, service-cli, cdk, terraform, c-linux, r, cpp-linux, c-windows, cpp-windows, ruby, php, dart, swift-linux, swift-apple, kotlin, kotlin-multiplatform, kotlin-android, csharp, java, go, python, rust, typescript, docs-site, e2e, consumers, onboarding, lsp-binaries]
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:

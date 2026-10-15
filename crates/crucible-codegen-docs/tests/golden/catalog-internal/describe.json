@@ -297,7 +297,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/ListItems"
     },
@@ -648,7 +647,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/WriteItem"
     }
@@ -681,7 +679,6 @@
     },
     "protocol": "crucibleJson",
     "resourceRoots": [],
-    "scopes": [],
     "title": "Catalog API",
     "version": "2026-10"
   },

@@ -9,11 +9,10 @@ runtime on the native VM and in browsers, with no Flutter dependency.
 
 ## Generating and installing
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate dart smithy \
+crucible generate dart model \
   --out generated/client --package-name weather_client \
   --package-version 0.1.0 --endpoint https://api.example
 cd generated/client
@@ -60,7 +59,7 @@ value takes precedence over the ordinary argument. Required members are
 constructor arguments. Missing response members receive modeled defaults;
 explicit null does not receive a default.
 
-Smithy `long` uses `BigInt` so browser compilation preserves the full signed
+`long` uses `BigInt` so browser compilation preserves the full signed
 64-bit range. Other integer types use bounded `int`; floating-point values
 must be finite. `Timestamp` stores whole seconds and nanoseconds and preserves
 negative fractional epochs. Date-time and HTTP-date text require years 1–9999.

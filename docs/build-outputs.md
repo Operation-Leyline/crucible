@@ -1,14 +1,14 @@
 # Building named model outputs
 
 All build scripts start with `crucible_build::model(source)`. The source is a
-Smithy directory, a `.json` AST, or the `links` name of a direct model-package
+`.cru` package directory, or the `links` name of a direct model-package
 dependency. Source compilation is cached on the returned `Model`; named outputs
 share its lowered model and artifact registry. Model publication is needed only
-when another crate consumes the AST.
+when another crate consumes the compiled model.
 
 ```rust
 // model crate
-crucible_build::model("smithy").publish();
+crucible_build::model("model").publish();
 // service crate
 crucible_build::model("weather_model").server().strict_inputs().generate();
 // SDK producer
@@ -25,14 +25,10 @@ existing runtime MCP registration stays the same. The binding filename is `cruci
 through `CRUCIBLE_CLIENT_SOURCE` as before. Import `Audience` only from
 `crucible_build::Audience`.
 
-The old entry points and `RustCodegen` alias are deprecated since 0.5.0 and remain
-for one minor release. Replace `smithy`, `model_from_json`, and `model_dependency`
-with `model`; replace server/client helpers with `model(..).server()` or
-`model(..).client()`, and publication helpers with `model(..).publish()`.
-An explicitly selected compiler uses `model(..).compile_with(compiler)` before
-selecting a binding or publishing. The deprecated `outputs` module
-retains generator/options imports during migration; import these directly from
-`crucible_build` in new code. It does not export `Audience`; the redundant `clients` namespace is removed.
+The old entry points and `RustCodegen` alias were removed. Use
+`model(source)`, then `model(..).server()` or `model(..).client()` for bindings
+and `model(..).publish()` for publication. Import generators and options
+directly from `crucible_build`.
 
 Missing model links fail with a typed `MissingModelDependency` and an actionable
 build-script diagnostic. `model(source)` reports the missing Cargo
@@ -40,9 +36,9 @@ metadata variable and the required `[dependencies]`, `links`, and publication
 setup. Relative paths resolve from `CARGO_MANIFEST_DIR`. Existing paths take
 precedence over dependency names.
 
-Compile a Smithy model once and select named clients, documents, infrastructure packages, and CLIs from `build.rs`.
+Compile a `.cru` package once and select named clients, documents, infrastructure packages, and CLIs from `build.rs`.
 Each output has its own target and native settings. A separate producer package
-can also generate from a model dependency's compiled AST.
+can also generate from a model dependency's compiled model.
 
 ## Organizing the workspace
 
@@ -50,8 +46,8 @@ Keep model sources and applications separate; export complete SDK packages under
 an ignored build directory:
 
 ```text
-smithy/                 Cargo package weather-model, links = "weather_model"
-  model/service.smithy
+model/                  Cargo package weather-model, links = "weather_model"
+  crucible.toml, service.cru
   build.rs
   src/lib.rs            minimal Cargo library; no generated client API
 target/
@@ -63,7 +59,7 @@ service/                Cargo package with generated bindings and handwritten ha
 client/                 independent Cargo workspace depending on target/rust-sdk
 ```
 
-The model package needs a minimal Cargo target such as `src/lib.rs`; Smithy
+The model package needs a minimal Cargo target such as `src/lib.rs`; `.cru`
 sources can live entirely under `model/`. Cargo resolves dependency manifests
 before running build scripts. Build the model or service first to create the Rust
 SDK manifest, then build its consumer. Keep that consumer outside the producer's
@@ -80,15 +76,14 @@ bindings generated directly inside the service crate.
 ## Generating outputs from the model package
 
 Set `links = "weather_model"` in the model package's `[package]` section.
-Add a build dependency on `crucible-build`. Its defaults enable the managed
-Smithy compiler and Rust generation. Enable `java` to add Java generation:
+Add a build dependency on `crucible-build`. Its defaults enable Rust generation. Enable `java` to add Java generation:
 
 ```toml
 [build-dependencies]
 crucible-build = { git = "https://github.com/Operation-Leyline/crucible", features = ["java"] }
 ```
 
-Pin that dependency to your chosen Crucible revision. In `smithy/build.rs`:
+Pin that dependency to your chosen Crucible revision. In `model/build.rs`:
 
 ```rust
 fn main() {
@@ -135,7 +130,6 @@ To apply project conventions before publication and generation, use
 `crucible_build::model("model").policy("../crucible.toml")` with
 your policy file. `.named("example.weather#Weather")` selects a service. See
 [API policy and compatibility](api-policy.md) for policy and CI comparisons.
-For an already compiled AST, use `model("model.json")`.
 
 ### Selecting an API audience
 
@@ -160,7 +154,7 @@ settings and preserves the selected audience. `Audience` is re-exported from
 The CLI accepts `--audience external|internal` on every `generate` target:
 
 ```sh
-crucible generate ts model.json --audience internal \
+crucible generate ts model --audience internal \
   --out target/internal-ts --package-name @example/internal-api
 ```
 
@@ -188,12 +182,11 @@ existing unknown/unmodelled error paths.
 Enable only the required build-helper features: `rust`, `ts`, `python`, `go`, `java`,
 `csharp`, `kotlin`, `swift`, `dart`, `php`, `ruby`, `cpp`, `c`, or `r`.
 `all-clients` enables all native client generators. Each target still checks its
-supported Smithy capabilities before emitting output.
+supported capabilities before emitting output.
 
-The default features are `smithy` and `rust`. A Java-only source producer uses
-`default-features = false, features = ["smithy", "java"]`; a Java producer reading
-an already assembled AST only needs `features = ["java"]` with defaults disabled.
-Neither loads the Rust emitter or client runtime.
+The default feature is `rust`. A Java-only producer uses
+`default-features = false, features = ["java"]` and loads neither the Rust
+emitter nor the client runtime.
 
 Every native client target has a feature-gated fluent helper:
 
@@ -434,16 +427,16 @@ connect directly to `include_service!()`.
 
 ## Generating in a separate SDK package
 
-The model producer may publish only the AST:
+The model producer may publish only the compiled model:
 
 ```rust
-// smithy/build.rs
+// model/build.rs
 fn main() {
     crucible_build::model("model").publish();
 }
 ```
 
-A sibling SDK producer declares `weather-model = { path = "../../smithy" }`
+A sibling SDK producer declares `weather-model = { path = "../../model" }`
 as a normal dependency and adds `crucible-build` to `[build-dependencies]`.
 Enable its `java` feature for this example:
 
@@ -461,7 +454,7 @@ fn main() {
 ```
 
 `model("weather_model")` reads the direct dependency's `DEP_WEATHER_MODEL_MODEL`
-metadata. It loads the published AST without invoking the Smithy compiler.
+metadata. It loads the published model without compiling the package again.
 The SDK producer owns its output and artifact registry. A Rust producer can
 use `model.rust_client("rust").generate()` with the same input.
 
@@ -507,16 +500,16 @@ fn main() {
 crucible_server_runtime_rust::include_service!();
 ```
 
-For Smithy `service Weather`, this declares `pub mod weather`. Handlers import
+For `service Weather`, this declares `pub mod weather`. Handlers import
 `crate::weather::{GetCityInput, GetCityOutput, GetCityOperation, NotFoundError}`
 and register with `crate::weather::operations(...)`. Models and exceptions share
 the service namespace; no handwritten wrapper is required.
 The helper generates request/response models, modeled errors, operation traits,
-and the registry together. It consumes the model dependency's published AST;
-it does not invoke the Smithy compiler again.
+and the registry together. It consumes the model dependency's published model;
+it does not compile the package again.
 
 A server can also compile sources directly, using
-`crucible_build::model("../smithy/model").server().generate()` in its build script
+`crucible_build::model("../model").server().generate()` in its build script
 with the same inclusion hook. That setup needs no model Cargo package.
 The inclusion macro connects Cargo's generated build output to Rust's module
 system without exposing an output filename or writing generated code into the

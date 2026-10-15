@@ -103,7 +103,7 @@ impl Permissions {
     /// its own error builds it here from
     /// [`PermissionRefusal::public_permission`]; the error must be declared
     /// by the operation or the service. Named like
-    /// `AuthenticatorChain::refusal_factory`, `ScopeEnforcer::refusal_factory`
+    /// `AuthenticatorChain::refusal_factory`
     /// and `Idempotency::refusal_factory`. A Hidden verdict never reaches it:
     /// it is the not-found error ([`not_found_factory`](Self::not_found_factory)).
     /// A `filters` listing the Authorizer answers [`Visibility::Denied`]

@@ -426,7 +426,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 201,
       "uri": "/cities"
     },
@@ -808,7 +807,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/cities/{cityId}"
     },
@@ -987,7 +985,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "image/jpeg"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/cities/{cityId}/photo"
     },
@@ -1355,7 +1352,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/cities"
     },
@@ -1424,7 +1420,6 @@
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {},
-      "scopes": [],
       "status": 200,
       "uri": "/ping"
     },
@@ -1667,7 +1662,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/cities/{cityId}/photo"
     },
@@ -1743,7 +1737,6 @@
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {},
-      "scopes": [],
       "status": 200,
       "uri": "/status"
     }
@@ -1780,7 +1773,6 @@
     },
     "protocol": "crucibleJson",
     "resourceRoots": [],
-    "scopes": [],
     "title": "Weather",
     "version": "2026-10-01"
   },

@@ -2,39 +2,32 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const SOURCE: &str = r#"$version: "2"
-namespace example.policy
-use crucible.protocols#json
+const MANIFEST: &str = "schema_version = 1\n[model]\nnamespace = \"example.policy\"\nlanguage = 1\nsources = [\".\"]\nimports = []\n[model.naming]\ninput = \"{Operation}Input\"\noutput = \"{Operation}Output\"\n";
 
-@json
-service Greeting {
-    version: "1"
-    operations: [SayHello]
+const SOURCE: &str = r#"service Greeting {
+    version "1"
+    protocol json
+    operations [SayHello]
 }
 
-@http(method: "POST", uri: "/v1/hello", code: 200)
 operation SayHello {
-    input: SayHelloInput
-    output: SayHelloOutput
-}
+    http POST "/v1/hello" -> 200
 
-@input
-structure SayHelloInput {
-    @required
-    name: String
-}
+    input {
+        name: string
+    }
 
-@output
-structure SayHelloOutput {
-    @required
-    message: String
+    output {
+        message: string
+    }
 }
 "#;
 
 fn fixture(root: &Path) -> PathBuf {
     let project = root.join("independent client");
-    fs::create_dir_all(project.join("smithy")).unwrap();
-    fs::write(project.join("smithy/hello.smithy"), SOURCE).unwrap();
+    fs::create_dir_all(project.join("model")).unwrap();
+    fs::write(project.join("model/crucible.toml"), MANIFEST).unwrap();
+    fs::write(project.join("model/hello.cru"), SOURCE).unwrap();
     policy(&project, "/v1");
     project
 }
@@ -64,7 +57,7 @@ fn client_build_helper_probe() {
     if std::env::var_os("CRUCIBLE_CLIENT_POLICY_PROBE").is_none() {
         return;
     }
-    crucible_build::model("smithy")
+    crucible_build::model("model")
         .client()
         .policy("crucible.toml")
         .generate();
@@ -95,7 +88,7 @@ fn direct_client_helper_enforces_policy_edits_before_replacing_artifacts() {
     let client = out.join("crucible_client.rs");
     let before = (fs::read(&client).unwrap(), fs::read(&exported).unwrap());
     assert!(String::from_utf8_lossy(&before.0).contains("GreetingClient"));
-    assert_eq!(before.1, fs::read(out.join("smithy/model.json")).unwrap());
+    assert!(!before.1.is_empty());
 
     // Existing artifacts remain available when only the selected policy changes.
     policy(&project, "/v2");
@@ -131,14 +124,14 @@ fn direct_client_helper_enforces_policy_edits_before_replacing_artifacts() {
     policy(&project, "/v1");
     successful(run());
     assert_eq!(
-        fs::read(project.join("smithy/hello.smithy")).unwrap(),
+        fs::read(project.join("model/hello.cru")).unwrap(),
         SOURCE.as_bytes()
     );
-    assert_eq!(fs::read_dir(project.join("smithy")).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(project.join("model")).unwrap().count(), 2);
 }
 
 #[test]
-fn checking_smithy_sources_for_a_client_applies_explicit_policy_config() {
+fn checking_a_package_for_a_client_applies_explicit_policy_config() {
     let directory = tempfile::tempdir().unwrap();
     let project = fixture(directory.path());
     let run = |source: &Path| {
@@ -152,18 +145,18 @@ fn checking_smithy_sources_for_a_client_applies_explicit_policy_config() {
             .output()
             .unwrap()
     };
-    let accepted = successful(run(Path::new("smithy")));
+    let accepted = successful(run(Path::new("model")));
     assert!(String::from_utf8_lossy(&accepted.stdout).contains("No policy violations found."));
     policy(&project, "/v2");
-    let rejected = run(Path::new("smithy/hello.smithy"));
+    let rejected = run(Path::new("model"));
     assert!(!rejected.status.success());
     assert!(String::from_utf8_lossy(&rejected.stdout).contains("paths.prefix"));
     assert!(String::from_utf8_lossy(&rejected.stderr).contains("API policy check failed"));
     policy(&project, "/v1");
-    successful(run(Path::new("smithy/hello.smithy")));
+    successful(run(Path::new("model")));
     assert_eq!(
-        fs::read(project.join("smithy/hello.smithy")).unwrap(),
+        fs::read(project.join("model/hello.cru")).unwrap(),
         SOURCE.as_bytes()
     );
-    assert_eq!(fs::read_dir(project.join("smithy")).unwrap().count(), 1);
+    assert_eq!(fs::read_dir(project.join("model")).unwrap().count(), 2);
 }

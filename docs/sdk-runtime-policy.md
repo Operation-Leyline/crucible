@@ -14,7 +14,7 @@ A runtime follows this document and passes the shared vectors in
 | Telemetry | [`telemetry.json`](../tests/conformance/telemetry.json) | `telemetry=` |
 
 Every client-level vector runs against a client generated from
-[`runtime-policy.json`](../crates/crucible-smithy/tests/fixtures/runtime-policy.json):
+[`runtime-policy`](../tests/models/runtime-policy):
 a service with sensitive members bound to a label, a header and a query
 parameter, and modeled throttling and retryable errors.
 

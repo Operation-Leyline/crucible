@@ -28,7 +28,7 @@ fn missing_dependency_names_the_cargo_setup() {
 fn explicit_paths_do_not_require_dependency_metadata() {
     let dir = tempfile::tempdir().unwrap();
     let _source = model(dir.path());
-    let ast = dir.path().join("model.json");
+    let ast = dir.path().join("model");
     // Source discovery does not compile or read AST contents.
     assert_eq!(model(&ast).model_path(), ast);
 }

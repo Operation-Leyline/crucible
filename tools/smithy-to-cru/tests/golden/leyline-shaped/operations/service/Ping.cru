@@ -1,5 +1,0 @@
-/// Is the service up.
-@operationClass(controlRead)
-readonly public operation Ping {
-    http GET "/ping"
-}

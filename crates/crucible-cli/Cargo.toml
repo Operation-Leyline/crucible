@@ -1,6 +1,6 @@
 [package]
 name = "crucible-cli"
-description = "The crucible command: check and generate from a Smithy model"
+description = "The crucible command: check and generate from a Crucible model"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

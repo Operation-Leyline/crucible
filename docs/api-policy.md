@@ -2,7 +2,7 @@
 
 Crucible checks project API conventions during Cargo builds and compares
 contracts with `crucible diff`. Both use `crucible-policy` over the lowered IR.
-Model validity and supported Smithy constructs remain `crucible-smithy`'s
+Model validity and supported constructs remain `crucible-smithy`'s
 responsibility; policy cannot disable those diagnostics.
 
 ## Enabling build checks
@@ -40,14 +40,13 @@ Select the file in `build.rs`:
 
 ```rust,ignore
 fn main() {
-    crucible_build::model("smithy").server()
+    crucible_build::model("model").server()
         .policy("crucible.toml")
         .generate();
 }
 ```
 
-The same `.policy(...)` method works with `model(...).server()`, `model(...).client()`,
-`model("model.json").server()`, and `model("smithy").compile_with(...).server()`. Paths are relative to
+The same `.policy(...)` method works with `model(...).server()`, and `model(...).client()`. Paths are relative to
 the package's `Cargo.toml`; a workspace can select `../../crucible.toml`.
 The selected config is required. Invalid config, missing config, or error
 findings fail the build. Cargo tracks config edits and removal. Warnings and
@@ -258,29 +257,18 @@ snapshot; the next release's migration starts from it.
 
 ## Comparing contracts
 
-Compare the Smithy source directories from two revisions directly:
+Compare the `.cru` packages of two revisions directly:
 
 ```sh
-crucible diff before/smithy after/smithy --config crucible.toml --json
+crucible diff before/model after/model --config crucible.toml --json
 ```
 
-The CLI assembles both directories with its pinned official Smithy compiler,
-imports the bundled Crucible traits and errors, and flattens mixins before
-lowering. Compilation uses temporary directories outside the sources and does
-not need a Cargo service, generated code, or lockfile. Each source directory
-must contain its API and any additional model dependencies. Invalid Smithy or
-missing directories fail with compiler diagnostics. The managed Java runtime
-is downloaded and checksum-verified on first use, then cached.
+The CLI compiles both package directories itself, with no Cargo service,
+generated code or lockfile. Each directory is a package: its `crucible.toml`
+and sources, with any `[model.dependencies]` it imports by path. Invalid
+sources or missing directories fail with compiler diagnostics.
 
-Assembled Smithy JSON ASTs remain supported:
-
-```sh
-crucible check new.json --target rust --config crucible.toml
-crucible diff old.json new.json --config crucible.toml
-crucible diff old.json new.json --config crucible.toml --json
-```
-
-Use `--service namespace#Service` when the models contain several services.
+Use `--service namespace#Service` when the packages contain several services.
 Without `--config`, `diff` uses the default compatibility settings.
 An error finding returns a nonzero exit code. With `--json`, stdout remains
 a valid JSON report even when findings fail the check; setup/model errors go
@@ -365,11 +353,10 @@ and a caller template. Pin both the action and checker to reviewed commits.
 Select the PR base revision for regression checks or a released tag to preserve
 compatibility with the published contract. No baseline means a failed check.
 
-Pass `before` and `after` as Smithy directories relative to the runner workspace,
-plus `config` pointing to the proposed policy file. The action assembles and
-compares those directories; it does not run service builds or require an export
-script. JSON AST paths are also accepted. Older service build helpers do not
-affect this source-directory comparison.
+Pass `before` and `after` as `.cru` package directories relative to the runner
+workspace, plus `config` pointing to the proposed policy file. The action
+compiles and compares those directories; it does not run service builds or
+require an export script.
 
 The action uploads JSON and Markdown reports even for breaking findings and
 adds the report to the run summary. Ordinary PR builds enforce static policy;

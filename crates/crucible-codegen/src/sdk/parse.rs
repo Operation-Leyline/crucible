@@ -119,10 +119,7 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
     let model = match table.get("model") {
         Some(value) => path_value(&mut context, "model", value),
         None => {
-            context.error(
-                "model",
-                "missing: name the .cru package, Smithy sources or JSON AST",
-            );
+            context.error("model", "missing: name the .cru package directory");
             None
         }
     };

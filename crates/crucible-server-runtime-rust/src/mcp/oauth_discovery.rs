@@ -5,8 +5,7 @@ use axum::response::{IntoResponse, Response};
 use serde_json::json;
 use url::Url;
 
-use super::{McpAuthorization, ToolDescriptor};
-use crate::Prepare;
+use super::McpAuthorization;
 
 pub(super) struct OAuthDiscovery {
     pub path: String,
@@ -22,8 +21,6 @@ impl OAuthDiscovery {
         // so clients discover metadata that advertises PKCE.
         authorization_server: Option<&str>,
         endpoint: &str,
-        tools: &[ToolDescriptor],
-        prepare: &Prepare<'_>,
     ) -> Result<Self, String> {
         let resource = Url::parse(authorization.resource()).map_err(|e| e.to_string())?;
         if resource.scheme() != "https"
@@ -61,15 +58,7 @@ impl OAuthDiscovery {
             }
         }
         let required: BTreeSet<_> = authorization.required_scopes().into_iter().collect();
-        let mut supported = required.clone();
-        for tool in tools {
-            let metadata = prepare
-                .service()
-                .operation(tool.operation)
-                .and_then(|operation| prepare.metadata(operation))
-                .ok_or_else(|| format!("MCP tool {} has no operation metadata", tool.name))?;
-            supported.extend(metadata.scopes.iter().copied());
-        }
+        let supported = required.clone();
         if supported.iter().any(|scope| !valid_scope(scope)) {
             return Err("MCP OAuth scopes must be RFC 6749 scope tokens".into());
         }

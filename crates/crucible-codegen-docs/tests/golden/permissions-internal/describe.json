@@ -203,7 +203,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/archive"
     },
@@ -372,7 +371,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs"
     },
@@ -663,7 +661,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/query"
     },
@@ -829,7 +826,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graph}"
     },
@@ -976,7 +972,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}"
     },
@@ -1081,7 +1076,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/user"
     },
@@ -1171,7 +1165,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/health"
     },
@@ -1329,7 +1322,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs"
     },
@@ -1484,7 +1476,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/histories/{historyId}/restore"
     },
@@ -1708,7 +1699,6 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
-      "scopes": [],
       "status": 200,
       "uri": "/orgs/{organizationId}/graphs/{graphId}/rewrite"
     }
@@ -1837,7 +1827,6 @@
     ],
     "protocol": "crucibleJson",
     "resourceRoots": [],
-    "scopes": [],
     "title": "Leyline",
     "version": "2026-10-01"
   },

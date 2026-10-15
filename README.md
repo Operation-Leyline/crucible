@@ -1,7 +1,7 @@
 # crucible
 
 Crucible generates a Rust service, native client SDKs, and infrastructure
-packages from a Smithy model.
+packages from a `.cru` model.
 It is built for Leyline, with a shared model layer that preserves HTTP bindings,
 unions, modeled errors, defaults, pagination, and idempotency tokens.
 
@@ -50,15 +50,14 @@ model project:
 ```sh
 cargo install --path crates/crucible-cli --locked
 # From your model project:
-crucible check smithy --target ts
-crucible generate ts smithy \
+crucible check model --target ts
+crucible generate ts model \
   --out generated/weather --package-name @example/weather \
   --endpoint https://api.example.com --middleware content-sha256
 ```
 
-`smithy` is your source directory; a single `.smithy` file also works. The CLI
-manages the official compiler, Crucible imports and mixin flattening. An existing
-compiled `model.json` is still accepted. See
+`model` is your package directory: a `crucible.toml` with a `[model]` table
+beside the `.cru` sources. See
 [preparing a model](docs/clients.md#preparing-a-model).
 Use `generate <target> --help` for the options of another language. Generation
 records the files it owns in `.crucible`, preserves handwritten files and native
@@ -69,7 +68,7 @@ generator and regenerate.
 
 `crucible generate cdk` emits jsii-compatible CDK constructs. `crucible generate
 terraform` emits a Terraform/OpenTofu provider for explicitly supported resource
-lifecycles. Both use shared Smithy resource metadata and validated deployment
+lifecycles. Both use shared resource metadata and validated deployment
 bindings. See [infrastructure generation](docs/infrastructure.md) for examples,
 language packages, supported subsets, and migration checks.
 
@@ -90,24 +89,23 @@ exceptions, and the shared GitHub workflow.
 Download `hello-service-v0.3.0.zip` from the matching [Crucible release](https://github.com/Operation-Leyline/crucible/releases),
 extract it, and open the folder in RustRover. Run `src/main.rs`, then send the
 request in `hello.http`. Rust and read access to this private repository are
-the prerequisites. The first build provisions the pinned Smithy runtime;
-subsequent builds use its cache.
+the prerequisites.
 
 New starters are one Cargo crate with a `crucible.toml` policy. Their complete
 build script is:
 
 ```rust
 fn main() {
-    crucible_build::model("smithy").server()
+    crucible_build::model("model").server()
         .policy("crucible.toml")
         .generate();
 }
 ```
 
-Edit `smithy/hello.smithy` and `src/operations/service/say_hello.rs`. Cargo
+Edit `model/hello.cru` and `src/operations/service/say_hello.rs`. Cargo
 validates the model and regenerates the contract when the model changes.
 The Rust server depends on `crucible-server-runtime-rust`. Include the generated
-API at crate root: a Smithy `HelloService` produces `hello_service`, exposing
+API at crate root: a `.cru` `HelloService` produces `hello_service`, exposing
 its models, exceptions and operation traits directly.
 The starter declares modeled validation and internal errors, and returns
 HTTP 400 for invalid requests. See [the quick start](docs/quickstart.md) for
@@ -119,12 +117,12 @@ To create another package name from this checkout:
 cargo run -p crucible-cli -- new my-service
 ```
 
-For a Rust client library with the same Smithy build setup, use
+For a Rust client library with the same build setup, use
 `crucible new my-client --client`. Its build script calls
-`crucible_build::model("smithy").client()` and selects the same policy hook.
+`crucible_build::model("model").client()` and selects the same policy hook.
 Shared model crates
 can compile and publish their contract with
-`crucible_build::model("smithy").publish()`. See the
+`crucible_build::model("model").publish()`. See the
 [Rust client guide](docs/clients/rust.md#generating-a-client).
 
 The [framework guide](docs/framework.md) explains model packages, generated
@@ -138,7 +136,7 @@ with a Migration entry and a one-minor `#[deprecated]` shim (a removal may skip
 the shim only when its Migration entry names it); patch releases never break it
 ([stability policy](docs/releases.md#stability-policy-for-0x), [runtime surface](docs/stability.md)).
 
-See [design and protocol](docs/design.md) for the Smithy-to-IR pipeline and
+See [design and protocol](docs/design.md) for the `.cru`-to-IR pipeline and
 wire rules, and [agent instructions](AGENTS.md) for repository boundaries and
 development commands.
 

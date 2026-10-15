@@ -1,5 +1,4 @@
 use std::cell::OnceCell;
-use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::model_builder::ModelConfig;
@@ -8,7 +7,6 @@ use crate::{Client, Generator, ModelPackage, Output, absolute};
 /// One model source shared by server bindings, client bindings, and named outputs.
 pub struct Model {
     builder: ModelConfig,
-    path: OnceCell<PathBuf>,
     package: OnceCell<ModelPackage>,
 }
 
@@ -16,17 +14,12 @@ impl Model {
     fn configured(builder: ModelConfig) -> Self {
         Self {
             builder,
-            path: OnceCell::new(),
             package: OnceCell::new(),
         }
     }
 
-    pub(crate) fn from_json(source: impl AsRef<Path>) -> Self {
-        Self::configured(ModelConfig::new(source.as_ref(), true))
-    }
-
-    pub(crate) fn from_sources(source: impl AsRef<Path>) -> Self {
-        Self::configured(ModelConfig::new(source.as_ref(), false))
+    pub(crate) fn from_package(source: impl AsRef<Path>) -> Self {
+        Self::configured(ModelConfig::new(source.as_ref()))
     }
 
     pub(crate) fn from_dependency(links: &str) -> Self {
@@ -34,7 +27,7 @@ impl Model {
             eprintln!("{error}");
             std::panic::panic_any(error)
         });
-        Self::from_json(path)
+        Self::from_package(path)
     }
 
     pub(crate) fn new(source: &Path) -> Self {
@@ -47,11 +40,10 @@ impl Model {
 
     pub(crate) fn try_new(source: &Path) -> Result<Self, crate::MissingModelDependency> {
         let path = absolute(source);
-        let json = source.extension().is_some_and(|ext| ext == "json");
-        let builder = if json || path.exists() || source.components().count() > 1 {
-            ModelConfig::new(source, json)
+        let builder = if path.exists() || source.components().count() > 1 {
+            ModelConfig::new(source)
         } else {
-            ModelConfig::new(&crate::try_published(&source.to_string_lossy())?, true)
+            ModelConfig::new(&crate::try_published(&source.to_string_lossy())?)
         };
         Ok(Self::configured(builder))
     }
@@ -71,25 +63,10 @@ impl Model {
     }
 
     fn path(&self) -> &Path {
-        self.path.get_or_init(|| {
-            if self.builder.json {
-                self.builder.source.clone()
-            } else {
-                #[cfg(feature = "smithy")]
-                {
-                    let output = PathBuf::from(std::env::var_os("OUT_DIR")
-                        .expect("OUT_DIR: run model generation from a Cargo build script"));
-                    println!("cargo::rerun-if-changed={}", self.builder.source.display());
-                    crate::compile_smithy(&self.builder.source, output.join("smithy"))
-                        .unwrap_or_else(|error| panic!("crucible: {error}"))
-                }
-                #[cfg(not(feature = "smithy"))]
-                panic!("crucible: Smithy source compilation requires the smithy feature or compile_with")
-            }
-        })
+        &self.builder.source
     }
 
-    /// Publish this AST through the model package's Cargo `links` metadata.
+    /// Publish this package through the model package's Cargo `links` metadata.
     /// Publishing does not select a service, so multi-service models remain valid.
     pub fn publish(&self) {
         if self.builder.policy.is_some() {
@@ -116,7 +93,7 @@ impl Model {
         let mut output = crate::ServerOutput::new(self.path());
         output.service = self.builder.service.clone();
         output.policy = self.builder.policy.clone();
-        output.options.require_rejection = !self.builder.json || self.builder.cru;
+        output.options.require_rejection = true;
         output
     }
 
@@ -257,66 +234,29 @@ impl Model {
         crate::CliOutput::new(self.package(), name)
     }
 
-    /// The compiled AST path for integrations that need the model artifact.
+    /// The package path for integrations that need the model artifact.
     pub fn model_path(&self) -> &Path {
         self.path()
     }
 
     /// Compile eagerly when an integration needs the assembled package.
     pub fn compile(self) -> ModelPackage {
-        self.compile_with(|config, output| {
-            #[cfg(feature = "smithy")]
-            {
-                smithy_tooling::build(config, output)
-            }
-            #[cfg(not(feature = "smithy"))]
-            {
-                let _ = (config, output);
-                Err(io::Error::other(
-                    "Smithy source compilation requires the smithy feature or compile_with",
-                ))
-            }
-        })
-    }
-
-    /// Use an explicitly selected official Smithy compiler.
-    pub fn compile_with(
-        self,
-        compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-    ) -> ModelPackage {
-        self.try_compile_with(compiler)
+        self.try_compile()
             .unwrap_or_else(|message| panic!("crucible: {message}"))
     }
 
     /// Fallible compilation for build integrations.
-    pub fn try_compile_with(
-        self,
-        compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-    ) -> Result<ModelPackage, String> {
-        if let Some(package) = self.package.into_inner() {
-            return Ok(package);
+    pub fn try_compile(self) -> Result<ModelPackage, String> {
+        match self.package.into_inner() {
+            Some(package) => Ok(package),
+            None => self.builder.try_compile(),
         }
-        let mut builder = self.builder;
-        let source_requires_rejection = !builder.json || builder.cru;
-        if let Some(path) = self.path.into_inner() {
-            builder.source = path;
-            builder.json = true;
-        }
-        let mut package = builder.try_compile_with(compiler)?;
-        package.server_requires_rejection = source_requires_rejection;
-        Ok(package)
     }
 
     fn package(&self) -> &ModelPackage {
-        // Named outputs share the compiled AST and artifact registry, including
-        // when the same handle has already generated server or client bindings.
-        self.package.get_or_init(|| {
-            let mut builder = self.builder.clone();
-            builder.source = self.path().to_path_buf();
-            builder.json = true;
-            let mut package = builder.compile();
-            package.server_requires_rejection = !self.builder.json || self.builder.cru;
-            package
-        })
+        // Named outputs share the compiled package and artifact registry,
+        // including when the same handle has already generated server or
+        // client bindings.
+        self.package.get_or_init(|| self.builder.clone().compile())
     }
 }

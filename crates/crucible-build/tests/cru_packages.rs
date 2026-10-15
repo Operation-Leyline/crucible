@@ -1,6 +1,6 @@
 #![cfg(feature = "rust")]
 //! A directory whose `crucible.toml` has a `[model]` table is a Crucible
-//! language package: `model(..)` compiles it with no Smithy compiler, and
+//! language package: `model(..)` compiles it, and
 //! `publish()` hands the directory to dependents.
 
 use std::fs;
@@ -66,7 +66,7 @@ fn package(source: &str) -> tempfile::TempDir {
 }
 
 #[test]
-fn a_cru_package_compiles_publishes_and_generates_without_smithy() {
+fn a_cru_package_compiles_publishes_and_generates() {
     let root = package(WEATHER);
     let output = run(
         root.path(),
@@ -90,7 +90,7 @@ fn a_cru_package_compiles_publishes_and_generates_without_smithy() {
     );
     assert!(
         !root.path().join("out/smithy").exists(),
-        "no Smithy compilation ran"
+        "no intermediate compilation output is written"
     );
 }
 

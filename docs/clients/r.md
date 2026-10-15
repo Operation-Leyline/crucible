@@ -14,11 +14,10 @@ Source installation also needs R's C package build tools, including Rtools on
 Windows. A registered C routine supplies a monotonic clock for deadlines.
 The generated package declares its dependencies in `DESCRIPTION`.
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate r smithy --out generated/weather \
+crucible generate r model --out generated/weather \
   --package-name weather.client --package-version 0.1.0
 R CMD build generated/weather
 R CMD INSTALL weather.client_0.1.0.tar.gz
@@ -29,7 +28,7 @@ contain at least two characters, and do not end in a dot. The package owner
 must replace the generated maintainer and distribution-license placeholders
 before publishing. `inst/crucible.json` records the service and schema digest.
 
-The exported constructor is `WeatherClient()` for Smithy service `Weather`,
+The exported constructor is `WeatherClient()` for service `Weather`,
 and `LeylineClient()` for `Leyline`. These capitalized factory names match the
 package's model constructors; operation methods remain snake_case. Replace
 earlier `Client()` calls when regenerating.

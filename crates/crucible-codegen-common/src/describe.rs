@@ -217,10 +217,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         if let Some(resource) = &op.resource
             && !service.resources.contains_key(resource)
         {
-            diagnostics.push(
-                &op.id,
-                "describe.resources: resource metadata is missing; use Model::lower_documentation",
-            );
+            diagnostics.push(&op.id, "describe.resources: resource metadata is missing");
         }
         for id in op.input.iter().chain(&op.output).chain(&op.errors) {
             if service.shape(id).is_none() {
@@ -266,7 +263,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
             "title":service.title.as_deref().unwrap_or_else(||service.id.name()),"version":service.version,
             "internal":service.internal,"documentation":documentation(service.docs.as_deref()),"notes":notes(&service.notes),
             "protocol":service.protocol,
-                        "auth":service.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),"scopes":service.scopes,
+                        "auth":service.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),
             "authSchemes":service.auth_schemes.iter().map(|(id,s)|(id.to_string(),s)).collect::<BTreeMap<_,_>>(),
             "errors":service.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
             "resourceRoots":service.resource_roots.iter().map(ToString::to_string).collect::<Vec<_>>()}),
@@ -324,7 +321,7 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         "input":op.input.as_ref().map(ToString::to_string),"output":op.output.as_ref().map(ToString::to_string),
         "inputSchema":json_schema::standalone(service,op.input.as_ref()),"outputSchema":json_schema::standalone(service,op.output.as_ref()),
         "errors":op.errors.iter().map(ToString::to_string).collect::<Vec<_>>(),
-        "auth":op.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),"scopes":op.scopes,
+        "auth":op.auth.iter().map(ToString::to_string).collect::<Vec<_>>(),
         "readonly":op.readonly,"idempotent":op.idempotent,"idempotencyToken":op.idempotency_token,
         "pagination":op.paginated.as_ref().map(|p|json!({"inputToken":p.input_token,"outputToken":p.output_token,"items":p.items,"pageSize":p.page_size})),
         "examples":op.examples.iter().map(|e|json!({"title":e.title,"documentation":documentation(e.docs.as_deref()),
