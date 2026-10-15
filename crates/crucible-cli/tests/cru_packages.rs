@@ -45,6 +45,38 @@ fn check_and_generate_accept_a_package_directory() {
 }
 
 #[test]
+fn check_without_a_target_accepts_a_sparse_collection() {
+    // A gated feature every generator supports must not fail the plain check:
+    // the empty capability set used to refuse `sparse` as unsupported.
+    let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let dir = tmp.path();
+    weather_copy(dir);
+    let model = dir.join("model/weather.cru");
+    // Referenced from a reachable structure: an unreferenced shape records
+    // no feature use, so it would not exercise the capability check.
+    let text = std::fs::read_to_string(&model).unwrap().replace(
+        "structure Coordinates {
+",
+        "structure Coordinates {
+    readings?: Readings
+",
+    );
+    assert!(text.contains("readings?: Readings"));
+    let text = text
+        + "
+/// Readings that may be missing.
+sparse list Readings: string { length ..10 }
+";
+    std::fs::write(&model, text).unwrap();
+    let check = crucible(&["check", dir.to_str().unwrap()]);
+    assert!(
+        check.status.success(),
+        "{}",
+        String::from_utf8_lossy(&check.stderr)
+    );
+}
+
+#[test]
 fn a_package_that_does_not_compile_lists_its_problems() {
     let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let dir = tmp.path();
