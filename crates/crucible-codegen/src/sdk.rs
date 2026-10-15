@@ -31,7 +31,7 @@ pub const SCHEMA_VERSION: i64 = 1;
 pub struct SdkFile {
     /// The file itself; every path in it is relative to its directory.
     pub path: PathBuf,
-    /// A `.cru` package, Smithy sources or a JSON AST.
+    /// A `.cru` package directory.
     pub model: String,
     /// The service to generate, when the model has several.
     pub service: Option<String>,

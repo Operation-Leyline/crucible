@@ -121,7 +121,7 @@ pub(super) fn parse(path: &Path, text: &str) -> Result<SdkFile, Errors> {
         None => {
             context.error(
                 "model",
-                "missing: name the .cru package, Smithy sources or JSON AST",
+                "missing: name the .cru package directory",
             );
             None
         }

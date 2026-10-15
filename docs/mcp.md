@@ -10,7 +10,7 @@ Generate descriptors in the service's build script:
 
 ```rust
 fn main() {
-    crucible_build::model("smithy").server().mcp().generate();
+    crucible_build::model("model").server().mcp().generate();
 }
 ```
 
@@ -48,7 +48,7 @@ claude mcp add --transport http weather https://api.example.com/mcp
 ```
 
 The endpoint supports `initialize`, `notifications/initialized`, `ping`,
-`tools/list`, and `tools/call`. Tool names are the Smithy operation names,
+`tools/list`, and `tools/call`. Tool names are the operation names,
 including their case. A call takes a JSON object containing the operation's
 whole input, including members ordinarily bound to labels, queries, or headers.
 Blobs use base64 and timestamps use the generated model's document encoding.
@@ -306,7 +306,7 @@ there is no Internal audience option for MCP.
 
 JSON Schema emission is shared with OpenAPI. MCP embeds only reachable
 definitions under `$defs` instead of OpenAPI's `components/schemas`. Inputs use
-Smithy client nullability: `@input` and `@clientOptional` members may be omitted
+Client nullability: `@input` and `@clientOptional` members may be omitted
 or null in the description, while the normal server validator remains
 authoritative about whether the handler can receive them. Success returns an
 object as `structuredContent` and its serialized JSON as a text content block.
