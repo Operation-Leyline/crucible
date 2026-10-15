@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible-seshat`, an opt-in crate: `SeshatLog` (a `LogSink`) and
+  `SeshatMetrics` (a `Recorder`) write request records and per-request
+  counters as Seshat log-contract lines (`crucible.request`, `seshat.metric`).
+  It depends on nothing of Seshat's; add it from the same revision as the
+  runtime. See `docs/seshat.md`.
+
 - `.cru`: `template <role> { .. }` compiles. Every operation of the role gets
   the template's `paginated` arguments, `errors`, and `input` and `output`
   members; restating one is an error. Rules read them with the `template`
