@@ -155,3 +155,10 @@ fn the_comparison_notices_a_one_field_change() {
     let difference = first_difference(&expected, &format!("{changed:#?}")).expect("a difference");
     assert!(difference.contains("required: true"), "{difference}");
 }
+
+#[test]
+fn the_weather_test_model_package_compiles() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather");
+    let service = crucible_lang::load_service(&dir).unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(service.operations.len(), 7);
+}
