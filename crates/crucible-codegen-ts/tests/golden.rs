@@ -5,7 +5,7 @@
 use std::fs;
 use std::path::Path;
 
-use crucible_codegen_ts::{Options, emit};
+use crucible_codegen_ts::{Middleware, Options, emit};
 use crucible_smithy::Model;
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
@@ -40,6 +40,7 @@ fn permission_constants_match_golden() {
         package_version: "0.0.0-dev".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     };
@@ -128,6 +129,7 @@ fn an_internal_audience_client_names_no_internal_permission() {
         package_version: "0.0.0-dev".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     };
@@ -180,6 +182,7 @@ fn a_permission_export_named_like_a_model_is_namespaced() {
         package_version: "0.0.0-dev".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     };
@@ -226,6 +229,7 @@ fn weather_client_matches_golden_files() {
         package_version: "0.0.0-dev".into(),
         client_name: None,
         endpoint: Some("https://weather.example".into()),
+        middleware: vec![Middleware::ContentSha256],
         package_json: None,
         metadata: Default::default(),
     };
@@ -279,6 +283,7 @@ fn a_shape_named_date_does_not_shadow_timestamps() {
         package_version: "0.0.0-dev".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     };
@@ -314,6 +319,7 @@ fn schemas_preserve_ir_nullability_and_exact_long_defaults() {
             package_version: "0.0.0".into(),
             client_name: None,
             endpoint: None,
+            middleware: vec![],
             package_json: None,
             metadata: Default::default(),
         },
@@ -366,6 +372,7 @@ fn prototype_named_members_defaults_and_errors_are_own_metadata() {
             package_version: "0.0.0".into(),
             client_name: None,
             endpoint: None,
+            middleware: vec![],
             package_json: None,
             metadata: Default::default(),
         },
@@ -395,6 +402,7 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
             package_version: "0.0.0".into(),
             client_name: None,
             endpoint: None,
+            middleware: vec![],
             package_json: None,
             metadata: Default::default(),
         },
@@ -451,6 +459,7 @@ fn generated_hardening_fixture_preserves_names_auth_and_client_defaults() {
             package_version: "0.0.0".into(),
             client_name: None,
             endpoint: None,
+            middleware: vec![],
             package_json: None,
             metadata: Default::default(),
         },
@@ -604,6 +613,7 @@ fn options(name: &str) -> Options {
         package_version: "0.0.0".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     }
@@ -694,6 +704,7 @@ fn operations_named_like_schemas_imports_are_exported_under_an_alias() {
         package_version: "0.0.0".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     };
@@ -757,6 +768,7 @@ fn the_import_alias_avoids_another_operations_name() {
         package_version: "0.0.0".into(),
         client_name: None,
         endpoint: None,
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     };
@@ -793,6 +805,7 @@ fn documentation_and_formatting_use_the_lowered_contract() {
             package_version: "0.0.0".into(),
             client_name: None,
             endpoint: None,
+            middleware: vec![],
             package_json: None,
             metadata: Default::default(),
         },
@@ -837,6 +850,7 @@ fn representation_method_collisions_are_diagnosed() {
             package_version: "0.0.0".into(),
             client_name: None,
             endpoint: None,
+            middleware: vec![],
             package_json: None,
             metadata: Default::default(),
         },

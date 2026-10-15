@@ -481,6 +481,9 @@ enum Target {
         /// The endpoint a client uses when its config names none.
         #[arg(long)]
         endpoint: Option<String>,
+        /// Middleware every client runs by default.
+        #[arg(long, value_enum)]
+        middleware: Vec<MiddlewareArg>,
         /// A JSON file merged over the generated package.json. It cannot set
         /// the name, version, crucible, files, private or publishConfig.
         #[arg(long)]
@@ -606,6 +609,12 @@ impl MetadataArgs {
         metadata.private = self.private;
         Ok(metadata)
     }
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum MiddlewareArg {
+    /// `x-amz-content-sha256` on every request with a body.
+    ContentSha256,
 }
 
 fn main() -> ExitCode {
@@ -1505,6 +1514,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_version,
             client_name,
             endpoint,
+            middleware,
             package_json,
             metadata,
             npm_registry,
@@ -1525,6 +1535,14 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_version,
                 client_name,
                 endpoint,
+                middleware: middleware
+                    .into_iter()
+                    .map(|m| match m {
+                        MiddlewareArg::ContentSha256 => {
+                            crucible_codegen_ts::Middleware::ContentSha256
+                        }
+                    })
+                    .collect(),
                 package_json,
                 metadata: {
                     let mut metadata = metadata.read()?;

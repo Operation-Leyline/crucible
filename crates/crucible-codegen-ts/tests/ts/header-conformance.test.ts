@@ -12,7 +12,7 @@ for (const [index, fixture] of cases.entries()) {
       const transport = new Transport({ endpoint: "https://example.invalid", fetch: async request => {
         assert.equal(request.headers.get("x-items"), fixture.encoded);
         return new Response(null, { headers: { "x-items": wire } });
-      } }, { bearer: false }, {});
+      } }, { middleware: [], bearer: false }, {});
       const output = await transport.send<Record<string, unknown>>({ name: "HeaderCase", method: "GET", path: [],
         headers: [["items", "x-items", list(string)]],
         output: { body: false, headers: [["items", "x-items", list(string)]] },

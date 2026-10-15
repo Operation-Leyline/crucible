@@ -39,6 +39,7 @@ fn ts() -> Client {
         package_version: "0.0.0-dev".into(),
         client_name: None,
         endpoint: Some("https://weather.example".into()),
+        middleware: vec![],
         package_json: None,
         metadata: Default::default(),
     })

@@ -586,7 +586,7 @@ export class Transport {
 
   constructor(
     config: ClientConfig,
-    defaults: { readonly endpoint?: string; readonly bearer: boolean },
+    defaults: { readonly endpoint?: string; readonly middleware: readonly Middleware[]; readonly bearer: boolean },
     errors: Readonly<Record<string, ErrorSpec>>,
   ) {
     const endpoint = config.endpoint ?? defaults.endpoint;
@@ -596,7 +596,7 @@ export class Transport {
     this.#endpoint = endpoint.replace(/\/+$/, "");
     this.#errors = errors;
     this.#bearer = defaults.bearer;
-    this.#middleware = config.middleware ?? [];
+    this.#middleware = [...defaults.middleware, ...(config.middleware ?? [])];
   }
 
   /** Execute one logical call with configured retries, per-call overrides and a total deadline. */
@@ -926,6 +926,22 @@ function stringField(body: Record<string, unknown>, name: string): string | unde
   const value = body[name];
   return typeof value === "string" ? value : undefined;
 }
+
+/**
+ * Adds `x-amz-content-sha256` to a request with a body, and to every POST,
+ * PUT and PATCH even without one (the empty body's digest): a front door
+ * that signs requests to its origin needs the digest from the caller, and
+ * may refuse a write method that arrives without it.
+ */
+export const contentSha256: Middleware = async (request, next) => {
+  if (request.headers.has("x-amz-content-sha256")) return next(request);
+  const writes = request.method === "POST" || request.method === "PUT" || request.method === "PATCH";
+  if (request.body === null && !writes) return next(request);
+  const bytes = request.body === null ? new ArrayBuffer(0) : await request.clone().arrayBuffer();
+  const digest = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes));
+  request.headers.set("x-amz-content-sha256", Array.from(digest, byte => byte.toString(16).padStart(2, "0")).join(""));
+  return next(request);
+};
 
 /** Sets the bearer token, unless the caller already supplied one. */
 async function authenticate(request: Request, config: ClientConfig): Promise<Request> {

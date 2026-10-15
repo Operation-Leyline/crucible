@@ -15,6 +15,7 @@ use crucible_wire::text::{header_text, scalar_text as text};
 use http::{HeaderMap, HeaderName, HeaderValue, Method};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 use crate::config::{CallOptions, Config};
 
@@ -440,6 +441,23 @@ impl Transport {
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
         crate::auth::authenticate(&self.config, &mut request, auth).await?;
+        if self.config.content_sha256
+            && (request.body().is_some()
+                || matches!(
+                    *request.method(),
+                    Method::POST | Method::PUT | Method::PATCH
+                ))
+        {
+            let bytes = request
+                .body()
+                .and_then(reqwest::Body::as_bytes)
+                .unwrap_or_default();
+            let digest = format!("{:x}", Sha256::digest(bytes));
+            request.headers_mut().insert(
+                "x-amz-content-sha256",
+                HeaderValue::from_str(&digest).expect("hex digest is a valid header"),
+            );
+        }
         for interceptor in &self.config.interceptors {
             interceptor
                 .intercept(&mut request)

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { ServiceError, WeatherClient } from "./generated/src/index.js";
 import {
   Transport, document, fromWire, integer, list, map, parseJson,
-  stringifyJson, structure, toWire, union,
+  stringifyJson, structure, toWire, union, contentSha256,
 } from "./generated/src/runtime.js";
 import { S_CitySummary, S_CreateCityInput } from "./generated/src/schemas.js";
 
@@ -91,7 +91,24 @@ test("real response path validates raw longs before rounding without retry", asy
   }
 });
 
-test("bound longs and pre-dispatch overflow", async () => {
+test("a write without a body still carries the empty body's digest; a bodiless read carries none", async () => {
+  const seen: Request[] = [];
+  const transport = new Transport({ endpoint: "https://example.test", fetch: async request => {
+    seen.push(request);
+    return new Response("{}");
+  } }, { bearer: false, middleware: [contentSha256] }, {});
+  const empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  for (const method of ["POST", "PUT", "PATCH", "GET", "DELETE"]) {
+    const operation = { name: "Bare", method, path: [], errors: [], retrySafe: false,
+      input: structure(() => ({}), {}, []), query: [], headers: [],
+      output: { body: true, schema: structure(() => ({}), {}, []), headers: [] } };
+    await transport.send(operation, {});
+  }
+  assert.deepEqual(seen.map(request => request.headers.get("x-amz-content-sha256")),
+    [empty, empty, empty, null, null]);
+});
+
+test("bound longs, exact request body digest and pre-dispatch overflow", async () => {
   let attempts = 0;
   const schema = structure(() => ({ count: long }), {}, ["count"]);
   const transport = new Transport({ endpoint: "https://example.test", fetch: async request => {
@@ -100,8 +117,10 @@ test("bound longs and pre-dispatch overflow", async () => {
     assert.equal(body, '{"count":9223372036854775807}');
     assert.equal(new URL(request.url).searchParams.get("count"), "9223372036854775807");
     assert.equal(request.headers.get("x-count"), "9223372036854775807");
+    const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body)));
+    assert.equal(request.headers.get("x-amz-content-sha256"), Array.from(digest, b => b.toString(16).padStart(2, "0")).join(""));
     return new Response('{}', { headers: { "x-count": "9223372036854775807" } });
-  } }, { bearer: false }, {});
+  } }, { bearer: false, middleware: [contentSha256] }, {});
   const operation = { name: "Exact", method: "POST", path: [], errors: [], retrySafe: false,
     input: schema, body: ["count"], query: [["count", "count", long] as const], headers: [["count", "x-count", long] as const],
     output: { body: true, schema, headers: [["count", "x-count", long] as const] } };
@@ -115,7 +134,7 @@ test("malformed modeled error fields retain identity metadata and throttle retri
   const transport = new Transport({ endpoint: "https://example.test", retry: { maxAttempts: 2, baseDelayMs: 0 }, fetch: async () => {
     attempts++;
     return new Response('{"__type":"Throttle","count":9223372036854775808}', { status: 429, headers: { "x-request-id": "retained" } });
-  } }, { bearer: false }, {
+  } }, { bearer: false, middleware: [] }, {
     Throttle: { status: 429, fault: "client", retryable: { throttling: true }, schema: structure(() => ({ count: long })),
       create: () => { throw new Error("Malformed fields must not construct a modeled error"); } },
   });

@@ -131,6 +131,11 @@ impl Sdk {
                 package_version: version,
                 client_name: options.client_name.clone(),
                 endpoint,
+                middleware: options
+                    .middleware
+                    .iter()
+                    .map(|_| crucible_codegen_ts::Middleware::ContentSha256)
+                    .collect(),
                 package_json: options.package_json.clone(),
                 metadata: self.package_metadata(file)?,
             })),

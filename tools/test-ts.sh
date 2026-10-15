@@ -21,7 +21,7 @@ crucible generate ts tests/fixtures/permissions \
 crucible generate ts tests/fixtures/client-docs.json --out "$dir/generated-docs" --package-name @example/docs >/dev/null
 crucible generate ts crates/crucible-smithy/tests/fixtures/weather.json \
   --out "$dir/generated" --package-name @example/weather \
-  --endpoint https://weather.example >/dev/null
+  --endpoint https://weather.example --middleware content-sha256 >/dev/null
 crucible generate ts crates/crucible-codegen-ts/tests/fixtures/hardening.json \
   --out "$dir/generated-hardening" --package-name @example/hardening \
   --endpoint https://hardening.example >/dev/null

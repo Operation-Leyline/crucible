@@ -65,7 +65,7 @@ test("timestamp defaults decode from model values independently of wire format",
 test("null in a dense request fails before dispatch and malformed success never retries", async () => {
   const schema: Schema = list(string);
   let calls = 0;
-  const transport = new Transport({ endpoint: 'https://example.test', fetch: async () => { calls++; return new Response('{"values":[null]}'); } }, { bearer: false }, {});
+  const transport = new Transport({ endpoint: 'https://example.test', fetch: async () => { calls++; return new Response('{"values":[null]}'); } }, { middleware: [], bearer: false }, {});
   const { structure } = await import('./generated-hardening/src/runtime.js');
   const input = structure(() => ({ values: schema }));
   await assert.rejects(transport.send({ ...operation, input, body: ['values'], method: 'POST' }, { values: [null] }), /dense collection/);
@@ -93,7 +93,7 @@ test("retries snapshot nested mutable input while preserving token write-back", 
 
 test("dot-segment labels reject before hooks or dispatch while ordinary dots survive", async () => {
   let calls = 0; let providers = 0; let url = '';
-  const transport = new Transport({ endpoint: 'https://example.test/base', token: () => { providers++; return 'token'; }, fetch: async request => { calls++; url = request.url; return success(); } }, { bearer: true }, {});
+  const transport = new Transport({ endpoint: 'https://example.test/base', token: () => { providers++; return 'token'; }, fetch: async request => { calls++; url = request.url; return success(); } }, { middleware: [], bearer: true }, {});
   const label = { ...operation, path: ['objects', { label: 'id' }] };
   for (const id of ['.', '..']) await assert.rejects(transport.send(label, { id }), /dot-segment/);
   assert.equal(calls, 0); assert.equal(providers, 0);
@@ -110,7 +110,7 @@ test("effective operation auth skips the provider on public calls including retr
   await client.protected();
   assert.equal(providers, 1);
   assert.deepEqual(seen, [null, null, 'Bearer token-1']);
-  const transport = new Transport({ endpoint: 'https://example.test', token: () => `token-${++providers}`, fetch: async request => { assert.equal(request.headers.get('authorization'), 'Bearer token-2'); return success(); } }, { bearer: false }, {});
+  const transport = new Transport({ endpoint: 'https://example.test', token: () => `token-${++providers}`, fetch: async request => { assert.equal(request.headers.get('authorization'), 'Bearer token-2'); return success(); } }, { middleware: [], bearer: false }, {});
   await transport.send({ ...operation, bearer: true }, {});
 });
 
@@ -122,7 +122,7 @@ test("Retry-After accepts HTTP dates and zero without falling back to jitter", a
   try {
     for (const header of [new Date(Date.now() + 5000).toUTCString(), '0', '-1', 'invalid']) {
       let calls = 0;
-      const transport = new Transport({ endpoint: 'https://example.test', retry: { maxAttempts: 2, baseDelayMs: 100 }, fetch: async () => new Response('{}', { status: ++calls === 1 ? 503 : 200, headers: { 'retry-after': header } }) }, { bearer: false }, {});
+      const transport = new Transport({ endpoint: 'https://example.test', retry: { maxAttempts: 2, baseDelayMs: 100 }, fetch: async () => new Response('{}', { status: ++calls === 1 ? 503 : 200, headers: { 'retry-after': header } }) }, { middleware: [], bearer: false }, {});
       await transport.send(operation, {});
     }
     assert.deepEqual(delays, [5000, 0, 50, 50]);
@@ -136,7 +136,7 @@ test("oversized Retry-After stays abortable and never overflows a native timer",
     const delays: (number | undefined)[] = []; let calls = 0;
     globalThis.setTimeout = (handler, delay, ...args) => { delays.push(delay); queueMicrotask(() => controller.abort(reason)); return setTimer(handler, 1000, ...args); };
     try {
-      const transport = new Transport({ endpoint: 'https://example.test', fetch: async () => { calls++; return new Response('{}', { status: 503, headers: { 'retry-after': header } }); } }, { bearer: false }, {});
+      const transport = new Transport({ endpoint: 'https://example.test', fetch: async () => { calls++; return new Response('{}', { status: 503, headers: { 'retry-after': header } }); } }, { middleware: [], bearer: false }, {});
       await assert.rejects(transport.send(operation, {}, { signal: controller.signal }), /cancel large delay/);
       assert.equal(calls, 1); assert.deepEqual(delays, [2147483647]);
     } finally { globalThis.setTimeout = setTimer; }
@@ -145,7 +145,7 @@ test("oversized Retry-After stays abortable and never overflows a native timer",
 
 test("a client names the release it was generated for in Crucible-Version", async () => {
   const sent: Request[] = [];
-  const transport = new Transport({ endpoint: 'https://example.test', headers: { 'Crucible-Version': 'configured' }, fetch: async request => { sent.push(request); return success(); } }, { bearer: false }, {});
+  const transport = new Transport({ endpoint: 'https://example.test', headers: { 'Crucible-Version': 'configured' }, fetch: async request => { sent.push(request); return success(); } }, { middleware: [], bearer: false }, {});
   await transport.send(operation, {});
   assert.equal(sent[0].headers.get('crucible-version'), 'configured');
   // The generated spec's release wins over a configured header: the client's types are that release's.

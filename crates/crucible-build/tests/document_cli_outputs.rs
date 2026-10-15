@@ -1,4 +1,4 @@
-#![cfg(all(feature = "openapi", feature = "cli"))]
+#![cfg(all(feature = "openapi", feature = "cli", feature = "terraform"))]
 
 #[path = "../../../tests/support/cargo_target.rs"]
 mod cargo_target;

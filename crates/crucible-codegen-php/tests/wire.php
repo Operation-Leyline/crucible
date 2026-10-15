@@ -13,15 +13,15 @@ final class Fake implements WireSdk\Runtime\HttpTransport {
             return new WireSdk\Runtime\HttpResponse(200, body:$request->body);
         }
         check($request->headers['content-type'] === 'text/plain' && $request->body === 'héllo');
-        check($request->headers['x-meta'] === 'eyJhIjoxfQ==, aGVsbG8=' && $request->headers['x-extra-trace'] === 'aGVsbG8=');
-        return $this->failure ? new WireSdk\Runtime\HttpResponse(422,['x-crucible-error'=>'TextError'],'invalid text') : new WireSdk\Runtime\HttpResponse(200,['x-meta'=>'eyJhIjoxfQ==, aGVsbG8=','x-extra-trace'=>'aGVsbG8='],$request->body);
+        check($request->headers['x-meta'] === 'eyJhIjoxfQ==, aGVsbG8=');
+        return $this->failure ? new WireSdk\Runtime\HttpResponse(422,['x-crucible-error'=>'TextError'],'invalid text') : new WireSdk\Runtime\HttpResponse(200,['x-meta'=>'eyJhIjoxfQ==, aGVsbG8='],$request->body);
     }
     public function close(): void {}
 }
-$input = new WireSdk\TextInput(text:'héllo',meta:['{"a":1}','hello'],extras:['trace'=>'hello']);
+$input = new WireSdk\TextInput(text:'héllo',meta:['{"a":1}','hello']);
 $client = new WireSdk\WireClient(new WireSdk\Runtime\ClientConfig(endpoint:'http://127.0.0.1',transport:new Fake(false)));
 $output = $client->text($input);
-check($output->text === $input->text && $output->meta === $input->meta && $output->extras === $input->extras);
+check($output->text === $input->text && $output->meta === $input->meta);
 check($client->document(new WireSdk\DocumentInput(document:new WireSdk\Record(name:'record')))->document->name === 'record');
 $client = new WireSdk\WireClient(new WireSdk\Runtime\ClientConfig(endpoint:'http://127.0.0.1',transport:new Fake(true)));
 try { $client->text($input); throw new RuntimeException('Expected TextError'); }

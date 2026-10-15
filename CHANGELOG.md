@@ -559,8 +559,8 @@ version's section when it is prepared.
     `aws.auth#unsignedPayload`: `AuthScheme` has the single variant
     `Bearer`; `Config::{basic_credentials, api_key, aws_credentials,
     signing_name}`, `AwsCredentials`, `BasicCredentials`, credential
-    providers and the `content_sha256` client option (and the
-    `--content-sha256` flag and `--middleware` option of `crucible
+    providers and the `content_sha256` client option of every language but
+    TypeScript and Rust (and the `--content-sha256` flag of `crucible
     generate`); `OperationMetadata::{optional_auth, unsigned_payload}`.
   - **HTTP checksums.** `@httpChecksum`, `@httpChecksumRequired`,
     `ChecksumPolicy`, `Config::on_checksum_validated`,
@@ -1208,7 +1208,7 @@ version's section when it is prepared.
   `PaginationMember` are removed; `OperationMetadata::requires_authentication`
   is true whenever an authentication scheme is named. Rust client code:
   `Config::{region, endpoint_parameter, endpoint_builtin,
-  disable_host_prefix, content_sha256, basic_credentials, api_key,
+  disable_host_prefix, basic_credentials, api_key,
   aws_credentials, signing_name, request_checksum_calculation,
   response_checksum_validation, on_checksum_validated}`, `ChecksumPolicy`,
   `AwsCredentials`, `BasicCredentials`, `ServiceMetadata`,
@@ -1217,8 +1217,7 @@ version's section when it is prepared.
   `Error::ChecksumMismatch` are removed. Generator code: the removed
   `Feature` variants, IR fields and types listed under Removed;
   `Options::content_sha256` of every SDK generator, the `crucible_build`
-  `content_sha256(..)` and TypeScript `middleware(..)` builders and the
-  matching CLI options. Regenerate bindings and SDKs. The Smithy front end
+  `content_sha256(..)` builders and the matching CLI options. Regenerate bindings and SDKs. The Smithy front end
   refuses the traits that used the removed features, so a Smithy model that
   used one has no replacement. No shim is possible: the features, not an
   API, are removed. See [migrating](docs/migrating.md#unreleased).

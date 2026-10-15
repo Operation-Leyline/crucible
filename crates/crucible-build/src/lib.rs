@@ -207,6 +207,8 @@ pub use crucible_codegen::SwiftOptions;
 #[cfg(feature = "terraform")]
 pub use crucible_codegen::TerraformOptions;
 #[cfg(feature = "ts")]
+pub use crucible_codegen::TsMiddleware;
+#[cfg(feature = "ts")]
 pub use crucible_codegen::TsOptions;
 #[cfg(feature = "cdk")]
 pub use crucible_codegen::cdk;
@@ -262,6 +264,8 @@ pub mod outputs {
     pub use super::SwiftOptions;
     #[cfg(feature = "terraform")]
     pub use super::TerraformOptions;
+    #[cfg(feature = "ts")]
+    pub use super::TsMiddleware;
     #[cfg(feature = "ts")]
     pub use super::TsOptions;
     #[cfg(feature = "cdk")]

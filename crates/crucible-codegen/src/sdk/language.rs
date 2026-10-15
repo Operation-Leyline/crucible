@@ -30,6 +30,7 @@ pub(crate) const LANGUAGE_KEYS: &[&str] = &[
     "module_path",
     "client_name",
     "endpoint",
+    "middleware",
     "package_json",
     "runtime",
     "runtime_path",
@@ -103,7 +104,13 @@ impl Language {
     pub(crate) fn keys(self) -> &'static [&'static str] {
         match self {
             Self::Rust => &["package", "runtime", "runtime_path"],
-            Self::Ts => &["package", "client_name", "endpoint", "package_json"],
+            Self::Ts => &[
+                "package",
+                "client_name",
+                "endpoint",
+                "middleware",
+                "package_json",
+            ],
             Self::Python | Self::Swift | Self::Ruby => &["package", "module_name", "endpoint"],
             Self::Go => &["package", "module_path", "endpoint"],
             Self::Java | Self::Kotlin => &["package", "group_id", "artifact_id", "endpoint"],

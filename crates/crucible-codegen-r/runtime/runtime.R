@@ -244,13 +244,14 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     for (attempt in seq_len(config$max_attempts)) {
       scope$check(); request <- prepared$request
       # The token is resolved on every attempt so a refreshed token applies.
+      # Middleware runs first so a header it presets also bypasses the provider.
+      for (middleware in config$middleware) { scope$check(); request <- .crucible_request(middleware(request)) }
+      scope$check()
       token <- NULL; preset <- FALSE
       if (isTRUE(op$bearer)) {
         preset <- .crucible_has_bearer(request)
         if (!preset && !is.null(config$token)) { token <- config$token(); scope$check() }
       }
-      for (middleware in config$middleware) { scope$check(); request <- .crucible_request(middleware(request)) }
-      scope$check()
       if (!is.null(token)) request$headers[['authorization']] <- paste0('Bearer ', .crucible_string(token))
       request <- .crucible_request(request)
       authority <- tolower(.crucible_url(request$url)); hostname <- sub(':[0-9]+$', '', authority)

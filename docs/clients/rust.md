@@ -346,7 +346,11 @@ let result = client.get_city_with_options(input, options).await;
 replaces a JSON document's or a payload's media type; only a modeled
 `Content-Type` member overrides a payload's. `Config::interceptor` receives a
 mutable reqwest request after credentials and headers on every attempt, in
-registration order.
+registration order. `Config::content_sha256(true)` adds `x-amz-content-sha256`
+before these interceptors, allowing a signing interceptor to consume it. The
+hash covers the buffered body, including zero bytes for empty POST/PUT/PATCH
+requests. An interceptor that changes the body must recompute the digest after
+its change. Other bodyless requests receive no generated digest.
 
 ## Qualification
 

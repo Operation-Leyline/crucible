@@ -3,7 +3,7 @@
 export * from "./models.js";
 export * from "./errors.js";
 export { WeatherClient } from "./client.js";
-export { Decimal, NetworkError, ServiceError, TimeoutError, stringifyJson } from "./runtime.js";
+export { Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson } from "./runtime.js";
 export type {
   ClientConfig,
   Document,

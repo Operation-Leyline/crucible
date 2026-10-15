@@ -71,6 +71,7 @@ pub struct LanguageOptions {
     pub module_path: Option<String>,
     pub client_name: Option<String>,
     pub endpoint: Option<Endpoint>,
+    pub middleware: Vec<String>,
     pub package_json: Option<Value>,
     pub runtime: Option<Runtime>,
     /// A local runtime crate for development, relative to the SDK file.
@@ -402,6 +403,9 @@ impl Sdk {
                 set("endpoint_env", json!(name));
             }
             None => {}
+        }
+        if !options.middleware.is_empty() {
+            set("middleware", json!(options.middleware));
         }
         set(
             "package_json",
