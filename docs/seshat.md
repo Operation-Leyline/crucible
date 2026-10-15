@@ -82,3 +82,9 @@ declared dimensions:
 
 Each dimension combination is a CloudWatch metric; `status` is better left
 in the request lines than declared as a dimension.
+
+The counter sees what `Metrics` sees (`docs/framework.md`, "Metrics"): a
+request answered before the transport middleware runs, such as an MCP
+admission refusal, is not counted, and the class is the one the response had
+when the record was taken, before a protocol's `decorate_response`. Count
+those cases from the platform (the host's own request metrics), not here.

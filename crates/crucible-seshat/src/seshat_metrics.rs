@@ -105,7 +105,7 @@ mod tests {
                 latency_ms: 1.5,
                 error: Some("NoSuchCity"),
                 cause: None,
-                input: Some(r#"{"cityId":"x"}"#.into()),
+                input: Some(&json!({ "cityId": "x" })),
                 output: None,
                 error_fields: None,
                 violations: None,

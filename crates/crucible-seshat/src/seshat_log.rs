@@ -14,7 +14,6 @@ pub struct SeshatLog;
 
 impl LogSink for SeshatLog {
     fn write(&self, record: &LogRecord<'_>) {
-        let json = |value: &Option<serde_json::Value>| value.as_ref().map(ToString::to_string);
         RequestFields {
             level: record.level,
             request_id: record.request_id,
@@ -24,10 +23,10 @@ impl LogSink for SeshatLog {
             latency_ms: record.latency_ms,
             error: record.error,
             cause: record.cause.as_deref(),
-            input: json(&record.input),
-            output: json(&record.output),
-            error_fields: json(&record.error_fields),
-            violations: json(&record.violations),
+            input: record.input.as_ref(),
+            output: record.output.as_ref(),
+            error_fields: record.error_fields.as_ref(),
+            violations: record.violations.as_ref(),
         }
         .emit();
     }

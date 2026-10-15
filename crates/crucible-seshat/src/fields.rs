@@ -1,11 +1,13 @@
 //! The fields of one request line, borrowed from a `LogRecord`.
 
+use serde_json::Value;
 use tracing::Level;
 
 use crate::{REQUEST_EVENT, REQUEST_TARGET};
 
-/// What a request line carries. Payloads are JSON text, as the runtime's own
-/// sink prints them, so the contract stores them as one value each.
+/// What a request line carries. Payloads are printed as JSON text, as the
+/// runtime's own sink prints them, and only when a subscriber takes the line:
+/// `display` defers serializing them until the event is recorded.
 pub(crate) struct RequestFields<'a> {
     pub level: Level,
     pub request_id: &'a str,
@@ -15,10 +17,10 @@ pub(crate) struct RequestFields<'a> {
     pub latency_ms: f64,
     pub error: Option<&'a str>,
     pub cause: Option<&'a str>,
-    pub input: Option<String>,
-    pub output: Option<String>,
-    pub error_fields: Option<String>,
-    pub violations: Option<String>,
+    pub input: Option<&'a Value>,
+    pub output: Option<&'a Value>,
+    pub error_fields: Option<&'a Value>,
+    pub violations: Option<&'a Value>,
 }
 
 impl RequestFields<'_> {
@@ -35,10 +37,10 @@ impl RequestFields<'_> {
                     latency_ms = self.latency_ms,
                     error = self.error,
                     cause = self.cause,
-                    input = self.input.as_deref(),
-                    output = self.output.as_deref(),
-                    error_fields = self.error_fields.as_deref(),
-                    violations = self.violations.as_deref(),
+                    input = self.input.map(tracing::field::display),
+                    output = self.output.map(tracing::field::display),
+                    error_fields = self.error_fields.map(tracing::field::display),
+                    violations = self.violations.map(tracing::field::display),
                     "request completed")
             };
         }
