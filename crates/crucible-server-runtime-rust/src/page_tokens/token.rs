@@ -46,7 +46,7 @@ pub(crate) fn cursor_capacity(key_id: usize, token: usize) -> Option<usize> {
     // Inverts `token_length`: n bytes take ceil(4n/3) characters, so e
     // characters hold floor(3e/4) bytes.
     let payload = token.checked_sub(VERSION.len() + 2 + key_id)?;
-    let cursor = (payload * 3 / 4).checked_sub(NONCE + EXPIRY + TAG)?;
+    let cursor = (payload / 4 * 3 + payload % 4 * 3 / 4).checked_sub(NONCE + EXPIRY + TAG)?;
     (cursor >= 1).then_some(cursor.min(MAX_CURSOR))
 }
 
@@ -270,6 +270,7 @@ mod tests {
             }
         }
         assert_eq!(cursor_capacity(2, 0), None);
+        assert_eq!(cursor_capacity(2, usize::MAX), Some(MAX_CURSOR));
     }
 
     #[test]
