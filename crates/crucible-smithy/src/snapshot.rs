@@ -24,7 +24,10 @@ use crate::ir::Service;
 /// and response-code bindings, sets, and the JSON name
 /// (a member's wire name is its name). [`read`] drops them from an older
 /// snapshot that left them unused and refuses one that used them.
-pub const FORMAT: u32 = 3;
+///
+/// Format 4 dropped the OAuth `scopes` of the service and its operations.
+/// [`read`] drops an empty list and refuses a snapshot that declared any.
+pub const FORMAT: u32 = 4;
 
 #[derive(Serialize, Deserialize)]
 struct Snapshot {
@@ -175,6 +178,7 @@ pub fn read(text: &str) -> Result<Service, String> {
         migrate_format_2(&mut value)?;
     }
     drop_scopes(&mut value)?;
+    value["format"] = serde_json::Value::from(FORMAT);
     let snapshot: Snapshot = serde_json::from_value(value.clone())
         .map_err(|error| format!("release snapshot format {format}: {error}"))?;
     // Whatever this compiler does not know would be dropped silently: a
@@ -265,7 +269,7 @@ const REMOVED_BINDING_FIELDS: &[&str] = &[
 const REMOVED_ERROR_FIELDS: &[&str] = &["prefix_headers", "response_code"];
 const REMOVED_PAYLOAD_FIELDS: &[&str] = &["streaming", "requires_length"];
 
-/// Reads a snapshot of format 1 or 2 as format 3.
+/// Reads a snapshot of format 1 or 2 as format 3 (the scopes step makes it 4).
 fn migrate_format_2(value: &mut serde_json::Value) -> Result<(), String> {
     use serde_json::Value;
     let Some(service) = value.get_mut("service").and_then(Value::as_object_mut) else {

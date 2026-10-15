@@ -82,7 +82,7 @@ What changes is Rust code and SDK build settings that named them:
 - **Generators and SDK builds.** Delete `content_sha256(..)` and
   `--content-sha256`; they do nothing now. TypeScript keeps `middleware(..)`
   and `--middleware content-sha256`.
-- **Frozen releases.** Snapshots are format 3. Older ones still read; one
+- **Frozen releases.** Snapshots are format 4. Older ones still read; one
   that used a removed feature is refused with a message naming it.
 
 ### Only Crucible JSON remains
