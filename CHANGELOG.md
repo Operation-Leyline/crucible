@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: `sparse list` and `sparse map` declare a collection whose elements
+  or values may be null, as `@sparse` does in Smithy: `sparse list ResultRow:
+  CypherValue { length ..1000 }`. A dense collection (the default) refuses a
+  null element. Changing a collection between dense and sparse is reported by
+  the compatibility guard like any other nullability change.
+
 - `crucible compile --json <package>` prints a `.cru` package's compiled
   model, custom metadata and documentation included, in the release snapshot
   format (`--out` writes a file, `--service` picks a service). The build

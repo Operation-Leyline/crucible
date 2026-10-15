@@ -1,0 +1,5 @@
+# Sparse collections: null elements travel through a list or map declared
+# `sparse`, end to end (tests/sparse.rs).
+[model]
+namespace = "test.sparse"
+imports = ["crucible.errors"]
