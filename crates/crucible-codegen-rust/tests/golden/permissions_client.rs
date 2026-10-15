@@ -2504,7 +2504,6 @@ impl ::std::fmt::Display for RewriteGraphError {
 
 impl ::std::error::Error for RewriteGraphError {}
 /// Organizations, their graphs and the graphs' histories.
-
 /// A client for Leyline. Construct with `new(Config)`. Cheap to clone: clones share connections.
 /// Concurrent calls are supported; configured callbacks must be thread safe. Drop all clones to release connections.
 #[derive(Clone)]
