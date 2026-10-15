@@ -269,7 +269,7 @@ readonly operation Ping {
     assert_eq!(json["service"]["operations"][0]["id"], "example.meta#Ping");
 
     // --out writes the same bytes to a file.
-    let file = dir.join("model.json");
+    let file = dir.join("not-yet/model.json");
     let written = crucible(&["compile", "--json", path, "--out", file.to_str().unwrap()]);
     assert!(written.status.success());
     assert!(written.stdout.is_empty());

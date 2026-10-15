@@ -883,8 +883,15 @@ fn compile(package: PathBuf, service: Option<ShapeId>, out: Option<&Path>) -> Re
     let compiler = format!("crucible {}", env!("CARGO_PKG_VERSION"));
     let text = crucible_smithy::snapshot::write(&service, &compiler);
     match out {
-        Some(path) => std::fs::write(path, text)
-            .map_err(|error| format!("cannot write {}: {error}", path.display())),
+        Some(path) => {
+            // `--out target/model.json` works on a checkout with no `target`.
+            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+                std::fs::create_dir_all(parent)
+                    .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+            }
+            std::fs::write(path, text)
+                .map_err(|error| format!("cannot write {}: {error}", path.display()))
+        }
         None => {
             print!("{text}");
             Ok(())
