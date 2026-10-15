@@ -1126,3 +1126,237 @@ fn renaming_a_page_token_declares_the_pagination_change() {
         assert_eq!(rules(&checked), expected, "{name}");
     }
 }
+
+/// `V1` with an operation whose input has an optional body member.
+fn with_create(release: &str) -> String {
+    release.replace(
+        "operations [GetItem, ListItems, DeleteItem]",
+        "operations [GetItem, ListItems, DeleteItem, CreateItem]",
+    ) + "\noperation CreateItem {\n    http POST \"/items\"\n    input {\n        name: string\n        description?: string\n    }\n    output { id: string }\n}\n"
+}
+
+/// The guard for `current` against `with_create(V1)`, with `steps` as the
+/// migration to v2.
+fn run_renamed(name: &str, current: &str, steps: &str) -> Guard {
+    let dir = package_from(
+        name,
+        &with_create(V1),
+        current,
+        &format!("migration \"v2\" from \"v1\" {{\n{steps}}}\n"),
+    );
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+    guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap()
+}
+
+const RENAME_DESCRIPTION: &str = "    rename CreateItem.input.description -> notes\n";
+
+#[test]
+fn a_rename_declares_the_name_and_nothing_else() {
+    let renamed = with_create(V1).replace("description?: string", "notes?: string");
+    let plain = run_renamed("rename-only", &renamed, RENAME_DESCRIPTION);
+    assert_eq!(
+        rules(&plain),
+        Vec::<String>::new(),
+        "{:?}",
+        problems(&plain)
+    );
+    assert_eq!(problems(&plain), Vec::<String>::new());
+
+    // Made required along with the rename: release 1 callers that omit it
+    // would be refused, and the rename does not declare that.
+    let required = run_renamed(
+        "rename-required",
+        &renamed.replace("notes?: string", "notes: string"),
+        RENAME_DESCRIPTION,
+    );
+    assert!(required.has_errors());
+    assert!(
+        rules(&required)
+            .contains(&"compatibility.nullability example.shop#CreateItemInput$description".into()),
+        "{:?}",
+        rules(&required)
+    );
+
+    // Retyped along with the rename.
+    let retyped = run_renamed(
+        "rename-retyped",
+        &renamed.replace("notes?: string", "notes?: integer"),
+        RENAME_DESCRIPTION,
+    );
+    assert!(retyped.has_errors());
+    assert!(
+        rules(&retyped)
+            .iter()
+            .any(|rule| rule.starts_with("compatibility.type")),
+        "{:?}",
+        rules(&retyped)
+    );
+
+    // An output member that loses its non-null guarantee as it is renamed.
+    let output = run_renamed(
+        "rename-output-optional",
+        &with_create(V1).replace("        name: string\n", "        title?: string\n"),
+        "    rename GetItem.output.name -> title\n",
+    );
+    assert!(
+        rules(&output)
+            .contains(&"compatibility.nullability example.shop#GetItemOutput$name".into()),
+        "{:?}",
+        rules(&output)
+    );
+}
+
+#[test]
+fn a_renamed_member_can_also_be_required_or_retyped() {
+    let renamed = with_create(V1).replace("description?: string", "notes?: string");
+
+    let required = run_renamed(
+        "rename-require",
+        &renamed.replace("notes?: string", "notes: string"),
+        &format!("{RENAME_DESCRIPTION}    require CreateItem.input.notes default \"\"\n"),
+    );
+    assert_eq!(
+        rules(&required),
+        Vec::<String>::new(),
+        "{:?}",
+        problems(&required)
+    );
+    assert_eq!(problems(&required), Vec::<String>::new());
+
+    let retyped = run_renamed(
+        "rename-retype",
+        &renamed.replace("notes?: string", "notes?: integer"),
+        &format!("{RENAME_DESCRIPTION}    retype CreateItem.input.notes -> integer by hook\n"),
+    );
+    assert_eq!(
+        rules(&retyped),
+        Vec::<String>::new(),
+        "{:?}",
+        problems(&retyped)
+    );
+    assert_eq!(problems(&retyped), Vec::<String>::new());
+
+    // The steps name the member as it is now, and a hooked requirement
+    // cannot follow a rename.
+    for (name, steps, expected) in [
+        (
+            "rename-require-old-name",
+            format!("{RENAME_DESCRIPTION}    require CreateItem.input.description default \"\"\n"),
+            "`description` is renamed to `notes` in this migration",
+        ),
+        (
+            "rename-require-hook",
+            format!("{RENAME_DESCRIPTION}    require CreateItem.input.notes by hook\n"),
+            "a hooked requirement cannot follow yet",
+        ),
+    ] {
+        let guard = run_renamed(
+            name,
+            &renamed.replace("notes?: string", "notes: string"),
+            &steps,
+        );
+        assert!(
+            problems(&guard).iter().any(|p| p.contains(expected)),
+            "{name}: {:?}",
+            problems(&guard)
+        );
+    }
+}
+
+#[test]
+fn a_renamed_member_lowers_its_other_steps_under_both_names() {
+    use crucible_smithy::ir::{Hook, VersionStep};
+
+    let current = with_create(V1).replace("description?: string", "notes: integer");
+    let dir = package_from(
+        "rename-lowered",
+        &with_create(V1),
+        &current,
+        &format!(
+            "migration \"v2\" from \"v1\" {{\n{RENAME_DESCRIPTION}    require CreateItem.input.notes default 0\n    retype CreateItem.input.notes -> integer by hook\n}}\n"
+        ),
+    );
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, own, &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        !checked.has_errors(),
+        "{:?} {:?}",
+        rules(&checked),
+        problems(&checked)
+    );
+    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let steps = &versions[0].steps;
+    assert!(steps.iter().any(|step| matches!(
+        step,
+        VersionStep::Rename { from, to, .. } if from == "description" && to == "notes"
+    )));
+    assert!(steps.iter().any(|step| matches!(
+        step,
+        VersionStep::Require { member, default, .. } if member == "notes" && default == &serde_json::json!(0)
+    )));
+    assert!(steps.iter().any(|step| matches!(
+        step,
+        VersionStep::Hooked { hook: Hook::Retype { member, from, .. }, .. }
+            if member == "notes" && from == "description"
+    )));
+}
+
+#[test]
+fn a_renamed_member_is_compared_with_its_new_self_wherever_it_is_bound() {
+    // Release 1 reads `description` from the query key `q`; release 2 reads
+    // the renamed `notes` from `r` and gives `q` to a new member.
+    let baseline = with_create(V1).replace(
+        "        description?: string\n",
+        "        @query(\"q\")\n        description?: string\n",
+    );
+    let current = |notes: &str| {
+        baseline.replace(
+            "        @query(\"q\")\n        description?: string\n",
+            &format!(
+                "        @query(\"r\")\n        {notes}\n        @query(\"q\")\n        filter?: string\n"
+            ),
+        )
+    };
+    let run = |name: &str, notes: &str| {
+        let dir = package_from(
+            name,
+            &baseline,
+            &current(notes),
+            &format!("migration \"v2\" from \"v1\" {{\n{RENAME_DESCRIPTION}}}\n"),
+        );
+        let loaded = load_package(&dir).unwrap();
+        let compiled = compile(&loaded, None);
+        assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
+        guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap()
+            .unwrap()
+    };
+
+    let optional = run("rename-rebound", "notes?: string");
+    assert!(
+        !rules(&optional)
+            .iter()
+            .any(|rule| rule.starts_with("compatibility.nullability")),
+        "{:?}",
+        rules(&optional)
+    );
+
+    // Made required along with the rename: reported against `notes`, not
+    // hidden by the member that took over `q`.
+    let required = run("rename-rebound-required", "notes: string");
+    assert!(
+        rules(&required)
+            .contains(&"compatibility.nullability example.shop#CreateItemInput$description".into()),
+        "{:?}",
+        rules(&required)
+    );
+}

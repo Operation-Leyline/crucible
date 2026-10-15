@@ -167,6 +167,14 @@ Host
 A step that appears in an operation's input or output only converts the
 direction it is needed in, as the compiler knows from the IR.
 
+A `rename` declares the new name and nothing else: a member renamed and
+also made required, or retyped, needs that step too, naming the member as
+it is now. `rename S.description -> notes` with `require S.notes default ""`
+fills `notes` for an older request that sent no `description`, and keeps
+the one it sent. With `retype S.notes -> T by hook`, the upgrade hook reads
+`description` and the downgrade hook writes `notes`, each before the rename.
+`require .. by hook` does not follow a rename yet.
+
 ## Hooks
 
 A step the framework cannot write itself (decision 54) becomes a method of

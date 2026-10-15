@@ -180,7 +180,9 @@ fn framework_response(error: &FrameworkError) -> Response {
         return not_found(error, resource.name);
     }
     let body = serde_json::json!({ "__type": error.name(), "message": error.message() });
-    let mut headers = Vec::new();
+    // The discriminator, as a modelled error sends it: clients read it
+    // before the body's `__type`.
+    let mut headers = vec![("x-crucible-error".to_owned(), error.name().to_owned())];
     if let FrameworkError::MethodNotAllowed { allowed } = error {
         headers.push(("allow".to_owned(), allowed.join(", ")));
     }
@@ -300,6 +302,31 @@ mod tests {
         let body = body(response).await;
         assert_eq!(body["__type"], "ConflictException");
         assert_eq!(body["message"], conflict.message());
+    }
+
+    #[test]
+    fn every_framework_error_is_named_by_its_header() {
+        let errors = [
+            FrameworkError::Unauthenticated,
+            FrameworkError::Forbidden,
+            FrameworkError::UnknownOperation,
+            FrameworkError::MethodNotAllowed {
+                allowed: vec!["GET"],
+            },
+            FrameworkError::UnsupportedMediaType,
+            FrameworkError::InternalFailure,
+            FrameworkError::Conflict { message: "taken" },
+            FrameworkError::NotFound { resource: &INBOX },
+            FrameworkError::PermissionDenied { permission: &SEND },
+        ];
+        for error in &errors {
+            let response = framework_response(error);
+            let header = response
+                .headers()
+                .get("x-crucible-error")
+                .map(|value| value.to_str().unwrap());
+            assert_eq!(header, Some(error.name()), "{error:?}");
+        }
     }
 
     async fn body(response: axum::response::Response) -> serde_json::Value {

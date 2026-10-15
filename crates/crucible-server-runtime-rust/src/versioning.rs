@@ -490,6 +490,30 @@ mod tests {
         assert_eq!(sent, json!({ "limit": 5 }));
     }
 
+    #[test]
+    fn a_renamed_member_gets_its_default_only_when_it_was_not_sent() {
+        // `rename S.description -> notes` with `require S.notes default ""`,
+        // in either order: a rename moves what was sent over the default.
+        let rename = Transform::Rename {
+            at: &[],
+            from: "description",
+            to: "notes",
+        };
+        let default = Transform::Default {
+            at: &[],
+            member: "notes",
+            value: "\"\"",
+        };
+        for transforms in [[rename, default], [default, rename]] {
+            let mut omitted = json!({ "name": "a" });
+            apply(&mut omitted, &transforms);
+            assert_eq!(omitted, json!({ "name": "a", "notes": "" }));
+            let mut sent = json!({ "name": "a", "description": "d" });
+            apply(&mut sent, &transforms);
+            assert_eq!(sent, json!({ "name": "a", "notes": "d" }));
+        }
+    }
+
     #[tokio::test]
     async fn hooks_convert_every_place_and_fill_what_is_missing() {
         let mut hooks = Hooks::new();

@@ -220,7 +220,11 @@ declares still fails, and each step must match what changed between the
 baseline and the current model: a `rename` whose old member is still there,
 a `move` whose old route was not the baseline's, an `add` of a value that
 already existed, or a `remove operation` of an operation that still exists
-is an error at that step. Paths name a shape (`GraphData`), a member
+is an error at that step. A `rename` declares the new name alone: any
+other change to the member, such as an optional input that became
+required, needs its own step, which names the member as it is now
+(`require CreateIndex.input.kind default ..` after a rename to `kind`).
+Paths name a shape (`GraphData`), a member
 (`GraphData.storage`), or an operation's input or output
 (`CreateIndex.input.kind`). One release has one migration; older ones stay
 in the sources, for the server that serves them; steps that need code

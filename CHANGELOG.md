@@ -495,6 +495,29 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Framework errors under the Crucible JSON protocol (`crucible.protocols#json`)
+  now send `X-Crucible-Error`, as modelled errors and `NotFoundException`
+  already did (#308). The 401, 403, 405, 409 (including idempotency
+  conflicts), 415 and 500 the framework answers itself carried only the
+  body's `__type`, which clients read only as a fallback; the protocol makes
+  the header the discriminator.
+
+- A `rename` step declares a member's new name and nothing else (#307).
+  The compatibility guard used to accept any other change made to the
+  renamed member along with it: an optional input member that became
+  required, an output member that lost its non-null guarantee, or a new
+  type. So a service that renamed `description` to `notes` and made it
+  required refused release-1 requests that omitted it, as `notes: is
+  required`. The checker now compares a renamed member with its new self,
+  as it compares any other member, and each such change needs its own
+  step. Those steps name the member as it is now, through the rename:
+  `rename S.description -> notes` with `require S.notes default ""`, or
+  with `retype S.notes -> T by hook`, whose hooks read the older value
+  under its old name. A step that names the old member is refused with
+  the new name, and so is `require .. by hook` on a renamed member, which
+  the conversion does not support yet. `crucible_policy::diff_renamed`
+  takes the renames; `diff` is unchanged.
+
 - A Go client call with a streaming request body now returns as soon as its
   context is cancelled or its deadline passes, even while the transport is
   blocked reading the caller's stream, when that stream is an `io.Closer`
