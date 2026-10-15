@@ -17,6 +17,16 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: `rule` and `except` declarations compile. A rule is `every <kind>
+  [where ..] must ..` or `no <kind> [where ..]` over operations, shapes and
+  members, with conditions on keywords, metadata (including `retention
+  source`), HTTP bindings, constraints, resources and documentation, each
+  checked against its kind when the rule is read. Levels are `strict`, none,
+  `exceptable` and `advice`; `except Rule for Name because ".."` is recorded
+  in the compiled model (`ir::Service::exceptions`), and an exception that
+  excuses nothing is an error. See
+  [docs/idl/reference.md](docs/idl/reference.md#policy-rules).
+
 - `.cru`: a view can serve several resources, `structure JobData for Job,
   HistoryJob { ... }`. It is lowered against the first, and each `$name` must
   lower to the identical member against every other (a difference is an error

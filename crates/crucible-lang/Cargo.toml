@@ -12,6 +12,7 @@ crucible-policy.workspace = true
 crucible-smithy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+regex = "1"
 toml = "0.8"
 sha2 = "0.10"
 
