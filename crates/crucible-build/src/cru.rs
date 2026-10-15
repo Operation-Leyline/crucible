@@ -81,6 +81,26 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
     Ok(service)
 }
 
+/// Writes the package's compiled model to `out` in the release snapshot
+/// format, with documentation and custom metadata: what a tool reading the
+/// contract needs and `generate ts`'s `crucible-model.json` leaves out. The
+/// file is rewritten only when it changes, so a watched export does not
+/// rerun the build that wrote it.
+pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Result<(), String> {
+    let model = lower(path, service)?;
+    let compiler = format!("crucible-build {}", env!("CARGO_PKG_VERSION"));
+    let text = crucible_smithy::snapshot::write(&model, &compiler);
+    if std::fs::read_to_string(out).is_ok_and(|current| current == text) {
+        return Ok(());
+    }
+    if let Some(parent) = out.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+    }
+    std::fs::write(out, text)
+        .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))
+}
+
 /// The compatibility guard (decision 47d): the package against its frozen
 /// baseline, with the `[compatibility]` settings of its manifest. A breaking
 /// change no migration declares fails the build, as does a migration step

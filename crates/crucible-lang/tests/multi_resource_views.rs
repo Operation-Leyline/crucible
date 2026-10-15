@@ -331,18 +331,28 @@ structure JobData for Job, Draft { include Core }
 
 #[test]
 fn a_shared_view_included_in_a_creating_input_binds_the_first_resource_only() {
-    // The view is lowered against `Job`; for `HistoryJob`'s creating input it
-    // binds nothing, so `statement` is still never set there (34a).
-    let extra = r#"
-structure StatementView for Job, HistoryJob { $statement }
-operation CreateJobAgain creates HistoryJob {
-    http POST "/history-again"
+    // The view is lowered against `Job`, so in a creating input of `Note` it
+    // binds nothing there: `statement` is still never set (34a).
+    let shared = r#"
+resource Note {
+    id jobId: JobId
+    immutable property statement: Statement
+}
+structure StatementView for Job, Note { $statement }
+operation CreateNote creates Note {
+    http POST "/notes"
     input { include StatementView }
 }
 "#;
-    let (errors, _) = problems(extra);
+    let (errors, _) = problems(shared);
+    mentions(&errors, "nothing could ever set it");
+    // A view of `Note` alone binds it.
+    let own = shared.replace("for Job, Note", "for Note");
+    let (errors, _) = problems(&own);
     assert!(
-        errors.iter().all(|m| !m.contains("HistoryJob")) || !errors.is_empty(),
+        errors
+            .iter()
+            .all(|m| !m.contains("nothing could ever set it")),
         "{errors:?}"
     );
 }
