@@ -497,6 +497,11 @@ impl<O: ReceiptOperation> PendingReceipt<O> {
     pub fn expires(&self) -> SystemTime;           // retention, shortened by resource_lives
     pub fn now(&self) -> SystemTime;               // the clock the claim used
 
+    /// The handler checks this request was allowed (`permissions::stored_checks`),
+    /// as JSON text; `None` outside `Permissions`. Call it after the handler's
+    /// checks ran, and store it in the receipt item beside the resource.
+    pub fn authorization(&self) -> Option<&str>;
+
     /// The handler's transaction wrote the receipt for `resource`: the
     /// obligation is met. Call it after the transaction committed.
     pub fn recorded(self, resource: ResourceRef) -> Result<()>;
@@ -508,7 +513,13 @@ impl<O: ReceiptOperation> PendingReceipt<O> {
     pub async fn found(self, earlier: FoundReceipt) -> Result<O::Output>;
 }
 
-pub struct FoundReceipt { pub fingerprint: Fingerprint, pub resource: ResourceRef }
+pub struct FoundReceipt {
+    pub fingerprint: Fingerprint,
+    pub resource: ResourceRef,
+    /// What `PendingReceipt::authorization` returned when the receipt was
+    /// written; `None` for a receipt written without it.
+    pub authorization: Option<String>,
+}
 ```
 
 - an `after` hook checks that a *success* either called `recorded` or
@@ -677,6 +688,15 @@ wait expires, `InFlight` as today. Whether `InFlight` should be a retryable
 error by default is open question 3.
 
 ### 7.4 Authorization on a retry
+
+**Handler mode.** The framework cannot see the handler's receipt item, so the
+handler persists the recorded handler checks itself: it writes
+`PendingReceipt::authorization()` into the item and hands it back as
+`FoundReceipt::authorization`. `found` then runs `reauthorize` on it exactly as
+store-claimed `Receipt` does, before the read. A receipt without it (`None`)
+is authorized by the declared checks and the read's checks alone, as an old
+`Replay` record is today. Whether to *require* it for operations whose handler
+makes checks is open question 11.
 
 `Permissions` runs first (registered before `Idempotency`; building the other
 order fails), so the *create's own* declared checks (`requires manage on
@@ -1044,3 +1064,6 @@ Each phase is a pull request that changes no default until phase 4.
    resource ref) part of the receipt, and so part of `ResourceRef`?
 10. **Retention of `Replay`.** Leave at 24 hours, or bring it to the standard
     (8 hours) with a deprecation, since `Replay` is now the rarer policy?
+11. **Handler-mode authorization.** Persisting the handler checks is the
+    handler's job (§7.4). Should `recorded` fail when `Permissions` recorded
+    checks and the handler passed none along, so a forgotten write is loud?
