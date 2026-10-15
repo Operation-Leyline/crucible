@@ -17,6 +17,12 @@ version's section when it is prepared.
 
 ### Added
 
+- `JwtAuthenticator::credential_headers`: an ordered list of headers to read
+  the bearer token from, the first one present being the only one read, as
+  `ApiKeyAuthenticator::credential_headers` does. `credential_header` stays as
+  the single-header form. An empty list is a configuration error. See
+  [docs/auth.md](docs/auth.md).
+
 - `crucible_auth::ApiKeyAuthenticator`: bearer API keys checked against a
   service-owned `ApiKeyStore` (`lookup(digest)` returning an `ApiKeyRecord`
   of key ID, tenant, `ApiKeyState`, optional expiry and attributes). It

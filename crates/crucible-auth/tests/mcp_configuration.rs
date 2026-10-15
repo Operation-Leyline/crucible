@@ -24,6 +24,21 @@ fn mcp_requires_access_policy_authorization_header_and_service_scope() {
     assert!(
         McpAuthenticator::new("https://api.example/mcp", vec![alternate], "service/mcp").is_err()
     );
+    let first_of_many = verifier()
+        .credential_headers([
+            HeaderName::from_static("x-access-token"),
+            HeaderName::from_static("authorization"),
+        ])
+        .unwrap();
+    assert!(
+        McpAuthenticator::new(
+            "https://api.example/mcp",
+            vec![first_of_many],
+            "service/mcp"
+        )
+        .is_err()
+    );
+    assert!(verifier().credential_headers([]).is_err());
     for scope in [
         "",
         "openid",
