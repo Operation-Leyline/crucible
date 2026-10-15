@@ -45,6 +45,7 @@ reviewed by CodeRabbit; never push to main.
 | Crate | Owns |
 |---|---|
 | `crucible-server-runtime-rust` | the Rust server framework: orchestrator and phased pipeline, context, protocols, validation, errors, built-in middleware, hosting (HTTP, Lambda) |
+| `crucible-seshat` | request records and per-request counters as Seshat log-contract lines (`LogSink`, `Recorder`); depends on nothing of Seshat's |
 | `crucible-wire` | what server and client share: operation descriptions, modelled errors, validation, timestamps, the one-pass body/bound-member readers and writers |
 | `crucible-client-runtime-rust` | the Rust client runtime: transport, retries, error decoding, pagination |
 | `crucible-ir` | the IR (`ir.rs`) that the `.cru` front end lowers to, with its validation and shared analyses, and the release snapshot format (`snapshot.rs`): the IR's serde names are an on-disk format, so renaming an IR field, or adding one without `#[serde(default)]`, breaks committed releases |
