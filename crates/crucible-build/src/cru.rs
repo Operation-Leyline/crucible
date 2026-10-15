@@ -84,16 +84,34 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
     std::fs::write(out, text)
         .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))?;
     // A watched export newer than this run's own result would rerun the build
-    // that wrote it, so it takes the manifest's timestamp, as a copied AST took
-    // its source's.
-    let manifest = std::fs::metadata(path.join("crucible.toml"))
-        .and_then(|metadata| metadata.modified())
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    // that wrote it, so it takes the newest timestamp among the package's own
+    // inputs (the manifest and every `.cru` source), as a copied AST took its
+    // source's.
+    let newest =
+        newest_input(path).map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     std::fs::File::options()
         .write(true)
         .open(out)
-        .and_then(|file| file.set_modified(manifest))
+        .and_then(|file| file.set_modified(newest))
         .map_err(|error| format!("cannot date the model export {}: {error}", out.display()))
+}
+
+/// The newest modification time among a package's manifest and `.cru` files.
+fn newest_input(dir: &Path) -> std::io::Result<std::time::SystemTime> {
+    let mut newest = std::fs::metadata(dir.join("crucible.toml"))?.modified()?;
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        for entry in std::fs::read_dir(&directory)? {
+            let entry = entry?;
+            let path = entry.path();
+            if entry.file_type()?.is_dir() {
+                pending.push(path);
+            } else if path.extension().is_some_and(|extension| extension == "cru") {
+                newest = newest.max(entry.metadata()?.modified()?);
+            }
+        }
+    }
+    Ok(newest)
 }
 
 /// The compatibility guard (decision 47d): the package against its frozen

@@ -690,10 +690,10 @@ impl ServerOutput {
             Side::Server => {
                 let explorer_service = if self.options.explorer.is_some() {
                     if cru::is_package(&self.model) {
-                        // The language does not lower resources yet, so the
-                        // description of a service whose operations belong to
-                        // a resource is refused by the describe check.
-                        Some(cru::lower(&self.model, self.service.as_ref())?)
+                        // The package was lowered above; the describe check
+                        // refuses a service whose operations belong to a
+                        // resource, which the language does not lower yet.
+                        None
                     } else {
                         let json =
                             std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
