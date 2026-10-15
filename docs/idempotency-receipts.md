@@ -537,7 +537,7 @@ let token_put = ClientToken::from(&receipt).put(table, resource_ids)?; // its ow
 match tx.send().await {
     Ok(_)  => { receipt.recorded(graph_ref)?; Ok(output) }
     Err(e) => match classify(&e) {
-        Lost::Retry(item)    => receipt.found(FoundReceipt { fingerprint: item.fingerprint(), resource: item.resource() }).await,
+        Lost::Retry(item)    => receipt.found(FoundReceipt { fingerprint: item.fingerprint(), resource: item.resource(), authorization: item.authorization() }).await,
         Lost::Mismatch(_)    => receipt.found(FoundReceipt { fingerprint: other, .. }).await,  // Mismatch
         Lost::Other          => Err(existing_meaning(e)),
     }
