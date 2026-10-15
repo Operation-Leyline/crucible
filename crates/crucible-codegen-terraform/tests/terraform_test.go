@@ -108,7 +108,7 @@ func TestLifecycleOverHTTP(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"widget": output})
 	}))
 	defer server.Close()
-	client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 1, Token: func(context.Context) (string, error) { return "test-secret", nil }}, wireSchema, false)
+	client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 1, Token: func(context.Context) (string, error) { return "test-secret", nil }}, wireSchema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestCreatePreservesIdentityWhenRefreshFails(t *testing.T) {
 		_, _ = w.Write([]byte(`{"__type":"Unavailable"}`))
 	}))
 	defer server.Close()
-	client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 1}, wireSchema, false)
+	client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 1}, wireSchema)
 	if err != nil {
 		t.Fatal(err)
 	}

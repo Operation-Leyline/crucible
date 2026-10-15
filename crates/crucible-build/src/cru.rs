@@ -29,6 +29,12 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
     // the build script.
     println!("cargo::rerun-if-changed={}", path.display());
     let package = crucible_lang::load_package(path)?;
+    // A dependency's directory is outside the package's; its edits rebuild too.
+    for dependency in &package.dependencies {
+        if let Some(dir) = &dependency.dir {
+            println!("cargo::rerun-if-changed={}", dir.display());
+        }
+    }
     if let Some(id) = service
         && id.namespace() != package.namespace
     {

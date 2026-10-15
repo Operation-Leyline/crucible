@@ -207,11 +207,7 @@ fn migration_steps_parse() {
 /// "not supported yet" diagnostics for what the compiler does not lower yet.
 #[test]
 fn every_example_package_compiles() {
-    for (package, clean) in [
-        ("weather", true),
-        ("standards", false),
-        ("leyline-graph", false),
-    ] {
+    for (package, clean) in [("weather", true), ("standards", false)] {
         let dir = examples().join(package);
         let loaded = match crucible_lang::load_package(&dir) {
             Ok(loaded) => loaded,

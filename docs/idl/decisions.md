@@ -916,15 +916,14 @@ trait when a project defines it.
 
 ## Guards and policy
 
-> **Deferred (2026-10-10).** Policy stays in `crucible.toml`, read by
-> `crucible-policy` for both front ends: a `.cru` package keeps it beside
-> `[model]` in its own manifest, each check may set its own severity, and
-> the language server reports findings where they occur
-> ([api-policy.md](../api-policy.md)). Several rule syntaxes were drafted
-> and judged harder to write than the TOML they would replace, so the
-> `rule`, `except` and `advice` declarations below remain unimplemented
-> (the compiler reports them as not supported yet). Decisions 45-47f record
-> the intent should custom rules be needed.
+> **Implemented (2026-10-15).** `rule` and `except` compile, with the
+> vocabulary, levels and exception checks of decisions 46, 47 and 47g, and
+> run on the lowered model on every compile. The policy in `crucible.toml`
+> (`[rules.naming]` and the rest, read by `crucible-policy`; see
+> [api-policy.md](../api-policy.md)) remains for the checks it already
+> covers; a package may use both. Imported packages' rules, role templates
+> (47a) and `advice` as a declaration are below as each lands; the text of
+> 45 on rule severities now reads `strict`, none, `exceptable` and `advice`.
 
 The goal: a service's rules are written once, and a person or a language
 model adding an operation or a member cannot produce a model that breaks
@@ -1049,6 +1048,23 @@ server binding exists for it.
 47f. **An unreferenced shape is a compiler warning**; a standards package
     makes it an error with `no shape where not referenced`. *Replaces:*
     the `UnreferencedShape` linter.
+
+47g. **How rules and exceptions behave, as built.** A rule's level is
+    `strict` (never excepted), none (the declaring package may except it),
+    `exceptable` (an importer may too) or `advice` (reported, never fails,
+    nothing to except). Rules run once the model compiles without errors,
+    over the elements the compiled package declares: an imported package's
+    shapes were judged when that package compiled. An exception names a
+    shape, operation or resource by name, and for an operation it covers the
+    members of its input and output; it is recorded in the compiled model
+    (`Service::exceptions`). An exception that excuses nothing is an error,
+    as is one for an unknown rule, a blank reason, a repeat, or a rule the
+    package may not except. Each condition is checked against its kind when
+    the rule is read, and `retention source` metadata is readable by rules and
+    never reaches the IR. A shape no operation reaches is never lowered; it
+    is a subject for `referenced`, `documented`, `name` and its kind, and any
+    other condition skips it rather than guess. *Why:* a rule that matches
+    nothing silently, or an exception nobody removes, is how a policy rots.
 
 48. **Validity checks the compiler owns because Smithy did them and
     lowering assumes them:** shape-id resolution and uniqueness, trait and
@@ -1239,9 +1255,12 @@ these are working choices, changed freely as implementation teaches.
     their `links` metadata as today. The dependency entry pins the
     version, so imports name packages without a version suffix. Git and
     registry fetching wait for a second organisation to need them. Built so
-    far: bundled packages only (`crucible.errors`). `[model.dependencies]`
-    and Cargo discovery are not implemented, and the manifest check refuses
-    a `dependencies` key rather than ignore it.
+    far: bundled packages (`crucible.errors`) and path dependencies:
+    `"org.standards" = { path = "../standards" }` names the package by its
+    namespace (the directory must declare it) and a package that lists it in
+    `imports` loads it, and what it imports in turn, in the namespace of its
+    own. Version pins and Cargo discovery are not implemented; the manifest
+    check refuses an entry with any key but `path`.
 
 61. **Source positions live in a source map beside the IR.** Lowering
     returns `ir::Service` plus a map from shape and member ids to spans.

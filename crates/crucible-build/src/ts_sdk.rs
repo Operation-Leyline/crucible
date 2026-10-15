@@ -1,4 +1,4 @@
-use crucible_codegen::TsOptions;
+use crucible_codegen::{TsMiddleware, TsOptions};
 
 use crate::ModelPackage;
 
@@ -29,6 +29,7 @@ impl<'a> TsSdk<'a> {
                     .unwrap_or_else(|_| "0.1.0".into()),
                 client_name: None,
                 endpoint: None,
+                middleware: Vec::new(),
                 package_json: None,
                 metadata: crucible_codegen::PackageMetadata::default(),
             },
@@ -63,6 +64,12 @@ impl<'a> TsSdk<'a> {
     /// Default endpoint embedded in the generated client package.
     pub fn endpoint(mut self, endpoint: &str) -> Self {
         self.options.endpoint = Some(endpoint.into());
+        self
+    }
+
+    /// Replace the middleware every generated client runs by default.
+    pub fn middleware(mut self, middleware: Vec<TsMiddleware>) -> Self {
+        self.options.middleware = middleware;
         self
     }
 

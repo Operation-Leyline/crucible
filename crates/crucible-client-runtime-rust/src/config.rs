@@ -94,6 +94,7 @@ pub struct Config {
     pub(crate) headers: HeaderMap,
     pub(crate) http: reqwest::Client,
     pub(crate) timeout: Option<Duration>,
+    pub(crate) content_sha256: bool,
 }
 
 impl Config {
@@ -116,6 +117,7 @@ impl Config {
                 .build()
                 .expect("default HTTP client configuration is valid"),
             timeout: None,
+            content_sha256: false,
         }
     }
 
@@ -123,6 +125,12 @@ impl Config {
     /// No total-call deadline is imposed unless configured.
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
+        self
+    }
+
+    /// Hashes the replayed body before caller interceptors (including empty writes).
+    pub fn content_sha256(mut self, enabled: bool) -> Self {
+        self.content_sha256 = enabled;
         self
     }
 

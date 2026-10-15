@@ -92,6 +92,26 @@ pub struct Service {
     /// `None` is the framework's. Read it through [`Service::not_found_error`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub not_found: Option<ShapeId>,
+    /// The policy rule violations the package excepts, each with its reason
+    /// (docs/idl/decisions.md, decision 47): what a reviewer of the compiled
+    /// model sees was accepted. Empty for a model with none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exceptions: Vec<PolicyException>,
+}
+
+/// One `except Rule for Target because ".."` the compiler accepted: the rule
+/// really fired on the target, and the package was allowed to except it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct PolicyException {
+    /// The rule's name.
+    pub rule: String,
+    /// The namespace of the package that declares the rule.
+    pub rule_package: String,
+    /// The name of the shape, operation or resource excepted.
+    pub target: String,
+    pub reason: String,
+    /// The namespace of the package that declares the exception.
+    pub package: String,
 }
 
 /// An older API version: its release's model, and how a request or a
@@ -288,13 +308,17 @@ impl Service {
     /// Smithy's and Crucible's own traits, which the IR already carries as
     /// typed fields (decision 43). The `.cru` front end emits IR this way.
     pub fn project_metadata_only(&mut self) {
-        let standard = |id: &ShapeId| {
-            id.is_prelude()
+        self.retain_traits(|id| {
+            !(id.is_prelude()
                 || id.namespace().starts_with("aws.")
                 || id.namespace() == "crucible.protocols"
-                || id.namespace() == "smithy.test"
-        };
-        let strip = |traits: &mut Traits| traits.retain(|id, _| !standard(id));
+                || id.namespace() == "smithy.test")
+        });
+    }
+
+    /// Keeps the entries of every raw `traits` map that `keep` accepts.
+    pub fn retain_traits(&mut self, keep: impl Fn(&ShapeId) -> bool) {
+        let strip = |traits: &mut Traits| traits.retain(|id, _| keep(id));
         strip(&mut self.traits);
         for operation in &mut self.operations {
             strip(&mut operation.traits);

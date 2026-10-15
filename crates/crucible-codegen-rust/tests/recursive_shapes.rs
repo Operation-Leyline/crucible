@@ -24,6 +24,8 @@ fn service() -> crucible_smithy::ir::Service {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     let compiled = crucible_lang::compile(&package, None);

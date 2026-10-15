@@ -65,6 +65,7 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_version: "1.0.0".into(),
                 client_name: None,
                 endpoint: Some("https://example.test".into()),
+                middleware: vec![],
                 package_json: None,
                 metadata: Default::default(),
             }

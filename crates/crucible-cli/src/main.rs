@@ -60,7 +60,8 @@ enum Command {
     Check {
         #[command(flatten)]
         source: Source,
-        /// Check the capabilities of a particular generated client.
+        /// Check the capabilities of a particular generated client. Without
+        /// it, every capability some generator supports is accepted.
         #[arg(long, value_enum)]
         target: Option<ClientLanguage>,
         /// Run project policy rules in addition to the supported-subset check.
@@ -481,6 +482,9 @@ enum Target {
         /// The endpoint a client uses when its config names none.
         #[arg(long)]
         endpoint: Option<String>,
+        /// Middleware every client runs by default.
+        #[arg(long, value_enum)]
+        middleware: Vec<MiddlewareArg>,
         /// A JSON file merged over the generated package.json. It cannot set
         /// the name, version, crucible, files, private or publishConfig.
         #[arg(long)]
@@ -608,6 +612,12 @@ impl MetadataArgs {
     }
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum MiddlewareArg {
+    /// `x-amz-content-sha256` on every request with a body.
+    ContentSha256,
+}
+
 fn main() -> ExitCode {
     use clap::{CommandFactory, FromArgMatches};
     // The version names the revision too: it is what `crucible sdk`'s
@@ -658,7 +668,11 @@ fn run(command: Command) -> ExitCode {
             config,
         } => lower_with_capabilities(
             &source,
-            &target.map(ClientLanguage::capabilities).unwrap_or_default(),
+            // An empty set would refuse every gated feature (`sparse`, ...)
+            // that the model is allowed to use; only a named client narrows it.
+            &target.map(ClientLanguage::capabilities).unwrap_or_else(|| {
+                crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied())
+            }),
         )
         .and_then(|service| {
             // A package's manifest may carry its policy; --config selects another.
@@ -1505,6 +1519,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_version,
             client_name,
             endpoint,
+            middleware,
             package_json,
             metadata,
             npm_registry,
@@ -1525,6 +1540,14 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 package_version,
                 client_name,
                 endpoint,
+                middleware: middleware
+                    .into_iter()
+                    .map(|m| match m {
+                        MiddlewareArg::ContentSha256 => {
+                            crucible_codegen_ts::Middleware::ContentSha256
+                        }
+                    })
+                    .collect(),
                 package_json,
                 metadata: {
                     let mut metadata = metadata.read()?;

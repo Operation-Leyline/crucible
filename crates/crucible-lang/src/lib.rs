@@ -18,6 +18,7 @@ mod lower;
 pub mod package;
 mod parser;
 pub mod release;
+mod rules;
 pub mod span;
 
 pub use compile::{

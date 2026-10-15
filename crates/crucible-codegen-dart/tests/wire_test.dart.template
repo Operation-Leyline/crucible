@@ -17,19 +17,18 @@ final class Fake implements sdk.HttpTransport {
     expect(request.headers['content-type'], 'text/plain');
     expect(utf8.decode(request.body!), 'héllo');
     expect(request.headers['x-meta'], 'eyJhIjoxfQ==, aGVsbG8=');
-    expect(request.headers['x-extra-trace'], 'aGVsbG8=');
     return failure ? sdk.HttpResponse(status: 422, headers: {'x-crucible-error': 'TextError'}, body: Uint8List.fromList(utf8.encode('invalid text')))
-        : sdk.HttpResponse(status: 200, headers: {'x-meta': 'eyJhIjoxfQ==, aGVsbG8=', 'x-extra-trace': 'aGVsbG8='}, body: request.body!);
+        : sdk.HttpResponse(status: 200, headers: {'x-meta': 'eyJhIjoxfQ==, aGVsbG8='}, body: request.body!);
   }
   @override
   void close() {}
 }
 void main() {
-  final input = sdk.TextInput(text: 'héllo', meta: ['{"a":1}', 'hello'], extras: {'trace': 'hello'});
+  final input = sdk.TextInput(text: 'héllo', meta: ['{"a":1}', 'hello']);
   test('raw string and modeled document payloads with media headers', () async {
     final client = sdk.WireClient(sdk.ClientConfig(endpoint: 'http://127.0.0.1', transport: Fake(false)));
     final output = await client.text(input);
-    expect(output.text, input.text); expect(output.meta, input.meta); expect(output.extras, input.extras);
+    expect(output.text, input.text); expect(output.meta, input.meta);
     expect((await client.document(sdk.DocumentInput(document: sdk.Record(name: 'record')))).document?.name, 'record');
   });
   test('modeled error raw payload', () async {

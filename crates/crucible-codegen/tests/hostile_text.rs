@@ -72,6 +72,7 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_version: "1.0.0".into(),
                 client_name: None,
                 endpoint: endpoint.clone(),
+                middleware: vec![],
                 package_json: None,
                 metadata: Default::default(),
             }),

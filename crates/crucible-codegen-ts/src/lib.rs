@@ -34,6 +34,7 @@ const RUNTIME_EXPORTS: &[&str] = &[
     "TimeoutError",
     "UnknownUnion",
     "Decimal",
+    "contentSha256",
     "stringifyJson",
     "ClientConfig",
     "RequestOptions",
@@ -118,6 +119,12 @@ const RESERVED: &[&str] = &[
     "yield",
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Middleware {
+    /// `x-amz-content-sha256` on every request with a body.
+    ContentSha256,
+}
+
 #[derive(Debug, Clone)]
 pub struct Options {
     pub package_name: String,
@@ -126,6 +133,8 @@ pub struct Options {
     pub client_name: Option<String>,
     /// The endpoint a client uses when its config names none.
     pub endpoint: Option<String>,
+    /// Middleware every client runs by default, ahead of the caller's.
+    pub middleware: Vec<Middleware>,
     /// Merged over the generated `package.json`, last. It cannot set what
     /// Crucible owns: the name, version, `crucible`, `files`, `private` or
     /// `publishConfig`.
@@ -283,7 +292,7 @@ fn index(client: &str, permissions: &str) -> String {
          export * from \"./errors.js\";\n\
          {permissions}\
          export {{ {client} }} from \"./client.js\";\n\
-         export {{ Decimal, NetworkError, ServiceError, TimeoutError, stringifyJson }} from \"./runtime.js\";\n\
+         export {{ Decimal, NetworkError, ServiceError, TimeoutError, contentSha256, stringifyJson }} from \"./runtime.js\";\n\
          export type {{\n  ClientConfig,\n  Document,\n  Fetch,\n  Middleware,\n  Next,\n  RequestOptions,\n  \
          ResponseMetadata,\n  RetryConfig,\n  TokenProvider,\n  Unit,\n  UnknownUnion,\n}} from \"./runtime.js\";\n"
     )

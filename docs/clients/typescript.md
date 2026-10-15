@@ -22,7 +22,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 ```sh
 crucible generate ts smithy \
   --out target/weather-ts --package-name @example/weather \
-  --endpoint http://127.0.0.1:3000
+  --endpoint http://127.0.0.1:3000 --middleware content-sha256
 cd target/weather-ts
 npm install
 npm run build
@@ -205,8 +205,16 @@ replays the logical request. Frozen inputs are copied, so supply an explicit
 token for replays involving them.
 
 Middleware is `(request, next) => Promise<Response>` and runs on every attempt.
-The order is bearer authentication, then caller middleware. Public operations
-bypass the bearer-token provider.
+The order is bearer authentication, generated middleware, then caller
+middleware. Public operations bypass the bearer-token provider.
+`--middleware content-sha256` adds a SHA-256 body digest. Empty `POST`, `PUT`, and
+`PATCH` requests use the digest of zero bytes. It skips other bodyless requests
+and requests with an existing digest header.
+
+If middleware changes a request body, compute its digest after that change.
+Generate without the digest option and place exported `contentSha256` last in
+your `middleware` array; remove any previous digest header before recomputing.
+Do not combine an earlier generated digest with a later body mutation.
 
 ## Qualification
 

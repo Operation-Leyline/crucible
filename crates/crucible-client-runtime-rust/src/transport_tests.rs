@@ -417,6 +417,43 @@ fn modeled_and_unknown_errors_expose_identical_http_metadata() {
 }
 
 #[tokio::test]
+async fn body_digests_cover_empty_writes_and_raw_bytes() {
+    let transport = Transport::new(Config::new("http://localhost").content_sha256(true));
+    for (method, body, expected) in [
+        (
+            Method::POST,
+            None,
+            Some("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        ),
+        (
+            Method::PUT,
+            Some(("application/octet-stream", Bytes::from_static(b"abc"))),
+            Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+        ),
+        (Method::GET, None, None),
+    ] {
+        let request = transport
+            .request::<Known>(
+                method,
+                "http://localhost",
+                &HeaderMap::new(),
+                body,
+                true,
+                crate::auth::OperationAuth::of::<Probe>(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            request
+                .headers()
+                .get("x-amz-content-sha256")
+                .and_then(|h| h.to_str().ok()),
+            expected
+        );
+    }
+}
+
+#[tokio::test]
 async fn deadlines_and_cancellation_include_stalled_credentials() {
     let token = crate::Token::provider(std::future::pending::<Option<String>>);
     let transport = Transport::new(

@@ -323,8 +323,8 @@ fn language_keys_are_typed() {
         &errors(&format!(
             "{base}[sdk.ts]\npackage = \"x\"\nout = \"o\"\nmiddleware = [\"gzip\"]\nendpoint = {{ env = \"1BAD\" }}\n"
         )),
-        "sdk.ts.endpoint",
-        "is not an environment variable name",
+        "sdk.ts.middleware",
+        "not a middleware",
     );
     assert_error(
         &errors(&format!(

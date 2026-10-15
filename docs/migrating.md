@@ -43,7 +43,8 @@ model could reach, because Crucible, Leyline and Pigeon use `.cru`:
 - streaming payloads and event streams (`ByteStream`, `EventStream`),
 - waiters, endpoint rules, host prefixes and endpoint discovery,
 - SigV4/SigV4a, Basic, Digest and API-key client authentication,
-  `@optionalAuth`, unsigned payloads and the `content_sha256` option,
+  `@optionalAuth`, unsigned payloads and the `content_sha256` option of every
+  client but TypeScript and Rust,
 - HTTP checksums,
 - `@httpPrefixHeaders`, `@httpQueryParams`, `@httpResponseCode`,
   `@jsonName`, set shapes, legacy `@enum` and `@cors`.
@@ -58,13 +59,13 @@ What changes is Rust code and SDK build settings that named them:
   from a Tower layer or the front door. A service that tested
   `metadata.optional_auth` uses `requires_authentication()`.
 - **Rust client.** Remove `Config::{region, endpoint_parameter,
-  endpoint_builtin, disable_host_prefix, content_sha256, basic_credentials,
+  endpoint_builtin, disable_host_prefix, basic_credentials,
   api_key, aws_credentials, signing_name}` and the checksum settings;
   `decode_modelled_at(status, ..)` becomes `decode_modelled(..)`; a `match`
   over `Error` no longer has `ChecksumMismatch`.
-- **Generators and SDK builds.** Delete `content_sha256(..)`,
-  TypeScript `middleware(..)`, `--content-sha256` and `--middleware`; they
-  do nothing now.
+- **Generators and SDK builds.** Delete `content_sha256(..)` and
+  `--content-sha256`; they do nothing now. TypeScript keeps `middleware(..)`
+  and `--middleware content-sha256`.
 - **Frozen releases.** Snapshots are format 3. Older ones still read; one
   that used a removed feature is refused with a message naming it.
 

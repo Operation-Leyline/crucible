@@ -11,6 +11,13 @@ the namespace, the language version and the source directories. Every
 `.cru` file under those directories belongs to the package's single
 namespace. File and declaration order never matter.
 
+A package imports others in its manifest: `imports = ["crucible.errors"]`
+names a bundled package, and `imports = ["org.standards"]` with
+`[model.dependencies]` `"org.standards" = { path = "../standards" }` loads
+the package in that directory, which must declare the namespace. A package's
+declarations and `metadata` are visible to the packages that import it, and
+its rules apply to them (see Policy rules).
+
 ## Lexical structure
 
 - **Whitespace and newlines** separate tokens and carry no meaning.
@@ -386,6 +393,89 @@ The IR carries them as `Service::permissions`, `Service::permission_types`,
 permission or alias, changing a value or an authorization name, and moving
 a permission to `internal` are breaking changes to the release guard;
 adding a requirement is reported as an authorization change.
+
+## Policy rules
+
+A `rule` is a check every compile applies to the package's model; an
+`except` excuses one violation, with a reason ([decisions.md](decisions.md),
+45-47). Rules run on the lowered model once it compiles without errors, and
+look at the elements the compiled package declares. Rules written in
+`policy/` read as the package's standards:
+
+```
+/// Every operation is charged to one request-rate class.
+rule Classified strict {
+    every operation
+    must has @operationClass
+}
+
+/// Only a control-plane write needs to say it works while suspended.
+rule SuspensionOnlyOnControlWrite strict {
+    every operation where has @permittedWhileSuspended
+    must @operationClass == controlWrite
+}
+
+except NoDocument for CypherValue because "Cypher parameters are open JSON; the service bounds their size."
+```
+
+A clause is `every <kind> [where <condition>] must <condition> ...`, where
+each `must` is a requirement, or `no <kind> [where <condition>]`, which
+forbids what it matches. A violation prints the rule's `///` text, the
+element, and the `must` it failed, at the element's declaration.
+
+**Levels.** `strict`: a violation fails the compile and no package can except
+it. No level: it fails the compile, and the package that declares the rule
+may except it. `exceptable`: as no level, and a package that imports the rule
+may except it too. `advice`: a violation is advice and never fails the
+compile; it has nothing to except.
+
+**Exceptions.** `except Rule for Name because "reason"` names a shape, an
+operation or a resource; for an operation it also covers the members of its
+input and output. It is recorded in the compiled model
+(`Service::exceptions`, in the JSON as `exceptions`) and shown by reports. An
+exception that excuses no violation is an error, so a fix removes its entry;
+so is one with a blank reason, an unknown rule, a strict or advice rule, or a
+rule the package may not except.
+
+**Kinds.** `service`, `resource`, `operation`, `error`, `structure`, `union`,
+`enum`, `list`, `map`, `string`, `boolean`, `number`, `byte`, `short`,
+`integer`, `long`, `float`, `double`, `bigInteger`, `bigDecimal`,
+`timestamp`, `blob`, `document`, `shape` (any of the shape kinds), `member`,
+`input member` and `output member`. `string` and `number` include the string
+and integer enums; `enum` is both. A member is a member of a structure, union,
+list (`member`), or map (`key`, `value`).
+
+**Conditions.** Joined with `and`, `or`, `not` and parentheses. Each kind
+has the ones that apply to it, and a rule that uses another is an error.
+
+| Condition | On | Meaning |
+|---|---|---|
+| `documented` | every kind | has non-blank `///` documentation |
+| `internal`, `sensitive` | shapes, operations, members | the modifier is present |
+| `readonly`, `idempotent`, `public`, `paginated` | operation | the modifier or clause is present |
+| `enum`, `referenced` | shapes | an enum; something reaches it (an operation, a resource entry, metadata, `include`) |
+| `optional`, `required`, `template` | members | the member is optional, required, or came from a role template (none compile yet) |
+| `addresses R` | operation | bound to resource `R` or one below it |
+| `name`, `role` | any, operation | the element's name; its role word (`reads`, `lists`, ...) |
+| `http.method`, `http.uri`, `http.status` | operation | the HTTP binding, the URI as written |
+| `type` | members | the target shape's name; `type is string`, `type is inline primitive` |
+| `type.length.max`, `type.range.min`, ... | members | the member's effective constraints |
+| `length.max`, `range.min`, `pattern` | strings, numbers, lists, maps, blobs | the shape's constraints |
+| `has length`, `has range`, `has pattern` | the same, and members | the constraint is present |
+| `input contains sensitive`, `output ...` | operation | the body reaches a sensitive member or shape |
+| `@key`, `has @key`, `@key == value` | any element the key is declared `on` | metadata, including `retention source` keys |
+| `has one of @a, @b` | | any of the keys is present |
+
+Operators: `==`, `!=`, `in [a, b]`, `<`, `<=`, `>`, `>=` on numbers, and
+`startsWith`, `endsWith`, `contains` and `matches` (a regular expression) on
+strings. A word on the right (`controlRead`, `GET`) compares as a string; an
+enum key is checked against its values. A shape no operation reaches was
+never lowered, so a condition that needs more than its name, kind,
+documentation and `referenced` skips it.
+
+Every condition is checked when the rule is read: an unknown key, a value the
+key does not have, or an operator its value cannot take is an error in the
+rule, not a rule that silently matches nothing.
 
 ## Semantics, briefly
 

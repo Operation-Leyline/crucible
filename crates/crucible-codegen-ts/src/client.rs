@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Operation, Service, Shape};
 
-use crate::Options;
 use crate::names::{doc, documented, literal, method_name, optional};
+use crate::{Middleware, Options};
 
 pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String {
     let mut out = String::new();
@@ -26,6 +26,13 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
         .endpoint
         .as_deref()
         .map_or("undefined".to_owned(), literal);
+    let middleware: Vec<&str> = options
+        .middleware
+        .iter()
+        .map(|m| match m {
+            Middleware::ContentSha256 => "contentSha256",
+        })
+        .collect();
     let bearer = service.auth.iter().any(|id| service.is_bearer(id));
     doc(
         &mut out,
@@ -36,7 +43,8 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     );
     out.push_str(&format!(
         "  constructor(config: ClientConfig = {{}}) {{\n    \
-         this.#transport = new Transport(config, {{ endpoint: {endpoint}, bearer: {bearer} }}, spec.errors);\n  }}\n"
+         this.#transport = new Transport(config, {{ endpoint: {endpoint}, middleware: [{}], bearer: {bearer} }}, spec.errors);\n  }}\n",
+        middleware.join(", ")
     ));
     let names = method_names(service);
     for operation in &service.operations {
@@ -60,6 +68,7 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     if out.contains("paginate(") {
         runtime.push("paginate");
     }
+    runtime.extend(middleware);
     runtime.sort_unstable();
     let mut header = String::from(crate::HEADER);
     header.push_str(&format!(
