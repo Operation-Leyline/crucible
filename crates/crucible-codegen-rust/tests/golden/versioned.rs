@@ -81,6 +81,9 @@ pub mod shop {
         }
 
         impl Kind {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["SMALL", "LARGE", "HUGE"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {
@@ -181,6 +184,9 @@ pub mod shop {
         }
 
         impl ValidationExceptionReason {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["unknownOperation", "cannotParse", "fieldValidationFailed", "other"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {
@@ -825,6 +831,9 @@ pub mod shop {
                 }
 
                 impl Kind {
+                    /// Every value on the wire, in declaration order.
+                    pub const VALUES: &'static [&'static str] = &["SMALL", "LARGE"];
+
                     /// The value on the wire.
                     pub fn as_str(&self) -> &'static str {
                         match self {
@@ -907,6 +916,9 @@ pub mod shop {
                 }
 
                 impl ValidationExceptionReason {
+                    /// Every value on the wire, in declaration order.
+                    pub const VALUES: &'static [&'static str] = &["unknownOperation", "cannotParse", "fieldValidationFailed", "other"];
+
                     /// The value on the wire.
                     pub fn as_str(&self) -> &'static str {
                         match self {
@@ -1600,6 +1612,9 @@ pub mod shop {
                 }
 
                 impl Kind {
+                    /// Every value on the wire, in declaration order.
+                    pub const VALUES: &'static [&'static str] = &["SMALL", "LARGE"];
+
                     /// The value on the wire.
                     pub fn as_str(&self) -> &'static str {
                         match self {
@@ -1682,6 +1697,9 @@ pub mod shop {
                 }
 
                 impl ValidationExceptionReason {
+                    /// Every value on the wire, in declaration order.
+                    pub const VALUES: &'static [&'static str] = &["unknownOperation", "cannotParse", "fieldValidationFailed", "other"];
+
                     /// The value on the wire.
                     pub fn as_str(&self) -> &'static str {
                         match self {

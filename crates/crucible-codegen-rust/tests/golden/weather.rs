@@ -293,6 +293,9 @@ pub mod weather {
         }
 
         impl Sky {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["clear", "cloudy"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {
@@ -362,6 +365,9 @@ pub mod weather {
         }
 
         impl ValidationReason {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["unknownOperation", "cannotParse", "fieldValidationFailed", "other"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {
