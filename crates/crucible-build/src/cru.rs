@@ -154,12 +154,7 @@ fn check_baseline(
 }
 
 /// The error for an output the language cannot feed yet.
-#[cfg(any(
-    feature = "rust",
-    feature = "docs",
-    feature = "cdk",
-    feature = "terraform"
-))]
+#[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
 pub(crate) fn unsupported(what: &str, path: &Path) -> String {
     format!(
         "{what} from a .cru package ({}) is not supported yet: the language does not lower resources for documentation or infrastructure",
