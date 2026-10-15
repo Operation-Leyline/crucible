@@ -1688,6 +1688,7 @@ impl<'a> Lowerer<'a> {
             "readonly",
             "idempotent",
             "public",
+            "sparse",
         ];
         let decls: Vec<DeclRef<'a>> = self.decls.values().copied().collect();
         let mut types = Vec::new();
@@ -2527,7 +2528,7 @@ impl<'a> Lowerer<'a> {
                 }
             }
             Decl::List(list) => {
-                let modifiers = self.modifiers(file, item, &["internal", "sensitive"]);
+                let modifiers = self.modifiers(file, item, &["internal", "sensitive", "sparse"]);
                 let (mut traits, notes, docs) = self.shape_traits(file, item, "list", &modifiers);
                 // Its own constraints first: a member reaching this list
                 // again (recursion) reads them while it is pending.
@@ -2541,7 +2542,7 @@ impl<'a> Lowerer<'a> {
                 Shape::List(List {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
-                    sparse: false,
+                    sparse: modifiers.contains("sparse"),
                     is_set: false,
                     member,
                     constraints: info.constraints,
@@ -2551,7 +2552,7 @@ impl<'a> Lowerer<'a> {
                 })
             }
             Decl::Map(map) => {
-                let modifiers = self.modifiers(file, item, &["internal", "sensitive"]);
+                let modifiers = self.modifiers(file, item, &["internal", "sensitive", "sparse"]);
                 let (mut traits, notes, docs) = self.shape_traits(file, item, "map", &modifiers);
                 let info = self.constraint_block(file, &map.constraints);
                 self.check_constraints(file, &map.constraints, On::Map, false);
@@ -2573,7 +2574,7 @@ impl<'a> Lowerer<'a> {
                 Shape::Map(Map {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
-                    sparse: false,
+                    sparse: modifiers.contains("sparse"),
                     key,
                     value,
                     constraints: info.constraints,

@@ -165,6 +165,12 @@ const KEYWORDS: &[Row] = &[
         "public readonly operation Ping {\n    http GET \"/ping\"\n}",
     ),
     (
+        "sparse",
+        &["list", "map"],
+        "Lets the elements of a list, or the values of a map, be null. A dense collection (the default) refuses a null element.",
+        "sparse list ResultRow: CypherValue",
+    ),
+    (
         "strict",
         ANYWHERE,
         "Makes a structure or input refuse members the model does not define: the server answers an unknown member with a validation error. Clients never enforce it, so a newer service can add members.",
