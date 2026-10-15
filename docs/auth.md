@@ -131,7 +131,9 @@ of the token header. Duplicate signing key IDs are refused. Documents are
 limited to 1 MiB, tokens to 64 KiB, and HTTP requests to ten seconds.
 
 `JwtAuthenticator::credential_header` changes the credential source from
-`Authorization`. The bearer scheme is case-insensitive; bare tokens and
+`Authorization`; `credential_headers([..])` takes an ordered list, and the
+first header present is the only one read (an empty list is a configuration
+error). The bearer scheme is case-insensitive; bare tokens and
 duplicate credential headers are refused. `JwtAuthenticator::clock` supplies
 a clock for deterministic expiry tests or host integration.
 
@@ -533,8 +535,10 @@ identity without request-extension identity bypasses.
 
 For Leyline, replace the Cognito JWT verifier with an ID-token authenticator
 and preserve its app-client allowlist. Configure
-`credential_header(HeaderName::from_static("x-leyline-authorization"))`:
-CloudFront OAC uses `Authorization` for SigV4. Replace its API-key
+`credential_headers([x-leyline-authorization, AUTHORIZATION])`:
+CloudFront OAC uses `Authorization` for SigV4, so the router moves the caller's
+token to `x-leyline-authorization`, and unsigned local calls still use
+`Authorization`. Replace its API-key
 authenticator with an `ApiKeyAuthenticator` over its DynamoDB table:
 
 | Leyline feature | `ApiKeyAuthenticator` |
