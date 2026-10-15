@@ -26,7 +26,7 @@ final class SerializationTests: XCTestCase {
         switch value { case .unset: return "absent"; case .null: return "null"; case .value: return "value" }
     }
     func testSharedSerialization() throws {
-        let codec = try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "", digest: false).codec
+        let codec = try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "").codec
         let path = ProcessInfo.processInfo.environment["SERIALIZATION_CASES"]!
         let rows = try JSONValue(data: Data(contentsOf: URL(fileURLWithPath: path))).array
         for row in rows {

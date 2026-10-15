@@ -18,18 +18,10 @@ macro_rules! features {
 }
 
 features! {
-    JsonName => "json-name", GreedyLabels => "greedy-labels",
-    QueryParams => "query-params", PrefixHeaders => "prefix-headers",
-    ResponseCode => "response-code", Sparse => "sparse", Sets => "sets",
+    GreedyLabels => "greedy-labels", Sparse => "sparse",
     IntEnum => "int-enum", BigInteger => "big-integer", BigDecimal => "big-decimal",
     NonBlobPayload => "non-blob-payload", ErrorPayload => "error-payload",
-    MediaTypeHeaders => "media-type-headers", HttpChecksum => "http-checksum",
-    Streaming => "streaming", EventStreams => "event-streams",
-    EndpointDiscovery => "endpoint-discovery",
-    EndpointHostPrefix => "endpoint-host-prefix", EndpointRules => "endpoint-rules",
-    Waiters => "waiters", BasicAuth => "basic-auth", ApiKeyAuth => "api-key-auth",
-    OptionalAuth => "optional-auth",
-    DigestAuth => "digest-auth", SigV4 => "sigv4", SigV4a => "sigv4a",
+    MediaTypeHeaders => "media-type-headers",
 }
 
 impl fmt::Display for Feature {

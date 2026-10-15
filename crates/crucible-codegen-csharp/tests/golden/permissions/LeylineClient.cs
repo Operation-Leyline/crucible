@@ -17,7 +17,7 @@ public sealed class LeylineClient : global::System.IDisposable {
     /// </summary>
     /// <param name="config">Endpoint, credentials, retry and timeout settings.</param>
     /// <exception cref="global::System.ArgumentException">The endpoint or a retry setting is invalid.</exception>
-    public LeylineClient(ClientConfig config) { runtime = new(config, "https://weather.example", true); }
+    public LeylineClient(ClientConfig config) { runtime = new(config, "https://weather.example"); }
     /// <summary>
     /// Releases the HttpClient this client created; a supplied one stays caller-owned.
     /// </summary>

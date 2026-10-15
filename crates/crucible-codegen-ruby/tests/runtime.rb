@@ -42,24 +42,34 @@ fake = Fake.new do |_, request|
   HttpResponse.new(204, headers: {}, body: '')
 end
 sdk(fake, token: -> { raise 'Public operation requested credentials' }).public_ping
+# A bearer operation sends the token, and keeps an Authorization header the caller already set.
 fake = Fake.new do |_, request|
-  check(request.headers['x-amz-content-sha256'] == Digest::SHA256.hexdigest(''), 'Empty write digest')
-  HttpResponse.new(200, headers: {}, body: '{}')
+  check(request.headers['authorization'] == 'Bearer secret', 'Bearer token')
+  HttpResponse.new(200, headers: {}, body: '{"city":{"id":"x","name":"n"}}')
+end
+sdk(fake, token: -> { 'secret' }).get_city(GetCityInput.new(city_id: 'x'))
+fake = Fake.new do |_, request|
+  check(request.headers['authorization'] == 'Bearer preset', 'Explicit authorization wins')
+  HttpResponse.new(200, headers: {}, body: '{"city":{"id":"x","name":"n"}}')
+end
+sdk(fake, token: -> { raise 'Provider despite explicit authorization' }, headers: {'authorization' => 'Bearer preset'}).get_city(GetCityInput.new(city_id: 'x'))
+fake = Fake.new do |_, request|
+  check(!request.headers.key?('authorization'), 'No token source, no header')
+  HttpResponse.new(200, headers: {}, body: '{"city":{"id":"x","name":"n"}}')
+end
+sdk(fake).get_city(GetCityInput.new(city_id: 'x'))
+fake = Fake.new { raise 'Request reached transport over plain HTTP' }
+rejects do
+  Weather::WeatherClient.new(ClientConfig.new(endpoint: 'http://example.invalid', transport: fake, token: -> { 'secret' })).get_city(GetCityInput.new(city_id: 'x'))
 end
 %w[POST PUT PATCH GET DELETE].each do |method|
   transport = Fake.new do |_, request|
     check(request.body.nil? && request.method == method, 'Bodiless request')
-    if %w[GET DELETE].include?(method)
-      check(!request.headers.key?('x-amz-content-sha256'), 'Bodiless read has no digest')
-    else
-      check(request.headers['x-amz-content-sha256'] == Digest::SHA256.hexdigest(''), 'Empty write digest')
-    end
     HttpResponse.new(200, headers: {}, body: '{}')
   end
   sdk(transport, middleware: [->(request) { request.with(method: method) }]).retry_safe
   check(transport.requests.size == 1, 'One bodiless request')
 end
-sdk(fake).retry_safe
 ['.', '..'].each do |label|
   fake = Fake.new { raise 'Dot label reached transport' }
   rejects { sdk(fake).get_city(GetCityInput.new(city_id: label)) }
@@ -141,7 +151,6 @@ check(output.request_id == 'bound', 'Bound response header')
 token = 0
 fake = Fake.new do |attempt, request|
   check(request.headers['authorization'] == "Bearer #{attempt}", 'Refreshed credential')
-  check(request.headers['x-amz-content-sha256'] == ::Digest::SHA256.hexdigest(request.body), 'Final digest')
   HttpResponse.new(attempt == 1 ? 503 : 201, body: attempt == 1 ? '{"__type":"Future"}' : '{"city":{"id":"x","name":"n"}}')
 end
 token_calls = 0

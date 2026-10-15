@@ -29,7 +29,6 @@ static SERVICE: ServiceInfo = generated::service_info(
     "example.auth#Refusals",
     "1",
     None,
-    None,
     &[&INFO],
     &[],
     |_| None,

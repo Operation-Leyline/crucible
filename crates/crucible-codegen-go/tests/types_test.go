@@ -37,7 +37,7 @@ func TestExtendedModelValidation(t *testing.T) {
     if !Decimal("-0.0").Equal(Decimal("0")) || !Decimal("1.00").Equal(Decimal("1")) { t.Fatal("decimal numeric equality") }
     client, err := NewTypesClient(Config{Endpoint:"https://example.test"})
     if err != nil { t.Fatal(err) }
-    for _, text := range []string{`{"mode":2147483648}`, `{"names":["a","a"]}`, `{"decimal":"1.5"}`, `{"integer":1.5}`, `{"integers":[123456789012345678901234567890,123456789012345678901234567890]}`, `{"decimals":[1,1.0]}`} {
+    for _, text := range []string{`{"mode":2147483648}`, `{"names":["a","a"]}`, `{"integers":[1,1]}`, `{"decimal":"1.5"}`, `{"integer":1.5}`, `{"integers":[123456789012345678901234567890,123456789012345678901234567890]}`, `{"decimals":[1,1.0]}`} {
         decoder := json.NewDecoder(strings.NewReader(text)); decoder.UseNumber()
         var value any
         if err := decoder.Decode(&value); err != nil { t.Fatal(err) }

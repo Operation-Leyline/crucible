@@ -30,8 +30,6 @@ pub(crate) const LANGUAGE_KEYS: &[&str] = &[
     "module_path",
     "client_name",
     "endpoint",
-    "content_sha256",
-    "middleware",
     "package_json",
     "runtime",
     "runtime_path",
@@ -105,28 +103,14 @@ impl Language {
     pub(crate) fn keys(self) -> &'static [&'static str] {
         match self {
             Self::Rust => &["package", "runtime", "runtime_path"],
-            Self::Ts => &[
-                "package",
-                "client_name",
-                "endpoint",
-                "middleware",
-                "package_json",
-            ],
-            Self::Python | Self::Swift | Self::Ruby => {
-                &["package", "module_name", "endpoint", "content_sha256"]
-            }
-            Self::Go => &["package", "module_path", "endpoint", "content_sha256"],
-            Self::Java | Self::Kotlin => &[
-                "package",
-                "group_id",
-                "artifact_id",
-                "endpoint",
-                "content_sha256",
-            ],
-            Self::Csharp => &["package_id", "namespace", "endpoint", "content_sha256"],
-            Self::Php | Self::Cpp => &["package", "namespace", "endpoint", "content_sha256"],
-            Self::C => &["package", "prefix", "endpoint", "content_sha256"],
-            Self::Dart | Self::R => &["package", "endpoint", "content_sha256"],
+            Self::Ts => &["package", "client_name", "endpoint", "package_json"],
+            Self::Python | Self::Swift | Self::Ruby => &["package", "module_name", "endpoint"],
+            Self::Go => &["package", "module_path", "endpoint"],
+            Self::Java | Self::Kotlin => &["package", "group_id", "artifact_id", "endpoint"],
+            Self::Csharp => &["package_id", "namespace", "endpoint"],
+            Self::Php | Self::Cpp => &["package", "namespace", "endpoint"],
+            Self::C => &["package", "prefix", "endpoint"],
+            Self::Dart | Self::R => &["package", "endpoint"],
         }
     }
 

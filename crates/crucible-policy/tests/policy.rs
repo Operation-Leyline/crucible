@@ -250,27 +250,6 @@ fn removed_operations_and_rebound_members_are_reported() {
     assert!(rules(&old, &new).contains(&"compatibility.member".into()));
 }
 
-#[test]
-fn source_symbol_changes_are_separate_from_wire_changes() {
-    let old = model();
-    let mut new = old.clone();
-    let name = new["shapes"]["example.api#GetItemInput"]["members"]
-        .as_object_mut()
-        .unwrap()
-        .remove("name")
-        .unwrap();
-    new["shapes"]["example.api#GetItemInput"]["members"]["label"] = name;
-    new["shapes"]["example.api#GetItemInput"]["members"]["label"]["traits"] =
-        json!({"smithy.api#jsonName":"name"});
-    assert!(rules(&old, &new).is_empty());
-    assert!(
-        diff(&lower(&old), &lower(&new), &Config::default())
-            .findings
-            .iter()
-            .any(|f| f.rule == "compatibility.sdk")
-    );
-}
-
 /// The `compatibility.sdk` findings, as `shape: message`.
 fn sdk_findings(old: &Value, new: &Value) -> Vec<String> {
     diff(&lower(old), &lower(new), &Config::default())
@@ -409,19 +388,6 @@ fn numeric_bounds_preserve_large_integer_precision_and_allow_input_relaxation() 
     new["shapes"]["example.api#Limit"]["traits"]["smithy.api#range"]["max"] =
         json!(9007199254740992.0_f64);
     assert!(rules(&old, &new).contains(&"compatibility.constraints".into()));
-}
-
-#[test]
-fn root_header_mapping_does_not_hide_nested_json_names_on_the_same_shape() {
-    let mut old = model();
-    old["shapes"]["example.api#GetItemInput"]["members"]["name"]["traits"] =
-        json!({"smithy.api#httpHeader":"X-Name"});
-    old["shapes"]["example.api#GetItemInput"]["members"]["node"] =
-        json!({"target":"example.api#GetItemInput"});
-    let mut new = old.clone();
-    new["shapes"]["example.api#GetItemInput"]["members"]["name"]["traits"]["smithy.api#jsonName"] =
-        json!("label");
-    assert!(rules(&old, &new).contains(&"compatibility.member".into()));
 }
 
 #[test]

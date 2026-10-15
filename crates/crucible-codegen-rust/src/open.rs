@@ -105,7 +105,7 @@ pub(crate) fn union(
         };
         out.push_str(&format!(
             "            {} => {decode}(value).map(Self::{}),\n",
-            literal(&member.wire_name),
+            literal(&member.name),
             variant(&member.name)
         ));
     }
@@ -130,13 +130,13 @@ pub(crate) fn union(
         out.push_str(&format!(
             "            Self::{}(value) => map.serialize_entry({}, {value}),\n",
             variant(&member.name),
-            literal(&member.wire_name)
+            literal(&member.name)
         ));
     }
     let known = union
         .members
         .iter()
-        .map(|member| literal(&member.wire_name))
+        .map(|member| literal(&member.name))
         .collect::<Vec<_>>()
         .join(", ");
     if client {

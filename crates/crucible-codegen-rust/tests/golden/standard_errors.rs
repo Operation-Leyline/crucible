@@ -102,13 +102,6 @@ pub mod empty {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for InternalServerException {
@@ -158,13 +151,6 @@ pub mod empty {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for UnknownOperationException {
@@ -222,13 +208,6 @@ pub mod empty {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ValidationException {

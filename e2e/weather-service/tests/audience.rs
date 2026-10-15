@@ -106,7 +106,6 @@ impl OperationAwareMiddleware for InternalCallers {
 async fn mcp_uses_external_projection_and_hides_internal_operations_and_members() {
     use crucible_server_runtime_rust::mcp::McpConfig;
     use serde_json::{Value, json};
-    assert!(api::MCP_EXCLUSIONS.is_empty());
     let service = Crucible::builder(api::operations(Arc::new(Handlers)))
         .on_rejection(|rejection| {
             Box::new(api::PublicFault {
@@ -156,36 +155,16 @@ async fn mcp_uses_external_projection_and_hides_internal_operations_and_members(
             assert!(output.get("privateValue").is_none());
         }
     }
-    // CORS '*' is not an MCP Origin permission.
     let request = Request::post("/mcp")
         .header("origin", "https://evil.example")
         .header("content-type", "application/json")
         .body(Body::from("bad JSON"))
         .unwrap();
     assert_eq!(service.handle(request).await.status().as_u16(), 403);
-    let preflight = Request::builder()
-        .method("OPTIONS")
-        .uri("/mcp")
-        .header("origin", "https://example.com")
-        .header("access-control-request-method", "POST")
-        .header(
-            "access-control-request-headers",
-            "mcp-protocol-version,content-type",
-        )
-        .body(Body::empty())
-        .unwrap();
-    let response = service.handle(preflight).await;
-    assert_eq!(response.status().as_u16(), 204);
-    assert!(
-        response.headers()["access-control-allow-headers"]
-            .to_str()
-            .unwrap()
-            .contains("mcp-protocol-version")
-    );
 }
 
 #[tokio::test]
-async fn guarded_mcp_preflight_obeys_origin_and_cors_policy_without_credentials() {
+async fn mcp_endpoint_guard_answers_before_credentials_for_an_allowed_origin() {
     use axum::http::StatusCode;
     use axum::response::IntoResponse;
     use crucible_server_runtime_rust::mcp::{EndpointAdmission, McpConfig};
@@ -211,39 +190,15 @@ async fn guarded_mcp_preflight_obeys_origin_and_cors_policy_without_credentials(
         .build()
         .unwrap();
 
-    for (origin, requested_method, expected) in [
-        ("https://example.com", "POST", StatusCode::NO_CONTENT),
-        ("https://evil.example", "POST", StatusCode::FORBIDDEN),
-        ("https://example.com", "PATCH", StatusCode::UNAUTHORIZED),
-    ] {
-        let request = Request::builder()
-            .method("OPTIONS")
-            .uri("/mcp")
-            .header("origin", origin)
-            .header("access-control-request-method", requested_method)
-            .header(
-                "access-control-request-headers",
-                "content-type,mcp-protocol-version",
-            )
-            .body(Body::empty())
-            .unwrap();
-        let response = service.handle(request).await;
-        assert_eq!(response.status(), expected, "{origin}: {requested_method}");
-        if expected == StatusCode::NO_CONTENT {
-            assert_eq!(response.headers()["access-control-allow-origin"], "*");
-            let allowed = response.headers()["access-control-allow-headers"]
-                .to_str()
-                .unwrap();
-            for name in ["content-type", "mcp-protocol-version"] {
-                assert!(
-                    allowed
-                        .split(',')
-                        .map(str::trim)
-                        .any(|header| header == name)
-                );
-            }
-        }
-    }
+    let request = Request::post("/mcp")
+        .header("origin", "https://evil.example")
+        .header("content-type", "application/json")
+        .body(Body::from("bad JSON"))
+        .unwrap();
+    assert_eq!(
+        service.handle(request).await.status(),
+        StatusCode::FORBIDDEN
+    );
     for method in ["GET", "POST", "OPTIONS"] {
         let request = Request::builder()
             .method(method)
@@ -270,12 +225,6 @@ async fn middleware_uses_generated_visibility_and_server_retains_every_operation
     assert!(api::Secret::INFO.internal);
     assert!(!api::Public::INFO.internal);
     assert_eq!(api::SERVICE.operations.len(), 2);
-    let cors = api::SERVICE.cors.unwrap();
-    assert!(cors.allowed_headers.contains(&"x-private"));
-    assert!(cors.allowed_headers.contains(&"x-secret"));
-    assert!(cors.exposed_headers.contains(&"x-private-output"));
-    assert!(cors.exposed_headers.contains(&"x-private-error"));
-    assert!(cors.methods.contains(&"DELETE"));
     let service = Crucible::builder(api::operations(Arc::new(Handlers)))
         .on_rejection(|rejection| {
             Box::new(api::PublicFault {
@@ -286,31 +235,6 @@ async fn middleware_uses_generated_visibility_and_server_retains_every_operation
         .operation_middleware(InternalCallers)
         .build()
         .unwrap();
-    let preflight = Request::builder()
-        .method("OPTIONS")
-        .uri("/secret")
-        .header("origin", "https://example.com")
-        .header("access-control-request-method", "DELETE")
-        .header("access-control-request-headers", "x-secret,x-private")
-        .body(Body::empty())
-        .unwrap();
-    let response = service.handle(preflight).await;
-    assert_eq!(response.status().as_u16(), 204);
-    let allowed = response.headers()["access-control-allow-headers"]
-        .to_str()
-        .unwrap();
-    assert!(
-        allowed
-            .split(',')
-            .map(str::trim)
-            .any(|name| name == "x-secret")
-    );
-    assert!(
-        allowed
-            .split(',')
-            .map(str::trim)
-            .any(|name| name == "x-private")
-    );
     for (method, path, caller, status) in [
         ("POST", "/public", "external", 200),
         ("DELETE", "/secret", "external", 400),
@@ -326,24 +250,8 @@ async fn middleware_uses_generated_visibility_and_server_retains_every_operation
             .unwrap();
         let response = service.handle(request).await;
         assert_eq!(response.status().as_u16(), status, "{path} for {caller}");
-        assert_eq!(response.headers()["access-control-allow-origin"], "*");
         if path == "/public" {
             assert_eq!(response.headers()["x-private-output"], "private output");
         }
-        let exposed = response.headers()["access-control-expose-headers"]
-            .to_str()
-            .unwrap();
-        assert!(
-            exposed
-                .split(',')
-                .map(str::trim)
-                .any(|name| name == "x-private-output")
-        );
-        assert!(
-            exposed
-                .split(',')
-                .map(str::trim)
-                .any(|name| name == "x-private-error")
-        );
     }
 }

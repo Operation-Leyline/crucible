@@ -314,10 +314,4 @@ internal object ModelCodecs {
 
     private fun decode31(target: String, value: kotlinx.serialization.json.JsonElement, codec: JsonCodec): Any = example.weather.model.`ValidationReason`(codec.string(value))
 
-    fun stream(target: String?, value: Any?): ByteStream? = when(target) {
-        else -> null
-    }
-    fun withStream(target: String, value: Any, stream: ByteStream): Any = when(target) {
-        else -> error("No streaming member for $target")
-    }
 }

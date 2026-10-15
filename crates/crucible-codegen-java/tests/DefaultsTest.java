@@ -11,7 +11,7 @@ public final class DefaultsTest {
 
   public static void main(String[] args) {
     var config = new ClientConfig(); config.endpoint = "https://example.invalid";
-    var runtime = new ClientRuntime(config, "", false, ModelRegistry.classes());
+    var runtime = new ClientRuntime(config, "", ModelRegistry.classes());
     var decoded = (DefaultsOutput) runtime.decode("example.defaults#DefaultsOutput", com.google.gson.JsonParser.parseString("{}"), null);
     check(!decoded.optionalCount.present() && decoded.count() == 17, "decode must ignore clientOptional defaults");
     var builder = DefaultsOutput.builder();

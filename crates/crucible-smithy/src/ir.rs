@@ -9,11 +9,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-pub use crate::cors::Cors;
-pub use crate::discovery::{DiscoveredEndpoint, EndpointDiscovery};
 pub use crate::doc_notes::{Deprecation, DocNotes};
 pub use crate::extensions::*;
-pub use crate::jmespath_ir::{JmesComparator, JmesEntry, JmesExpression, JmesFunction};
 pub use crate::recursion::{RecursiveGroup, groups as recursive_groups};
 pub use crate::{Protocol, ProtocolSettings};
 pub use serde_json::{Number, Value};
@@ -30,10 +27,8 @@ pub type Traits = BTreeMap<ShapeId, Value>;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Service {
-    pub cors: Option<Cors>,
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
-    pub endpoint_discovery: Option<EndpointDiscovery>,
     pub recursive_groups: Vec<RecursiveGroup>,
     pub protocol: Protocol,
     /// Errors declared on the service, independently of operation inheritance.
@@ -52,7 +47,6 @@ pub struct Service {
     /// declare none, and the scope a 401 challenge advertises. Model order.
     pub scopes: Vec<String>,
     pub auth_schemes: BTreeMap<ShapeId, AuthScheme>,
-    pub endpoint_rules: Option<EndpointRuleSet>,
     /// Sorted by name, so output does not depend on model file order.
     pub operations: Vec<Operation>,
     /// Resources bound to this service, including nested resources. Populated
@@ -465,8 +459,6 @@ pub struct Simple {
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
-    pub streaming: bool,
-    pub requires_length: bool,
     pub kind: SimpleKind,
     pub constraints: Constraints,
     pub timestamp_format: Option<TimestampFormat>,
@@ -554,8 +546,8 @@ pub struct List {
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
+    /// Elements may be null.
     pub sparse: bool,
-    pub is_set: bool,
     pub member: Member,
     pub constraints: Constraints,
     pub docs: Option<String>,
@@ -570,6 +562,7 @@ pub struct Map {
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
+    /// Values may be null.
     pub sparse: bool,
     pub key: Member,
     pub value: Member,
@@ -586,7 +579,6 @@ pub struct Structure {
     pub internal: bool,
     /// `@sensitive`: values must not be logged; see [`Service::sensitive`].
     pub sensitive: bool,
-    pub streaming: bool,
     /// Refuses members it does not define (`crucible.protocols#strict`, or a
     /// `strict` structure or input). Server side only.
     pub strict: bool,
@@ -618,10 +610,7 @@ pub struct Member {
     pub internal: bool,
     /// `@sensitive` on the member itself; see [`Service::sensitive`].
     pub sensitive: bool,
-    pub event_binding: Option<EventBinding>,
     pub name: String,
-    /// JSON property name; HTTP and public API names remain independent.
-    pub wire_name: String,
     pub target: ShapeId,
     pub required: bool,
     pub default: Option<Value>,
@@ -761,8 +750,6 @@ pub struct ErrorInfo {
     pub retryable: Option<Retryable>,
     /// Members sent as response headers; the rest form the body.
     pub headers: Vec<Binding>,
-    pub prefix_headers: Vec<Binding>,
-    pub response_code: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -783,9 +770,6 @@ pub struct Operation {
     pub response_protocol_headers: BTreeMap<String, String>,
     /// Visibility settled from Smithy @internal during lowering.
     pub internal: bool,
-    pub unsigned_payload: bool,
-    pub discovered_endpoint: Option<DiscoveredEndpoint>,
-    pub checksum: Option<Checksum>,
     pub id: ShapeId,
     /// Effective authentication schemes, after service and operation overrides.
     pub auth: Vec<ShapeId>,
@@ -799,10 +783,6 @@ pub struct Operation {
     /// OAuth scopes a caller must hold, all of them: the operation's own
     /// `@crucible.auth#scopes`, else the service default. Empty when public.
     pub scopes: Vec<String>,
-    pub optional_auth: bool,
-    pub endpoint: Option<EndpointHostPrefix>,
-    pub endpoint_parameters: BTreeMap<String, Vec<EndpointParameterSource>>,
-    pub waiters: BTreeMap<String, Waiter>,
     /// The resource that binds the operation; `None` when the service does.
     pub resource: Option<ShapeId>,
     pub docs: Option<String>,
@@ -867,16 +847,9 @@ pub struct Bindings {
     pub labels: Vec<String>,
     pub query: Vec<Binding>,
     pub headers: Vec<Binding>,
-    pub query_params: Option<String>,
-    pub prefix_headers: Vec<Binding>,
-    pub response_code: Option<String>,
     /// Members serialized into the JSON body, in member order. Empty when
-    /// there is a payload. An event stream member is never a body member;
-    /// with `event_stream.initial_message` these members form the initial
-    /// event's document instead of the HTTP body.
+    /// there is a payload.
     pub body: Vec<String>,
-    /// The member carrying an event stream, when the structure has one.
-    pub event_stream: Option<EventStreamBinding>,
     /// The member that is the whole body, raw (`@httpPayload` on a blob).
     pub payload: Option<Payload>,
 }
@@ -884,8 +857,6 @@ pub struct Bindings {
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Payload {
     pub kind: PayloadKind,
-    pub streaming: bool,
-    pub requires_length: bool,
     pub member: String,
     /// The target's `@mediaType`, else `application/octet-stream`: the
     /// `Content-Type` a sender gives the body.

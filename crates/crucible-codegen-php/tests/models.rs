@@ -15,7 +15,6 @@ fn weather_models_generate() {
         namespace: "Example\\Weather".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     };
     let files = emit(&service, &options).unwrap();
     let again = emit(&service, &options).unwrap();
@@ -55,7 +54,6 @@ fn options() -> Options {
         namespace: "Example\\Weather".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 fn weather() -> serde_json::Value {
@@ -145,57 +143,6 @@ fn reserved_enum_constants_are_escaped_with_collision_checks() {
     model["shapes"]["example.weather#Sky"]["members"]["DEFAULT_VALUE"] = serde_json::json!({"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"different"}});
     assert!(emit(&lower(&model), &options()).is_err());
 }
-fn lower_supported(value: &serde_json::Value) -> crucible_smithy::ir::Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_php::capabilities())
-        .unwrap()
-}
-fn behaviors() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-behaviors.json"
-    ))
-    .unwrap()
-}
-#[test]
-fn waiters_generate_methods_and_collisions_are_diagnosed() {
-    let files = emit(&lower_supported(&behaviors()), &options()).unwrap();
-    let client = &files
-        .iter()
-        .find(|f| f.path == "src/ServiceClient.php")
-        .unwrap()
-        .contents;
-    assert!(client.contains(r"public function waitUntilReady(\Example\Weather\Input $input, float $timeout, ?float $minDelay = null, ?float $maxDelay = null, ?Runtime\CancellationToken $cancellation = null): ?\Example\Weather\Output"));
-    assert!(client.contains("$this->runtime->wait('Read', 'Ready', $input, $timeout"));
-    let mut model = behaviors();
-    model["shapes"]["example.behavior#WaitUntilReady"] = serde_json::json!({"type":"operation","traits":{"smithy.api#http":{"method":"POST","uri":"/wait"},"smithy.api#auth":[]}});
-    model["shapes"]["example.behavior#Service"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(serde_json::json!({"target":"example.behavior#WaitUntilReady"}));
-    let diagnostics = emit(&lower_supported(&model), &options()).err().unwrap();
-    assert!(
-        diagnostics.to_string().contains("WaitUntilReady"),
-        "{diagnostics}"
-    );
-}
-#[test]
-fn streaming_blobs_use_byte_streams_and_response_targets() {
-    let model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-codegen-java/tests/streaming.json"
-    ))
-    .unwrap();
-    let files = emit(&lower_supported(&model), &options()).unwrap();
-    let file = |name: &str| &files.iter().find(|f| f.path == name).unwrap().contents;
-    assert!(
-        file("src/UploadInput.php")
-            .contains(r"public readonly \Example\Weather\Runtime\ByteStream $body")
-    );
-    let client = file("src/StreamingClient.php");
-    assert!(client.contains(r"public function download(?Runtime\CancellationToken $cancellation = null, mixed $responseTarget = null)"));
-    assert!(client.contains(r"public function upload(\Example\Weather\UploadInput $input, ?Runtime\CancellationToken $cancellation = null): Runtime\Unit"));
-}
-
 fn vault() -> (crucible_smithy::ir::Service, Options) {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/client-docs.json"
@@ -208,7 +155,6 @@ fn vault() -> (crucible_smithy::ir::Service, Options) {
         namespace: "VaultSdk".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: false,
     };
     (service, options)
 }

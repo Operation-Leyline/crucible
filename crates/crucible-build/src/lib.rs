@@ -207,8 +207,6 @@ pub use crucible_codegen::SwiftOptions;
 #[cfg(feature = "terraform")]
 pub use crucible_codegen::TerraformOptions;
 #[cfg(feature = "ts")]
-pub use crucible_codegen::TsMiddleware;
-#[cfg(feature = "ts")]
 pub use crucible_codegen::TsOptions;
 #[cfg(feature = "cdk")]
 pub use crucible_codegen::cdk;
@@ -264,8 +262,6 @@ pub mod outputs {
     pub use super::SwiftOptions;
     #[cfg(feature = "terraform")]
     pub use super::TerraformOptions;
-    #[cfg(feature = "ts")]
-    pub use super::TsMiddleware;
     #[cfg(feature = "ts")]
     pub use super::TsOptions;
     #[cfg(feature = "cdk")]
@@ -686,13 +682,6 @@ impl ServerOutput {
     /// The generated code, or why there is none.
     pub fn render(&self) -> Result<String, String> {
         let service = self.lower()?;
-        if self.options.mcp && self.side == Side::Server {
-            let external = crucible_smithy::project(&service, crucible_smithy::Audience::External)
-                .map_err(|d| d.to_string())?;
-            for note in crucible_codegen_rust::mcp_exclusions(&external) {
-                println!("cargo::warning={note}");
-            }
-        }
         let generated = match self.side {
             Side::Server => {
                 let explorer_service = if self.options.explorer.is_some() {

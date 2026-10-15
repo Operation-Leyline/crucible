@@ -4,7 +4,7 @@ import XCTest
 
 final class ExtendedTests: XCTestCase {
     private func codec() throws -> WireCodec {
-        try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "", digest: false).codec
+        try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "").codec
     }
     func testExactDefaultsAndSparseCollections() throws {
         let codec = try codec()

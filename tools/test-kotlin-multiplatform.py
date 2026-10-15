@@ -39,15 +39,6 @@ def qualify(output, native=False):
     model["shapes"]["example.weather#AnonymousWrite"] = {"type": "operation", "traits": {
         "smithy.api#http": {"method": "POST", "uri": "/anonymous"}, "smithy.api#auth": []}}
     model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#AnonymousWrite"})
-    dynamic = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json").read_text())
-    dynamic["shapes"].pop("example.dynamic#Dynamic")
-    dynamic["shapes"]["example.dynamic#Get"]["traits"]["smithy.api#http"]["method"] = "POST"
-    dynamic["shapes"]["example.dynamic#Input"]["members"]["key"]["traits"]["smithy.api#jsonName"] = "path-key"
-    dynamic["shapes"]["example.dynamic#Output"]["members"]["metadata"]["traits"]["smithy.api#jsonName"] = "wire-meta"
-    model["shapes"].update(dynamic["shapes"])
-    model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.dynamic#Get"})
-    for shape in ["example.weather#ListCitiesInput", "example.weather#ListCitiesOutput"]:
-        model["shapes"][shape]["members"]["nextToken"].setdefault("traits", {})["smithy.api#jsonName"] = "wire-cursor"
     extended = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json").read_text(), parse_float=Decimal)
     extended["shapes"].pop("example.types#Types")
     model["shapes"].update(extended["shapes"])
@@ -57,69 +48,19 @@ def qualify(output, native=False):
     model["shapes"]["example.types#Echo"] = {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/types"}},
         "input": {"target": "example.types#Output"}, "output": {"target": "example.types#Output"}}
     service["operations"].append({"target": "example.types#Echo"})
-    checksum_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json").read_text(encoding="utf-8"))
-    service["operations"].extend(checksum_model["shapes"].pop("example.checksums#Checksums")["operations"])
-    model["shapes"].update(checksum_model["shapes"])
-    service["rename"].update({"example.checksums#Input": "ChecksumInput", "example.checksums#Output": "ChecksumOutput", "example.checksums#Algorithm": "ChecksumAlgorithm", "example.checksums#Validation": "ChecksumValidation"})
     payloads = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json").read_text())
     payload_operations = payloads["shapes"].pop("example.wire#Wire")["operations"]
     model["shapes"].update(payloads["shapes"])
     service["operations"].extend(payload_operations)
-    service["traits"].update({"smithy.api#auth": ["smithy.api#httpBearerAuth"], "smithy.api#httpBasicAuth": {},
-        "smithy.api#httpApiKeyAuth": {"name": "api key", "in": "query"}, "aws.auth#sigv4": {"name": "s3"}})
-    for name, path, auth, optional in [("AuthRead", "/auth", ["smithy.api#httpBasicAuth", "smithy.api#httpApiKeyAuth", "aws.auth#sigv4"], False),
-            ("AuthOptional", "/optional", ["smithy.api#httpBasicAuth"], True), ("Signed", "/test.txt", ["aws.auth#sigv4"], False)]:
-        target = "example.weather#" + name
-        traits = {"smithy.api#http": {"method": "GET", "uri": path}, "smithy.api#auth": auth, "smithy.api#readonly": {}}
-        if optional:
-            traits["smithy.api#optionalAuth"] = {}
-        model["shapes"][target] = {"type": "operation", "traits": traits}
-        service["operations"].append({"target": target})
-    waiters = json.loads((ROOT / "crates/crucible-codegen-python/tests/waiters.json").read_text().replace("example.wait#Read", "example.wait#Poll"))
-    waiter_operations = waiters["shapes"].pop("example.wait#Jobs")["operations"]
-    model["shapes"].update(waiters["shapes"])
-    service["operations"].extend(waiter_operations)
-    service["rename"].update({"example.wait#Input": "WaiterInput", "example.wait#Output": "WaiterOutput", "example.wait#Names": "WaiterNames"})
-    model["shapes"]["example.wait#Poll"]["traits"]["smithy.waiters#waitable"]["Deleted"] = {"acceptors": [{"state": "success", "matcher": {"errorType": "example.wait#Missing"}}]}
-    expressions = ["abs(`-2`) == `2`", "avg(`[1,2]`) == `1.5`", "ceil(`-1.1`) == `-1`", "floor(`-1.1`) == `-2`",
-        "to_string(ceil(`-1.1`)) == '-1'", "to_string(floor(`-0.1`)) == '-1'",
-        "contains(`[true]`, `1`) == `false`", "ends_with('abc', 'bc')", "starts_with('abc', 'ab')", "join(',', `['a','b']`) == 'a,b'".replace("`['a','b']`", '`["a","b"]`'),
-        'keys(`{"a":1}`) == `["a"]`', 'values(`{"a":1}`) == `[1]`', "length('😀é') == `2`", "reverse('😀é') == 'é😀'",
-        "map(&status, items) == `['READY','READY']`".replace("`['READY','READY']`", '`["READY","READY"]`'), "max(`[1,3,2]`) == `3`", "min(`[1,3,2]`) == `1`",
-        "max_by(items,&status).status == 'READY'", "min_by(items,&status).status == 'READY'", "sort_by(items,&status)[0].status == 'READY'",
-        'merge(`{"a":1}`,`{"b":2}`).b == `2`', "not_null(`null`, 'value') == 'value'", "sort(`[3,1,2]`) == `[1,2,3]`", "sum(`[1,2,3]`) == `6`",
-        "to_array('x') == `['x']`".replace("`['x']`", '`["x"]`'), "to_number('12345678901234567890.0000000001') > `12345678901234567890`", "to_string(`true`) == 'true'", "type(`1`) == 'number'",
-        "`[1,2,3]`[::-1] == `[3,2,1]`", "(`false` || `true`) && !`false`"]
-    model["shapes"]["example.wait#Poll"]["traits"]["smithy.waiters#waitable"]["Functions"] = {"acceptors": [{"state": "success", "matcher": {"output": {"path": " && ".join("(" + expression + ")" for expression in expressions), "comparator": "booleanEquals", "expected": "true"}}}]}
-    behavior = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json").read_text().replace("example.behavior#Read", "example.behavior#EndpointRead"))
-    behavior_service = behavior["shapes"].pop("example.behavior#Service")
-    behavior["shapes"].pop("example.behavior#Public")
-    behavior["shapes"]["example.behavior#EndpointRead"]["traits"].pop("smithy.waiters#waitable")
-    behavior["shapes"]["example.behavior#EndpointRead"]["traits"]["smithy.api#auth"] = ["aws.auth#sigv4"]
-    model["shapes"].update(behavior["shapes"])
-    service["operations"].append({"target": "example.behavior#EndpointRead"})
-    service["rename"].update({"example.behavior#Input": "EndpointInput", "example.behavior#Output": "EndpointOutput"})
-    endpoint_rules = behavior_service["traits"]["smithy.rules#endpointRuleSet"]
-    endpoint_rules["parameters"]["Region"]["required"] = False
-    endpoint_rules["parameters"]["Endpoint"] = {"type": "String", "builtIn": "SDK::Endpoint"}
-    endpoint_rules["rules"].insert(0, {"conditions": [{"fn": "isSet", "argv": [{"ref": "Endpoint"}]}], "type": "endpoint", "endpoint": {"url": {"ref": "Endpoint"}}})
-    extra = [{"fn": "parseURL", "argv": ["https://[::1]:8443/a"], "assign": "Parsed"},
-        {"fn": "stringEquals", "argv": [{"fn": "getAttr", "argv": [{"ref": "Parsed"}, "authority"]}, "[::1]:8443"]},
-        {"fn": "booleanEquals", "argv": [{"fn": "not", "argv": [False]}, True]},
-        {"fn": "isValidHostLabel", "argv": ["a.b", True]},
-        {"fn": "stringEquals", "argv": [{"fn": "substring", "argv": ["abcdef", 1, 3, True]}, "de"]},
-        {"fn": "stringEquals", "argv": [{"fn": "uriEncode", "argv": ["a/b +é"]}, "a%2Fb%20%2B%C3%A9"]}]
-    endpoint_rules["rules"][1]["conditions"].extend(extra)
-    service["traits"]["smithy.rules#endpointRuleSet"] = endpoint_rules
     model_path = output / "model.json"
     model_path.write_text(model_json(model), encoding="utf-8")
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
         str(model_path), "--out", str(sdk),
         "--group-id", "example", "--artifact-id", "weather-kotlin-mpp", "--package-name", "example.weather",
-        "--package-version", "0.0.0-test", "--content-sha256")
+        "--package-version", "0.0.0-test")
     # Generated packages use fresh directories; Gradle's task cache can still
     # reuse unchanged compiler inputs from the previous qualification run.
-    # Six publications and the consumer share a warm JVM on the isolated CI host.
+    # Three publications and the consumer share a warm JVM on the isolated CI host.
     # Kotlin/Native compiles and links inside that daemon: Gradle's default
     # 512 MiB heap runs out linking the Windows test executable from a cold
     # cache. The Kotlin compile daemon would inherit the same limits, so its
@@ -142,15 +83,7 @@ def qualify(output, native=False):
             raise RuntimeError("Native qualification requires macOS or Windows")
     run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
         *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=sdk, timeout=3600)
-    # Streaming bodies use their own package: no body digest, so unsized bodies need no precomputed SHA-256.
-    stream_sdk = output / "stream"
-    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
-        str(ROOT / "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json"), "--out", str(stream_sdk),
-        "--group-id", "example", "--artifact-id", "stream-kotlin-mpp", "--package-name", "example.stream",
-        "--package-version", "0.0.0-test")
-    run(*gradle, "-PqualificationRepository=" + repository.as_uri(),
-        *[f"publish{target}PublicationToQualificationRepository" for target in targets], cwd=stream_sdk, timeout=3600)
-    # Runtime policy (retry modes, endpoint discovery, telemetry) runs the shared vectors against its own client.
+    # Runtime policy (retry modes, telemetry) runs the shared vectors against its own client.
     policy_sdk = output / "policy"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/runtime-policy.json"), "--out", str(policy_sdk),
@@ -171,7 +104,7 @@ def qualify(output, native=False):
     # Common tests cannot read files on every target, so the vectors are compiled in.
     vectors = []
     for name, file in [("RETRY_QUOTA_VECTORS", "retry-quota.json"), ("ADAPTIVE_RETRY_VECTORS", "adaptive-retry.json"),
-                       ("ENDPOINT_DISCOVERY_VECTORS", "endpoint-discovery.json"), ("TELEMETRY_VECTORS", "telemetry.json")]:
+                       ("TELEMETRY_VECTORS", "telemetry.json")]:
         text = (ROOT / "tests/conformance" / file).read_text(encoding="utf-8")
         if '"""' in text:
             raise RuntimeError(f"{file} cannot be embedded in a Kotlin raw string")

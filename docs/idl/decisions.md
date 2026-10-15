@@ -121,10 +121,11 @@ trait when a project defines it.
     `intEnum`. *Why:* one keyword; the IR keeps `IntEnum` as a separate
     shape.
 
-14. **Sets and sparse collections are dropped.** A list may be `unique`.
-    *Replaces:* `@uniqueItems`, `@sparse`, the deprecated `set`. *Why:*
-    one `@uniqueItems` in Pigeon, no sparse anywhere; `Sparse` and `Sets`
-    stop being capabilities.
+14. **Sets are dropped; sparse collections stay.** A list may be
+    `unique`. *Replaces:* `@uniqueItems` and the deprecated `set`. *Why:*
+    one `@uniqueItems` in Pigeon; the IR, generators and runtimes dropped
+    sets with Smithy. Sparse lists and maps (null elements) stay in the IR
+    and runtimes because Leyline's result rows hold nulls.
 
 15. **Primitives may be used inline as member types; naming a constrained
     scalar is policy, not grammar.** *Replaces:* Leyline's
@@ -222,10 +223,9 @@ trait when a project defines it.
     *Why:* 176 uses; names differ from member names, so inference is
     impossible.
 
-24. **Prefix headers, `httpQueryParams` and `httpResponseCode` have no
-    syntax in v1.** IR fields remain. *Replaces:* those three traits.
-    *Why:* zero uses; the runtimes keep supporting them for fixtures until
-    a model needs them.
+24. **Prefix headers, `httpQueryParams` and `httpResponseCode` do not
+    exist.** *Replaces:* those three traits. *Why:* zero uses; dropped from
+    the IR, generators and runtimes with Smithy.
 
 25. **An operation's input and output are always anonymous bodies
     declared inside the operation; they are never named structures and
@@ -722,8 +722,7 @@ trait when a project defines it.
     diagnostics for it.
 
     The `rpc` family's rules: no member bindings at all, operation names
-    unique within the service, and the streaming restrictions the protocol
-    declares. *Why:* these are correctness facts about the transport. A
+    unique within the service. *Why:* these are correctness facts about the transport. A
     style rule that only usually holds stays in policy: `readonly` should
     use GET is a policy rule, because batch reads legitimately use POST
     (Leyline suppresses Smithy's method-semantics warning on
@@ -754,11 +753,9 @@ trait when a project defines it.
     names a family the runtimes implement and its settings. A service
     lists its schemes; `public` on an operation opts out; `scopes [..]` on
     service or operation is kept.** The standard package declares
-    `bearer`; API key, Basic, Digest and SigV4 are declarations the
-    runtimes may implement, checked by capabilities. *Replaces:*
-    `@httpBearerAuth`, `@auth`, `@optionalAuth`, `@httpApiKeyAuth`,
-    `@httpBasicAuth`, `@httpDigestAuth`, `aws.auth#sigv4`,
-    `@crucible.auth#scopes`. *Why:* bearer is the only scheme in use;
+    `bearer`, the only scheme; API key, Basic, Digest, SigV4 and optional
+    authentication were dropped with Smithy. *Replaces:*
+    `@httpBearerAuth`, `@auth`, `@crucible.auth#scopes`. *Why:* bearer is the only scheme in use;
     scopes are already enforced by the runtime at no model cost; the
     declaration pattern matches decision 35 so the language has one
     extension mechanism, not several.
@@ -831,9 +828,8 @@ trait when a project defines it.
 
 38. **Streaming payloads, event streams, host prefixes, endpoint rule
     sets, endpoint discovery, waiters, checksums, unsigned payloads and
-    CORS have no syntax in v1.** IR fields remain. *Replaces:* those
-    traits. *Why:* zero consumer uses. Each is a later additive syntax
-    decision or, with decision 35, a removal from the IR.
+    CORS do not exist.** *Replaces:* those traits. *Why:* zero consumer
+    uses; removed from the IR, generators and runtimes with Smithy.
 
 39. **Media types are a `mediaType` constraint on blob and string types:**
     `blob Photo { mediaType "image/jpeg" }`. A member cannot set one.
@@ -1153,7 +1149,7 @@ pass in `reports/`.
     `reshape Op.output` with a hook (any shape change whose data is
     derivable, written as one function over the whole old and new types),
     `remove operation` with a legacy handler (anything at all, including
-    splitting or merging operations, streaming changes and protocol-level
+    splitting or merging operations and protocol-level
     changes), and `behavior` (changes with no shape difference). Every
     other verb is a special case the compiler can write itself. A new
     migration type is therefore never a capability gap, only a new
@@ -1275,7 +1271,7 @@ these are working choices, changed freely as implementation teaches.
 
 62b. **Still Smithy-shaped, to remove when the Smithy front end retires:**
     prelude shape ids (`smithy.api#String`) as member targets, `renames`,
-    `client_optional`, endpoint rule sets and discovery, and auth scheme ids spelled as Smithy
+    `client_optional`, and auth scheme ids spelled as Smithy
     trait ids. Each is still produced by the Smithy front end that Leyline
     and Pigeon build with today.
 

@@ -22,7 +22,6 @@ struct Call {
 pub(crate) struct McpProtocol {
     descriptors: Option<&'static [ToolDescriptor]>,
     registry: Option<ToolRegistry>,
-    cors: Option<crate::middlewares::Cors>,
     config: super::McpConfig,
     discovery: Option<super::oauth_discovery::OAuthDiscovery>,
     /// Well-known path and serialized document, built once in `prepare`.
@@ -37,7 +36,6 @@ impl McpProtocol {
         Self {
             descriptors,
             registry: None,
-            cors: None,
             config,
             discovery: None,
             metadata: None,
@@ -177,14 +175,6 @@ impl Protocol for McpProtocol {
         if self.config.server_version.is_empty() {
             self.config.server_version = prepare.service().version.to_owned();
         }
-        self.cors = prepare
-            .service()
-            .cors
-            .map(|info| {
-                crate::middlewares::Cors::new(info)
-                    .and_then(|cors| cors.extend(&["POST"], &["mcp-protocol-version"]))
-            })
-            .transpose()?;
         if let Some(metadata) = &self.config.authorization_server {
             let path = metadata.well_known_path()?;
             if path == self.config.path {
@@ -253,7 +243,7 @@ impl Protocol for McpProtocol {
                 job.respond(metadata_response(&job.request().method, document));
                 return Ok(());
             }
-            // No Host-derived resource URLs or CORS-derived wildcard permission.
+            // No Host-derived resource URLs or wildcard origin permission.
             let origins = job.request().headers.get_all(header::ORIGIN);
             if !self.config.any_origin
                 && origins.iter().any(|origin| {
@@ -265,16 +255,6 @@ impl Protocol for McpProtocol {
             {
                 job.respond(StatusCode::FORBIDDEN.into_response());
                 return Ok(());
-            }
-            // Browsers send preflights without credentials; only CORS-approved
-            // preflights may bypass endpoint authentication.
-            if job.request().method == "OPTIONS"
-                && let Some(cors) = &self.cors
-            {
-                crate::Middleware::before(cors, job).resolve().await?;
-                if job.outcome().is_some() {
-                    return Ok(());
-                }
             }
             if let Some(guard) = &self.config.guard
                 && let EndpointAdmission::Respond(response) =

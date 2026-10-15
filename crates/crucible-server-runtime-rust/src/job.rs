@@ -36,11 +36,9 @@ pub struct Job {
     pub(crate) raw_body: Option<Body>,
     pub(crate) body_limit: usize,
     pub(crate) body_read: BodyRead,
-    pub(crate) body_stream: Option<crucible_wire::stream::ByteStream>,
     pub(crate) labels: Vec<(&'static str, String)>,
     pub(crate) decode: Option<Decode>,
     pub(crate) decode_json: Option<DecodeJson>,
-    pub(crate) decode_events: Option<crate::operations::DecodeEvents>,
     pub(crate) decode_bound: Option<crate::operations::DecodeBound>,
     pub(crate) output_from_json: Option<crate::operations::OutputFromJson>,
     pub(crate) input: Option<Box<dyn Input>>,
@@ -94,36 +92,12 @@ impl Job {
             self.body_read = BodyRead::Failed(rejection.clone());
             return Err(rejection.into());
         }
-        // A protocol may buffer its envelope before the operation is known.
-        // Preserve a streaming payload if an outer middleware read its bytes.
-        if self.raw_body.is_none()
-            && matches!(self.body_read, BodyRead::Pending)
-            && self.body_stream.is_none()
-            && self.operation().is_some_and(|op| {
-                op.input.iter().any(|member| {
-                    matches!(
-                        member.location,
-                        crate::operation::Location::StreamingPayload { .. }
-                            | crate::operation::Location::EventStream
-                    )
-                })
-            })
-            && self
-                .context
-                .request
-                .extensions
-                .get::<crate::protocol::Invocation>()
-                .is_none()
-        {
-            self.raw_body = Some(Body::from(self.body.clone()));
-        }
         Ok(())
     }
 
     /// Reads the body once, enforcing the configured limit. Admission extensions
     /// normally inspect headers without reading; call this explicitly when they
     /// need body bytes. Later calls reuse the bytes or the same rejection.
-    /// HTTP streaming payloads stay lazy; direct invocations always buffer JSON.
     pub async fn read_body(&mut self) -> Result<()> {
         match &self.body_read {
             BodyRead::Pending => {}
@@ -137,53 +111,6 @@ impl Job {
         let Some(body) = self.raw_body.take() else {
             return Ok(());
         };
-        if self
-            .context
-            .operation_metadata()
-            .is_some_and(|m| m.input_events.is_some())
-            && self
-                .context
-                .request
-                .extensions
-                .get::<crate::protocol::Invocation>()
-                .is_none()
-        {
-            self.body_stream = Some(
-                crucible_wire::stream::ByteStream::new(body.into_data_stream())
-                    .with_maximum(self.body_limit),
-            );
-            return Ok(());
-        }
-        let payload = self
-            .operation()
-            .and_then(|op| crucible_wire::operation::Location::payload(op.input));
-        if self
-            .context
-            .request
-            .extensions
-            .get::<crate::protocol::Invocation>()
-            .is_none()
-            && let Some((member, _)) = payload
-            && let crucible_wire::operation::Location::StreamingPayload {
-                minimum, maximum, ..
-            } = member.location
-        {
-            let mut stream = crucible_wire::stream::ByteStream::new(body.into_data_stream())
-                .with_maximum(self.body_limit)
-                .with_bounds(minimum, maximum);
-            if let Some(length) = self
-                .context
-                .request
-                .headers
-                .get("content-length")
-                .and_then(|value| value.to_str().ok())
-                .and_then(|value| value.parse().ok())
-            {
-                stream = stream.with_length(length);
-            }
-            self.body_stream = Some(stream);
-            return Ok(());
-        }
         // Cancellation drops the raw body too; a later read must not accept it
         // as an empty successful body.
         self.body_read = BodyRead::Reading;
@@ -276,25 +203,6 @@ impl Job {
         }
     }
 
-    /// Opens the prepared streaming body for a protocol extension. Call
-    /// `read_body` first; ownership prevents a second decoder from consuming it.
-    pub fn take_body_stream(&mut self) -> Option<crucible_wire::stream::ByteStream> {
-        self.body_stream.take()
-    }
-
-    /// Attaches a protocol's received events to the typed input and validates
-    /// its initial document and HTTP bindings. Individual events remain lazy.
-    pub fn decode_events<'a>(
-        &self,
-        bound: Vec<(&'static str, crate::protocol::BoundValue<'a>)>,
-        events: crucible_wire::event_stream::Incoming,
-    ) -> std::result::Result<Box<dyn Input>, Rejection> {
-        match self.decode_events {
-            Some(decode) => decode(bound, events),
-            None => Err(Rejection::malformed("", "no operation serves this request")),
-        }
-    }
-
     /// Reads the operation's input from its bound members (already checked
     /// against their kinds) and its JSON body in one pass, and validates it.
     /// For protocols.
@@ -304,7 +212,7 @@ impl Job {
         bound: Vec<(&'static str, crate::protocol::BoundValue<'a>)>,
     ) -> std::result::Result<Box<dyn Input>, Rejection> {
         match self.decode_bound {
-            Some(decode) => decode(body, bound, self.body_stream.clone()),
+            Some(decode) => decode(body, bound),
             None => Err(Rejection::malformed("", "no operation serves this request")),
         }
     }

@@ -14,7 +14,7 @@ class DeadlineError : public std::runtime_error { public: DeadlineError() : std:
 class CancelledError : public std::runtime_error { public: CancelledError() : std::runtime_error("Call cancelled") {} };
 /// Transport or response-body network failure.
 class NetworkError : public std::runtime_error { public: using std::runtime_error::runtime_error; };
-/// A monotonic total call deadline and stop token shared across credentials, retries, and body reads.
+/// A monotonic total call deadline and stop token shared across retries, backoff, and response reads.
 class CallScope {
     using Clock = std::chrono::steady_clock;
     Clock::time_point deadline_;
@@ -43,13 +43,6 @@ public:
         std::unique_lock lock(mutex);
         changed.wait_until(lock, cancellation_, until, [] { return false; });
         check();
-    }
-    /// Waits on shared state (such as an in-flight credential refresh) within this call's limits.
-    template<class Predicate> void wait_until(std::condition_variable_any& changed, std::unique_lock<std::mutex>& lock, Predicate ready) const {
-        while (!ready()) {
-            if (cancellation_.stop_requested() || Clock::now() >= deadline_) { lock.unlock(); check(); }
-            (void)changed.wait_until(lock, cancellation_, (std::min)(deadline_, Clock::now() + std::chrono::milliseconds(50)), ready);
-        }
     }
     /// Returns the caller stop token.
     [[nodiscard]] std::stop_token cancellation() const noexcept { return cancellation_; }

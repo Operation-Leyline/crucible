@@ -361,22 +361,13 @@ fn location(b: &Value, m: &Value) -> String {
     if list(&b["labels"]).iter().any(|n| string(n) == name) {
         return format!("path: {name}");
     }
-    for key in ["query", "headers", "prefixHeaders"] {
+    for key in ["query", "headers"] {
         if let Some(binding) = list(&b[key]).iter().find(|v| string(&v["member"]) == name) {
             return format!("{key}: {}", string(&binding["name"]));
         }
     }
     if string(&b["payload"]["member"]) == name {
         return "payload".into();
-    }
-    if string(&b["eventStream"]["member"]) == name {
-        return "event stream".into();
-    }
-    if string(&b["queryParams"]) == name {
-        return "query parameters".into();
-    }
-    if string(&b["responseCode"]) == name {
-        return "HTTP status".into();
     }
     format!("body: {}", string(&m["wireName"]))
 }
@@ -443,7 +434,6 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
                     .iter()
                     .any(|n| string(n) == string(&m["name"]))
                     && string(&b["payload"]["member"]) != string(&m["name"])
-                    && string(&b["eventStream"]["member"]) != string(&m["name"])
             })
             .cloned()
             .collect();
@@ -458,7 +448,6 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
                     .iter()
                     .any(|n| string(n) == string(&m["name"]))
                     || string(&b["payload"]["member"]) == string(&m["name"])
-                    || string(&b["eventStream"]["member"]) == string(&m["name"])
             })
             .cloned()
             .collect();
@@ -473,7 +462,7 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
                     )
                 })
                 .collect();
-            if b["payload"].is_null() && b["eventStream"].is_null() {
+            if b["payload"].is_null() {
                 out.push_str(&fence("json", &json(&Value::Object(syntax))));
             }
             out.push_str(&members(d, body.into_iter(), Some(b)));
@@ -483,15 +472,6 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
         }
     } else {
         out.push_str("No modeled body.\n\n");
-    }
-    if !b["eventStream"].is_null() {
-        out.push_str("The body carries an event stream; consume events incrementally.\n\n");
-    }
-    if b["payload"]["streaming"] == true {
-        out.push_str("The payload is streaming.\n\n");
-    }
-    if b["payload"]["requiresLength"] == true {
-        out.push_str("The payload requires a Content-Length header.\n\n");
     }
     out
 }
@@ -748,9 +728,6 @@ fn shape_page(d: &Description, shape: &Value) -> String {
     );
     if shape["sensitive"] == true {
         out.push_str("**Sensitive:** avoid logging this value.\n\n");
-    }
-    if shape["streaming"] == true {
-        out.push_str("**Streaming:** values are consumed incrementally.\n\n");
     }
     if !list(&shape["members"]).is_empty() {
         out.push_str("## Members\n\n");

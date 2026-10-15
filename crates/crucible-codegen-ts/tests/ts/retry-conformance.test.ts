@@ -36,7 +36,7 @@ for (const c of cases) {
           status: attempts <= c.failures ? c.status : 200,
         });
       },
-    }, { middleware: [], bearer: false }, errors);
+    }, { bearer: false }, errors);
     let success = false;
     try {
       await transport.send({ name: "RetryCase", method: "POST", path: [],
@@ -58,7 +58,7 @@ test("named errors outside the operation stay unknown and preserve their name", 
         attempts++;
         return new Response(JSON.stringify({ __type: name }), { status: 429 });
       },
-    }, { middleware: [], bearer: false }, errors);
+    }, { bearer: false }, errors);
     await transport.send({ name: "Other", method: "POST", path: [], errors: [], retrySafe: false }, {})
       .then(() => { throw new Error("expected an error"); }, error => {
         assert.ok(error instanceof ServiceError);

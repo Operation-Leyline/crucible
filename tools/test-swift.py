@@ -1,19 +1,13 @@
 """Build a Swift package and fresh consumer; qualify native HTTP and async semantics."""
 from contextlib import contextmanager
-import base64
-import hashlib
-import hmac
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
-import posixpath
-import re
 import shutil
 import tempfile
 import threading
 import time
-from urllib.parse import quote, unquote
 
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
@@ -24,7 +18,7 @@ SWIFT = os.environ.get("SWIFT", "swift")
 def generate(model, output, module="Weather", *extra):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "swift",
         str(model), "--out", str(output), "--package-name", module, "--module-name", module,
-        "--content-sha256", *extra)
+        *extra)
 
 
 def swift(command, package, scratch, *args, **kwargs):
@@ -86,7 +80,6 @@ def fixture():
                     requests.append(body)
                     attempt = len(requests)
                 assert self.path == "/echo/cities"
-                assert self.headers.get("x-amz-content-sha256") == hashlib.sha256(body).hexdigest()
                 assert self.headers.get("authorization") == f"Bearer {attempt}"
                 assert self.headers.get("x-expected-revision") == "7"
                 assert json.loads(body)["clientToken"]
@@ -109,138 +102,6 @@ def fixture():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-
-
-def sigv4_valid(method, raw_path, headers, body, secret):
-    """Independently recompute a received SigV4 signature (non-S3 rules)."""
-    match = re.fullmatch(r"AWS4-HMAC-SHA256 Credential=[^/]+/(\d{8})/([^/]+)/([^/]+)/aws4_request, "
-                         r"SignedHeaders=([a-z0-9;-]+), Signature=([0-9a-f]{64})", headers.get("authorization", ""))
-    if not match:
-        return False
-    date, region, service, signed, signature = match.groups()
-    digest = headers.get("x-amz-content-sha256", "")
-    if digest != "UNSIGNED-PAYLOAD" and digest != hashlib.sha256(body).hexdigest():
-        return False
-    path, _, query = raw_path.partition("?")
-    trailing = path.endswith("/")
-    path = "/" + posixpath.normpath(path or "/").lstrip("/")
-    if trailing and not path.endswith("/"):
-        path += "/"
-    path = quote(path, safe="/-._~")
-    pairs = sorted((quote(unquote(k), safe="-._~"), quote(unquote(v), safe="-._~"))
-                   for k, _, v in (item.partition("=") for item in query.split("&") if item))
-    canonical = "\n".join([method, path, "&".join(f"{k}={v}" for k, v in pairs),
-                           "".join(f"{name}:{' '.join(headers.get(name, '').split())}\n" for name in signed.split(";")),
-                           signed, digest])
-    scope = f"{date}/{region}/{service}/aws4_request"
-    to_sign = f"AWS4-HMAC-SHA256\n{headers.get('x-amz-date', '')}\n{scope}\n{hashlib.sha256(canonical.encode()).hexdigest()}"
-    key = ("AWS4" + secret).encode()
-    for part in (date, region, service, "aws4_request"):
-        key = hmac.new(key, part.encode(), hashlib.sha256).digest()
-    return hmac.compare_digest(hmac.new(key, to_sign.encode(), hashlib.sha256).hexdigest(), signature)
-
-
-@contextmanager
-def scripted():
-    """Loopback server whose responses a native test queues; it records each request."""
-    lock = threading.Lock()
-    responses = []
-    recorded = []
-
-    class Handler(BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
-
-        def log_message(self, *_args):
-            pass
-
-        def reply(self, status, body, headers=()):
-            self.send_response(status)
-            for name, value in headers:
-                self.send_header(name, value)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def handle_any(self):
-            try:
-                body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-                if self.path == "/__script":
-                    with lock:
-                        responses.extend(json.loads(body))
-                    return self.reply(204, b"")
-                if self.path == "/__requests":
-                    with lock:
-                        items = list(recorded)
-                        recorded.clear()
-                    return self.reply(200, json.dumps(items).encode(), [("Content-Type", "application/json")])
-                headers = {}
-                for name, value in self.headers.items():
-                    key = name.lower()
-                    headers[key] = headers[key] + "," + value if key in headers else value
-                signed = headers.get("authorization", "").startswith("AWS4-HMAC-SHA256 ")
-                with lock:
-                    recorded.append({"method": self.command, "path": self.path, "headers": headers,
-                                     "body": base64.b64encode(body).decode(),
-                                     "sigv4": sigv4_valid(self.command, self.path, headers, body, "secret") if signed else None})
-                    response = responses.pop(0) if responses else {}
-                if response.get("block"):
-                    # Hold the request open until the client gives up.
-                    time.sleep(3)
-                    self.close_connection = True
-                    return
-                payload = base64.b64decode(response["bodyBase64"]) if "bodyBase64" in response else response.get("body", "{}").encode()
-                self.reply(response.get("status", 200), payload,
-                           [("Content-Type", "application/json")] + list(response.get("headers", {}).items()))
-            except (BrokenPipeError, ConnectionResetError):
-                pass
-
-        do_GET = do_POST = do_PUT = do_DELETE = do_PATCH = handle_any
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    server.daemon_threads = True
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        yield f"http://127.0.0.1:{server.server_port}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=5)
-
-
-def feature_package(output, scratch, model, module, tests, env=None):
-    """Generate a package, add native XCTest sources, and run them over loopback HTTP."""
-    package = output / module
-    command = ["cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "swift",
-               str(model), "--out", str(package), "--package-name", module, "--module-name", module]
-    run(*command)
-    manifest = package / "Package.swift"
-    manifest.write_text(manifest.read_text().replace(
-        'resources: [.process("Resources")])]',
-        f'resources: [.process("Resources")]), .testTarget(name: "{module}Tests", dependencies: ["{module}"])]'))
-    directory = package / "Tests" / f"{module}Tests"
-    directory.mkdir(parents=True, exist_ok=True)
-    for name in tests + ["ScriptedFixture.swift"]:
-        source = (ROOT / "crates/crucible-codegen-swift/tests" / name).read_text(encoding="utf-8")
-        (directory / name).write_text(source.replace("__MODULE__", module), encoding="utf-8")
-    with scripted() as url:
-        swift("test", package, scratch, env=dict(os.environ, SCRIPT_URL=url, **(env or {})))
-
-
-def qualify_features(output, scratch):
-    conformance = ROOT / "tests/conformance"
-    feature_package(output, scratch, ROOT / "crates/crucible-codegen-python/tests/auth.json", "Auth", ["AuthTests.swift"])
-    feature_package(output, scratch, ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", "ChecksumSDK",
-                    ["ChecksumTests.swift"], {"CHECKSUM_CASES": str(conformance / "checksums.json")})
-    # An endpoint rule's header name keeps the model's case; the client
-    # lowercases it, so it replaces a client default of the same name.
-    behaviors = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json").read_text())
-    endpoint = behaviors["shapes"]["example.behavior#Service"]["traits"]["smithy.rules#endpointRuleSet"]["rules"][0]["endpoint"]
-    endpoint["headers"] = {"X-Region": endpoint["headers"].pop("x-region")}
-    behaviors_path = output / "behaviors.json"
-    behaviors_path.write_text(json.dumps(behaviors), encoding="utf-8")
-    feature_package(output, scratch, behaviors_path, "Behavior", ["EndpointTests.swift"])
-    feature_package(output, scratch, ROOT / "crates/crucible-codegen-java/tests/waiters.json", "Jobs", ["WaiterTests.swift"])
 
 
 def qualify_permissions(output, scratch):
@@ -369,16 +230,6 @@ struct Fake: VoidSDK.HTTPTransport {
         generated = output / name
         generate(model, generated, name)
         swift("build", generated, scratch)
-    dynamic = output / "dynamic"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/dynamic-bindings.json", dynamic, "Dynamic")
-    manifest = dynamic / "Package.swift"
-    manifest.write_text(manifest.read_text().replace(
-        'resources: [.process("Resources")])]',
-        'resources: [.process("Resources")]), .testTarget(name: "DynamicTests", dependencies: ["Dynamic"])]'))
-    tests = dynamic / "Tests/DynamicTests"
-    tests.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/DynamicTests.swift", tests / "DynamicTests.swift")
-    swift("test", dynamic, scratch)
     extended = output / "extended"
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", extended, "Types")
     manifest = extended / "Package.swift"
@@ -400,14 +251,7 @@ struct Fake: VoidSDK.HTTPTransport {
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/WireTests.swift", tests / "WireTests.swift")
     swift("test", wire, scratch)
     # Payload Content-Type precedence.
-    # Swift has no streaming request payloads, so the model drops UploadStream.
-    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text())
-    service = bindings["shapes"]["example.payload#PayloadBindings"]
-    service["operations"] = [op for op in service["operations"] if op["target"] != "example.payload#UploadStream"]
-    for shape in ("example.payload#UploadStream", "example.payload#StreamInput", "example.payload#Stream"):
-        del bindings["shapes"][shape]
-    bindings_path = output / "payload-bindings.json"
-    bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
+    bindings_path = ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"
     # Distinct module names, since every package here shares one scratch path.
     for module in ("Payload",):
         payload = output / module
@@ -434,7 +278,6 @@ struct Fake: VoidSDK.HTTPTransport {
     tests.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/DescribeTests.swift", tests / "DescribeTests.swift")
     swift("test", vault, scratch)
-    qualify_features(output, scratch)
     print("Swift native package, fresh consumer, conformance, and weather HTTP passed")
 
 

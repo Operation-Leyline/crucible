@@ -42,7 +42,6 @@
             "method": "POST",
             "payload": null,
             "query": [],
-            "responseCode": null,
             "uri": "/cities"
           },
           "output": {
@@ -60,8 +59,7 @@
             },
             "labels": {},
             "payload": null,
-            "query": [],
-            "responseCode": null
+            "query": []
           },
           "title": "Create a city"
         },
@@ -84,8 +82,7 @@
               },
               "labels": {},
               "payload": null,
-              "query": [],
-              "responseCode": null
+              "query": []
             },
             "shape": "example.weather#ConflictError",
             "status": 409,
@@ -102,7 +99,6 @@
             "method": "POST",
             "payload": null,
             "query": [],
-            "responseCode": null,
             "uri": "/cities"
           },
           "output": null,
@@ -323,7 +319,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.weather#CreateCityOutput",
       "outputSchema": {
         "$defs": {
@@ -467,7 +462,6 @@
           "location",
           "clientToken"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [
           {
@@ -477,10 +471,7 @@
         ],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -490,15 +481,11 @@
         "body": [
           "city"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -545,7 +532,6 @@
                 "value": "2026-01-02T03:04:05Z"
               }
             ],
-            "responseCode": null,
             "uri": "/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z"
           },
           "output": {
@@ -566,8 +552,7 @@
             },
             "labels": {},
             "payload": null,
-            "query": [],
-            "responseCode": null
+            "query": []
           },
           "title": "Read a city"
         },
@@ -591,8 +576,7 @@
               },
               "labels": {},
               "payload": null,
-              "query": [],
-              "responseCode": null
+              "query": []
             },
             "shape": "example.weather#NotFoundError",
             "status": 404,
@@ -607,7 +591,6 @@
             "method": "GET",
             "payload": null,
             "query": [],
-            "responseCode": null,
             "uri": "/cities/c-ffffffff"
           },
           "output": null,
@@ -709,7 +692,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.weather#GetCityOutput",
       "outputSchema": {
         "$defs": {
@@ -913,22 +895,18 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
           "cityId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [
           {
             "member": "at",
             "name": "at"
           }
         ],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -939,7 +917,6 @@
           "city",
           "forecast"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [
           {
@@ -949,10 +926,7 @@
         ],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1037,7 +1011,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.weather#GetCityPhotoOutput",
       "outputSchema": {
         "$defs": {
@@ -1166,17 +1139,13 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [
           "cityId"
         ],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -1184,7 +1153,6 @@
       ],
       "response": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [
           {
@@ -1196,14 +1164,9 @@
         "payload": {
           "kind": "blob",
           "mediaType": "image/jpeg",
-          "member": "photo",
-          "requiresLength": false,
-          "streaming": false
+          "member": "photo"
         },
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1255,7 +1218,6 @@
                 "value": "capital"
               }
             ],
-            "responseCode": null,
             "uri": "/cities?maxResults=2&tag=coastal&tag=capital"
           },
           "output": {
@@ -1273,8 +1235,7 @@
             },
             "labels": {},
             "payload": null,
-            "query": [],
-            "responseCode": null
+            "query": []
           },
           "title": "List the first page"
         }
@@ -1444,7 +1405,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.weather#ListCitiesOutput",
       "outputSchema": {
         "$defs": {
@@ -1617,12 +1577,10 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [
           {
             "member": "nextToken",
@@ -1637,8 +1595,6 @@
             "name": "tag"
           }
         ],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -1649,15 +1605,11 @@
           "cities",
           "nextToken"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -1702,7 +1654,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": null,
       "outputSchema": {
         "$defs": {},
@@ -1715,29 +1666,21 @@
       "readonly": true,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [],
       "response": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {},
@@ -1897,7 +1840,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.weather#PutCityPhotoOutput",
       "outputSchema": {
         "$defs": {
@@ -2023,7 +1965,6 @@
       "readonly": false,
       "request": {
         "body": [],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [
           {
@@ -2037,14 +1978,9 @@
         "payload": {
           "kind": "blob",
           "mediaType": "image/jpeg",
-          "member": "photo",
-          "requiresLength": false,
-          "streaming": false
+          "member": "photo"
         },
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -2054,15 +1990,11 @@
         "body": [
           "photo"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -2172,9 +2104,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#CityName": {
       "constraints": {
@@ -2202,9 +2132,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#CitySummaries": {
       "constraints": {
@@ -2236,7 +2164,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "member",
           "notes": {
@@ -2292,7 +2219,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "id",
           "notes": {
@@ -2328,7 +2254,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "name",
           "notes": {
@@ -2361,7 +2286,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "population",
           "notes": {
@@ -2394,7 +2318,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "updatedAt",
           "notes": {
@@ -2427,7 +2350,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "createdAt",
           "notes": {
@@ -2457,8 +2379,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#ConflictError": {
       "documentation": {
@@ -2471,15 +2392,11 @@
           "body": [
             "message"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "ConflictError",
@@ -2511,7 +2428,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -2538,8 +2454,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#Coordinates": {
       "documentation": {
@@ -2566,7 +2481,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "latitude",
           "notes": {
@@ -2599,7 +2513,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "longitude",
           "notes": {
@@ -2626,8 +2539,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#CreateCityInput": {
       "documentation": {
@@ -2657,7 +2569,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "name",
           "notes": {
@@ -2690,7 +2601,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "location",
           "notes": {
@@ -2723,7 +2633,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "clientToken",
           "notes": {
@@ -2756,7 +2665,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "expectedRevision",
           "notes": {
@@ -2783,8 +2691,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#CreateCityOutput": {
       "documentation": {
@@ -2811,7 +2718,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "city",
           "notes": {
@@ -2838,8 +2744,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#DateTime": {
       "constraints": {
@@ -2864,9 +2769,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#Forecast": {
       "constraints": {
@@ -2898,7 +2801,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "key",
           "notes": {
@@ -2931,7 +2833,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "value",
           "notes": {
@@ -2986,7 +2887,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "cityId",
           "notes": {
@@ -3019,7 +2919,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "at",
           "notes": {
@@ -3046,8 +2945,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#GetCityOutput": {
       "documentation": {
@@ -3074,7 +2972,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "city",
           "notes": {
@@ -3107,7 +3004,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "forecast",
           "notes": {
@@ -3140,7 +3036,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "requestId",
           "notes": {
@@ -3167,8 +3062,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#GetCityPhotoInput": {
       "documentation": {
@@ -3195,7 +3089,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "cityId",
           "notes": {
@@ -3222,8 +3115,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#GetCityPhotoOutput": {
       "documentation": {
@@ -3250,7 +3142,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "caption",
           "notes": {
@@ -3286,7 +3177,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "photo",
           "notes": {
@@ -3313,8 +3203,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#ListCitiesInput": {
       "documentation": {
@@ -3341,7 +3230,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "nextToken",
           "notes": {
@@ -3377,7 +3265,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "maxResults",
           "notes": {
@@ -3413,7 +3300,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "tags",
           "notes": {
@@ -3440,8 +3326,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#ListCitiesOutput": {
       "documentation": {
@@ -3468,7 +3353,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "cities",
           "notes": {
@@ -3501,7 +3385,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "nextToken",
           "notes": {
@@ -3528,8 +3411,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#Location": {
       "documentation": {
@@ -3556,7 +3438,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "coordinates",
           "notes": {
@@ -3589,7 +3470,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "unknown",
           "notes": {
@@ -3616,8 +3496,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#NotFoundError": {
       "documentation": {
@@ -3631,15 +3510,11 @@
             "message",
             "resourceId"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "NotFoundError",
@@ -3671,7 +3546,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -3704,7 +3578,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "resourceId",
           "notes": {
@@ -3731,8 +3604,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#Photo": {
       "constraints": {
@@ -3760,9 +3632,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#PhotoSummary": {
       "documentation": {
@@ -3789,7 +3659,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "size",
           "notes": {
@@ -3825,7 +3694,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "thumbnail",
           "notes": {
@@ -3858,7 +3726,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "caption",
           "notes": {
@@ -3888,8 +3755,7 @@
         "since": "2026-10",
         "unstable": true
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#PutCityPhotoInput": {
       "documentation": {
@@ -3916,7 +3782,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "cityId",
           "notes": {
@@ -3949,7 +3814,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "caption",
           "notes": {
@@ -3985,7 +3849,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "photo",
           "notes": {
@@ -4012,8 +3875,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#PutCityPhotoOutput": {
       "documentation": {
@@ -4040,7 +3902,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "photo",
           "notes": {
@@ -4067,8 +3928,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#Sky": {
       "documentation": {
@@ -4159,7 +4019,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "member",
           "notes": {
@@ -4201,7 +4060,6 @@
           "body": [
             "message"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [
             {
@@ -4211,10 +4069,7 @@
           ],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "ThrottlingError",
@@ -4248,7 +4103,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -4281,7 +4135,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "retryAfter",
           "notes": {
@@ -4308,8 +4161,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#Thumbnail": {
       "constraints": {
@@ -4337,9 +4189,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#ValidationError": {
       "documentation": {
@@ -4355,15 +4205,11 @@
             "fieldList",
             "requestId"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "ValidationError",
@@ -4395,7 +4241,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -4428,7 +4273,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "reason",
           "notes": {
@@ -4461,7 +4305,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "fieldList",
           "notes": {
@@ -4494,7 +4337,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "requestId",
           "notes": {
@@ -4521,8 +4363,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#ValidationField": {
       "documentation": {
@@ -4549,7 +4390,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "path",
           "notes": {
@@ -4582,7 +4422,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -4609,8 +4448,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.weather#ValidationFieldList": {
       "constraints": {
@@ -4642,7 +4480,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "member",
           "notes": {
@@ -4781,9 +4618,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Double": {
       "constraints": {
@@ -4808,9 +4643,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Integer": {
       "constraints": {
@@ -4835,9 +4668,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Long": {
       "constraints": {
@@ -4862,9 +4693,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#String": {
       "constraints": {
@@ -4889,9 +4718,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Timestamp": {
       "constraints": {
@@ -4916,9 +4743,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Unit": {
       "documentation": {

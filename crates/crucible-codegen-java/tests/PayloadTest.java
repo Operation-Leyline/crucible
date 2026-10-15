@@ -26,8 +26,6 @@ public final class PayloadTest {
           else {
             check(encoded.equals(exchange.getRequestHeaders().getFirst("x-meta")), "media header encoding");
             exchange.getResponseHeaders().add("x-meta", encoded);
-            check(Base64.getEncoder().encodeToString("prefix é".getBytes(StandardCharsets.UTF_8)).equals(exchange.getRequestHeaders().getFirst("x-extra-value")), "media prefix header encoding");
-            exchange.getResponseHeaders().add("x-extra-value", exchange.getRequestHeaders().getFirst("x-extra-value"));
           }
         } else {
           check(text.equals("{\"name\":\"record\"}"), "structure payload");
@@ -43,10 +41,9 @@ public final class PayloadTest {
       var config = new ClientConfig(); config.endpoint = "http://127.0.0.1:"+server.getAddress().getPort(); config.maxAttempts=1;
       var client = new WireClient(config);
       String text = "quoted \"é\"\n";
-      var result = client.text(b -> b.text(text).meta(metadata).extras(java.util.Map.of("value","prefix é")));
-      check(result.extras().get("value").equals("prefix é"), "media prefix header round trip");
+      var result = client.text(b -> b.text(text).meta(metadata));
       check(result.text().equals(text) && result.meta().equals(metadata), "text payload and media header round trip");
-      check(client.text(b -> b.text("").meta(metadata).extras(java.util.Map.of("value","prefix é"))).text().isEmpty(), "empty text payload");
+      check(client.text(b -> b.text("").meta(metadata)).text().isEmpty(), "empty text payload");
       var document = client.document(b -> b.document(example.wire.model.Record.builder().name("record").build()));
       check(document.document().name().equals("record"), "structured response payload");
       try { client.text(b -> b.text("fail")); throw new AssertionError("error payload not thrown"); }

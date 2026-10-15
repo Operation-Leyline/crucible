@@ -67,7 +67,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_version: "1.0.0".into(),
                 client_name: None,
                 endpoint: Some("https://example.test".into()),
-                middleware: vec![],
                 package_json: None,
                 metadata: Default::default(),
             }
@@ -80,7 +79,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 module_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -90,7 +88,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 module_path: "example.test/weather".into(),
                 package_name: "weather".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -102,7 +99,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -113,7 +109,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_id: "Example.Weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -125,7 +120,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -136,7 +130,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 module_name: "Weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -146,7 +139,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -157,7 +149,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 namespace: "Weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -168,7 +159,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 module_name: "Weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -179,7 +169,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 namespace: "Weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -190,7 +179,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 prefix: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
         compare!(
@@ -200,7 +188,6 @@ fn adapters_preserve_every_native_emitters_output() {
                 package_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
-                content_sha256: true
             }
         );
     }

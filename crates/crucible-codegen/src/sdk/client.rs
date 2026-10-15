@@ -131,11 +131,6 @@ impl Sdk {
                 package_version: version,
                 client_name: options.client_name.clone(),
                 endpoint,
-                middleware: options
-                    .middleware
-                    .iter()
-                    .map(|_| crucible_codegen_ts::Middleware::ContentSha256)
-                    .collect(),
                 package_json: options.package_json.clone(),
                 metadata: self.package_metadata(file)?,
             })),
@@ -145,14 +140,12 @@ impl Sdk {
                 module_name: required(&options.module_name),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "go")]
             Language::Go => Ok(Client::Go(crucible_codegen_go::Options {
                 module_path: required(&options.module_path),
                 package_name: required(&options.package),
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "java")]
             Language::Java => Ok(Client::Java(crucible_codegen_java::Options {
@@ -161,7 +154,6 @@ impl Sdk {
                 package_name: required(&options.package),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "kotlin")]
             Language::Kotlin => Ok(Client::Kotlin(crucible_codegen_kotlin::Options {
@@ -170,7 +162,6 @@ impl Sdk {
                 package_name: required(&options.package),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "csharp")]
             Language::Csharp => Ok(Client::Csharp(crucible_codegen_csharp::Options {
@@ -178,7 +169,6 @@ impl Sdk {
                 package_id: required(&options.package_id),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "swift")]
             Language::Swift => Ok(Client::Swift(crucible_codegen_swift::Options {
@@ -186,14 +176,12 @@ impl Sdk {
                 module_name: required(&options.module_name),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "dart")]
             Language::Dart => Ok(Client::Dart(crucible_codegen_dart::Options {
                 package_name: required(&options.package),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "php")]
             Language::Php => Ok(Client::Php(crucible_codegen_php::Options {
@@ -201,7 +189,6 @@ impl Sdk {
                 namespace: required(&options.namespace),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "ruby")]
             Language::Ruby => Ok(Client::Ruby(crucible_codegen_ruby::Options {
@@ -209,7 +196,6 @@ impl Sdk {
                 module_name: required(&options.module_name),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "cpp")]
             Language::Cpp => Ok(Client::Cpp(crucible_codegen_cpp::Options {
@@ -217,7 +203,6 @@ impl Sdk {
                 namespace: required(&options.namespace),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "c")]
             Language::C => Ok(Client::C(crucible_codegen_c::Options {
@@ -225,14 +210,12 @@ impl Sdk {
                 prefix: required(&options.prefix),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[cfg(feature = "r")]
             Language::R => Ok(Client::R(crucible_codegen_r::Options {
                 package_name: required(&options.package),
                 package_version: version,
                 endpoint,
-                content_sha256: options.content_sha256,
             })),
             #[allow(unreachable_patterns, reason = "each language is feature-gated")]
             _ => Err(missing()),

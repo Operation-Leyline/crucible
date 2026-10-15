@@ -31,7 +31,6 @@
             "method": "POST",
             "payload": null,
             "query": [],
-            "responseCode": null,
             "uri": "/ListItems"
           },
           "output": {
@@ -48,8 +47,7 @@
             },
             "labels": {},
             "payload": null,
-            "query": [],
-            "responseCode": null
+            "query": []
           },
           "title": "Read items"
         }
@@ -147,7 +145,6 @@
         "since": "2026-01",
         "unstable": true
       },
-      "optionalAuth": false,
       "output": "example.docs#ListOutput",
       "outputSchema": {
         "$defs": {
@@ -316,15 +313,11 @@
           "nextToken",
           "pageSize"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -335,15 +328,11 @@
           "items",
           "nextToken"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -385,7 +374,6 @@
             "method": "POST",
             "payload": null,
             "query": [],
-            "responseCode": null,
             "uri": "/WriteItem"
           },
           "output": {
@@ -398,8 +386,7 @@
             },
             "labels": {},
             "payload": null,
-            "query": [],
-            "responseCode": null
+            "query": []
           },
           "title": "Write an item"
         },
@@ -422,8 +409,7 @@
               },
               "labels": {},
               "payload": null,
-              "query": [],
-              "responseCode": null
+              "query": []
             },
             "shape": "example.docs#Unavailable",
             "status": 503,
@@ -442,7 +428,6 @@
             "method": "POST",
             "payload": null,
             "query": [],
-            "responseCode": null,
             "uri": "/WriteItem"
           },
           "output": null,
@@ -612,7 +597,6 @@
         "since": null,
         "unstable": false
       },
-      "optionalAuth": false,
       "output": "example.docs#WriteOutput",
       "outputSchema": {
         "$defs": {
@@ -708,15 +692,11 @@
           "item",
           "clientToken"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "resources": [
@@ -728,15 +708,11 @@
           "at",
           "total"
         ],
-        "eventStream": null,
         "headerEncodings": {},
         "headers": [],
         "labels": [],
         "payload": null,
-        "prefixHeaders": [],
         "query": [],
-        "queryParams": null,
-        "responseCode": null,
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
@@ -849,7 +825,6 @@
             "markdown": "Item text.",
             "text": "Item text."
           },
-          "eventBinding": null,
           "internal": false,
           "name": "text",
           "notes": {
@@ -887,7 +862,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "amount",
           "notes": {
@@ -919,8 +893,7 @@
         "since": "2026-01",
         "unstable": true
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.docs#Items": {
       "constraints": {
@@ -952,7 +925,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "member",
           "notes": {
@@ -1008,7 +980,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "nextToken",
           "notes": {
@@ -1044,7 +1015,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "pageSize",
           "notes": {
@@ -1071,8 +1041,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.docs#ListOutput": {
       "documentation": {
@@ -1099,7 +1068,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "items",
           "notes": {
@@ -1132,7 +1100,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "nextToken",
           "notes": {
@@ -1159,8 +1126,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.docs#State": {
       "documentation": {
@@ -1215,15 +1181,11 @@
           "body": [
             "message"
           ],
-          "eventStream": null,
           "headerEncodings": {},
           "headers": [],
           "labels": [],
           "payload": null,
-          "prefixHeaders": [],
           "query": [],
-          "queryParams": null,
-          "responseCode": null,
           "timestampFormats": {}
         },
         "bodyDiscriminator": "Unavailable",
@@ -1257,7 +1219,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "message",
           "notes": {
@@ -1284,8 +1245,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.docs#WriteInput": {
       "documentation": {
@@ -1312,7 +1272,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "item",
           "notes": {
@@ -1345,7 +1304,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "clientToken",
           "notes": {
@@ -1372,8 +1330,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "example.docs#WriteOutput": {
       "documentation": {
@@ -1400,7 +1357,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "state",
           "notes": {
@@ -1433,7 +1389,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "at",
           "notes": {
@@ -1466,7 +1421,6 @@
             "markdown": "",
             "text": ""
           },
-          "eventBinding": null,
           "internal": false,
           "name": "total",
           "notes": {
@@ -1493,8 +1447,7 @@
         "since": null,
         "unstable": false
       },
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#BigInteger": {
       "constraints": {
@@ -1519,9 +1472,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Integer": {
       "constraints": {
@@ -1546,9 +1497,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#String": {
       "constraints": {
@@ -1573,9 +1522,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     },
     "smithy.api#Timestamp": {
       "constraints": {
@@ -1600,9 +1547,7 @@
         "since": null,
         "unstable": false
       },
-      "requiresLength": false,
-      "sensitive": false,
-      "streaming": false
+      "sensitive": false
     }
   }
 }

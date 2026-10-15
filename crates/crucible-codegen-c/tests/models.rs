@@ -9,7 +9,6 @@ fn options() -> Options {
         prefix: "weather".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 fn lower(value: &Value) -> Service {
@@ -207,43 +206,6 @@ fn client_symbols_head_bodies_and_package_options_are_diagnosed() {
     assert!(emit(&lower(&model), &options()).is_err());
 }
 
-fn lower_declared(text: &str) -> Service {
-    Model::from_json(text)
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_c::capabilities())
-        .unwrap()
-}
-fn source<'a>(files: &'a [File], path: &str) -> &'a str {
-    &files.iter().find(|f| f.path == path).unwrap().contents
-}
-
-#[test]
-fn declared_capabilities_cover_auth_endpoints_waiters_checksums() {
-    for fixture in [
-        include_str!("../../crucible-smithy/tests/fixtures/client-behaviors.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/checksums.json"),
-        include_str!("../../crucible-codegen-python/tests/auth.json"),
-        include_str!("../../crucible-codegen-java/tests/waiters.json"),
-    ] {
-        emit(&lower_declared(fixture), &options()).unwrap();
-    }
-    let behavior = emit(
-        &lower_declared(include_str!(
-            "../../crucible-smithy/tests/fixtures/client-behaviors.json"
-        )),
-        &options(),
-    )
-    .unwrap();
-    assert!(source(&behavior, "include/weather_client/client.h").contains(
-        "weather_status weather_operations_read_wait_until_ready(weather_client *client, const weather_models_input *input, double timeout"
-    ));
-    let schema: Value = serde_json::from_str(source(&behavior, "schema.json")).unwrap();
-    assert_eq!(
-        schema["endpointRules"]["rules"][1]["result"]["kind"],
-        "error"
-    );
-}
-
 /// yyjson documents a 40-byte minimum for the buffer `yyjson_write_number` fills.
 #[test]
 fn yyjson_number_buffers_meet_the_documented_minimum() {
@@ -325,5 +287,5 @@ fn client_config_docs_attach_once_to_the_correct_fields() {
     assert!(!config.contains("*/\n    /**"));
     assert!(config.contains("Retry-After can override it. */\n    double max_delay;"));
     assert!(config.contains("/** Total call deadline in seconds. */\n    double timeout;"));
-    assert!(config.contains("only when required. */\n    crucible_generated_checksum_policy response_checksum_validation;"));
+    assert!(config.contains("/** Default request headers applied to every attempt. */\n    crucible_generated_headers headers;"));
 }

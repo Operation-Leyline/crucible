@@ -42,7 +42,6 @@ pub(crate) fn emit(service: &Service) -> String {
                     SimpleKind::BigDecimal => "Decimal",
                     SimpleKind::Timestamp => "globalThis.Date",
                     SimpleKind::Document => "Document",
-                    SimpleKind::Blob if simple.streaming => "ByteStream",
                     SimpleKind::Blob => "globalThis.Uint8Array",
                     _ => "number",
                 };
@@ -148,17 +147,7 @@ pub(crate) fn fields(out: &mut String, service: &Service, structure: &Structure,
 
 /// One arm per member, each forbidding the others: exactly one is set.
 fn union_arms(out: &mut String, service: &Service, union: &Structure) {
-    // An event stream's modeled errors are thrown as their error classes,
-    // never yielded, and a client cannot send one.
-    let members: Vec<_> = union
-        .members
-        .iter()
-        .filter(|member| {
-            !(union.streaming
-                && matches!(service.shape(&member.target), Some(Shape::Structure(s)) if s.error.is_some()))
-        })
-        .collect();
-    for member in &members {
+    for member in &union.members {
         let others: String = union
             .members
             .iter()

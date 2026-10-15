@@ -173,7 +173,6 @@ out = "out/java"
 package = "weather"
 out = "out/python"
 version = "1.0"
-content_sha256 = "yes"
 private = true
 
 [sdk.Bad]
@@ -203,7 +202,6 @@ out = "x"
     assert_error(&errors, "sdk.java-internal", "set `language`");
     assert_error(&errors, "sdk.python", "needs `module_name`");
     assert_error(&errors, "sdk.python.version", "not a version floor");
-    assert_error(&errors, "sdk.python.content_sha256", "true or false");
     assert_error(
         &errors,
         "sdk.python.channel",
@@ -322,8 +320,8 @@ fn language_keys_are_typed() {
         &errors(&format!(
             "{base}[sdk.ts]\npackage = \"x\"\nout = \"o\"\nmiddleware = [\"gzip\"]\nendpoint = {{ env = \"1BAD\" }}\n"
         )),
-        "sdk.ts.middleware",
-        "not a middleware",
+        "sdk.ts.endpoint",
+        "is not an environment variable name",
     );
     assert_error(
         &errors(&format!(

@@ -34,13 +34,11 @@ data class AttemptStarted(
     val method: String,
     /** Scheme, host, port and base path; never user information. */
     val endpoint: String,
-    /** `configured`, `rules` or `discovered`. */
-    val endpointSource: String,
     /** Path and query as sent, with redactions. */
     val target: String,
-    /** Request headers as sent (after middleware, checksums and signing), lowercased, with redactions. */
+    /** Request headers as sent (after middleware and authentication), lowercased, with redactions. */
     val headers: Map<String, String>,
-    /** The `Content-Length` sent, or null for a chunked stream or no body. */
+    /** The `Content-Length` sent, or null for no body. */
     val requestBytes: Long?,
     val time: Duration,
 )
@@ -56,7 +54,7 @@ data class AttemptFinished(
     /** A modeled or wire error's name, or the exception type name; never a message. */
     val error: String?,
     val requestId: String?,
-    /** Bytes read; for a streamed response, its `Content-Length` if known. */
+    /** Bytes read. */
     val responseBytes: Long?,
     /** From the attempt being sent to its end, on the client's [RuntimeClock]. */
     val latency: Duration,

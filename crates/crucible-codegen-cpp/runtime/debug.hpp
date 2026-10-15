@@ -6,7 +6,7 @@ namespace crucible_generated::runtime {
 /** The marker used in diagnostic representations of sensitive data. */
 inline constexpr const char* redacted = "*** Sensitive Data Redacted ***";
 
-/** Formats a native value without serializing it or consuming streaming bodies. */
+/** Formats a native value without serializing it. */
 template<class T> std::string debug_value(const T& value);
 /** Joins named diagnostic fields; omission and explicit null remain distinct. */
 class Debug {
@@ -34,7 +34,6 @@ template<class T> std::string debug_value(const T& value) {
     else if constexpr (std::is_same_v<T, Json>) return value.dump();
     else if constexpr (std::is_same_v<T, Timestamp>) return "Timestamp(" + value.epoch().text() + ")";
     else if constexpr (requires { value.text(); }) return value.text();
-    else if constexpr (std::is_same_v<T, ByteStream>) return "ByteStream(<stream>)";
     else if constexpr (std::is_same_v<T, Blob>) { std::string out = "["; for (auto byte : value) { if (out.size() > 1) out += ", "; out += std::to_string(std::to_integer<unsigned>(byte)); } return out + "]"; }
     else if constexpr (detail::is_field<T>) return value.is_set() ? (value.is_null() ? "null" : debug_value(*value)) : "absent";
     else if constexpr (requires { value.has_value(); }) return value ? debug_value(*value) : "null";

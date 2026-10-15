@@ -1,5 +1,5 @@
 fn main() {
-    let auth = "../../crates/crucible-smithy/tests/fixtures/auth-chain.json";
+    let auth = "tests/fixtures/auth-chain.json";
     println!("cargo::rerun-if-changed={auth}");
     let auth_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     std::fs::write(
@@ -40,14 +40,7 @@ fn main() {
         crucible_build::model(model).client().render().unwrap(),
     )
     .unwrap();
-    let cors = "../../crates/crucible-smithy/tests/fixtures/cors.json";
-    println!("cargo::rerun-if-changed={cors}");
-    std::fs::write(
-        out.join("cors.rs"),
-        crucible_build::model(cors).server().render().unwrap(),
-    )
-    .unwrap();
-    let model = "../../crates/crucible-smithy/tests/fixtures/internal-cors.json";
+    let model = "tests/fixtures/audience.json";
     println!("cargo::rerun-if-changed={model}");
     std::fs::write(
         out.join("audience_server.rs"),

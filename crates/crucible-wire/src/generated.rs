@@ -1,8 +1,8 @@
 //! Compile-time construction of descriptions owned by generated bindings.
 
 use crate::operation::{
-    Classify, CorsInfo, ErrorInfo, Fault, InternalFn, Location, MemberInfo, OperationInfo,
-    Redaction, RejectFn, Scalar, Segment, ServiceInfo,
+    Classify, ErrorInfo, Fault, InternalFn, Location, MemberInfo, OperationInfo, Redaction,
+    RejectFn, Scalar, Segment, ServiceInfo,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -46,7 +46,6 @@ pub const fn operation_info(
 pub const fn service_info(
     id: &'static str,
     version: &'static str,
-    cors: Option<&'static CorsInfo>,
     mcp_tools: Option<&'static [crate::mcp::ToolDescriptor]>,
     operations: &'static [&'static OperationInfo],
     errors: &'static [&'static ErrorInfo],
@@ -58,7 +57,6 @@ pub const fn service_info(
     ServiceInfo {
         id,
         version,
-        cors,
         mcp_tools,
         operations,
         errors,

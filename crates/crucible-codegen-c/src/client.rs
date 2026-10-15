@@ -13,12 +13,6 @@ pub fn symbols(service: &Service, prefix: &str) -> Vec<(crucible_smithy::ShapeId
                 result.push((op.id.clone(), format!("{name}{suffix}")));
             }
         }
-        for waiter in op.waiters.keys() {
-            result.push((
-                op.id.clone(),
-                format!("{name}_wait_until_{}", names::field(waiter)),
-            ));
-        }
     }
     result
 }
@@ -47,7 +41,7 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
             names::view(&chunk.iter().collect::<String>())
         ));
     }
-    source.push_str(&format!("}};\n{p}_status {p}_client_new(const {p}_client_config *config, {p}_client **output, {p}_error *error) {{\n    const {p}_string endpoint = {};\n    return {p}_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, {}, output, error);\n}}\n", names::view(options.endpoint.as_deref().unwrap_or("")), options.content_sha256));
+    source.push_str(&format!("}};\n{p}_status {p}_client_new(const {p}_client_config *config, {p}_client **output, {p}_error *error) {{\n    const {p}_string endpoint = {};\n    return {p}_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, output, error);\n}}\n", names::view(options.endpoint.as_deref().unwrap_or(""))));
     for op in &service.operations {
         let name = format!("{p}_operations_{}", names::field(op.name()));
         let output = op
@@ -73,41 +67,6 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
         if op.paginated.is_some() {
             header.push_str(&format!("/** Creates a lazy page iterator borrowing client; free with pages_free. */\n{p}_status {name}_pages_new({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {p}_pages **pages, {p}_error *error);\n/** Fetches one page; false has_page means exhaustion. Free each result. */\n{p}_status {name}_pages_next({p}_pages *pages, bool *has_page, {name}_result *result, {p}_error *error);\n"));
             source.push_str(&format!("{p}_status {name}_pages_new({p}_client *client, {input}{p}_cancelled_fn cancelled, void *cancel_user, {p}_pages **pages, {p}_error *error) {{\n    const {p}_string operation = {};\n    return {p}_pages_new(client, operation, {input_value}, cancelled, cancel_user, pages, error);\n}}\n{p}_status {name}_pages_next({p}_pages *pages, bool *has_page, {name}_result *result, {p}_error *error) {{\n    {p}_status status;\n    if (!result) return {p}_pages_next(pages, has_page, NULL, error);\n    result->value = NULL;\n    status = {p}_pages_next(pages, has_page, &result->base, error);\n    if (status == {p}_ok && has_page && *has_page) result->value = (const {output} *)result->base.output;\n    return status;\n}}\n", names::view(op.name())));
-        }
-    }
-    for op in &service.operations {
-        let name = format!("{p}_operations_{}", names::field(op.name()));
-        let output = op
-            .output
-            .as_ref()
-            .map(|id| models::native_type(service, id, p))
-            .unwrap_or_else(|| format!("{p}_unit"));
-        let input = op
-            .input
-            .as_ref()
-            .map(|id| format!("const {} *input, ", models::native_type(service, id, p)))
-            .unwrap_or_default();
-        let input_value = if op.input.is_some() { "input" } else { "NULL" };
-        for waiter in op.waiters.keys() {
-            let function = format!("{name}_wait_until_{}", names::field(waiter));
-            let signature = format!(
-                "{p}_status {function}({p}_client *client, {input}double timeout, const {p}_waiter_options *options, {p}_cancelled_fn cancelled, void *cancel_user, {name}_result *result, {p}_waiter_report *report, {p}_error *error)"
-            );
-            header.push_str(&format!(
-                "/** Waits for the modeled {waiter} state; see {p}_client_wait. */
-{signature};
-"
-            ));
-            source.push_str(&format!("{signature} {{
-    const {p}_string operation = {}, waiter = {};
-    {p}_status status;
-    if (!result) return {p}_client_wait(client, operation, waiter, {input_value}, timeout, options, cancelled, cancel_user, NULL, report, error);
-    result->value = NULL;
-    status = {p}_client_wait(client, operation, waiter, {input_value}, timeout, options, cancelled, cancel_user, &result->base, report, error);
-    if (result->base.output) result->value = (const {output} *)result->base.output;
-    return status;
-}}
-", names::view(op.name()), names::view(waiter)));
         }
     }
     for (id, shape) in &service.shapes {

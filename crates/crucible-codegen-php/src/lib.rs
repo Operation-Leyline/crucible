@@ -17,7 +17,6 @@ pub struct Options {
     pub namespace: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 pub struct File {
     pub path: String,
@@ -135,15 +134,6 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 result.push(&op.id, "PHP operation name collision");
             }
         }
-        for waiter in op.waiters.keys() {
-            let name = names::waiter(waiter);
-            if !identifier(&name) || !methods.insert(name.to_ascii_lowercase()) {
-                result.push(
-                    &op.id,
-                    format!("PHP waiter method {name} is invalid or collides"),
-                );
-            }
-        }
     }
     result
 }
@@ -154,27 +144,11 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
-        Feature::Sets,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
-        Feature::Streaming,
-        Feature::DigestAuth,
-        Feature::SigV4a,
     ])
 }
 
@@ -187,16 +161,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     let schema =
         serde_json::to_string(&crucible_codegen_common::schema(service, field)).expect("schema");
-    let mut require =
+    let require =
         serde_json::json!({"php":">=8.3 <9", "php-64bit":"*", "ext-curl":"*", "ext-json":"*"});
-    // SigV4a derives and uses an ECDSA P-256 key through the openssl extension.
-    if service
-        .auth_schemes
-        .values()
-        .any(|scheme| matches!(scheme, crucible_smithy::ir::AuthScheme::SigV4a { .. }))
-    {
-        require["ext-openssl"] = serde_json::json!("*");
-    }
     let mut autoload = serde_json::json!({"psr-4":{format!("{}\\",options.namespace):"src/"}});
     if permissions::present(service) {
         autoload["files"] = serde_json::json!([permissions::REGISTRY]);
@@ -232,23 +198,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "Authentication",
             include_str!("../runtime/Authentication.php"),
         ),
-        (
-            "AwsCredentials",
-            include_str!("../runtime/AwsCredentials.php"),
-        ),
-        (
-            "BasicCredentials",
-            include_str!("../runtime/BasicCredentials.php"),
-        ),
-        (
-            "CachedCredentials",
-            include_str!("../runtime/CachedCredentials.php"),
-        ),
-        ("Credentials", include_str!("../runtime/Credentials.php")),
-        (
-            "DigestAuthentication",
-            include_str!("../runtime/DigestAuthentication.php"),
-        ),
         ("CallScope", include_str!("../runtime/CallScope.php")),
         (
             "CancellationToken",
@@ -259,44 +208,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             include_str!("../runtime/CancelledException.php"),
         ),
         ("ClientConfig", include_str!("../runtime/ClientConfig.php")),
-        ("Checksums", include_str!("../runtime/Checksums.php")),
-        (
-            "ChecksumHasher",
-            include_str!("../runtime/ChecksumHasher.php"),
-        ),
-        ("ByteStream", include_str!("../runtime/ByteStream.php")),
-        ("StreamBody", include_str!("../runtime/StreamBody.php")),
-        (
-            "StreamException",
-            include_str!("../runtime/StreamException.php"),
-        ),
-        (
-            "ResponseStream",
-            include_str!("../runtime/ResponseStream.php"),
-        ),
-        (
-            "ChecksumException",
-            include_str!("../runtime/ChecksumException.php"),
-        ),
-        ("Endpoints", include_str!("../runtime/Endpoints.php")),
-        (
-            "EndpointException",
-            include_str!("../runtime/EndpointException.php"),
-        ),
-        ("Query", include_str!("../runtime/Query.php")),
-        (
-            "QueryException",
-            include_str!("../runtime/QueryException.php"),
-        ),
-        ("Waiter", include_str!("../runtime/Waiter.php")),
-        (
-            "WaiterException",
-            include_str!("../runtime/WaiterException.php"),
-        ),
-        (
-            "WaiterTimeoutException",
-            include_str!("../runtime/WaiterTimeoutException.php"),
-        ),
         (
             "ClientRuntime",
             include_str!("../runtime/ClientRuntime.php"),

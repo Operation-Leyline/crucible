@@ -6,8 +6,6 @@ use axum::http::request::Parts;
 use axum::response::Response;
 use std::borrow::Cow;
 
-use serde_json::Value;
-
 use super::{Answers, BoundValue, Invocation, Protocol, ProtocolMatch, Route};
 use crate::error::{FrameworkError, Result};
 use crate::operation::{Location, MemberInfo, OperationInfo, Scalar, Segment};
@@ -59,9 +57,6 @@ impl Protocol for JsonProtocol {
 }
 
 fn decode_http(job: &mut Job) -> Hook<'_, Result<()>> {
-    if super::server_events::has_input(job) {
-        return Hook::wait(super::server_events::decode(job));
-    }
     Hook::Ready(check_content_type(job).and_then(|()| read_input(job)))
 }
 
@@ -372,86 +367,7 @@ pub(super) fn bound_members<'a>(
     for member in op.input {
         let wire = wire_name(member);
         let value = match (member.location, member.scalar) {
-            // Servers do not serve event streams: generation refuses them.
-            (Location::Body | Location::ResponseCode | Location::EventStream, _) => continue,
-            (Location::QueryParams, scalar) => {
-                let mut values = serde_json::Map::new();
-                for pair in query.split('&').filter(|p| !p.is_empty()) {
-                    let (name, value) = pair.split_once('=').unwrap_or((pair, ""));
-                    let name = match percent_decode(name, true) {
-                        Ok(name) => name.into_owned(),
-                        Err(message) => {
-                            violations.push_with(|| malformed(&map_key(member), &message));
-                            continue;
-                        }
-                    };
-                    if op.literal_query.iter().any(|(key, _)| *key == name)
-                        || op
-                            .input
-                            .iter()
-                            .any(|m| matches!(m.location, Location::Query(key) if key == name))
-                    {
-                        continue;
-                    }
-                    let value = match percent_decode(value, true) {
-                        Ok(value) => Value::String(value.into_owned()),
-                        Err(message) => {
-                            violations.push_with(|| malformed(&map_key(member), &message));
-                            continue;
-                        }
-                    };
-                    if matches!(scalar, Scalar::List(_)) {
-                        values
-                            .entry(name)
-                            .or_insert_with(|| Value::Array(Vec::new()))
-                            .as_array_mut()
-                            .expect("list map")
-                            .push(value);
-                    } else {
-                        values.entry(name).or_insert(value);
-                    }
-                }
-                Ok(BoundValue::Json(Value::Object(values)))
-            }
-            (Location::PrefixHeaders(prefix), scalar) => {
-                let mut values = serde_json::Map::new();
-                for (name, value) in &job.request().headers {
-                    if let Some(key) = name.as_str().strip_prefix(prefix) {
-                        match value.to_str() {
-                            Ok(text) => match BoundValue::parse(Cow::Borrowed(text), scalar) {
-                                Ok(BoundValue::Text(text)) => {
-                                    values.insert(key.to_owned(), Value::String(text.into_owned()));
-                                }
-                                Ok(_) => {
-                                    violations.push_with(|| {
-                                        malformed(&map_key(member), "prefix header must be text")
-                                    });
-                                }
-                                Err(message) => {
-                                    violations.push_with(|| malformed(&map_key(member), &message));
-                                }
-                            },
-                            Err(_) => violations
-                                .push_with(|| malformed(&map_key(member), "is not visible ASCII")),
-                        }
-                    }
-                }
-                Ok(BoundValue::Json(Value::Object(values)))
-            }
-            (
-                Location::StreamingPayload {
-                    requires_length, ..
-                },
-                _,
-            ) => {
-                if requires_length && job.request().headers.get("content-length").is_none() {
-                    violations.push_with(|| {
-                        malformed(member.name, "streaming payload requires content-length")
-                    });
-                    continue;
-                }
-                Ok(BoundValue::Json(Value::Null))
-            }
+            (Location::Body, _) => continue,
             // An empty body is no payload: a required one is missing.
             (Location::Payload(_), _) if job.body().is_empty() => continue,
             (Location::Payload(_), _) => Ok(BoundValue::Bytes(job.body().clone())),
@@ -527,27 +443,10 @@ pub(super) fn bound_members<'a>(
     }
 }
 
-/// The path of a violation in one entry of a map bound to the query or to
-/// prefixed headers. The key is the client's text, of any length, and may
-/// be sensitive: it is never named.
-fn map_key(member: &MemberInfo) -> String {
-    format!("{}/[key]", member.name)
-}
-
 /// The name a bound member goes by on the wire, for a violation's path.
 fn wire_name(member: &MemberInfo) -> &'static str {
     match member.location {
         Location::Query(name) | Location::Header(name) => name,
-        Location::Label
-        | Location::Body
-        | Location::Payload(_)
-        | Location::TextPayload(_)
-        | Location::DocumentPayload(_)
-        | Location::QueryParams
-        | Location::PrefixHeaders(_)
-        | Location::ResponseCode
-        | Location::StreamingPayload { .. }
-        | Location::EventStream => member.name,
         _ => member.name,
     }
 }
@@ -630,7 +529,7 @@ fn query_violations(query: &str, op: &OperationInfo) -> Violations {
 }
 
 /// The path naming query parameter `key` of `op`, or a key that does not
-/// decode (`None`): the map that takes undeclared keys, if any, has it.
+/// decode (`None`).
 fn query_path(op: &OperationInfo, key: Option<&str>) -> Cow<'static, str> {
     let declared = op
         .literal_query
@@ -644,12 +543,5 @@ fn query_path(op: &OperationInfo, key: Option<&str>) -> Cow<'static, str> {
     if let Some(name) = declared {
         return Cow::Borrowed(name);
     }
-    match op
-        .input
-        .iter()
-        .find(|member| member.location == Location::QueryParams)
-    {
-        Some(member) => Cow::Owned(map_key(member)),
-        None => Cow::Borrowed("query"),
-    }
+    Cow::Borrowed("query")
 }

@@ -128,7 +128,6 @@ fn permission_options() -> Options {
         package_name: "leyline".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: None,
-        content_sha256: false,
     }
 }
 

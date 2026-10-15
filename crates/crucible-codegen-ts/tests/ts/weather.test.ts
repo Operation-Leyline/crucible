@@ -46,7 +46,7 @@ test("successful operations without modeled bodies leave failing and stalled str
       }), { headers: { "x-request-id": "req-1" } });
       const transport = new Transport({ endpoint: "https://weather.example", retry: false,
         fetch: async () => response,
-      }, { middleware: [], bearer: false }, {});
+      }, { bearer: false }, {});
       const result = transport.send({ name: "NoBody", method: "GET", path: [], errors: [], retrySafe: true, output }, {});
       // Observe the body before awaiting completion so the stalled-stream
       // regression fails immediately instead of hanging the test.
@@ -85,7 +85,7 @@ test("a body failure never replays an unsafe operation", async () => {
   const transport = new Transport({ endpoint: "https://weather.example", retry: quick, fetch: async () => {
     calls++;
     return new Response(new ReadableStream({ start(c) { c.error(new TypeError("disconnected")); } }));
-  } }, { middleware: [], bearer: false }, {});
+  } }, { bearer: false }, {});
   const error = await transport.send({ name: "Unsafe", method: "POST", path: ["unsafe"], errors: [], retrySafe: false, output: { body: true } }, {}).catch(e => e);
   assert.ok(error instanceof NetworkError);
   assert.ok(!(error instanceof WeatherException));
@@ -149,7 +149,7 @@ test("list query parameters repeat their key", async () => {
   assert.equal(sent[0].url.searchParams.get("maxResults"), "5");
 });
 
-test("bodies carry body members only, with a digest and a filled idempotency token", async () => {
+test("bodies carry body members only, with a filled idempotency token", async () => {
   const { sent, fetch } = fake(json(201, { city: { id: "c-1", name: "Oslo", population: 7, updatedAt: "2026-09-21T14:13:20Z", createdAt: 1_790_000_000 } }));
   const input = { name: "Oslo", expectedRevision: 3n, location: { coordinates: { latitude: 1, longitude: 2 } } };
   const out = await new WeatherClient({ fetch }).createCity(input);
@@ -160,10 +160,6 @@ test("bodies carry body members only, with a digest and a filled idempotency tok
   assert.equal((input as { clientToken?: string }).clientToken, body.clientToken, "written back for replay");
   assert.equal(sent[0].headers.get("x-expected-revision"), "3");
   assert.equal(sent[0].headers.get("content-type"), "application/json");
-
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sent[0].body)));
-  const hex = Array.from(digest, b => b.toString(16).padStart(2, "0")).join("");
-  assert.equal(sent[0].headers.get("x-amz-content-sha256"), hex);
 
   assert.ok(out.city.updatedAt instanceof Date);
   assert.equal(out.city.updatedAt!.toISOString(), "2026-09-21T14:13:20.000Z");
@@ -300,7 +296,7 @@ test("caller middleware runs on every attempt after the client's own", async () 
   assert.equal(sent[1].headers.get("x-home"), "use1");
 });
 
-test("a payload goes raw under its media type, and the digest covers exactly those bytes", async () => {
+test("a payload goes raw under its media type", async () => {
   // Not UTF-8, and JSON-looking in places: neither may be reinterpreted.
   const photo = new Uint8Array([0xff, 0xd8, 0x7b, 0x22, 0x00, 0x80, 0xfe, 0x01, 0x02]);
   const seen: { headers: Headers; bytes: Uint8Array }[] = [];
@@ -319,9 +315,6 @@ test("a payload goes raw under its media type, and the digest covers exactly tho
   assert.deepEqual(seen[0].bytes, photo);
   assert.equal(seen[0].headers.get("content-type"), "image/jpeg");
   assert.equal(seen[0].headers.get("x-photo-caption"), "harbour");
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", photo));
-  const hex = Array.from(digest, b => b.toString(16).padStart(2, "0")).join("");
-  assert.equal(seen[0].headers.get("x-amz-content-sha256"), hex);
   assert.ok(stored.photo.thumbnail instanceof Uint8Array, "base64 in JSON decodes to bytes");
   assert.deepEqual(stored.photo.thumbnail, photo.slice(0, 8));
 

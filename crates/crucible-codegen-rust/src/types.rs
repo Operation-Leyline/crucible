@@ -20,12 +20,6 @@ pub(crate) fn rust_type(service: &Service, target: &ShapeId, prefix: &str) -> St
             _ => {}
         }
     }
-    if crate::events::is_event_stream(service, target) {
-        return format!(
-            "::crucible_server_runtime_rust::__generated::EventStream<{prefix}{}>",
-            service.name_of(target)
-        );
-    }
     format!("{prefix}{}", service.name_of(target))
 }
 
@@ -120,7 +114,7 @@ pub(crate) fn codec(service: &Service, member: &Member) -> Option<String> {
             } else {
                 codec(service, &list.member)
             };
-            let unique = list.is_set || member.constraints.unique_items;
+            let unique = member.constraints.unique_items;
             if !unique && inner.is_none() {
                 return None;
             }

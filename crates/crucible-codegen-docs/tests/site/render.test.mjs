@@ -59,7 +59,7 @@ for (const [name, description] of Object.entries(DESCRIPTIONS)) {
       // One copy button per example message plus the syntax and schema blocks.
       const copies = elements(view, "button").filter((b) => b.attrs["data-copy"] != null);
       const messages = op.examples.reduce((n, e) => n + ["input", "output", "error"].filter((k) => e[k] != null).length, 0);
-      const bodyShapes = [op.request, op.response].filter((b) => !b.payload && !b.eventStream && b.body.length).length;
+      const bodyShapes = [op.request, op.response].filter((b) => !b.payload && b.body.length).length;
       assert.equal(copies.length, 2 + bodyShapes + messages + 2, `${id} copy buttons`);
       if (op.pagination) assert.ok(text.includes(op.pagination.inputToken), `${id} pagination`);
       if (op.idempotencyToken) assert.ok(text.includes(op.idempotencyToken), `${id} idempotency token`);

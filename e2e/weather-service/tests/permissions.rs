@@ -233,7 +233,6 @@ static SERVICE: ServiceInfo = {
         "test.permissions#Mail",
         base.version,
         None,
-        None,
         &[
             <mail::GetInbox as Operation>::INFO,
             <mail::SendMessage as Operation>::INFO,

@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -65,21 +64,6 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(issubclass(m.ConflictError, WeatherException))
         self.assertFalse(issubclass(NetworkError, WeatherException))
 
-    def test_renamed_pagination_tokens_remain_native_fields(self):
-        import copy
-        seen = []
-        def respond(request):
-            seen.append(request.url.params.get("nextToken"))
-            return httpx.Response(200, json={"cities": [], **({"continuation": "page2"} if len(seen) == 1 else {})})
-        with httpx.Client(transport=httpx.MockTransport(respond)) as http:
-            client = WeatherClient(http=http)
-            client._codec.schema = copy.deepcopy(client._codec.schema)
-            client._codec.shapes = client._codec.schema["shapes"]
-            client._codec.shapes["example.weather#ListCitiesInput"]["members"]["nextToken"]["jsonName"] = "cursor"
-            client._codec.shapes["example.weather#ListCitiesOutput"]["members"]["nextToken"]["jsonName"] = "continuation"
-            self.assertEqual(len(list(client.list_cities_pages())), 2)
-        self.assertEqual(seen, [None, "page2"])
-
     def test_a_client_names_its_release(self):
         # A `.cru` service's description names the release its clients send
         # in `Crucible-Version` (docs/api-versions-clients.md).
@@ -94,7 +78,7 @@ class RuntimeTests(unittest.TestCase):
             client.ping()
             self.assertEqual(sent[-1].headers["crucible-version"], "2026-09-04")
 
-    def test_hardening_auth_empty_digest_dot_labels_and_dense_collections(self):
+    def test_hardening_auth_dot_labels_and_dense_collections(self):
         sent = []
         def credential():
             raise AssertionError("anonymous operation consulted credentials")
@@ -109,8 +93,6 @@ class RuntimeTests(unittest.TestCase):
                 client.ping()
                 self.assertNotIn("authorization", sent[-1].headers)
                 self.assertEqual(sent[-1].content, b"")
-                expected = hashlib.sha256(b"").hexdigest() if method in ("POST", "PUT", "PATCH") else None
-                self.assertEqual(sent[-1].headers.get("x-amz-content-sha256"), expected)
             for label in (".", ".."):
                 with self.assertRaisesRegex(ValueError, "dot segment"):
                     client.get_city(m.GetCityInput(city_id=label))
@@ -291,7 +273,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(output.request_id, "req-1")
         self.assertIsInstance(next(iter(output.forecast)), m.Sky)
 
-    def test_token_digest_retry_and_input_ownership(self):
+    def test_token_retry_and_input_ownership(self):
         sent = []
         tokens = []
         def credential():
@@ -309,7 +291,6 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(sent[0].content, sent[1].content)
         self.assertNotIn("expectedRevision", json.loads(sent[0].content))
         self.assertTrue(json.loads(sent[0].content)["clientToken"])
-        self.assertEqual(sent[0].headers["x-amz-content-sha256"], hashlib.sha256(sent[0].content).hexdigest())
         self.assertEqual(sent[1].headers["authorization"], "Bearer token-2")
 
     def test_paging_preserves_input_and_detects_cycles(self):
@@ -350,7 +331,6 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(sent[0].content, photo)
         self.assertEqual(sent[0].headers["content-type"], "image/jpeg")
         self.assertEqual(sent[0].headers["x-photo-caption"], "harbour")
-        self.assertEqual(sent[0].headers["x-amz-content-sha256"], hashlib.sha256(photo).hexdigest())
         self.assertEqual(stored.photo.thumbnail, photo[:9])
         self.assertEqual(read.photo, photo)
         self.assertEqual(read.caption, "harbour")
@@ -423,8 +403,6 @@ class AsyncRuntimeTests(unittest.IsolatedAsyncioTestCase):
                 await client.ping()
                 self.assertNotIn("authorization", sent[-1].headers)
                 self.assertEqual(sent[-1].content, b"")
-                expected = hashlib.sha256(b"").hexdigest() if method in ("POST", "PUT", "PATCH") else None
-                self.assertEqual(sent[-1].headers.get("x-amz-content-sha256"), expected)
             self.assertEqual(len(sent), 5)
 
     async def test_malformed_error_metadata_and_retry(self):

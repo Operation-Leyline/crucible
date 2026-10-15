@@ -15,19 +15,14 @@ module CrucibleGenerated
         info = shape(target)
         case info['kind']
         when 'structure', 'union'
-          object, result, known, wire_names = self.class.object(value), {}, [], []
-          info.fetch('members').each do |name, member|
-            wire = member.fetch('jsonName', name)
-            source = encode ? name : wire
-            known << source
-            wire_names << wire
-            result[encode ? wire : name] = document(member.fetch('target'), object[source], encode: encode) if object.key?(source)
+          object, result = self.class.object(value), {}
+          members = info.fetch('members')
+          members.each do |name, member|
+            result[name] = document(member.fetch('target'), object[name], encode: encode) if object.key?(name)
           end
           if info['kind'] == 'union'
             object.each do |name, item|
-              next if known.include?(name)
-              raise ::ArgumentError, 'Unknown variant name is declared' if encode && wire_names.include?(name)
-              result[name] = item
+              result[name] = item unless members.key?(name)
             end
           end
           result
@@ -72,9 +67,7 @@ module CrucibleGenerated
         values
       end
       def error(target, value, metadata)
-        error = @models.fetch(target).from_wire(value, context(target), metadata)
-        error.modeled_error_name = target.split('#').last
-        error
+        @models.fetch(target).from_wire(value, context(target), metadata)
       end
       def self.object(value)
         raise ::ArgumentError, 'Expected object' unless value.is_a?(::Hash) && value.keys.all? { |key| key.is_a?(::String) }
@@ -123,8 +116,6 @@ module CrucibleGenerated
           raise ::ArgumentError, 'Float out of range' unless result.finite?
           result
         when 'blob'
-          # A streamed response body is already the caller's IO.
-          return value if shape['streaming'] && !value.is_a?(::String)
           text = self.class.string(value)
           result = ::Base64.strict_decode64(text)
           raise ::ArgumentError, 'Expected padded standard base64' unless ::Base64.strict_encode64(result) == text
@@ -168,7 +159,6 @@ module CrucibleGenerated
           else value.date_time
           end
         when 'blob'
-          return ByteStream.from(value) if shape['streaming']
           raise ::ArgumentError, 'Expected binary String' unless value.is_a?(::String)
           ::Base64.strict_encode64(value)
         when 'list'

@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use std::sync::{Arc, Mutex};
 
 include!(concat!(env!("OUT_DIR"), "/auth_chain.rs"));
-use auth_weather::{BearerOnly, Identity, KeyOnly, Optional, Protected, Public};
+use auth_weather::{BearerOnly, Identity, Protected, Public};
 
 const KEY: &str = "pgn_e2e_0123456789";
 const REVOKED: &str = "pgn_e2e_revoked";
@@ -43,9 +43,7 @@ fn operations(tenants: Tenants) -> Operations {
             Ok(identity())
         })
         .add::<Protected, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
-        .add::<Optional, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .add::<Public, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
-        .add::<KeyOnly, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .build()
         .unwrap()
 }
@@ -204,9 +202,7 @@ async fn a_rule_for_the_services_store_errors_never_translates_an_authentication
             Err(crucible_server_runtime_rust::Error::new(StoreDown))
         })
         .add::<Protected, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
-        .add::<Optional, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .add::<Public, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
-        .add::<KeyOnly, _, _>(Arc::new(()), |_, _| async { Ok(identity()) })
         .build()
         .unwrap();
     let service = Crucible::builder(operations)

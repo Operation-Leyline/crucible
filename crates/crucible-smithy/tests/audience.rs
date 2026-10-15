@@ -3,103 +3,6 @@ use crucible_smithy::{Audience, Capabilities, Feature, Model, ShapeId, project};
 
 const INTERNAL: &str = include_str!("fixtures/internal.json");
 
-#[test]
-fn legacy_internal_tags_project_values_and_reject_removed_defaults() {
-    let source = include_str!("fixtures/internal-legacy-enum.json");
-    let full = lower(source, false);
-    let color_id = ShapeId::new("example.legacy", "Color");
-    let Shape::Enum(color) = full.shape(&color_id).unwrap() else {
-        panic!("legacy enum")
-    };
-    assert!(!color.internal);
-    assert!(color.values[0].internal);
-    assert!(!color.values[1].internal);
-    let external = project(&full, Audience::External).unwrap();
-    let Shape::Enum(visible) = external.shape(&color_id).unwrap() else {
-        panic!("legacy enum")
-    };
-    assert_eq!(visible.values.len(), 1);
-    assert_eq!(visible.values[0].value, "blue-wire");
-    let internal = project(&full, Audience::Internal).unwrap();
-    let Shape::Enum(visible) = internal.shape(&color_id).unwrap() else {
-        panic!("legacy enum")
-    };
-    assert_eq!(visible.values.len(), 2);
-
-    let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
-    model["shapes"]["example.legacy#Output"]["members"]["color"]["traits"]["smithy.api#default"] =
-        serde_json::json!("red-wire");
-    let with_default = lower(&model.to_string(), false);
-    let diagnostics = project(&with_default, Audience::External).unwrap_err();
-    assert_eq!(diagnostics.len(), 1, "{diagnostics}");
-    assert!(
-        diagnostics
-            .to_string()
-            .contains("audience.default_reference:")
-    );
-    assert!(project(&with_default, Audience::Internal).is_ok());
-}
-
-#[test]
-fn legacy_enum_visibility_follows_the_shape_and_preserves_public_values() {
-    let source = include_str!("fixtures/legacy-enum.json");
-    let full = lower(source, false);
-    let color_id = ShapeId::new("example.legacy", "Color");
-    let Shape::Enum(color) = full.shape(&color_id).unwrap() else {
-        panic!("legacy enum")
-    };
-    assert!(!color.internal);
-    assert!(color.values.iter().all(|value| !value.internal));
-    let external = project(&full, Audience::External).unwrap();
-    let Shape::Enum(visible) = external.shape(&color_id).unwrap() else {
-        panic!("legacy enum")
-    };
-    assert_eq!(visible.values.len(), 2);
-
-    let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
-    model["shapes"]["example.legacy#Color"]["traits"]["smithy.api#internal"] =
-        serde_json::json!({});
-    let internal = lower(&model.to_string(), false);
-    assert!(internal.shape(&color_id).unwrap().internal());
-    assert!(project(&internal, Audience::Internal).is_ok());
-    let diagnostics = project(&internal, Audience::External).unwrap_err();
-    assert_eq!(diagnostics.len(), 2, "{diagnostics}");
-    assert!(
-        diagnostics
-            .iter()
-            .all(|d| d.message.starts_with("audience.internal_target:")),
-        "{diagnostics}"
-    );
-}
-
-#[test]
-fn cors_keeps_the_full_server_contract_when_client_bindings_are_projected() {
-    let full = lower(include_str!("fixtures/internal-cors.json"), false);
-    let cors = full.cors.as_ref().unwrap();
-    assert_eq!(
-        cors.allowed_headers,
-        ["content-type", "x-private", "x-secret"]
-    );
-    assert_eq!(cors.methods, ["DELETE", "POST"]);
-    assert_eq!(
-        cors.exposed_headers,
-        [
-            "content-type",
-            "x-crucible-error",
-            "x-private-error",
-            "x-private-output",
-            "x-request-id"
-        ]
-    );
-    let external = project(&full, Audience::External).unwrap();
-    assert_eq!(external.operations.len(), 1);
-    assert!(external.operations[0].request.headers.is_empty());
-    assert!(external.operations[0].response.headers.is_empty());
-    assert_eq!(external.operations[0].errors, [id("PublicFault")]);
-    assert_eq!(external.cors, full.cors);
-    assert_eq!(project(&full, Audience::Internal).unwrap().cors, full.cors);
-}
-
 fn id(name: &str) -> ShapeId {
     ShapeId::new("example.audience", name)
 }
@@ -268,42 +171,6 @@ fn refuses_each_removed_paginator_member() {
 }
 
 #[test]
-fn refuses_removed_waiter_output_and_input_output_members() {
-    let errors = project(
-        &lower(
-            include_str!("fixtures/internal-waiter-reference.json"),
-            false,
-        ),
-        Audience::External,
-    )
-    .unwrap_err();
-    assert_eq!(errors.len(), 2, "{errors}");
-    assert!(
-        errors
-            .iter()
-            .all(|e| e.message.starts_with("audience.waiter_reference:"))
-    );
-}
-
-#[test]
-fn refuses_endpoint_labels_that_reference_removed_members() {
-    let errors = project(
-        &lower(
-            include_str!("fixtures/internal-endpoint-reference.json"),
-            false,
-        ),
-        Audience::External,
-    )
-    .unwrap_err();
-    assert!(
-        errors
-            .iter()
-            .any(|e| e.message.starts_with("audience.endpoint_reference:")),
-        "{errors}"
-    );
-}
-
-#[test]
 fn refuses_internal_lifecycle_operations_only_for_infrastructure() {
     let fixture = include_str!("fixtures/internal-resource-lifecycle.json");
     assert!(project(&lower(fixture, false), Audience::External).is_ok());
@@ -409,62 +276,6 @@ fn all_shape_variants_and_enum_members_have_lowered_visibility() {
     assert_eq!(value.values.len(), 1);
 }
 
-#[test]
-fn refuses_removed_checksum_controls() {
-    let errors = project(
-        &lower(
-            include_str!("fixtures/internal-checksum-reference.json"),
-            false,
-        ),
-        Audience::External,
-    )
-    .unwrap_err();
-    assert_eq!(errors.len(), 2, "{errors}");
-    assert!(
-        errors
-            .iter()
-            .all(|e| e.message.starts_with("audience.checksum_reference:"))
-    );
-}
-
-#[test]
-fn refuses_removed_endpoint_discovery_operations() {
-    let errors = project(
-        &lower(
-            include_str!("fixtures/internal-discovery-reference.json"),
-            false,
-        ),
-        Audience::External,
-    )
-    .unwrap_err();
-    assert_eq!(errors.len(), 1, "{errors}");
-    assert!(errors.to_string().contains("audience.endpoint_reference:"));
-}
-
-#[test]
-fn nested_waiter_expressions_check_the_actual_member_scope() {
-    let mut full = lower(
-        include_str!("fixtures/internal-waiter-reference.json"),
-        false,
-    );
-    use crucible_smithy::ir::{JmesExpression as E, WaiterMatcher};
-    // The public output.value is visible while input.privateValue is removed.
-    // A same-spelling unrelated member must not change this decision.
-    let op = full
-        .operations
-        .iter_mut()
-        .find(|op| op.id == id("Public"))
-        .unwrap();
-    let waiter = op.waiters.values_mut().next().unwrap();
-    waiter.acceptors.truncate(1);
-    if let WaiterMatcher::Output { path, .. } = &mut waiter.acceptors[0].matcher {
-        path.expression = E::Field {
-            name: "value".into(),
-        };
-    }
-    assert!(project(&full, Audience::External).is_ok());
-}
-
 /// The external view of everything the adversarial check reproduced, as
 /// JSON: what it must not contain.
 fn external_json(model: &serde_json::Value) -> String {
@@ -474,17 +285,6 @@ fn external_json(model: &serde_json::Value) -> String {
 
 /// A legacy `@enum` value tagged `internal` leaves the typed enum, and the
 /// raw `smithy.api#enum` that still lists it (with its documentation) goes.
-#[test]
-fn an_internal_legacy_enum_value_leaves_no_raw_trait_behind() {
-    let model: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/internal-legacy-enum.json")).unwrap();
-    let external = external_json(&model);
-    for private in ["red-wire", "RED", "Warm red.", "smithy.api#enum"] {
-        assert!(!external.contains(private), "{private} leaks: {external}");
-    }
-    assert!(external.contains("blue-wire"));
-}
-
 /// `smithy.api#references` on a public structure naming an internal
 /// resource leaks the resource and its identifier member: dropped.
 #[test]

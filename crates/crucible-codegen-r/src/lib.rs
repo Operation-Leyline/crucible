@@ -13,7 +13,6 @@ pub struct Options {
     pub package_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 pub struct File {
     pub path: String,
@@ -84,24 +83,11 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
-        Feature::Sets,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
     ])
 }
 
@@ -155,12 +141,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "json_encode",
         "json_object",
         "UNSET",
-        "basic_credentials",
-        "aws_credentials",
-        "credential_chain",
-        "environment_credentials",
-        "profile_credentials",
-        "cached_credentials",
     ]
     .into_iter()
     .map(str::to_owned)
@@ -300,7 +280,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "missing",
                 "all",
                 "isFALSE",
-                "C_crucible_crc",
             ]
             .contains(&name)
         {
@@ -452,12 +431,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     permissions::diagnose(service, &mut diagnostics);
     files.extend(permissions::emit(service));
-    let mut methods = BTreeSet::from([
-        "close".to_owned(),
-        "call".to_owned(),
-        "pages".to_owned(),
-        "wait".to_owned(),
-    ]);
+    let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     let mut operation_notes = String::new();
     let mut client = roxygen(&format!(
         "{}\nConstruct with client_config(). Call client$close() after use. Clients and page functions are mutable; use them from one R execution thread.",
@@ -467,17 +441,12 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         )
         .unwrap_or_default()
     )) + &format!(
-        "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {}, {})\n",
+        "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {})\n",
         function(&client_name),
         options
             .endpoint
             .as_ref()
-            .map_or("NULL".into(), |e| literal(e)),
-        if options.content_sha256 {
-            "TRUE"
-        } else {
-            "FALSE"
-        }
+            .map_or("NULL".into(), |e| literal(e))
     );
     for op in &service.operations {
         if contains_nul(&schema["operations"][op.name()]) {
@@ -501,24 +470,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             client.push_str(&format!("  client${} <- function(input{}, cancellation = NULL) client${}({}, input, cancellation)\n",function(&method),if op.input.is_none(){" = NULL"}else{""},if suffix.is_empty(){"call"}else{"pages"},literal(op.name())));
         }
     }
-    for op in &service.operations {
-        for waiter in op.waiters.keys() {
-            let method = format!("wait_until_{}", field(waiter));
-            if !methods.insert(method.clone()) {
-                diagnostics.push(&op.id, "R waiter method collision");
-            }
-            client.push_str(&format!(
-                "  client${} <- function(input{}, timeout, min_delay = NULL, max_delay = NULL, cancellation = NULL) client$wait({}, {}, input, timeout, min_delay, max_delay, cancellation)\n",
-                function(&method),
-                if op.input.is_none() { " = NULL" } else { "" },
-                literal(op.name()),
-                literal(waiter)
-            ));
-        }
-    }
     client.push_str("  client\n}\n");
-    // The rest of the schema (auth schemes, endpoint rules, the
-    // permission registry) also becomes R strings when the
+    // The rest of the schema (the permission registry) also becomes R strings when the
     // package loads, so a NUL anywhere in it is refused as well. The version
     // was diagnosed above.
     if schema.as_object().is_some_and(|fields| {
@@ -543,11 +496,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ("json", include_str!("../runtime/json.R")),
         ("types", include_str!("../runtime/types.R")),
         ("codec", include_str!("../runtime/codec.R")),
-        ("query", include_str!("../runtime/query.R")),
-        ("endpoints", include_str!("../runtime/endpoints.R")),
-        ("auth", include_str!("../runtime/auth.R")),
-        ("checksums", include_str!("../runtime/checksums.R")),
-        ("waiters", include_str!("../runtime/waiters.R")),
         ("runtime", include_str!("../runtime/runtime.R")),
     ] {
         files.push(File {
@@ -559,10 +507,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         path: "src/clock.c".into(),
         contents: include_str!("../runtime/clock.c")
             .replace("CRUCIBLE_PACKAGE", &package.replace('.', "_")),
-    });
-    files.push(File {
-        path: "src/checksums.c".into(),
-        contents: include_str!("../runtime/checksums.c").into(),
     });
     let schema_text = serde_json::to_string(&schema).expect("schema");
     let chars: Vec<_> = schema_text.chars().collect();
@@ -588,8 +532,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 .iter()
                 .flat_map(|generic| {
                     [
-                        "crucible_aws_credentials",
-                        "crucible_basic_credentials",
                         "crucible_model",
                         "crucible_union",
                         "crucible_enum",
@@ -602,7 +544,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     });
     files.push(File {path:"DESCRIPTION".into(),contents:format!("Package: {package}\nVersion: {}\nTitle: Generated Client for {}\nDescription: Native client generated from the Crucible Smithy semantic model.\nAuthors@R: person('SDK', 'Maintainer', role = c('aut', 'cre'), email = 'sdk@example.invalid')\nLicense: file LICENSE\nEncoding: UTF-8\nDepends: R (>= 4.1.0)\nImports: curl (>= 4.3.2), jsonlite (>= 1.7.3), openssl (>= 1.4.6), stats\n",options.package_version,service.name_of(&service.id))});
     files.push(File{path:"LICENSE".into(),contents:"Package owner must supply distribution terms before publishing. Generated model code inherits the model owner's licensing requirements.\n".into()});
-    files.push(File{path:"inst/crucible.json".into(),contents:serde_json::to_string_pretty(&json!({"generator":"crucible-codegen-r","generatorVersion":env!("CARGO_PKG_VERSION"),"packageVersion":options.package_version,"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema_text.as_bytes())),"contentSha256":options.content_sha256})).expect("metadata")});
+    files.push(File{path:"inst/crucible.json".into(),contents:serde_json::to_string_pretty(&json!({"generator":"crucible-codegen-r","generatorVersion":env!("CARGO_PKG_VERSION"),"packageVersion":options.package_version,"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema_text.as_bytes()))})).expect("metadata")});
     let aliases = exported
         .iter()
         .filter(|s| {
@@ -612,7 +554,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .collect::<String>();
     files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Smithy Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use {client_name}(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});
     files.push(File { path: "man/operations.Rd".into(), contents: format!("\\name{{operations}}\n\\alias{{operations}}\n\\title{{Operation contracts}}\n\\description{{{}}}\n", markdown::render(&operation_notes)) });
-    files.push(File { path: "man/runtime.Rd".into(), contents: format!("\\name{{runtime}}\n\\alias{{runtime}}\n\\title{{Runtime entry points}}\n\\description{{{}}}\n", markdown::render("UNSET: Sentinel omitting an optional model member; NULL represents explicit JSON null.\nlong: Constructs an exact signed 64-bit integer from a decimal string; numeric inputs beyond exact double precision are rejected.\nbig_integer: Constructs an exact arbitrary precision integer from a decimal string.\nbig_decimal: Constructs an exact arbitrary precision decimal from a decimal string.\njson_number: Preserves a JSON numeric token without double rounding.\njson_parse: Parses a UTF-8 JSON string, preserving exact numeric tokens.\njson_encode: Encodes a native JSON value into UTF-8 text.\njson_object: Constructs a JSON object distinct from an unnamed array.\ncancellation_token: Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.\nbasic_credentials: Constructs HTTP basic credentials; print and format redact secrets.\naws_credentials: Constructs SigV4 credentials; print and format redact secrets.\ncredential_chain: Tries credential providers in order until one supplies credentials.\nenvironment_credentials: Reads AWS credentials from standard environment variables.\nprofile_credentials: Reads AWS credentials from a named shared credentials profile.\ncached_credentials: Caches provider credentials, refreshing when expired.\ntimestamp: Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).\n\nclient_config settings:\nendpoint: HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules.\ntoken: Bearer token provider invoked for each authenticated attempt.\ntransport: Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.\ntimeout: Total call budget in seconds, including credentials, retries, backoff, and response reads.\nmax_attempts: Maximum attempts including the first request (default 3).\nbase_delay: Initial full-jitter exponential backoff bound in seconds.\nmax_delay: Maximum backoff bound in seconds; Retry-After can override it.\nheaders: Default request headers applied to every attempt.\nmiddleware: Request transformations applied on every attempt after authentication.\nbasic_auth: HTTP basic authentication provider; used only for a modeled basic-auth scheme.\napi_key: API key provider for the modeled header or query location.\ncredentials: AWS credentials provider for modeled SigV4 authentication.\nregion: SigV4 region and AWS::Region endpoint built-in.\nendpoint_parameters: Named inputs to modeled endpoint rules.\nendpoint_builtins: Endpoint-rule built-in overrides.\ndisable_host_prefix: Disables modeled operation host-prefix injection.\nrequest_checksum_calculation: Computes modeled request checksums when supported or only when required.\nresponse_checksum_validation: Validates modeled response checksums when supported or only when required.\nchecksum_validated: Notification after a response checksum validates.")) });
+    files.push(File { path: "man/runtime.Rd".into(), contents: format!("\\name{{runtime}}\n\\alias{{runtime}}\n\\title{{Runtime entry points}}\n\\description{{{}}}\n", markdown::render("UNSET: Sentinel omitting an optional model member; NULL represents explicit JSON null.\nlong: Constructs an exact signed 64-bit integer from a decimal string; numeric inputs beyond exact double precision are rejected.\nbig_integer: Constructs an exact arbitrary precision integer from a decimal string.\nbig_decimal: Constructs an exact arbitrary precision decimal from a decimal string.\njson_number: Preserves a JSON numeric token without double rounding.\njson_parse: Parses a UTF-8 JSON string, preserving exact numeric tokens.\njson_encode: Encodes a native JSON value into UTF-8 text.\njson_object: Constructs a JSON object distinct from an unnamed array.\ncancellation_token: Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.\ntimestamp: Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).\n\nclient_config settings:\nendpoint: HTTP endpoint override; absent uses the generated endpoint.\ntoken: Bearer token provider invoked for each authenticated attempt.\ntransport: Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.\ntimeout: Total call budget in seconds, including credentials, retries, backoff, and response reads.\nmax_attempts: Maximum attempts including the first request (default 3).\nbase_delay: Initial full-jitter exponential backoff bound in seconds.\nmax_delay: Maximum backoff bound in seconds; Retry-After can override it.\nheaders: Default request headers applied to every attempt.\nmiddleware: Request transformations applied on every attempt after authentication.")) });
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
 }

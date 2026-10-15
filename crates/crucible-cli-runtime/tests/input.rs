@@ -255,20 +255,6 @@ fn root_version_does_not_reserve_operation_version_members() {
 }
 
 #[test]
-fn json_names_key_flags_and_validation() {
-    let mut spec = descriptor();
-    spec["shapes"]["Input"]["members"][0]["wire_name"] = json!("identifier");
-    let spec = spec.to_string();
-    let args = ["weather", "update", "--id", "a"];
-    let invocation = parse(&spec, args.iter().map(OsString::from))
-        .unwrap()
-        .unwrap();
-    assert_eq!(invocation.input, json!({"identifier":"a"}));
-    let json = ["weather", "update", "--input-json", r#"{"id":"a"}"#];
-    assert!(parse(&spec, json.iter().map(OsString::from)).is_err());
-}
-
-#[test]
 fn query_timestamps_accept_the_bound_and_document_formats() {
     let mut spec = descriptor();
     spec["shapes"]["Input"]["members"]

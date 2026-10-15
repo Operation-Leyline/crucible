@@ -12,7 +12,6 @@ pub struct Options {
     pub package_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 pub struct File {
     pub path: String,
@@ -138,7 +137,6 @@ fn method(text: &str) -> String {
 fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
         Shape::Unit { .. } => format!("{package}.model.Unit"),
-        Shape::Simple(s) if s.streaming => format!("{package}.ByteStream"),
         Shape::Simple(s) => match s.kind {
             SimpleKind::String => "java.lang.String",
             SimpleKind::Boolean => "java.lang.Boolean",
@@ -157,8 +155,7 @@ fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
         .into(),
         Shape::List(list) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
             format!(
-                "java.util.{}<{}>",
-                if list.is_set { "Set" } else { "List" },
+                "java.util.List<{}>",
                 ty(service, &list.member.target, package)
             )
         }
@@ -369,10 +366,6 @@ fn default_expression(
                 "com.google.gson.JsonParser.parseString({})",
                 literal(&value.to_string())
             ),
-            SimpleKind::Blob if simple.streaming => format!(
-                "{package}.ByteStream.fromBytes(java.util.Base64.getDecoder().decode({}))",
-                literal(value.as_str()?)
-            ),
             SimpleKind::Blob => format!(
                 "java.util.Base64.getDecoder().decode({})",
                 literal(value.as_str()?)
@@ -392,15 +385,11 @@ fn default_expression(
         },
         Shape::Enum(_) => format!("new {native}({})", literal(value.as_str()?)),
         Shape::IntEnum(_) => format!("new {native}({})", value.as_i64()?),
-        Shape::List(list) if value.as_array()?.is_empty() => {
+        Shape::List(_) if value.as_array()?.is_empty() => {
             if recursive_collection(service, id, id, &mut BTreeSet::new()) {
                 format!("new {native}()")
             } else {
-                if list.is_set {
-                    "new java.util.LinkedHashSet<>()".into()
-                } else {
-                    "new java.util.ArrayList<>()".into()
-                }
+                "new java.util.ArrayList<>()".into()
             }
         }
         Shape::Map(_) if value.as_object()?.is_empty() => {
@@ -417,28 +406,14 @@ fn default_expression(
 pub fn capabilities() -> crucible_smithy::Capabilities {
     use crucible_smithy::Feature;
     crucible_smithy::Capabilities::new([
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
+        Feature::Sparse,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
-        Feature::Sparse,
-        Feature::Sets,
         Feature::NonBlobPayload,
-        Feature::Streaming,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
     ])
 }
 
@@ -578,19 +553,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
         }
     }
-    for op in &service.operations {
-        for waiter in op.waiters.keys() {
-            for suffix in ["", "Async"] {
-                let name = format!("waitUntil{waiter}{suffix}");
-                if !identifier(&name) || !methods.insert(name) {
-                    diagnostics.push(
-                        &op.id,
-                        "Java waiter method name collision or invalid identifier",
-                    );
-                }
-            }
-        }
-    }
     permissions::check(service, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
@@ -618,12 +580,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let name = service.name_of(id);
         let native = ty(service, id, package);
         let class = match shape {
-            Shape::List(list) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
-                if list.is_set {
-                    "java.util.LinkedHashSet".to_string()
-                } else {
-                    "java.util.ArrayList".to_string()
-                }
+            Shape::List(_) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
+                "java.util.ArrayList".to_string()
             }
             Shape::Map(_) if !recursive_collection(service, id, id, &mut BTreeSet::new()) => {
                 "java.util.LinkedHashMap".to_string()
@@ -647,8 +605,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "    ",
                     l.docs.as_deref(),
                     &[format!(
-                        "A recursive {} of {}; a nominal type breaks the cycle.",
-                        if l.is_set { "set" } else { "list" },
+                        "A recursive list of {}; a nominal type breaks the cycle.",
                         code(&l.member.target.to_string())
                     )],
                     &[],
@@ -660,7 +617,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 } else {
                     String::new()
                 };
-                models.push_str(&format!("    public final class {name} extends java.util.{}<{}> {{\n        private static final long serialVersionUID = 1L;\n        /** Creates an empty collection. */\n        public {name}() {{}}\n{hidden}    }}\n",if l.is_set { "LinkedHashSet" } else { "ArrayList" },ty(service,&l.member.target,package)))
+                models.push_str(&format!("    public final class {name} extends java.util.ArrayList<{}> {{\n        private static final long serialVersionUID = 1L;\n        /** Creates an empty collection. */\n        public {name}() {{}}\n{hidden}    }}\n",ty(service,&l.member.target,package)))
             }
             Shape::Map(m) => {
                 models.push_str(&javadoc_for(
@@ -998,10 +955,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "Failures surface as modeled errors, the service exception for any other error response, or a network error when no response arrived.".to_string(),
     ], &[]));
     client.push_str(&format!(
-        "public final class {client_name} {{\n    private final ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{\n        runtime = new ClientRuntime(config, {}, {}, ModelRegistry.classes());\n    }}\n",
-        javadoc("    ", None, &["Creates a client from a copy of the configuration.".to_string()], &["@param config endpoint, credentials, retry and timeout settings".to_string(), "@throws IllegalArgumentException if the endpoint or a retry setting is invalid".to_string()]),
-        literal(options.endpoint.as_deref().unwrap_or("")),
-        options.content_sha256
+        "public final class {client_name} {{\n    private final ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{\n        runtime = new ClientRuntime(config, {}, ModelRegistry.classes());\n    }}\n",
+        javadoc("    ", None, &["Creates a client from a copy of the configuration.".to_string()], &["@param config endpoint, token, retry and timeout settings".to_string(), "@throws IllegalArgumentException if the endpoint or a retry setting is invalid".to_string()]),
+        literal(options.endpoint.as_deref().unwrap_or(""))
     ));
     for op in &service.operations {
         let name = method(op.name());
@@ -1055,76 +1011,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             client.push_str(&format!("    public {output} {name}(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}(builder.build());\n    }}\n"));
             client.push_str(&od(async_note, cfg_doc, "a future of the response", false));
             client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {name}Async(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}Async(builder.build());\n    }}\n"));
-        }
-        for waiter in op.waiters.keys() {
-            let method_name = format!("waitUntil{waiter}");
-            let params = if input.is_some() {
-                format!("{parameter}, WaiterOptions options")
-            } else {
-                "WaiterOptions options".into()
-            };
-            let args = if input.is_some() {
-                "input, options"
-            } else {
-                "options"
-            };
-            let default_args = if input.is_some() {
-                "input, new WaiterOptions()"
-            } else {
-                "new WaiterOptions()"
-            };
-            let wait_note = format!(
-                "Polls {} until the {} waiter reaches its success state, returning the response that satisfied it. Fails with a waiter error when a failure state is reached, or a waiter timeout when the deadline passes.",
-                code(op.name()),
-                code(waiter)
-            );
-            let mut wp: Vec<(&str, &str)> = in_doc.to_vec();
-            wp.push(("options", "the polling deadline and delay overrides"));
-            let wd = |variant: &str, params: &[(&str, &str)], returns: &str| {
-                let mut text =
-                    operation_javadoc(service, op, package, variant, params, returns, false);
-                if !text.contains("@throws") {
-                    text = text.replacen("     */\n", &format!("     * @throws {package}.WaiterError if a failure state is reached\n     * @throws {package}.WaiterTimeout if the deadline passes\n     */\n"), 1);
-                }
-                text
-            };
-            client.push_str(&wd(&wait_note, &wp, "a future of the satisfying response"));
-            client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async({params}) {{ return runtime.waitUntil({}, {}, {argument}, {output}.class, options); }}\n", literal(op.name()), literal(waiter)));
-            client.push_str(&wd(&wait_note, &wp, "the satisfying response"));
-            client.push_str(&format!("    public {output} {method_name}({params}) {{ return ClientRuntime.await({method_name}Async({args})); }}\n"));
-            client.push_str(&wd(
-                &format!("{wait_note} Uses the default five minute deadline."),
-                in_doc,
-                "a future of the satisfying response",
-            ));
-            client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async({parameter}) {{ return {method_name}Async({default_args}); }}\n"));
-            client.push_str(&wd(
-                &format!("{wait_note} Uses the default five minute deadline."),
-                in_doc,
-                "the satisfying response",
-            ));
-            client.push_str(&format!("    public {output} {method_name}({parameter}) {{ return {method_name}({default_args}); }}\n"));
-            if let Some(input) = &input {
-                let mut cp: Vec<(&str, &str)> =
-                    vec![("options", "the polling deadline and delay overrides")];
-                cp.extend_from_slice(cfg_doc);
-                client.push_str(&wd(&wait_note, &cp, "a future of the satisfying response"));
-                client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async(WaiterOptions options, java.util.function.Consumer<{input}.Builder> configure) {{ var builder={input}.builder(); configure.accept(builder); return {method_name}Async(builder.build(), options); }}\n"));
-                client.push_str(&wd(&wait_note, &cp, "the satisfying response"));
-                client.push_str(&format!("    public {output} {method_name}(WaiterOptions options, java.util.function.Consumer<{input}.Builder> configure) {{ return ClientRuntime.await({method_name}Async(options, configure)); }}\n"));
-                client.push_str(&wd(
-                    &format!("{wait_note} Uses the default five minute deadline."),
-                    cfg_doc,
-                    "a future of the satisfying response",
-                ));
-                client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {method_name}Async(java.util.function.Consumer<{input}.Builder> configure) {{ return {method_name}Async(new WaiterOptions(), configure); }}\n"));
-                client.push_str(&wd(
-                    &format!("{wait_note} Uses the default five minute deadline."),
-                    cfg_doc,
-                    "the satisfying response",
-                ));
-                client.push_str(&format!("    public {output} {method_name}(java.util.function.Consumer<{input}.Builder> configure) {{ return {method_name}(new WaiterOptions(), configure); }}\n"));
-            }
         }
         if op.paginated.is_some() {
             let pages = "Lazily fetches each page, following the continuation token until the service stops returning one. A page is requested only when the previous one has been consumed.";
@@ -1182,43 +1068,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("ClientConfig", include_str!("../runtime/ClientConfig.java")),
         ("Auth", include_str!("../runtime/Auth.java")),
-        ("Checksums", include_str!("../runtime/Checksums.java")),
-        (
-            "ChecksumPolicy",
-            include_str!("../runtime/ChecksumPolicy.java"),
-        ),
-        (
-            "ChecksumMismatch",
-            include_str!("../runtime/ChecksumMismatch.java"),
-        ),
         ("ModelFormat", include_str!("../runtime/ModelFormat.java")),
-        ("Query", include_str!("../runtime/Query.java")),
-        ("Endpoints", include_str!("../runtime/Endpoints.java")),
-        (
-            "WaiterOptions",
-            include_str!("../runtime/WaiterOptions.java"),
-        ),
-        ("WaiterError", include_str!("../runtime/WaiterError.java")),
-        (
-            "WaiterTimeout",
-            include_str!("../runtime/WaiterTimeout.java"),
-        ),
-        (
-            "BasicCredentials",
-            include_str!("../runtime/BasicCredentials.java"),
-        ),
-        (
-            "AwsCredentials",
-            include_str!("../runtime/AwsCredentials.java"),
-        ),
-        (
-            "CachedCredentials",
-            include_str!("../runtime/CachedCredentials.java"),
-        ),
-        (
-            "CredentialProviders",
-            include_str!("../runtime/CredentialProviders.java"),
-        ),
         (
             "OptionalValue",
             include_str!("../runtime/OptionalValue.java"),
@@ -1230,13 +1080,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("NetworkError", include_str!("../runtime/NetworkError.java")),
         ("UnknownUnion", include_str!("../runtime/UnknownUnion.java")),
-        ("ByteStream", include_str!("../runtime/ByteStream.java")),
-        ("StreamBody", include_str!("../runtime/StreamBody.java")),
-        ("StreamInput", include_str!("../runtime/StreamInput.java")),
-        (
-            "InputStreamPublisher",
-            include_str!("../runtime/InputStreamPublisher.java"),
-        ),
     ] {
         files.push(file(
             format!("{source}/{name}.java"),

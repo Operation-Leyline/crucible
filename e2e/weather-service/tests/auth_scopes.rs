@@ -313,22 +313,6 @@ async fn opting_out_and_public_operations_need_no_scope() {
 }
 
 #[tokio::test]
-async fn optional_authentication_admits_anonymous_but_checks_a_presented_token() {
-    let service = enforcing(ScopeEnforcer::strict());
-    assert_eq!(call(&service, "/optional", None).await.0, StatusCode::OK);
-    let lacking = access(Some("other"));
-    assert_eq!(
-        call(&service, "/optional", Some(&lacking)).await.0,
-        StatusCode::FORBIDDEN
-    );
-    let holding = access(Some("weather/read"));
-    assert_eq!(
-        call(&service, "/optional", Some(&holding)).await.0,
-        StatusCode::OK
-    );
-}
-
-#[tokio::test]
 async fn without_the_enforcer_declared_scopes_change_nothing() {
     // Opt-in: the model alone enforces nothing, so existing callers keep working.
     let service = builder().build().unwrap();

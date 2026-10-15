@@ -14,7 +14,7 @@ type LeylineClient struct { *clientRuntime }
 // NewLeylineClient validates configuration and applies defaults without sending a request.
 func NewLeylineClient(config Config) (*LeylineClient, error) {
  if config.Endpoint == "" { config.Endpoint = "" }
- runtime, err := newClient(config, wireSchema, false)
+ runtime, err := newClient(config, wireSchema)
  if err != nil { return nil, err }
  return &LeylineClient{clientRuntime: runtime}, nil
 }

@@ -265,13 +265,6 @@ pub mod shop {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for InternalServerException {
@@ -321,13 +314,6 @@ pub mod shop {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ItemGoneException {
@@ -377,13 +363,6 @@ pub mod shop {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ItemNotFoundException {
@@ -442,13 +421,6 @@ pub mod shop {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ValidationException {
@@ -520,7 +492,6 @@ pub mod shop {
     impl ::crucible_server_runtime_rust::__generated::Operation for DeleteItem {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const OPTIONAL_AUTH: bool = false;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &DELETE_ITEM_OPERATION;
         type Input = model::DeleteItemInput;
@@ -559,7 +530,6 @@ pub mod shop {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetItem {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const OPTIONAL_AUTH: bool = false;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_ITEM_OPERATION;
         type Input = model::GetItemInput;
@@ -599,7 +569,6 @@ pub mod shop {
     impl ::crucible_server_runtime_rust::__generated::Operation for ListItems {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const OPTIONAL_AUTH: bool = false;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_ITEMS_OPERATION;
         type Input = model::ListItemsInput;
@@ -653,7 +622,6 @@ pub mod shop {
     pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
         "example.shop#Shop",
         "v3",
-        None,
         None,
         &[
             &DELETE_ITEM_OPERATION,
@@ -994,13 +962,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for CountUnavailableException {
@@ -1055,13 +1016,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for InternalServerException {
@@ -1111,13 +1065,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for ItemNotFoundException {
@@ -1176,13 +1123,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for ValidationException {
@@ -1255,7 +1195,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for CountItems {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &COUNT_ITEMS_OPERATION;
                 type Input = model::CountItemsInput;
                 type Output = model::CountItemsOutput;
@@ -1293,7 +1232,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for DeleteItem {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &DELETE_ITEM_OPERATION;
                 type Input = model::DeleteItemInput;
                 type Output = model::DeleteItemOutput;
@@ -1332,7 +1270,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for GetItem {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_ITEM_OPERATION;
                 type Input = model::GetItemInput;
                 type Output = model::GetItemOutput;
@@ -1371,7 +1308,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for ListItems {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_ITEMS_OPERATION;
                 type Input = model::ListItemsInput;
                 type Output = model::ListItemsOutput;
@@ -1424,7 +1360,6 @@ pub mod shop {
             pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
                 "example.shop#Shop",
                 "v1",
-                None,
                 None,
                 &[
                     &COUNT_ITEMS_OPERATION,
@@ -1771,13 +1706,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for CountUnavailableException {
@@ -1832,13 +1760,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for InternalServerException {
@@ -1888,13 +1809,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for ItemNotFoundException {
@@ -1953,13 +1867,6 @@ pub mod shop {
                         ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
                     }
 
-                    fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-                    }
-
-                    fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                        ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-                    }
                 }
 
                 impl ::std::fmt::Display for ValidationException {
@@ -2032,7 +1939,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for CountItems {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &COUNT_ITEMS_OPERATION;
                 type Input = model::CountItemsInput;
                 type Output = model::CountItemsOutput;
@@ -2070,7 +1976,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for DeleteItem {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &DELETE_ITEM_OPERATION;
                 type Input = model::DeleteItemInput;
                 type Output = model::DeleteItemOutput;
@@ -2109,7 +2014,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for GetItem {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_ITEM_OPERATION;
                 type Input = model::GetItemInput;
                 type Output = model::GetItemOutput;
@@ -2148,7 +2052,6 @@ pub mod shop {
             impl ::crucible_server_runtime_rust::__generated::Operation for ListItems {
                 const AUTH_BEARER: bool = false;
                 const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-                const OPTIONAL_AUTH: bool = false;
                 const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_ITEMS_OPERATION;
                 type Input = model::ListItemsInput;
                 type Output = model::ListItemsOutput;
@@ -2201,7 +2104,6 @@ pub mod shop {
             pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
                 "example.shop#Shop",
                 "v2",
-                None,
                 None,
                 &[
                     &COUNT_ITEMS_OPERATION,

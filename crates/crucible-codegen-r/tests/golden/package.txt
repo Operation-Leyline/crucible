@@ -39,31 +39,21 @@ export("ValidationError")
 export("ValidationField")
 export("ValidationReason")
 export("WeatherClient")
-export("aws_credentials")
-export("basic_credentials")
 export("big_decimal")
 export("big_integer")
-export("cached_credentials")
 export("cancellation_token")
 export("client_config")
-export("credential_chain")
-export("environment_credentials")
 export("json_encode")
 export("json_number")
 export("json_object")
 export("json_parse")
 export("long")
-export("profile_credentials")
 export("timestamp")
-S3method(format, crucible_aws_credentials)
-S3method(format, crucible_basic_credentials)
 S3method(format, crucible_model)
 S3method(format, crucible_union)
 S3method(format, crucible_enum)
 S3method(format, crucible_int_enum)
 S3method(format, crucible_error)
-S3method(print, crucible_aws_credentials)
-S3method(print, crucible_basic_credentials)
 S3method(print, crucible_model)
 S3method(print, crucible_union)
 S3method(print, crucible_enum)
@@ -77,7 +67,7 @@ S3method(print, crucible_error)
 #' @md
 # Generated native operation methods.
 `WeatherClient` <- function(config = client_config()) {
-  client <- .crucible_client(config, NULL, TRUE)
+  client <- .crucible_client(config, NULL)
 #' @description
 #' Call CreateCity.
 #'
@@ -481,8 +471,7 @@ print.crucible_error <- print.crucible_model
   "packageVersion": "0.0.0",
   "service": "example.weather#Weather",
   "serviceVersion": "2026-10-01",
-  "schemaSha256": "3cdb89c866615446e289ab725243a6806050809ebd1f37e5e0c5e9be54d16e7c",
-  "contentSha256": true
+  "schemaSha256": "3cdb89c866615446e289ab725243a6806050809ebd1f37e5e0c5e9be54d16e7c"
 }
 === man/CitySummary.Rd ===
 \name{CitySummary}
@@ -775,21 +764,15 @@ OTHER = other: Known enum value.
 \name{weather.client-client}
 \alias{UNSET}
 \alias{WeatherClient}
-\alias{aws_credentials}
-\alias{basic_credentials}
 \alias{big_decimal}
 \alias{big_integer}
-\alias{cached_credentials}
 \alias{cancellation_token}
 \alias{client_config}
-\alias{credential_chain}
-\alias{environment_credentials}
 \alias{json_encode}
 \alias{json_number}
 \alias{json_object}
 \alias{json_parse}
 \alias{long}
-\alias{profile_credentials}
 \alias{timestamp}
 \title{Generated Smithy Client}
 \description{Native model constructors and an HTTP client for the generated service.}
@@ -895,16 +878,10 @@ json_parse: Parses a UTF-8 JSON string, preserving exact numeric tokens.
 json_encode: Encodes a native JSON value into UTF-8 text.
 json_object: Constructs a JSON object distinct from an unnamed array.
 cancellation_token: Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.
-basic_credentials: Constructs HTTP basic credentials; print and format redact secrets.
-aws_credentials: Constructs SigV4 credentials; print and format redact secrets.
-credential_chain: Tries credential providers in order until one supplies credentials.
-environment_credentials: Reads AWS credentials from standard environment variables.
-profile_credentials: Reads AWS credentials from a named shared credentials profile.
-cached_credentials: Caches provider credentials, refreshing when expired.
 timestamp: Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).
 
 client_config settings:
-endpoint: HTTP endpoint override; absent uses the generated endpoint or modeled endpoint rules.
+endpoint: HTTP endpoint override; absent uses the generated endpoint.
 token: Bearer token provider invoked for each authenticated attempt.
 transport: Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.
 timeout: Total call budget in seconds, including credentials, retries, backoff, and response reads.
@@ -913,16 +890,6 @@ base_delay: Initial full-jitter exponential backoff bound in seconds.
 max_delay: Maximum backoff bound in seconds; Retry-After can override it.
 headers: Default request headers applied to every attempt.
 middleware: Request transformations applied on every attempt after authentication.
-basic_auth: HTTP basic authentication provider; used only for a modeled basic-auth scheme.
-api_key: API key provider for the modeled header or query location.
-credentials: AWS credentials provider for modeled SigV4 authentication.
-region: SigV4 region and AWS::Region endpoint built-in.
-endpoint_parameters: Named inputs to modeled endpoint rules.
-endpoint_builtins: Endpoint-rule built-in overrides.
-disable_host_prefix: Disables modeled operation host-prefix injection.
-request_checksum_calculation: Computes modeled request checksums when supported or only when required.
-response_checksum_validation: Validates modeled response checksums when supported or only when required.
-checksum_validated: Notification after a response checksum validates.
 
 }
 
@@ -955,11 +922,8 @@ static SEXP crucible_now(void) {
 #endif
 }
 
-SEXP crucible_crc(SEXP data, SEXP kind);
-
 static const R_CallMethodDef methods[] = {
     {"crucible_now", (DL_FUNC) &crucible_now, 0},
-    {"crucible_crc", (DL_FUNC) &crucible_crc, 2},
     {NULL, NULL, 0}
 };
 

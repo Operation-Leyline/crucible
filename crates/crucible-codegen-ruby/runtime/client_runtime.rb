@@ -1,33 +1,28 @@
 # frozen_string_literal: true
 require 'securerandom'
-require 'digest'
 module CrucibleGenerated
   module Runtime
     class ClientRuntime
-      def initialize(config, codec, endpoint:, digest:)
-        @config, @codec, @digest = config, codec, digest
-        base = config.endpoint || endpoint
-        if codec.schema.key?('endpointRules') && (base.nil? || base.empty?)
-          @endpoint = nil
-        else
-          @endpoint = base.sub(%r{/+\z}, '')
-          uri = self.class.url(@endpoint)
-          raise ::ArgumentError, 'Endpoint cannot contain query or fragment' if uri.query || uri.fragment
-        end
-        @builtins = {'AWS::Region' => config.region, 'SDK::Endpoint' => @endpoint}.merge(config.endpoint_builtins)
+      def initialize(config, codec, endpoint:)
+        @config, @codec = config, codec
+        @endpoint = (config.endpoint || endpoint).sub(%r{/+\z}, '')
+        uri = self.class.url(@endpoint)
+        raise ::ArgumentError, 'Endpoint cannot contain query or fragment' if uri.query || uri.fragment
         @transport, @closed = config.transport || NetHttpTransport.new, false
       end
       def close
         @transport.close unless @closed || @config.transport
         @closed = true
       end
-      # A streamed response is written to response_target or yielded to the block in chunks.
-      def call(name, input, cancellation: nil, response_target: nil, block: nil)
+      def call(name, input, cancellation: nil)
         scope = CallScope.new(@config.timeout, cancellation)
         scope.check
         op = operation(name)
         values = op['input'] ? @codec.encode(input, @codec.context(op['input'])) : {}
-        execute(name, op, values, scope, response_target: response_target, block: block)
+        result = exchange(op, values, scope)
+        output = op['output'] ? @codec.decode(result, @codec.context(op['output'])) : Unit.new
+        scope.check
+        output
       end
       def pages(name, input, cancellation: nil)
         op = operation(name)
@@ -41,7 +36,7 @@ module CrucibleGenerated
           loop do
             scope = CallScope.new(@config.timeout, cancellation)
             scope.check
-            result = exchange(name, op, values, scope)
+            result = exchange(op, values, scope)
             output = @codec.decode(result, @codec.context(op.fetch('output')))
             scope.check
             yielder << output
@@ -51,41 +46,6 @@ module CrucibleGenerated
             raise ::ArgumentError, 'Pagination token cycle' if seen[token]
             seen[token] = true
             values[token_name] = token
-          end
-        end
-      end
-      # Polls one operation until a modeled acceptor settles it. Each attempt gets the
-      # smaller of the client timeout and the time left before the waiter deadline.
-      def wait(operation_name, waiter_name, input, timeout:, min_delay: nil, max_delay: nil, cancellation: nil)
-        raise ::ArgumentError, 'Waiter timeout must be finite and positive' unless timeout.is_a?(::Numeric) && timeout.finite? && timeout.positive?
-        op = operation(operation_name)
-        waiter = Waiter.new(waiter_name, op.fetch('waiters').fetch(waiter_name), min_delay: min_delay, max_delay: max_delay)
-        values = op['input'] ? @codec.encode(input, @codec.context(op['input'])) : {}
-        query_input = op['input'] ? query_value(values, @codec.context(op['input'])) : nil
-        scope = CallScope.new(timeout, cancellation)
-        attempts, response, error = 0, nil, nil
-        expired = -> { WaiterTimeoutError.new(waiter_name, attempts, response: response, error: error, reason: 'deadline exceeded') }
-        loop do
-          cancellation&.check
-          raise expired.call if scope.remaining <= 0
-          attempts += 1
-          begin
-            response, error = execute(operation_name, op, values, CallScope.new([scope.remaining, @config.timeout].min, cancellation)), nil
-          rescue CancelledError
-            raise
-          rescue ::StandardError => caught
-            response, error = nil, caught
-          end
-          cancellation&.check
-          raise expired.call if scope.remaining <= 0
-          output = error.nil? && op['output'] ? query_value(@codec.encode(response, @codec.context(op['output'])), @codec.context(op['output'])) : nil
-          state, reason = waiter.state(query_input, output, error)
-          return response if state == 'success'
-          raise WaiterError.new(waiter_name, attempts, response: response, error: error, reason: reason) if state == 'failure'
-          begin
-            scope.wait(waiter.delay(attempts, scope.remaining))
-          rescue DeadlineError
-            raise expired.call
           end
         end
       end
@@ -100,50 +60,10 @@ module CrucibleGenerated
       end
       private
       def operation(name) = @codec.schema.fetch('operations').fetch(name)
-      def escape(text) = Endpoints.encode(text)
-      def execute(name, op, values, scope, response_target: nil, block: nil)
-        result = exchange(name, op, values, scope, response_target: response_target, block: block)
-        output = op['output'] ? @codec.decode(result, @codec.context(op['output'])) : Unit.new
-        scope.check
-        output
+      def escape(text)
+        WireCodec.string(text).b.bytes.map { |byte| (65..90).cover?(byte) || (97..122).cover?(byte) || (48..57).cover?(byte) || [45, 46, 95, 126].include?(byte) ? byte.chr : format('%%%02X', byte) }.join
       end
-      def exchange(name, op, values, scope, response_target: nil, block: nil)
-        request, checksum, endpoint = prepare(name, op, values)
-        sink = if op.fetch('response')['streaming']
-          member = op.fetch('response').fetch('payload')[0]
-          limits = @codec.shape(op.fetch('output')).fetch('members').fetch(member).fetch('length', {})
-          StreamSink.new(target: response_target, block: block, algorithms: checksum.response,
-            minimum: limits['min'], maximum: limits['max'])
-        end
-        raise ::ArgumentError, 'Only streamed responses take a target or block' if sink.nil? && (response_target || block)
-        send_request(name, op, request, checksum, endpoint, scope, sink)
-      end
-      # Query values use member names, exact numbers, and epoch-second timestamps.
-      def query_value(value, context)
-        return nil if value.nil?
-        shape = context.shape
-        case shape.fetch('kind')
-        when 'structure', 'union'
-          members = shape.fetch('members')
-          WireCodec.object(value).to_h { |name, item| [name, members.key?(name) ? query_value(item, context.member(name)) : Query.normalize(item)] }
-        when 'list' then WireCodec.items(value).map { |item| query_value(item, context.child(shape.fetch('member'))) }
-        when 'map' then WireCodec.object(value).transform_values { |item| query_value(item, context.child(shape.fetch('value'))) }
-        when 'timestamp' then @codec.decode(value, context).epoch.rational
-        when 'blob' then shape['streaming'] ? nil : value
-        else Query.normalize(value)
-        end
-      end
-      def resolve_endpoint(op, query_input)
-        endpoint = if @codec.schema.key?('endpointRules')
-          Endpoints.resolve(@codec.schema.fetch('endpointRules'), op.fetch('endpointParameters', {}), query_input,
-            @config.endpoint_parameters, @builtins)
-        else Endpoints::ResolvedEndpoint.new(url: @endpoint, headers: {}, properties: {})
-        end
-        url = endpoint.url
-        url = Endpoints.host_prefix(url, op['endpoint'], query_input) if op['endpoint'] && !@config.disable_host_prefix
-        endpoint.url = url.sub(%r{/+\z}, '')
-        endpoint
-      end
+      def exchange(op, values, scope) = send_request(op, prepare(op, values), scope)
       # Binding-specific timestamp formats re-encode values the codec wrote in the member's document format.
       def retime(value, context, from, to)
         return nil if value.nil?
@@ -167,11 +87,8 @@ module CrucibleGenerated
         end
         @codec.bound(header ? media(value, bindings, member, true) : value)
       end
-      def prepare(name, op, input)
+      def prepare(op, input)
         values = input.dup
-        query_input = op['input'] && (@codec.schema.key?('endpointRules') || op['endpoint']) ? query_value(values, @codec.context(op['input'])) : {}
-        endpoint = resolve_endpoint(op, query_input)
-        checksum = Checksums.prepare(op['checksum'], values, @config.request_checksum_calculation, @config.response_checksum_validation)
         token = op['token']
         values[token] = WireCodec.string(@config.idempotency_token.call) if token && values[token].nil?
         bindings = op.fetch('request')
@@ -191,32 +108,15 @@ module CrucibleGenerated
           value = format ? retime(values[member], @codec.context(op.fetch('input')).member(member), nil, format) : values[member]
           (value.is_a?(::Array) ? value : [value]).each { |item| query << escape(wire) + '=' + escape(@codec.bound(item)) }
         end
-        if (member = bindings['queryParams']) && values[member]
-          reserved = bindings.fetch('query').map(&:last)
-          reserved += path.split('?', 2).last.split('&').map { |pair| ::URI::DEFAULT_PARSER.unescape(pair.split('=', 2).first) } if path.include?('?')
-          WireCodec.object(values[member]).sort.each do |key, value|
-            next if reserved.include?(key)
-            (value.is_a?(::Array) ? value : [value]).each { |item| query << escape(key) + '=' + escape(@codec.bound(item)) unless item.nil? }
-          end
-        end
         path += (path.include?('?') ? '&' : '?') + query.join('&') unless query.empty?
         headers = @config.headers.to_h { |key, value| [key.downcase, value] }
-        endpoint.headers.each { |key, items| headers[key.downcase] = items.join(', ') }
         # A Content-Type bound to an input member outranks the payload's media
-        # type, which outranks endpoint and client header defaults.
+        # type, which outranks client header defaults.
         modelled_content_type = false
         bindings.fetch('headers').each do |member, wire|
           next if values[member].nil?
           headers[wire.downcase] = bound_member(op, bindings, member, values[member], header: true)
           modelled_content_type = true if wire.downcase == 'content-type'
-        end
-        explicit = bindings.fetch('headers').map { |_, wire| wire.downcase }
-        bindings.fetch('prefixHeaders', []).each do |member, prefix|
-          next if values[member].nil?
-          WireCodec.object(values[member]).sort.each do |key, value|
-            header = (prefix + key).downcase
-            headers[header] = @codec.bound(media(value, bindings, member, true)) unless explicit.include?(header)
-          end
         end
         body = nil
         if !bindings.fetch('body').empty?
@@ -230,48 +130,21 @@ module CrucibleGenerated
           when 'string' then WireCodec.string(value).encode(::Encoding::UTF_8)
           when 'document'
             ExactJson.encode(@codec.document(payload_target(op.fetch('input'), payload), value, encode: true))
-          else bindings['streaming'] ? stream_payload(op, bindings, payload, value) : ::Base64.strict_decode64(value)
+          else ::Base64.strict_decode64(value)
           end
           headers['content-type'] = payload[1] unless modelled_content_type
         end
         # The release this client was generated for (docs/api-versions-clients.md).
         api_version = @codec.schema['apiVersion']
         headers['crucible-version'] = api_version if api_version.is_a?(String)
-        [HttpRequest.new(url: endpoint.url + path, method: op.fetch('method'), headers: headers, body: body), checksum, endpoint]
+        HttpRequest.new(url: @endpoint + path, method: op.fetch('method'), headers: headers, body: body)
       end
-      def stream_payload(op, bindings, payload, stream)
-        raise ::ArgumentError, 'Streaming payload requires a known length' if bindings['requiresLength'] && stream.length.nil?
-        limits = stream_limits(op)
-        if stream.length && ((limits['min'] && stream.length < limits['min']) || (limits['max'] && stream.length > limits['max']))
-          raise ::ArgumentError, 'Streaming payload length is outside its modeled bounds'
-        end
-        stream
-      end
-      def stream_limits(op) = @codec.shape(op.fetch('input')).fetch('members').fetch(op.fetch('request').fetch('payload')[0]).fetch('length', {})
-      def content_sha256(body)
-        return ::Digest::SHA256.hexdigest(body || '') unless body.is_a?(ByteStream)
-        return 'UNSIGNED-PAYLOAD' unless body.replayable?
-        digest = ::Digest::SHA256.new
-        body.each_chunk { |chunk| digest.update(chunk) }
-        digest.hexdigest
-      end
-      # Opens a streamed body for this attempt only, after hooks, checksums, and signing.
-      def open_stream(op, request)
-        stream = request.body
-        return request unless stream.is_a?(ByteStream)
-        limits = stream_limits(op)
-        headers = request.headers.reject { |header, _| %w[content-length transfer-encoding].include?(header) }
-        headers[stream.length ? 'content-length' : 'transfer-encoding'] = stream.length ? stream.length.to_s : 'chunked'
-        body = StreamBody.new(stream.open, length: stream.length, minimum: limits['min'], maximum: limits['max'], owned: stream.owns_opened?)
-        request.with(headers: headers, body: body)
-      end
-      def send_request(name, op, prepared, checksum, endpoint, scope, sink = nil)
+      def send_request(op, prepared, scope)
         raise ::IOError, 'Client is closed' if @closed
         safe = op.fetch('safe')
         bindings = op.fetch('response')
-        read_body = !bindings.fetch('body').empty? || !bindings['payload'].nil? || !checksum.response.empty?
-        # A one-shot stream cannot be replayed, so it gets exactly one attempt.
-        attempts = prepared.body.is_a?(ByteStream) && !prepared.body.replayable? ? 1 : @config.max_attempts
+        read_body = !bindings.fetch('body').empty? || !bindings['payload'].nil?
+        attempts = @config.max_attempts
         (1..attempts).each do |attempt|
           scope.check
           request = prepared
@@ -285,32 +158,17 @@ module CrucibleGenerated
           if request.headers.key?('authorization') && uri.scheme != 'https' && !%w[localhost 127.0.0.1 ::1].include?(uri.hostname.downcase)
             raise ::ArgumentError, 'Credentials require HTTPS or loopback HTTP'
           end
-          request = Checksums.request(checksum, request)
-          if @digest
-            headers = request.headers.reject { |header, _| header == 'x-amz-content-sha256' }
-            headers['x-amz-content-sha256'] = content_sha256(request.body) if request.body || %w[POST PUT PATCH].include?(request.method)
-            request = request.with(headers: headers)
-          end
-          request = Authentication.apply(request, op, @codec.schema, @config, scope, properties: endpoint.properties)
-          request = open_stream(op, request)
+          request = Authentication.apply(request, op, @config, scope)
           begin
-            response = sink ? @transport.send_request(request, read_body: true, scope: scope, sink: sink) : @transport.send_request(request, read_body: read_body, scope: scope)
+            response = @transport.send_request(request, read_body: read_body, scope: scope)
           rescue NetworkError
             scope.check
-            # Bytes already handed to the caller cannot be taken back.
-            raise unless safe && attempt < attempts && (sink.nil? || sink.bytes.zero?)
+            raise unless safe && attempt < attempts
             scope.wait(retry_delay(attempt, nil))
             next
-          ensure
-            request.body.close if request.body.is_a?(StreamBody)
           end
           scope.check
-          if (200...300).cover?(response.status)
-            sink&.finish
-            algorithm = Checksums.response(checksum, response.headers, response.body, hashers: sink&.hashers)
-            @config.checksum_validated&.call(name, algorithm) if algorithm
-            return success(name, op, response, sink)
-          end
+          return success(op, response) if (200...300).cover?(response.status)
           error = failure(op, response)
           eligible = error.metadata.throttling || (safe && (error.metadata.retryable || [500,502,503,504].include?(response.status)))
           raise error unless eligible && attempt < attempts
@@ -318,12 +176,10 @@ module CrucibleGenerated
         end
         raise 'No request attempt'
       end
-      def success(name, op, response, sink = nil)
+      def success(op, response)
         bindings = op.fetch('response')
         payload = bindings['payload']
-        body = if sink
-          {payload[0] => sink.body}
-        elsif payload
+        body = if payload
           {payload[0] => payload_value(op.fetch('output'), bindings, response.body)}
         elsif bindings.fetch('body').empty? || response.body.empty?
           {}
@@ -354,12 +210,6 @@ module CrucibleGenerated
           else media(@codec.header(members.fetch(member), text), bindings, member, false)
           end
         end
-        explicit = bindings.fetch('headers').map { |_, wire| wire.downcase }
-        bindings.fetch('prefixHeaders', []).each do |member, prefix|
-          prefix = prefix.downcase
-          object[member] = response.headers.filter_map { |header, text| [header.delete_prefix(prefix), media(text, bindings, member, false)] if header.start_with?(prefix) && (prefix.empty? || !explicit.include?(header)) }.to_h
-        end
-        object[bindings['responseCode']] = response.status if bindings['responseCode']
         object
       end
       def failure(op, response)

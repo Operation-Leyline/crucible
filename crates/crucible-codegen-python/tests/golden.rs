@@ -12,7 +12,6 @@ fn options() -> Options {
         module_name: "weather_client".into(),
         package_version: "0.0.0.dev0".into(),
         endpoint: Some("https://weather.example".into()),
-        content_sha256: true,
     }
 }
 
@@ -20,20 +19,9 @@ fn options() -> Options {
 fn weather_matches_goldens() {
     let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     for file in emit(&service, &options()).unwrap() {
-        if [
-            "runtime.py",
-            "auth.py",
-            "query.py",
-            "waiters.py",
-            "endpoints.py",
-            "checksums.py",
-            "streams.py",
-            "policy.py",
-            "discovery.py",
-            "telemetry.py",
-        ]
-        .iter()
-        .any(|name| file.path.ends_with(name))
+        if ["runtime.py", "auth.py", "policy.py", "telemetry.py"]
+            .iter()
+            .any(|name| file.path.ends_with(name))
         {
             continue;
         }
@@ -177,13 +165,6 @@ fn documentation_and_formatting_use_the_lowered_contract() {
         .find(|f| f.path.ends_with("client.py"))
         .unwrap()
         .contents;
-    let runtime = &files
-        .iter()
-        .find(|f| f.path.ends_with("streams.py"))
-        .unwrap()
-        .contents;
-    assert!(runtime.contains("the default negative size reads to completion"));
-    assert!(!runtime.contains("Read the asynchronous response stream to completion"));
     assert!(models.contains("https://example.com"));
     assert!(models.contains("line two"));
     assert!(models.contains("Label marker."));

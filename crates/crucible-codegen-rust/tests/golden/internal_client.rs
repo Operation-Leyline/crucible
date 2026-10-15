@@ -368,13 +368,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for InternalFault {
@@ -453,13 +446,6 @@ mod errors {
             ::crucible_client_runtime_rust::__generated::error::write_error(self, out)
         }
 
-        fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http(self, out)
-        }
-
-        fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_client_runtime_rust::__generated::serde_json::Result<::crucible_client_runtime_rust::__generated::operation::ResponseBindings> {
-            ::crucible_client_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-        }
     }
 
     impl ::std::fmt::Display for PublicFault {
@@ -560,7 +546,6 @@ static PUBLIC_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Public {
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-    const OPTIONAL_AUTH: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &PUBLIC_OPERATION;
     type Input = model::PublicInput;
     type Output = PublicOutput;
@@ -584,8 +569,8 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for PublicErro
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::PUBLIC_FAULT_INFO, &errors::INTERNAL_FAULT_INFO])?,
         };
         match name {
-            "PublicFault" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::PUBLIC_FAULT_INFO, headers, body).map(Self::PublicFault),
-            "InternalFault" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::INTERNAL_FAULT_INFO, headers, body).map(Self::InternalFault),
+            "PublicFault" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::PUBLIC_FAULT_INFO, headers, body).map(Self::PublicFault),
+            "InternalFault" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::INTERNAL_FAULT_INFO, headers, body).map(Self::InternalFault),
             _ => None,
         }
     }
@@ -639,7 +624,6 @@ static SECRET_OPERATION: ::crucible_client_runtime_rust::__generated::OperationI
 impl ::crucible_client_runtime_rust::__generated::Operation for Secret {
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_client_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-    const OPTIONAL_AUTH: bool = false;
     const HAS_OUTPUT: bool = false;
     const INFO: &'static ::crucible_client_runtime_rust::__generated::OperationInfo = &SECRET_OPERATION;
     type Input = model::SecretInput;
@@ -662,7 +646,7 @@ impl ::crucible_client_runtime_rust::__generated::OperationErrors for SecretErro
             None => ::crucible_client_runtime_rust::__generated::by_status(status, &[&errors::PUBLIC_FAULT_INFO])?,
         };
         match name {
-            "PublicFault" => ::crucible_client_runtime_rust::__generated::decode_modelled_at(status, &errors::PUBLIC_FAULT_INFO, headers, body).map(Self::PublicFault),
+            "PublicFault" => ::crucible_client_runtime_rust::__generated::decode_modelled(&errors::PUBLIC_FAULT_INFO, headers, body).map(Self::PublicFault),
             _ => None,
         }
     }

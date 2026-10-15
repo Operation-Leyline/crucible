@@ -21,7 +21,7 @@ def dart(*args, **kwargs):
 def qualify(output):
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
-        str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client", "--content-sha256")
+        str(qualification_model(output)), "--out", str(package), "--package-name", "weather_client")
     manifest = json.loads((package / "pubspec.yaml").read_text())
     manifest["dev_dependencies"] = {"test": "^1.25.15"}
     (package / "pubspec.yaml").write_text(json.dumps(manifest), encoding="utf-8")
@@ -136,9 +136,9 @@ void main() {
 }
 """, encoding="utf-8")
             dart("run", "main.dart", cwd=generated)
-    for name, fixture_name in [("dynamic", "dynamic-bindings"), ("extended", "extended-types"), ("wire", "error-payloads"), ("describe", "client-docs")]:
+    for name, fixture_name in [("extended", "extended-types"), ("wire", "error-payloads"), ("describe", "client-docs")]:
         generated = output / name
-        package_name = {"dynamic": "dynamic_client", "extended": "types_client", "wire": "wire_client", "describe": "vault_client"}[name]
+        package_name = {"extended": "types_client", "wire": "wire_client", "describe": "vault_client"}[name]
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
             str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"),
             "--out", str(generated), "--package-name", package_name)
@@ -160,7 +160,6 @@ void main() {
     qualify_payload_bindings(output)
     qualify_permissions(output)
     print("Dart fresh consumer, native and JS compilation, empty and renamed packages passed")
-    qualify_features(output)
 
 
 def qualify_permissions(output):
@@ -220,13 +219,14 @@ void main() {
 
 
 def qualify_payload_bindings(output):
-    """Payload Content-Type precedence under both JSON protocols. Dart has no streaming input."""
+    """Payload Content-Type precedence under both JSON protocols."""
     model = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text())
+    # The fixture is shared with other languages; drop whatever Smithy-only streaming it still carries.
     shapes = model["shapes"]
     service = shapes["example.payload#PayloadBindings"]
     service["operations"] = [item for item in service["operations"] if item["target"] != "example.payload#UploadStream"]
     for name in ("example.payload#UploadStream", "example.payload#StreamInput", "example.payload#Stream"):
-        del shapes[name]
+        shapes.pop(name, None)
     path = output / "payload-bindings.json"
     path.write_text(json.dumps(model), encoding="utf-8")
     for name in ("payload_bindings",):
@@ -243,41 +243,6 @@ def qualify_payload_bindings(output):
         dart("analyze", cwd=generated)
         dart("test", cwd=generated)
         dart("test", "--platform", "chrome", cwd=generated)
-
-
-def qualify_features(output):
-    """Generate one package per client feature model; one consumer tests them all."""
-    tests = ROOT / "crates/crucible-codegen-dart/tests"
-    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
-    packages = [
-        ("auth_client", tests / "auth.json", []),
-        ("jobs_client", tests / "waiters.json", []),
-        ("behavior_client", fixtures / "client-behaviors.json", []),
-        ("checksum_client", fixtures / "checksums.json", []),
-    ]
-    for name, model, extra in packages:
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
-            str(model), *extra, "--out", str(output / name), "--package-name", name)
-        dart("pub", "get", cwd=output / name)
-        dart("analyze", cwd=output / name)
-    features = output / "features"
-    (features / "test").mkdir(parents=True, exist_ok=True)
-    (features / "pubspec.yaml").write_text(json.dumps({"name": "features", "version": "0.0.0", "publish_to": "none",
-        "environment": {"sdk": ">=3.6.2 <4.0.0"},
-        "dependencies": {name: {"path": (output / name).as_posix()} for name, _, _ in packages},
-        "dev_dependencies": {"test": "^1.25.15"}}), encoding="utf-8")
-    for template in (tests / "features").glob("*.dart.template"):
-        shutil.copyfile(template, features / "test" / template.name.removesuffix(".template"))
-    vectors = (ROOT / "tests/conformance/checksums.json").read_text()
-    (features / "test/vectors.dart").write_text(
-        "const checksumVectors = " + json.dumps(vectors, ensure_ascii=True).replace("$", chr(92) + "$") + ";" + chr(10),
-        encoding="utf-8")
-    dart("pub", "get", cwd=features)
-    dart("analyze", cwd=features)
-    env = dict(os.environ, CRUCIBLE_TEST_AWS="set", AWS_ACCESS_KEY_ID="env", AWS_SECRET_ACCESS_KEY="secret", AWS_SESSION_TOKEN="token")
-    dart("test", "--reporter", "expanded", cwd=features, env=env)
-    dart("test", "--platform", "chrome", "--reporter", "expanded", cwd=features)
-    print("Dart auth, SigV4, waiters, endpoint rules and checksums passed on the VM and Chrome")
 
 
 if __name__ == "__main__":

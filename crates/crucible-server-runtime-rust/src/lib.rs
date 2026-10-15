@@ -78,8 +78,6 @@ pub mod versioning;
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
 pub use crucible_wire::blob::Blob;
-pub use crucible_wire::event_stream;
-pub use crucible_wire::event_stream::{EventReceiver, EventStream, EventStreamError};
 pub use crucible_wire::{blob, number, operation, time, validate};
 
 pub use async_interceptor::AsyncInterceptor;
@@ -129,11 +127,9 @@ pub mod __generated {
     pub use __crucible_check_abi as check_abi;
     pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};
     pub use crucible_wire::blob::Blob;
-    pub use crucible_wire::event_stream::EventStream;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
-    pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        codec, error, event_stream, field, number, open, operation, permissions, time, validate,
+        codec, error, field, number, open, operation, permissions, time, validate,
     };
 
     pub use chrono;
@@ -151,9 +147,6 @@ macro_rules! include_service {
         include!(concat!(env!("OUT_DIR"), "/crucible_service.rs"));
     };
 }
-
-/// Owned streaming body and chunk stream used by generated payload members.
-pub use crucible_wire::stream::{ByteStream, ChunkStream};
 
 /// Exact numbers for Smithy arbitrary-precision numeric shapes.
 pub use crucible_wire::number::{BigDecimal, BigInteger};

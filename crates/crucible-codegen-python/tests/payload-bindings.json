@@ -2,49 +2,117 @@
   "smithy": "2.0",
   "shapes": {
     "example.payload#PayloadBindings": {
-      "type": "service", "version": "1",
-      "traits": {"crucible.protocols#json": {}},
-      "operations": [{"target": "example.payload#PutDocument"}, {"target": "example.payload#Upload"}, {"target": "example.payload#UploadStream"}, {"target": "example.payload#PutRecord"}]
+      "type": "service",
+      "version": "1",
+      "traits": {
+        "crucible.protocols#json": {}
+      },
+      "operations": [
+        {
+          "target": "example.payload#PutDocument"
+        },
+        {
+          "target": "example.payload#Upload"
+        },
+        {
+          "target": "example.payload#PutRecord"
+        }
+      ]
     },
     "example.payload#PutDocument": {
-      "type": "operation", "input": {"target": "example.payload#DocumentInput"},
-      "traits": {"smithy.api#http": {"method": "PUT", "uri": "/document", "code": 200}}
+      "type": "operation",
+      "input": {
+        "target": "example.payload#DocumentInput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/document",
+          "code": 200
+        }
+      }
     },
     "example.payload#DocumentInput": {
-      "type": "structure", "traits": {"smithy.api#input": {}},
-      "members": {"document": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "document": {
+          "target": "smithy.api#Document",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
     },
     "example.payload#Upload": {
-      "type": "operation", "input": {"target": "example.payload#UploadInput"},
-      "traits": {"smithy.api#http": {"method": "PUT", "uri": "/upload", "code": 200}}
+      "type": "operation",
+      "input": {
+        "target": "example.payload#UploadInput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/upload",
+          "code": 200
+        }
+      }
     },
     "example.payload#UploadInput": {
-      "type": "structure", "traits": {"smithy.api#input": {}},
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
       "members": {
-        "data": {"target": "smithy.api#Blob", "traits": {"smithy.api#httpPayload": {}, "smithy.api#jsonName": "wireData"}},
-        "contentType": {"target": "smithy.api#String", "traits": {"smithy.api#httpHeader": "CoNtEnT-TyPe"}}
+        "data": {
+          "target": "smithy.api#Blob",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        },
+        "contentType": {
+          "target": "smithy.api#String",
+          "traits": {
+            "smithy.api#httpHeader": "CoNtEnT-TyPe"
+          }
+        }
       }
     },
-    "example.payload#UploadStream": {
-      "type": "operation", "input": {"target": "example.payload#StreamInput"},
-      "traits": {"smithy.api#http": {"method": "PUT", "uri": "/stream", "code": 200}}
-    },
-    "example.payload#StreamInput": {
-      "type": "structure", "traits": {"smithy.api#input": {}},
-      "members": {
-        "data": {"target": "example.payload#Stream", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}, "smithy.api#jsonName": "wireStream"}},
-        "contentType": {"target": "smithy.api#String", "traits": {"smithy.api#httpHeader": "CoNtEnT-TyPe"}}
-      }
-    },
-    "example.payload#Stream": {"type": "blob", "traits": {"smithy.api#streaming": {}}},
     "example.payload#PutRecord": {
-      "type": "operation", "input": {"target": "example.payload#RecordInput"},
-      "traits": {"smithy.api#http": {"method": "PUT", "uri": "/record", "code": 200}}
+      "type": "operation",
+      "input": {
+        "target": "example.payload#RecordInput"
+      },
+      "traits": {
+        "smithy.api#http": {
+          "method": "PUT",
+          "uri": "/record",
+          "code": 200
+        }
+      }
     },
     "example.payload#RecordInput": {
-      "type": "structure", "traits": {"smithy.api#input": {}},
-      "members": {"record": {"target": "example.payload#Record", "traits": {"smithy.api#httpPayload": {}}}}
+      "type": "structure",
+      "traits": {
+        "smithy.api#input": {}
+      },
+      "members": {
+        "record": {
+          "target": "example.payload#Record",
+          "traits": {
+            "smithy.api#httpPayload": {}
+          }
+        }
+      }
     },
-    "example.payload#Record": {"type": "structure", "members": {"name": {"target": "smithy.api#String"}}}
+    "example.payload#Record": {
+      "type": "structure",
+      "members": {
+        "name": {
+          "target": "smithy.api#String"
+        }
+      }
+    }
   }
 }

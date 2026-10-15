@@ -145,12 +145,9 @@ pub(crate) fn marker_for(
                 } else {
                     "Label"
                 };
-                let wire = structure(service, op.input.as_ref())
-                    .and_then(|s| s.members.iter().find(|m| &m.name == label))
-                    .map_or(label.as_str(), |m| m.wire_name.as_str());
                 format!(
                     "::crucible_server_runtime_rust::__generated::operation::Segment::{kind}({})",
-                    literal(wire)
+                    literal(label)
                 )
             }
         })
@@ -210,101 +207,18 @@ pub(crate) fn marker_for(
         op.internal,
         custom_traits(&op.traits),
     ));
-    let mut streaming = String::new();
-    if let Some(member) = op
-        .response
-        .response_code
-        .as_ref()
-        .and_then(|name| structure(service, op.output.as_ref()).and_then(|s| s.member(name)))
-    {
-        let rust = crate::names::field(&member.name);
-        let get = if client && member.optional_on_client() {
-            format!(
-                "value.{rust}.value().map(|value| ::crucible_server_runtime_rust::__generated::operation::response_status(i64::from(*value)))"
-            )
-        } else if !client && member.optional_on_server() {
-            format!(
-                "value.{rust}.as_ref().map(|value| ::crucible_server_runtime_rust::__generated::operation::response_status(i64::from(*value)))"
-            )
-        } else {
-            format!(
-                "Some(::crucible_server_runtime_rust::__generated::operation::response_status(i64::from(value.{rust})))"
-            )
-        };
-        streaming.push_str(&format!(
-            "    fn output_status(value: &Self::Output) -> ::std::option::Option<u16> {{ {get} }}\n"
-        ));
-    }
-    for (direction, id, bindings) in [
-        ("input", op.input.as_ref(), &op.request),
-        ("output", op.output.as_ref(), &op.response),
-    ] {
-        if let Some(payload) = bindings
-            .payload
-            .as_ref()
-            .filter(|p| p.streaming && p.kind != crucible_smithy::ir::PayloadKind::EventStream)
-        {
-            let member = structure(service, id)
-                .and_then(|s| s.member(&payload.member))
-                .expect("lowered payload");
-            let rust = crate::names::field(&member.name);
-            let ty = if direction == "input" {
-                "Input"
-            } else {
-                "Output"
-            };
-            let (get, set) = if client && member.optional_on_client() {
-                (
-                    format!("value.{rust}.value().cloned()"),
-                    "::crucible_server_runtime_rust::__generated::Field::Value(stream)",
-                )
-            } else if !client && member.optional_on_server() {
-                (format!("value.{rust}.clone()"), "Some(stream)")
-            } else {
-                (format!("Some(value.{rust}.clone())"), "stream")
-            };
-            streaming.push_str(&format!("    fn {direction}_stream(value: &Self::{ty}) -> ::std::option::Option<::crucible_server_runtime_rust::__generated::ByteStream> {{ {get} }}\n    fn set_{direction}_stream(value: &mut Self::{ty}, stream: ::crucible_server_runtime_rust::__generated::ByteStream) {{ value.{rust} = {set}; }}\n"));
-        }
-    }
     let auth = op
         .auth
         .iter()
         .filter_map(|id| service.auth_schemes.get(id))
         .map(|scheme| {
-            use crucible_smithy::ir::{ApiKeyLocation, AuthScheme};
-            let value = match scheme {
-                AuthScheme::Bearer => "Bearer".to_owned(),
-                AuthScheme::Basic => "Basic".to_owned(),
-                AuthScheme::ApiKey {
-                    name,
-                    location,
-                    scheme,
-                } => format!(
-                    "ApiKey {{ name: {}, query: {}, scheme: {} }}",
-                    literal(name),
-                    *location == ApiKeyLocation::Query,
-                    scheme
-                        .as_deref()
-                        .map_or("None".to_owned(), |scheme| format!(
-                            "Some({})",
-                            literal(scheme)
-                        ))
-                ),
-                AuthScheme::SigV4 { signing_name } => {
-                    format!("SigV4 {{ signing_name: {} }}", literal(signing_name))
-                }
-                // Rust does not declare these capabilities, so emit rejects them first.
-                AuthScheme::Digest | AuthScheme::SigV4a { .. } => {
-                    unreachable!("undeclared Rust auth capability")
-                }
-            };
-            format!("::crucible_server_runtime_rust::__generated::operation::AuthScheme::{value}")
+            let crucible_smithy::ir::AuthScheme::Bearer = scheme;
+            "::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer"
         })
         .collect::<Vec<_>>()
         .join(", ");
     let mut auth = format!(
-        "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[{auth}]);\n    const OPTIONAL_AUTH: bool = {};\n",
-        op.optional_auth
+        "    const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[{auth}]);\n"
     );
     if !client {
         auth.push_str(&scope_items(service, op));
@@ -312,16 +226,12 @@ pub(crate) fn marker_for(
         auth.push_str(&idempotency_items(service, op, output_ty));
         auth.push_str(server_items);
     }
-    auth.push_str(&wire(service, op));
-    auth.push_str(&crate::events::marker_items(service, op, client));
+    auth.push_str(&wire(service));
     if op.input.is_none() {
         auth.push_str("    const HAS_INPUT: bool = false;\n");
     }
     if op.output.is_none() {
         auth.push_str("    const HAS_OUTPUT: bool = false;\n");
-    }
-    if op.unsigned_payload {
-        auth.push_str("    const UNSIGNED_PAYLOAD: bool = true;\n");
     }
     // The marker is `#[deprecated]` for callers; the framework wiring below is
     // generated code that must name it regardless.
@@ -331,7 +241,7 @@ pub(crate) fn marker_for(
         ""
     };
     out.push_str(&format!(
-        "{allow}impl ::crucible_server_runtime_rust::__generated::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n{streaming}}}\n\n",
+        "{allow}impl ::crucible_server_runtime_rust::__generated::Operation for {name} {{\n    const AUTH_BEARER: bool = {};\n{auth}    const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &{};\n    type Input = {};\n    type Output = {};\n}}\n\n",
         op.auth.iter().any(|id| service.is_bearer(id)),
         operation_static(op),
         input_type(service, op),
@@ -340,97 +250,18 @@ pub(crate) fn marker_for(
     out
 }
 
-/// A marker's protocol and checksum description, when they differ
-/// from the defaults: `crucible.protocols#json` and no checksum.
-fn wire(service: &Service, op: &Operation) -> String {
-    use crucible_smithy::ir::{Checksum, ChecksumAlgorithm};
-    let mut out = String::new();
-    // The release a generated client names in `Crucible-Version`.
-    if let Some(version) = &service.api_version {
-        out.push_str(&format!(
+/// A marker's wire description when it differs from the defaults: the release
+/// a generated client names in `Crucible-Version`.
+fn wire(service: &Service) -> String {
+    service.api_version.as_ref().map_or_else(String::new, |version| {
+        format!(
             "    const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some({});\n",
             literal(version)
-        ));
-    }
-    let wire = |name: &Option<String>| {
-        name.as_ref().map_or("None".to_owned(), |name| {
-            let wire = structure(service, op.input.as_ref())
-                .and_then(|s| s.member(name))
-                .map_or(name.as_str(), |m| m.wire_name.as_str());
-            format!("Some({})", literal(wire))
-        })
-    };
-    let checksum = match &op.checksum {
-        None => return out,
-        Some(Checksum::Md5) => "Md5".to_owned(),
-        Some(Checksum::AwsFlexible {
-            request_required,
-            request_algorithm_member,
-            validation_mode_member,
-            response_algorithms,
-            ..
-        }) => {
-            let algorithms = response_algorithms
-                .iter()
-                .map(|algorithm| {
-                    let name = match algorithm {
-                        ChecksumAlgorithm::Crc32 => "Crc32",
-                        ChecksumAlgorithm::Crc32c => "Crc32c",
-                        ChecksumAlgorithm::Crc64nvme => "Crc64Nvme",
-                        ChecksumAlgorithm::Md5 => "Md5",
-                        ChecksumAlgorithm::Sha1 => "Sha1",
-                        ChecksumAlgorithm::Sha256 => "Sha256",
-                        ChecksumAlgorithm::Sha512 => "Sha512",
-                        ChecksumAlgorithm::Xxhash64 => "Xxhash64",
-                        ChecksumAlgorithm::Xxhash3 => "Xxhash3",
-                        ChecksumAlgorithm::Xxhash128 => "Xxhash128",
-                    };
-                    format!("::crucible_server_runtime_rust::__generated::operation::ChecksumAlgorithm::{name}")
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!(
-                "Flexible {{ request_required: {request_required}, request_algorithm_member: {}, validation_mode_member: {}, response_algorithms: &[{algorithms}] }}",
-                wire(request_algorithm_member),
-                wire(validation_mode_member)
-            )
-        }
-    };
-    out.push_str(&format!(
-        "    const CHECKSUM: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Checksum> = Some(::crucible_server_runtime_rust::__generated::operation::Checksum::{checksum});\n"
-    ));
-    out
+        )
+    })
 }
 
 fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
-    let cors = service.cors.as_ref().map_or_else(|| "None".to_owned(), |cors| {
-        // Older versions' requests carry their own headers and methods, and
-        // a browser client names its version and reads the echoed one.
-        let merged = |pick: fn(&crucible_smithy::ir::Cors) -> &Vec<String>, extra: &[&str]| {
-            let mut values: std::collections::BTreeSet<String> = pick(cors).iter().cloned().collect();
-            for version in &service.versions {
-                if let Some(older) = &version.service.cors {
-                    values.extend(pick(older).iter().cloned());
-                }
-            }
-            // Generated clients of a `.cru` service always send their release,
-            // from the first, before any migration exists.
-            if service.api_version.is_some() || !service.versions.is_empty() {
-                values.extend(extra.iter().map(|value| (*value).to_owned()));
-            }
-            values.iter().map(|value| literal(value)).collect::<Vec<_>>().join(", ")
-        };
-        format!(
-            "Some(&::crucible_server_runtime_rust::__generated::operation::CorsInfo {{ origin: {}, max_age: {}, allow_credentials: {}, allowed_headers: &[{}], allowed_header_prefixes: &[{}], exposed_headers: &[{}], methods: &[{}] }})",
-            literal(&cors.origin),
-            cors.max_age,
-            cors.allow_credentials,
-            merged(|cors| &cors.allowed_headers, &["crucible-version"]),
-            merged(|cors| &cors.allowed_header_prefixes, &[]),
-            merged(|cors| &cors.exposed_headers, &["crucible-version", "sunset"]),
-            merged(|cors| &cors.methods, &[]),
-        )
-    });
     let operations: Vec<String> = service
         .operations
         .iter()
@@ -449,7 +280,7 @@ fn service_info(service: &Service, functions: &Functions, mcp: bool) -> String {
     };
     let mcp_tools = if mcp { "Some(MCP_TOOLS)" } else { "None" };
     format!(
-        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {cors},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){}{};\n",
+        "\n/// The service, as the framework sees it.\npub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(\n    {},\n    {},\n    {mcp_tools},\n    &[\n        {}{}\n    ],\n    &[{}],\n    classify,\n    {},\n    {},\n    {},\n){}{};\n",
         literal(&service.id.to_string()),
         literal(&service.version),
         operations.join(",\n        "),
@@ -566,21 +397,11 @@ fn idempotency_items(service: &Service, op: &Operation, output_ty: &str) -> Stri
     };
     let wire = structure(service, op.input.as_ref())
         .and_then(|s| s.member(token))
-        .map_or(token.as_str(), |m| m.wire_name.as_str());
-    let mut out = format!(
-        "    const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {}, wire_name: {} }});\n",
-        literal(token),
+        .map_or(token.as_str(), |m| m.name.as_str());
+    format!(
+        "    const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {} }});\n    const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<{output_ty}>);\n",
         literal(wire)
-    );
-    let streams = op.response.payload.as_ref().is_some_and(|payload| {
-        payload.streaming || payload.kind == crucible_smithy::ir::PayloadKind::EventStream
-    });
-    if !streams {
-        out.push_str(&format!(
-            "    const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<{output_ty}>);\n"
-        ));
-    }
-    out
+    )
 }
 
 /// `PAGINATION` for a `@paginated` operation, naming each input member as
@@ -592,13 +413,9 @@ fn pagination_items(service: &Service, op: &Operation) -> String {
     };
     let input = structure(service, op.input.as_ref());
     let member = |name: &str| {
-        let wire = input
-            .and_then(|s| s.member(name))
-            .map_or(name, |m| m.wire_name.as_str());
         format!(
-            "::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {}, wire_name: {} }}",
-            literal(name),
-            literal(wire)
+            "::crucible_server_runtime_rust::__generated::operation::PaginationMember {{ name: {} }}",
+            literal(name)
         )
     };
     let page_size = paginated

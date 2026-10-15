@@ -69,7 +69,7 @@
       },
       "members": {
         "color": {
-          "target": "example.legacy#Color",
+          "target": "smithy.api#String",
           "traits": {
             "smithy.api#required": {}
           }
@@ -80,33 +80,11 @@
       "type": "structure",
       "members": {
         "color": {
-          "target": "example.legacy#Color",
+          "target": "smithy.api#String",
           "traits": {
             "smithy.api#required": {}
           }
         }
-      }
-    },
-    "example.legacy#Color": {
-      "type": "string",
-      "traits": {
-        "smithy.api#documentation": "A legacy color enum.",
-        "smithy.api#enum": [
-          {
-            "name": "RED",
-            "value": "red-wire",
-            "documentation": "Warm red.",
-            "deprecated": true,
-            "tags": [
-              "warm"
-            ]
-          },
-          {
-            "name": "BLUE",
-            "value": "blue-wire",
-            "documentation": "Cool blue."
-          }
-        ]
       }
     },
     "example.legacy#Paint": {

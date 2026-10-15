@@ -616,13 +616,6 @@ pub mod leyline {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for InternalServerException {
@@ -677,13 +670,6 @@ pub mod leyline {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for NotFoundException {
@@ -742,13 +728,6 @@ pub mod leyline {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ValidationException {
@@ -839,7 +818,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for ArchiveGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: true },
@@ -891,7 +869,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for CreateGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__WRITE, conditional: false },
         ]);
@@ -939,7 +916,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for ExecuteQuery {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
@@ -1004,7 +980,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: false },
         ]);
@@ -1049,7 +1024,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetOrganization {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ORGANIZATION__READ, conditional: false },
         ]);
@@ -1093,7 +1067,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetUser {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::None;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const HAS_INPUT: bool = false;
@@ -1133,7 +1106,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for Health {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
-        const OPTIONAL_AUTH: bool = false;
         const PUBLIC: bool = true;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const HAS_INPUT: bool = false;
@@ -1175,7 +1147,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for ListGraphs {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::GRAPH__READ, conditional: false },
         ]);
@@ -1223,7 +1194,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for RestoreBackup {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::Pending { reason: "guard::allow in the handler until the history module moves." };
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RESTORE_BACKUP_OPERATION;
@@ -1267,7 +1237,6 @@ pub mod leyline {
     impl ::crucible_server_runtime_rust::__generated::Operation for RewriteGraph {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::GRAPH__READ, conditional: true },
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Handler, permission: &permissions::GRAPH__WRITE, conditional: false },
@@ -1352,7 +1321,6 @@ pub mod leyline {
     pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
         "example.leyline#Leyline",
         "2026-10-01",
-        None,
         None,
         &[
             &ARCHIVE_GRAPH_OPERATION,

@@ -14,7 +14,7 @@ def qualify(output, build_only):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
         str(ROOT / "crates/crucible-smithy/tests/fixtures/weather.json"), "--out", str(sdk),
         "--group-id", "example", "--artifact-id", "weather-kotlin-android", "--package-name", "example.weather",
-        "--package-version", "0.0.0-test", "--content-sha256")
+        "--package-version", "0.0.0-test")
     run(os.environ.get("MAVEN", "mvn"), "-q", "-Dmaven.repo.local=" + str(repo), "install", cwd=sdk)
     consumer = output / "consumer"
     shutil.copytree(ROOT / "crates/crucible-codegen-kotlin/tests/android", consumer, dirs_exist_ok=True)

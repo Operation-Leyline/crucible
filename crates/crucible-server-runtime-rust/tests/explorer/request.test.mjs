@@ -9,24 +9,6 @@ const api = require("../../src/explorer/runtime/try-it.js");
 const description = JSON.parse(readFileSync(new URL("../../../crucible-codegen-docs/tests/golden/weather-internal/describe.json", import.meta.url)));
 const base = "https://localhost:8080/stage/";
 
-const contracts = JSON.parse(readFileSync(new URL("../../../crucible-codegen-common/tests/golden/explorer/request-vectors.json", import.meta.url)));
-for (const vector of contracts.cases) {
-  test(vector.name, () => {
-    const vectorDescription = contracts.descriptions[vector.description];
-    const request = api.buildRequest(vectorDescription, vectorDescription.operations[vector.operation], vector.input, base);
-    const url = new URL(request.url);
-    assert.equal(request.method, vector.expected.method);
-    assert.equal(url.pathname, `/stage${vector.expected.uri}`);
-    // Query order is not significant, but repeated names and percent-encoding are.
-    assert.deepEqual(url.search.slice(1).split("&").filter(Boolean).sort(), (vector.expected.queryParams || []).slice().sort());
-    for (const [name, value] of Object.entries(vector.expected.headers || {})) assert.equal(request.headers.get(name), value, name);
-    if (vector.expected.body !== undefined) {
-      if (request.body instanceof Uint8Array) assert.equal(new TextDecoder().decode(request.body), vector.expected.body);
-      else assert.deepEqual(JSON.parse(request.body || "{}"), JSON.parse(vector.expected.body || "{}"));
-    }
-  });
-}
-
 test("labels, query parameters and the method come from the lowered bindings", () => {
   const get = Object.values(description.operations).find((op) => op.name === "GetCity");
   const request = api.buildRequest(description, get, { cityId: "c-12345678", at: "2014-04-29T18:30:38Z" }, base);
@@ -47,21 +29,11 @@ test("service base preserves router mounts and gateway stages", () => {
 
 const op = Object.values(description.operations).find((candidate) => candidate.name === "GetCity");
 const first = { description, operation: op.id, input: { cityId: "c-12345678" } };
-test("read-only, unsupported protocols, streams and browser-unsafe requests fail explicitly", () => {
+test("read-only, unsupported protocols, browser-unsafe requests fail explicitly", () => {
   assert.throws(() => api.buildRequest(first.description, { ...op, readonly: false }, first.input, base, {}, { readOnly: true }), /read-only/);
   assert.throws(() => api.buildRequest(first.description, { ...op, protocol: "unsupported" }, first.input, base), /native client or curl/);
-  assert.throws(() => api.buildRequest(first.description, { ...op, request: { ...op.request, eventStream: {} } }, first.input, base), /native client or curl/);
   assert.throws(() => api.buildRequest(first.description, op, { ...first.input, cityId: ".." }, base), /Dot path/);
   assert.throws(() => api.buildRequest(first.description, op, [], base), /JSON object/);
-});
-
-test("auth uses lowered API key placement, bearer and prefixes", () => {
-  const description = structuredClone(first.description);
-  description.service.authSchemes = { header: { kind: "apiKey", name: "x-dev-key", location: "header", scheme: "Token" }, query: { kind: "apiKey", name: "key", location: "query" } };
-  const request = api.buildRequest(description, { ...op, auth: ["header", "query"] }, first.input, base, { bearer: "secret", apiKeys: { header: "header-value", query: "query/value" } });
-  assert.equal(request.headers.get("authorization"), "Bearer secret");
-  assert.equal(request.headers.get("x-dev-key"), "Token header-value");
-  assert.equal(new URL(request.url).searchParams.get("key"), "query/value");
 });
 
 test("curl quoting survives apostrophes and binary payloads", () => {

@@ -141,7 +141,6 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 "kind",
                 "name",
                 "sensitive",
-                "streaming",
                 "members",
                 "member",
                 "key",

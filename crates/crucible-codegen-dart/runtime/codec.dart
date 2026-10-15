@@ -124,23 +124,16 @@ final class WireCodec {
         final members = wireObject(info['members']);
         final result = <String, Object?>{};
         final known = <String>{};
-        final wireNames = <String>{};
         for (final entry in members.entries) {
           final member = wireObject(entry.value);
-          final wireName = member['jsonName'] as String? ?? entry.key;
-          final source = encode ? entry.key : wireName;
           final target = wireString(member['target']);
-          known.add(source);
-          wireNames.add(wireName);
-          if (!object.containsKey(source)) continue;
-          result[encode ? wireName : entry.key] = document(target, object[source], encode: encode);
+          known.add(entry.key);
+          if (!object.containsKey(entry.key)) continue;
+          result[entry.key] = document(target, object[entry.key], encode: encode);
         }
         if (info['kind'] == 'union') {
           for (final entry in object.entries) {
-            if (!known.contains(entry.key)) {
-              if (encode && wireNames.contains(entry.key)) throw const FormatException('Unknown variant name is declared');
-              result[entry.key] = entry.value;
-            }
+            if (!known.contains(entry.key)) result[entry.key] = entry.value;
           }
         }
         return result;

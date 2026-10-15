@@ -11,7 +11,7 @@ module Weather
     # @param config [Runtime::ClientConfig]
     # @raise [ArgumentError] when the endpoint or another setting is invalid
     def initialize(config = Runtime::ClientConfig.new)
-      @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '', digest: true)
+      @runtime = Runtime::ClientRuntime.new(config, ::Weather.codec, endpoint: '')
     end
     # Releases the HTTP connection this client created. A transport passed in the configuration is left open.
     def close = @runtime.close

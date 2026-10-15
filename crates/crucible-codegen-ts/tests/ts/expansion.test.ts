@@ -57,7 +57,7 @@ test('cancellation and deadlines stop hung middleware, custom fetch, and respons
     { fetch: async () => new Promise<Response>(() => {}) },
     { fetch: async () => new Response(new ReadableStream<Uint8Array>({ start() {} })) },
   ]) {
-    const transport = new Transport({ endpoint: 'https://example.test', timeoutMs: 10, ...config }, { middleware: [], bearer: false }, {});
+    const transport = new Transport({ endpoint: 'https://example.test', timeoutMs: 10, ...config }, { bearer: false }, {});
     await assert.rejects(transport.send({ ...operation, output: { body: true } }, {}), /call deadline exceeded/);
   }
   const controller = new AbortController();

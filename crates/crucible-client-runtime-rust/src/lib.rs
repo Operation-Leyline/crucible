@@ -15,7 +15,7 @@
 //!
 //! Requests travel as `crucible.protocols#json` describes them. Throttling
 //! errors are retried; other transient failures
-//! only when the operation is safe to repeat (`@readonly`, `@idempotent`,
+//! only when the operation is safe to repeat (`readonly`, `idempotent`,
 //! or carrying an idempotency token, which the client fills when absent).
 
 include!(concat!(env!("OUT_DIR"), "/check_abi.rs"));
@@ -23,32 +23,18 @@ include!(concat!(env!("OUT_DIR"), "/check_abi.rs"));
 mod auth;
 mod build_error;
 mod cancellation;
-pub mod checksum;
 mod config;
-mod credentials;
-mod endpoint;
 pub mod error;
-mod events;
-mod metadata;
 mod paginate;
-mod query;
-mod signing;
 mod transport;
-mod waiter;
 
 pub use build_error::BuildError;
 pub use cancellation::CancellationToken;
-pub use checksum::ChecksumPolicy;
-pub use config::{
-    BasicCredentials, BoxFuture, CallOptions, ChecksumValidated, Config, Identity, Interceptor,
-    Retry, Token,
-};
-pub use credentials::AwsCredentials;
+pub use config::{BoxFuture, CallOptions, Config, Identity, Interceptor, Retry, Token};
 pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::field::Field;
 pub use crucible_wire::open::{Enum as OpenEnum, UnknownUnion};
-pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm};
 pub use crucible_wire::operation::{Operation, OperationInfo};
 pub use crucible_wire::{blob, number, operation, time, validate};
 
@@ -57,13 +43,10 @@ pub use crucible_wire::{blob, number, operation, time, validate};
 pub mod permissions {
     pub use crucible_wire::permissions::{PermissionDescription, ResourcePermissions, Tier};
 }
-#[doc(hidden)]
-pub use metadata::{OperationMetadata, ServiceMetadata};
 pub use paginate::Paginator;
 pub use transport::{Error, ResponseMetadata, ServiceError, Transport, UnknownError};
 #[doc(hidden)]
-pub use transport::{OperationErrors, by_status, decode_modelled, decode_modelled_at};
-pub use waiter::{WaiterError, WaiterFailure, WaiterOptions, WaiterResult};
+pub use transport::{OperationErrors, by_status, decode_modelled};
 
 /// A fresh idempotency token, for an input member that carries one.
 #[doc(hidden)]
@@ -84,18 +67,15 @@ macro_rules! include_client {
 pub mod __generated {
     pub use crate::{
         BuildError, CallOptions, Config, Error, Field, ModelledError, Operation, OperationErrors,
-        OperationInfo, OperationMetadata, Paginator, ServiceMetadata, Transport, UnknownUnion,
-        WaiterError, WaiterOptions, WaiterResult, by_status, decode_modelled_at, idempotency_token,
+        OperationInfo, Paginator, Transport, UnknownUnion, by_status, decode_modelled,
+        idempotency_token,
     };
     pub use __crucible_check_abi as check_abi;
     pub use crucible_wire::__generated::{error_info, member_info, operation_info, service_info};
     pub use crucible_wire::blob::Blob;
-    pub use crucible_wire::event_stream::EventStream;
     pub use crucible_wire::number::{BigDecimal, BigInteger};
-    pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        codec, error, event_stream, field, number, object, open, operation, permissions, time,
-        validate,
+        codec, error, field, number, object, open, operation, permissions, time, validate,
     };
 
     pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {
@@ -107,14 +87,6 @@ pub mod __generated {
     pub use serde;
     pub use serde_json;
 }
-
-pub use crucible_wire::event_stream;
-/// Event stream members: events to send, events received, and why a
-/// stream ended early.
-pub use crucible_wire::event_stream::{EventReceiver, EventStream, EventStreamError};
-
-/// Owned streaming body and chunk stream used by generated payload members.
-pub use crucible_wire::stream::{ByteStream, ChunkStream};
 
 /// Exact numbers for Smithy arbitrary-precision numeric shapes.
 pub use crucible_wire::number::{BigDecimal, BigInteger};

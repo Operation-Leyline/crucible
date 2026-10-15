@@ -23,24 +23,6 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         }
     }
     let mut out = service_exception(service, diagnostics);
-    if service
-        .operations
-        .iter()
-        .any(|op| metadata_needed(service, op))
-    {
-        let mut schema = crucible_codegen_common::schema(service, str::to_owned);
-        schema["operations"]
-            .as_object_mut()
-            .expect("schema operation object")
-            .retain(|name, _| {
-                service
-                    .operations
-                    .iter()
-                    .any(|op| op.name() == name && metadata_needed(service, op))
-            });
-        out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible_server_runtime_rust::__generated::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__generated::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
-    }
-    out.push_str(&crate::events::statics(service, diagnostics));
     let mut methods = String::new();
     let mut method_names = method_names(service).into_iter();
     for op in &service.operations {
@@ -51,16 +33,10 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         };
         out.push_str(&marker_for(service, op, &output, true, ""));
         out.push_str(&error_enum(service, op));
-        if metadata_needed(service, op) {
-            out.push_str(&format!("\n#[allow(non_upper_case_globals, deprecated)]\nstatic __crucible_metadata_{}: ::std::sync::LazyLock<&'static ::crucible_server_runtime_rust::__generated::OperationMetadata> = ::std::sync::LazyLock::new(|| __CRUCIBLE_CLIENT_METADATA.operation({}));\n",op.name(),literal(op.name())));
-        }
         methods.push_str(&method(service, op, None));
         let derived = method_names.next().expect("a method set per operation");
         methods.push_str(&method(service, op, Some(&derived.options)));
         methods.push_str(&pages(service, op, derived.pages.as_deref(), diagnostics));
-        for (waiter, name) in op.waiters.keys().zip(&derived.waiters) {
-            methods.push_str(&waiter_method(service, op, waiter, name));
-        }
         if function(op.name()) == "new" {
             diagnostics.push(
                 &op.id,
@@ -87,13 +63,10 @@ struct Derived {
     options: String,
     /// Only a `@paginated` operation has pages.
     pages: Option<String>,
-    /// One per waiter, in the operation's waiter order.
-    waiters: Vec<String>,
 }
 
 /// Method names for every operation, in operation order. An operation's own
-/// method always keeps its name; a derived method (`*_with_options`, `*_pages`,
-/// `wait_until_*`) takes a numeric suffix instead of colliding with it or
+/// method always keeps its name; a derived method (`*_with_options`, `*_pages`) takes a numeric suffix instead of colliding with it or
 /// with another derived method, so `ListThings` beside `ListThingsPages`
 /// stays valid.
 fn method_names(service: &Service) -> Vec<Derived> {
@@ -123,16 +96,6 @@ fn method_names(service: &Service) -> Vec<Derived> {
                     .paginated
                     .as_ref()
                     .map(|_| unique(format!("{base}_pages"))),
-                waiters: op
-                    .waiters
-                    .keys()
-                    .map(|waiter| {
-                        unique(format!(
-                            "wait_until_{}",
-                            function(waiter).trim_start_matches("r#")
-                        ))
-                    })
-                    .collect(),
             }
         })
         .collect()
@@ -212,38 +175,6 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
     out
 }
 
-fn metadata_needed(service: &Service, op: &Operation) -> bool {
-    service.endpoint_rules.is_some() || op.endpoint.is_some() || !op.waiters.is_empty()
-}
-
-fn waiter_method(service: &Service, op: &Operation, waiter: &str, method: &str) -> String {
-    let name = op.name();
-    let errors = error_type(op);
-    let output = if op.output.is_some() {
-        output_type(service, op).replace("model::", "")
-    } else {
-        UNIT.to_owned()
-    };
-    let (parameter, input, token) = if op.input.is_some() {
-        let token = token_member(service,op).map(|member|format!("        if input.{}.value().is_none() {{ input.{} = ::crucible_server_runtime_rust::__generated::Field::Value(::crucible_server_runtime_rust::__generated::idempotency_token()); }}\n",field(&member.name),field(&member.name))).unwrap_or_default();
-        (
-            format!(
-                "{}input: {}, ",
-                if token.is_empty() { "" } else { "mut " },
-                input_type(service, op).replace("model::", "")
-            ),
-            "input".to_owned(),
-            token,
-        )
-    } else {
-        (String::new(), format!("{UNIT} {{}}"), String::new())
-    };
-    format!(
-        "\n    pub async fn {method}(&self, {parameter}options: ::crucible_server_runtime_rust::__generated::WaiterOptions) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::WaiterResult<{output}, {errors}>, ::crucible_server_runtime_rust::__generated::WaiterError<{output}, {errors}>> {{\n{token}        self.transport.wait::<{name}, {errors}>(&{input}, &__crucible_metadata_{name}, {}, &options).await\n    }}\n",
-        literal(waiter)
-    )
-}
-
 pub(crate) fn error_type(op: &Operation) -> String {
     format!("{}Error", op.name())
 }
@@ -301,7 +232,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
         .iter()
         .map(|error| {
             format!(
-                "            {} => ::crucible_server_runtime_rust::__generated::decode_modelled_at(status, &errors::{}, headers, body).map(Self::{error}),\n",
+                "            {} => ::crucible_server_runtime_rust::__generated::decode_modelled(&errors::{}, headers, body).map(Self::{error}),\n",
                 literal(&wire_error(service, op, error)),
                 info_static(error)
             )
@@ -392,9 +323,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let method_name = options_name
         .map(str::to_owned)
         .unwrap_or_else(|| function(name));
-    let transport_method = if metadata_needed(service, op) {
-        "send_with_metadata"
-    } else if options_name.is_some() {
+    let transport_method = if options_name.is_some() {
         "send_with_options"
     } else {
         "send"
@@ -404,16 +333,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     } else {
         ""
     };
-    let options_argument = if metadata_needed(service, op) {
-        format!(
-            ", {}, &__crucible_metadata_{name}",
-            if options_name.is_some() {
-                "&options"
-            } else {
-                "&::crucible_server_runtime_rust::__generated::CallOptions::default()"
-            }
-        )
-    } else if options_name.is_some() {
+    let options_argument = if options_name.is_some() {
         ", &options".to_owned()
     } else {
         String::new()
@@ -512,13 +432,8 @@ fn pages(
         }
         _ => (String::new(), String::new()),
     };
-    let metadata = if metadata_needed(service, op) {
-        format!(".metadata(&__crucible_metadata_{name})")
-    } else {
-        String::new()
-    };
     format!(
-        "\n    /// Every page of {name}, one request each.\n    pub fn {method}(&self, input: {}) -> ::crucible_server_runtime_rust::__generated::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::__generated::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){metadata}{finish}\n    }}\n",
+        "\n    /// Every page of {name}, one request each.\n    pub fn {method}(&self, input: {}) -> ::crucible_server_runtime_rust::__generated::Paginator<{name}, {errors}> {{\n        {start}::crucible_server_runtime_rust::__generated::Paginator::<{name}, {errors}>::new(\n            self.transport.clone(),\n            input,\n            {},\n            {},\n            {set},\n        ){finish}\n    }}\n",
         input_type(service, op).replace("model::", ""),
         output,
         get(input, "input"),

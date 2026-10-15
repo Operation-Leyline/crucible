@@ -1,10 +1,7 @@
 //! Audience semantics operate only on lowered IR, independently of an emitter.
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::ir::{
-    Bindings, EndpointParameterSource, HostPrefixPart, JmesExpression, Member, Operation, Service,
-    Shape, WaiterMatcher,
-};
+use crate::ir::{Bindings, Member, Operation, Service, Shape};
 use crate::{Diagnostics, ShapeId};
 
 /// Public packages omit internal API unless their producer explicitly opts in.
@@ -96,53 +93,7 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         for target in op.input.iter().chain(&op.output) {
             check_target(service, &op.id, target, &mut diagnostics);
         }
-        check_references(service, op, &operations, &mut diagnostics);
-    }
-    if let Some(discovery) = &service.endpoint_discovery
-        && let Some(op) = result
-            .operations
-            .iter()
-            .find(|op| op.id == discovery.operation)
-    {
-        for path in discovery
-            .operation_member
-            .iter()
-            .chain(&discovery.identifiers_member)
-        {
-            check_path(
-                service,
-                op,
-                op.input.as_ref(),
-                path,
-                "endpoint",
-                &mut diagnostics,
-            );
-        }
-        for path in [
-            discovery.endpoints_member.clone(),
-            format!(
-                "{}.{}",
-                discovery.endpoints_member, discovery.address_member
-            ),
-            format!(
-                "{}.{}",
-                discovery.endpoints_member, discovery.cache_period_member
-            ),
-        ] {
-            check_path(
-                service,
-                op,
-                op.output.as_ref(),
-                &path,
-                "endpoint",
-                &mut diagnostics,
-            );
-        }
-        if let Some(error) = &discovery.error
-            && service.shape(error).is_some_and(Shape::internal)
-        {
-            diagnostics.push(&service.id, format!("audience.endpoint_reference: endpoint discovery requires removed internal error {error}"));
-        }
+        check_references(service, op, &mut diagnostics);
     }
     while let Some(id) = pending.pop() {
         if !reached.insert(id.clone()) {
@@ -186,18 +137,11 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
                     let names: BTreeSet<_> = s.members.iter().map(|m| m.name.as_str()).collect();
                     error.headers.retain(|b| names.contains(b.member.as_str()));
                     error
-                        .prefix_headers
-                        .retain(|b| names.contains(b.member.as_str()));
-                    error
                         .timestamp_formats
                         .retain(|n, _| names.contains(n.as_str()));
                     error
                         .header_encodings
                         .retain(|n, _| names.contains(n.as_str()));
-                    error.response_code = error
-                        .response_code
-                        .take()
-                        .filter(|n| names.contains(n.as_str()));
                     error.payload = error
                         .payload
                         .take()
@@ -271,10 +215,6 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
                 .member()
                 .is_none_or(|name| member_exists(&result.shapes, Some(&root), name))
     });
-    result.endpoint_discovery = result
-        .endpoint_discovery
-        .take()
-        .filter(|d| operations.contains(&d.operation));
     result
         .renames
         .retain(|id, _| reached.contains(id) || operations.contains(id) || resources.contains(id));
@@ -299,39 +239,25 @@ const EXTERNAL_RAW_TRAITS: &[&str] = &[
     "smithy.api#authDefinition",
     "smithy.api#box",
     "smithy.api#clientOptional",
-    "smithy.api#cors",
     "smithy.api#default",
     "smithy.api#deprecated",
     "smithy.api#documentation",
-    "smithy.api#endpoint",
     "smithy.api#enumValue",
     "smithy.api#error",
-    "smithy.api#eventHeader",
-    "smithy.api#eventPayload",
     "smithy.api#externalDocumentation",
-    "smithy.api#hostLabel",
     "smithy.api#http",
-    "smithy.api#httpApiKeyAuth",
-    "smithy.api#httpBasicAuth",
     "smithy.api#httpBearerAuth",
-    "smithy.api#httpChecksumRequired",
-    "smithy.api#httpDigestAuth",
     "smithy.api#httpError",
     "smithy.api#httpHeader",
     "smithy.api#httpLabel",
     "smithy.api#httpPayload",
-    "smithy.api#httpPrefixHeaders",
     "smithy.api#httpQuery",
-    "smithy.api#httpQueryParams",
-    "smithy.api#httpResponseCode",
     "smithy.api#idempotencyToken",
     "smithy.api#idempotent",
     "smithy.api#input",
-    "smithy.api#jsonName",
     "smithy.api#length",
     "smithy.api#mediaType",
     "smithy.api#noReplace",
-    "smithy.api#optionalAuth",
     "smithy.api#output",
     "smithy.api#paginated",
     "smithy.api#pattern",
@@ -342,26 +268,18 @@ const EXTERNAL_RAW_TRAITS: &[&str] = &[
     "smithy.api#recommended",
     "smithy.api#requestCompression",
     "smithy.api#required",
-    "smithy.api#requiresLength",
     "smithy.api#retryable",
     "smithy.api#sensitive",
+    "smithy.api#sparse",
     "smithy.api#since",
     "smithy.api#sparse",
-    "smithy.api#streaming",
     "smithy.api#tags",
     "smithy.api#timestampFormat",
     "smithy.api#title",
     "smithy.api#uniqueItems",
     "smithy.api#unitType",
     "smithy.api#unstable",
-    "smithy.rules#clientContextParams",
-    "smithy.rules#contextParam",
-    "smithy.rules#endpointRuleSet",
-    "smithy.rules#staticContextParams",
     "aws.api#service",
-    "aws.auth#sigv4",
-    "aws.auth#unsignedPayload",
-    "aws.protocols#httpChecksum",
     "crucible.auth#scopes",
     "crucible.protocols#json",
     "crucible.protocols#strict",
@@ -507,13 +425,9 @@ fn retain_bindings(
     bindings.body.retain(|name| keep(name));
     bindings.query.retain(|b| keep(&b.member));
     bindings.headers.retain(|b| keep(&b.member));
-    bindings.prefix_headers.retain(|b| keep(&b.member));
     bindings.timestamp_formats.retain(|n, _| keep(n));
     bindings.header_encodings.retain(|n, _| keep(n));
-    bindings.query_params = bindings.query_params.take().filter(|n| keep(n));
-    bindings.response_code = bindings.response_code.take().filter(|n| keep(n));
     bindings.payload = bindings.payload.take().filter(|p| keep(&p.member));
-    bindings.event_stream = bindings.event_stream.take().filter(|p| keep(&p.member));
 }
 
 fn check_path(
@@ -529,8 +443,7 @@ fn check_path(
         let Some(mut id) = current else {
             break;
         };
-        // Discovery paths cross a list of endpoint structures. Resolve the
-        // element type while preserving collection-member diagnostics elsewhere.
+        // A path may cross a list: resolve the element type.
         if let Some(Shape::List(list)) = service.shape(&id) {
             id = list.member.target.clone();
         }
@@ -553,12 +466,7 @@ fn check_path(
     }
 }
 
-fn check_references(
-    service: &Service,
-    op: &Operation,
-    operations: &BTreeSet<ShapeId>,
-    diagnostics: &mut Diagnostics,
-) {
+fn check_references(service: &Service, op: &Operation, diagnostics: &mut Diagnostics) {
     if let Some(p) = &op.paginated {
         for path in std::iter::once(&p.input_token).chain(&p.page_size) {
             check_path(
@@ -581,249 +489,8 @@ fn check_references(
             );
         }
     }
-    if let Some(endpoint) = &op.endpoint {
-        for part in &endpoint.parts {
-            if let HostPrefixPart::Label { member } = part {
-                check_path(
-                    service,
-                    op,
-                    op.input.as_ref(),
-                    member,
-                    "endpoint",
-                    diagnostics,
-                );
-            }
-        }
-    }
-    for sources in op.endpoint_parameters.values() {
-        for source in sources {
-            match source {
-                EndpointParameterSource::InputMember { member } => check_path(
-                    service,
-                    op,
-                    op.input.as_ref(),
-                    member,
-                    "endpoint",
-                    diagnostics,
-                ),
-                EndpointParameterSource::InputPath { path } => check_expression(
-                    service,
-                    op,
-                    op.input.as_ref(),
-                    &path.expression,
-                    "endpoint",
-                    false,
-                    diagnostics,
-                ),
-                _ => {}
-            }
-        }
-    }
-    for waiter in op.waiters.values() {
-        for acceptor in &waiter.acceptors {
-            match &acceptor.matcher {
-                WaiterMatcher::Output { path, .. } => check_expression(service, op, op.output.as_ref(), &path.expression, "waiter", false, diagnostics),
-                WaiterMatcher::InputOutput { path, .. } => check_expression(service, op, None, &path.expression, "waiter", true, diagnostics),
-                WaiterMatcher::ErrorType { name } if service.operations.iter().find(|o| o.id == op.id).is_some_and(|original| original.errors.iter().any(|id| (id.name() == name || id.to_string() == *name) && !op.errors.contains(id))) => diagnostics.push(&op.id, format!("audience.waiter_reference: waiter references removed internal error {name}")),
-                _ => {}
-            }
-            if let Some(path) = &acceptor.message {
-                check_expression(
-                    service,
-                    op,
-                    op.output.as_ref(),
-                    &path.expression,
-                    "waiter",
-                    false,
-                    diagnostics,
-                );
-            }
-        }
-    }
-    if let Some(discovery) = &service.endpoint_discovery {
-        if op.discovered_endpoint.is_some() && !operations.contains(&discovery.operation) {
-            diagnostics.push(
-                &op.id,
-                format!(
-                    "audience.endpoint_reference: endpoint discovery requires removed operation {}",
-                    discovery.operation
-                ),
-            );
-        }
-    }
-    if let Some(crate::ir::Checksum::AwsFlexible {
-        request_algorithm_member,
-        validation_mode_member,
-        ..
-    }) = &op.checksum
-    {
-        for member in request_algorithm_member
-            .iter()
-            .chain(validation_mode_member)
-        {
-            check_path(
-                service,
-                op,
-                op.input.as_ref(),
-                member,
-                "checksum",
-                diagnostics,
-            );
-        }
-    }
 }
 
-fn check_expression(
-    service: &Service,
-    op: &Operation,
-    root: Option<&ShapeId>,
-    expression: &JmesExpression,
-    kind: &str,
-    input_output: bool,
-    diagnostics: &mut Diagnostics,
-) {
-    let mut removed = BTreeSet::new();
-    expression_targets(
-        service,
-        op,
-        root.into_iter().cloned().collect(),
-        expression,
-        input_output,
-        &mut removed,
-    );
-    for id in removed {
-        diagnostics.push(
-            &op.id,
-            format!("audience.{kind}_reference: {kind} references removed member {id}"),
-        );
-    }
-}
-
-// Carry model types through compiled expressions so a nested field is checked
-// against its actual structure rather than a global set of member spellings.
-fn expression_targets(
-    service: &Service,
-    op: &Operation,
-    roots: Vec<ShapeId>,
-    expression: &JmesExpression,
-    input_output: bool,
-    removed: &mut BTreeSet<ShapeId>,
-) -> Vec<ShapeId> {
-    use JmesExpression as E;
-    let elements = |roots: Vec<ShapeId>| {
-        roots
-            .into_iter()
-            .flat_map(|id| match service.shape(&id) {
-                Some(Shape::List(s)) => vec![s.member.target.clone()],
-                Some(Shape::Map(s)) => vec![s.value.target.clone()],
-                _ => vec![id],
-            })
-            .collect::<Vec<_>>()
-    };
-    match expression {
-        E::Field { name } => {
-            if input_output {
-                return match name.as_str() {
-                    "input" => op.input.iter().cloned().collect(),
-                    "output" => op.output.iter().cloned().collect(),
-                    _ => vec![],
-                };
-            }
-            roots
-                .iter()
-                .filter_map(|id| {
-                    let member = service
-                        .shape(id)?
-                        .members()
-                        .into_iter()
-                        .find(|m| m.name == *name)?;
-                    if member.internal {
-                        removed.insert(id.with_member(name));
-                    }
-                    Some(member.target.clone())
-                })
-                .collect()
-        }
-        E::Subexpression { left, right } => {
-            let targets = expression_targets(service, op, roots, left, input_output, removed);
-            expression_targets(service, op, targets, right, false, removed)
-        }
-        E::Projection { left, right } => {
-            let targets = elements(expression_targets(
-                service,
-                op,
-                roots,
-                left,
-                input_output,
-                removed,
-            ));
-            expression_targets(service, op, targets, right, false, removed)
-        }
-        E::Flatten { expression } | E::ObjectValues { expression } => elements(expression_targets(
-            service,
-            op,
-            roots,
-            expression,
-            input_output,
-            removed,
-        )),
-        E::Index { .. } | E::Slice { .. } => elements(roots),
-        E::And { left, right } | E::Or { left, right } | E::Compare { left, right, .. } => {
-            let mut targets =
-                expression_targets(service, op, roots.clone(), left, input_output, removed);
-            targets.extend(expression_targets(
-                service,
-                op,
-                roots,
-                right,
-                input_output,
-                removed,
-            ));
-            targets
-        }
-        E::Condition { predicate, then } => {
-            expression_targets(service, op, roots.clone(), predicate, input_output, removed);
-            expression_targets(service, op, roots, then, input_output, removed)
-        }
-        E::Not { expression } | E::ExpressionReference { expression } => {
-            expression_targets(service, op, roots, expression, input_output, removed)
-        }
-        E::MultiList { expressions } => expressions
-            .iter()
-            .flat_map(|e| expression_targets(service, op, roots.clone(), e, input_output, removed))
-            .collect(),
-        E::MultiHash { entries } => entries
-            .iter()
-            .flat_map(|e| {
-                expression_targets(service, op, roots.clone(), &e.value, input_output, removed)
-            })
-            .collect(),
-        E::Function { arguments, .. } => {
-            let targets: Vec<_> = arguments
-                .iter()
-                .filter(|e| !matches!(e, E::ExpressionReference { .. }))
-                .flat_map(|e| {
-                    expression_targets(service, op, roots.clone(), e, input_output, removed)
-                })
-                .collect();
-            for e in arguments
-                .iter()
-                .filter(|e| matches!(e, E::ExpressionReference { .. }))
-            {
-                expression_targets(service, op, elements(targets.clone()), e, false, removed);
-            }
-            targets
-        }
-        E::Identity => roots,
-        E::Literal { .. } => vec![],
-    }
-}
-
-/// Internal permissions, aliases of them, and requirements that name them
-/// are server contract only (decision 9), as internal members are. A
-/// requirement the client keeps never reads an internal member: the shared
-/// check refuses a client-visible clause that binds or tests one
-/// (`permissions.internal-member`), so nothing here redacts paths.
 fn project_permissions(result: &mut Service) {
     use crate::ir::{Mode, Requirement, Requirements, Tier};
     for resource in result.permissions.values_mut() {

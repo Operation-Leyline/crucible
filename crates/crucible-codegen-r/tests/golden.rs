@@ -5,7 +5,6 @@ fn options() -> Options {
         package_name: "leyline.client".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
-        content_sha256: true,
     }
 }
 

@@ -12,7 +12,6 @@ pub struct Options {
     pub module_name: String,
     pub package_version: String,
     pub endpoint: Option<String>,
-    pub content_sha256: bool,
 }
 pub struct File {
     pub path: String,
@@ -51,7 +50,6 @@ fn reserved_module(text: &str) -> bool {
     [
         "Swift",
         "Foundation",
-        "Crypto",
         "FoundationNetworking",
         "Client",
         "Models",
@@ -85,30 +83,6 @@ fn reserved_module(text: &str) -> bool {
         "WireCodec",
         "WireInteger",
         "Timestamp",
-        "BasicCredentials",
-        "AWSCredentials",
-        "CredentialsProvider",
-        "StaticCredentialsProvider",
-        "ClosureCredentialsProvider",
-        "CredentialChain",
-        "EnvironmentCredentialsProvider",
-        "ProfileCredentialsProvider",
-        "CachedCredentials",
-        "SigningOptions",
-        "SigV4Signer",
-        "AuthOutcome",
-        "ChecksumPolicy",
-        "ChecksumMismatchError",
-        "ChecksumSettings",
-        "Checksums",
-        "QueryDecimal",
-        "JMESPath",
-        "ResolvedEndpoint",
-        "Endpoints",
-        "WaiterOptions",
-        "WaiterError",
-        "WaiterTimeoutError",
-        "WaiterProgress",
         "ModelDescription",
         "Describe",
         // Imported types used by generated sources. This is a maintained set,
@@ -170,7 +144,6 @@ fn reserved_module(text: &str) -> bool {
         "AsyncSequence",
         "AsyncIteratorProtocol",
         "URLError",
-        "SHA256",
         "SHA512",
         "HMAC",
         "SymmetricKey",
@@ -416,24 +389,11 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
         Feature::Sparse,
-        Feature::Sets,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
-        Feature::Waiters,
-        Feature::EndpointRules,
-        Feature::EndpointHostPrefix,
-        Feature::HttpChecksum,
     ])
 }
 
@@ -543,11 +503,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 diagnostics.push(&op.id, "Swift operation name collision");
             }
         }
-        for waiter in op.waiters.keys() {
-            if !identifier(waiter) || !methods.insert(format!("waitUntil{waiter}")) {
-                diagnostics.push(&op.id, "invalid or colliding Swift waiter name");
-            }
-        }
     }
     permissions::check(service, &options.module_name, &mut diagnostics);
     if !diagnostics.is_empty() {
@@ -597,10 +552,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("Deadline", include_str!("../runtime/Deadline.swift")),
         ("Auth", include_str!("../runtime/Auth.swift")),
-        ("Checksums", include_str!("../runtime/Checksums.swift")),
-        ("Query", include_str!("../runtime/Query.swift")),
-        ("Endpoints", include_str!("../runtime/Endpoints.swift")),
-        ("Waiters", include_str!("../runtime/Waiters.swift")),
         (
             "ClientRuntime",
             include_str!("../runtime/ClientRuntime.swift"),
@@ -612,6 +563,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 .replace("\r\n", "\n"),
         });
     }
-    files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    dependencies: [.package(url: \"https://github.com/apple/swift-crypto.git\", from: \"3.10.0\")],\n    targets: [.target(name: {}, dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });
+    files.push(File { path: "Package.swift".into(), contents: format!("// swift-tools-version: 6.0\nimport PackageDescription\n\nlet package = Package(\n    name: {},\n    platforms: [.macOS(.v12), .iOS(.v15)],\n    products: [.library(name: {}, targets: [{}])],\n    targets: [.target(name: {}, resources: [.process(\"Resources\")])]\n)\n", literal(&options.package_name), literal(&options.module_name), literal(&options.module_name), literal(&options.module_name)) });
     Ok(files)
 }

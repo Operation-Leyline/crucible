@@ -23,7 +23,6 @@ fn options() -> Options {
         package_name: "weather_client".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: Some("https://weather.example".into()),
-        content_sha256: true,
     }
 }
 
@@ -303,55 +302,6 @@ fn service_client_name_is_reserved() {
     model["shapes"]["example.weather#Weather"]["rename"] =
         serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
     assert!(emit(&lower(&model), &options()).is_err());
-}
-
-fn behaviors() -> Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-behaviors.json"
-    ))
-    .unwrap()
-}
-fn lower_supported(value: &Value) -> Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_dart::capabilities())
-        .unwrap()
-}
-
-#[test]
-fn client_behaviors_generate_waiters_and_bundle_feature_runtimes() {
-    let files = emit(&lower_supported(&behaviors()), &options()).unwrap();
-    let client = &files
-        .iter()
-        .find(|f| f.path == "lib/src/client.dart")
-        .unwrap()
-        .contents;
-    assert!(client.contains(
-        "Future<models.Output?> waitUntilReady(models.Input input, {required Duration timeout"
-    ));
-    for runtime in ["auth", "checksums", "endpoints", "query", "waiters"] {
-        let path = format!("lib/src/runtime/{runtime}.dart");
-        assert!(files.iter().any(|f| f.path == path), "{path}");
-    }
-}
-
-#[test]
-fn waiter_methods_cannot_collide_with_operations() {
-    let mut model = behaviors();
-    model["shapes"]["example.behavior#WaitUntilReady"] =
-        model["shapes"]["example.behavior#Public"].clone();
-    model["shapes"]["example.behavior#WaitUntilReady"]["traits"]["smithy.api#http"]["uri"] =
-        json!("/wait-until-ready");
-    model["shapes"]["example.behavior#Service"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(json!({"target": "example.behavior#WaitUntilReady"}));
-    let diagnostics = emit(&lower_supported(&model), &options()).err().unwrap();
-    assert!(
-        diagnostics
-            .iter()
-            .any(|d| d.message.contains("waiter method name collision"))
-    );
 }
 
 #[test]

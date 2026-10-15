@@ -355,28 +355,6 @@ fn missing_targets_are_collected() {
 }
 
 #[test]
-fn streaming_examples_are_refused_without_partial_output() {
-    let mut service = Model::from_json(WEATHER)
-        .unwrap()
-        .lower_documentation(None)
-        .unwrap();
-    let op = service
-        .operations
-        .iter_mut()
-        .find(|op| op.id.name() == "CreateCity")
-        .unwrap();
-    op.request.payload = Some(crucible_smithy::ir::Payload {
-        member: "city".into(),
-        kind: crucible_smithy::ir::PayloadKind::Blob,
-        media_type: "application/octet-stream".into(),
-        streaming: true,
-        requires_length: false,
-    });
-    let error = generate(&service).unwrap_err().to_string();
-    assert!(error.contains("describe.example_streaming"));
-}
-
-#[test]
 fn documentation_requires_the_resource_projection_and_detects_filename_collisions() {
     let ordinary = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     assert!(

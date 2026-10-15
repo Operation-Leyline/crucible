@@ -276,17 +276,7 @@ pub(crate) fn routes(operations: &[Operation], diagnostics: &mut Diagnostics) {
             .collect();
         let mut query = operation.uri.query.clone();
         query.sort();
-        let host = operation.endpoint.as_ref().map(|endpoint| {
-            endpoint
-                .parts
-                .iter()
-                .map(|part| match part {
-                    crate::ir::HostPrefixPart::Literal { value } => format!("literal:{value}"),
-                    crate::ir::HostPrefixPart::Label { .. } => "label".to_owned(),
-                })
-                .collect::<Vec<_>>()
-        });
-        if let Some(previous) = seen.insert((&operation.method, host, path, query), &operation.id) {
+        if let Some(previous) = seen.insert((&operation.method, path, query), &operation.id) {
             diagnostics.push(
                 &operation.id,
                 format!("HTTP route conflicts with {previous}"),
@@ -434,7 +424,6 @@ fn http(service: &Service, operation: &Operation, diagnostics: &mut Diagnostics)
         {
             let bindings = Bindings {
                 headers: info.headers.clone(),
-                prefix_headers: info.prefix_headers.clone(),
                 ..Bindings::default()
             };
             headers(service, error, shape, &bindings, bearer, diagnostics);
@@ -442,13 +431,7 @@ fn http(service: &Service, operation: &Operation, diagnostics: &mut Diagnostics)
             // payload, those members would be dropped.
             if let Some(payload) = &info.payload {
                 let bound = |name: &str| {
-                    name == payload.member
-                        || info.response_code.as_deref() == Some(name)
-                        || info
-                            .headers
-                            .iter()
-                            .chain(&info.prefix_headers)
-                            .any(|b| b.member == name)
+                    name == payload.member || info.headers.iter().any(|b| b.member == name)
                 };
                 for member in shape.members.iter().filter(|m| !bound(&m.name)) {
                     diagnostics.push(
@@ -521,14 +504,6 @@ fn headers(
                 format!(
                     "a header carries text: `{member}` must be a scalar, an enum, a timestamp or a list of them"
                 ),
-            );
-        }
-    }
-    for Binding { member, name } in &bindings.prefix_headers {
-        if !name.is_empty() && !is_token(name) {
-            diagnostics.push(
-                &owner.with_member(member),
-                format!("{name:?} is not a valid header name prefix"),
             );
         }
     }

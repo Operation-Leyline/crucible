@@ -51,7 +51,6 @@ pub use crucible_codegen_swift::Options as SwiftOptions;
 #[cfg(feature = "terraform")]
 pub use crucible_codegen_terraform::Options as TerraformOptions;
 #[cfg(feature = "ts")]
-pub use crucible_codegen_ts::Middleware as TsMiddleware;
 #[cfg(feature = "ts")]
 pub use crucible_codegen_ts::Options as TsOptions;
 pub use file::File;

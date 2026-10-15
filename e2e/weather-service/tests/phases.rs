@@ -58,7 +58,6 @@ static SERVICE: ServiceInfo = generated::service_info(
     "phases#Service",
     "1",
     None,
-    None,
     &[&INFO],
     &[],
     |_| None,

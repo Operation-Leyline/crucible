@@ -24,10 +24,8 @@ impl Resolution<'_> {
     /// The response status this resolution gets.
     pub fn status(&self, operation: Option<&OperationInfo>) -> u16 {
         match self {
-            Self::Success(output) => output
-                .response_status()
-                .unwrap_or_else(|| operation.map_or(200, |op| op.status)),
-            Self::Modelled(error) => error.response_status(),
+            Self::Success(_) => operation.map_or(200, |op| op.status),
+            Self::Modelled(error) => error.info().status,
             Self::Rejected(_) => 400,
             Self::Framework(error) => error.status(),
             Self::Internal(_) => 500,

@@ -34,7 +34,7 @@ fn debug_info(
             let field = field(&member.name);
             let value = if docs::is_redacted(service, sensitive, member) {
                 format!("{runtime}\\Describe::redact($this->{field})")
-            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == crucible_smithy::ir::SimpleKind::Blob && !s.streaming) {
+            } else if matches!(service.shape(&member.target), Some(Shape::Simple(s)) if s.kind == crucible_smithy::ir::SimpleKind::Blob) {
                 format!("{runtime}\\Describe::bytes($this->{field})")
             } else {
                 format!("$this->{field}")

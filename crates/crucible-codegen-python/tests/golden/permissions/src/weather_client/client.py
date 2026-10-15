@@ -7,7 +7,7 @@ from .runtime import SyncClient, AsyncClientBase
 class LeylineClient(SyncClient):
     "Organizations, their graphs and the graphs' histories.\n\nHTTP client. Construct with endpoint and keyword configuration described by the inherited initializer. Use with or close(). Share across threads only if all supplied callbacks are thread-safe. The client only closes its own HTTPX transport; caller-supplied http transports remain caller-owned."
     def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:
-        super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
+        super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, **kwargs)
     __init__.__doc__ = SyncClient.__init__.__doc__
 
     def archive_graph(self, input: m.ArchiveGraphInput, **options: Any) -> m.ArchiveGraphOutput:
@@ -53,7 +53,7 @@ class LeylineClient(SyncClient):
 class AsyncLeylineClient(AsyncClientBase):
     "Organizations, their graphs and the graphs' histories.\n\nHTTP client. Construct with endpoint and keyword configuration described by the inherited initializer. Use async with or await aclose(). Share across tasks on one event loop if callbacks are safe for concurrent calls. The client only closes its own HTTPX transport; caller-supplied http transports remain caller-owned."
     def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:
-        super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, content_sha256=True, **kwargs)
+        super().__init__(endpoint=endpoint or "https://weather.example", schema=m._SCHEMA, classes=m._CLASSES, **kwargs)
     __init__.__doc__ = AsyncClientBase.__init__.__doc__
 
     async def archive_graph(self, input: m.ArchiveGraphInput, **options: Any) -> m.ArchiveGraphOutput:

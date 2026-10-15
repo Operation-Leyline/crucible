@@ -1,5 +1,4 @@
 //! Server bindings retain the full API; MCP tools use the External projection.
-pub use crucible_codegen_common::mcp::exclusions;
 use crucible_smithy::ir::Service;
 use crucible_smithy::{Audience, Diagnostics, ShapeId, project};
 use std::collections::BTreeSet;

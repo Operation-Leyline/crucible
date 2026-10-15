@@ -20,26 +20,8 @@ pub enum Identity<T> {
     Provider(Arc<dyn Fn() -> BoxFuture<Option<T>> + Send + Sync>),
 }
 
-/// A bearer token or API key, fixed or refreshed by a provider.
+/// A bearer token, fixed or refreshed by a provider.
 pub type Token = Identity<String>;
-
-#[derive(Clone)]
-/// HTTP basic credentials. Values are sent only for a modeled basic-auth scheme.
-pub struct BasicCredentials {
-    /// The basic-auth username.
-    pub username: String,
-    /// The basic-auth password; keep it out of diagnostic output.
-    pub password: String,
-}
-
-impl BasicCredentials {
-    pub fn new(username: impl Into<String>, password: impl Into<String>) -> Self {
-        Self {
-            username: username.into(),
-            password: password.into(),
-        }
-    }
-}
 
 impl<T: Clone> Identity<T> {
     /// Uses a fixed identity for every request attempt.
@@ -97,7 +79,7 @@ impl Retry {
 }
 
 /// Sees, and may change, every attempt of every request before it is sent:
-/// signing, tracing headers, a home-region pin.
+/// tracing headers, a home-region pin.
 pub trait Interceptor: Send + Sync + 'static {
     fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String>;
 }
@@ -106,29 +88,13 @@ pub trait Interceptor: Send + Sync + 'static {
 #[derive(Clone)]
 pub struct Config {
     pub(crate) endpoint: String,
-    pub(crate) region: Option<String>,
-    pub(crate) endpoint_parameters: std::collections::BTreeMap<String, serde_json::Value>,
-    pub(crate) endpoint_builtins: std::collections::BTreeMap<String, serde_json::Value>,
-    pub(crate) disable_host_prefix: bool,
     pub(crate) token: Option<Token>,
-    pub(crate) basic_credentials: Option<Identity<BasicCredentials>>,
-    pub(crate) api_key: Option<Token>,
-    pub(crate) aws_credentials: Option<Identity<crate::AwsCredentials>>,
-    pub(crate) signing_name: Option<String>,
     pub(crate) retry: Retry,
     pub(crate) interceptors: Vec<Arc<dyn Interceptor>>,
     pub(crate) headers: HeaderMap,
     pub(crate) http: reqwest::Client,
     pub(crate) timeout: Option<Duration>,
-    pub(crate) content_sha256: bool,
-    pub(crate) request_checksum_calculation: crate::ChecksumPolicy,
-    pub(crate) response_checksum_validation: crate::ChecksumPolicy,
-    pub(crate) checksum_validated: Option<ChecksumValidated>,
 }
-
-/// Told which operation's response checksum was verified, and with which algorithm.
-pub type ChecksumValidated =
-    Arc<dyn Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm) + Send + Sync>;
 
 impl Config {
     /// Creates settings with three attempts, a reqwest connection pool, no redirects,
@@ -139,15 +105,7 @@ impl Config {
         let _ = rustls::crypto::ring::default_provider().install_default();
         Self {
             endpoint: endpoint.into().trim_end_matches('/').to_owned(),
-            region: None,
-            endpoint_parameters: Default::default(),
-            endpoint_builtins: Default::default(),
-            disable_host_prefix: false,
             token: None,
-            basic_credentials: None,
-            api_key: None,
-            aws_credentials: None,
-            signing_name: None,
             retry: Retry::default(),
             interceptors: Vec::new(),
             headers: HeaderMap::new(),
@@ -158,40 +116,7 @@ impl Config {
                 .build()
                 .expect("default HTTP client configuration is valid"),
             timeout: None,
-            content_sha256: false,
-            request_checksum_calculation: crate::ChecksumPolicy::WhenSupported,
-            response_checksum_validation: crate::ChecksumPolicy::WhenSupported,
-            checksum_validated: None,
         }
-    }
-
-    /// Sets the SigV4 region and AWS::Region endpoint built-in.
-    pub fn region(mut self, region: impl Into<String>) -> Self {
-        self.region = Some(region.into());
-        self
-    }
-    /// Sets a named client input for modeled endpoint rules.
-    pub fn endpoint_parameter(
-        mut self,
-        name: impl Into<String>,
-        value: impl Into<serde_json::Value>,
-    ) -> Self {
-        self.endpoint_parameters.insert(name.into(), value.into());
-        self
-    }
-    /// Sets an endpoint-rule built-in value.
-    pub fn endpoint_builtin(
-        mut self,
-        name: impl Into<String>,
-        value: impl Into<serde_json::Value>,
-    ) -> Self {
-        self.endpoint_builtins.insert(name.into(), value.into());
-        self
-    }
-    /// Disables modeled operation host-prefix injection when true.
-    pub fn disable_host_prefix(mut self, disabled: bool) -> Self {
-        self.disable_host_prefix = disabled;
-        self
     }
 
     /// A total budget for one call, including credentials, retries and body reads.
@@ -201,67 +126,9 @@ impl Config {
         self
     }
 
-    /// Hashes the replayed body before caller interceptors (including empty writes).
-    pub fn content_sha256(mut self, enabled: bool) -> Self {
-        self.content_sha256 = enabled;
-        self
-    }
-
-    /// When modeled request checksums are computed: `WhenSupported` (the
-    /// default) fills an absent algorithm member with CRC32; `WhenRequired`
-    /// computes one only when the model requires it or the caller chose one.
-    pub fn request_checksum_calculation(mut self, policy: crate::ChecksumPolicy) -> Self {
-        self.request_checksum_calculation = policy;
-        self
-    }
-
-    /// When modeled response checksums are verified: `WhenSupported` (the
-    /// default) enables an absent validation-mode member; `WhenRequired`
-    /// verifies only when the caller enabled it.
-    pub fn response_checksum_validation(mut self, policy: crate::ChecksumPolicy) -> Self {
-        self.response_checksum_validation = policy;
-        self
-    }
-
-    /// Called with the operation name and algorithm whenever a response
-    /// checksum is verified. A streamed body is verified when it ends.
-    pub fn on_checksum_validated(
-        mut self,
-        callback: impl Fn(&'static str, crucible_wire::operation::ChecksumAlgorithm)
-        + Send
-        + Sync
-        + 'static,
-    ) -> Self {
-        self.checksum_validated = Some(Arc::new(callback));
-        self
-    }
-
     /// Supplies bearer credentials for operations that model bearer authentication.
     pub fn token(mut self, token: Token) -> Self {
         self.token = Some(token);
-        self
-    }
-
-    /// Supplies credentials for modeled HTTP basic authentication.
-    pub fn basic_credentials(mut self, credentials: Identity<BasicCredentials>) -> Self {
-        self.basic_credentials = Some(credentials);
-        self
-    }
-
-    /// Supplies an API key for the modeled header or query location.
-    pub fn api_key(mut self, key: Token) -> Self {
-        self.api_key = Some(key);
-        self
-    }
-
-    /// Supplies credentials for modeled SigV4 request signing.
-    pub fn aws_credentials(mut self, credentials: Identity<crate::AwsCredentials>) -> Self {
-        self.aws_credentials = Some(credentials);
-        self
-    }
-    /// Overrides the SigV4 signing service name.
-    pub fn signing_name(mut self, name: impl Into<String>) -> Self {
-        self.signing_name = Some(name.into());
         self
     }
 

@@ -16,9 +16,7 @@ fn main() {
 
 For a model dependency, use `crucible_build::model("weather_model").server().mcp()`.
 The generated `SERVICE.mcp_tools` carries the descriptors, so runtime wiring
-does not pass `MCP_TOOLS` by hand. The module also exports `MCP_TOOLS` and
-`MCP_EXCLUSIONS` for inspection. Generation prints each streaming exclusion as
-a Cargo build warning.
+does not pass `MCP_TOOLS` by hand. The module also exports `MCP_TOOLS` for inspection.
 
 Register MCP on the runtime builder. This example uses the Weather service;
 substitute your service module and implementation:
@@ -335,20 +333,19 @@ HTTP 400. Initialization negotiates a supported version without storing a
 session. Valid notifications return HTTP 202 with an empty body.
 
 Absent Origin is allowed. A present Origin must match `.allowed_origins(...)`
-exactly or receives HTTP 403 before parsing. Service `@cors` settings, including
-`*`, do not authorize MCP origins. `.allow_any_origin()` is a separate explicit
+exactly or receives HTTP 403 before parsing. CORS configured for the rest of
+the service, including `*`, does not authorize MCP origins. `.allow_any_origin()` is a separate explicit
 opt-in. Authentication still applies to requests without Origin.
 
 POST requires `Content-Type: application/json`. GET and DELETE return HTTP 405.
-With service `@cors`, allowed OPTIONS preflights use the existing CORS policy,
-augmented with POST and `MCP-Protocol-Version`. Endpoint guards also run for
+A browser deployment configures CORS outside the model (a Tower layer, for
+example) and allows POST and `MCP-Protocol-Version`. Endpoint guards also run for
 preflights; a browser deployment's guard must admit valid OPTIONS requests
 without requiring the credentials that browsers send only on the later POST. JSON-RPC batches return `-32600`. Service body limits
 apply to the entire JSON-RPC envelope; operation-specific limits also apply
 after tool identification. There is no SSE, resumability, session state,
 server-to-client request, resource/prompt capability, or asynchronous task API.
-Streaming blobs and event streams stay on the ordinary HTTP API and receive
-collected `mcp.streaming_excluded` build notes. Tool names exceeding 128
+Tool names exceeding 128
 characters receive collected `mcp.invalid_tool_name` diagnostics.
 
 `ToolDescriptor` and `ToolRegistry` are reusable independently of HTTP. A later

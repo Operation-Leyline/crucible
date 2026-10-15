@@ -1,14 +1,9 @@
 """Qualify generated C17 packages through installed native consumers and HTTP."""
-import base64
-from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 import shutil
 from pathlib import Path
 import tempfile
-import threading
-import time
 
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
@@ -46,123 +41,17 @@ def executable(directory, name):
     return directory / "Debug" / (name + ".exe") if os.name == "nt" else directory / name
 
 
-def generate(model, output, package="weather_client", prefix="weather", *extra, digest=True):
+def generate(model, output, package="weather_client", prefix="weather", *extra):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "c", str(model),
         "--out", str(output), "--package-name", package, "--prefix", prefix,
-        "--package-version", "0.0.0", *(["--content-sha256"] if digest else []), *extra)
-
-
-@contextmanager
-def features():
-    """Loopback service for authentication, checksum, and waiter tests.
-
-    Every response echoes the request in a base64 JSON x-echo header so native tests can
-    assert on exactly what the transport sent. x-mode selects behavior; x-run scopes
-    per-test attempt counters."""
-    vectors = json.loads((ROOT / "tests/conformance/checksums.json").read_text(encoding="utf-8"))
-    counters, lock = {}, threading.Lock()
-
-    class Handler(BaseHTTPRequestHandler):
-        protocol_version = "HTTP/1.1"
-
-        def log_message(self, *_args):
-            pass
-
-        def handle(self):
-            try:
-                super().handle()
-            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                pass
-
-        def respond(self, status, body=b"", headers=None):
-            self.send_response(status)
-            echo = {"method": self.command, "path": self.path, "body": self.body.decode("latin-1"),
-                    "headers": {key.lower(): value for key, value in self.headers.items()}}
-            self.send_header("x-echo", base64.b64encode(json.dumps(echo).encode()).decode())
-            for key, value in (headers or {}).items():
-                self.send_header(key, value)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def problem(self, message):
-            self.respond(400, json.dumps({"__type": "TestFailure", "message": message[:200]}).encode())
-
-        def count(self):
-            with lock:
-                key = (self.path, self.headers.get("x-run", ""))
-                counters[key] = counters.get(key, 0) + 1
-                return counters[key]
-
-        def do_GET(self):
-            self.body = b""
-            if self.headers.get("x-mode") == "flaky" and self.count() == 1:
-                return self.respond(503, b'{"__type":"Unavailable"}')
-            self.respond(204)
-
-        def do_POST(self):
-            self.body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
-            mode = self.headers.get("x-mode", "")
-            if self.path in ("/legacy", "/required", "/flexible"):
-                return self.checksum(mode)
-            if self.path == "/read":
-                return self.waiter(mode)
-            return self.problem("unexpected POST " + self.path)
-
-        def checksum(self, mode):
-            algorithm = self.headers.get("x-algorithm", "")
-            if mode not in ("override", "skip"):
-                name, selected = ("x-amz-checksum-" + algorithm.lower(), algorithm) if algorithm else ("content-md5", "MD5")
-                expected = vectors["base64"][selected] if self.body else vectors["emptyMd5"]
-                if self.headers.get(name) != expected:
-                    return self.problem(f"request checksum {name}: {self.headers.get(name)} != {expected}")
-            selected = algorithm or "CRC32"
-            headers = {"x-amz-checksum-xxhash3": "unmodeled"}
-            if mode != "unmodeled":
-                headers["x-amz-checksum-" + selected.lower()] = "AAAA" if mode == "bad" else vectors["base64"][selected]
-            if mode == "one":
-                headers["x-amz-checksum-sha256"] = "AAAA"
-            self.respond(200, vectors["inputUtf8"].encode(), headers)
-
-        def waiter(self, mode):
-            calls = self.count()
-            body = {"wire-status": "PENDING"}
-            if mode == "ready":
-                body = {"__type": "Missing"} if calls == 1 else {"wire-status": "READY"} if calls >= 3 else body
-            elif mode == "gone":
-                body = {"__type": "Missing"}
-            elif mode == "query":
-                body = {"items": [{"wire-status": "READY"}, {"wire-status": "READY"}], "updatedAt": "2026-01-01T00:00:00Z"}
-            elif mode == "failed":
-                body = {"wire-status": "FAILED", "reasons": ["job rejected"]}
-            elif mode == "blocked":
-                time.sleep(0.5)
-            self.respond(404 if "__type" in body else 200, json.dumps(body).encode())
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    server.daemon_threads = True
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    try:
-        yield f"http://127.0.0.1:{server.server_address[1]}"
-    finally:
-        server.shutdown()
-        server.server_close()
+        "--package-version", "0.0.0", *extra)
 
 
 def models(output):
-    for name, fixture_name, prefix in [("dynamic", "dynamic-bindings", "dynamic"), ("extended", "extended-types", "types"), ("wire", "error-payloads", "wire")]:
+    for name, fixture_name, prefix in [("extended", "extended-types", "types"), ("wire", "error-payloads", "wire")]:
         generate(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json", output / name, f"{prefix}_client", prefix)
-    # Payload Content-Type precedence. C has no streaming
-    # input, so the streaming operation is dropped from the shared fixture.
-    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text(encoding="utf-8"))
-    bindings_shapes = bindings["shapes"]
-    service = bindings_shapes["example.payload#PayloadBindings"]
-    service["operations"] = [item for item in service["operations"] if item["target"] != "example.payload#UploadStream"]
-    for name in ["UploadStream", "StreamInput", "Stream"]:
-        del bindings_shapes["example.payload#" + name]
-    bindings_path = output / "payload-bindings.json"
-    bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
-    generate(bindings_path, output / "payload", "payload_client", "payload")
+    # Payload Content-Type precedence, from the model shared with the Python generator's tests.
+    generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", output / "payload", "payload_client", "payload")
     source = qualification_model(output)
     model = json.loads(source.read_text(encoding="utf-8"))
     shapes = model["shapes"]
@@ -199,50 +88,6 @@ def models(output):
     generate(path, output / "recursive", "recursive_client", "weather")
 
 
-def qualify_features(output):
-    """Authentication, checksums, endpoint rules and waiters."""
-    tests = ROOT / "crates/crucible-codegen-c/tests"
-    fixtures = ROOT / "crates/crucible-smithy/tests/fixtures"
-    packages = [
-        ("auth", ROOT / "crates/crucible-codegen-python/tests/auth.json", ()),
-        ("checksum", fixtures / "checksums.json", ()),
-        ("behavior", fixtures / "client-behaviors.json", ()),
-        ("jobs", ROOT / "crates/crucible-codegen-java/tests/waiters.json", ()),
-    ]
-    for prefix, model, extra in packages:
-        generate(model, output / "features" / prefix, prefix + "_client", prefix, *extra)
-    consumer = output / "features-consumer"
-    consumer.mkdir(exist_ok=True)
-    executables = {"auth_test": ("auth.c", "auth"), "checksum_test": ("checksums.c", "checksum"),
-                   "endpoint_test": ("endpoints.c", "behavior"), "waiter_test": ("waiters.c", "jobs")}
-    lines = ["cmake_minimum_required(VERSION 3.20)", "project(features LANGUAGES C)", "find_package(Threads REQUIRED)"]
-    for prefix, _, _ in packages:
-        lines.append(f'add_subdirectory("{(output / "features" / prefix).as_posix()}" {prefix}-sdk)')
-    for name, (source, prefix) in executables.items():
-        lines.append(f'add_executable({name} "{tests.as_posix()}/{source}")')
-        lines.append(f"target_link_libraries({name} PRIVATE {prefix}_client Threads::Threads)")
-    names = list(executables)
-    lines += [f"foreach(name {' '.join(names)})",
-              f'  target_include_directories(${{name}} PRIVATE "{tests.as_posix()}")',
-              "  target_compile_features(${name} PRIVATE c_std_17)",
-              "  set_target_properties(${name} PROPERTIES C_EXTENSIONS OFF)",
-              "  if(MSVC)", "    target_compile_options(${name} PRIVATE /W4 /WX /D_CRT_SECURE_NO_WARNINGS)",
-              "  else()", "    target_compile_options(${name} PRIVATE -Wall -Wextra -Werror)",
-              "    target_link_libraries(${name} PRIVATE m)", "  endif()", "endforeach()", ""]
-    (consumer / "CMakeLists.txt").write_text("\n".join(lines), encoding="utf-8")
-    build_dir = output / "features-build"
-    configure(consumer, build_dir)
-    build(build_dir)
-    runtime_env = dict(os.environ, CHECKSUM_CASES=str(ROOT / "tests/conformance/checksums.json"), FEATURE_TEMP=str(consumer))
-    if os.name == "nt" and os.environ.get("VCPKG_INSTALLED_DIR"):
-        dependencies = Path(os.environ["VCPKG_INSTALLED_DIR"]) / "x64-windows"
-        runtime_env["PATH"] = str(dependencies / "debug/bin") + os.pathsep + str(dependencies / "bin") + os.pathsep + runtime_env["PATH"]
-    with features() as endpoint:
-        runtime_env["FEATURES_URL"] = endpoint
-        for name in names:
-            run(str(executable(build_dir, name)), env=runtime_env)
-
-
 def check_docs(package):
     if not shutil.which("doxygen"):
         print("Doxygen unavailable; documentation markup covered by generator regression tests")
@@ -253,9 +98,6 @@ def check_docs(package):
 
 
 def qualify(output):
-    if os.environ.get("C_FEATURES_ONLY"):
-        qualify_features(output)
-        return
     models(output)
     check_docs(output / "sdk")
     sdk_build, install = output / "sdk-build", output / "installed"
@@ -288,7 +130,6 @@ find_package(weather_client CONFIG REQUIRED)
 add_subdirectory("{(output / 'edge').as_posix()}" edge-sdk)
 add_subdirectory("{(output / 'empty').as_posix()}" empty-sdk)
 add_subdirectory("{(output / 'recursive').as_posix()}" recursive-sdk)
-add_subdirectory("{(output / 'dynamic').as_posix()}" dynamic-sdk)
 add_subdirectory("{(output / 'extended').as_posix()}" extended-sdk)
 add_subdirectory("{(output / 'wire').as_posix()}" wire-sdk)
 add_executable(wire_test "{tests.as_posix()}/wire.c")
@@ -300,7 +141,7 @@ add_subdirectory("{(output / 'payload').as_posix()}" payload-sdk)
 add_executable(payload_content_type payload_content_type.c)
 target_link_libraries(payload_content_type PRIVATE payload_client)
 add_executable(extensions "{tests.as_posix()}/extensions.c")
-target_link_libraries(extensions PRIVATE dynamic_client types_client)
+target_link_libraries(extensions PRIVATE types_client)
 add_executable(edge edge.c)
 target_link_libraries(edge PRIVATE edge_client empty_client)
 add_executable(recursive recursive.c)
@@ -341,7 +182,6 @@ endforeach()
             HEADER_CASES=str(ROOT / "tests/conformance/header-lists.json"), MALFORMED_CASES=str(ROOT / "tests/conformance/malformed-errors.json")))
         run(str(executable(consumer_build, "proxy")), env=dict(runtime_env, https_proxy=fixture_url,
             HTTPS_PROXY=fixture_url, http_proxy=fixture_url, HTTP_PROXY=fixture_url, no_proxy="", NO_PROXY=""))
-    qualify_features(output)
     print("C native installed-package consumer passed")
 
 

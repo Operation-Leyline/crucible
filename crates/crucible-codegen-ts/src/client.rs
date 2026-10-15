@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::{Operation, Service, Shape};
 
+use crate::Options;
 use crate::names::{doc, documented, literal, method_name, optional};
-use crate::{Middleware, Options};
 
 pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String {
     let mut out = String::new();
@@ -26,18 +26,6 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
         .endpoint
         .as_deref()
         .map_or("undefined".to_owned(), literal);
-    let middleware: Vec<&str> = options
-        .middleware
-        .iter()
-        .map(|m| match m {
-            Middleware::ContentSha256 => "contentSha256",
-        })
-        .collect();
-    let endpoint_rules = if service.endpoint_rules.is_some() {
-        ", endpointRules: spec.endpointRules"
-    } else {
-        ""
-    };
     let bearer = service.auth.iter().any(|id| service.is_bearer(id));
     doc(
         &mut out,
@@ -48,43 +36,13 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     );
     out.push_str(&format!(
         "  constructor(config: ClientConfig = {{}}) {{\n    \
-         this.#transport = new Transport(config, {{ endpoint: {endpoint}, middleware: [{}], bearer: {bearer}{endpoint_rules} }}, spec.errors);\n  }}\n",
-        middleware.join(", ")
+         this.#transport = new Transport(config, {{ endpoint: {endpoint}, bearer: {bearer} }}, spec.errors);\n  }}\n"
     ));
     let names = method_names(service);
-    let mut waiter_used: BTreeSet<String> = names
-        .values()
-        .flat_map(|(method, paginator)| std::iter::once(method.clone()).chain(paginator.clone()))
-        .collect();
-    let waiter_reserved: BTreeSet<String> = service
-        .operations
-        .iter()
-        .flat_map(|op| op.waiters.keys().map(|name| format!("waitUntil{name}")))
-        .chain(waiter_used.iter().cloned())
-        .collect();
     for operation in &service.operations {
         out.push('\n');
         let (name, paginator_name) = &names[&operation.id];
         method(&mut out, service, operation, name);
-        for (waiter_name, waiter) in &operation.waiters {
-            let helper = allocate(
-                format!("waitUntil{waiter_name}"),
-                &waiter_reserved,
-                &mut waiter_used,
-            );
-            out.push('\n');
-            doc(
-                &mut out,
-                "  ",
-                Some(&format!(
-                    "{}\n\nPoll until a modeled acceptor succeeds, fails or the total budget expires. Returns a WaiterResult; rejects with WaiterError or WaiterTimeout. Options supply the total budget and optional delay overrides in milliseconds.",
-                    waiter.documentation.as_deref().unwrap_or("")
-                )),
-            );
-            let (params, input) = parameters(service, operation);
-            let params = params.replace("options?: RequestOptions", "options: WaiterOptions");
-            out.push_str(&format!("  {helper}({params}): Promise<WaiterResult<{}>> {{\n    return this.#transport.wait(spec.{}, {}, {input}, options);\n  }}\n", output_type(service, operation), operation.name(), literal(waiter_name)));
-        }
         if operation.paginated.is_some() {
             out.push('\n');
             paginator(
@@ -102,7 +60,6 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     if out.contains("paginate(") {
         runtime.push("paginate");
     }
-    runtime.extend(middleware);
     runtime.sort_unstable();
     let mut header = String::from(crate::HEADER);
     header.push_str(&format!(
@@ -110,9 +67,6 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
         runtime.join(", ")
     ));
     header.push_str("import type { ClientConfig, RequestOptions } from \"./runtime.js\";\n");
-    if service.operations.iter().any(|op| !op.waiters.is_empty()) {
-        header.push_str("import type { WaiterOptions, WaiterResult } from \"./waiters.js\";\n");
-    }
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }

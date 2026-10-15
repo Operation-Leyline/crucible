@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crucible_codegen_openapi::{Options, capabilities, generate};
-use crucible_smithy::{Capabilities, Feature, Model};
+use crucible_smithy::Model;
 use serde_json::{Value, json};
 
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
@@ -482,10 +482,9 @@ fn an_invalid_example_stops_generation_at_lowering() {
 }
 
 #[test]
-fn auth_overrides_and_optional_auth_are_resolved_per_operation() {
+fn auth_overrides_are_resolved_per_operation() {
     let doc = document(&service(|model| {
         model["shapes"]["example.weather#Ping"]["traits"]["smithy.api#auth"] = json!([]);
-        model["shapes"]["example.weather#Status"]["traits"]["smithy.api#optionalAuth"] = json!({});
     }));
     assert_eq!(
         doc["components"]["securitySchemes"]["smithy.api.httpBearerAuth"]["scheme"],
@@ -494,32 +493,12 @@ fn auth_overrides_and_optional_auth_are_resolved_per_operation() {
     assert_eq!(doc["paths"]["/ping"]["get"]["security"], json!([]));
     assert_eq!(
         doc["paths"]["/status"]["get"]["security"],
-        json!([{"smithy.api.httpBearerAuth": []}, {}])
+        json!([{"smithy.api.httpBearerAuth": []}])
     );
 }
 
 #[test]
-fn additional_auth_schemes_have_native_openapi_representations() {
-    let doc = document(&service(|model| {
-        let traits = &mut model["shapes"]["example.weather#Weather"]["traits"];
-        traits["smithy.api#httpBasicAuth"] = json!({});
-        traits["smithy.api#httpDigestAuth"] = json!({});
-        traits["smithy.api#httpApiKeyAuth"] =
-            json!({"name": "x-api-key", "in": "header", "scheme": "Token"});
-    }));
-    let schemes = &doc["components"]["securitySchemes"];
-    assert_eq!(schemes["smithy.api.httpBasicAuth"]["scheme"], "basic");
-    assert_eq!(schemes["smithy.api.httpDigestAuth"]["scheme"], "digest");
-    assert_eq!(schemes["smithy.api.httpApiKeyAuth"]["type"], "apiKey");
-    assert_eq!(schemes["smithy.api.httpApiKeyAuth"]["in"], "header");
-    assert_eq!(
-        schemes["smithy.api.httpApiKeyAuth"]["x-smithy-api-key-scheme"],
-        "Token"
-    );
-}
-
-#[test]
-fn json_names_sparse_collections_sets_and_large_numbers_are_preserved() {
+fn sparse_collections_unique_lists_and_large_numbers_are_preserved() {
     let source = include_str!("../../crucible-smithy/tests/fixtures/extended-types.json");
     let service = Model::from_json(source)
         .unwrap()
@@ -542,15 +521,6 @@ fn json_names_sparse_collections_sets_and_large_numbers_are_preserved() {
     );
     assert_eq!(shapes["smithy.api.BigInteger"]["type"], "integer");
     assert_eq!(shapes["smithy.api.BigDecimal"]["type"], "number");
-    let renamed = document(&self::service(|m| {
-        m["shapes"]["example.weather#CreateCityInput"]["members"]["name"]["traits"]["smithy.api#jsonName"] =
-            json!("city_name");
-    }));
-    assert_eq!(
-        renamed["paths"]["/cities"]["post"]["requestBody"]["content"]["application/json"]["schema"]
-            ["required"],
-        json!(["city_name"])
-    );
 }
 
 #[test]
@@ -653,21 +623,6 @@ fn incompatible_path_templates_and_methods_are_collected() {
     let errors = generate(&svc, &Options::default()).unwrap_err().to_string();
     assert!(errors.contains("cannot distinguish path templates"));
     assert!(errors.contains("CONNECT"));
-}
-
-#[test]
-fn externally_lowered_unsupported_features_are_rechecked() {
-    let model = include_str!("../../crucible-smithy/tests/fixtures/error-payloads.json");
-    let svc = Model::from_json(model)
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-        .unwrap();
-    assert!(
-        generate(&svc, &Options::default())
-            .unwrap_err()
-            .to_string()
-            .contains("prefix-headers")
-    );
 }
 
 #[test]

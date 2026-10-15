@@ -2,8 +2,6 @@
 //! description, attempts retried by the rules in `docs/framework.md`, and
 //! the response decoded into the output or the operation's error.
 
-use crucible_wire::stream::{ByteStream, ChunkStream};
-use futures_util::StreamExt;
 use std::borrow::Cow;
 use std::fmt;
 use std::sync::Arc;
@@ -11,9 +9,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use crucible_wire::bound::{self, BoundValue};
-use crucible_wire::operation::{
-    Checksum, ChecksumAlgorithm, ErrorInfo, Location, MemberInfo, Operation, Scalar, Segment,
-};
+use crucible_wire::operation::{ErrorInfo, Location, MemberInfo, Operation, Scalar, Segment};
 use crucible_wire::split;
 use crucible_wire::text::{header_text, scalar_text as text};
 use http::{HeaderMap, HeaderName, HeaderValue, Method};
@@ -21,7 +17,6 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::config::{CallOptions, Config};
-use sha2::{Digest, Sha256};
 
 /// The errors one operation can return, as a generated enum.
 pub trait OperationErrors: Sized + fmt::Debug {
@@ -58,8 +53,6 @@ pub enum Error<E> {
     Decode(String),
     /// The total call budget expired. No further attempts are made.
     Timeout,
-    /// A response checksum the client verified does not match the body.
-    ChecksumMismatch(ChecksumAlgorithm),
     /// The caller cancelled the operation.
     Cancelled,
 }
@@ -93,7 +86,6 @@ impl<E> Error<E> {
             Self::Invalid(message) => Error::Invalid(message),
             Self::Decode(message) => Error::Decode(message),
             Self::Timeout => Error::Timeout,
-            Self::ChecksumMismatch(algorithm) => Error::ChecksumMismatch(algorithm),
             Self::Cancelled => Error::Cancelled,
         }
     }
@@ -132,9 +124,6 @@ impl<E: fmt::Debug> fmt::Display for Error<E> {
             Self::Invalid(message) => write!(f, "invalid request: {message}"),
             Self::Decode(message) => write!(f, "unreadable response: {message}"),
             Self::Timeout => f.write_str("call deadline exceeded"),
-            Self::ChecksumMismatch(algorithm) => {
-                write!(f, "response {algorithm} checksum mismatch")
-            }
             Self::Cancelled => f.write_str("call cancelled"),
         }
     }
@@ -149,9 +138,6 @@ pub struct Transport {
 }
 
 impl Transport {
-    pub(crate) fn call_timeout(&self) -> Option<Duration> {
-        self.config.timeout
-    }
     pub fn new(config: Config) -> Self {
         Self {
             config: Arc::new(config),
@@ -178,29 +164,13 @@ impl Transport {
         O::Output: DeserializeOwned,
         E: OperationErrors,
     {
-        self.send_described::<O, E>(input, options, None).await
-    }
-
-    pub async fn send_with_metadata<O, E>(
-        &self,
-        input: &O::Input,
-        options: &CallOptions,
-        metadata: &crate::OperationMetadata,
-    ) -> Result<O::Output, Error<E>>
-    where
-        O: Operation,
-        O::Output: DeserializeOwned,
-        E: OperationErrors,
-    {
-        self.send_described::<O, E>(input, options, Some(metadata))
-            .await
+        self.send_described::<O, E>(input, options).await
     }
 
     async fn send_described<O, E>(
         &self,
         input: &O::Input,
         options: &CallOptions,
-        metadata: Option<&crate::OperationMetadata>,
     ) -> Result<O::Output, Error<E>>
     where
         O: Operation,
@@ -236,47 +206,18 @@ impl Transport {
             biased;
             () = cancelled => Err(Error::Cancelled),
             () = expired => Err(Error::Timeout),
-            result = self.send_inner::<O, E>(input, deadline, options.cancellation.clone(), metadata) => result,
+            result = self.send_inner::<O, E>(input) => result,
         }
     }
 
-    async fn send_inner<O, E>(
-        &self,
-        input: &O::Input,
-        deadline: Option<tokio::time::Instant>,
-        cancellation: Option<crate::CancellationToken>,
-        metadata: Option<&crate::OperationMetadata>,
-    ) -> Result<O::Output, Error<E>>
+    async fn send_inner<O, E>(&self, input: &O::Input) -> Result<O::Output, Error<E>>
     where
         O: Operation,
         O::Output: DeserializeOwned,
         E: OperationErrors,
     {
         let info = O::INFO;
-        let endpoint = metadata
-            .map(|metadata| metadata.endpoint(input, &self.config))
-            .transpose()
-            .map_err(Error::Invalid)?;
-        let mut input_events = match O::INPUT_EVENTS {
-            // An absent optional stream sends no events, but still a stream.
-            Some(info) => Some((
-                info,
-                O::input_events(input)
-                    .unwrap_or_else(|| Ok(Box::pin(futures_util::stream::empty())))
-                    .map_err(|error| Error::Invalid(error.to_string()))?,
-            )),
-            None => None,
-        };
-        let streaming = O::input_stream(input).is_some() || input_events.is_some();
-        let (url, mut bound_headers, body, plan) = self.prepare_at(
-            info,
-            input,
-            endpoint
-                .as_ref()
-                .map_or(&self.config.endpoint, |endpoint| &endpoint.url),
-            O::CHECKSUM,
-            streaming,
-        )?;
+        let (url, mut bound_headers, body) = self.prepare_at(info, input, &self.config.endpoint)?;
         // The release this client was generated for (docs/api-versions-clients.md).
         if let Some(version) = O::API_VERSION
             && let Ok(value) = HeaderValue::from_str(version)
@@ -284,47 +225,10 @@ impl Transport {
             bound_headers.insert("crucible-version", value);
         }
         // A Content-Type bound to an input member outranks a payload's media
-        // type, which outranks endpoint and client header defaults.
+        // type, which outranks client header defaults.
         let modelled_content_type = bound_headers.contains_key(http::header::CONTENT_TYPE);
-        let mut headers = endpoint
-            .as_ref()
-            .map_or_else(HeaderMap::new, |endpoint| endpoint.headers.clone());
-        headers.extend(self.config.headers.clone());
+        let mut headers = self.config.headers.clone();
         headers.extend(bound_headers);
-        let stream = O::input_stream(input).map(|stream| {
-            match Location::payload(info.input).map(|(member, _)| member.location) {
-                Some(Location::StreamingPayload {
-                    minimum, maximum, ..
-                }) => stream.with_bounds(minimum, maximum),
-                _ => stream,
-            }
-        });
-        if let Some(stream) = &stream {
-            if let Some((member, media_type)) = Location::payload(info.input) {
-                if matches!(
-                    member.location,
-                    Location::StreamingPayload {
-                        requires_length: true,
-                        ..
-                    }
-                ) && stream.length().is_none()
-                {
-                    return Err(Error::Invalid(
-                        "streaming payload requires a known length".into(),
-                    ));
-                }
-                if !modelled_content_type {
-                    headers.insert(
-                        http::header::CONTENT_TYPE,
-                        HeaderValue::from_str(media_type)
-                            .map_err(|e| Error::Invalid(e.to_string()))?,
-                    );
-                }
-            }
-        }
-        // Events are read from the caller's source once: never replayed.
-        let replayable =
-            stream.as_ref().is_none_or(ByteStream::replayable) && input_events.is_none();
         let method = Method::from_bytes(info.method.as_bytes())
             .map_err(|e| Error::Invalid(e.to_string()))?;
         let retry_safe = info.readonly || info.idempotent || info.idempotency_token.is_some();
@@ -338,19 +242,13 @@ impl Transport {
                     &headers,
                     body.clone(),
                     modelled_content_type && Location::payload(info.input).is_some(),
-                    crate::auth::OperationAuth::of::<O>()
-                        .with_properties(endpoint.as_ref().map(|endpoint| &endpoint.properties)),
-                    stream.as_ref(),
-                    &plan,
-                    input_events
-                        .take()
-                        .map(|(info, events)| (info, events, deadline, cancellation.clone())),
+                    crate::auth::OperationAuth::of::<O>(),
                 )
                 .await?;
             let mut response = match self.config.http.execute(request).await {
                 Ok(response) => response,
                 Err(error) => {
-                    if replayable && retry_safe && attempt < retry.max_attempts {
+                    if retry_safe && attempt < retry.max_attempts {
                         tokio::time::sleep(backoff(attempt, &retry)).await;
                         attempt += 1;
                         continue;
@@ -362,84 +260,12 @@ impl Transport {
             let response_headers = std::mem::take(response.headers_mut());
             let transient_status = retryable_status(status);
             let success = (200..300).contains(&status);
-            if let (true, Some(events)) = (success, O::OUTPUT_EVENTS) {
-                let mut stream = guarded_stream(
-                    ByteStream::new(response.bytes_stream())
-                        .open()
-                        .map_err(|e| Error::Decode(e.to_string()))?,
-                    deadline,
-                    cancellation,
-                );
-                if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
-                    stream = verified_stream(
-                        stream,
-                        algorithm,
-                        expected,
-                        info.name,
-                        self.config.checksum_validated.clone(),
-                    )
-                    .map_err(|e| Error::Decode(e.to_string()))?;
-                }
-                let chunks = stream.open().map_err(|e| Error::Decode(e.to_string()))?;
-                let reader = crate::events::Reader::new(events, chunks);
-                let mut bound = header_members(status, info.output, &response_headers)
-                    .map_err(Error::Decode)?;
-                for member in info.output {
-                    if member.location == Location::EventStream {
-                        bound.push((member.name, BoundValue::Json(Value::Null)));
-                    }
-                }
-                let mut output: O::Output = bound::read_http(&[], bound, info.output)
-                    .map_err(|e| Error::Decode(e.to_string()))?;
-                O::set_output_events(&mut output, reader.into_incoming());
-                return Ok(output);
-            }
-            if success
-                && info
-                    .output
-                    .iter()
-                    .any(|m| matches!(m.location, Location::StreamingPayload { .. }))
-            {
-                let mut body = ByteStream::new(response.bytes_stream());
-                if let Some((member, _)) = Location::payload(info.output) {
-                    if let Location::StreamingPayload {
-                        minimum, maximum, ..
-                    } = member.location
-                    {
-                        body = body.with_bounds(minimum, maximum);
-                    }
-                }
-                let mut stream = guarded_stream(
-                    body.open().map_err(|e| Error::Decode(e.to_string()))?,
-                    deadline,
-                    cancellation,
-                );
-                if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
-                    stream = verified_stream(
-                        stream,
-                        algorithm,
-                        expected,
-                        info.name,
-                        self.config.checksum_validated.clone(),
-                    )
-                    .map_err(|e| Error::Decode(e.to_string()))?;
-                }
-                let mut bound = header_members(status, info.output, &response_headers)
-                    .map_err(Error::Decode)?;
-                if let Some((member, _)) = Location::payload(info.output) {
-                    bound.push((member.name, BoundValue::Json(Value::Null)));
-                }
-                let mut output = bound::read_http(&[], bound, info.output)
-                    .map_err(|e| Error::Decode(e.to_string()))?;
-                O::set_output_stream(&mut output, stream);
-                return Ok(output);
-            }
             // A connection lost mid-body is the same fault as one lost before
             // the response: retried under the same rule.
             let bytes = match response.bytes().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    if replayable && retry_safe && attempt < retry.max_attempts {
+                    if retry_safe && attempt < retry.max_attempts {
                         tokio::time::sleep(backoff(attempt, &retry)).await;
                         attempt += 1;
                         continue;
@@ -448,17 +274,7 @@ impl Transport {
                 }
             };
             if success {
-                if let Some((algorithm, expected)) = response_checksum(&plan, &response_headers) {
-                    let actual = crate::checksum::digest(algorithm, &bytes)
-                        .expect("planned algorithms are supported");
-                    if !crate::checksum::same(expected.as_bytes(), actual.as_bytes()) {
-                        return Err(Error::ChecksumMismatch(algorithm));
-                    }
-                    if let Some(callback) = &self.config.checksum_validated {
-                        callback(info.name, algorithm);
-                    }
-                }
-                return decode_output::<O, E>(status, info.output, &response_headers, &bytes);
+                return decode_output::<O, E>(info.output, &response_headers, &bytes);
             }
             let error = decode_error::<E>(status, &response_headers, &bytes);
             let (throttling, transient) = match &error {
@@ -469,10 +285,7 @@ impl Transport {
                 Error::Unknown(error) => (error.throttling, error.retryable || transient_status),
                 _ => (false, transient_status),
             };
-            if replayable
-                && (throttling || (retry_safe && transient))
-                && attempt < retry.max_attempts
-            {
+            if (throttling || (retry_safe && transient)) && attempt < retry.max_attempts {
                 let delay =
                     retry_after(&response_headers).unwrap_or_else(|| backoff(attempt, &retry));
                 tokio::time::sleep(delay).await;
@@ -485,30 +298,16 @@ impl Transport {
 
     /// URL, bound headers and body (with its content type), once: every
     /// attempt resends them.
-    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    #[allow(clippy::type_complexity)]
     fn prepare_at<E, I: serde::Serialize>(
         &self,
         info: &'static crucible_wire::operation::OperationInfo,
         input: &I,
         endpoint: &str,
-        checksum: Option<Checksum>,
-        streaming: bool,
-    ) -> Result<(String, HeaderMap, Option<Body>, crate::checksum::Plan), Error<E>> {
+    ) -> Result<(String, HeaderMap, Option<Body>), Error<E>> {
         let mut body = Vec::with_capacity(128);
-        let mut bound = split::write_bound(input, info.input, &mut body)
+        let bound = split::write_bound(input, info.input, &mut body)
             .map_err(|error| Error::Invalid(error.to_string()))?;
-        let plan = crate::checksum::plan(
-            checksum,
-            info.input,
-            &mut bound,
-            &mut body,
-            crate::checksum::Policies {
-                request: self.config.request_checksum_calculation,
-                response: self.config.response_checksum_validation,
-                streaming,
-            },
-        )
-        .map_err(Error::Invalid)?;
         let mut url = endpoint.trim_end_matches('/').to_owned();
         for segment in info.path {
             url.push('/');
@@ -589,57 +388,11 @@ impl Transport {
                     .map_err(|e| Error::Invalid(e.to_string()))?;
                     headers.insert(name, value);
                 }
-                Location::QueryParams => {
-                    let entries = value.as_object().ok_or_else(|| {
-                        Error::Invalid("query parameters must be a map".to_owned())
-                    })?;
-                    for (name, value) in entries {
-                        if info.literal_query.iter().any(|(key, _)| key == name)
-                            || info
-                                .input
-                                .iter()
-                                .any(|m| matches!(m.location, Location::Query(key) if key == name))
-                        {
-                            continue;
-                        }
-                        let items = match value {
-                            Value::Array(items) => items.as_slice(),
-                            value => std::slice::from_ref(value),
-                        };
-                        for value in items {
-                            url.push(separator);
-                            separator = '&';
-                            encode(&mut url, name);
-                            url.push('=');
-                            encode(&mut url, &split::text(value));
-                        }
-                    }
-                }
-                Location::PrefixHeaders(prefix) => {
-                    let entries = value
-                        .as_object()
-                        .ok_or_else(|| Error::Invalid("prefix headers must be a map".to_owned()))?;
-                    for (key, value) in entries {
-                        let name = format!("{prefix}{key}");
-                        if info.input.iter().any(|m| matches!(m.location, Location::Header(explicit) if explicit.eq_ignore_ascii_case(&name))) { continue; }
-                        headers.insert(
-                            HeaderName::from_bytes(name.as_bytes())
-                                .map_err(|e| Error::Invalid(e.to_string()))?,
-                            HeaderValue::from_str(
-                                &header_text(value, member.scalar).map_err(Error::Invalid)?,
-                            )
-                            .map_err(|e| Error::Invalid(e.to_string()))?,
-                        );
-                    }
-                }
                 Location::Label
                 | Location::Body
                 | Location::Payload(_)
                 | Location::TextPayload(_)
-                | Location::DocumentPayload(_)
-                | Location::ResponseCode
-                | Location::StreamingPayload { .. }
-                | Location::EventStream => {}
+                | Location::DocumentPayload(_) => {}
                 _ => return Err(Error::Invalid("unsupported member binding".into())),
             }
         }
@@ -653,10 +406,9 @@ impl Transport {
                 .any(|member| member.location == Location::Body)
                 .then(|| (JSON, Bytes::from(body))),
         };
-        Ok((url, headers, body, plan))
+        Ok((url, headers, body))
     }
 
-    #[allow(clippy::too_many_arguments)]
     async fn request<E>(
         &self,
         method: Method,
@@ -664,31 +416,13 @@ impl Transport {
         bound_headers: &HeaderMap,
         body: Option<Body>,
         modelled_content_type: bool,
-        auth: crate::auth::OperationAuth<'_>,
-        stream: Option<&ByteStream>,
-        plan: &crate::checksum::Plan,
-        events: Option<OutgoingEvents>,
+        auth: crate::auth::OperationAuth,
     ) -> Result<reqwest::Request, Error<E>> {
         let url = reqwest::Url::parse(url).map_err(|error| Error::Invalid(error.to_string()))?;
         let mut request = reqwest::Request::new(method, url);
         let headers = request.headers_mut();
         headers.extend(self.config.headers.clone());
         headers.extend(bound_headers.clone());
-        let slot = crate::events::SignerSlot::default();
-        let has_events = events.is_some();
-        if let Some((info, outgoing, deadline, cancellation)) = events {
-            headers.insert(
-                http::header::CONTENT_TYPE,
-                HeaderValue::from_static(crucible_wire::event_stream::CONTENT_TYPE),
-            );
-            *request.body_mut() = Some(reqwest::Body::wrap_stream(crate::events::body(
-                info,
-                outgoing,
-                slot.clone(),
-                deadline,
-                cancellation,
-            )));
-        }
         if let Some((content_type, body)) = body {
             let content_type = match content_type {
                 JSON => HeaderValue::from_static(JSON),
@@ -705,153 +439,22 @@ impl Transport {
             }
             *request.body_mut() = Some(reqwest::Body::from(body));
         }
-        if let Some(stream) = stream {
-            if self.config.content_sha256
-                && stream.sha256().is_none()
-                && !request.headers().contains_key("x-amz-content-sha256")
-            {
-                return Err(Error::Invalid(
-                    "streaming content_sha256 requires a precomputed ByteStream sha256".into(),
-                ));
-            }
-            if let Some(length) = stream.length() {
-                request.headers_mut().insert(
-                    http::header::CONTENT_LENGTH,
-                    HeaderValue::from_str(&length.to_string()).expect("integer header"),
-                );
-            }
-            if let Some(digest) = stream.sha256() {
-                request.headers_mut().insert(
-                    "x-amz-content-sha256",
-                    HeaderValue::from_str(digest).expect("validated hex digest"),
-                );
-            }
-            *request.body_mut() = Some(reqwest::Body::wrap_stream(
-                stream.open().map_err(|e| Error::Invalid(e.to_string()))?,
-            ));
-        }
-        let signing = crate::auth::authenticate(&self.config, &mut request, auth).await?;
-        if has_events && signing.is_some() {
-            // Each message is signed as it is sent; the request declares so.
-            request.headers_mut().insert(
-                "x-amz-content-sha256",
-                HeaderValue::from_static(crate::signing::STREAMING_EVENTS),
-            );
-        }
-        if self.config.content_sha256
-            && stream.is_none()
-            && !has_events
-            && (request.body().is_some()
-                || matches!(
-                    *request.method(),
-                    Method::POST | Method::PUT | Method::PATCH
-                ))
-        {
-            let bytes = request
-                .body()
-                .and_then(reqwest::Body::as_bytes)
-                .unwrap_or_default();
-            let digest = format!("{:x}", Sha256::digest(bytes));
-            request.headers_mut().insert(
-                "x-amz-content-sha256",
-                HeaderValue::from_str(&digest).expect("hex digest is a valid header"),
-            );
-        }
+        crate::auth::authenticate(&self.config, &mut request, auth).await?;
         for interceptor in &self.config.interceptors {
             interceptor
                 .intercept(&mut request)
                 .map_err(Error::Invalid)?;
         }
-        // After interceptors, so the checksum covers the bytes actually sent;
-        // a checksum the caller or an interceptor supplied is kept as is.
-        if let Some((algorithm, header)) = plan.request {
-            if !request.headers().contains_key(header) {
-                let bytes = match request.body() {
-                    None => Some(&[][..]),
-                    Some(body) => body.as_bytes(),
-                };
-                match bytes {
-                    Some(bytes) => {
-                        let digest = crate::checksum::digest(algorithm, bytes)
-                            .expect("planned algorithms are supported");
-                        request.headers_mut().insert(
-                            HeaderName::from_static(header),
-                            HeaderValue::from_str(&digest).expect("base64 is a valid header"),
-                        );
-                    }
-                    None if plan.required => {
-                        return Err(Error::Invalid(format!(
-                            "a streamed body needs a caller-supplied {header} checksum"
-                        )));
-                    }
-                    None => {}
-                }
-            }
-        }
-        if let Some(signing) = &signing {
-            signing.apply(&mut request).map_err(Error::Invalid)?;
-        }
-        if has_events {
-            let signer = match &signing {
-                Some(signing) => Some(signing.event_signer(&request).ok_or_else(|| {
-                    Error::Invalid("the signed request carries no signature".into())
-                })?),
-                None => None,
-            };
-            let _ = slot.set(signer);
-        }
         Ok(request)
     }
-}
-
-/// Dropping this body drops the HTTP reader; every read keeps the original call budget.
-fn guarded_stream(
-    stream: ChunkStream,
-    deadline: Option<tokio::time::Instant>,
-    cancellation: Option<crate::CancellationToken>,
-) -> ByteStream {
-    ByteStream::new(futures_util::stream::unfold(Some(stream), move |state| {
-        let cancellation = cancellation.clone();
-        async move {
-            let mut stream = state?;
-            let cancelled = async {
-                match cancellation {
-                    Some(token) => token.cancelled().await,
-                    None => std::future::pending().await,
-                }
-            };
-            let expired = async {
-                match deadline {
-                    Some(deadline) => tokio::time::sleep_until(deadline).await,
-                    None => std::future::pending().await,
-                }
-            };
-            tokio::select! {
-                biased;
-                () = cancelled => Some((Err(std::io::Error::new(std::io::ErrorKind::Interrupted, "call cancelled")), None)),
-                () = expired => Some((Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "call deadline exceeded")), None)),
-                next = stream.next() => next.map(|item| (item, Some(stream))),
-            }
-        }
-    }))
 }
 
 /// A request body: its content type and bytes.
 type Body = (&'static str, Bytes);
 
-/// An input event stream to send: its description, the events, and the
-/// call's deadline and cancellation, which outlive the response.
-type OutgoingEvents = (
-    &'static crucible_wire::event_stream::EventStreamInfo,
-    crucible_wire::event_stream::Outgoing,
-    Option<tokio::time::Instant>,
-    Option<crate::CancellationToken>,
-);
-
 const JSON: &str = "application/json";
 
 fn decode_output<O, E>(
-    status: u16,
     members: &'static [MemberInfo],
     headers: &HeaderMap,
     body: &Bytes,
@@ -860,19 +463,18 @@ where
     O: Operation,
     O::Output: DeserializeOwned,
 {
-    read_response(status, members, headers, body, || body.clone()).map_err(Error::Decode)
+    read_response(members, headers, body, || body.clone()).map_err(Error::Decode)
 }
 
 /// A response structure from its bound headers and its body: a JSON object,
 /// or the payload member's bytes, text or JSON value.
 fn read_response<T: DeserializeOwned>(
-    status: u16,
     members: &'static [MemberInfo],
     headers: &HeaderMap,
     body: &[u8],
     bytes: impl FnOnce() -> Bytes,
 ) -> Result<T, String> {
-    let mut bound = header_members(status, members, headers)?;
+    let mut bound = header_members(members, headers)?;
     if let Some((member, _)) = Location::payload(members) {
         match member.location {
             Location::TextPayload(_) => {
@@ -900,36 +502,11 @@ fn read_response<T: DeserializeOwned>(
 
 /// Header members of a response, read as their kinds.
 fn header_members<'h>(
-    status: u16,
     members: &[MemberInfo],
     headers: &'h HeaderMap,
 ) -> Result<Vec<(&'static str, BoundValue<'h>)>, String> {
     let mut bound = Vec::new();
     for member in members {
-        if member.location == Location::ResponseCode {
-            bound.push((member.name, BoundValue::Integer(i64::from(status))));
-        }
-        if let Location::PrefixHeaders(prefix) = member.location {
-            let mut values = serde_json::Map::new();
-            for (name, value) in headers {
-                if let Some(key) = name.as_str().strip_prefix(prefix) {
-                    let text = value.to_str().map_err(|e| e.to_string())?;
-                    let text = match member.scalar {
-                        Scalar::Base64 => {
-                            match BoundValue::parse(Cow::Borrowed(text), Scalar::Base64)
-                                .map_err(|message| format!("{name}: {message}"))?
-                            {
-                                BoundValue::Text(text) => text.into_owned(),
-                                _ => unreachable!("base64 headers read as text"),
-                            }
-                        }
-                        _ => text.to_owned(),
-                    };
-                    values.insert(key.to_owned(), Value::String(text));
-                }
-            }
-            bound.push((member.name, BoundValue::Json(Value::Object(values))));
-        }
         if let Location::Header(name) = member.location {
             if matches!(member.scalar, Scalar::List(_)) {
                 let mut fields = headers.get_all(name).iter().peekable();
@@ -971,20 +548,7 @@ pub fn decode_modelled<T: DeserializeOwned>(
     headers: &HeaderMap,
     body: &[u8],
 ) -> Option<T> {
-    decode_modelled_at(info.status, info, headers, body)
-}
-
-/// Decodes bound response members using the actual HTTP status.
-pub fn decode_modelled_at<T: DeserializeOwned>(
-    status: u16,
-    info: &'static ErrorInfo,
-    headers: &HeaderMap,
-    body: &[u8],
-) -> Option<T> {
-    read_response(status, info.members, headers, body, || {
-        Bytes::copy_from_slice(body)
-    })
-    .ok()
+    read_response(info.members, headers, body, || Bytes::copy_from_slice(body)).ok()
 }
 
 /// For generated `OperationErrors::decode`: the one error of `errors` with
@@ -1036,65 +600,6 @@ fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8
             throttling: info.is_some_and(|i| i.throttling),
         }),
     }
-}
-
-/// The response checksum to verify: the first modeled algorithm the
-/// response carries a header for.
-fn response_checksum(
-    plan: &crate::checksum::Plan,
-    headers: &HeaderMap,
-) -> Option<(ChecksumAlgorithm, String)> {
-    plan.response.iter().find_map(|algorithm| {
-        let value = headers.get(algorithm.header())?;
-        Some((*algorithm, value.to_str().unwrap_or_default().to_owned()))
-    })
-}
-
-/// A streamed response body checked as it passes: a mismatch is an
-/// `InvalidData` error in place of the end of the stream.
-fn verified_stream(
-    stream: ByteStream,
-    algorithm: ChecksumAlgorithm,
-    expected: String,
-    operation: &'static str,
-    callback: Option<crate::config::ChecksumValidated>,
-) -> std::io::Result<ByteStream> {
-    let hasher = crate::checksum::Hasher::new(algorithm).expect("planned algorithms are supported");
-    let chunks = stream.open()?;
-    Ok(ByteStream::new(futures_util::stream::unfold(
-        Some((chunks, hasher)),
-        move |state| {
-            let expected = expected.clone();
-            let callback = callback.clone();
-            async move {
-                let (mut chunks, mut hasher) = state?;
-                match chunks.next().await {
-                    Some(Ok(chunk)) => {
-                        hasher.update(&chunk);
-                        Some((Ok(chunk), Some((chunks, hasher))))
-                    }
-                    Some(Err(error)) => Some((Err(error), None)),
-                    None => {
-                        let actual = hasher.finish();
-                        if crate::checksum::same(expected.as_bytes(), actual.as_bytes()) {
-                            if let Some(callback) = callback {
-                                callback(operation, algorithm);
-                            }
-                            None
-                        } else {
-                            Some((
-                                Err(std::io::Error::new(
-                                    std::io::ErrorKind::InvalidData,
-                                    format!("response {algorithm} checksum mismatch"),
-                                )),
-                                None,
-                            ))
-                        }
-                    }
-                }
-            }
-        },
-    )))
 }
 
 // Keep the fallback status policy aligned with every client runtime.

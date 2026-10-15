@@ -2,7 +2,6 @@
 //! operations. All of it is `'static` data built at compile time, so routing,
 //! binding and logging read it without allocation.
 
-pub use crate::cors_info::CorsInfo;
 use std::any::Any;
 
 use serde::Serialize;
@@ -20,19 +19,15 @@ pub trait Operation: Send + Sync + 'static {
     /// Handwritten operations must opt in explicitly when bearer auth is supported.
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
-    const OPTIONAL_AUTH: bool = false;
     /// OAuth scopes a caller must hold, all of them (`@crucible.auth#scopes`:
     /// the operation's own list, else the service default). Declaring them
     /// enforces nothing until an authorization extension reads them.
     const SCOPES: &'static [&'static str] = &[];
     /// The service-wide default scopes, which a 401 challenge advertises.
     const SERVICE_SCOPES: &'static [&'static str] = &[];
-    const UNSIGNED_PAYLOAD: bool = false;
     /// The release a generated client names in its `Crucible-Version`
     /// header: the `.cru` service's `version` (docs/api-versions-clients.md).
     const API_VERSION: Option<&'static str> = None;
-    /// The operation's modeled HTTP checksum behavior, for clients.
-    const CHECKSUM: Option<Checksum> = None;
     /// How the operation pages (`@paginated`), for server extensions that
     /// read the token from the decoded input.
     const PAGINATION: Option<Pagination> = None;
@@ -43,9 +38,8 @@ pub trait Operation: Send + Sync + 'static {
     /// Reads a successful output back from its JSON form
     /// ([`Output::to_json`]), so a server extension can answer a retry with
     /// the output an earlier attempt produced, encoded afresh for the
-    /// retry. Generated for server operations that have an idempotency token
-    /// and an output that does not stream; `None` means the operation's
-    /// output cannot be replayed.
+    /// retry. Generated for server operations that have an idempotency token;
+    /// `None` means the operation's output cannot be replayed.
     const OUTPUT_FROM_JSON: Option<OutputFromJson<Self::Output>> = None;
     /// What the operation requires of its caller (`requires`, `filters`,
     /// `requires none`, `requires pending`), for the server's `Permissions`
@@ -66,33 +60,6 @@ pub trait Operation: Send + Sync + 'static {
     const PUBLIC: bool = false;
     const HAS_INPUT: bool = true;
     const HAS_OUTPUT: bool = true;
-    fn output_status(_output: &Self::Output) -> Option<u16> {
-        None
-    }
-    fn input_stream(_input: &Self::Input) -> Option<crate::stream::ByteStream> {
-        None
-    }
-    fn output_stream(_output: &Self::Output) -> Option<crate::stream::ByteStream> {
-        None
-    }
-    fn set_input_stream(_input: &mut Self::Input, _stream: crate::stream::ByteStream) {}
-    fn set_output_stream(_output: &mut Self::Output, _stream: crate::stream::ByteStream) {}
-    /// The event stream the input sends, when it has one.
-    const INPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
-    /// The event stream the output receives, when it has one.
-    const OUTPUT_EVENTS: Option<&'static crate::event_stream::EventStreamInfo> = None;
-    fn input_events(
-        _input: &Self::Input,
-    ) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
-        None
-    }
-    fn set_output_events(_output: &mut Self::Output, _events: crate::event_stream::Incoming) {}
-    fn set_input_events(_input: &mut Self::Input, _events: crate::event_stream::Incoming) {}
-    fn output_events(
-        _output: &Self::Output,
-    ) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
-        None
-    }
     type Input: DeserializeOwned + Serialize + Validate + Send + Sync + 'static;
     type Output: Serialize + Send + Sync + 'static;
 }
@@ -100,7 +67,6 @@ pub trait Operation: Send + Sync + 'static {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ServiceInfo {
-    pub cors: Option<&'static CorsInfo>,
     /// External MCP tools, present only when service generation enabled MCP.
     pub mcp_tools: Option<&'static [crate::mcp::ToolDescriptor]>,
     /// The service's shape id, `namespace#Name`.
@@ -343,9 +309,6 @@ fn trait_value(traits: &[(&str, &str)], id: &str) -> Option<Value> {
 pub enum Location {
     Label,
     Query(&'static str),
-    QueryParams,
-    PrefixHeaders(&'static str),
-    ResponseCode,
     Header(&'static str),
     Body,
     /// The whole HTTP body, raw (`@httpPayload` on a blob), with the media
@@ -359,17 +322,6 @@ pub enum Location {
     /// serialized null is the JSON value `null`, which reads back as the
     /// member's null, as it would in a JSON body.
     DocumentPayload(&'static str),
-    StreamingPayload {
-        media_type: &'static str,
-        requires_length: bool,
-        minimum: Option<u64>,
-        maximum: Option<u64>,
-    },
-    /// An event stream (`@streaming` union): the whole body, as
-    /// `application/vnd.amazon.eventstream` messages. It is never part of a
-    /// JSON document; the operation's `INPUT_EVENTS` / `OUTPUT_EVENTS`
-    /// describe its events.
-    EventStream,
 }
 
 impl Location {
@@ -378,8 +330,7 @@ impl Location {
         members.iter().find_map(|member| match member.location {
             Self::Payload(media_type)
             | Self::TextPayload(media_type)
-            | Self::DocumentPayload(media_type)
-            | Self::StreamingPayload { media_type, .. } => Some((member, media_type)),
+            | Self::DocumentPayload(media_type) => Some((member, media_type)),
             _ => None,
         })
     }
@@ -455,94 +406,6 @@ pub struct Pagination {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PaginationMember {
     pub name: &'static str,
-    pub wire_name: &'static str,
-}
-
-/// An operation's modeled HTTP checksum behavior.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Checksum {
-    /// `@httpChecksumRequired`: `Content-MD5` over the complete body.
-    Md5,
-    /// `@aws.protocols#httpChecksum`. Member names are wire names.
-    Flexible {
-        request_required: bool,
-        request_algorithm_member: Option<&'static str>,
-        validation_mode_member: Option<&'static str>,
-        response_algorithms: &'static [ChecksumAlgorithm],
-    },
-}
-
-/// A checksum algorithm a model may name. A client computes only those
-/// `supported` reports; the others are recognized so a model can name them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ChecksumAlgorithm {
-    Crc32,
-    Crc32c,
-    Crc64Nvme,
-    Md5,
-    Sha1,
-    Sha256,
-    Sha512,
-    Xxhash64,
-    Xxhash3,
-    Xxhash128,
-}
-
-impl ChecksumAlgorithm {
-    pub const ALL: &'static [Self] = &[
-        Self::Crc32,
-        Self::Crc32c,
-        Self::Crc64Nvme,
-        Self::Md5,
-        Self::Sha1,
-        Self::Sha256,
-        Self::Sha512,
-        Self::Xxhash64,
-        Self::Xxhash3,
-        Self::Xxhash128,
-    ];
-
-    /// The model's spelling: `CRC32`, `SHA256`.
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Crc32 => "CRC32",
-            Self::Crc32c => "CRC32C",
-            Self::Crc64Nvme => "CRC64NVME",
-            Self::Md5 => "MD5",
-            Self::Sha1 => "SHA1",
-            Self::Sha256 => "SHA256",
-            Self::Sha512 => "SHA512",
-            Self::Xxhash64 => "XXHASH64",
-            Self::Xxhash3 => "XXHASH3",
-            Self::Xxhash128 => "XXHASH128",
-        }
-    }
-
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.iter().copied().find(|value| value.name() == name)
-    }
-
-    /// The `x-amz-checksum-*` header that carries this checksum.
-    pub fn header(self) -> &'static str {
-        match self {
-            Self::Crc32 => "x-amz-checksum-crc32",
-            Self::Crc32c => "x-amz-checksum-crc32c",
-            Self::Crc64Nvme => "x-amz-checksum-crc64nvme",
-            Self::Md5 => "x-amz-checksum-md5",
-            Self::Sha1 => "x-amz-checksum-sha1",
-            Self::Sha256 => "x-amz-checksum-sha256",
-            Self::Sha512 => "x-amz-checksum-sha512",
-            Self::Xxhash64 => "x-amz-checksum-xxhash64",
-            Self::Xxhash3 => "x-amz-checksum-xxhash3",
-            Self::Xxhash128 => "x-amz-checksum-xxhash128",
-        }
-    }
-}
-
-impl std::fmt::Display for ChecksumAlgorithm {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name())
-    }
 }
 
 #[derive(Debug)]
@@ -599,27 +462,11 @@ impl<T: Serialize + Any + Send + Sync> Input for T {
     }
 }
 
-/// HTTP bindings removed from a serialized response body.
-#[derive(Debug, Default)]
-pub struct ResponseBindings {
-    pub headers: Vec<(String, String)>,
-    pub status: Option<u16>,
-}
-
 /// Reads an output of type `O` from its JSON form: [`Operation::OUTPUT_FROM_JSON`].
 pub type OutputFromJson<O> = fn(Value) -> serde_json::Result<O>;
 
 /// An operation's output, seen by handlers without knowing its type.
 pub trait Output: Any + Send + Sync {
-    fn events(&self) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
-        None
-    }
-    fn response_status(&self) -> Option<u16> {
-        None
-    }
-    fn stream(&self) -> Option<crate::stream::ByteStream> {
-        None
-    }
     fn to_json(&self) -> Value;
     /// Serializes into `out`. Every serializable output writes straight to
     /// bytes; this default, for other implementors, goes through `to_json`.
@@ -636,13 +483,6 @@ pub trait Output: Any + Send + Sync {
         out: &mut Vec<u8>,
     ) -> serde_json::Result<Vec<(&'static str, String)>> {
         crate::split::write(&self.to_json(), members, out)
-    }
-    fn write_http(
-        &self,
-        members: &[MemberInfo],
-        out: &mut Vec<u8>,
-    ) -> serde_json::Result<ResponseBindings> {
-        crate::split::write_http(&self.to_json(), members, None, out)
     }
     fn as_any(&self) -> &dyn Any;
 }
@@ -664,25 +504,9 @@ impl<T: Serialize + Any + Send + Sync> Output for T {
         crate::split::write(self, members, out)
     }
 
-    fn write_http(
-        &self,
-        members: &[MemberInfo],
-        out: &mut Vec<u8>,
-    ) -> serde_json::Result<ResponseBindings> {
-        crate::split::write_http(self, members, None, out)
-    }
-
     fn as_any(&self) -> &dyn Any {
         self
     }
-}
-
-/// Invalid modeled response codes become the same 500 that serialization emits.
-pub fn response_status(value: i64) -> u16 {
-    u16::try_from(value)
-        .ok()
-        .filter(|value| (100..=599).contains(value))
-        .unwrap_or(500)
 }
 
 /// Effective authentication options in modeled priority order.
@@ -690,13 +514,4 @@ pub fn response_status(value: i64) -> u16 {
 #[non_exhaustive]
 pub enum AuthScheme {
     Bearer,
-    Basic,
-    ApiKey {
-        name: &'static str,
-        query: bool,
-        scheme: Option<&'static str>,
-    },
-    SigV4 {
-        signing_name: &'static str,
-    },
 }

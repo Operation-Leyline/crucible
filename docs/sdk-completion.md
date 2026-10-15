@@ -7,15 +7,11 @@ support in a generated client.
 
 | Workstream | Scope | Completion evidence |
 |---|---|---|
-| Shared semantics | Capability diagnostics; JSON names; HTTP maps/status/greedy labels; payloads; sparse collections; integer enums; arbitrary precision numbers | Lowering fixtures, target capability checks, native round trips |
-| Protocols and authentication | Basic/API-key/SigV4; HTTP Digest, SigV4a; checksum bindings | Published authentication vectors, credential isolation, native HTTP |
-| Streaming | Streaming blobs, event streams, backpressure, cancellation, replay rules | Bounded-memory transfers and framed event tests in native consumers |
-| Endpoint resolution | Modeled endpoint rules, host labels, discovery and caching | Shared resolution vectors and transport checks |
-| Waiters | Modeled acceptors, deadlines, jitter and cancellation | Shared matcher vectors and native asynchronous/synchronous consumers |
-| Runtime policy | Retry quotas/adaptive throttling; credential chains/cache/refresh; structured client telemetry | Deterministic clock tests, concurrent refresh tests, redaction and HTTP tests |
+| Shared semantics | Capability diagnostics; greedy labels; payloads; integer enums; arbitrary precision numbers | Lowering fixtures, target capability checks, native round trips |
+| Runtime policy | Retry quotas/adaptive throttling; bearer credential refresh; structured client telemetry | Deterministic clock tests, concurrent refresh tests, redaction and HTTP tests |
 | Kotlin | Common runtime and real multiplatform targets | JVM/Android/JS/native compilation and shared conformance |
 | Java | Demand-driven asynchronous pagination | Independent consumer, cancellation and backpressure tests |
-| Rust | Exact epoch timestamps, uniform error metadata, total deadlines and body digests | Generated consumer and real HTTP tests |
+| Rust | Exact epoch timestamps, uniform error metadata, total deadlines | Generated consumer and real HTTP tests |
 | TypeScript | Typed unknown unions, provenance, total deadlines | Strict compilation, wire round trips and cancellation tests |
 | Release tooling | Versioned generation, package builds, immutable manifests, publication adapters | Offline orchestration tests and native package dry runs |
 | Conformance | Shared `tests/conformance/` vectors, deterministic generated/property tests, live workflow runner | Every target executes applicable vectors; live results recorded separately |
@@ -23,30 +19,12 @@ support in a generated client.
 
 ## Status
 
-Status, runtime policy and endpoint discovery: the contract is
+Runtime policy: the contract is
 [`sdk-runtime-policy.md`](sdk-runtime-policy.md) with shared vectors in
-`tests/conformance/{retry-quota,adaptive-retry,endpoint-discovery,telemetry}.json`.
-Python, C#, Go, and Kotlin implement retry modes, endpoint discovery (declare
-`endpoint-discovery`), and telemetry. Their native suites exercise the shared
-vectors. Credential chains and caching are tracked per language guide.
-
-Status: HTTP Digest and SigV4a are lowered in `crucible-smithy` and implemented
-in PHP and C#. C# runs RFC 7616 and AWS SigV4a vectors and verifying loopback
-servers; PHP implements both without that vector qualification. They remain
-PHP/C# capabilities; other targets refuse them.
-
-Event streams (`event-streams`) are declared by the Rust and TypeScript clients.
-Lowering records the stream member and the other members' HTTP bindings; both
-runtimes frame and verify messages
-(published AWS vectors in `tests/conformance/event-streams.json`), sign events
-with SigV4 chunk signatures, and are tested over loopback HTTP/1.1 for input,
-output, and bidirectional streams, modeled and unmodeled stream errors,
-backpressure, cancellation, and deadlines. Limits: HTTP/2-only services are
-untested in Rust; browser Fetch cannot stream request events interactively; the
-native Rust server now serves and lazily validates event streams, including
-interactive bidirectional calls. Signed
-server envelopes require a custom protocol to verify chunk signatures, and
-Lambda adapters buffer bodies. Other client targets do not declare the capability.
+`tests/conformance/{retry-quota,adaptive-retry,telemetry}.json`.
+Python, C#, Go, and Kotlin implement retry modes and telemetry. Their native
+suites exercise the shared vectors. Credential refresh is tracked per language
+guide.
 
 ## Integration rules
 

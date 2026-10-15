@@ -66,22 +66,14 @@ pub fn emit_client_package(
     );
     let declared = crate::client_api::declared_names(service);
     let exports: Vec<_> = [
-        "AwsCredentials",
-        "BasicCredentials",
         "BigDecimal",
         "BigInteger",
         "Blob",
         "BuildError",
-        "ByteStream",
         "CallOptions",
         "CancellationToken",
-        "ChecksumPolicy",
-        "ChunkStream",
         "Config",
         "Error",
-        "EventReceiver",
-        "EventStream",
-        "EventStreamError",
         "Field",
         "Identity",
         "Interceptor",
@@ -91,9 +83,6 @@ pub fn emit_client_package(
         "Token",
         "UnknownError",
         "UnknownUnion",
-        "WaiterError",
-        "WaiterOptions",
-        "WaiterResult",
     ]
     .into_iter()
     .filter(|name| !declared.contains(*name))

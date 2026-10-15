@@ -15,7 +15,7 @@ JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
 ```sh
 crucible generate ruby smithy \
   --out generated/client --package-name weather_client --module-name Weather \
-  --package-version 0.1.0 --endpoint https://weather.example --content-sha256
+  --package-version 0.1.0 --endpoint https://weather.example
 cd generated/client
 gem build weather_client.gemspec
 gem install ./weather_client-0.1.0.gem
@@ -82,13 +82,13 @@ nested variant classes, such as `Location::CoordinatesVariant`, plus
 use `Array` and `Hash`; enum map keys use enum instances. Blobs are binary
 strings, encoded as padded base64 in JSON or sent directly for raw payloads.
 An empty response payload remains present; an empty request payload sends
-no body or content type. Optional SHA-256 covers bytes after middleware.
+no body or content type.
 
 ## API documentation and string representations
 
 Every generated type, member, enum value, operation and the client carry YARD
 comments built from the model's `@documentation` plus Crucible's own text for
-the client, `ClientConfig`, transports, credentials and errors. The gem ships a
+the client, `ClientConfig`, transports and errors. The gem ships a
 `.yardopts` that selects Markdown, which is what Smithy documentation is
 written in; `yard doc` renders them.
 
@@ -131,75 +131,6 @@ transport remains caller-owned and implements
 scope's deadline/cancellation and the body-read decision. Modeled errors
 inherit `ServiceError`; metadata retains wire status, error name, request ID,
 headers, and retry traits even when modeled members cannot be decoded.
-
-## Waiters
-
-Each modeled waiter becomes `wait_until_<name>(input, timeout:, min_delay:
-nil, max_delay: nil, cancellation: nil)`, returning the output that satisfied
-a success acceptor (`nil` when an error-type acceptor succeeds):
-
-```ruby
-job = client.wait_until_ready(Jobs::Input.new(names: ['a']), timeout: 300)
-```
-
-Acceptors run the compiled JMESPath from the IR over member names, with
-exact rational numbers and epoch-second timestamps. Delays follow Smithy's
-jittered exponential backoff between the modeled minimum and maximum; the last
-delay is clipped to the deadline, and each attempt gets the smaller of the
-client timeout and the time left. A failure acceptor or an unmatched error
-raises `Runtime::WaiterError` (`attempts`, `response`, `error`, and the
-acceptor message as `reason`); the deadline raises `WaiterTimeoutError`.
-`CancellationToken` interrupts both requests and delays.
-
-## Endpoints and checksums
-
-When the model has endpoint rules, the client resolves every call from them,
-so `endpoint` becomes optional. Parameters come from the IR's sources in
-order: input members and paths, `ClientConfig.new(endpoint_parameters: {})`,
-built-ins (`AWS::Region` from `region`, `SDK::Endpoint` from `endpoint`,
-overridable with `endpoint_builtins:`), and defaults. Resolved headers are
-sent, and an `authSchemes` property narrows the modeled schemes and supplies
-the SigV4 signing name and region. Error rules raise `Runtime::EndpointError`.
-`@endpoint` host prefixes validate each label before dispatch;
-`disable_host_prefix: true` turns them off.
-
-`@httpChecksumRequired` sends `Content-MD5`; `aws.protocols#httpChecksum`
-supports CRC32, CRC32C, CRC64NVME (pure Ruby), MD5, SHA1, SHA256 and SHA512.
-With the default `request_checksum_calculation: 'when_supported'` an unset
-algorithm member becomes CRC32 and an unset validation mode `ENABLED`, in a
-copy of the input. Checksums cover the bytes after middleware, and a
-caller-supplied checksum header is never replaced. Successful responses with
-a modeled checksum header are verified (`Runtime::ChecksumError` on
-mismatch) and reported to `checksum_validated: ->(operation, algorithm)`;
-`'when_required'` opts out of either default.
-
-## Streaming blobs
-
-A `@streaming` blob input accepts a binary `String`, any IO responding to
-`read`, or `Runtime::ByteStream.new(length: n) { fresh_io }`. Strings,
-seekable IOs (replayed from their starting position) and factories are
-retried like any other body; any other IO is one-shot and gets exactly one
-attempt. A known length is sent as `Content-Length`, otherwise the body is
-chunked; `@requiresLength` and `@length` bounds are checked before dispatch
-and while the bytes flow. Checksums and `--content-sha256` read a replayable
-stream once in chunks before sending it; for a one-shot stream, supply the
-header yourself or opt out. SigV4 signs streams as `UNSIGNED-PAYLOAD`.
-
-A streamed response is never buffered when the call has a block or a target:
-
-```ruby
-client.download { |chunk| file.write(chunk) }          # body is an empty IO
-client.download(response_target: File.open('out', 'wb')) # body is the target
-```
-
-Without either, the body is buffered into a `StringIO`. Chunks reach the
-caller on the calling thread through a bounded queue, so a slow consumer
-applies backpressure; the deadline and cancellation are checked between
-chunks. Response checksums are computed incrementally and checked at the end.
-A failure after bytes reached the caller is not retried. An injected
-transport that serves streamed responses accepts `sink:` and calls it with
-each chunk of a successful body, and reads a `Runtime::StreamBody` request
-body with `read`.
 
 ## Permissions
 
@@ -248,13 +179,8 @@ collisions, and model/member/operation name collisions. Recursive models and
 collections are supported through runtime descriptions.
 `python tools/test-ruby.py` checks shared fixtures, native weather-service
 HTTP, interruptions and proxy handling, gem installation into a separate
-consumer, and empty and renamed models. It also runs native suites for
-waiters (every acceptor kind, the JMESPath functions, jitter, deadlines and
-cancellation), endpoint rules and host prefixes, the published checksum
-vectors and policies, and streaming blobs
-(replay rules, length rules, cancellation, and 256 MiB each way over loopback
-HTTP with bounded peak memory), and the typed permissions of
-`tests/fixtures/permissions` (`tests/permissions.rb`). Set `RUBY` to select
-the executable.
+consumer, and empty and renamed models. It also runs a native suite for the
+typed permissions of `tests/fixtures/permissions` (`tests/permissions.rb`).
+Set `RUBY` to select the executable.
 These checks do not establish published-gem or authenticated deployed-Leyline
 compatibility.

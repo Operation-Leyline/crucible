@@ -65,8 +65,6 @@ pub(crate) struct Member {
     #[serde(default)]
     pub sensitive: bool,
     pub kind: Option<Kind>,
-    /// The JSON key the SDK deserializes: `@jsonName` when the protocol uses it.
-    pub wire_name: Option<String>,
     /// How a timestamp is written in the document, which is what the SDK parses.
     pub timestamp_format: Option<TimestampFormat>,
     /// The HTTP binding's format, accepted on the command line when it differs.
@@ -93,8 +91,9 @@ impl TimestampFormat {
 }
 
 impl Member {
+    /// The JSON key the SDK deserializes: the member's name.
     pub fn key(&self) -> &str {
-        self.wire_name.as_deref().unwrap_or(&self.name)
+        &self.name
     }
 }
 

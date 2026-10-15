@@ -98,7 +98,7 @@ including path, query, header and payload members. Nested objects, maps, arrays,
 unions and documents are edited as JSON fields. The server remains authoritative
 about validation, constraints, defaults and required inputs.
 
-Bearer tokens and modeled header/query API keys are saved only in
+Bearer tokens are saved only in
 `sessionStorage`, scoped to the service and browser tab. **Clear credentials**
 removes them. **Copy as curl** copies the URL, method, headers and body, including
 credentials you entered. Blob payload commands refer to `payload.bin`.
@@ -112,10 +112,9 @@ viewer shows status, headers, body and the modeled error name when identifiable.
 Paginated operations offer **Next page** when a successful response contains a
 nonempty output token.
 
-Buffered calls are supported. Streaming operations retain documentation
-and curl guidance, without a browser send button. Browser limitations such as
+Browser limitations such as
 GET bodies, dot-only path labels and unsafe JavaScript integer precision require
-curl or a native client. Explorer does not perform SigV4 signing or HTTP
+curl or a native client. Explorer does not perform HTTP
 challenge authentication. Browser-managed and forbidden headers follow Fetch's
 rules.
 
@@ -153,5 +152,4 @@ default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img
 See [service API references](docs.md) for the shared describe/1 contract and
 [the framework pipeline](framework.md#the-request-pipeline) for ordinary calls.
 
-Explorer responses use a same-origin resource policy and do not inherit the
-modeled API CORS policy. Ordinary API calls retain their modeled CORS behavior.
+Explorer responses use a same-origin resource policy.

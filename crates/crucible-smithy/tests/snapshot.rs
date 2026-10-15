@@ -89,17 +89,10 @@ fn a_newer_format_is_refused() {
 fn committed_format_1_snapshots_still_read() {
     const CANARIES: &[&str] = &[
         "client-docs",
-        "cors",
-        "discovery-recursion",
         "doc-notes",
-        "dynamic-bindings",
-        "error-payloads",
         "examples",
-        "extended-types",
         "internal-default-reference",
-        "internal-endpoint-reference",
         "internal-resource-lifecycle",
-        "internal-waiter-reference",
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let dir = root.join("snapshots-format-1");
@@ -166,18 +159,15 @@ fn a_package_contract_is_compact_and_has_no_documentation() {
 }
 
 /// The package contract holds the typed IR only: raw trait maps, with the
-/// documentation and legacy definitions they repeat, are left out for every
-/// audience.
+/// documentation they repeat, are left out for every audience.
 #[test]
 fn a_package_contract_has_no_raw_traits() {
-    let service = Model::from_json(include_str!("fixtures/internal-legacy-enum.json"))
+    let service = Model::from_json(include_str!("fixtures/weather.json"))
         .unwrap()
         .lower(None)
         .unwrap();
     let contract = snapshot::write_contract(&service, "test");
-    for raw in ["smithy.api#enum", "Warm red.", "A legacy color enum."] {
-        assert!(!contract.contains(raw), "{raw}");
-    }
+    assert!(!contract.contains("smithy.api#documentation"));
     let read = snapshot::read(&contract).unwrap();
     assert!(read.traits.is_empty());
 }
@@ -192,4 +182,66 @@ fn a_format_1_snapshot_of_a_removed_protocol_is_refused() {
         error.contains("awsRestJson1") && error.contains("no longer supports"),
         "{error}"
     );
+}
+
+/// What a format 2 snapshot carried that format 3 dropped: the unused fields
+/// are removed on reading, and one that was used refuses the snapshot.
+#[test]
+fn a_format_2_snapshot_reads_without_what_format_3_dropped() {
+    let service = Model::from_json(include_str!("fixtures/weather.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
+    let text = snapshot::write(&service, "test");
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    value["format"] = serde_json::json!(2);
+    let service_value = &mut value["service"];
+    service_value["cors"] = serde_json::Value::Null;
+    service_value["endpoint_discovery"] = serde_json::Value::Null;
+    service_value["protocol_settings"]["eventStreamHttp"] = serde_json::json!(["http/1.1"]);
+    for operation in service_value["operations"].as_array_mut().unwrap() {
+        operation["waiters"] = serde_json::json!({});
+        operation["checksum"] = serde_json::Value::Null;
+        operation["request"]["event_stream"] = serde_json::Value::Null;
+    }
+    for shape in service_value["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        if let Some(structure) = shape.get_mut("Structure") {
+            structure["streaming"] = serde_json::json!(false);
+            for member in structure["members"].as_array_mut().unwrap() {
+                member["wire_name"] = member["name"].clone();
+                member["event_binding"] = serde_json::Value::Null;
+            }
+        }
+    }
+    let read = snapshot::read(&value.to_string()).unwrap();
+    assert_eq!(snapshot::write(&read, "test"), text);
+
+    // A used feature cannot be carried over.
+    let mut used = value.clone();
+    used["service"]["operations"][0]["waiters"] = serde_json::json!({"Ready": {}});
+    let error = snapshot::read(&used.to_string()).unwrap_err();
+    assert!(error.contains("no longer supports"), "{error}");
+
+    // A renamed member cannot be carried over: its name is its wire name.
+    let mut renamed = value;
+    for shape in renamed["service"]["shapes"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+    {
+        if let Some(structure) = shape.get_mut("Structure")
+            && let Some(member) = structure["members"]
+                .as_array_mut()
+                .and_then(|m| m.first_mut())
+        {
+            member["wire_name"] = serde_json::json!("somethingElse");
+            break;
+        }
+    }
+    let error = snapshot::read(&renamed.to_string()).unwrap_err();
+    assert!(error.contains("JSON name"), "{error}");
 }

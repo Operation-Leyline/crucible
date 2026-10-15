@@ -11,7 +11,6 @@ private actor Recorder: HTTPTransport {
 }
 /// A payload's Content-Type is the modelled member if set, then the payload's
 /// media type, then a client-wide default: exactly one value either way.
-/// Swift has no streaming request payloads, so only the buffered upload runs.
 final class PayloadBindingsTests: XCTestCase, @unchecked Sendable {
     func testPayloadContentTypePrefersModeledHeaderThenMediaTypeThenConfig() async throws {
         for contentType in [nil, "image/png"] as [String?] {

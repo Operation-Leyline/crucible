@@ -13,7 +13,6 @@ import example.weather.model.Forecast
 import example.weather.model.CreateCityInput
 import example.weather.model.ConflictError
 import example.weather.model.CitySummary
-import example.weather.model.TransferAlgorithm
 import kotlinx.serialization.json.*
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
@@ -23,7 +22,6 @@ import java.lang.reflect.InvocationTargetException
 import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.nio.file.Paths
-import java.security.MessageDigest
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -33,7 +31,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -44,9 +41,6 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import io.ktor.utils.io.readAvailable
-import io.ktor.utils.io.writeFully
-import io.ktor.utils.io.writer
 
 
 private val JsonElement?.asJsonObject: JsonObject get() = this!!.jsonObject
@@ -223,7 +217,7 @@ private fun serialization(path: String) {
     val binary = byteArrayOf(0, 1, -1, -128)
     check(codec.encode("example.weather#Photo", binary).asString == "AAH/gA==")
     check((codec.decode("example.weather#Photo", "\"AAH/gA==\"") as ByteArray).contentEquals(binary))
-    try { codec.decode("example.weather#Tags", "[null]"); error("Null element accepted in a non-sparse list") }
+    try { codec.decode("example.weather#Tags", "[null]"); error("Null element accepted in a list") }
     catch (_: IllegalArgumentException) { }
     for (test in json(String(Files.readAllBytes(Paths.get(path)))).asJsonArray) {
         check(codec.header(test.asJsonObject.get("wire").asString) == test.asJsonObject.get("values"))
@@ -247,8 +241,6 @@ private suspend fun httpBehavior() {
         val bytes = exchange.requestBody.readBytes(); sent.add(bytes)
         check(exchange.requestHeaders["content-type"] == listOf("Application/JSON; charset=utf-8")) { "one content-type on the wire" }
         check(exchange.requestHeaders["content-length"] == listOf(bytes.size.toString())) { "one content-length on the wire" }
-        val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
-        check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         check(exchange.requestHeaders.getFirst("authorization") == "Bearer ${sent.size}")
         check(exchange.requestHeaders.getFirst("x-expected-revision") == "7")
         response(exchange, if (sent.size == 1) 503 else 200,
@@ -419,8 +411,6 @@ private suspend fun payloads() {
         check(bytes.contentEquals(binary))
         check(exchange.requestHeaders.getFirst("Content-Type") == "image/jpeg")
         check(exchange.requestHeaders.getFirst("X-Photo-Caption") == "caption")
-        val hash = MessageDigest.getInstance("SHA-256").digest(binary).joinToString("") { "%02x".format(it.toInt() and 255) }
-        check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         response(exchange, if (calls.incrementAndGet() == 1) 503 else 200,
             if (calls.get() == 1) """{"__type":"FutureError"}""" else """{"photo":{"size":6,"thumbnail":"AAH/gA0K"}}""")
     }.use { server -> WeatherClient(server.config()).use { client ->
@@ -441,8 +431,8 @@ private suspend fun payloads() {
 }
 /** A modelled Content-Type member, then the payload's media type, then a client-wide default. */
 private suspend fun payloadContentType() {
-    for (streaming in listOf(false, true)) for (modelled in listOf(null, "image/png")) for (configured in listOf(null, "image/jpeg")) {
-        val label = "${if (streaming) "streaming" else "buffered"} member=$modelled default=$configured"
+    for (modelled in listOf(null, "image/png")) for (configured in listOf(null, "image/jpeg")) {
+        val label = "member=$modelled default=$configured"
         val expected = modelled ?: "application/octet-stream"
         val calls = AtomicInteger()
         Server { exchange ->
@@ -454,8 +444,7 @@ private suspend fun payloadContentType() {
         }.use { server ->
             val defaults = if (configured == null) emptyMap<String, String>() else mapOf("Content-Type" to configured)
             WeatherClient(server.config().copy(maxAttempts = 1, headers = defaults)).use { client ->
-                if (streaming) client.typedUploadStream { data = ByteStream.fromBytes("PNG".encodeToByteArray()); if (modelled != null) contentType = modelled }
-                else client.typedUpload { data = "PNG".encodeToByteArray(); if (modelled != null) contentType = modelled }
+                client.typedUpload { data = "PNG".encodeToByteArray(); if (modelled != null) contentType = modelled }
             }
         }
         check(calls.get() == 1) { "$label: one request" }
@@ -482,9 +471,6 @@ private suspend fun hardening() {
         sent.incrementAndGet()
         check(exchange.requestHeaders.getFirst("Authorization") == null)
         check(exchange.requestBody.readBytes().isEmpty())
-        val hash = if (exchange.requestMethod in listOf("GET", "DELETE")) null else
-            MessageDigest.getInstance("SHA-256").digest(byteArrayOf()).joinToString("") { "%02x".format(it.toInt() and 255) }
-        check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash)
         exchange.sendResponseHeaders(200, -1)
     }.use { server ->
         WeatherClient(server.config().copy(token = { error("Anonymous credential provider invoked") })).use { client ->
@@ -510,73 +496,8 @@ private suspend fun hardening() {
     check(codec.encode("example.weather#Forecast", codec.decode("example.weather#Forecast", "{\"key\":{\"nil\":null}}")) == json("{\"key\":{\"nil\":null}}"))
     codec.checkDenseMapNulls()
 }
-private const val STREAM_CHUNK = 64 * 1024
-private const val STREAM_CHUNKS = 8192 // 512 MiB, twice the consumer's -Xmx256m heap.
-private fun streamChunk(index: Int) = ByteArray(STREAM_CHUNK) { (it + index).toByte() }
-private fun streamDigest(): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    repeat(STREAM_CHUNKS) { digest.update(streamChunk(it)) }
-    return digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
-}
-private fun CoroutineScope.streamSource() = writer { repeat(STREAM_CHUNKS) { channel.writeFully(streamChunk(it), 0, STREAM_CHUNK) } }.channel
-/** Real CIO transfers larger than the heap prove that streamed bodies are never buffered. */
-private suspend fun streaming() = coroutineScope {
-    val total = STREAM_CHUNK.toLong() * STREAM_CHUNKS
-    val expected = streamDigest()
-    Server { exchange ->
-        when (exchange.requestURI.path) {
-            "/upload" -> {
-                val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(STREAM_CHUNK); var count = 0L
-                exchange.requestBody.use { body -> while (true) { val size = body.read(buffer); if (size < 0) break; digest.update(buffer, 0, size); count += size } }
-                val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
-                check(exchange.requestHeaders.getFirst("x-amz-content-sha256") == hash) { "streamed body digest" }
-                exchange.responseHeaders.add("x-received", count.toString()); exchange.responseHeaders.add("x-digest", hash)
-                exchange.sendResponseHeaders(200, -1)
-            }
-            "/download" -> {
-                exchange.responseHeaders.add("x-count", STREAM_CHUNKS.toString())
-                exchange.sendResponseHeaders(200, total)
-                exchange.responseBody.use { body -> repeat(STREAM_CHUNKS) { body.write(streamChunk(it)) } }
-            }
-            "/transfer" -> {
-                val body = exchange.requestBody.readBytes()
-                val crc = java.util.zip.CRC32().apply { update(body) }.value
-                check(exchange.requestHeaders.getFirst("x-amz-checksum-crc32") == java.util.Base64.getEncoder().encodeToString(java.nio.ByteBuffer.allocate(4).putInt(crc.toInt()).array()))
-                exchange.responseHeaders.add("x-amz-checksum-crc32", exchange.requestHeaders.getFirst("x-amz-checksum-crc32"))
-                response(exchange, 200, if (body.decodeToString() == "corrupt") "corrupted".toByteArray() else body)
-            }
-            else -> response(exchange, 404, "{}")
-        }
-    }.use { server ->
-        val validated = mutableListOf<String>()
-        WeatherClient(server.config().copy(timeout = 120.seconds, checksumValidated = { operation, algorithm -> validated.add("$operation:$algorithm") })).use { client ->
-            val output = client.upload { body = ByteStream.replay(total, expected) { streamSource() } }
-            check(output.received == total && output.digest == expected) { "replayable upload" }
-            val chunked = client.upload { body = ByteStream.once(streamSource(), sha256 = expected) }
-            check(chunked.received == total && chunked.digest == expected) { "unsized one-shot upload" }
-            val unsigned = ByteStream.once(streamSource())
-            try { client.upload { body = unsigned }; error("unsigned stream digest accepted") }
-            catch (error: IllegalArgumentException) { check(error.message!!.contains("SHA-256")) }
-            finally { unsigned.close() } // The caller owns an unsent body; closing cancels its producer.
-            val received = client.download { result ->
-                check(result.count == STREAM_CHUNKS && result.body.contentLength == total)
-                val channel = result.body.openChannel(); val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(STREAM_CHUNK); var count = 0L
-                while (true) { val size = channel.readAvailable(buffer, 0, buffer.size); if (size < 0) break; digest.update(buffer, 0, size); count += size }
-                check(digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) } == expected)
-                count
-            }
-            check(received == total) { "download length" }
-            val echoed = client.transfer({ body = ByteStream.fromBytes("streamed checksum".toByteArray()); algorithm = TransferAlgorithm.CRC32 }) { it.body.toByteArray(1024).decodeToString() }
-            check(echoed == "streamed checksum" && validated == listOf("Transfer:CRC32")) { "streamed checksum validation" }
-            try { client.transfer({ body = ByteStream.fromBytes("corrupt".toByteArray()); algorithm = TransferAlgorithm.CRC32 }) { it.body.toByteArray(1024) }; error("corrupt body accepted") }
-            catch (_: ChecksumMismatch) { }
-            check(validated.size == 1)
-        }
-    }
-}
 fun main(args: Array<String>) = runBlocking {
     hardening()
-    withTimeout(300000) { streaming() }
     withTimeout(60000) { retries(args[0]); serialization(args[1]); httpBehavior(); failures(); deadlines(); payloads(); payloadContentType(); weather() }
     println("Kotlin native package, conformance, and weather HTTP passed")
 }

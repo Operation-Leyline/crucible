@@ -29,7 +29,6 @@ fn operation_docs(
     op: &Operation,
     input: Option<&str>,
     output: &str,
-    streaming: bool,
     pages: bool,
 ) -> String {
     let token = op.idempotency_token.as_deref().map(names::field);
@@ -66,9 +65,6 @@ fn operation_docs(
         "@param ?Runtime\\CancellationToken $cancellation cancels the call when cancelled"
             .to_string(),
     );
-    if streaming {
-        tags.push("@param null|\\Closure(string): void|resource $responseTarget receives the streamed body; null buffers it in a temporary stream".to_string());
-    }
     tags.push(format!("@return {output} the service's response"));
     for name in docs::operation_errors(service, op) {
         tags.push(format!("@throws \\{namespace}\\{name}"));
@@ -84,13 +80,8 @@ pub fn emit(service: &Service, options: &Options) -> String {
     let namespace = &options.namespace;
     let client_name = format!("{}Client", service.id.name());
     let endpoint = literal(options.endpoint.as_deref().unwrap_or(""));
-    let digest = if options.content_sha256 {
-        "true"
-    } else {
-        "false"
-    };
     let mut out = format!(
-        "<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\n{}final class {client_name}\n{{\n    private readonly Runtime\\ClientRuntime $runtime;\n{}    public function __construct(Runtime\\ClientConfig $config = new Runtime\\ClientConfig())\n    {{\n        $this->runtime = new Runtime\\ClientRuntime($config, Schema::codec(), Decoder::error(...), {endpoint}, {digest});\n    }}\n    /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */\n    public function close(): void {{ $this->runtime->close(); }}\n",
+        "<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\n{}final class {client_name}\n{{\n    private readonly Runtime\\ClientRuntime $runtime;\n{}    public function __construct(Runtime\\ClientConfig $config = new Runtime\\ClientConfig())\n    {{\n        $this->runtime = new Runtime\\ClientRuntime($config, Schema::codec(), Decoder::error(...), {endpoint});\n    }}\n    /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */\n    public function close(): void {{ $this->runtime->close(); }}\n",
         client_docs(service, &client_name),
         docs::block_comment("    ", "Creates a client. Without a `$config`, the generated endpoint is used and no credentials are sent; see ClientConfig for credentials, retries, timeouts and the transport.", &["@throws \\InvalidArgumentException when the endpoint or another setting is invalid".to_string()]),
     );
@@ -112,7 +103,6 @@ pub fn emit(service: &Service, options: &Options) -> String {
             .as_ref()
             .map(|id| ty(service, id, namespace, false))
             .unwrap_or("Runtime\\Unit".into());
-        let streaming = op.response.payload.as_ref().is_some_and(|p| p.streaming);
         let input_type = op
             .input
             .as_ref()
@@ -123,38 +113,9 @@ pub fn emit(service: &Service, options: &Options) -> String {
             op,
             input_type.as_deref(),
             &output,
-            streaming,
             op.paginated.is_some(),
         ));
-        if streaming {
-            out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null, mixed $responseTarget = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation, $responseTarget);\n    }}\n"));
-        } else {
-            out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation);\n    }}\n"));
-        }
-        for (waiter, description) in &op.waiters {
-            let mut comment = String::new();
-            if let Some(text) = &description.documentation {
-                // Model text, escaped like every other docblock: a line that
-                // starts with `@` is not a tag, and `*/` cannot end the block.
-                for line in docs::escape_block(text).lines() {
-                    let line = line.trim_end().replace("*/", "*\\/");
-                    if line.is_empty() {
-                        comment.push_str("\n     *");
-                    } else {
-                        comment.push_str(&format!("\n     * {line}"));
-                    }
-                }
-            }
-            if description.deprecated {
-                comment.push_str("\n     * @deprecated");
-            }
-            out.push_str(&format!(
-                "    /**{comment}\n     * Polls {} until the {waiter} waiter succeeds; null when an error acceptor succeeds.\n     * @throws Runtime\\WaiterException when a failure acceptor matches\n     * @throws Runtime\\WaiterTimeoutException when $timeout seconds pass first\n     */\n    public function {}({input}float $timeout, ?float $minDelay = null, ?float $maxDelay = null, ?Runtime\\CancellationToken $cancellation = null): ?{output}\n    {{\n        return $this->runtime->wait({operation}, {}, {argument}, $timeout, $minDelay, $maxDelay, $cancellation);\n    }}\n",
-                op.name(),
-                names::waiter(waiter),
-                literal(waiter),
-            ));
-        }
+        out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation);\n    }}\n"));
         if op.paginated.is_some() {
             out.push_str(&docs::block_comment("    ", &format!("Every page of `{name}()`, following the pagination token until the service stops returning one. The generator makes one call per page, so each can fail."), &[format!("@return \\Generator<int, {output}> the output of each page")]));
             out.push_str(&format!("    public function {name}Pages({input}?Runtime\\CancellationToken $cancellation = null): \\Generator\n    {{\n        return $this->runtime->pages({operation}, {argument}, $cancellation);\n    }}\n"));

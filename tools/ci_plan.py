@@ -112,7 +112,7 @@ def affected_groups(paths):
         parts = Path(path).parts
         if len(parts) >= 2 and parts[0] == "crates":
             # Models live in several generator test directories but are reused
-            # by other languages (for example Python auth and Java waiters).
+            # by other languages (for example the Python payload bindings).
             if "/tests/" in path and path.endswith(".json") and "/tests/golden/" not in path:
                 selected.update(SDK_GROUPS if parts[1] in {"crucible-codegen", "crucible-build"} else MODEL_GROUPS)
                 # A fixture may be shared, but its owning generator's native

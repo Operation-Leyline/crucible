@@ -3,8 +3,6 @@ package weather
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,7 +17,7 @@ import (
 	"time"
 )
 
-func TestSendOwnsChecksumDefaultsAndIdempotencyTokens(t *testing.T) {
+func TestSendOwnsIdempotencyTokens(t *testing.T) {
 	for _, scenario := range []struct {
 		name string
 		calls int
@@ -33,14 +31,13 @@ func TestSendOwnsChecksumDefaultsAndIdempotencyTokens(t *testing.T) {
 		{name: "nil input accepts private defaults", calls: 1, nilInput: true},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
-			type requestValues struct { token, algorithm, validation, checksum string }
-			observed := make(chan requestValues, 4)
+			observed := make(chan string, 4)
 			var attempts atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				var body map[string]any
 				if err := json.NewDecoder(r.Body).Decode(&body); err != nil { t.Error(err); w.WriteHeader(http.StatusBadRequest); return }
-				token, _ := body["wire-token"].(string)
-				observed <- requestValues{token, r.Header.Get("x-algorithm"), r.Header.Get("x-validation"), r.Header.Get("x-amz-checksum-crc32")}
+				token, _ := body["token"].(string)
+				observed <- token
 				if attempts.Add(1) == 1 && scenario.retry { w.WriteHeader(http.StatusInternalServerError); return }
 				w.WriteHeader(http.StatusNoContent)
 			}))
@@ -49,22 +46,19 @@ func TestSendOwnsChecksumDefaultsAndIdempotencyTokens(t *testing.T) {
 				Shapes: map[string]shapeDescription{
 					"text": {Kind: "string"},
 					"input": {Kind: "structure", Members: map[string]memberDescription{
-						"token": {Target: "text", JSONName: "wire-token"},
-						"algorithm": {Target: "text", JSONName: "wire-algorithm"},
-						"validation": {Target: "text", JSONName: "wire-validation"},
+						"token": {Target: "text"},
 						"payload": {Target: "text"},
 					}},
 				},
 				Operations: map[string]operationDescription{"Write": {
 					Method: "POST", URI: "/write", Input: "input", Safe: true, Token: "token",
-					Request: bindings{Body: []string{"token", "payload"}, Headers: [][2]string{{"algorithm", "x-algorithm"}, {"validation", "x-validation"}}},
-					Checksum: &checksumDescription{RequestAlgorithmMember: "algorithm", ValidationModeMember: "validation"},
+					Request: bindings{Body: []string{"token", "payload"}},
 				}},
 			}
-			client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 2, BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond}, schema, false)
+			client, err := newClient(Config{Endpoint: server.URL, MaxAttempts: 2, BaseDelay: time.Nanosecond, MaxDelay: time.Nanosecond}, schema)
 			if err != nil { t.Fatal(err) }
 			values := map[string]any{"payload": "unchanged"}
-			if scenario.supplied != "" { values["wire-token"] = scenario.supplied }
+			if scenario.supplied != "" { values["token"] = scenario.supplied }
 			if scenario.nilInput { values = nil }
 			var original map[string]any
 			if values != nil { original = map[string]any{}; for key, value := range values { original[key] = value } }
@@ -75,15 +69,14 @@ func TestSendOwnsChecksumDefaultsAndIdempotencyTokens(t *testing.T) {
 			count := scenario.calls
 			if scenario.retry { count++ }
 			if int(attempts.Load()) != count { t.Fatalf("attempts: got %d, want %d", attempts.Load(), count) }
-			requests := make([]requestValues, count)
-			for index := range requests {
-				requests[index] = <-observed
-				request := requests[index]
-				if request.token == "" || request.algorithm != "CRC32" || request.validation != "ENABLED" || request.checksum == "" { t.Fatalf("request preparation missing: %#v", request) }
-				if scenario.supplied != "" && request.token != scenario.supplied { t.Fatalf("supplied token changed: %q", request.token) }
+			tokens := make([]string, count)
+			for index := range tokens {
+				tokens[index] = <-observed
+				if tokens[index] == "" { t.Fatal("request carried no token") }
+				if scenario.supplied != "" && tokens[index] != scenario.supplied { t.Fatalf("supplied token changed: %q", tokens[index]) }
 			}
-			if scenario.retry && requests[0].token != requests[1].token { t.Fatal("retry generated another token") }
-			if scenario.calls == 2 && scenario.supplied == "" && requests[0].token == requests[1].token { t.Fatal("separate calls reused a generated token") }
+			if scenario.retry && tokens[0] != tokens[1] { t.Fatal("retry generated another token") }
+			if scenario.calls == 2 && scenario.supplied == "" && tokens[0] == tokens[1] { t.Fatal("separate calls reused a generated token") }
 		})
 	}
 }
@@ -320,7 +313,7 @@ func TestExplicitNullDoesNotUseDefault(t *testing.T) {
 		t.Fatal("absence and null conflated")
 	}
 }
-func TestBindingsTokensDigestAndAuth(t *testing.T) {
+func TestBindingsTokensAndAuth(t *testing.T) {
 	sent := [][]byte{}
 	auth := []string{}
 	credential := 0
@@ -328,10 +321,6 @@ func TestBindingsTokensDigestAndAuth(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		sent = append(sent, body)
 		auth = append(auth, r.Header.Get("Authorization"))
-		sum := sha256.Sum256(body)
-		if r.Header.Get("x-amz-content-sha256") != hex.EncodeToString(sum[:]) {
-			t.Error("wrong body digest")
-		}
 		if r.Header.Get("x-expected-revision") != "7" {
 			t.Errorf("missing bound header: %v", r.Header)
 		}
@@ -447,8 +436,7 @@ func TestPayloadsTravelRawAndBlobsInJSONAreBase64(t *testing.T) {
 		switch calls {
 		case 1:
 			body, _ := io.ReadAll(r.Body)
-			sum := sha256.Sum256(photo)
-			if !bytes.Equal(body, photo) || r.Header.Get("Content-Type") != "image/jpeg" || r.Header.Get("x-photo-caption") != "harbour" || r.Header.Get("x-amz-content-sha256") != hex.EncodeToString(sum[:]) {
+			if !bytes.Equal(body, photo) || r.Header.Get("Content-Type") != "image/jpeg" || r.Header.Get("x-photo-caption") != "harbour" {
 				t.Errorf("payload not sent raw: %q %v", body, r.Header)
 			}
 			io.WriteString(w, `{"photo":{"size":11,"thumbnail":"/9h7ImEiOjF9","caption":"harbour"}}`)
@@ -580,21 +568,6 @@ func TestCleartextCredentialsAndRetryAfter(t *testing.T) {
 	}
 }
 
-func TestDigestPreservesAnEmptyRequestBody(t *testing.T) {
-	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
-		if len(r.TransferEncoding) != 0 || r.ContentLength != 0 {
-			t.Errorf("empty body changed framing: %v %d", r.TransferEncoding, r.ContentLength)
-		}
-		w.WriteHeader(200)
-	})
-	op := client.schema.Operations["Ping"]
-	op.Method = "POST"
-	client.schema = &schemaDescription{Shapes: client.schema.Shapes, Operations: map[string]operationDescription{"Ping": op}}
-	if _, err := client.Ping(context.Background(), Unit{}); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestRetryAfterBeyondDeadlinePreservesError(t *testing.T) {
 	calls := 0
 	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
@@ -675,7 +648,7 @@ func TestHTTPWeatherService(t *testing.T) {
 	}
 }
 
-func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
+func TestHardeningAuthDotLabelsAndDenseCollections(t *testing.T) {
 	calls := 0
 	client, _ := clientFor(t, func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -685,17 +658,6 @@ func TestHardeningAuthEmptyDigestDotLabelsAndDenseCollections(t *testing.T) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil || len(body) != 0 {
 			t.Error("expected no body")
-		}
-		hash := sha256.Sum256(nil)
-		expected := hex.EncodeToString(hash[:])
-		if r.Method == "GET" || r.Method == "DELETE" {
-			expected = ""
-		}
-		if r.Header.Get("x-amz-content-sha256") != expected {
-			t.Error("bodiless digest")
-		}
-		if expected == "" && len(r.Header.Values("x-amz-content-sha256")) != 0 {
-			t.Error("unexpected digest header")
 		}
 		w.WriteHeader(200)
 	})

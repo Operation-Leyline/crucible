@@ -3,12 +3,12 @@
 use crucible_build::model;
 
 fn mcp_argument(code: &str) -> &str {
-    // service_info's fourth argument is the MCP descriptor list.
+    // service_info's third argument is the MCP descriptor list.
     code.split_once("::__generated::service_info(\n")
         .expect("generated service constructor")
         .1
         .lines()
-        .nth(3)
+        .nth(2)
         .unwrap()
         .trim()
 }

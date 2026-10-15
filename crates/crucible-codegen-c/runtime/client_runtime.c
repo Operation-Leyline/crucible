@@ -33,59 +33,23 @@ void crucible_generated_result_free(crucible_generated_result *result) {
     if (!result) return;
     crucible_generated_arena_free(result->arena); *result = (crucible_generated_result){0};
 }
-static status endpoint_values(arena *storage, const crucible_generated_endpoint_value *values, size_t count, const yyjson_val **out, error *issue) {
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
-    if (!doc) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-    yyjson_mut_val *object = yyjson_mut_obj(doc);
-    status code = object ? OK : crucible_generated_fail(issue, OOM, "JSON allocation failed");
-    for (size_t i = 0; !code && i < count; ++i) {
-        const crucible_generated_endpoint_value *item = values + i;
-        yyjson_mut_val *result = NULL;
-        if ((!item->name.data && item->name.length) || (!item->text.data && item->text.length) || (item->count && !item->items)) { code = fail(issue, "Invalid endpoint parameter"); break; }
-        if (item->kind == crucible_generated_endpoint_string) result = yyjson_mut_strncpy(doc, item->text.data ? item->text.data : "", item->text.length);
-        else if (item->kind == crucible_generated_endpoint_boolean) result = yyjson_mut_bool(doc, item->boolean);
-        else if (item->kind == crucible_generated_endpoint_string_array) {
-            result = yyjson_mut_arr(doc);
-            for (size_t j = 0; result && j < item->count; ++j) {
-                if (!item->items[j].data && item->items[j].length) { code = fail(issue, "Invalid endpoint parameter"); break; }
-                yyjson_mut_val *element = yyjson_mut_strncpy(doc, item->items[j].data ? item->items[j].data : "", item->items[j].length);
-                if (!element || !yyjson_mut_arr_append(result, element)) result = NULL;
-            }
-        } else { code = fail(issue, "Endpoint parameters require strings, booleans, or string arrays"); break; }
-        if (code) break;
-        yyjson_mut_val *key = yyjson_mut_strncpy(doc, item->name.data ? item->name.data : "", item->name.length);
-        if (!result || !key || !yyjson_mut_obj_put(object, key, result)) code = crucible_generated_fail(issue, OOM, "JSON allocation failed");
-    }
-    if (!code) code = crucible_generated_json_own(storage, object, out, issue);
-    yyjson_mut_doc_free(doc);
-    return code;
-}
 status crucible_generated_runtime_new(const crucible_generated_client_config *config, const string *chunks, size_t count,
-    string endpoint, bool digest, client **out, error *issue) {
+    string endpoint, client **out, error *issue) {
     if (!out || (!chunks && count)) return fail(issue, "Missing client output or schema");
     *out = NULL;
     crucible_generated_client_config settings = config ? *config : crucible_generated_client_defaults();
     crucible_generated_scope scope;
     TRY(crucible_generated_scope_begin(settings.timeout, NULL, NULL, &scope, issue));
-    if (!settings.max_attempts || !isfinite(settings.base_delay) || settings.base_delay < 0 || !isfinite(settings.max_delay) || settings.max_delay < 0 || (settings.headers.count && !settings.headers.items) || (settings.middleware_count && !settings.middleware)
-        || (settings.endpoint_parameter_count && !settings.endpoint_parameters) || (settings.endpoint_builtin_count && !settings.endpoint_builtins)
-        || settings.request_checksum_calculation > crucible_generated_checksum_when_required || settings.response_checksum_validation > crucible_generated_checksum_when_required
-        || (!settings.region.data && settings.region.length)) return fail(issue, "Invalid client configuration");
+    if (!settings.max_attempts || !isfinite(settings.base_delay) || settings.base_delay < 0 || !isfinite(settings.max_delay) || settings.max_delay < 0 || (settings.headers.count && !settings.headers.items) || (settings.middleware_count && !settings.middleware)) return fail(issue, "Invalid client configuration");
     if (settings.endpoint.data) endpoint = settings.endpoint;
     while (endpoint.length && endpoint.data[endpoint.length - 1] == '/') --endpoint.length;
     client *value = calloc(1, sizeof(*value));
     if (!value) return crucible_generated_fail(issue, OOM, "Client allocation failed");
-    value->arena = crucible_generated_arena_new(); value->config = settings; value->digest = digest;
-    value->endpoint_configured = settings.endpoint.data != NULL;
+    value->arena = crucible_generated_arena_new(); value->config = settings;
     status code = OK;
     if (!value->arena) { code = crucible_generated_fail(issue, OOM, "Client allocation failed"); goto failed; }
     code = crucible_generated_arena_copy(value->arena, endpoint, &value->config.endpoint, issue);
-    if (!code) code = crucible_generated_arena_copy(value->arena, settings.region, &value->config.region, issue);
-    if (!code) code = endpoint_values(value->arena, settings.endpoint_parameters, settings.endpoint_parameter_count, &value->endpoint_parameters, issue);
-    if (!code) code = endpoint_values(value->arena, settings.endpoint_builtins, settings.endpoint_builtin_count, &value->endpoint_builtins, issue);
     if (code) goto failed;
-    value->config.endpoint_parameters = NULL; value->config.endpoint_parameter_count = 0;
-    value->config.endpoint_builtins = NULL; value->config.endpoint_builtin_count = 0;
     value->config.headers = (crucible_generated_headers){0};
     for (size_t i = 0; i < settings.headers.count; ++i) {
         code = crucible_generated_header_set(value->arena, &value->config.headers, settings.headers.items[i].name, settings.headers.items[i].value, issue);
@@ -110,11 +74,8 @@ status crucible_generated_runtime_new(const crucible_generated_client_config *co
     for (size_t i = 0; i < count; ++i) { if (chunks[i].length) memcpy(joined + offset, chunks[i].data, chunks[i].length); offset += chunks[i].length; }
     code = crucible_generated_json_parse(value->arena, (string){joined, size}, &value->schema, issue);
     if (code) goto failed;
-    /* Endpoint rules may supply the whole URL; otherwise an absolute base is required. */
-    if (endpoint.length || !yyjson_is_obj(get(value->schema, "endpointRules"))) {
-        code = crucible_generated_validate_url(endpoint, true, false, issue);
-        if (code) goto failed;
-    }
+    code = crucible_generated_validate_url(endpoint, true, false, issue);
+    if (code) goto failed;
     if (!settings.send) {
         code = crucible_generated_curl_new(&value->owned_transport, issue);
         if (code) goto failed;
@@ -149,15 +110,11 @@ static double retry_delay(client *value, arena *storage, unsigned attempt, cruci
     unsigned exponent = attempt - 1 < 30 ? attempt - 1 : 30;
     return fmin(value->config.max_delay, ldexp(value->config.base_delay, (int)exponent)) * fraction;
 }
-typedef struct {
-    const yyjson_val *properties;
-    crucible_generated_checksum_settings checksum;
-} call_plan;
-static status attempt_request(client *value, const yyjson_val *op, arena *storage, const crucible_generated_request *prepared, const call_plan *plan,
+static status attempt_request(client *value, const yyjson_val *op, arena *storage, const crucible_generated_request *prepared,
     const crucible_generated_scope *scope, crucible_generated_request *out, error *issue) {
     *out = *prepared;
-    bool credentials = false; crucible_generated_signing signing;
-    TRY(crucible_generated_authenticate(value, op, plan->properties, scope, storage, out, &credentials, &signing, issue));
+    bool credentials = false;
+    TRY(crucible_generated_authenticate(value, op, scope, storage, out, &credentials, issue));
     for (size_t i = 0; i < value->config.middleware_count; ++i) {
         TRY(crucible_generated_scope_check(scope, issue));
         const crucible_generated_middleware *hook = value->config.middleware + i;
@@ -166,64 +123,27 @@ static status attempt_request(client *value, const yyjson_val *op, arena *storag
     TRY(crucible_generated_scope_check(scope, issue));
     crucible_generated_url url;
     if (!crucible_generated_url_split(out->url, &url)) return fail(issue, "Middleware must supply an absolute HTTP(S) URL");
-    if ((credentials || signing.sign || crucible_generated_header_get(out->headers, VIEW("authorization"), NULL)) && !crucible_generated_string_equal(url.scheme, VIEW("https")) && !crucible_generated_loopback(url.host))
+    if ((credentials || crucible_generated_header_get(out->headers, VIEW("authorization"), NULL)) && !crucible_generated_string_equal(url.scheme, VIEW("https")) && !crucible_generated_loopback(url.host))
         return fail(issue, "Refusing to send credentials over plaintext HTTP outside loopback");
     TRY(crucible_generated_validate_request(out, issue));
-    if (value->digest) { TRY(crucible_generated_binding_digest(storage, out, issue)); }
-    TRY(crucible_generated_checksum_request(storage, &plan->checksum, out, issue));
-    if (signing.sign) { TRY(crucible_generated_sigv4_sign(storage, out, &signing.identity, &signing.options, issue)); }
-    return OK;
-}
-/* Resolves the endpoint (rules, then host prefix) and the request-wide headers. */
-static status plan_endpoint(client *value, arena *storage, const yyjson_val *op, const yyjson_val *input, string *endpoint,
-    crucible_generated_headers *headers, call_plan *plan, error *issue) {
-    *endpoint = value->config.endpoint; *headers = value->config.headers;
-    const yyjson_val *rules = get(value->schema, "endpointRules"), *prefix = get(op, "endpoint");
-    if (!yyjson_is_obj((yyjson_val *)rules) && !yyjson_is_obj((yyjson_val *)prefix)) return OK;
-    crucible_generated_query query;
-    TRY(crucible_generated_query_begin(storage, &query, issue));
-    yyjson_mut_val *model;
-    TRY(crucible_generated_query_model(&query, value->schema, get(op, "input"), input, &model));
-    if (yyjson_is_obj((yyjson_val *)rules)) {
-        /* Caller built-ins win; the region and configured endpoint fill the standard ones. */
-        yyjson_mut_doc *doc = query.doc;
-        yyjson_mut_val *builtins = yyjson_val_mut_copy(doc, (yyjson_val *)value->endpoint_builtins);
-        if (!builtins) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-        if (value->config.region.length && !yyjson_mut_obj_get(builtins, "AWS::Region")
-            && !yyjson_mut_obj_add_strncpy(doc, builtins, "AWS::Region", value->config.region.data, value->config.region.length)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-        if (value->endpoint_configured && value->config.endpoint.length && !yyjson_mut_obj_get(builtins, "SDK::Endpoint")
-            && !yyjson_mut_obj_add_strncpy(doc, builtins, "SDK::Endpoint", value->config.endpoint.data, value->config.endpoint.length)) return crucible_generated_fail(issue, OOM, "JSON allocation failed");
-        const yyjson_val *owned_builtins;
-        TRY(crucible_generated_json_own(storage, builtins, &owned_builtins, issue));
-        crucible_generated_headers resolved; yyjson_mut_val *properties;
-        TRY(crucible_generated_endpoint_evaluate(&query, rules, get(op, "endpointParameters"), model, value->endpoint_parameters, owned_builtins, endpoint, &resolved, &properties));
-        while (endpoint->length && endpoint->data[endpoint->length - 1] == '/') --endpoint->length;
-        if (properties) { TRY(crucible_generated_json_own(storage, properties, &plan->properties, issue)); }
-        for (size_t i = 0; i < resolved.count; ++i) TRY(crucible_generated_header_set(storage, headers, resolved.items[i].name, resolved.items[i].value, issue));
-    }
-    if (yyjson_is_obj((yyjson_val *)prefix) && !value->config.disable_host_prefix) TRY(crucible_generated_endpoint_prefix(storage, *endpoint, prefix, model, endpoint, issue));
     return OK;
 }
 status crucible_generated_execute(client *value, arena *prepared_arena, string name, const yyjson_val *op, const yyjson_val *input,
     const crucible_generated_scope *scope, crucible_generated_result *out, const yyjson_val **wire_output, error *issue) {
     const yyjson_val *tokenized;
-    call_plan plan = {0};
     TRY(crucible_generated_binding_token(prepared_arena, op, input, &tokenized, issue));
-    TRY(crucible_generated_checksum_prepare(prepared_arena, op, &tokenized, value->config.request_checksum_calculation, value->config.response_checksum_validation, &plan.checksum, issue));
-    string endpoint; crucible_generated_headers headers;
-    TRY(plan_endpoint(value, prepared_arena, op, tokenized, &endpoint, &headers, &plan, issue));
     crucible_generated_request prepared;
-    TRY(crucible_generated_binding_prepare(prepared_arena, value->schema, name, op, tokenized, endpoint, headers, &prepared, issue));
+    TRY(crucible_generated_binding_prepare(prepared_arena, value->schema, name, op, tokenized, value->config.endpoint, value->config.headers, &prepared, issue));
     const bool safe = yyjson_get_bool((yyjson_val *)get(op, "safe"));
     const yyjson_val *bindings = get(op, "response");
-    const bool read_body = yyjson_arr_size((yyjson_val *)get(bindings, "body")) || yyjson_is_arr((yyjson_val *)get(bindings, "payload")) || plan.checksum.response_count;
+    const bool read_body = yyjson_arr_size((yyjson_val *)get(bindings, "body")) || yyjson_is_arr((yyjson_val *)get(bindings, "payload"));
     for (unsigned attempt = 1;; ++attempt) {
         TRY(crucible_generated_scope_check(scope, issue));
         crucible_generated_result result = {0};
         result.arena = crucible_generated_arena_new();
         if (!result.arena) return crucible_generated_fail(issue, OOM, "Response arena allocation failed");
         crucible_generated_request request;
-        status code = attempt_request(value, op, result.arena, &prepared, &plan, scope, &request, issue);
+        status code = attempt_request(value, op, result.arena, &prepared, scope, &request, issue);
         bool retry = false;
         if (!code) {
             code = value->config.send(value->config.transport_user, &request, read_body, scope, result.arena, &result.response, issue);
@@ -234,11 +154,8 @@ status crucible_generated_execute(client *value, arena *prepared_arena, string n
         if (!code) {
             if (result.response.status < 100 || result.response.status > 599 || (result.response.body.length && !result.response.body.data) || (result.response.headers.count && !result.response.headers.items)) code = fail(issue, "Invalid transport response");
             else if (result.response.status >= 200 && result.response.status < 300) {
-                const char *validated = NULL;
-                code = crucible_generated_checksum_response(&plan.checksum, &result.response, &validated, issue);
-                if (!code && validated && value->config.checksum_validated) value->config.checksum_validated(value->config.checksum_user, name, VIEW(validated));
                 const yyjson_val *wire = NULL;
-                if (!code) code = crucible_generated_binding_success(result.arena, value->schema, op, &result.response, &wire, issue);
+                code = crucible_generated_binding_success(result.arena, value->schema, op, &result.response, &wire, issue);
                 if (!code && yyjson_is_str((yyjson_val *)get(op, "output"))) code = crucible_generated_model_decode(result.arena, crucible_generated_shape_lookup(text(get(op, "output"))), wire, &result.output, issue);
                 if (!code && wire_output) *wire_output = wire;
             } else {

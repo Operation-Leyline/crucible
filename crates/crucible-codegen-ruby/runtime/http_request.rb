@@ -9,7 +9,7 @@ module CrucibleGenerated
       attr_reader :method
       # @return [Hash{String => String}] the request headers, names in lower case
       attr_reader :headers
-      # @return [String, ByteStream, nil] the body bytes, a streaming body, or nil for none
+      # @return [String, nil] the body bytes, or nil for none
       attr_reader :body
       def initialize(url:, method:, headers: {}, body: nil)
         token = /\A[!#$%&'*+.^_`|~0-9A-Za-z-]+\z/
@@ -21,8 +21,7 @@ module CrucibleGenerated
         end
         @url, @method = url.dup.freeze, method.dup.freeze
         @headers = headers.to_h { |key, value| [key.downcase.freeze, value.dup.freeze] }.freeze
-        # Streaming bodies stay by reference: the transport reads them as bytes flow.
-        @body = body.is_a?(ByteStream) || body.is_a?(StreamBody) ? body : body&.dup&.b&.freeze
+        @body = body&.dup&.b&.freeze
         freeze
       end
       # @return [HttpRequest] a copy with the given parts replaced

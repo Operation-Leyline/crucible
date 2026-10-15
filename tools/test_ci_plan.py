@@ -177,10 +177,9 @@ class PlanTests(unittest.TestCase):
 
     def test_cross_language_models_keep_representative_consumers(self):
         for path in (
-            "crates/crucible-codegen-python/tests/auth.json",
-            "crates/crucible-codegen-java/tests/waiters.json",
-            "crates/crucible-codegen-java/tests/streaming.json",
-            "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json",
+            "crates/crucible-codegen-python/tests/payload-bindings.json",
+            "crates/crucible-codegen-java/tests/shared-model.json",
+            "crates/crucible-codegen-kotlin/tests/fixtures/shared-model.json",
             "crates/crucible-codegen-python/tests/new-shared-model.json",
         ):
             with self.subTest(path=path):

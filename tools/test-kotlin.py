@@ -15,7 +15,7 @@ REPO = "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo")
 def generate(model, output, package="example.weather"):
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
         str(model), "--out", str(output), "--group-id", "example", "--artifact-id", "weather-kotlin",
-        "--package-name", package, "--package-version", "0.0.0-test", "--content-sha256")
+        "--package-name", package, "--package-version", "0.0.0-test")
 
 
 def qualify(output):
@@ -53,18 +53,14 @@ def qualify(output):
         "type": "operation", "output": {"target": "example.weather#BuilderDefaults"},
         "traits": {"smithy.api#http": {"method": "GET", "uri": "/builder-defaults"}, "smithy.api#readonly": {}}}
     model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#ReadBuilderDefaults"})
-    streaming = json.loads((ROOT / "crates/crucible-codegen-kotlin/tests/fixtures/streaming.json").read_text())
-    model["shapes"]["example.weather#Weather"]["operations"].extend(streaming["shapes"].pop("example.stream#Streaming")["operations"])
-    model["shapes"].update(streaming["shapes"])
-    # The shared payload-bindings uploads, renamed apart from the streaming
-    # fixture's shapes, for the Content-Type precedence test.
+    # The shared payload-bindings upload, renamed apart from the weather
+    # shapes, for the Content-Type precedence test.
     bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text()
                           .replace("example.payload#", "example.payload#Typed"))["shapes"]
-    for operation in ("Upload", "UploadStream"):
-        model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.payload#Typed" + operation})
-        bindings["example.payload#Typed" + operation]["traits"]["smithy.api#http"]["uri"] = "/typed-" + operation.lower()
+    model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.payload#TypedUpload"})
+    bindings["example.payload#TypedUpload"]["traits"]["smithy.api#http"]["uri"] = "/typed-upload"
     model["shapes"].update({key: value for key, value in bindings.items() if key.split("#Typed")[1] in (
-        "Upload", "UploadInput", "UploadStream", "StreamInput", "Stream")})
+        "Upload", "UploadInput")})
     model_path.write_text(json.dumps(model), encoding="utf-8")
     generate(model_path, package)
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)

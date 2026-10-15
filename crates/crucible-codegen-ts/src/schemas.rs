@@ -16,7 +16,6 @@ pub(crate) const IMPORTS: &[&str] = &[
     "Schema",
     "OperationSpec",
     "ErrorSpec",
-    "EndpointRules",
     "bigDecimal",
     "bigInteger",
     "blob",
@@ -26,7 +25,6 @@ pub(crate) const IMPORTS: &[&str] = &[
     "list",
     "map",
     "number",
-    "parseBehavior",
     "parseJson",
     "string",
     "structure",
@@ -45,11 +43,10 @@ pub(crate) fn emit(service: &Service) -> String {
             Shape::List(list) => format!(
                 "list(() => {}{})",
                 body_schema(service, &converting, &list.member).unwrap(),
-                if list.sparse || list.is_set || list.constraints.unique_items {
+                if list.sparse || list.constraints.unique_items {
                     format!(
                         ", {{ sparse: {}, unique: {} }}",
-                        list.sparse,
-                        list.is_set || list.constraints.unique_items
+                        list.sparse, list.constraints.unique_items
                     )
                 } else {
                     String::new()
@@ -91,24 +88,11 @@ pub(crate) fn emit(service: &Service) -> String {
                     .filter(|member| !member.optional_on_client())
                     .map(|member| literal(&member.name))
                     .collect();
-                let names: Vec<String> = structure
-                    .members
-                    .iter()
-                    .filter(|member| member.wire_name != member.name)
-                    .map(|member| {
-                        format!("{}: {}", property(&member.name), literal(&member.wire_name))
-                    })
-                    .collect();
-                let json_names = if names.is_empty() {
-                    String::new()
-                } else {
-                    format!(", {{ {} }}", names.join(", "))
-                };
                 if matches!(shape, Shape::Union(_)) {
-                    format!("union(() => ({{ {} }}){json_names})", members.join(", "))
+                    format!("union(() => ({{ {} }}))", members.join(", "))
                 } else {
                     format!(
-                        "structure(() => ({{ {} }}), {{ {} }}, [{}]{json_names})",
+                        "structure(() => ({{ {} }}), {{ {} }}, [{}])",
                         members.join(", "),
                         defaults.join(", "),
                         required.join(", ")
@@ -123,12 +107,6 @@ pub(crate) fn emit(service: &Service) -> String {
         ));
     }
 
-    if let Some(rules) = &service.endpoint_rules {
-        out.push_str(&format!(
-            "\nexport const endpointRules: EndpointRules = parseBehavior({}) as EndpointRules;\n",
-            literal(&serde_json::to_string(rules).expect("endpoint rules"))
-        ));
-    }
     for operation in &service.operations {
         out.push('\n');
         out.push_str(&operation_spec(service, &converting, operation));
@@ -175,13 +153,6 @@ pub(crate) fn emit(service: &Service) -> String {
         };
         helpers.insert(helper);
     }
-    if service.endpoint_rules.is_some()
-        || service.operations.iter().any(|op| {
-            op.endpoint.is_some() || !op.endpoint_parameters.is_empty() || !op.waiters.is_empty()
-        })
-    {
-        helpers.insert("parseBehavior");
-    }
     let helpers: Vec<_> = helpers.into_iter().collect();
     let mut header = String::from(crate::HEADER);
     if !helpers.is_empty() {
@@ -190,9 +161,7 @@ pub(crate) fn emit(service: &Service) -> String {
             helpers.join(", ")
         ));
     }
-    header.push_str(
-        "import type { ErrorSpec, OperationSpec, Schema, EndpointRules } from \"./runtime.js\";\n",
-    );
+    header.push_str("import type { ErrorSpec, OperationSpec, Schema } from \"./runtime.js\";\n");
     if out.contains("new e.") {
         header.push_str("import * as e from \"./errors.js\";\n");
     }
@@ -203,26 +172,20 @@ pub(crate) fn schema_name(service: &Service, id: &ShapeId) -> String {
     format!("S_{}", service.name_of(id))
 }
 
-/// Whether `member` of `structure` is an operation's payload: its bytes
+/// Whether `member` of `structure` is an operation's blob payload: its bytes
 /// travel raw, so no schema converts them.
 fn is_payload(service: &Service, structure: &ShapeId, member: &str) -> bool {
     service.operations.iter().any(|op| {
         let payload = |io: &Option<ShapeId>, bindings: &crucible_smithy::ir::Bindings| {
             io.as_ref() == Some(structure)
-                && bindings
-                    .payload
-                    .as_ref()
-                    .is_some_and(|p| p.member == member && matches!(p.kind,crucible_smithy::ir::PayloadKind::Blob|crucible_smithy::ir::PayloadKind::EventStream))
+                && bindings.payload.as_ref().is_some_and(|p| {
+                    p.member == member && matches!(p.kind, crucible_smithy::ir::PayloadKind::Blob)
+                })
         };
-        let events = |io: &Option<ShapeId>, bindings: &crucible_smithy::ir::Bindings| {
-            io.as_ref() == Some(structure)
-                && bindings.event_stream.as_ref().is_some_and(|stream| stream.member == member)
-        };
-        payload(&op.input, &op.request)
-            || payload(&op.output, &op.response)
-            || events(&op.input, &op.request)
-            || events(&op.output, &op.response)
-    }) || service.shape(structure).is_some_and(|shape|matches!(shape,Shape::Structure(shape) if shape.error.as_ref().and_then(|error|error.payload.as_ref()).is_some_and(|payload|payload.member==member && payload.kind==crucible_smithy::ir::PayloadKind::Blob)))
+        payload(&op.input, &op.request) || payload(&op.output, &op.response)
+    }) || service.shape(structure).is_some_and(|shape| {
+        matches!(shape, Shape::Structure(shape) if shape.error.as_ref().and_then(|error| error.payload.as_ref()).is_some_and(|payload| payload.member == member && payload.kind == crucible_smithy::ir::PayloadKind::Blob))
+    })
 }
 
 /// Every container has static metadata for conversion and validation.
@@ -361,43 +324,6 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
             serde_json::to_string(&op.request.header_encodings).unwrap()
         ));
     }
-    let auth: Vec<_> = op
-        .auth
-        .iter()
-        .filter_map(|id| service.auth_schemes.get(id))
-        .collect();
-    fields.push(format!(
-        "auth: {}",
-        serde_json::to_string(&auth).expect("auth descriptors")
-    ));
-    if op.optional_auth {
-        fields.push("optionalAuth: true".to_owned());
-    }
-    if op.unsigned_payload {
-        fields.push("unsignedPayload: true".to_owned());
-    }
-    if let Some(checksum) = &op.checksum {
-        let mut value = serde_json::to_value(checksum).expect("checksum descriptor");
-        if let Some(object) = value.as_object_mut() {
-            object.retain(|_, value| !value.is_null());
-        }
-        fields.push(format!("checksum: {value}"));
-    }
-    if let Some(endpoint) = &op.endpoint {
-        fields.push(format!(
-            "endpoint: parseBehavior({}) as NonNullable<OperationSpec[\"endpoint\"]>",
-            literal(&serde_json::to_string(endpoint).expect("endpoint prefix"))
-        ));
-    }
-    if !op.endpoint_parameters.is_empty() {
-        fields.push(format!("endpointParameters: parseBehavior({}) as NonNullable<OperationSpec[\"endpointParameters\"]>", literal(&serde_json::to_string(&op.endpoint_parameters).expect("endpoint sources"))));
-    }
-    if !op.waiters.is_empty() {
-        fields.push(format!(
-            "waiters: parseBehavior({}) as NonNullable<OperationSpec[\"waiters\"]>",
-            literal(&serde_json::to_string(&op.waiters).expect("waiters"))
-        ));
-    }
     let input = structure(service, op.input.as_ref());
     let path: Vec<String> = op
         .uri
@@ -443,20 +369,6 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         if let Some(id) = op.input.as_ref().filter(|id| converting.contains(*id)) {
             fields.push(format!("input: {}", schema_name(service, id)));
         }
-        if let Some(member) = &op.request.query_params {
-            fields.push(format!("queryParams: {}", literal(member)));
-        }
-        if !op.request.prefix_headers.is_empty() {
-            fields.push(format!(
-                "prefixHeaders: {}",
-                bindings(
-                    service,
-                    input,
-                    &op.request.prefix_headers,
-                    &op.request.timestamp_formats
-                )
-            ));
-        }
         if !op.request.query.is_empty() {
             fields.push(format!(
                 "query: {}",
@@ -483,40 +395,13 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
             let body: Vec<String> = op.request.body.iter().map(|m| literal(m)).collect();
             fields.push(format!("body: [{}]", body.join(", ")));
         }
-        if let Some(stream) = &op.request.event_stream {
-            fields.push(format!("inputEvents: {}", event_stream(service, stream)));
-        }
-        if let Some(payload) = op
-            .request
-            .payload
-            .as_ref()
-            .filter(|_| op.request.event_stream.is_none())
-        {
+        if let Some(payload) = &op.request.payload {
             fields.push(format!(
-                "payload: {{ member: {}, mediaType: {}{}{} }}",
+                "payload: {{ member: {}, mediaType: {}{} }}",
                 literal(&payload.member),
                 literal(&payload.media_type),
                 if payload.kind != crucible_smithy::ir::PayloadKind::Blob {
                     format!(", kind: {}", serde_json::to_string(&payload.kind).unwrap())
-                } else {
-                    String::new()
-                },
-                if payload.streaming {
-                    {
-                        let bounds = input
-                            .member(&payload.member)
-                            .and_then(|m| m.constraints.length.as_ref());
-                        format!(
-                            ", streaming: true, requiresLength: {}, minimum: {}, maximum: {}",
-                            payload.requires_length,
-                            bounds
-                                .and_then(|b| b.min)
-                                .map_or("undefined".to_owned(), |v| v.to_string()),
-                            bounds
-                                .and_then(|b| b.max)
-                                .map_or("undefined".to_owned(), |v| v.to_string())
-                        )
-                    }
                 } else {
                     String::new()
                 }
@@ -525,41 +410,19 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     }
     if let (Some(id), Some(output)) = (op.output.as_ref(), structure(service, op.output.as_ref())) {
         let mut parts = vec![format!("body: {}", !op.response.body.is_empty())];
-        if let Some(stream) = &op.response.event_stream {
-            parts.push(format!("events: {}", event_stream(service, stream)));
-        }
         if !op.response.header_encodings.is_empty() {
             parts.push(format!(
                 "headerEncodings: {}",
                 serde_json::to_string(&op.response.header_encodings).unwrap()
             ));
         }
-        if let Some(payload) = op
-            .response
-            .payload
-            .as_ref()
-            .filter(|_| op.response.event_stream.is_none())
-        {
+        if let Some(payload) = &op.response.payload {
             parts.push(format!("payload: {}", literal(&payload.member)));
             if payload.kind != crucible_smithy::ir::PayloadKind::Blob {
                 parts.push(format!(
                     "payloadKind: {}",
                     serde_json::to_string(&payload.kind).unwrap()
                 ));
-            }
-            if payload.streaming {
-                parts.push("streaming: true".to_owned());
-                if let Some(bounds) = output
-                    .member(&payload.member)
-                    .and_then(|m| m.constraints.length.as_ref())
-                {
-                    if let Some(min) = bounds.min {
-                        parts.push(format!("minimum: {min}"));
-                    }
-                    if let Some(max) = bounds.max {
-                        parts.push(format!("maximum: {max}"));
-                    }
-                }
             }
         }
         if converting.contains(id) {
@@ -572,20 +435,6 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
                     service,
                     output,
                     &op.response.headers,
-                    &op.response.timestamp_formats
-                )
-            ));
-        }
-        if let Some(member) = &op.response.response_code {
-            parts.push(format!("responseCode: {}", literal(member)));
-        }
-        if !op.response.prefix_headers.is_empty() {
-            parts.push(format!(
-                "prefixHeaders: {}",
-                bindings(
-                    service,
-                    output,
-                    &op.response.prefix_headers,
                     &op.response.timestamp_formats
                 )
             ));
@@ -617,74 +466,6 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     } else {
         format!("export const {name}: {body}")
     }
-}
-
-/// An event stream member's spec: per union member, its structure's schema
-/// and which members travel in headers or as the payload; for an `@error`
-/// member, its entry in the error table.
-fn event_stream(service: &Service, stream: &crucible_smithy::ir::EventStreamBinding) -> String {
-    let Some(Shape::Union(union)) = service.shape(&stream.target) else {
-        unreachable!("lowering requires an event stream union")
-    };
-    let events: Vec<String> = union
-        .members
-        .iter()
-        .filter_map(|arm| {
-            let Some(Shape::Structure(event)) = service.shape(&arm.target) else {
-                return None;
-            };
-            let mut fields = vec![format!("schema: {}", schema_name(service, &arm.target))];
-            if let Some(error) = &event.error {
-                fields.push(format!("error: {}", literal(&error.wire_code)));
-            }
-            let headers: Vec<String> = event
-                .members
-                .iter()
-                .filter(|member| {
-                    member.event_binding == Some(crucible_smithy::ir::EventBinding::Header)
-                })
-                .map(|member| {
-                    let kind = match service.shape(&member.target) {
-                        Some(Shape::Simple(simple)) => match simple.kind {
-                            SimpleKind::Boolean => "boolean",
-                            SimpleKind::Byte => "byte",
-                            SimpleKind::Short => "short",
-                            SimpleKind::Integer => "integer",
-                            SimpleKind::Long => "long",
-                            SimpleKind::Blob => "blob",
-                            SimpleKind::Timestamp => "timestamp",
-                            _ => "string",
-                        },
-                        _ => "string",
-                    };
-                    format!("[{}, \"{kind}\"]", literal(&member.name))
-                })
-                .collect();
-            if !headers.is_empty() {
-                fields.push(format!("headers: [{}]", headers.join(", ")));
-            }
-            if let Some(member) = event.members.iter().find(|member| {
-                member.event_binding == Some(crucible_smithy::ir::EventBinding::Payload)
-            }) {
-                let kind = match service.shape(&member.target) {
-                    Some(Shape::Simple(simple)) if simple.kind == SimpleKind::Blob => "blob",
-                    Some(Shape::Simple(_) | Shape::Enum(_)) => "string",
-                    _ => "structure",
-                };
-                fields.push(format!("payload: [{}, \"{kind}\"]", literal(&member.name)));
-            }
-            Some(format!(
-                "{}: {{ {} }}",
-                property(&arm.name),
-                fields.join(", ")
-            ))
-        })
-        .collect();
-    format!(
-        "{{ member: {}, events: {{ {} }} }}",
-        literal(&stream.member),
-        events.join(", ")
-    )
 }
 
 /// The errors the transport can decode, by shape name.
@@ -724,20 +505,6 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
             fields.push(format!(
                 "headers: {}",
                 bindings(service, structure, &error.headers, &error.timestamp_formats)
-            ));
-        }
-        if let Some(member) = &error.response_code {
-            fields.push(format!("responseCode: {}", literal(member)));
-        }
-        if !error.prefix_headers.is_empty() {
-            fields.push(format!(
-                "prefixHeaders: {}",
-                bindings(
-                    service,
-                    structure,
-                    &error.prefix_headers,
-                    &error.timestamp_formats
-                )
             ));
         }
         fields.push(format!(

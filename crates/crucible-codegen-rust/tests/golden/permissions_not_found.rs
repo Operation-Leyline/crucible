@@ -286,13 +286,6 @@ pub mod desk {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for AccessDeniedException {
@@ -343,13 +336,6 @@ pub mod desk {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for InternalServerException {
@@ -414,13 +400,6 @@ pub mod desk {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ResourceNotFoundException {
@@ -471,13 +450,6 @@ pub mod desk {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ValidationException {
@@ -550,7 +522,6 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetRoom {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::ROOM__READ, conditional: false },
         ]);
@@ -595,7 +566,6 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetWorkspace {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Check, permission: &permissions::WORKSPACE__READ, conditional: false },
         ]);
@@ -641,7 +611,6 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for ListRooms {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::List(&[
             ::crucible_server_runtime_rust::__generated::permissions::RequirementInfo { mode: ::crucible_server_runtime_rust::__generated::permissions::Mode::Filter, permission: &permissions::ROOM__READ, conditional: false },
         ]);
@@ -690,7 +659,6 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for RenameRoom {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::Pending { reason: "permissions::require in the handler" };
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RENAME_ROOM_OPERATION;
@@ -732,7 +700,6 @@ pub mod desk {
     impl ::crucible_server_runtime_rust::__generated::Operation for Whoami {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const REQUIREMENTS: ::crucible_server_runtime_rust::__generated::permissions::Requirements = ::crucible_server_runtime_rust::__generated::permissions::Requirements::None;
         const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &WHOAMI_OPERATION;
@@ -777,7 +744,6 @@ pub mod desk {
     pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
         "example.desk#Desk",
         "2026-10-01",
-        None,
         None,
         &[
             &GET_ROOM_OPERATION,

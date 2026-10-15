@@ -1,10 +1,7 @@
-use crucible_smithy::{Capabilities, Feature, Model};
+use crucible_smithy::Model;
 
 fn lower(json: &str) -> Result<crucible_smithy::ir::Service, crucible_smithy::Error> {
-    Model::from_json(json).unwrap().lower_with_capabilities(
-        None,
-        &Capabilities::new([Feature::OptionalAuth, Feature::ApiKeyAuth]),
-    )
+    Model::from_json(json).unwrap().lower(None)
 }
 
 fn diagnostics(json: &str) -> Vec<String> {
@@ -58,7 +55,7 @@ fn the_service_scope_list_is_sorted_and_unique() {
 
 #[test]
 fn a_service_without_scopes_lowers_empty_lists() {
-    let service = lower(include_str!("fixtures/auth-chain.json")).unwrap();
+    let service = lower(include_str!("fixtures/weather.json")).unwrap();
     assert!(service.scopes.is_empty());
     assert!(service.operations.iter().all(|op| op.scopes.is_empty()));
     assert!(service.all_scopes().is_empty());

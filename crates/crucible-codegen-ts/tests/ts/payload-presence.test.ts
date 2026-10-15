@@ -30,42 +30,36 @@ for (const [sdk, protocol] of [[crucible, "Crucible JSON"]] as const) {
 }
 
 const bytes = new Uint8Array([80, 78, 71]);
-const stream = () => new ReadableStream<Uint8Array>({start(controller) { controller.enqueue(bytes); controller.close(); }});
-type PayloadCall = (fetch: crucible.Fetch, streaming: boolean, contentType?: string, headers?: Record<string, string>) => Promise<void>;
+type PayloadCall = (fetch: crucible.Fetch, contentType?: string, headers?: Record<string, string>) => Promise<void>;
 const payloadCalls: readonly [string, PayloadCall][] = [
-  ["Crucible JSON", async (fetch, streaming, contentType, headers) => {
+  ["Crucible JSON", async (fetch, contentType, headers) => {
     const client = new crucible.PayloadBindingsClient({endpoint: "https://example.test", fetch, headers});
-    if (streaming) await client.uploadStream({data: new crucible.ByteStream(stream(), {length: bytes.length}), contentType});
-    else await client.upload({data: bytes, contentType});
+    await client.upload({data: bytes, contentType});
   }],
 ];
 
 for (const [protocol, call] of payloadCalls) {
-  for (const streaming of [false, true]) {
-    test(`${protocol} renamed ${streaming ? "streaming" : "buffered"} payload sends bytes and media type`, async () => {
-      for (const contentType of [undefined, "image/png"]) {
-        await call(async request => {
-          assert.deepEqual(new Uint8Array(await request.arrayBuffer()), bytes);
-          assert.equal(request.headers.get("content-type"), contentType ?? "application/octet-stream");
-          return new Response(null);
-        }, streaming, contentType);
-      }
-    });
-  }
+  test(`${protocol} renamed payload sends bytes and media type`, async () => {
+    for (const contentType of [undefined, "image/png"]) {
+      await call(async request => {
+        assert.deepEqual(new Uint8Array(await request.arrayBuffer()), bytes);
+        assert.equal(request.headers.get("content-type"), contentType ?? "application/octet-stream");
+        return new Response(null);
+      }, contentType);
+    }
+  });
 }
 
 for (const [protocol, call] of payloadCalls) {
-  for (const streaming of [false, true]) {
-    test(`${protocol} ${streaming ? "streaming" : "buffered"} payload media type outranks a client Content-Type default`, async () => {
-      // A modeled Content-Type member, then the payload's media type, then the client default.
-      for (const [contentType, expected] of [[undefined, "application/octet-stream"], ["image/png", "image/png"]] as const) {
-        await call(async request => {
-          assert.equal(request.headers.get("content-type"), expected);
-          return new Response(null);
-        }, streaming, contentType, {"Content-Type": "text/plain"});
-      }
-    });
-  }
+  test(`${protocol} payload media type outranks a client Content-Type default`, async () => {
+    // A modeled Content-Type member, then the payload's media type, then the client default.
+    for (const [contentType, expected] of [[undefined, "application/octet-stream"], ["image/png", "image/png"]] as const) {
+      await call(async request => {
+        assert.equal(request.headers.get("content-type"), expected);
+        return new Response(null);
+      }, contentType, {"Content-Type": "text/plain"});
+    }
+  });
 }
 
 for (const [sdk, protocol] of [[crucible, "Crucible JSON"]] as const) {

@@ -116,7 +116,7 @@ pub(crate) fn body(
 ) -> Option<Value> {
     if let Some(payload) = &bindings.payload {
         // Raw bytes have no faithful JSON rendering.
-        if matches!(payload.kind, PayloadKind::Blob | PayloadKind::EventStream) {
+        if payload.kind == PayloadKind::Blob {
             return None;
         }
         let member = structure.member(&payload.member)?;
@@ -129,7 +129,7 @@ pub(crate) fn body(
         .filter_map(|m| {
             let value = content.get(&m.name)?;
             let format = bindings.timestamp_formats.get(&m.name).copied();
-            Some((m.wire_name.clone(), service.wire_example(m, value, format)))
+            Some((m.name.clone(), service.wire_example(m, value, format)))
         })
         .collect();
     (!body.is_empty()).then(|| Value::Object(body))

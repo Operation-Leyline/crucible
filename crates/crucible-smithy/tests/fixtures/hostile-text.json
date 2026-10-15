@@ -3,7 +3,7 @@
   "shapes": {
     "example.hostile#Hostile": {
       "type": "service",
-      "version": "1 cr\rver-lf\n ver-ls\u2028 bom\ufeff bidi\u202e end*/",
+      "version": "1 cr\rver-lf\n ver-ls  bom﻿ bidi‮ end*/",
       "operations": [
         {
           "target": "example.hostile#Do"
@@ -11,7 +11,7 @@
       ],
       "traits": {
         "crucible.protocols#json": {},
-        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
       }
     },
     "example.hostile#Do": {
@@ -27,22 +27,9 @@
           "method": "POST",
           "uri": "/do"
         },
-        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```",
-        "smithy.waiters#waitable": {
-          "Done": {
-            "documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```",
-            "acceptors": [
-              {
-                "state": "success",
-                "matcher": {
-                  "success": true
-                }
-              }
-            ]
-          }
-        },
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```",
         "smithy.api#deprecated": {
-          "message": "dep cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+          "message": "dep cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
         }
       }
     },
@@ -50,27 +37,26 @@
       "type": "structure",
       "traits": {
         "smithy.api#input": {},
-        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
       },
       "members": {
         "text": {
           "target": "example.hostile#Text",
           "traits": {
-            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```",
-            "smithy.api#default": "q\" bs\\ d$x ${x} #{x} ls\u2028ps\u2029 bom\ufeff cr\r fin*/"
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```",
+            "smithy.api#default": "q\" bs\\ d$x ${x} #{x} ls ps  bom﻿ cr\r fin*/"
           }
         },
         "kind": {
           "target": "example.hostile#Kind",
           "traits": {
-            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
           }
         },
         "weird": {
           "target": "smithy.api#String",
           "traits": {
-            "smithy.api#jsonName": "a\"b\\c$d#{e}\u2028f",
-            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
           }
         }
       }
@@ -89,14 +75,14 @@
     "example.hostile#Text": {
       "type": "string",
       "traits": {
-        "smithy.api#pattern": "^[\"\\\\$#{}]*\u2028?$",
-        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+        "smithy.api#pattern": "^[\"\\\\$#{}]* ?$",
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
       }
     },
     "example.hostile#Kind": {
       "type": "enum",
       "traits": {
-        "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+        "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
       },
       "members": {
         "QUOTE": {
@@ -120,14 +106,14 @@
         "LINESEP": {
           "target": "smithy.api#Unit",
           "traits": {
-            "smithy.api#enumValue": "l\u2028s\u2029p",
-            "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
+            "smithy.api#enumValue": "l s p",
+            "smithy.api#documentation": "Doc: cr\rlf\r\n nel ls ps  bom﻿ ctl\u0001 end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```"
           }
         },
         "CONTROL": {
           "target": "smithy.api#Unit",
           "traits": {
-            "smithy.api#enumValue": "c\rr\tt\u0001n\u007fd\u0085e\ufeffb"
+            "smithy.api#enumValue": "c\rr\tt\u0001nde﻿b"
           }
         },
         "COMMENT": {
@@ -145,7 +131,7 @@
         "BIDI": {
           "target": "smithy.api#Unit",
           "traits": {
-            "smithy.api#enumValue": "r\u202el\u2066i\u2069m\u200f"
+            "smithy.api#enumValue": "r‮l⁦i⁩m‏"
           }
         }
       }

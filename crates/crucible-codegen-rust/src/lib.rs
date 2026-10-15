@@ -23,7 +23,6 @@ mod client_package;
 mod client_permissions;
 mod debug;
 mod errors;
-mod events;
 mod file;
 mod info;
 mod mcp;
@@ -42,7 +41,6 @@ pub use client::pages_method;
 pub use client_options::ClientOptions;
 pub use client_package::{client_package_name, emit_client_package};
 pub use file::File;
-pub use mcp::exclusions as mcp_exclusions;
 pub use names::escape_identifier;
 pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
@@ -106,22 +104,11 @@ pub struct Options {
 pub fn capabilities() -> crucible_smithy::Capabilities {
     use crucible_smithy::Feature;
     crucible_smithy::Capabilities::new([
-        Feature::JsonName,
         Feature::GreedyLabels,
-        Feature::QueryParams,
-        Feature::PrefixHeaders,
-        Feature::ResponseCode,
-        Feature::Streaming,
-        Feature::EventStreams,
+        Feature::Sparse,
         Feature::IntEnum,
         Feature::BigInteger,
         Feature::BigDecimal,
-        Feature::Sparse,
-        Feature::Sets,
-        Feature::BasicAuth,
-        Feature::ApiKeyAuth,
-        Feature::OptionalAuth,
-        Feature::SigV4,
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
@@ -130,13 +117,7 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
 
 /// Constructs supported by the generated client and its bundled runtime.
 pub fn client_capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new(capabilities().iter().chain([
-        Feature::EndpointHostPrefix,
-        Feature::EndpointRules,
-        Feature::Waiters,
-        Feature::HttpChecksum,
-    ]))
+    capabilities()
 }
 
 pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnostics> {
@@ -274,10 +255,9 @@ pub(crate) fn body_with(
         internal: internal_fn,
     };
     let operations = format!(
-        "{}{}{}{}",
+        "{}{}{}",
         info::redactions(service),
         operations::emit(service, functions, options.mcp, diagnostics),
-        events::statics(service, diagnostics),
         if parent_permissions {
             "\n#[allow(unused_imports)]\nuse super::super::permissions;\n".to_owned()
         } else {

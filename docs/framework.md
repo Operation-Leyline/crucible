@@ -177,7 +177,7 @@ enter the normal operation pipeline; endpoint guards also protect initialization
 and discovery. HTTP authentication refusals preserve their status and challenge.
 
 Descriptors use the External audience projection and share JSON Schema emission
-with OpenAPI. Streaming operations receive explicit build warnings. Outputs are
+with OpenAPI. Outputs are
 checked against their advertised schemas before publication. See
 [serving MCP](mcp.md) for configuration, agent connections, Origin rules,
 authentication hooks, and transport limits.
@@ -271,9 +271,7 @@ CloudFront's origin response timeout is 30 s by default, and a Lambda
 function's own timeout is often longer. Without a budget, CloudFront returns
 504 while the function runs on, billed, and logs an answer nobody receives.
 The after phases and the response are not under the deadline: they are what
-the reserve is for. Neither is a streamed response body, which is read after
-the outcome is settled. An operation reading an input event stream is under
-the deadline for as long as it reads. Work an implementation spawned is not stopped; give
+the reserve is for. Work an implementation spawned is not stopped; give
 it its own timeout from `context.deadline()`.
 
 ## The request pipeline
@@ -342,7 +340,7 @@ It does not add authentication, admission policies, interceptors, or metrics.
 for synchronous work and `Hook::wait` for asynchronous work. The corresponding
 `AsyncMiddleware`, `AsyncOperationAwareMiddleware`, and `AsyncInterceptor`
 helpers let extensions write `async fn` hooks, boxing their futures. A `Job`
-contains a streaming body and is `Send`, not `Sync`; do not retain `&Job`
+is `Send`, not `Sync`; do not retain `&Job`
 across an asynchronous suspension. Borrow a mutable phase view or extract
 shared input/context references first.
 
@@ -378,50 +376,18 @@ selected protocol reads the body. A transport policy needing buffered bytes
 must explicitly await `read_body()`. Header-only admission need not wait for
 a client to send its body. Reads are idempotent, including rejected or cancelled
 reads. The service-wide limit applies before selection; a smaller selected
-operation limit also rejects previously buffered bytes. Streaming HTTP
-payloads remain bounded streams; reading before selection buffers those bytes.
+operation limit also rejects previously buffered bytes.
 
 Native transport `after` hooks receive the encoded response and can change its
 headers, status, or body, including wrapping its stream. `complete` observers
 run after all native response transformations and cannot change the response.
 Completion means response ready, not successful delivery or body exhaustion.
 Cancellation drops request work; hooks are not guaranteed to run when their
-future is dropped. Streaming failures after headers cannot replace the answer;
+future is dropped. Failures after headers cannot replace the answer;
 body wrappers can observe end, error, and drop for delivery-specific metering.
 
-### Cross-origin requests
-
-Smithy `@cors` on a service automatically installs the built-in `middlewares::Cors`
-when `Builder::build` runs, including builders that do not call `defaults()`.
-An empty trait uses origin `*` and a preflight cache age of 600 seconds. Set
-`origin`, `maxAge` (including `-1` to disable caching),
-`additionalAllowedHeaders`, or `additionalExposedHeaders` in the model.
-
-Lowering computes sorted, case-insensitively deduplicated request and response
-header lists across all operations and errors, including authentication headers,
-`content-type`, `x-request-id`, and `X-Crucible-Error`. The generated service
-uses the full server contract, including internal operations and headers;
-client audience projection does not narrow its CORS policy. CORS permission
-does not replace application caller authorization. The generated service carries
-only a static description; the runtime prepares header values once.
-Input `@httpPrefixHeaders` bindings retain their prefixes separately: preflight
-adds matching concrete names from `Access-Control-Request-Headers`, since
-browsers do not interpret partial wildcards such as `x-meta-*`.
-
-Preflight `OPTIONS` with an allowed origin and modeled requested method receives
-an empty 204 response before routing or application authentication, including
-paths that would otherwise return an unknown-operation or method rejection.
-Other requests follow the ordinary pipeline. Every HTTP response
-carries the configured origin and exposed headers, including modeled errors, validation and
-transport rejections, recovered panics, and outer Tower rejection responses.
-Direct JSON invocations do not run HTTP CORS behavior.
-
-Named `origins` require deployment selection and are diagnosed as unsupported.
-Browser-managed Basic or Digest credentials require an explicit origin; those
-policies also return `Access-Control-Allow-Credentials: true`.
-
 `Builder::tower_layer` is an explicit compatibility adapter for existing Tower
-middleware, outside the native pipeline and on every host. It can reuse custom CORS,
+middleware, outside the native pipeline and on every host. It can reuse CORS,
 compression, around-future task scopes, and similar transport machinery. The
 first adapter added is outermost. Its errors must be answered by that adapter,
 and its transformations/body delivery happen after native completion observers.
@@ -561,13 +527,13 @@ Option<String>`, given to `new`:
   Every request it is returned for would share one binding, so that is a
   choice the service makes with `allow_anonymous()`; without it `build`
   refuses an operation in scope that admits anonymous callers
-  (`@optionalAuth`, `@auth([])`, or bindings without authentication
+  (a `public` operation, or bindings without authentication
   metadata), naming it, and a nameless request is the service's internal
   error.
 - **On an operation that requires authentication, an authenticated caller
   is never anonymous.** On such an operation
   (`OperationMetadata::requires_authentication`: an authentication scheme,
-  not `@optionalAuth`, as the API version the request names declares it),
+  as the API version the request names declares it),
   `None` means the closure missed an authenticated caller (a new scheme,
   API keys beside JWTs). The request is refused as the service's internal
   error, whether or not `allow_anonymous` was called, rather than share a
@@ -850,12 +816,8 @@ request's span), so a store must not depend on `Context::current()`. The
 older API version whose model had no token runs unclaimed: its clients
 cannot send one, so they are neither refused nor protected. Replay needs the
 generated `Operation::OUTPUT_FROM_JSON` (and `Operation::IDEMPOTENCY_TOKEN`,
-both on `OperationMetadata`), which only operations with a token and an
-output that does not stream get. A streaming input cannot be fingerprinted
-(its bytes are not in the decoded input), so a retry with other bytes would
-replay the first; building a service whose `Idempotency` covers an operation
-with a streaming input or output therefore fails, naming it: leave it out
-with `.except(&[..])`. One request has one idempotency claim: two
+both on `OperationMetadata`), which only operations with a token get.
+One request has one idempotency claim: two
 `Idempotency` interceptors whose scopes both cover an operation answer its
 requests with the service's internal error (scope them apart with
 `.only(&[..])` and `.except(&[..])`). `DecodedJob::replay_output` is the framework hook the
@@ -1250,9 +1212,7 @@ protocol declining a request must leave it available to later protocols.
   blob in JSON. Lambda's direct invokes arrive this way,
   and `Crucible::invoke(name, input)` calls it in process. The request is
   marked by an extension only the framework sets, so no HTTP client can
-  forge one. Operations with streaming input or output payloads are refused
-  before their implementation runs; invoke envelopes cannot carry these
-  streams. Call those operations through HTTP.
+  forge one.
 
 ### Model-driven authentication
 
@@ -1266,38 +1226,13 @@ Install it explicitly; `defaults()` continues to leave authentication off.
 `Prepare::metadata(operation)`, `OperationJob::metadata()`, and
 `DecodedJob::metadata()` expose the registered `OperationMetadata`: the wire
 protocol, effective auth schemes, required OAuth scopes (and the service default),
-optional-auth and unsigned-payload flags,
-input/output presence, and event-stream descriptions. Context retains it after
+and input/output presence. Context retains it after
 selection through `Context::operation_metadata()`.
 
-Server generation accepts bearer, Basic, API-key, optional-auth, and SigV4
-metadata. Install `OperationAwareMiddleware` to verify credentials or signatures
-before decoding. `defaults()` does not authenticate requests. Providers can add
-custom authentication, signing policy, routing, and serialization through the
-middleware and `Protocol` interfaces; AWS service names are not special cases
-inside the orchestrator. Signed event-stream envelopes require a custom
-protocol that verifies chunk signatures before exposing the enclosed events.
-Protocol extensions can use `Job::take_body_stream()` and `decode_events()`
-to retain generated input decoding and validation. HTTP checksums remain a
-client capability.
-
-### Event streams
-
-HTTP accepts streaming unions as AWS event-stream frames. Inputs stay
-lazy and obey the operation's body limit. Each event is deserialized and
-validated when the operation reads it. Frame checksums and malformed messages
-are checked by the shared wire reader. Other input members bind to the URI or
-headers.
-
-Generated server inputs and outputs use `EventStream<Union>`. Read inputs with
-`open()` and `recv()`; produce outputs with `new`, `try_new`, or `from_events`.
-A modeled error arm becomes an exception frame and ends the response stream.
-Source and encoding failures become a sanitized error frame. Direct invocation
-refuses streaming input or output. Lambda HTTP adapters buffer bodies and do
-not provide interactive streaming; use the native HTTP host for streaming calls.
-
-Response-body consumption happens after pipeline completion. Completion hooks
-observe the response becoming ready, not the last event leaving the connection.
+Server generation accepts bearer authentication metadata. Install
+`OperationAwareMiddleware` to verify credentials before decoding. `defaults()`
+does not authenticate requests. Providers can add custom authentication,
+routing, and serialization through the middleware and `Protocol` interfaces.
 
 ## Errors
 
@@ -1485,7 +1420,7 @@ records carry an internal cause but the response retains a fixed message.
 Completion describes the response after native middleware; it does not
 claim successful delivery or include subsequent tower-layer transformations.
 Invalid modelled response header names or values also produce a serialization
-failure, including headers on modelled errors and streaming responses.
+failure, including headers on modelled errors.
 
 ### Migrating existing services
 
@@ -1501,7 +1436,7 @@ later extension refuses. It records in `complete`, using the final native
 response's status and including serialization in latency. A serialization
 failure therefore records an internal failure even if the operation
 succeeded. Native middleware status changes are reflected in the record.
-Tower layers and delivery of streaming bytes happen afterward.
+Tower layers and delivery of the body happen afterward.
 There are no built-in metric names yet: this is
 plumbing.
 

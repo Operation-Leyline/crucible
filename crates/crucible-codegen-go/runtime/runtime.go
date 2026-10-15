@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -167,27 +166,7 @@ type HTTPClient interface {
 }
 // Config configures endpoint selection, authentication, transport, deadlines and retries. Treat maps and callbacks as immutable after construction.
 type Config struct {
-	// RequestChecksumCalculation Selects WHEN_SUPPORTED (default) or WHEN_REQUIRED request checksums.
-	RequestChecksumCalculation ChecksumPolicy
-	// ResponseChecksumValidation Selects WHEN_SUPPORTED (default) or WHEN_REQUIRED response validation.
-	ResponseChecksumValidation ChecksumPolicy
-	// ChecksumValidated Receives operation and algorithm after a response checksum is verified.
-	ChecksumValidated func(operation, algorithm string)
-	// EndpointParameters Overrides modeled endpoint rule parameters; keep immutable after construction.
-	EndpointParameters map[string]any
-	// EndpointBuiltIns Overrides endpoint built-in values; keep immutable after construction.
-	EndpointBuiltIns map[string]any
-	// DisableHostPrefix Disables the modeled host prefix when true.
-	DisableHostPrefix bool
-	// BasicCredentials Resolves HTTP Basic credentials for each attempt.
-	BasicCredentials func(context.Context) (*BasicCredentials, error)
-	// APIKey Resolves the modeled API key for each attempt.
-	APIKey func(context.Context) (string, error)
-	// Credentials Resolves SigV4 signing credentials for each attempt.
-	Credentials CredentialsProvider
-	// Region AWS region for endpoint rules and signing.
-	Region string
-	// Endpoint Absolute HTTP(S) base URL; optional when endpoint rules resolve it.
+	// Endpoint Absolute HTTP(S) base URL.
 	Endpoint    string
 	// HTTPClient Transport; nil creates an http.Client that refuses redirects. Custom transports remain caller-owned.
 	HTTPClient  HTTPClient
@@ -207,28 +186,19 @@ type Config struct {
 	Middleware  []func(context.Context, *http.Request) error
 	// RetryMode is RetryModeLegacy (the zero value), RetryModeStandard or RetryModeAdaptive.
 	RetryMode RetryMode
-	// EndpointDiscovery is EndpointDiscoveryAuto (the zero value),
-	// EndpointDiscoveryEnabled or EndpointDiscoveryDisabled.
-	EndpointDiscovery EndpointDiscoveryMode
 	// Telemetry observes every call; nil disables telemetry.
 	Telemetry TelemetryHook
-	// Clock replaces the system clock for backoff, rate limiting, discovery
-	// expiry and telemetry; it is a test seam.
+	// Clock replaces the system clock for backoff, rate limiting and
+	// telemetry; it is a test seam.
 	Clock Clock
 }
 type clientRuntime struct {
 	config Config
 	schema *schemaDescription
-	digest bool
-	// One retry quota, rate limiter and discovery cache for every call of the client.
-	retry     *retryStrategy
-	discovery *endpointCache
-	// Header and query names that carry an API key, lowercased, for telemetry redaction.
-	credentialHeaders map[string]bool
-	credentialQuery   map[string]bool
+	// One retry quota and rate limiter for every call of the client.
+	retry *retryStrategy
 }
 type memberDescription struct {
-	JSONName  string
 	Target    string
 	Attribute string
 	Format    string
@@ -236,8 +206,6 @@ type memberDescription struct {
 	Default   any
 	// Sensitive members are redacted from telemetry wherever they are bound.
 	Sensitive bool
-	// Length holds a streaming member's modeled byte bounds.
-	Length    *struct{ Min, Max *int64 }
 }
 type errorDescription struct {
 	WireCode string
@@ -245,8 +213,6 @@ type errorDescription struct {
 	Payload []string
 	PayloadKind string
 	TimestampFormats map[string]string
-	PrefixHeaders [][2]string
-	ResponseCode string
 	Status     int
 	Retryable  bool
 	Throttling bool
@@ -254,7 +220,6 @@ type errorDescription struct {
 }
 type shapeDescription struct {
 	Sensitive bool
-	Streaming bool
 	Sparse bool
 	Set bool
 	Name    string
@@ -280,7 +245,6 @@ func formatModel(schema *schemaDescription, target string, value any) string {
 		if sensitive || shape.Sensitive { return "*** Sensitive Data Redacted ***" }
 		if !value.IsValid() { return "null" }
 		for value.Kind() == reflect.Interface { if value.IsNil() { return "null" }; value = value.Elem() }
-		if shape.Streaming { if value.Kind() == reflect.Pointer && value.IsNil() { return "null" }; return "<stream>" }
 		if value.Kind() == reflect.Pointer && shape.Kind != "structure" && shape.Kind != "union" && shape.Kind != "list" && shape.Kind != "map" { if value.IsNil() { return "null" }; return fmt.Sprint(value.Interface()) }
 		if value.Kind() == reflect.Pointer {
 			if value.IsNil() { return "null" }
@@ -327,15 +291,9 @@ func (s shapeDescription) errorCode() string {
 	if s.Error != nil && s.Error.WireCode != "" { return s.Error.WireCode }; return s.Name
 }
 type bindings struct {
-	// Streaming marks a payload that is sent or returned as a stream.
-	Streaming bool
-	RequiresLength bool
 	HeaderEncodings map[string]string
 	PayloadKind string
 	TimestampFormats map[string]string
-	QueryParams string
-	PrefixHeaders [][2]string
-	ResponseCode string
 	Labels  []string
 	Query   [][2]string
 	Headers [][2]string
@@ -344,14 +302,6 @@ type bindings struct {
 	Payload []string
 }
 type operationDescription struct {
-	Checksum *checksumDescription
-	Endpoint map[string]any
-	EndpointParameters map[string][]map[string]any
-	ResolvedEndpoint *resolvedEndpoint `json:"-"`
-	Waiters map[string]map[string]any
-	Auth []string
-	OptionalAuth bool
-	UnsignedPayload bool
 	GreedyLabels []string
 	Bearer   bool
 	Method   string
@@ -363,24 +313,15 @@ type operationDescription struct {
 	Errors   []string
 	Safe     bool
 	Token    string
-	DiscoveredEndpoint *discoveredEndpointDescription
-}
-
-func (s shapeDescription) wireName(name string) string {
-	if value := s.Members[name].JSONName; value != "" { return value }
-	return name
 }
 
 func (s shapeDescription) knownWire(name string) bool {
-	for key := range s.Members { if s.wireName(key) == name { return true } }
-	return false
+	_, known := s.Members[name]
+	return known
 }
 type schemaDescription struct {
 	Service string
 	APIVersion string `json:"apiVersion"`
-	EndpointRules map[string]any
-	EndpointDiscovery *endpointDiscoveryDescription
-	AuthSchemes map[string]authScheme
 	Shapes     map[string]shapeDescription
 	Operations map[string]operationDescription
 	Bearer     bool
@@ -395,12 +336,9 @@ func mustSchema(text string) *schemaDescription {
 	}
 	return &schema
 }
-func newClient(config Config, schema *schemaDescription, digest bool) (*clientRuntime, error) {
-	for _,policy := range []ChecksumPolicy{config.RequestChecksumCalculation,config.ResponseChecksumValidation} {
-		if policy != "" && policy != ChecksumWhenSupported && policy != ChecksumWhenRequired { return nil,errors.New("checksum policy must be WHEN_SUPPORTED or WHEN_REQUIRED") }
-	}
+func newClient(config Config, schema *schemaDescription) (*clientRuntime, error) {
 	endpoint, err := url.Parse(config.Endpoint)
-	if !(config.Endpoint == "" && schema.EndpointRules != nil) && (err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.User != nil) {
+	if (err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.User != nil) {
 		return nil, errors.New("an absolute HTTP(S) endpoint without credentials, query, or fragment is required")
 	}
 	config.Endpoint = strings.TrimRight(config.Endpoint, "/")
@@ -430,26 +368,14 @@ func newClient(config Config, schema *schemaDescription, digest bool) (*clientRu
 		config.Headers = headers
 	}
 	config.Middleware = append([]func(context.Context, *http.Request) error(nil), config.Middleware...)
-	config.EndpointParameters, err = copyEndpointParameters(config.EndpointParameters); if err != nil { return nil,err }
-	config.EndpointBuiltIns, err = copyEndpointParameters(config.EndpointBuiltIns); if err != nil { return nil,err }
 	switch config.RetryMode {
 	case "": config.RetryMode = RetryModeLegacy
 	case RetryModeLegacy, RetryModeStandard, RetryModeAdaptive:
 	default: return nil, errors.New("RetryMode must be legacy, standard or adaptive")
 	}
-	switch config.EndpointDiscovery {
-	case "": config.EndpointDiscovery = EndpointDiscoveryAuto
-	case EndpointDiscoveryAuto, EndpointDiscoveryEnabled, EndpointDiscoveryDisabled:
-	default: return nil, errors.New("EndpointDiscovery must be auto, enabled or disabled")
-	}
 	if config.Clock == nil { config.Clock = systemClock{} }
-	runtime := &clientRuntime{config: config, schema: schema, digest: digest, credentialHeaders: map[string]bool{}, credentialQuery: map[string]bool{}}
+	runtime := &clientRuntime{config: config, schema: schema}
 	runtime.retry = newRetryStrategy(config.RetryMode, config.Clock)
-	if schema.EndpointDiscovery != nil { runtime.discovery = newEndpointCache(runtime.retry.now) }
-	for _, scheme := range schema.AuthSchemes {
-		if scheme.Kind != "apiKey" { continue }
-		if scheme.Location == "query" { runtime.credentialQuery[strings.ToLower(scheme.Name)] = true } else { runtime.credentialHeaders[strings.ToLower(scheme.Name)] = true }
-	}
 	return runtime, nil
 }
 
@@ -499,11 +425,6 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 	if shape.Kind == "unit" {
 		return map[string]any{}, nil
 	}
-	if shape.Streaming && shape.Kind == "blob" {
-		// A stream travels as the caller's reader; the call resolves it.
-		if !value.IsValid() || (value.Kind() == reflect.Interface || value.Kind() == reflect.Pointer) && value.IsNil() { return nil, nil }
-		return value.Interface(), nil
-	}
 	value = unwrap(value)
 	if !value.IsValid() {
 		return nil, nil
@@ -542,8 +463,7 @@ func encodeValue(schema *schemaDescription, target string, value reflect.Value, 
 		return data, nil
 	case "structure", "union":
 		result := map[string]any{}
-		for key, member := range shape.Members {
-			wire := shape.wireName(key)
+		for wire, member := range shape.Members {
 			field := value.FieldByName(member.Attribute)
 			if field.IsValid() && field.CanInterface() {
 				if _, optional := field.Interface().(optionalField); optional {
@@ -621,12 +541,6 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 		out.SetZero()
 		return nil
 	}
-	if shape.Streaming && shape.Kind == "blob" {
-		stream := reflect.ValueOf(value)
-		if !stream.Type().AssignableTo(out.Type()) { return errors.New("streaming blob field cannot hold a stream") }
-		out.Set(stream)
-		return nil
-	}
 	for out.Kind() == reflect.Pointer {
 		if out.IsNil() {
 			out.Set(reflect.New(out.Type().Elem()))
@@ -689,8 +603,7 @@ func decodeValue(schema *schemaDescription, target string, value any, out reflec
 				}
 			}
 		}
-		for key, member := range shape.Members {
-			wire := shape.wireName(key)
+		for wire, member := range shape.Members {
 			item, present := object[wire]
 			if !present && member.Default != nil {
 				item = member.Default
@@ -994,7 +907,7 @@ func (c *clientRuntime) callValues(ctx context.Context, name string, values map[
 }
 
 // classify returns a failed attempt's retry reason, or "" when it is not retryable.
-func (c *clientRuntime) classify(op operationDescription, transportErr, err error, discovered *discoveredAddress) string {
+func (c *clientRuntime) classify(op operationDescription, transportErr, err error) string {
 	if transportErr != nil {
 		if !op.Safe { return "" }
 		var timeout net.Error
@@ -1003,8 +916,6 @@ func (c *clientRuntime) classify(op operationDescription, transportErr, err erro
 	}
 	var service *ServiceError
 	if !errors.As(err, &service) { return "" }
-	// A misdirected request was not processed, so even a write may be resent.
-	if discovered != nil && c.invalidates(err) { return "endpoint" }
 	if service.Throttling { return "throttling" }
 	if canRetry(op.Safe, service) { return "transient" }
 	return ""
@@ -1017,42 +928,13 @@ func throttled(err error) bool {
 
 func (c *clientRuntime) send(ctx context.Context, name string, values map[string]any, trace *callTrace) (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(ctx, c.config.Timeout)
-	// A streamed response keeps the deadline, released when its body ends or closes.
-	streamed := false
-	defer func() { if !streamed { cancel() } }()
+	defer cancel()
 	op := c.schema.Operations[name]
 	inputShape := c.schema.Shapes[op.Input]
 	// Defaults and generated tokens belong to this call, including its retries.
 	values = maps.Clone(values)
 	if values == nil { values = map[string]any{} }
-	var source *streamSource
-	var streamMember memberDescription
-	if op.Request.Streaming {
-		streamMember = inputShape.Members[op.Request.Payload[0]]
-		var err error
-		if source, err = newStreamSource(values[inputShape.wireName(op.Request.Payload[0])]); err != nil { return nil, err }
-		if source != nil {
-			defer source.release()
-			if err := source.check(streamMember, op.Request.RequiresLength); err != nil { return nil, err }
-		} else if streamMember.Length != nil && streamMember.Length.Min != nil && *streamMember.Length.Min > 0 {
-			return nil, fmt.Errorf("%w: an absent stream is below the modeled minimum", ErrStreamLength)
-		}
-	}
-	checksum,err := prepareChecksum(op.Checksum,inputShape,values,c.config.RequestChecksumCalculation,c.config.ResponseChecksumValidation,source != nil)
-	if err != nil { return nil,err }
-	endpoint := c.config.Endpoint
-	if c.schema.EndpointRules != nil || op.Endpoint != nil {
-		input,err := c.queryModel(op.Input,values,""); if err != nil { return nil,err }
-		if c.schema.EndpointRules != nil {
-			builtins,_ := copyEndpointParameters(c.config.EndpointBuiltIns)
-			if _,present := builtins["AWS::Region"]; !present && c.config.Region != "" { builtins["AWS::Region"] = c.config.Region }
-			if _,present := builtins["SDK::Endpoint"]; !present && endpoint != "" { builtins["SDK::Endpoint"] = endpoint }
-			resolved,err := resolveEndpoint(c.schema.EndpointRules,op.EndpointParameters,input,c.config.EndpointParameters,builtins); if err != nil { return nil,err }
-			op.ResolvedEndpoint = resolved; endpoint = resolved.URL
-		}
-		if op.Endpoint != nil && !c.config.DisableHostPrefix { endpoint,err = prefixEndpoint(endpoint,op.Endpoint,input); if err != nil { return nil,err } }
-	}
-	if op.Token != "" && values[inputShape.wireName(op.Token)] == nil {
+	if op.Token != "" && values[op.Token] == nil {
 		id := make([]byte, 16)
 		if _, err := rand.Read(id); err != nil {
 			return nil, err
@@ -1060,12 +942,12 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		id[6] = (id[6] & 15) | 64
 		id[8] = (id[8] & 63) | 128
 		text := hex.EncodeToString(id)
-		values[inputShape.wireName(op.Token)] = text[:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:]
+		values[op.Token] = text[:8] + "-" + text[8:12] + "-" + text[12:16] + "-" + text[16:20] + "-" + text[20:]
 	}
 	boundValues := map[string]any{}
 	for key, value := range values { boundValues[key] = value }
 	for name, format := range op.Request.TimestampFormats {
-		key := inputShape.wireName(name)
+		key := name
 		var err error
 		boundValues[key], err = boundMember(c.schema, inputShape.Members[name], values[key], format)
 		if err != nil { return nil, err }
@@ -1074,12 +956,9 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 	// Telemetry shows where sensitive members went without their values.
 	display := op.URI
 	traced := c.config.Telemetry != nil
-	sensitiveHeaders, sensitiveQuery := c.credentialHeaders, c.credentialQuery
-	if traced {
-		sensitiveHeaders, sensitiveQuery = maps.Clone(c.credentialHeaders), maps.Clone(c.credentialQuery)
-	}
+	sensitiveHeaders, sensitiveQuery := map[string]bool{}, map[string]bool{}
 	for _, key := range op.Request.Labels {
-		text, err := boundValue(boundValues[inputShape.wireName(key)])
+		text, err := boundValue(boundValues[key])
 		if err != nil || text == "" {
 			return nil, fmt.Errorf("%s is required", key)
 		}
@@ -1102,7 +981,7 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 	display, _, _ = strings.Cut(display, "?")
 	query := []string{}
 	for _, binding := range op.Request.Query {
-		value := boundValues[inputShape.wireName(binding[0])]
+		value := boundValues[binding[0]]
 		if value == nil {
 			continue
 		}
@@ -1119,28 +998,6 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			query = append(query, escape(binding[1])+"="+escape(text))
 		}
 	}
-	if key := op.Request.QueryParams; key != "" {
-		if entries, ok := values[inputShape.wireName(key)].(map[string]any); ok {
-			reserved := map[string]bool{}
-			for _, binding := range op.Request.Query { reserved[binding[1]] = true }
-			parsed, _ := url.Parse(uri)
-			for name := range parsed.Query() { reserved[name] = true }
-			keys := make([]string, 0, len(entries))
-			for name := range entries { keys = append(keys, name) }
-			sort.Strings(keys)
-			for _, name := range keys {
-				if reserved[name] { continue }
-				if traced && inputShape.Members[key].Sensitive { sensitiveQuery[strings.ToLower(name)] = true }
-				items, ok := entries[name].([]any)
-				if !ok { items = []any{entries[name]} }
-				for _, item := range items {
-					text, err := boundValue(item)
-					if err != nil { return nil, err }
-					query = append(query, escape(name)+"="+escape(text))
-				}
-			}
-		}
-	}
 	if len(query) > 0 {
 		if strings.Contains(uri, "?") {
 			uri += "&"
@@ -1153,28 +1010,12 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 	if headers == nil {
 		headers = http.Header{}
 	}
-	if op.ResolvedEndpoint != nil { for name,values := range op.ResolvedEndpoint.Headers { headers.Del(name); for _,value := range values { headers.Add(name,value) } } }
-	reservedHeaders := map[string]bool{}
-	for _, binding := range op.Request.Headers { reservedHeaders[strings.ToLower(binding[1])] = true }
-	for _, binding := range op.Request.PrefixHeaders {
-		if entries, ok := values[inputShape.wireName(binding[0])].(map[string]any); ok {
-			for suffix, item := range entries {
-				name := binding[1] + suffix
-				if traced && inputShape.Members[binding[0]].Sensitive { sensitiveHeaders[strings.ToLower(name)] = true }
-				if reservedHeaders[strings.ToLower(name)] { continue }
-				if op.Request.HeaderEncodings[binding[0]] == "base64" { var err error; item,err = mediaValue(item,false); if err != nil { return nil,err } }
-				text, err := boundValue(item)
-				if err != nil { return nil, err }
-				headers.Set(name, text)
-			}
-		}
-	}
 	// A Content-Type bound to an input member outranks the payload's media
-	// type, which outranks endpoint and client header defaults.
+	// type, which outranks client header defaults.
 	modelledContentType := false
 	for _, binding := range op.Request.Headers {
 		if traced && inputShape.Members[binding[0]].Sensitive { sensitiveHeaders[strings.ToLower(binding[1])] = true }
-		value := boundValues[inputShape.wireName(binding[0])]
+		value := boundValues[binding[0]]
 		if value == nil {
 			continue
 		}
@@ -1192,7 +1033,6 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 	if len(op.Request.Body) > 0 {
 		object := map[string]any{}
 		for _, key := range op.Request.Body {
-			key = inputShape.wireName(key)
 			if value, present := values[key]; present {
 				object[key] = value
 			}
@@ -1204,11 +1044,8 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		}
 		headers.Set("Content-Type", "application/json")
 	}
-	if source != nil {
-		if !modelledContentType { headers.Set("Content-Type", op.Request.Payload[1]) }
-		if source.sha256 != "" { headers.Set("X-Amz-Content-Sha256", source.sha256) }
-	} else if len(op.Request.Payload) == 2 && !op.Request.Streaming {
-		if payload, present := values[inputShape.wireName(op.Request.Payload[0])]; present && (payload != nil || op.Request.PayloadKind == "document") {
+	if len(op.Request.Payload) == 2 {
+		if payload, present := values[op.Request.Payload[0]]; present && (payload != nil || op.Request.PayloadKind == "document") {
 			switch op.Request.PayloadKind {
 			case "string": body = []byte(payload.(string))
 			case "document": var err error; body, err = json.Marshal(payload); if err != nil { return nil, err }
@@ -1219,23 +1056,13 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 	}
 	// The release this client was generated for (docs/api-versions-clients.md).
 	if c.schema.APIVersion != "" { headers.Set("Crucible-Version", c.schema.APIVersion) }
-	discovery, err := c.discoveryRequest(name, op, inputShape, values)
-	if err != nil { return nil, err }
-	endpointSource := "configured"
-	if c.schema.EndpointRules != nil { endpointSource = "rules" }
 	maxAttempts := c.config.MaxAttempts
-	// A one-shot stream is opened once, so its operation is never retried.
-	if source != nil && !source.replayable { maxAttempts = 1 }
+	endpoint := strings.TrimRight(c.config.Endpoint, "/")
 	lastCost := 0
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		discovered, err := c.discover(ctx, discovery)
-		if err != nil { return nil, err }
-		attemptEndpoint, attemptSource := strings.TrimRight(endpoint, "/"), endpointSource
-		// A discovered address replaces the endpoint, host prefix included.
-		if discovered != nil { attemptEndpoint, attemptSource = discovered.url, "discovered" }
 		if wait := c.retry.sendDelay(); wait > 0 {
 			if deadline, ok := ctx.Deadline(); ok && wait >= time.Until(deadline) {
 				c.retry.cancelSend()
@@ -1246,31 +1073,12 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 				return nil, err
 			}
 		}
-		request, err := http.NewRequestWithContext(ctx, op.Method, attemptEndpoint+uri, bytes.NewReader(body))
+		request, err := http.NewRequestWithContext(ctx, op.Method, endpoint+uri, bytes.NewReader(body))
 		if err != nil {
 			return nil, err
 		}
-		var stream *streamBody
-		if source != nil {
-			stream = newStreamBody(source, streamMember)
-			stream.install(request)
-			// On cancellation net/http closes the connection but then waits for its
-			// write loop, which may be blocked reading the caller's stream, so Do
-			// would never return: closing the body ends that read.
-			stop := context.AfterFunc(ctx, func() { stream.Close() })
-			// Every return closes the attempt's body too: one that failed before Do,
-			// and one the transport is still reading after an early response. A
-			// streamed response keeps the request body open, as a full-duplex
-			// exchange needs, until that response ends and releases the context.
-			defer func() {
-				if !streamed {
-					stop()
-					stream.Close()
-				}
-			}()
-		}
 		request.Header = headers.Clone()
-		credentials, sign, err := c.authenticate(ctx, request, op)
+		credentials, err := c.authenticate(ctx, request, op)
 		if err != nil { return nil, err }
 		for _, middleware := range c.config.Middleware {
 			if err := middleware(ctx, request); err != nil {
@@ -1285,36 +1093,8 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 				return nil, errors.New("refusing to send credentials over plaintext HTTP outside loopback")
 			}
 		}
-		if _, isStream := request.Body.(*streamBody); isStream && c.digest {
-			// Streams are never buffered to hash them: the digest is declared.
-			if request.Header.Get("X-Amz-Content-Sha256") == "" { return nil, fmt.Errorf("%w: declare it with ByteStream.WithSHA256 or set x-amz-content-sha256", ErrStreamDigest) }
-		} else if c.digest && (request.Body != nil || request.Method == "POST" || request.Method == "PUT" || request.Method == "PATCH") {
-			var data []byte
-			var err error
-			if request.Body != nil {
-				data, err = io.ReadAll(request.Body)
-				request.Body.Close()
-			}
-			if err != nil {
-				return nil, err
-			}
-			request.ContentLength = int64(len(data))
-			if len(data) == 0 {
-				request.Body = http.NoBody
-				request.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
-			} else {
-				request.Body = io.NopCloser(bytes.NewReader(data))
-				request.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil }
-			}
-			if len(data) > 0 || request.Method == "POST" || request.Method == "PUT" || request.Method == "PATCH" {
-				sum := sha256.Sum256(data)
-				request.Header.Set("x-amz-content-sha256", hex.EncodeToString(sum[:]))
-			}
-		}
-		if err := checksum.request(request); err != nil { return nil,err }
-		if sign != nil { if err := sign(); err != nil { return nil, err } }
 		if err := ctx.Err(); err != nil { return nil, err }
-		trace.attemptStarted(request, attemptEndpoint, attemptSource, display, sensitiveHeaders, sensitiveQuery)
+		trace.attemptStarted(request, endpoint, display, sensitiveHeaders, sensitiveQuery)
 		response, transportErr := c.config.HTTPClient.Do(request)
 		// interrupted ends an attempt with a failure that is never retried; a
 		// response that arrived still counts toward the measured rate.
@@ -1323,30 +1103,10 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 			trace.attemptFinished(response, err, size, "", 0)
 			return nil, err
 		}
-		if stream != nil {
-			if err := ctx.Err(); err != nil {
-				if response != nil { response.Body.Close() }
-				return interrupted(-1, err)
-			}
-			if err := stream.err(); err != nil {
-				// The caller's stream failed or broke its length: never a retried NetworkError.
-				if response != nil { response.Body.Close() }
-				return interrupted(-1, err)
-			}
-		}
-		if transportErr == nil && op.Response.Streaming && response.StatusCode >= 200 && response.StatusCode < 300 {
-			result, err := c.streamResponse(ctx, cancel, name, op, response, checksum)
-			if err != nil { response.Body.Close(); return interrupted(-1, err) }
-			streamed = true
-			c.retry.afterAttempt(false)
-			c.retry.succeeded(lastCost)
-			trace.attemptFinished(response, nil, response.ContentLength, "", 0)
-			return result, nil
-		}
 		var data []byte
 		size := int64(-1)
 		if response != nil {
-			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0 || len(checksum.Response)>0) {
+			if transportErr == nil && (response.StatusCode < 200 || response.StatusCode >= 300 || len(op.Response.Body) > 0 || len(op.Response.Payload) > 0) {
 				data, transportErr = io.ReadAll(response.Body)
 			}
 			response.Body.Close()
@@ -1359,10 +1119,6 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		if transportErr != nil {
 			lastErr = &NetworkError{Cause: transportErr}
 		} else {
-			if response.StatusCode >= 200 && response.StatusCode < 300 {
-				algorithm,err := checksum.response(response.Header,data); if err != nil { return interrupted(size, err) }
-				if algorithm != "" && c.config.ChecksumValidated != nil { c.config.ChecksumValidated(name,algorithm) }
-			}
 			result, err := c.decode(op, response, data)
 			if err == nil {
 				c.retry.afterAttempt(false)
@@ -1376,8 +1132,7 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		}
 		// Record the failed attempt, then decide whether, and when, to retry.
 		c.retry.afterAttempt(throttled(lastErr))
-		if discovered != nil && c.invalidates(lastErr) { c.discovery.invalidate(discovery.key, discovered) }
-		reason := c.classify(op, transportErr, lastErr, discovered)
+		reason := c.classify(op, transportErr, lastErr)
 		if reason == "" || attempt == maxAttempts {
 			trace.attemptFinished(response, lastErr, size, "", 0)
 			return nil, lastErr
@@ -1390,8 +1145,6 @@ func (c *clientRuntime) send(ctx context.Context, name string, values map[string
 		delay := retryDelayWith(attempt, response, c.config.BaseDelay, c.config.MaxDelay, c.retry.jitter)
 		trace.attemptFinished(response, lastErr, size, reason, delay)
 		lastCost = cost
-		// Fence the attempt's body before a retry reopens or rewinds its source.
-		if stream != nil { stream.Close() }
 		if deadline, ok := ctx.Deadline(); ok && delay >= time.Until(deadline) {
 			return nil, lastErr
 		}
@@ -1432,24 +1185,12 @@ func retryDelayWith(attempt int, response *http.Response, base, max time.Duratio
 }
 func (c *clientRuntime) responseBindings(target string, binding bindings, response *http.Response, values map[string]any) error {
 	shape := c.schema.Shapes[target]
-	for _, prefix := range binding.PrefixHeaders {
-		entries := map[string]any{}
-		for key, value := range response.Header {
-			if strings.HasPrefix(strings.ToLower(key), strings.ToLower(prefix[1])) {
-				var item any = strings.Join(value, ", ")
-				if binding.HeaderEncodings[prefix[0]] == "base64" { var err error; item,err = mediaValue(item,true); if err != nil { return err } }
-				entries[key[len(prefix[1]):]] = item
-			}
-		}
-		values[shape.wireName(prefix[0])] = entries
-	}
-	if binding.ResponseCode != "" { values[shape.wireName(binding.ResponseCode)] = json.Number(strconv.Itoa(response.StatusCode)) }
 	for _, entry := range binding.Headers {
 		if text, present := response.Header[http.CanonicalHeaderKey(entry[1])]; present {
 			value, err := headerValue(c.schema, shape.Members[entry[0]], strings.Join(text, ", "), binding.TimestampFormats[entry[0]])
 			if err != nil { return err }
 			if binding.HeaderEncodings[entry[0]] == "base64" { value, err = mediaValue(value, true); if err != nil { return err } }
-			values[shape.wireName(entry[0])] = value
+			values[entry[0]] = value
 		}
 	}
 	return nil
@@ -1461,7 +1202,7 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		if len(op.Response.Payload) == 2 {
 			value, err := payloadValue(op.Response.PayloadKind, data)
 			if err != nil { return nil, err }
-			values[c.schema.Shapes[op.Output].wireName(op.Response.Payload[0])] = value
+			values[op.Response.Payload[0]] = value
 		} else if len(data) > 0 {
 			value, err := parseJSON(data)
 			if err != nil {
@@ -1521,9 +1262,9 @@ func (c *clientRuntime) decode(op operationDescription, response *http.Response,
 		if len(shape.Error.Payload) == 2 {
 			value, err := payloadValue(shape.Error.PayloadKind, data)
 			if err != nil { return nil, metadata }
-			values = map[string]any{shape.wireName(shape.Error.Payload[0]): value}
+			values = map[string]any{shape.Error.Payload[0]: value}
 		}
-		if err := c.responseBindings(target, bindings{Headers:shape.Error.Headers, PrefixHeaders:shape.Error.PrefixHeaders, ResponseCode:shape.Error.ResponseCode, TimestampFormats:shape.Error.TimestampFormats, HeaderEncodings:shape.Error.HeaderEncodings}, response, values); err != nil {
+		if err := c.responseBindings(target, bindings{Headers:shape.Error.Headers, TimestampFormats:shape.Error.TimestampFormats, HeaderEncodings:shape.Error.HeaderEncodings}, response, values); err != nil {
 			// Preserve wire failure metadata if a modeled binding is malformed.
 			return nil, metadata
 		}

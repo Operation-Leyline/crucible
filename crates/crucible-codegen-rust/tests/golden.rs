@@ -11,20 +11,6 @@ use serde_json::{Value, json};
 const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 #[test]
-fn auth_chain_server_metadata_matches_golden() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/auth-chain.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-    .unwrap();
-    matches_golden(
-        &generate(&service, &Options::default()).unwrap(),
-        "auth_chain.rs",
-    );
-}
-
-#[test]
 fn scoped_server_metadata_matches_golden() {
     let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/scopes.json"
@@ -155,33 +141,6 @@ fn a_designated_not_found_error_matches_golden() {
     let leyline = generate(&leyline(), &Options::default()).unwrap();
     assert!(!leyline.contains("with_not_found"), "{leyline}");
     assert!(!leyline.contains("permission_not_found"), "{leyline}");
-}
-
-#[test]
-fn cors_server_description_matches_golden() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/cors.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-    .unwrap();
-    let code = generate(&service, &Options::default()).unwrap();
-    matches_golden(&code, "cors.rs");
-}
-
-#[test]
-fn legacy_enum_server_and_client_match_goldens() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/legacy-enum.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
-    matches_golden(
-        &generate(&service, &Options::default()).unwrap(),
-        "legacy_enum.rs",
-    );
-    matches_golden(&generate_client(&service).unwrap(), "legacy_enum_client.rs");
 }
 
 #[test]
@@ -836,21 +795,7 @@ fn scaffold_escapes_keyword_identifiers_in_modules_and_preserves_file_stems() {
 }
 
 #[test]
-fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/checksums.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
-    .unwrap();
-    let client = generate_client(&service).unwrap();
-    assert!(
-        client.contains(
-            "Some(::crucible_client_runtime_rust::__generated::operation::Checksum::Md5)"
-        )
-    );
-    assert!(client.contains("request_algorithm_member: Some(\"algorithm\"), validation_mode_member: Some(\"validation\")"));
-    assert!(client.contains("ChecksumAlgorithm::Crc64Nvme"));
+fn payload_kinds_and_media_headers_reach_client_markers() {
     let mut ast: Value = serde_json::from_str(include_str!(
         "../../crucible-smithy/tests/fixtures/error-payloads.json"
     ))
@@ -867,7 +812,6 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
     assert!(client.contains(
         "Scalar::List(&::crucible_client_runtime_rust::__generated::operation::Scalar::Base64)"
     ));
-    assert!(client.contains("Location::PrefixHeaders(\"x-extra-\"), ::crucible_client_runtime_rust::__generated::operation::Scalar::Base64"));
     // The error's payload is described too, so its body decodes as text.
     assert!(client.contains(
         "member_info(\"details\", ::crucible_client_runtime_rust::__generated::operation::Location::TextPayload"
@@ -883,45 +827,6 @@ fn checksums_payload_kinds_and_media_headers_reach_client_markers() {
             .unwrap()
             .contains("Scalar::Base64")
     );
-}
-
-#[test]
-fn keyword_operation_derivatives_and_outputless_waiters_use_valid_names_and_types() {
-    let model = include_str!("fixtures/keyword-waiters.json");
-    let service = Model::from_json(model)
-        .unwrap()
-        .lower_with_capabilities(
-            None,
-            &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
-        )
-        .unwrap();
-    let code = generate_client(&service).unwrap();
-    assert!(code.contains("pub async fn r#type("));
-    assert!(code.contains("pub async fn type_with_options_2("));
-    assert!(code.contains("pub async fn wait_until_match_2("));
-    assert!(code.contains(
-        "WaiterResult<::crucible_client_runtime_rust::__generated::operation::Unit, TypeError>"
-    ));
-    assert!(!code.contains("wait_until_r#"));
-}
-
-#[test]
-fn paginated_endpoint_metadata_matches_the_golden_file() {
-    let source = include_str!("../../../e2e/weather-client/tests/fixtures/endpoints.json");
-    let service = Model::from_json(source)
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
-        .unwrap();
-    let code = generate_client(&service).unwrap();
-    assert!(code.contains(".metadata(&__crucible_metadata_Read)"));
-    let pages = code
-        .split("    /// Every page of Read, one request each.\n")
-        .nth(1)
-        .unwrap()
-        .split("\n    }\n")
-        .next()
-        .unwrap();
-    matches_golden(&format!("{pages}\n    }}\n"), "paginated_endpoints.rs");
 }
 
 #[test]
@@ -975,34 +880,10 @@ fn only_tokened_operations_with_buffered_outputs_can_replay() {
     // CreateCity has a token and a buffered output; nothing else replays.
     assert_eq!(code.matches("const IDEMPOTENCY_TOKEN").count(), 1, "{code}");
     assert_eq!(code.matches("const OUTPUT_FROM_JSON").count(), 1, "{code}");
-    assert!(
-        code.contains("PaginationMember { name: \"clientToken\", wire_name: \"clientToken\" }")
-    );
+    assert!(code.contains("PaginationMember { name: \"clientToken\" }"));
     assert!(
         !generate_client(&edited(|_| {}))
             .unwrap()
             .contains("IDEMPOTENCY_TOKEN")
     );
-
-    // A token on an operation whose output streams is described, but its
-    // output is never read back: a stream cannot be replayed.
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    model["shapes"]["example.weather#Photo"]["traits"]["smithy.api#streaming"] = json!({});
-    for (shape, member) in [
-        ("example.weather#GetCityPhotoOutput", "photo"),
-        ("example.weather#PutCityPhotoInput", "photo"),
-    ] {
-        model["shapes"][shape]["members"][member]["traits"]["smithy.api#required"] = json!({});
-    }
-    model["shapes"]["example.weather#GetCityPhotoInput"]["members"]["token"] = json!({
-        "target": "smithy.api#String",
-        "traits": { "smithy.api#idempotencyToken": {} }
-    });
-    let streaming = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .unwrap();
-    let code = generate(&streaming, &Options::default()).unwrap();
-    assert_eq!(code.matches("const IDEMPOTENCY_TOKEN").count(), 2, "{code}");
-    assert_eq!(code.matches("const OUTPUT_FROM_JSON").count(), 1, "{code}");
 }

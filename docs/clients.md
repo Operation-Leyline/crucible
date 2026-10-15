@@ -57,7 +57,7 @@ the design in [SDK packaging](sdk-packaging.md).
 
 The TypeScript, Python and Go clients preserve Smithy documentation on models,
 members, enum values and operations. Their client and runtime documentation also
-describes configuration, transport ownership, retries, pagination and waiters.
+describes configuration, transport ownership, retries and pagination.
 TypeScript retains CommonMark in escaped documentation comments. Python docstrings
 and Go doc comments render CommonMark as readable text, preserving links and code.
 
@@ -66,7 +66,7 @@ collections. TypeScript models are plain interfaces and aliases; error classes
 provide `toString` and Node.js inspection. These formatters omit absent members,
 display explicit nulls, and replace sensitive members and sensitive targets with
 `*** Sensitive Data Redacted ***`. Unknown union payloads are also redacted.
-Streams are described without reading them. Native scalar and collection aliases
+Native scalar and collection aliases
 retain their language's own formatting when used outside a modeled container.
 
 Formatting does not change equality or hashing:
@@ -200,8 +200,8 @@ cargo run -p crucible-cli -- generate ts model.json \
 
 For a ready model in this checkout, use
 [`crates/crucible-smithy/tests/fixtures/weather.json`](../crates/crucible-smithy/tests/fixtures/weather.json).
-Each target has `generate <target> --help`. Target identity, endpoint, and body
-digest configuration are explicit; no runtime checks a Leyline operation name.
+Each target has `generate <target> --help`. Target identity and endpoint
+configuration are explicit; no runtime checks a Leyline operation name.
 
 Native client generation tracks its generated files in `.crucible`. Regeneration
 updates those files and removes obsolete generated files, preserving handwritten
@@ -221,13 +221,13 @@ and naming. Unsupported constructs produce diagnostics rather than disappearing
 from generated code. See [design and protocol](design.md) for ownership and wire rules.
 
 A `blob` is bytes in the native language, standard padded base64 in JSON, and raw
-bytes when used as an `@httpPayload`. Body digests must cover the final bytes sent.
+bytes when used as an `@httpPayload`.
 Timestamp and integer precision depend on the native representation: consult the
 language guide before using nanosecond timestamps or the entire signed 64-bit range.
 Absent, null, unknown enum, and unknown union handling also vary by target.
 
-Operations inherit service authentication unless they declare an `@auth` override.
-An operation with `@auth([])` does not invoke the configured bearer-token provider.
+Operations inherit service authentication unless they are `public`.
+A public operation does not invoke the configured bearer-token provider.
 Regenerate clients when upgrading the generator and runtime together; older
 generated metadata does not carry these operation-level authentication decisions.
 
@@ -242,17 +242,8 @@ normalization can change the resource they address. Targets advertising
 base64 in headers. Other targets diagnose that binding until their native
 qualification passes. Media types on blob payloads remain supported.
 
-When enabled, bundled body-digest middleware adds `x-amz-content-sha256` to
-requests with a body and to every `POST`, `PUT`, and `PATCH`. A write without a
-body uses the SHA-256 of zero bytes:
-`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
-The middleware does not add a digest to bodiless `GET` or `DELETE` requests.
-See each language's transport configuration for digest and streaming-body options.
-
-All modeled operations remain directly available. Targets advertising `waiters`
-generate polling helpers from Smithy acceptors, with an explicit caller deadline.
-Service-specific helpers such as carrying a read-consistency generation belong
-above the client runtime.
+All modeled operations remain directly available. Service-specific helpers
+such as carrying a read-consistency generation belong above the client runtime.
 
 ## HTTP retry contract
 
@@ -277,8 +268,8 @@ a status can identify exactly one declared error. HTTP 402 alone never retries;
 501 and other unrecognized 5xx statuses need explicit model retryability.
 
 Backoff, `Retry-After`, deadlines, cancellation, middleware ordering, and transport
-ownership are documented per language. Retry quotas, adaptive rate limiting,
-endpoint discovery and telemetry follow the [SDK runtime policy](sdk-runtime-policy.md). A per-attempt transport timeout does not
+ownership are documented per language. Retry quotas, adaptive rate limiting
+and telemetry follow the [SDK runtime policy](sdk-runtime-policy.md). A per-attempt transport timeout does not
 establish an overall call deadline.
 
 ## Public API conventions
@@ -308,7 +299,7 @@ doc format (Javadoc, KDoc, C# XML documentation). Smithy `@documentation` is
 converted from CommonMark once, in `crucible-codegen-common`: paragraphs, lists,
 code, emphasis, links and headings carry over, and everything else, raw HTML
 included, is escaped so it cannot close the comment or break the markup.
-Crucible's own types (client, configuration, errors, waiters, credentials, the
+Crucible's own types (client, configuration, errors, credentials, the
 bundled runtime) carry hand-written docs. The Java and C# packages build their
 docs without warnings (`javadoc -Xdoclint:all`, `dotnet pack -warnaserror` with
 `GenerateDocumentationFile`).
@@ -331,7 +322,7 @@ include [retry decisions](../tests/conformance/retry.json),
 [serialization](../tests/conformance/serialization.json). Serialization cases
 record native precision profiles. Every target runs all 16 cases; the language
 guides explain the remaining representation limits. Language-specific cases additionally
-cover bindings, payloads, digests, authentication refresh, body interruptions,
+cover bindings, payloads, authentication refresh, body interruptions,
 cancellation, and pagination. The weather service supplies real loopback HTTP.
 
 The serialization adapters cover the current 16-case fixture as follows. Counts

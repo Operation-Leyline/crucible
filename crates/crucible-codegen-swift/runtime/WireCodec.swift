@@ -44,26 +44,20 @@ internal struct WireCodec: Sendable {
     func decode<T: WireCodable>(_ target: String, _ value: JSONValue, as: T.Type) throws -> T {
         try T.fromWire(value, context(target))
     }
-    // Native models retain Smithy member names; only document boundaries rename them.
+    // Members the shape does not declare are dropped; member names are the JSON names.
     func document(_ target: String, _ value: JSONValue, encode: Bool) throws -> JSONValue {
         if value == .null { return value }
         let shape = try shape(target)
         switch shape["kind"]?.text {
         case "structure", "union":
-            var object = try value.object
+            let object = try value.object
             let members = try shape["members"]!.object
             var result: [String: JSONValue] = [:]
             for (name, member) in members {
-                let wire = member["jsonName"]?.text ?? name
-                if let item = object[encode ? name : wire] {
-                    result[encode ? wire : name] = try document(member["target"]!.string, item, encode: encode)
-                }
+                if let item = object[name] { result[name] = try document(member["target"]!.string, item, encode: encode) }
             }
             if shape["kind"]?.text == "union" {
-                for (name, item) in object where !members.contains(where: { encode ? $0.key == name : ($0.value["jsonName"]?.text ?? $0.key) == name }) {
-                    if encode && members.contains(where: { ($0.value["jsonName"]?.text ?? $0.key) == name }) { throw WireError("Unknown variant name is declared") }
-                    result[name] = item
-                }
+                for (name, item) in object where members[name] == nil { result[name] = item }
             }
             return .object(result)
         case "list":

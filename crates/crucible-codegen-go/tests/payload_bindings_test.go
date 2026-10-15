@@ -5,7 +5,6 @@ import (
     "io"
     "net/http"
     "net/http/httptest"
-    "strings"
     "testing"
 )
 
@@ -61,11 +60,9 @@ func TestRecordNullIsSentAsNull(t *testing.T) {
 // A modelled Content-Type member, then the payload's media type, then a
 // client-wide default (given in a non-canonical case).
 func TestPayloadContentType(t *testing.T) {
-    for _, streaming := range []bool{false, true} {
-        for _, mediaType := range []string{"", "image/png"} {
-          for _, configured := range []string{"", "image/jpeg"} {
-            name := "buffered"; if streaming { name = "streaming" }
-            t.Run(name+"/"+mediaType+"/"+configured, func(t *testing.T) {
+    for _, mediaType := range []string{"", "image/png"} {
+        for _, configured := range []string{"", "image/jpeg"} {
+            t.Run(mediaType+"/"+configured, func(t *testing.T) {
                 expected := mediaType; if expected == "" { expected = "application/octet-stream" }
                 server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
                     body, err := io.ReadAll(r.Body)
@@ -78,20 +75,11 @@ func TestPayloadContentType(t *testing.T) {
                 if configured != "" { config.Headers = http.Header{"content-type": {configured}} }
                 client, err := NewPayloadBindingsClient(config)
                 if err != nil { t.Fatal(err) }
-                if streaming {
-                    input := &StreamInput{}
-                    input.SetData(NewByteStream(func() (io.ReadCloser, error) { return io.NopCloser(strings.NewReader("PNG")), nil }, 3))
-                    if mediaType != "" { input.SetContentType(mediaType) }
-                    _, err = client.UploadStream(context.Background(), input)
-                } else {
-                    input := &UploadInput{}
-                    input.SetData([]byte("PNG"))
-                    if mediaType != "" { input.SetContentType(mediaType) }
-                    _, err = client.Upload(context.Background(), input)
-                }
-                if err != nil { t.Fatal(err) }
+                input := &UploadInput{}
+                input.SetData([]byte("PNG"))
+                if mediaType != "" { input.SetContentType(mediaType) }
+                if _, err = client.Upload(context.Background(), input); err != nil { t.Fatal(err) }
             })
-          }
         }
     }
 }

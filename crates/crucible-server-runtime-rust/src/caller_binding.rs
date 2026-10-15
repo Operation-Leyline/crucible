@@ -105,12 +105,11 @@ mod tests {
     }
 
     macro_rules! operation {
-        ($name:ident, $schemes:expr, $optional:expr) => {
+        ($name:ident, $schemes:expr) => {
             struct $name;
             impl Operation for $name {
                 const INFO: &'static crate::OperationInfo = &INFO;
                 const AUTH_SCHEMES: Option<&'static [AuthScheme]> = $schemes;
-                const OPTIONAL_AUTH: bool = $optional;
                 type Input = crate::operation::Unit;
                 type Output = crate::operation::Unit;
             }
@@ -135,15 +134,13 @@ mod tests {
         &[],
     );
 
-    operation!(Bearer, Some(&[AuthScheme::Bearer]), false);
-    operation!(Optional, Some(&[AuthScheme::Bearer]), true);
-    operation!(Public, Some(&[]), false);
-    operation!(Unknown, None, false);
+    operation!(Bearer, Some(&[AuthScheme::Bearer]));
+    operation!(Public, Some(&[]));
+    operation!(Unknown, None);
 
     #[test]
-    fn only_a_scheme_without_optional_auth_requires_authentication() {
+    fn only_a_named_scheme_requires_authentication() {
         assert!(metadata::<Bearer>().requires_authentication());
-        assert!(!metadata::<Optional>().requires_authentication());
         assert!(!metadata::<Public>().requires_authentication());
         assert!(!metadata::<Unknown>().requires_authentication());
     }

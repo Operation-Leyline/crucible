@@ -16,7 +16,7 @@ use tower::{Layer, Service, ServiceExt};
 
 use crate::context::{Context, RequestMeta};
 use crate::error::{Error, FrameworkError, ModelledError};
-use crate::middlewares::{Cors, ServiceLog};
+use crate::middlewares::ServiceLog;
 use crate::operation::{Operation, OperationInfo};
 use crate::operations::Operations;
 use crate::permissions::Requirements;
@@ -86,7 +86,6 @@ pub struct Crucible {
 }
 
 struct Inner {
-    cors: Option<Cors>,
     operations: Operations,
     middleware: Vec<Box<dyn Middleware>>,
     operation_middleware: Vec<Box<dyn OperationAwareMiddleware>>,
@@ -169,20 +168,13 @@ impl Crucible {
 
     /// Answers one request: through the layers, then the phased pipeline.
     pub async fn handle(&self, request: Request<Body>) -> Response {
-        let cors = self.inner.cors.as_ref();
-        let http = request.extensions().get::<Invocation>().is_none();
-        let mut response = match &self.endpoint {
+        match &self.endpoint {
             Some(endpoint) => match endpoint.clone().oneshot(request).await {
                 Ok(response) => response,
                 Err(never) => match never {},
             },
             None => self.dispatch(request).await,
-        };
-        // Completion recovery and outer Tower rejections can replace an encoded response.
-        if http && let Some(cors) = cors {
-            cors.decorate(&mut response);
         }
-        response
     }
 
     async fn dispatch(&self, request: Request<Body>) -> Response {
@@ -225,12 +217,10 @@ impl Crucible {
             raw_body: Some(body),
             body_limit: inner.body_limit,
             body_read: crate::job::BodyRead::Pending,
-            body_stream: None,
             labels: Vec::new(),
             decode: None,
             decode_json: None,
             decode_bound: None,
-            decode_events: None,
             output_from_json: None,
             input: None,
             outcome: None,
@@ -672,7 +662,6 @@ impl Crucible {
         job.decode = Some(entry.decode);
         job.decode_json = Some(entry.decode_json);
         job.decode_bound = Some(entry.decode_bound);
-        job.decode_events = Some(entry.decode_events);
         job.output_from_json = entry.output_from_json;
         let limit = entry.body_limit.unwrap_or(inner.body_limit);
         let buffered = job.select_body_limit(limit);
@@ -961,16 +950,6 @@ impl Builder {
     }
 
     pub fn build(mut self) -> Result<Crucible, BuildError> {
-        let cors = self
-            .operations
-            .service
-            .cors
-            .map(Cors::new)
-            .transpose()
-            .map_err(BuildError::Prepare)?;
-        if let Some(cors) = &cors {
-            self.middleware.insert(0, Box::new(cors.clone()));
-        }
         let builtins = std::cell::RefCell::new(crate::prepare::Builtins::default());
         let prepare = Prepare::new(&self.operations, &builtins);
         for middleware in &mut self.middleware {
@@ -1044,7 +1023,6 @@ impl Builder {
             .unwrap_or(0);
         let core = Crucible {
             inner: Arc::new(Inner {
-                cors,
                 operations: self.operations,
                 middleware: self.middleware,
                 operation_middleware: self.operation_middleware,

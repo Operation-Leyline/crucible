@@ -35,7 +35,7 @@ static const leyline_string schema_chunks[] = {
 };
 leyline_status leyline_client_new(const leyline_client_config *config, leyline_client **output, leyline_error *error) {
     const leyline_string endpoint = {"", 0};
-    return leyline_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, true, output, error);
+    return leyline_runtime_new(config, schema_chunks, sizeof(schema_chunks) / sizeof(schema_chunks[0]), endpoint, output, error);
 }
 leyline_status leyline_operations_archive_graph(leyline_client *client, const leyline_models_archive_graph_input *input, leyline_cancelled_fn cancelled, void *cancel_user, leyline_operations_archive_graph_result *result, leyline_error *error) {
     const leyline_string operation = {"ArchiveGraph", 12};

@@ -154,17 +154,6 @@ fn enum_and_int_enum_values_carry_their_notes() {
 }
 
 #[test]
-fn legacy_enum_definition_deprecated_flag_becomes_a_deprecation() {
-    let service = service();
-    let Some(Shape::Enum(legacy)) = service.shape(&id("Legacy")) else {
-        panic!("enum")
-    };
-    assert_eq!(legacy.values[0].notes.deprecated, deprecation(None, None));
-    assert!(legacy.values[1].notes.deprecated.is_none());
-    assert!(legacy.values[2].notes.deprecated.is_none());
-}
-
-#[test]
 fn collection_shapes_carry_deprecation() {
     let service = service();
     let Some(Shape::List(tags)) = service.shape(&id("Tags")) else {
@@ -222,10 +211,6 @@ fn malformed_documentation_traits_are_collected_diagnostics() {
                 "@externalDocumentation entry \"Guide\" must be a string URL",
             ),
             (
-                "example.notes#Legacy",
-                "@enum definition deprecated must be boolean",
-            ),
-            (
                 "example.notes#Input$unstableNotEmpty",
                 "@unstable must be an empty structure",
             ),
@@ -237,6 +222,6 @@ fn malformed_documentation_traits_are_collected_diagnostics() {
                 "missing {shape}: {message} in {diagnostics}"
             );
         }
-        assert_eq!(diagnostics.len(), 8, "{diagnostics}");
+        assert_eq!(diagnostics.len(), 7, "{diagnostics}");
     }
 }

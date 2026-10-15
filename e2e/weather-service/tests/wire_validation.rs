@@ -2,7 +2,6 @@
 // The fixture deprecates `Ping`; these tests still drive it.
 #![allow(deprecated)]
 use crucible_server_runtime_rust::__generated as generated;
-use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
 use axum::body::{Body, to_bytes};
@@ -15,8 +14,7 @@ use crucible_server_runtime_rust::operation::{
 };
 use crucible_server_runtime_rust::validate::{Validate, Validator};
 use crucible_server_runtime_rust::{
-    ByteStream, Crucible, InvokeProtocol, JsonProtocol, ModelledError, Operation, OperationInfo,
-    ServiceInfo,
+    Crucible, InvokeProtocol, JsonProtocol, ModelledError, Operation, OperationInfo, ServiceInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -27,7 +25,6 @@ const fn member(name: &'static str, location: Location) -> MemberInfo {
 }
 const BODY: MemberInfo = member("body", Location::Body);
 const HEADER: MemberInfo = member("header", Location::Header("x-header"));
-const PREFIX: MemberInfo = member("prefix", Location::PrefixHeaders("x-prefix-"));
 static BODY_ONLY: OperationInfo = {
     let base = weather::Ping::INFO;
     generated::operation_info(
@@ -119,7 +116,7 @@ static QUERIES: OperationInfo = {
         base.literal_query,
         base.status,
         &const {
-            [member("queries", Location::QueryParams), {
+            [{
                 let base = &(member("tags", Location::Query("tag")));
                 generated::member_info(
                     base.name,
@@ -130,10 +127,7 @@ static QUERIES: OperationInfo = {
                 )
             }]
         },
-        &[
-            member("queries", Location::Body),
-            member("tags", Location::Body),
-        ],
+        &[member("tags", Location::Body)],
         base.errors,
         base.readonly,
         base.idempotent,
@@ -153,60 +147,8 @@ static HEADERS: OperationInfo = {
         base.literal_query,
         base.status,
         base.input,
-        &[BODY, HEADER, PREFIX],
+        &[BODY, HEADER],
         &["HeaderError"],
-        base.readonly,
-        base.idempotent,
-        base.internal,
-        base.idempotency_token,
-        base.traits,
-    )
-};
-static PREFIX_IN: OperationInfo = {
-    let base = weather::Ping::INFO;
-    generated::operation_info(
-        base.id,
-        "PrefixIn",
-        base.resource,
-        base.method,
-        &[Segment::Literal("prefix-in")],
-        base.literal_query,
-        base.status,
-        &[PREFIX],
-        &[BODY],
-        base.errors,
-        base.readonly,
-        base.idempotent,
-        base.internal,
-        base.idempotency_token,
-        base.traits,
-    )
-};
-static STREAM: OperationInfo = {
-    let base = weather::Ping::INFO;
-    generated::operation_info(
-        base.id,
-        "Stream",
-        base.resource,
-        base.method,
-        &[Segment::Literal("stream")],
-        base.literal_query,
-        base.status,
-        base.input,
-        &[
-            member(
-                "body",
-                Location::StreamingPayload {
-                    media_type: "application/octet-stream",
-                    requires_length: false,
-                    minimum: None,
-                    maximum: None,
-                },
-            ),
-            HEADER,
-            PREFIX,
-        ],
-        base.errors,
         base.readonly,
         base.idempotent,
         base.internal,
@@ -286,7 +228,6 @@ static SERVICE: ServiceInfo = {
         base.id,
         base.version,
         None,
-        None,
         &[
             &BODY_ONLY,
             &BOUND,
@@ -294,8 +235,6 @@ static SERVICE: ServiceInfo = {
             &REQUIRED_BOUND,
             &QUERIES,
             &HEADERS,
-            &PREFIX_IN,
-            &STREAM,
             &TEXT,
             &BLOB,
             &DOCUMENT,
@@ -329,20 +268,10 @@ impl Validate for RequiredBody {
     fn validate(&self, _: &mut Validator) {}
 }
 #[derive(Serialize, Deserialize)]
-struct QueryMap {
-    #[serde(default)]
-    queries: BTreeMap<String, String>,
+struct QueryList {
     tags: Option<Vec<String>>,
 }
-impl Validate for QueryMap {
-    fn validate(&self, _: &mut Validator) {}
-}
-#[derive(Serialize, Deserialize)]
-struct PrefixMap {
-    #[serde(default)]
-    prefix: BTreeMap<String, String>,
-}
-impl Validate for PrefixMap {
+impl Validate for QueryList {
     fn validate(&self, _: &mut Validator) {}
 }
 #[derive(Serialize, Deserialize)]
@@ -370,13 +299,6 @@ impl Validate for DocumentBody {
 struct HeaderOutput {
     body: String,
     header: String,
-    prefix: BTreeMap<String, String>,
-}
-#[derive(Serialize)]
-struct StreamOutput {
-    body: ByteStream,
-    header: String,
-    prefix: BTreeMap<String, String>,
 }
 macro_rules! operation {
     ($name:ident, $info:ident, $input:ty, $output:ty) => {
@@ -392,35 +314,23 @@ operation!(BodyOnly, BODY_ONLY, OptionalBody, OptionalBody);
 operation!(Bound, BOUND, OptionalBody, OptionalBody);
 operation!(Required, REQUIRED, RequiredBody, Unit);
 operation!(RequiredBound, REQUIRED_BOUND, RequiredBody, Unit);
-operation!(Queries, QUERIES, QueryMap, QueryMap);
+operation!(Queries, QUERIES, QueryList, QueryList);
 operation!(Headers, HEADERS, Unit, HeaderOutput);
-operation!(PrefixIn, PREFIX_IN, PrefixMap, Unit);
 operation!(Text, TEXT, TextBody, TextBody);
 operation!(Blob, BLOB, BlobBody, Value);
 operation!(Document, DOCUMENT, DocumentBody, DocumentBody);
-struct Stream;
-impl Operation for Stream {
-    const INFO: &'static OperationInfo = &STREAM;
-    type Input = Unit;
-    type Output = StreamOutput;
-    fn output_stream(output: &StreamOutput) -> Option<ByteStream> {
-        Some(output.body.clone())
-    }
-}
-
 static ERROR: ErrorInfo = generated::error_info(
     "HeaderError",
     409,
     Fault::Client,
     false,
     false,
-    &[BODY, HEADER, PREFIX],
+    &[BODY, HEADER],
 );
 #[derive(Debug, Serialize)]
 struct HeaderError {
     body: String,
     header: String,
-    prefix: BTreeMap<String, String>,
 }
 impl std::fmt::Display for HeaderError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -458,18 +368,12 @@ impl Recorder for Records {
 
 fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
     let headers = move || {
-        let header = if mode == "value" {
+        if mode == "value" {
             "private\r\ninvalid"
         } else {
             "valid"
         }
-        .to_owned();
-        let prefix = if mode == "name" {
-            BTreeMap::from([("bad name".to_owned(), "private".to_owned())])
-        } else {
-            BTreeMap::new()
-        };
-        (header, prefix)
+        .to_owned()
     };
     let operations = crucible_server_runtime_rust::Operations::builder(&SERVICE)
         .add::<BodyOnly, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
@@ -477,7 +381,6 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         .add::<Required, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .add::<RequiredBound, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .add::<Queries, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<PrefixIn, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(Unit {}) }))
         .add::<Text, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<Document, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
         .add::<Blob, _, _>(Arc::new(()), |_, input| {
@@ -485,7 +388,7 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
         })
         .add::<Headers, _, _>(Arc::new((headers, mode)), |state, _| {
             Box::pin(async move {
-                let (header, prefix) = (state.0)();
+                let header = (state.0)();
                 if crucible_server_runtime_rust::Context::current()
                     .headers()
                     .contains_key("x-error")
@@ -493,24 +396,12 @@ fn service(mode: &'static str, logs: Records, metrics: Records) -> Crucible {
                     return Err(HeaderError {
                         body: "private".into(),
                         header,
-                        prefix,
                     }
                     .into());
                 }
                 Ok(HeaderOutput {
                     body: "private".into(),
                     header,
-                    prefix,
-                })
-            })
-        })
-        .add::<Stream, _, _>(Arc::new(headers), |headers, _| {
-            Box::pin(async move {
-                let (header, prefix) = headers();
-                Ok(StreamOutput {
-                    body: ByteStream::from_bytes("private stream"),
-                    header,
-                    prefix,
                 })
             })
         })
@@ -601,13 +492,12 @@ async fn json_document_payloads_also_reject_incompatible_media_types() {
 }
 
 #[tokio::test]
-async fn query_maps_reject_malformed_keys_and_values_and_preserve_valid_unicode() {
+async fn query_lists_reject_malformed_values_and_preserve_valid_unicode() {
     let service = service("valid", Records::default(), Records::default());
     for path in [
-        "/queries?%FF=value",
-        "/queries?key=%FE",
-        "/queries?key=%GG",
-        "/queries?key=%",
+        "/queries?tag=%FE",
+        "/queries?tag=%GG",
+        "/queries?tag=%",
         "/queries?tag=valid&tag=%FF",
     ] {
         let (status, body) = answer(&service, path, b"").await;
@@ -615,26 +505,18 @@ async fn query_maps_reject_malformed_keys_and_values_and_preserve_valid_unicode(
         assert_eq!(body["reason"], "cannotParse");
     }
     assert_eq!(
-        answer(&service, "/queries?caf%C3%A9=%EF%BF%BD+%2B", b"").await,
-        (200, json!({"queries":{"café":"� +"}, "tags":null}))
-    );
-    assert_eq!(
-        answer(&service, "/queries?tag=caf%C3%A9&tag=a+b&key=value", b"").await,
-        (
-            200,
-            json!({"queries":{"key":"value"},"tags":["café","a b"]})
-        )
+        answer(&service, "/queries?tag=caf%C3%A9&tag=a+b&other=value", b"").await,
+        (200, json!({"tags":["café","a b"]}))
     );
 }
 
 #[tokio::test]
-async fn invalid_success_error_and_stream_headers_become_observable_internal_failures() {
-    for mode in ["value", "name"] {
+async fn invalid_success_and_error_headers_become_observable_internal_failures() {
+    for mode in ["value"] {
         let logs = Records::default();
         let metrics = Records::default();
         let service = service(mode, logs.clone(), metrics.clone());
-        for (path, modelled_error) in [("/headers", false), ("/headers", true), ("/stream", false)]
-        {
+        for (path, modelled_error) in [("/headers", false), ("/headers", true)] {
             let mut request = Request::get(path);
             if modelled_error {
                 request = request.header("x-error", "yes");
@@ -655,8 +537,8 @@ async fn invalid_success_error_and_stream_headers_become_observable_internal_fai
         }
         let logs = logs.0.lock().unwrap();
         let metrics = metrics.0.lock().unwrap();
-        assert_eq!(logs.len(), 3);
-        assert_eq!(metrics.len(), 3);
+        assert_eq!(logs.len(), 2);
+        assert_eq!(metrics.len(), 2);
         for log in logs.iter() {
             assert_eq!(log["status"], 500);
             assert_eq!(log["outcome"], "fault");
@@ -678,7 +560,7 @@ async fn invalid_success_error_and_stream_headers_become_observable_internal_fai
     }
 }
 
-/// A rejection built from the request's query or headers lists at most 100
+/// A rejection built from the request's query lists at most 100
 /// violations and counts the rest, and names a client's key `[key]`.
 fn assert_capped(body: &Value, total: usize, path: &str) {
     let fields = body["fieldList"].as_array().unwrap();
@@ -701,7 +583,7 @@ fn assert_capped(body: &Value, total: usize, path: &str) {
 }
 
 #[tokio::test]
-async fn query_and_prefix_header_rejections_are_capped_and_name_no_client_key() {
+async fn query_rejections_are_capped_and_name_no_client_key() {
     let logs = Records::default();
     let service = service("valid", logs.clone(), Records::default());
     let query = |key: &str| {
@@ -710,35 +592,16 @@ async fn query_and_prefix_header_rejections_are_capped_and_name_no_client_key() 
             .collect::<Vec<_>>()
             .join("&")
     };
-    // A map bound to the query takes every key: an undeclared one is its.
-    let (status, body) = answer(&service, &format!("/queries?{}", query("hunter")), b"").await;
-    assert_eq!(status, 400, "{body}");
-    assert_capped(&body, 250, "queries/[key]");
-    // Without such a map, the key is no parameter at all.
+    // An undeclared key is no parameter at all.
     let (status, body) = answer(&service, &format!("/body?{}", query("hunter")), b"").await;
     assert_eq!(status, 400, "{body}");
     assert_capped(&body, 250, "query");
     // A declared parameter keeps the model's name; a key that does not
-    // decode belongs to the map too.
+    // decode is no parameter either.
     let (_, body) = answer(&service, "/queries?tag=%zz", b"").await;
     assert_eq!(body["fieldList"][0]["path"], "tag", "{body}");
-    let (_, body) = answer(&service, "/queries?hunter%zz=1", b"").await;
-    assert_eq!(body["fieldList"][0]["path"], "queries/[key]", "{body}");
     let (_, body) = answer(&service, "/body?hunter%zz=1", b"").await;
     assert_eq!(body["fieldList"][0]["path"], "query", "{body}");
-
-    let mut request = Request::get("/prefix-in");
-    for index in 0..150 {
-        request = request.header(
-            format!("x-prefix-hunter{index}"),
-            axum::http::HeaderValue::from_bytes(b"\xff").unwrap(),
-        );
-    }
-    let response = service.handle(request.body(Body::empty()).unwrap()).await;
-    assert_eq!(response.status(), 400);
-    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let body: Value = serde_json::from_slice(&bytes).unwrap();
-    assert_capped(&body, 150, "prefix/[key]");
 
     let logs = serde_json::to_string(&*logs.0.lock().unwrap()).unwrap();
     assert!(!logs.contains("hunter"), "{logs}");

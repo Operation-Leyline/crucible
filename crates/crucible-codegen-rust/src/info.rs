@@ -15,40 +15,23 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
         .members
         .iter()
         .map(|member| {
-            let location = if bindings
-                .event_stream
-                .as_ref()
-                .is_some_and(|stream| stream.member == member.name)
-            {
-                "EventStream".to_owned()
-            } else if bindings.labels.contains(&member.name) {
+            let location = if bindings.labels.contains(&member.name) {
                 "Label".to_owned()
             } else if let Some(b) = find(&bindings.query, &member.name) {
                 format!("Query({})", literal(&b.name))
             } else if let Some(b) = find(&bindings.headers, &member.name) {
                 format!("Header({})", literal(&b.name.to_ascii_lowercase()))
-            } else if bindings.query_params.as_deref() == Some(&member.name) {
-                "QueryParams".to_owned()
-            } else if let Some(b) = find(&bindings.prefix_headers, &member.name) {
-                format!("PrefixHeaders({})", literal(&b.name.to_ascii_lowercase()))
-            } else if bindings.response_code.as_deref() == Some(&member.name) {
-                "ResponseCode".to_owned()
             } else if let Some(p) = bindings.payload.as_ref().filter(|p| p.member == member.name) {
-                if p.streaming { format!("StreamingPayload {{ media_type: {}, requires_length: {}, minimum: {:?}, maximum: {:?} }}", literal(&p.media_type), p.requires_length, member.constraints.length.as_ref().and_then(|b| b.min), member.constraints.length.as_ref().and_then(|b| b.max)) } else {
-                    let kind = match p.kind {
-                        PayloadKind::String => "TextPayload",
-                        PayloadKind::Document => "DocumentPayload",
-                        PayloadKind::Blob | PayloadKind::EventStream => "Payload",
-                    };
-                    format!("{kind}({})", literal(&p.media_type))
-                }
+                let kind = match p.kind {
+                    PayloadKind::String => "TextPayload",
+                    PayloadKind::Document => "DocumentPayload",
+                    PayloadKind::Blob => "Payload",
+                };
+                format!("{kind}({})", literal(&p.media_type))
             } else {
                 "Body".to_owned()
             };
-            let scalar = if location == "Body"
-                || location == "EventStream"
-                || location.contains("Payload")
-            {
+            let scalar = if location == "Body" || location.contains("Payload") {
                 "Json".to_owned()
             } else {
                 scalar(
@@ -60,7 +43,7 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
             };
             format!(
                 "::crucible_server_runtime_rust::__generated::member_info({}, ::crucible_server_runtime_rust::__generated::operation::Location::{location}, ::crucible_server_runtime_rust::__generated::operation::Scalar::{scalar}, {}, {})",
-                literal(&member.wire_name),
+                literal(&member.name),
                 if structure.sensitive() {
                     "&::crucible_server_runtime_rust::__generated::operation::Redaction::Sensitive".to_owned()
                 } else { redaction_member(service, member, "__redaction::") },
@@ -75,12 +58,10 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
     }
 }
 
-/// Error structures bind headers, a status member and a payload.
+/// Error structures bind headers and a payload.
 pub(crate) fn error_bindings(error: &crucible_smithy::ir::ErrorInfo) -> Bindings {
     Bindings {
         headers: error.headers.clone(),
-        prefix_headers: error.prefix_headers.clone(),
-        response_code: error.response_code.clone(),
         payload: error.payload.clone(),
         header_encodings: error.header_encodings.clone(),
         timestamp_formats: error.timestamp_formats.clone(),
@@ -178,7 +159,7 @@ pub(crate) fn redactions(service: &Service) -> String {
                         .map(|m| {
                             format!(
                                 "({}, {})",
-                                literal(&m.wire_name),
+                                literal(&m.name),
                                 redaction_member(service, m, "")
                             )
                         })

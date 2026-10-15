@@ -476,26 +476,6 @@ fn options(context: &mut Context<'_>, name: &str, table: &Table) -> LanguageOpti
             None
         }
     });
-    options.content_sha256 = table
-        .get("content_sha256")
-        .and_then(|value| boolean(context, &at("content_sha256"), value))
-        .unwrap_or(false);
-    options.middleware = table
-        .get("middleware")
-        .and_then(|value| list(context, &at("middleware"), value))
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|middleware| {
-            let known = middleware == "content-sha256";
-            if !known {
-                context.error(
-                    &at("middleware"),
-                    format!("{middleware:?} is not a middleware: \"content-sha256\""),
-                );
-            }
-            known
-        })
-        .collect();
     options.package_json = match table.get("package_json") {
         None => None,
         Some(Value::Table(fragment)) => {

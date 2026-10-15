@@ -94,10 +94,10 @@ mod tests {
         ] {
             let output = payloads::DocumentOutput { payload };
             let mut body = Vec::new();
-            split::write_http(&output, payloads::Document::INFO.output, None, &mut body).unwrap();
+            split::write(&output, payloads::Document::INFO.output, &mut body).unwrap();
             assert_eq!(body, expected);
             let mut body = Vec::new();
-            split::write_http(&serde_json::to_value(&output).unwrap(), payloads::Document::INFO.output, None, &mut body).unwrap();
+            split::write(&serde_json::to_value(&output).unwrap(), payloads::Document::INFO.output, &mut body).unwrap();
             assert_eq!(body, expected);
         }
     }
@@ -110,7 +110,7 @@ mod tests {
         assert!(body.is_empty());
         let output = payloads::StructureOutput { payload: None };
         let mut body = Vec::new();
-        split::write_http(&output, payloads::Structure::INFO.output, None, &mut body).unwrap();
+        split::write(&output, payloads::Structure::INFO.output, &mut body).unwrap();
         assert!(body.is_empty());
         let input = sdk::StructureInput { payload: Field::Null };
         let mut body = Vec::new();

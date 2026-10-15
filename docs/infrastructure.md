@@ -179,7 +179,7 @@ read, and delete lifecycle operations; string, enum, boolean, integer, or double
 properties; and a read operation that observes every managed property.
 Optional mutable properties are refused
 until their null/reset behavior can be expressed. Resources without update
-must mark every property immutable. Composite identities, asynchronous waiters,
+must mark every property immutable. Composite identities,
 eventual consistency, and non-scalar property mappings need additional support.
 Generation diagnoses unsupported contracts before producing a provider.
 

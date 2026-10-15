@@ -10,7 +10,7 @@ public final class WeatherClient: Sendable {
     ///
     /// - Throws: ``WireError`` when the endpoint or another setting is invalid.
     public init(_ config: ClientConfig = ClientConfig()) throws {
-        runtime = try ClientRuntime(config, endpoint: "https://weather.example", digest: true)
+        runtime = try ClientRuntime(config, endpoint: "https://weather.example")
     }
     /// Releases the HTTP session this client created. A transport passed in the
     /// configuration is left open. Calls made after closing fail.

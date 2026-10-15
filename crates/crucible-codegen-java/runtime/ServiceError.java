@@ -10,8 +10,6 @@ public class ServiceError extends RuntimeException {
 
   /** The error code from the wire. */
   private String errorName;
-  /** The modeled name when it differs from the wire code. */
-  private String modeledErrorName;
   /** The message from the response. */
   private String errorMessage;
   /** The HTTP status. */
@@ -63,14 +61,6 @@ public class ServiceError extends RuntimeException {
    */
   public String errorName() {
     return errorName;
-  }
-
-  void setModeledErrorName(String name) {
-    this.modeledErrorName = name;
-  }
-
-  String waiterErrorName() {
-    return modeledErrorName == null ? errorName : modeledErrorName;
   }
 
   /**

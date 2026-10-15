@@ -528,13 +528,6 @@ pub mod weather {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ConflictError {
@@ -588,13 +581,6 @@ pub mod weather {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for NotFoundError {
@@ -648,13 +634,6 @@ pub mod weather {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ThrottlingError {
@@ -716,13 +695,6 @@ pub mod weather {
                 ::crucible_server_runtime_rust::__generated::error::write_error(self, out)
             }
 
-            fn write_http(&self, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http(self, out)
-            }
-
-            fn write_http_typed(&self, type_name: ::std::option::Option<&'static str>, out: &mut ::std::vec::Vec<u8>) -> ::crucible_server_runtime_rust::__generated::serde_json::Result<::crucible_server_runtime_rust::__generated::operation::ResponseBindings> {
-                ::crucible_server_runtime_rust::__generated::error::write_error_http_typed(self, type_name, out)
-            }
         }
 
         impl ::std::fmt::Display for ValidationError {
@@ -816,8 +788,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for CreateCity {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
-        const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "clientToken", wire_name: "clientToken" });
+        const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "clientToken" });
         const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<model::CreateCityOutput>);
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &CREATE_CITY_OPERATION;
         type Input = model::CreateCityInput;
@@ -858,7 +829,6 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetCity {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_CITY_OPERATION;
         type Input = model::GetCityInput;
         type Output = model::GetCityOutput;
@@ -896,7 +866,6 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetCityPhoto {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_CITY_PHOTO_OPERATION;
         type Input = model::GetCityPhotoInput;
         type Output = model::GetCityPhotoOutput;
@@ -936,8 +905,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for ListCities {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
-        const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination { input_token: ::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "nextToken", wire_name: "nextToken" }, page_size: ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "maxResults", wire_name: "maxResults" }), input_token_map: false, input_token_max_length: ::std::option::Option::None });
+        const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination { input_token: ::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "nextToken" }, page_size: ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "maxResults" }), input_token_map: false, input_token_max_length: ::std::option::Option::None });
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_CITIES_OPERATION;
         type Input = model::ListCitiesInput;
         type Output = model::ListCitiesOutput;
@@ -973,7 +941,6 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Ping {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const HAS_INPUT: bool = false;
         const HAS_OUTPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PING_OPERATION;
@@ -1015,7 +982,6 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for PutCityPhoto {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
         type Input = model::PutCityPhotoInput;
         type Output = model::PutCityPhotoOutput;
@@ -1049,7 +1015,6 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Status {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
-        const OPTIONAL_AUTH: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &STATUS_OPERATION;
         type Input = model::StatusInput;
         type Output = model::StatusOutput;
@@ -1097,7 +1062,6 @@ pub mod weather {
     pub static SERVICE: ::crucible_server_runtime_rust::__generated::ServiceInfo = ::crucible_server_runtime_rust::__generated::service_info(
         "example.weather#Weather",
         "2026-10-01",
-        None,
         None,
         &[
             &CREATE_CITY_OPERATION,

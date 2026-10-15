@@ -96,7 +96,7 @@ calling generated serialization helpers.
 
 ## Middleware, protocols, and hosting
 
-`middlewares::{ServiceLog, Metrics, Cors, LogPolicy, LogSink, Recorder}` are
+`middlewares::{ServiceLog, Metrics, LogPolicy, LogSink, Recorder}` are
 supported building blocks. `LogRecord` and `RequestRecord` expose observation
 fields and are non-exhaustive; sinks and recorders read them instead of
 constructing them.
@@ -109,7 +109,7 @@ The wire metadata enum `operation::Protocol` is separate from the server's
 `host::{run, serve}` select or configure the host. `host::{http, http_on,
 http_on_until}` serve HTTP with the `http` feature; `host::{lambda, lambda_event}`
 support Lambda with the `lambda` feature. Model value types such as `Blob`,
-`ByteStream`, `EventStream`, `BigInteger`, and `BigDecimal` remain available
+`BigInteger`, and `BigDecimal` remain available
 through documented public paths.
 
 Rust client applications use `OpenEnum::{from_string, as_str}` to construct and

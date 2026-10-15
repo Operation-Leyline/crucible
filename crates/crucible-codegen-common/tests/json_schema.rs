@@ -68,26 +68,21 @@ fn standalone_schemas_are_identical_to_openapi_definitions_except_reference_root
 
 #[test]
 fn recursive_refs_stay_local_and_finite() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/discovery-recursion.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(
-        None,
-        &crucible_smithy::Capabilities::new([crucible_smithy::Feature::EndpointDiscovery]),
-    )
-    .unwrap();
+    let service = Model::from_json(include_str!("fixtures/recursion.json"))
+        .unwrap()
+        .lower(None)
+        .unwrap();
     let op = service
         .operations
         .iter()
         .find(|op| op.name() == "Get")
         .unwrap();
     let schema = standalone(&service, op.output.as_ref());
-    assert!(schema["$defs"]["example.discovery.Node"].is_object());
+    assert!(schema["$defs"]["example.recursion.Node"].is_object());
     assert!(
         schema
             .to_string()
-            .contains("#/$defs/example.discovery.Node")
+            .contains("#/$defs/example.recursion.Node")
     );
     assert!(schema["$defs"].as_object().unwrap().len() < service.shapes.len());
 }

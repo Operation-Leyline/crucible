@@ -38,7 +38,6 @@ Sources read on 2026-10-08:
 | float, short, byte | 0 | 0 | 0 | decide: keep for IR parity or drop |
 | intEnum | 0 | 0 | 0 | decide |
 | bigInteger, bigDecimal | 0 | 0 | 0 | decide |
-| Set, sparse collections | 0 | 0 | 0 | drop (Smithy 2.0 already deprecated Set) |
 | Unit | implicit | implicit | implicit | core (no input/output, empty union arm) |
 
 Leyline's lint forbids members that target prelude primitives directly:
@@ -59,7 +58,6 @@ should make that the natural way to write a model rather than a lint.
 | `@uniqueItems` | 0 | 1 | 0 | |
 | `@sensitive` | 9 | 2 | 0 | drives log redaction |
 | `@idempotencyToken` | 35 | 5 | 1 | |
-| `@jsonName` | 0 | 0 | 0 | wire name = member name everywhere |
 | `@mediaType` | 0 | 0 | 1 | |
 | `@timestampFormat` | 1 | 1 | 2 | one `DateTime` shape per model, `date-time` |
 | `@enumValue` | implicit | implicit | 6 | enum wire values |
@@ -79,13 +77,8 @@ language can expose fewer concepts and derive the rest.
 | `@httpHeader` | 22 | 1 | 5 | `Location`, `X-Leyline-Expected-Revision`, `Retry-After` |
 | `@httpError` | 7 | 7 | 4 | |
 | `@httpPayload` | 2 | 0 | 2 | non-streaming blobs/structures (webhook bodies) |
-| `@httpPrefixHeaders` | 0 | 0 | 0 | |
-| `@httpQueryParams` | 0 | 0 | 0 | |
-| `@httpResponseCode` | 0 | 0 | 0 | |
 | greedy labels | 0 | 0 | 0 | |
 | literal query in uri | 0 | 0 | 0 | |
-| `@streaming` | 0 | 0 | 0 | IR and runtimes support it |
-| event streams | 0 | 0 | 0 | IR and runtimes support it |
 
 ## Operation behaviour
 
@@ -109,7 +102,6 @@ standard errors live in `smithy/errors.smithy` and are imported by `use`.
 | `@httpBearerAuth` | yes | yes | yes | yes |
 | `@auth([])` opt-out | 5 ops | 0 | 0 | yes |
 | `@crucible.auth#scopes` | 0 | 0 | 0 | yes |
-| API key, Basic, Digest, SigV4, `@optionalAuth` | 0 | 0 | 0 | yes |
 
 Both consumers authorize in service code against custom traits, not
 through model scopes.
@@ -216,7 +208,6 @@ consistency, trait target checks, shape ID resolution and conflicts.
 |---|---|---|---|
 | `@crucible.protocols#json` | yes | yes | yes |
 | `@crucible.protocols#strict` | 0 | 0 | 1 |
-| `@cors` | 0 | 0 | 0 |
 
 `crucibleJson` is the only protocol. A Smithy model declaring any other is
 refused with "protocol X is not supported".
@@ -226,19 +217,16 @@ refused with "protocol X is not supported".
 Supported end to end by lowering, generators and runtimes, used only by
 fixtures:
 
-- streaming payloads and event streams (`EventStream`, `ByteStream`)
-- `intEnum`, `bigInteger`, `bigDecimal`, sparse collections, sets
-- prefix headers, `@httpQueryParams`, `@httpResponseCode`, greedy labels,
-  literal query parameters, `@jsonName`, media-type headers
-- `@endpoint` host prefix, `smithy.rules` endpoint rule sets,
-  endpoint discovery, waiters, HTTP checksums, unsigned payloads
-- `@cors`, `@examples`, `@deprecated`, `@since`, `@unstable`,
+- `intEnum`, `bigInteger`, `bigDecimal`
+- greedy labels, literal query parameters, media-type headers
+- `@examples`, `@deprecated`, `@since`, `@unstable`,
   `@externalDocumentation`
-- `@crucible.auth#scopes`, API key, Basic, Digest, SigV4 auth
+- `@crucible.auth#scopes`
 
-Each of these is a decision for the semantics page: keep (the IR and
-generators already pay for it), defer (leave the IR field, give the
-language no syntax yet), or drop (remove from the IR too).
+Streaming payloads, event streams, waiters, endpoint rules, host prefixes and
+discovery, HTTP checksums, unsigned payloads, `@cors`, prefix headers,
+`@httpQueryParams`, `@httpResponseCode`, `@jsonName`,
+sets, and the API key, Basic, Digest and SigV4 schemes were dropped with Smithy.
 
 ## Tooling the consumers depend on today
 

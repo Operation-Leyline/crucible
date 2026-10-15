@@ -30,21 +30,14 @@ $fake = new Fake(function($attempt, $request): HttpResponse {
     return new HttpResponse(204, [], '');
 });
 sdk($fake, token: static function(): never { throw new RuntimeException('Public operation requested credentials'); })->publicPing();
-$fake = new Fake(function($attempt, $request): HttpResponse {
-    check($request->headers['x-amz-content-sha256'] === hash('sha256', ''), 'Empty write digest');
-    return new HttpResponse(200, [], '{}');
-});
 foreach (['POST', 'PUT', 'PATCH', 'GET', 'DELETE'] as $method) {
     $transport = new Fake(function($attempt, $request) use ($method): HttpResponse {
         check($request->body === null && $request->method === $method, 'Bodiless request');
-        if (in_array($method, ['GET', 'DELETE'], true)) check(!array_key_exists('x-amz-content-sha256', $request->headers), 'Bodiless read has no digest');
-        else check($request->headers['x-amz-content-sha256'] === hash('sha256', ''), 'Empty write digest');
         return new HttpResponse(200, [], '{}');
     });
     sdk($transport, middleware: [static fn($request) => new HttpRequest($request->url, $method, $request->headers, $request->body)])->retrySafe();
     check(count($transport->requests) === 1, 'One bodiless request');
 }
-sdk($fake)->retrySafe();
 foreach (['.', '..'] as $label) {
     $fake = new Fake(static function(): never { throw new RuntimeException('Dot label reached transport'); });
     throws(UnexpectedValueException::class, fn() => sdk($fake)->getCity(new GetCityInput(cityId: $label)));
@@ -70,7 +63,7 @@ $fake = new Fake(function($attempt,HttpRequest $request): HttpResponse {
 $result = sdk($fake)->getCity(new GetCityInput(cityId:'a/b *?#é',at:Timestamp::parse('2026-10-01T00:00:00Z')));
 check($result->requestId === 'bound','Response header binding');
 $fake = new Fake(function($attempt,HttpRequest $request): HttpResponse {
-    check($request->body === null && !isset($request->headers['content-type']) && $request->headers['x-amz-content-sha256'] === hash('sha256', ''),'Empty payload request');
+    check($request->body === null && !isset($request->headers['content-type']),'Empty payload request');
     return new HttpResponse(200,body:'{"photo":{"size":0,"thumbnail":""}}');
 });
 sdk($fake)->putCityPhoto(new PutCityPhotoInput(cityId:'x',photo:''));
@@ -79,7 +72,6 @@ check(sdk($fake)->getCityPhoto(new GetCityPhotoInput(cityId:'x'))->photo === '',
 $token = 0;
 $fake = new Fake(function($attempt,HttpRequest $request): HttpResponse {
     check($request->headers['authorization'] === 'Bearer ' . $attempt,'Refreshed credential');
-    check($request->headers['x-amz-content-sha256'] === hash('sha256',$request->body),'Final body digest');
     check($request->headers['x-expected-revision'] === '7','Header binding');
     return new HttpResponse($attempt === 1 ? 503 : 201,body:$attempt === 1 ? '{"__type":"Future"}' : '{"city":{"id":"x","name":"n"}}');
 });

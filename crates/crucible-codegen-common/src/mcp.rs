@@ -1,36 +1,11 @@
 //! Shared MCP descriptor emission from an already selected audience.
 use crate::json_schema;
-use crucible_smithy::ir::{Operation, Service, Shape};
+use crucible_smithy::ir::{Service, Shape};
 use crucible_smithy::{Diagnostics, ShapeId};
 use std::collections::BTreeSet;
 
 fn literal(value: &str) -> String {
     format!("{value:?}")
-}
-
-fn streaming(op: &Operation) -> bool {
-    op.request.event_stream.is_some()
-        || op.response.event_stream.is_some()
-        || op.request.payload.as_ref().is_some_and(|p| p.streaming)
-        || op.response.payload.as_ref().is_some_and(|p| p.streaming)
-}
-/// Collected build-time exclusions, also emitted as MCP_EXCLUSIONS.
-pub fn exclusions(service: &Service) -> Vec<String> {
-    let mut operations: Vec<_> = service
-        .operations
-        .iter()
-        .filter(|op| streaming(op))
-        .collect();
-    operations.sort_by(|a, b| a.id.cmp(&b.id));
-    operations
-        .into_iter()
-        .map(|op| {
-            format!(
-                "mcp.streaming_excluded: {} uses streaming/event-stream payloads; use its HTTP API",
-                op.id
-            )
-        })
-        .collect()
 }
 
 pub fn emit(
@@ -40,18 +15,14 @@ pub fn emit(
     runtime: &str,
 ) -> String {
     let mut out = String::from(
-        "\n/// MCP tools for the selected audience; excluded operations are listed in MCP_EXCLUSIONS.\n#[allow(dead_code)]\npub static MCP_TOOLS: &[::crucible_server_runtime_rust::__generated::mcp::ToolDescriptor] = &[\n",
+        "\n/// MCP tools for the selected audience.\n#[allow(dead_code)]\npub static MCP_TOOLS: &[::crucible_server_runtime_rust::__generated::mcp::ToolDescriptor] = &[\n",
     );
     out = out.replace("::crucible_server_runtime_rust::__generated::mcp", runtime);
-    let notes = exclusions(service);
     let mut operations: Vec<_> = service.operations.iter().collect();
     operations.sort_by(|a, b| a.name().cmp(b.name()));
     for op in operations {
         if op.name().len() > 128 {
             diagnostics.push(&op.id,"mcp.invalid_tool_name: tool names must contain 1-128 ASCII letters, digits, underscore, hyphen, or dot");
-            continue;
-        }
-        if streaming(op) {
             continue;
         }
         let errors = op
@@ -66,7 +37,7 @@ pub fn emit(
                     .find(|m| m.name == "message")
                     .map_or_else(
                         || "None".to_owned(),
-                        |m| format!("Some({})", literal(&m.wire_name)),
+                        |m| format!("Some({})", literal(&m.name)),
                     );
                 format!(
                     "{runtime}::ToolError {{ name: {}, message_member: {message} }}",
@@ -114,10 +85,6 @@ pub fn emit(
             literal(op.name()), literal(op.name()), literal(&description),
             literal(&input.to_string()), literal(&output.to_string()), op.readonly,
             op.idempotent || op.idempotency_token.is_some(), !op.readonly));
-    }
-    out.push_str("];\n/// Explicit build-time notes for operations unavailable through MCP.\n#[allow(dead_code)]\npub static MCP_EXCLUSIONS: &[&str] = &[\n");
-    for note in notes {
-        out.push_str(&format!("    {},\n", literal(&note)));
     }
     out.push_str("];\n");
     out

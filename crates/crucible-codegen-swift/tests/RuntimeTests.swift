@@ -21,17 +21,14 @@ private actor Counter {
     func next() -> Int { value += 1; return value }
 }
 final class RuntimeTests: XCTestCase, @unchecked Sendable {
-    func testPublicAuthEmptyDigestAndDotLabels() async throws {
+    func testPublicAuthAndDotLabels() async throws {
         let publicTransport = FakeTransport { _, request, _ in
             XCTAssertNil(request.headers["authorization"])
             return response(204, "")
         }
         let publicClient = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: publicTransport, token: { throw WireError("Public operation requested credentials") }))
         _ = try await publicClient.publicPing()
-        let emptyTransport = FakeTransport { _, request, _ in
-            XCTAssertEqual(request.headers["x-amz-content-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-            return response(200)
-        }
+        let emptyTransport = FakeTransport { _, _, _ in response(200) }
         _ = try await WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: emptyTransport)).retrySafe()
         for label in [".", ".."] {
             let transport = FakeTransport { _, _, _ in XCTFail("Dot label reached transport"); return response(200) }
@@ -43,27 +40,8 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
             XCTAssertEqual(count, 0)
         }
     }
-    func testBodilessDigests() async throws {
-        for method in ["POST", "PUT", "PATCH", "GET", "DELETE"] {
-            let transport = FakeTransport { _, request, _ in
-                XCTAssertNil(request.body)
-                XCTAssertEqual(request.method, method)
-                if method == "GET" || method == "DELETE" {
-                    XCTAssertNil(request.headers["x-amz-content-sha256"])
-                } else {
-                    XCTAssertEqual(request.headers["x-amz-content-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-                }
-                return response(200)
-            }
-            let client = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: transport,
-                middleware: [{ request in var changed = request; changed.method = method; return changed }]))
-            _ = try await client.retrySafe()
-            let count = await transport.count
-            XCTAssertEqual(count, 1)
-        }
-    }
     private func codec() throws -> WireCodec {
-        try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "", digest: false).codec
+        try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1"), endpoint: "").codec
     }
     func testSharedRetryConformance() async throws {
         let cases = try JSONValue(data: Data(contentsOf: URL(fileURLWithPath: ProcessInfo.processInfo.environment["RETRY_CASES"]!))).array
@@ -163,7 +141,6 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         let transport = FakeTransport { attempt, request, _ in
             XCTAssertEqual(request.headers["authorization"], "Bearer \(attempt)")
             XCTAssertEqual(request.headers["x-expected-revision"], "7")
-            XCTAssertNotNil(request.headers["x-amz-content-sha256"])
             return attempt == 1 ? response(503, "{\"__type\":\"FutureError\"}") : response(200, "{\"city\":{\"id\":\"c\",\"name\":\"x\"}}")
         }
         let client = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: transport,
@@ -217,14 +194,13 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         }
         let empty = FakeTransport { _, request, _ in
             XCTAssertNil(request.body); XCTAssertNil(request.headers["content-type"])
-            XCTAssertEqual(request.headers["x-amz-content-sha256"], "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
             return response(200, "{\"photo\":{\"size\":0,\"thumbnail\":\"\"}}")
         }
         let emptyClient = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: empty))
         _ = try await emptyClient.putCityPhoto(.init(cityId: "x", photo: Data()))
     }
     func testRetryAfterAndUnsafeCredentialEndpoint() async throws {
-        let runtime = try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1", baseDelay: 1, maxDelay: 2), endpoint: "", digest: false)
+        let runtime = try ClientRuntime(ClientConfig(endpoint: "http://127.0.0.1", baseDelay: 1, maxDelay: 2), endpoint: "")
         XCTAssertEqual(runtime.retryDelay(1, header: "0"), 0)
         XCTAssertEqual(runtime.retryDelay(1, header: "50"), 50)
         for invalid in ["-1", "NaN", "Infinity", "invalid"] {
@@ -234,6 +210,17 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         let client = try WeatherClient(ClientConfig(endpoint: "http://example.invalid", transport: transport, token: { "secret" }))
         do { _ = try await client.ping(); XCTFail("Credentials sent without TLS") } catch is WireError { }
         let count = await transport.count; XCTAssertEqual(count, 0)
+    }
+    func testSuppliedBearerHeaderBypassesTokenSource() async throws {
+        let transport = FakeTransport { _, request, _ in
+            XCTAssertEqual(request.headers["authorization"], "Bearer supplied")
+            return response(200)
+        }
+        let client = try WeatherClient(ClientConfig(endpoint: "http://127.0.0.1", transport: transport,
+            token: { XCTFail("token source invoked despite a supplied header"); return nil },
+            headers: ["Authorization": "Bearer supplied"]))
+        _ = try await client.ping()
+        let count = await transport.count; XCTAssertEqual(count, 1)
     }
     func testPaginationIsLazyAndDetectsCycles() async throws {
         let transport = FakeTransport { _, request, _ in
@@ -287,7 +274,7 @@ final class RuntimeTests: XCTestCase, @unchecked Sendable {
         try await Task.sleep(nanoseconds: 50_000_000); task.cancel()
         do { _ = try await task.value; XCTFail("Expected body cancellation") } catch is CancellationError { }
     }
-    func testNativeDigestAndCredentialRefresh() async throws {
+    func testNativeCredentialRefresh() async throws {
         let fixture = ProcessInfo.processInfo.environment["FIXTURE_URL"]!
         let counter = Counter()
         let echo = try WeatherClient(ClientConfig(endpoint: fixture + "/echo", token: { String(await counter.next()) }, baseDelay: 0))

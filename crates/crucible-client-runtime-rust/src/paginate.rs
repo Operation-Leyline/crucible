@@ -6,13 +6,11 @@ use crucible_wire::operation::Operation;
 use serde::de::DeserializeOwned;
 
 use crate::transport::{Error, OperationErrors, Transport};
-use crate::{CallOptions, OperationMetadata};
 
 /// Sends the operation again with each response's token until a response
 /// has none. Generated `*_pages` methods build it.
 pub struct Paginator<O: Operation, E> {
     transport: Transport,
-    metadata: Option<&'static OperationMetadata>,
     /// The next request; `None` once the last page is in.
     next: Option<O::Input>,
     token: fn(&O::Output) -> Option<&str>,
@@ -41,7 +39,6 @@ where
     ) -> Self {
         Self {
             transport,
-            metadata: None,
             next: Some(input),
             token,
             input_token,
@@ -49,12 +46,6 @@ where
             fresh_token: None,
             errors: PhantomData,
         }
-    }
-
-    #[doc(hidden)]
-    pub fn metadata(mut self, metadata: &'static OperationMetadata) -> Self {
-        self.metadata = Some(metadata);
-        self
     }
 
     #[doc(hidden)]
@@ -70,15 +61,7 @@ where
         if let Some(fill) = self.fresh_token {
             fill(&mut input);
         }
-        let result = match self.metadata {
-            Some(metadata) => {
-                self.transport
-                    .send_with_metadata::<O, E>(&input, &CallOptions::default(), metadata)
-                    .await
-            }
-            None => self.transport.send::<O, E>(&input).await,
-        };
-        let output = match result {
+        let output = match self.transport.send::<O, E>(&input).await {
             Ok(output) => output,
             Err(error) => return Some(Err(error)),
         };

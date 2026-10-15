@@ -3,10 +3,8 @@
 //! `payload-kinds` fixture (union, document and enum payloads).
 mod common;
 
-use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use base64::Engine;
 use crucible_client_runtime_rust::{Config, Error, Field, Retry};
 
 #[allow(dead_code)]
@@ -16,10 +14,6 @@ mod wire {
 #[allow(dead_code)]
 mod kinds {
     include!(concat!(env!("OUT_DIR"), "/kinds_client.rs"));
-}
-
-fn b64(text: &str) -> String {
-    base64::engine::general_purpose::STANDARD.encode(text)
 }
 
 /// Echoes the body and the media headers, as the Go and Python suites do.
@@ -39,7 +33,7 @@ fn echo(
         let mut headers: Vec<(String, String)> = request
             .headers
             .iter()
-            .filter(|(name, _)| name == "x-meta" || name.starts_with("x-extra-"))
+            .filter(|(name, _)| name == "x-meta")
             .cloned()
             .collect();
         if let Some(value) = invalid.lock().unwrap().clone() {
@@ -70,11 +64,9 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
     let client = wire::WireClient::new(Config::new(endpoint).retry(Retry::none()));
 
     let meta = vec![r#"{"key":"héllo"}"#.to_owned(), "a,b".into(), String::new()];
-    let extras = BTreeMap::from([("note".to_owned(), "héllo".to_owned())]);
     let input = wire::TextInput::builder()
         .text("héllo 🌍")
         .meta(meta.clone())
-        .extras(extras.clone())
         .build();
     let output = client.text(input.clone()).await.unwrap();
     let request = seen.lock().unwrap().last().cloned().unwrap();
@@ -84,10 +76,8 @@ async fn text_and_structure_payloads_round_trip_with_base64_media_headers() {
         request.header("x-meta"),
         Some(r#"eyJrZXkiOiJow6lsbG8ifQ==, YSxi, """#)
     );
-    assert_eq!(request.header("x-extra-note"), Some(b64("héllo").as_str()));
     assert_eq!(output.text(), Some(&"héllo 🌍".to_owned()));
     assert_eq!(output.meta(), Some(&meta));
-    assert_eq!(output.extras(), Some(&extras));
 
     let record = wire::Record::builder().name("nested").build();
     let result = client

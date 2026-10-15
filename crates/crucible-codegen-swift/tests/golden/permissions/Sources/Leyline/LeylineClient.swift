@@ -12,7 +12,7 @@ public final class LeylineClient: Sendable {
     ///
     /// - Throws: ``WireError`` when the endpoint or another setting is invalid.
     public init(_ config: ClientConfig = ClientConfig()) throws {
-        runtime = try ClientRuntime(config, endpoint: "", digest: false)
+        runtime = try ClientRuntime(config, endpoint: "")
     }
     /// Releases the HTTP session this client created. A transport passed in the
     /// configuration is left open. Calls made after closing fail.

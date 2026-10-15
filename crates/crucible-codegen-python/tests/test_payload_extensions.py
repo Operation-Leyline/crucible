@@ -11,16 +11,14 @@ class PayloadExtensionTests(unittest.TestCase):
         requests = []
         def reply(request):
             requests.append(request)
-            return httpx.Response(200, content=request.content, headers={"x-meta": request.headers.get("x-meta", ""), "x-extra-note": request.headers.get("x-extra-note", "")})
+            return httpx.Response(200, content=request.content, headers={"x-meta": request.headers.get("x-meta", "")})
         with httpx.Client(transport=httpx.MockTransport(reply)) as http:
             client = WireClient(endpoint="https://example.test", http=http)
             value = "héllo 🌍"
             metadata = ['{"key":"héllo"}', "a,b", ""]
-            output = client.text(TextInput(text=value, meta=metadata, extras={"note": "héllo"}))
+            output = client.text(TextInput(text=value, meta=metadata))
             self.assertEqual(output.text, value)
             self.assertEqual(output.meta, metadata)
-            self.assertEqual(output.extras, {"note": "héllo"})
-            self.assertEqual(requests[-1].headers["x-extra-note"], "aMOpbGxv")
             self.assertEqual(requests[-1].content, value.encode())
             self.assertEqual(requests[-1].headers["x-meta"], ", ".join(
                 base64.b64encode(item.encode()).decode() if item else '""' for item in metadata))

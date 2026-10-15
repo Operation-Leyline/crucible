@@ -83,7 +83,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_version: "1.0.0".into(),
                 client_name: None,
                 endpoint: endpoint.clone(),
-                middleware: vec![],
                 package_json: None,
                 metadata: Default::default(),
             }),
@@ -95,7 +94,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 module_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -104,7 +102,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 module_path: "example.test/hostile".into(),
                 package_name: "hostile".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -115,7 +112,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -125,7 +121,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_id: "Example.Hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -136,7 +131,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -146,7 +140,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 module_name: "Hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -155,7 +148,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -165,7 +157,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 namespace: "Hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -175,7 +166,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 module_name: "Hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -185,7 +175,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 namespace: "Hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -195,7 +184,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 prefix: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint: endpoint.clone(),
-                content_sha256: true,
             }),
         ),
         (
@@ -204,7 +192,6 @@ fn clients() -> Vec<(&'static str, Client)> {
                 package_name: "hostile".into(),
                 package_version: "1.0.0".into(),
                 endpoint,
-                content_sha256: true,
             }),
         ),
     ]

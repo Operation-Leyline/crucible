@@ -22,7 +22,7 @@ test("exact decimals survive retry snapshots and bound headers", async () => {
   const transport = new Transport({ endpoint: "https://types.test", retry: { baseDelayMs: 0 }, fetch: async request => {
     count++; assert.equal(request.headers.get("x-decimal"), decimal); assert.equal(await request.text(), `{"integer":${integer}}`);
     return new Response(null, { status: count === 1 ? 503 : 204 });
-  } }, { middleware: [], bearer: false }, {});
+  } }, { bearer: false }, {});
   await transport.send({ name: "Exact", method: "POST", path: [], input: S_Output, body: ["integer"], headers: [["decimal", "x-decimal", bigDecimal]], errors: [], retrySafe: true }, input);
   assert.equal(count, 2);
 });

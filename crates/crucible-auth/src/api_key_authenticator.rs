@@ -14,11 +14,9 @@ use std::{
 /// caching every store needs: valid keys for a TTL, refused keys with backoff,
 /// one read per digest at a time, and a bounded number of reads at once.
 ///
-/// It serves the model's bearer scheme (`@httpBearerAuth`, `AuthScheme::Bearer`)
-/// only: keys arrive as `Authorization: Bearer KEY` or in the configured
-/// [`credential_headers`](Self::credential_headers). It does not serve Smithy
-/// `@httpApiKeyAuth` (`AuthScheme::ApiKey`); a service that models that scheme
-/// needs its own `Authenticator` for it for now.
+/// It serves the model's bearer scheme (`auth bearer`, `AuthScheme::Bearer`):
+/// keys arrive as `Authorization: Bearer KEY` or in the configured
+/// [`credential_headers`](Self::credential_headers).
 ///
 /// It recognizes only credentials with its prefix (and passing its
 /// well-formedness check), so in an [`AuthenticatorChain`](crate::AuthenticatorChain)

@@ -3,11 +3,10 @@ import kotlin.time.TimeSource
 import kotlinx.coroutines.delay
 
 /**
- * Monotonic time and sleeps for retry backoff, adaptive rate limiting, endpoint discovery cache
- * expiry, and telemetry timestamps and latencies. Tests inject a fake clock.
+ * Monotonic time and sleeps for retry backoff, adaptive rate limiting, and telemetry timestamps and latencies. Tests inject a fake clock.
  *
  * A call's own `timeout` always uses the platform clock, so a fake clock never shortens or
- * extends a real deadline. (`ClientConfig.clock` is a different clock: the wall clock used to sign.)
+ * extends a real deadline.
  */
 interface RuntimeClock {
     /** Time elapsed since an arbitrary fixed origin; never decreases. */

@@ -79,6 +79,38 @@ pub fn permission_trait_refusal(name: &str) -> String {
     )
 }
 
+/// Smithy features Crucible does not implement. A model that uses one is
+/// refused, never lowered as if it did not: streaming payloads and event
+/// streams, waiters, endpoint rules and discovery, host prefixes, checksums,
+/// non-bearer auth, CORS, and the HTTP bindings and naming only those used.
+const REFUSED_TRAITS: &[(&str, &str)] = &[
+    ("smithy.api", "enum"),
+    ("smithy.api", "streaming"),
+    ("smithy.api", "requiresLength"),
+    ("smithy.api", "eventHeader"),
+    ("smithy.api", "eventPayload"),
+    ("smithy.api", "jsonName"),
+    ("smithy.api", "httpPrefixHeaders"),
+    ("smithy.api", "httpQueryParams"),
+    ("smithy.api", "httpResponseCode"),
+    ("smithy.api", "optionalAuth"),
+    ("smithy.api", "hostLabel"),
+    ("smithy.api", "endpoint"),
+    ("smithy.api", "httpChecksumRequired"),
+    ("smithy.api", "cors"),
+    ("aws.protocols", "httpChecksum"),
+    ("aws.auth", "unsignedPayload"),
+    ("aws.api", "clientEndpointDiscovery"),
+    ("aws.api", "clientDiscoveredEndpoint"),
+    ("aws.api", "clientEndpointDiscoveryId"),
+    ("smithy.waiters", "waitable"),
+    ("smithy.rules", "endpointRuleSet"),
+    ("smithy.rules", "clientContextParams"),
+    ("smithy.rules", "staticContextParams"),
+    ("smithy.rules", "contextParam"),
+    ("smithy.rules", "operationContextParams"),
+];
+
 const PRELUDE_AUTH: &[&str] = &[
     "httpBasicAuth",
     "httpDigestAuth",
@@ -145,8 +177,7 @@ impl<'m> Lowerer<'m> {
         self.check_protocol(id, shape);
         self.check_traits(id, &shape.traits);
         let auth = self.auth(id, shape);
-        let auth_schemes = self.auth_configs(id, shape, &auth);
-        let endpoint_rules = self.endpoint_rules(id, &shape.traits);
+        let auth_schemes = self.auth_configs(id, &auth);
         let default_auth = self.effective_auth(id, &shape.traits, &auth);
         self.service_public = explicitly_public(&shape.traits);
         self.refuse_permission_traits();
@@ -235,33 +266,10 @@ impl<'m> Lowerer<'m> {
         } else {
             (Vec::new(), BTreeMap::new())
         };
-        self.resolve_endpoint_parameters(id, shape, &mut operations, endpoint_rules.as_ref());
-        let endpoint_discovery = self.discovery(id, shape, &mut operations);
         let reached: Vec<_> = self.reached_ids().collect();
         let recursive_groups = crate::recursion::lower(self.model, &reached);
-        let mut waiter_names = BTreeSet::new();
-        for operation in &operations {
-            for name in operation.waiters.keys() {
-                if !waiter_names.insert(name.to_ascii_lowercase()) {
-                    self.diagnostics.push(&operation.id, format!("waiter name {name} must be case-insensitively unique across the service"));
-                }
-            }
-        }
-        self.check_stream_references(&operations);
-        let cors = shape.traits.get(&smithy("cors")).and_then(|value| {
-            crate::cors::lower(
-                id,
-                value,
-                &operations,
-                &self.shapes,
-                &auth_schemes,
-                &mut self.diagnostics,
-            )
-        });
         let service = Service {
-            cors,
             internal: shape.traits.contains_key(&smithy("internal")),
-            endpoint_discovery,
             recursive_groups,
             protocol: self.protocol,
             errors: service_errors,
@@ -275,7 +283,6 @@ impl<'m> Lowerer<'m> {
             auth,
             scopes: std::mem::take(&mut self.default_scopes),
             auth_schemes,
-            endpoint_rules,
             operations,
             resources,
             resource_roots,
@@ -340,7 +347,7 @@ impl<'m> Lowerer<'m> {
         };
         for (key, value) in value {
             match key.as_str() {
-                "http" | "eventStreamHttp" => {
+                "http" => {
                     let versions = value.as_array().and_then(|values| {
                         values
                             .iter()
@@ -348,11 +355,7 @@ impl<'m> Lowerer<'m> {
                             .collect::<Option<Vec<_>>>()
                     });
                     if let Some(versions) = versions.filter(|versions| !versions.is_empty()) {
-                        if key == "http" {
-                            settings.http = versions;
-                        } else {
-                            settings.event_stream_http = versions;
-                        }
+                        settings.http = versions;
                     } else {
                         self.diagnostics.push(id,format!("@{trait_id}.{key} must be a nonempty array of ALPN protocol strings"));
                     }
@@ -361,17 +364,6 @@ impl<'m> Lowerer<'m> {
                     .diagnostics
                     .push(id, format!("unsupported @{trait_id} property {key}")),
             }
-        }
-        if !value.contains_key("eventStreamHttp") {
-            settings.event_stream_http = settings.http.clone();
-        }
-        if settings
-            .event_stream_http
-            .iter()
-            .any(|version| !settings.http.contains(version))
-        {
-            self.diagnostics
-                .push(id, "eventStreamHttp entries must also occur in http");
         }
         settings
     }
@@ -513,28 +505,17 @@ impl<'m> Lowerer<'m> {
 
         let input = self.io(id, shape.input.as_ref());
         let output = self.io(id, shape.output.as_ref());
-        let mut request = input
+        let request = input
             .as_ref()
             .map(|input| self.request_bindings(id, input, &uri))
             .unwrap_or_default();
-        let mut response = output
+        let response = output
             .as_ref()
             .map(|output| self.response_bindings(output))
             .unwrap_or_default();
-        if let Some(input) = &input {
-            self.event_stream_binding(input, &mut request);
-        }
-        if let Some(output) = &output {
-            self.event_stream_binding(output, &mut response);
-        }
         let mut protocol_headers = BTreeMap::new();
         if let Some(payload) = &request.payload {
             protocol_headers.insert("Content-Type".into(), payload.media_type.clone());
-        } else if request.event_stream.is_some() {
-            protocol_headers.insert(
-                "Content-Type".into(),
-                "application/vnd.amazon.eventstream".into(),
-            );
         } else if !request.body.is_empty() {
             protocol_headers.insert("Content-Type".into(), "application/json".into());
         }
@@ -580,33 +561,17 @@ impl<'m> Lowerer<'m> {
         let paginated = self.paginated(id, shape, default_pagination);
         let examples = self.examples(id, shape, &errors);
 
-        let unsigned_payload = auth
-            .iter()
-            .any(|id| id.namespace() == "aws.auth" && id.name() == "sigv4")
-            && shape
-                .traits
-                .contains_key(&ShapeId::new("aws.auth", "unsignedPayload"));
         Some(Operation {
             protocol_headers,
             response_protocol_headers: self.protocol.response_headers(
                 &response,
-                output.is_some()
-                    && (!response.body.is_empty()
-                        || response.payload.is_some()
-                        || response.event_stream.is_some()),
+                output.is_some() && (!response.body.is_empty() || response.payload.is_some()),
             ),
             internal: shape.traits.contains_key(&smithy("internal")),
-            unsigned_payload,
-            discovered_endpoint: None,
-            checksum: self.checksum(id, shape, input.as_ref()),
             id: id.clone(),
             auth,
             public,
             scopes,
-            optional_auth: shape.traits.contains_key(&smithy("optionalAuth")),
-            endpoint: self.endpoint_host_prefix(id, shape, input.as_ref()),
-            endpoint_parameters: BTreeMap::new(),
-            waiters: self.waiters(id, &shape.traits, output.is_some()),
             resource,
             docs: string_trait(&shape.traits, "documentation"),
             notes: DocNotes::lower(id, &shape.traits, &mut self.diagnostics),
@@ -714,10 +679,6 @@ impl<'m> Lowerer<'m> {
         let mut seen_payload = false;
         for (name, member) in &self.model[input].members {
             let member_id = input.with_member(name);
-            if member.traits.contains_key(&smithy("httpResponseCode")) {
-                self.diagnostics
-                    .push(&member_id, "@httpResponseCode cannot bind an input member");
-            }
             if member.traits.contains_key(&smithy("httpPayload")) {
                 if seen_payload {
                     self.diagnostics
@@ -740,28 +701,6 @@ impl<'m> Lowerer<'m> {
                     member: name.clone(),
                     name: header,
                 });
-            } else if member.traits.contains_key(&smithy("httpQueryParams")) {
-                self.require(&member_id, Feature::QueryParams, smithy("httpQueryParams"));
-                self.check_map_binding(&member_id, member, true);
-                if bindings.query_params.replace(name.clone()).is_some() {
-                    self.diagnostics
-                        .push(input, "only one member may bind @httpQueryParams");
-                }
-            } else if let Some(prefix) = string_trait(&member.traits, "httpPrefixHeaders") {
-                self.require(
-                    &member_id,
-                    Feature::PrefixHeaders,
-                    smithy("httpPrefixHeaders"),
-                );
-                self.check_map_binding(&member_id, member, false);
-                bindings.prefix_headers.push(Binding {
-                    member: name.clone(),
-                    name: prefix,
-                });
-                if bindings.prefix_headers.len() > 1 {
-                    self.diagnostics
-                        .push(input, "only one member may bind @httpPrefixHeaders");
-                }
             } else {
                 bindings.body.push(name.clone());
             }
@@ -780,7 +719,6 @@ impl<'m> Lowerer<'m> {
                 "@httpLabel member does not appear in the operation's URI",
             );
         }
-        self.check_prefix_headers(input, &bindings);
         self.header_encodings(input, &mut bindings);
         self.binding_timestamp_formats(input, &mut bindings);
         bindings
@@ -790,45 +728,6 @@ impl<'m> Lowerer<'m> {
         let mut bindings = Bindings::default();
         let mut seen_payload = false;
         for (name, member) in &self.model[output].members {
-            if let Some(prefix) = string_trait(&member.traits, "httpPrefixHeaders") {
-                self.require(
-                    &output.with_member(name),
-                    Feature::PrefixHeaders,
-                    smithy("httpPrefixHeaders"),
-                );
-                self.check_map_binding(&output.with_member(name), member, false);
-                bindings.prefix_headers.push(Binding {
-                    member: name.clone(),
-                    name: prefix,
-                });
-                if bindings.prefix_headers.len() > 1 {
-                    self.diagnostics
-                        .push(output, "only one member may bind @httpPrefixHeaders");
-                }
-                continue;
-            }
-            if member.traits.contains_key(&smithy("httpResponseCode")) {
-                self.require(
-                    &output.with_member(name),
-                    Feature::ResponseCode,
-                    smithy("httpResponseCode"),
-                );
-                if !self
-                    .model
-                    .get(&member.target)
-                    .is_some_and(|s| s.kind == Kind::Integer)
-                {
-                    self.diagnostics.push(
-                        &output.with_member(name),
-                        "@httpResponseCode must target integer",
-                    );
-                }
-                if bindings.response_code.replace(name.clone()).is_some() {
-                    self.diagnostics
-                        .push(output, "only one member may bind @httpResponseCode");
-                }
-                continue;
-            }
             if member.traits.contains_key(&smithy("httpPayload")) {
                 if seen_payload {
                     self.diagnostics.push(
@@ -852,7 +751,6 @@ impl<'m> Lowerer<'m> {
                 None => bindings.body.push(name.clone()),
             }
         }
-        self.check_prefix_headers(output, &bindings);
         self.header_encodings(output, &mut bindings);
         self.binding_timestamp_formats(output, &mut bindings);
         bindings
@@ -862,9 +760,6 @@ impl<'m> Lowerer<'m> {
     fn payload(&mut self, member_id: &ShapeId, member: &ast::Member) -> Option<Payload> {
         let target = self.model.get(&member.target)?;
         let kind = match target.kind {
-            Kind::Union if target.traits.contains_key(&smithy("streaming")) => {
-                PayloadKind::EventStream
-            }
             Kind::Blob => PayloadKind::Blob,
             Kind::String | Kind::Enum => PayloadKind::String,
             Kind::Structure | Kind::Union | Kind::Document => PayloadKind::Document,
@@ -876,14 +771,13 @@ impl<'m> Lowerer<'m> {
                 return None;
             }
         };
-        if !matches!(kind, PayloadKind::Blob | PayloadKind::EventStream) {
+        if kind != PayloadKind::Blob {
             self.require(member_id, Feature::NonBlobPayload, smithy("httpPayload"));
         }
         let media_type = string_trait(&target.traits, "mediaType").unwrap_or_else(|| {
             match kind {
                 PayloadKind::Blob => "application/octet-stream",
                 PayloadKind::String => "text/plain",
-                PayloadKind::EventStream => "application/vnd.amazon.eventstream",
                 _ => "application/json",
             }
             .to_owned()
@@ -900,34 +794,9 @@ impl<'m> Lowerer<'m> {
         }
         Some(Payload {
             kind,
-            streaming: target.traits.contains_key(&smithy("streaming")),
-            requires_length: target.traits.contains_key(&smithy("requiresLength")),
             member: member_id.member().unwrap_or_default().to_owned(),
             media_type,
         })
-    }
-
-    fn check_prefix_headers(&mut self, structure: &ShapeId, bindings: &Bindings) {
-        for prefix in &bindings.prefix_headers {
-            if prefix.name.is_empty() {
-                continue;
-            }
-            for header in &bindings.headers {
-                if header
-                    .name
-                    .to_ascii_lowercase()
-                    .starts_with(&prefix.name.to_ascii_lowercase())
-                {
-                    self.diagnostics.push(
-                        &structure.with_member(&prefix.member),
-                        format!(
-                            "@httpPrefixHeaders prefix {:?} overlaps explicit header {:?}",
-                            prefix.name, header.name
-                        ),
-                    );
-                }
-            }
-        }
     }
 
     /// Labels, query parameters and headers carry text: a simple value, an
@@ -971,7 +840,7 @@ impl<'m> Lowerer<'m> {
     }
 
     fn header_encodings(&mut self, structure: &ShapeId, bindings: &mut Bindings) {
-        for binding in bindings.headers.iter().chain(&bindings.prefix_headers) {
+        for binding in bindings.headers.iter() {
             let Some(member) = self.model[structure].members.get(&binding.member) else {
                 continue;
             };
@@ -1114,14 +983,12 @@ impl<'m> Lowerer<'m> {
     }
 
     fn check_traits(&mut self, id: &ShapeId, traits: &Traits) {
-        if traits.contains_key(&smithy("cors"))
-            && !self
-                .model
-                .get(id)
-                .is_some_and(|shape| shape.kind == Kind::Service)
-        {
-            self.diagnostics
-                .push(id, "@cors can only apply to a service");
+        for (namespace, name) in REFUSED_TRAITS {
+            let trait_id = ShapeId::new(namespace, name);
+            if traits.contains_key(&trait_id) {
+                self.diagnostics
+                    .push(id, format!("@{trait_id} is not supported"));
+            }
         }
         for (name, reason) in [
             ("longPoll", "long-poll timing and timeout behavior"),
@@ -1157,22 +1024,6 @@ impl<'m> Lowerer<'m> {
                 );
             }
         }
-        for (name, feature) in [
-            ("hostLabel", Feature::EndpointHostPrefix),
-            ("optionalAuth", Feature::OptionalAuth),
-            ("sparse", Feature::Sparse),
-        ] {
-            if traits.contains_key(&smithy(name)) {
-                self.require(id, feature, smithy(name));
-            }
-        }
-        if traits
-            .get(&smithy("httpPrefixHeaders"))
-            .is_some_and(|v| !v.is_string())
-        {
-            self.diagnostics
-                .push(id, "@httpPrefixHeaders must be a string");
-        }
         if traits.contains_key(&smithy("requestCompression")) {
             self.diagnostics
                 .push(id, "@requestCompression is not supported");
@@ -1198,39 +1049,6 @@ impl<'m> Lowerer<'m> {
             self.diagnostics.push(
                 shape,
                 format!("@{source} is not supported by this target (requires {feature})"),
-            );
-        }
-    }
-
-    fn check_map_binding(&mut self, id: &ShapeId, member: &ast::Member, lists: bool) {
-        let Some(target) = self.model.get(&member.target) else {
-            return;
-        };
-        let value = target
-            .value
-            .as_ref()
-            .and_then(|value| self.model.get(&value.target));
-        let valid_value = value.is_some_and(|value| {
-            matches!(value.kind, Kind::String | Kind::Enum)
-                || lists
-                    && value.kind == Kind::List
-                    && value
-                        .member
-                        .as_ref()
-                        .and_then(|m| self.model.get(&m.target))
-                        .is_some_and(|s| matches!(s.kind, Kind::String | Kind::Enum))
-        });
-        if target.kind != Kind::Map
-            || !valid_value
-            || !lists && target.traits.contains_key(&smithy("sparse"))
-        {
-            self.diagnostics.push(
-                id,
-                if lists {
-                    "@httpQueryParams requires a map of strings or string lists"
-                } else {
-                    "@httpPrefixHeaders requires a dense map of strings"
-                },
             );
         }
     }
@@ -1282,91 +1100,12 @@ impl<'m> Lowerer<'m> {
             );
         }
         self.check_traits(id, &shape.traits);
-        self.check_stream_shape(id, shape);
         self.visiting.insert(id.clone());
         let lowered = self.shape(id, shape);
         self.visiting.remove(id);
         if let Some(lowered) = lowered {
             self.shapes.insert(id.clone(), lowered);
         }
-    }
-
-    fn legacy_enum(&mut self, id: &ShapeId, value: &Value) -> Vec<EnumValue> {
-        let Some(definitions) = value.as_array().filter(|values| !values.is_empty()) else {
-            self.diagnostics.push(
-                id,
-                "@smithy.api#enum must be a non-empty array of definitions",
-            );
-            return Vec::new();
-        };
-        let mut values = Vec::new();
-        let mut names = BTreeSet::new();
-        let mut wire_values = BTreeSet::new();
-        for (index, definition) in definitions.iter().enumerate() {
-            let name = definition.get("name").and_then(Value::as_str);
-            let value = definition.get("value").and_then(Value::as_str);
-            if name.is_none() {
-                self.diagnostics.push(id, format!("@smithy.api#enum definition {index} lacks name; use Smithy's changeStringEnumsToEnumShapes transform"));
-            }
-            if value.is_none() {
-                self.diagnostics.push(
-                    id,
-                    format!("@smithy.api#enum definition {index} must have a string value"),
-                );
-            }
-            if let (Some(name), Some(value)) = (name, value) {
-                let valid_name = name.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_')
-                    && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-                if !valid_name {
-                    self.diagnostics.push(
-                        id,
-                        format!(
-                            "@smithy.api#enum definition {index} name must be a Smithy identifier"
-                        ),
-                    );
-                }
-                if value.is_empty() {
-                    self.diagnostics.push(
-                        id,
-                        format!("@smithy.api#enum definition {index} value must not be empty"),
-                    );
-                }
-                if !valid_name || value.is_empty() {
-                    continue;
-                }
-                if !names.insert(name) {
-                    self.diagnostics.push(
-                        id,
-                        format!("@smithy.api#enum definition {index} duplicates name {name:?}"),
-                    );
-                }
-                if !wire_values.insert(value) {
-                    self.diagnostics.push(
-                        id,
-                        format!("@smithy.api#enum definition {index} duplicates value {value:?}"),
-                    );
-                }
-                // The enum IR carries docs; deprecated and tags remain in the shape's raw trait.
-                values.push(EnumValue {
-                    // Smithy's enum conversion maps this legacy tag to @internal.
-                    internal: definition
-                        .get("tags")
-                        .and_then(Value::as_array)
-                        .is_some_and(|tags| {
-                            tags.iter().any(|tag| tag.as_str() == Some("internal"))
-                        }),
-                    name: name.to_owned(),
-                    value: value.to_owned(),
-                    docs: definition
-                        .get("documentation")
-                        .and_then(Value::as_str)
-                        .map(str::to_owned),
-                    notes: DocNotes::lower_legacy_enum_value(id, definition, &mut self.diagnostics),
-                    traits: Traits::new(),
-                });
-            }
-        }
-        values
     }
 
     fn shape(&mut self, id: &ShapeId, shape: &'m ast::Shape) -> Option<Shape> {
@@ -1379,8 +1118,6 @@ impl<'m> Lowerer<'m> {
                 internal: shape.traits.contains_key(&smithy("internal")),
                 sensitive: shape.traits.contains_key(&smithy("sensitive")),
                 kind,
-                streaming: shape.traits.contains_key(&smithy("streaming")),
-                requires_length: shape.traits.contains_key(&smithy("requiresLength")),
                 constraints: constraints(&shape.traits),
                 timestamp_format: explicit_format,
                 docs: docs.clone(),
@@ -1395,14 +1132,6 @@ impl<'m> Lowerer<'m> {
         }
         Some(match shape.kind {
             Kind::Boolean => simple(SimpleKind::Boolean),
-            Kind::String if shape.traits.contains_key(&smithy("enum")) => Shape::Enum(Enum {
-                internal: shape.traits.contains_key(&smithy("internal")),
-                sensitive: shape.traits.contains_key(&smithy("sensitive")),
-                values: self.legacy_enum(id, &shape.traits[&smithy("enum")]),
-                docs,
-                notes,
-                traits,
-            }),
             Kind::String => simple(SimpleKind::String),
             Kind::Byte => simple(SimpleKind::Byte),
             Kind::Short => simple(SimpleKind::Short),
@@ -1485,24 +1214,23 @@ impl<'m> Lowerer<'m> {
                 })
             }
             Kind::List | Kind::Set => {
-                let sparse = shape.traits.contains_key(&smithy("sparse"));
-                let is_set = shape.kind == Kind::Set;
-                if is_set {
-                    self.require(id, Feature::Sets, smithy("Set"));
+                if shape.kind == Kind::Set {
+                    self.diagnostics.push(
+                        id,
+                        "set shapes are not supported; use a list with @uniqueItems",
+                    );
                 }
-                if is_set && sparse {
-                    self.diagnostics.push(id, "a set cannot be sparse");
+                let sparse = shape.traits.contains_key(&smithy("sparse"));
+                if sparse {
+                    self.require(id, Feature::Sparse, smithy("sparse"));
                 }
                 let member = self.collection_member(id, "member", shape.member.as_ref(), sparse)?;
-                let mut constraints = constraints(&shape.traits);
-                constraints.unique_items |= is_set;
                 Shape::List(List {
                     internal: shape.traits.contains_key(&smithy("internal")),
                     sensitive: shape.traits.contains_key(&smithy("sensitive")),
                     sparse,
-                    is_set,
                     member,
-                    constraints,
+                    constraints: constraints(&shape.traits),
                     docs,
                     notes,
                     traits,
@@ -1510,6 +1238,9 @@ impl<'m> Lowerer<'m> {
             }
             Kind::Map => {
                 let sparse = shape.traits.contains_key(&smithy("sparse"));
+                if sparse {
+                    self.require(id, Feature::Sparse, smithy("sparse"));
+                }
                 let key = self.collection_member(id, "key", shape.key.as_ref(), false)?;
                 let value = self.collection_member(id, "value", shape.value.as_ref(), sparse)?;
                 Shape::Map(Map {
@@ -1530,7 +1261,6 @@ impl<'m> Lowerer<'m> {
             Kind::Structure => Shape::Structure(Structure {
                 internal: shape.traits.contains_key(&smithy("internal")),
                 sensitive: shape.traits.contains_key(&smithy("sensitive")),
-                streaming: false,
                 strict: shape
                     .traits
                     .contains_key(&ShapeId::new("crucible.protocols", "strict")),
@@ -1544,7 +1274,6 @@ impl<'m> Lowerer<'m> {
             Kind::Union => Shape::Union(Structure {
                 internal: shape.traits.contains_key(&smithy("internal")),
                 sensitive: shape.traits.contains_key(&smithy("sensitive")),
-                streaming: shape.traits.contains_key(&smithy("streaming")),
                 strict: false,
                 input: false,
                 members: self.members(id, shape),
@@ -1584,15 +1313,6 @@ impl<'m> Lowerer<'m> {
             .iter()
             .map(|(name, member)| self.member(&id.with_member(name), name, member, input))
             .collect();
-        let mut names = BTreeSet::new();
-        for member in &members {
-            if !names.insert(&member.wire_name) {
-                self.diagnostics.push(
-                    &id.with_member(&member.name),
-                    format!("duplicate JSON member name {:?}", member.wire_name),
-                );
-            }
-        }
         members
     }
 
@@ -1604,17 +1324,6 @@ impl<'m> Lowerer<'m> {
         in_input: bool,
     ) -> Member {
         self.check_traits(member_id, &member.traits);
-        if member
-            .traits
-            .get(&smithy("jsonName"))
-            .is_some_and(|value| !value.is_string())
-        {
-            self.diagnostics
-                .push(member_id, "@jsonName must be a string");
-        }
-        if member.traits.contains_key(&smithy("jsonName")) {
-            self.require(member_id, Feature::JsonName, smithy("jsonName"));
-        }
         self.visit(&member.target);
         let target_traits = self.model.get(&member.target).map(|t| &t.traits);
         let mut effective = target_traits.map(constraints).unwrap_or_default();
@@ -1682,9 +1391,7 @@ impl<'m> Lowerer<'m> {
         Member {
             internal: member.traits.contains_key(&smithy("internal")),
             sensitive: member.traits.contains_key(&smithy("sensitive")),
-            event_binding: self.event_binding(member_id, member),
             name: name.to_owned(),
-            wire_name: string_trait(&member.traits, "jsonName").unwrap_or_else(|| name.to_owned()),
             target: member.target.clone(),
             required: member.traits.contains_key(&smithy("required")),
             default,
@@ -1769,8 +1476,6 @@ impl<'m> Lowerer<'m> {
             status,
             retryable,
             headers: bindings.headers,
-            prefix_headers: bindings.prefix_headers,
-            response_code: bindings.response_code,
         })
     }
 }

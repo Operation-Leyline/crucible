@@ -8,18 +8,12 @@
   shape <- .crucible_shape(target)
   if (shape$kind %in% c('structure', 'union')) {
     if (!.crucible_is_object(value)) stop('Expected document object', call. = FALSE)
-    result <- json_object(); known <- character(); wire_names <- character()
+    result <- json_object()
     for (name in names(shape$members)) {
-      member <- shape$members[[name]]; wire <- member$jsonName
-      if (is.null(wire)) wire <- name
-      source <- if (encode) name else wire
-      known <- c(known, source); wire_names <- c(wire_names, wire)
-      if (source %in% names(value)) result[if (encode) wire else name] <- list(.crucible_document(value[[source]], member$target, encode))
+      member <- shape$members[[name]]
+      if (name %in% names(value)) result[name] <- list(.crucible_document(value[[name]], member$target, encode))
     }
-    if (shape$kind == 'union') for (name in setdiff(names(value), known)) {
-      if (encode && name %in% wire_names) stop('Unknown variant name is declared', call. = FALSE)
-      result[name] <- value[name]
-    }
+    if (shape$kind == 'union') for (name in setdiff(names(value), names(shape$members))) result[name] <- value[name]
     return(result)
   }
   if (shape$kind == 'list') return(lapply(value, .crucible_document, target = shape$member$target, encode = encode))
