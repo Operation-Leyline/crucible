@@ -504,6 +504,7 @@ mod tests {
             },
             page_size: None,
             input_token_map: false,
+            input_token_max_length: None,
         });
         type Input = Unit;
         type Output = Unit;
@@ -521,6 +522,7 @@ mod tests {
             },
             page_size: None,
             input_token_map: false,
+            input_token_max_length: None,
         });
         type Input = Unit;
         type Output = Unit;
