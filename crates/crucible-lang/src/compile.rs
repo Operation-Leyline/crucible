@@ -274,7 +274,9 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
             template_members: &template_members,
         });
         diagnostics.extend(outcome.diagnostics.into_iter().filter(|problem| {
-            !problem.file.is_some_and(|file| broken.get(file).copied().unwrap_or(false))
+            !problem
+                .file
+                .is_some_and(|file| broken.get(file).copied().unwrap_or(false))
         }));
         model.exceptions = outcome.exceptions;
     }

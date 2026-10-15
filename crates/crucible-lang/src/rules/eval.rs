@@ -33,7 +33,9 @@ pub(super) struct Evaluator<'a, 'w> {
 impl Evaluator<'_, '_> {
     pub(super) fn eval(&self, subject: &Subject<'_>, expr: &Expr) -> Tri {
         match &expr.kind {
-            ExprKind::Or(left, right) => Ok(self.eval(subject, left)? || self.eval(subject, right)?),
+            ExprKind::Or(left, right) => {
+                Ok(self.eval(subject, left)? || self.eval(subject, right)?)
+            }
             ExprKind::And(left, right) => {
                 Ok(self.eval(subject, left)? && self.eval(subject, right)?)
             }
@@ -69,7 +71,10 @@ impl Evaluator<'_, '_> {
         }
     }
 
-    fn constraints<'s>(&self, subject: &'s Subject<'_>) -> Result<Option<&'s Constraints>, Unknown> {
+    fn constraints<'s>(
+        &self,
+        subject: &'s Subject<'_>,
+    ) -> Result<Option<&'s Constraints>, Unknown> {
         match &subject.entity {
             Entity::Member { member, .. } => Ok(Some(&member.constraints)),
             Entity::Shape { shape: None, .. } => Err(Unknown),
@@ -97,12 +102,14 @@ impl Evaluator<'_, '_> {
             return Ok(self.traits(subject).is_some_and(|t| t.contains_key(&key)));
         }
         let constraints = self.constraints(subject)?;
-        Ok(constraints.is_some_and(|c| match reference.name.name.as_str() {
-            "length" => c.length.is_some(),
-            "range" => c.range.is_some(),
-            "pattern" => c.pattern.is_some(),
-            _ => false,
-        }))
+        Ok(
+            constraints.is_some_and(|c| match reference.name.name.as_str() {
+                "length" => c.length.is_some(),
+                "range" => c.range.is_some(),
+                "pattern" => c.pattern.is_some(),
+                _ => false,
+            }),
+        )
     }
 
     fn flag(&self, subject: &Subject<'_>, path: &Path) -> Tri {
@@ -111,9 +118,10 @@ impl Evaluator<'_, '_> {
         }
         let name = path.head.name.name.as_str();
         Ok(match (&subject.entity, name) {
-            (Entity::Service(service), "documented") => {
-                service.docs.as_deref().is_some_and(|d| !d.trim().is_empty())
-            }
+            (Entity::Service(service), "documented") => service
+                .docs
+                .as_deref()
+                .is_some_and(|d| !d.trim().is_empty()),
             (Entity::Resource { documented }, "documented") => *documented,
             (Entity::Operation(op), "documented") => {
                 op.docs.as_deref().is_some_and(|d| !d.trim().is_empty())
@@ -128,8 +136,18 @@ impl Evaluator<'_, '_> {
             (Entity::Operation(op), "public") => op.public,
             (Entity::Operation(op), "paginated") => op.paginated.is_some(),
             (Entity::Shape { shape: None, .. }, "internal" | "sensitive") => return Err(Unknown),
-            (Entity::Shape { shape: Some(shape), .. }, "internal") => parts(shape).internal,
-            (Entity::Shape { shape: Some(shape), .. }, "sensitive") => parts(shape).sensitive,
+            (
+                Entity::Shape {
+                    shape: Some(shape), ..
+                },
+                "internal",
+            ) => parts(shape).internal,
+            (
+                Entity::Shape {
+                    shape: Some(shape), ..
+                },
+                "sensitive",
+            ) => parts(shape).sensitive,
             (Entity::Shape { class, .. }, "enum") => class.is_enum(),
             (Entity::Shape { referenced, .. }, "referenced") => *referenced,
             (Entity::Member { member, .. }, "internal") => member.internal,
@@ -149,14 +167,15 @@ impl Evaluator<'_, '_> {
             let Some(key) = self.meta_key(&path.head) else {
                 return Ok(None);
             };
-            return Ok(self.traits(subject).and_then(|t| t.get(&key)).and_then(|v| {
-                match v {
+            return Ok(self
+                .traits(subject)
+                .and_then(|t| t.get(&key))
+                .and_then(|v| match v {
                     Json::String(s) => Some(Val::Str(s.clone())),
                     Json::Bool(b) => Some(Val::Bool(*b)),
                     Json::Number(n) => n.as_f64().map(Val::Num),
                     _ => None,
-                }
-            }));
+                }));
         }
         let rest: Vec<&str> = path.rest.iter().map(|r| r.name.as_str()).collect();
         let bound = |b: &Bounds<u64>, which: &str| match which {
@@ -169,7 +188,10 @@ impl Evaluator<'_, '_> {
         };
         Ok(match (path.head.name.name.as_str(), rest.as_slice()) {
             ("name", []) => Some(Val::Str(subject.name.clone())),
-            ("role", []) => self.world.role(&subject.name).map(|r| Val::Str(r.to_owned())),
+            ("role", []) => self
+                .world
+                .role(&subject.name)
+                .map(|r| Val::Str(r.to_owned())),
             ("http", [field]) => match &subject.entity {
                 Entity::Operation(op) => match *field {
                     "method" => Some(Val::Str(op.method.clone())),
@@ -182,9 +204,15 @@ impl Evaluator<'_, '_> {
                 Entity::Member { member, .. } => {
                     let constraints = &member.constraints;
                     if *which == "length" {
-                        constraints.length.as_ref().and_then(|b| bound(b, bound_name))
+                        constraints
+                            .length
+                            .as_ref()
+                            .and_then(|b| bound(b, bound_name))
                     } else {
-                        constraints.range.as_ref().and_then(|b| range(b, bound_name))
+                        constraints
+                            .range
+                            .as_ref()
+                            .and_then(|b| range(b, bound_name))
                     }
                 }
                 _ => None,
@@ -272,9 +300,7 @@ impl Evaluator<'_, '_> {
             return false;
         };
         match test {
-            TypeIs::InlinePrimitive => {
-                member.target.is_prelude() && member.target.name() != "Unit"
-            }
+            TypeIs::InlinePrimitive => member.target.is_prelude() && member.target.name() != "Unit",
             TypeIs::Kind(kind) => self
                 .world
                 .service
@@ -333,8 +359,13 @@ fn equals(left: &Val, right: &Value) -> bool {
     match (left, right) {
         (Val::Str(l), Value::Str(r)) => *l == r.value,
         (Val::Str(l), Value::Ident(r)) => *l == r.name,
-        (Val::Num(l), Value::Number(r)) => r.text.parse::<f64>().is_ok_and(|r| (*l - r).abs() < f64::EPSILON),
-        (Val::Bool(l), Value::Ident(r)) => (r.name == "true") == *l && matches!(r.name.as_str(), "true" | "false"),
+        (Val::Num(l), Value::Number(r)) => r
+            .text
+            .parse::<f64>()
+            .is_ok_and(|r| (*l - r).abs() < f64::EPSILON),
+        (Val::Bool(l), Value::Ident(r)) => {
+            (r.name == "true") == *l && matches!(r.name.as_str(), "true" | "false")
+        }
         _ => false,
     }
 }

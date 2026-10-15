@@ -51,43 +51,43 @@ impl Class {
     /// Whether a shape of this class is what `kind` ranges over.
     pub(super) fn is(self, kind: Kind) -> bool {
         use SimpleKind as S;
-        match (kind, self) {
-            (Kind::Shape, _) => true,
-            (Kind::Error, Class::Error)
-            | (Kind::Structure, Class::Structure)
-            | (Kind::Union, Class::Union)
-            | (Kind::List, Class::List)
-            | (Kind::Map, Class::Map) => true,
-            (Kind::Enum, Class::StringEnum | Class::IntEnum) => true,
-            (Kind::String, Class::StringEnum | Class::Simple(S::String)) => true,
-            (
-                Kind::Number,
-                Class::IntEnum
-                | Class::Simple(
-                    S::Byte
-                    | S::Short
-                    | S::Integer
-                    | S::Long
-                    | S::Float
-                    | S::Double
-                    | S::BigInteger
-                    | S::BigDecimal,
-                ),
-            ) => true,
-            (Kind::Boolean, Class::Simple(S::Boolean))
-            | (Kind::Byte, Class::Simple(S::Byte))
-            | (Kind::Short, Class::Simple(S::Short))
-            | (Kind::Integer, Class::Simple(S::Integer))
-            | (Kind::Long, Class::Simple(S::Long))
-            | (Kind::Float, Class::Simple(S::Float))
-            | (Kind::Double, Class::Simple(S::Double))
-            | (Kind::BigInteger, Class::Simple(S::BigInteger))
-            | (Kind::BigDecimal, Class::Simple(S::BigDecimal))
-            | (Kind::Timestamp, Class::Simple(S::Timestamp))
-            | (Kind::Blob, Class::Simple(S::Blob))
-            | (Kind::Document, Class::Simple(S::Document)) => true,
-            _ => false,
-        }
+        matches!(
+            (kind, self),
+            (Kind::Shape, _)
+                | (Kind::Error, Class::Error)
+                | (Kind::Structure, Class::Structure)
+                | (Kind::Union, Class::Union)
+                | (Kind::List, Class::List)
+                | (Kind::Map, Class::Map)
+                | (Kind::Enum, Class::StringEnum | Class::IntEnum)
+                | (Kind::String, Class::StringEnum | Class::Simple(S::String))
+                | (
+                    Kind::Number,
+                    Class::IntEnum
+                        | Class::Simple(
+                            S::Byte
+                                | S::Short
+                                | S::Integer
+                                | S::Long
+                                | S::Float
+                                | S::Double
+                                | S::BigInteger
+                                | S::BigDecimal
+                        ),
+                )
+                | (Kind::Boolean, Class::Simple(S::Boolean))
+                | (Kind::Byte, Class::Simple(S::Byte))
+                | (Kind::Short, Class::Simple(S::Short))
+                | (Kind::Integer, Class::Simple(S::Integer))
+                | (Kind::Long, Class::Simple(S::Long))
+                | (Kind::Float, Class::Simple(S::Float))
+                | (Kind::Double, Class::Simple(S::Double))
+                | (Kind::BigInteger, Class::Simple(S::BigInteger))
+                | (Kind::BigDecimal, Class::Simple(S::BigDecimal))
+                | (Kind::Timestamp, Class::Simple(S::Timestamp))
+                | (Kind::Blob, Class::Simple(S::Blob))
+                | (Kind::Document, Class::Simple(S::Document))
+        )
     }
 
     pub(super) fn is_enum(self) -> bool {
@@ -201,7 +201,6 @@ pub(super) struct World<'a> {
     parents: BTreeMap<String, Option<String>>,
     pub subjects: Vec<Subject<'a>>,
 }
-
 
 impl<'a> World<'a> {
     pub(super) fn new(inputs: &Inputs<'a>) -> World<'a> {
@@ -440,7 +439,10 @@ fn declared_shape(decl: &Decl) -> Option<(String, Class)> {
         Decl::Enum(e) => (e.name.name.clone(), Class::StringEnum),
         Decl::List(l) => (l.name.name.clone(), Class::List),
         Decl::Map(m) => (m.name.name.clone(), Class::Map),
-        Decl::Scalar(s) => (s.name.name.clone(), Class::Simple(scalar_kind(&s.kind.name)?)),
+        Decl::Scalar(s) => (
+            s.name.name.clone(),
+            Class::Simple(scalar_kind(&s.kind.name)?),
+        ),
         _ => return None,
     })
 }

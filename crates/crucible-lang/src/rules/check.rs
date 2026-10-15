@@ -46,8 +46,8 @@ impl Checker<'_, '_> {
                     self.error(
                         expression.span,
                         format!(
-                            "`addresses` reads the resource an operation is bound to, not a {}",
-                            kind.words()
+                            "`addresses` reads the resource an operation is bound to, not {}",
+                            kind.indefinite()
                         ),
                     );
                 } else if !resource.name.is_empty() && !self.world.has_resource(&resource.name) {
@@ -95,8 +95,8 @@ impl Checker<'_, '_> {
             self.error(
                 reference.name.span,
                 format!(
-                    "`@{name}` is declared on {targets}, which a {} is not",
-                    kind.words()
+                    "`@{name}` is declared on {targets}, which {} is not",
+                    kind.indefinite()
                 ),
             );
             return None;
@@ -114,9 +114,9 @@ impl Checker<'_, '_> {
             self.error(
                 reference.name.span,
                 format!(
-                    "`has {}` does not apply to a {}: `has` takes `@metadata`, or `length`, `range` or `pattern` of a string, number, list, map, blob or member",
+                    "`has {}` does not apply to {}: `has` takes `@metadata`, or `length`, `range` or `pattern` of a string, number, list, map, blob or member",
                     reference.name.name,
-                    kind.words()
+                    kind.indefinite()
                 ),
             );
         }
@@ -140,8 +140,8 @@ impl Checker<'_, '_> {
                 self.error(
                     path.span,
                     format!(
-                        "`{name}` does not apply to a {}; its flags are {}",
-                        kind.words(),
+                        "`{name}` does not apply to {}; its flags are {}",
+                        kind.indefinite(),
                         flags_for(kind)
                     ),
                 );
@@ -223,7 +223,10 @@ impl Checker<'_, '_> {
             if op != Operator::Contains || !sensitive {
                 self.error(
                     path.span,
-                    format!("a body can only be tested with `{} contains sensitive`", spelled(path)),
+                    format!(
+                        "a body can only be tested with `{} contains sensitive`",
+                        spelled(path)
+                    ),
                 );
             }
             return;
@@ -317,7 +320,10 @@ impl Checker<'_, '_> {
             }
             PathType::Bool => {
                 if !matches!(word, Some("true" | "false")) {
-                    self.error(value.span(), format!("`{}` is true or false", spelled(path)));
+                    self.error(
+                        value.span(),
+                        format!("`{}` is true or false", spelled(path)),
+                    );
                 }
             }
             PathType::Str | PathType::Type => {

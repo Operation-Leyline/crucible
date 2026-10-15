@@ -136,7 +136,10 @@ fn level_of(rule: &Rule) -> (Level, Vec<Diagnostic>) {
     (level, problems)
 }
 
-fn collect_rules<'a>(inputs: &Inputs<'a>, diagnostics: &mut Vec<FileDiagnostic>) -> Vec<RuleDef<'a>> {
+fn collect_rules<'a>(
+    inputs: &Inputs<'a>,
+    diagnostics: &mut Vec<FileDiagnostic>,
+) -> Vec<RuleDef<'a>> {
     let mut defs: Vec<RuleDef<'a>> = Vec::new();
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
     for (file, parsed) in inputs.parsed.iter().enumerate() {
@@ -247,7 +250,10 @@ fn check_rule(
     if def.rule.clauses.is_empty() {
         checker.problems.push(Diagnostic::new(
             def.rule.name.span,
-            format!("rule `{}` has no clause: write `every <kind> must ..` or `no <kind> ..`", def.name),
+            format!(
+                "rule `{}` has no clause: write `every <kind> must ..` or `no <kind> ..`",
+                def.name
+            ),
         ));
     }
     for clause in &def.rule.clauses {
@@ -275,10 +281,15 @@ fn check_rule(
         def.broken = true;
     }
     let file = def.file;
-    diagnostics.extend(checker.problems.into_iter().map(|diagnostic| FileDiagnostic {
-        file: Some(file),
-        diagnostic,
-    }));
+    diagnostics.extend(
+        checker
+            .problems
+            .into_iter()
+            .map(|diagnostic| FileDiagnostic {
+                file: Some(file),
+                diagnostic,
+            }),
+    );
 }
 
 fn apply(
@@ -318,7 +329,10 @@ fn apply(
                 out.push(Violation {
                     rule,
                     subject: index,
-                    message: format!("`{}` is a {scope}, which this rule forbids", subject.display),
+                    message: format!(
+                        "`{}` is a {scope}, which this rule forbids",
+                        subject.display
+                    ),
                 });
             }
             Quantifier::Every => {
@@ -389,7 +403,11 @@ fn report(
             outcome.diagnostics.push(error(format!(
                 "`except` names an unknown rule `{}`; the rules are {}",
                 except.rule.name,
-                if known.is_empty() { "none".to_owned() } else { known.join(", ") }
+                if known.is_empty() {
+                    "none".to_owned()
+                } else {
+                    known.join(", ")
+                }
             )));
             continue;
         };
@@ -509,7 +527,7 @@ fn report(
             });
         }
     }
-    outcome.exceptions.sort_by(|a, b| {
-        (&a.rule, &a.target, &a.package).cmp(&(&b.rule, &b.target, &b.package))
-    });
+    outcome
+        .exceptions
+        .sort_by(|a, b| (&a.rule, &a.target, &a.package).cmp(&(&b.rule, &b.target, &b.package)));
 }

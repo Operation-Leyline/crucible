@@ -134,7 +134,12 @@ rule WritesExplain strict {
 "#,
     );
     assert_eq!(found.len(), 1, "{found:#?}");
-    assert!(found[0].starts_with("rule WritesExplain: `PutOrderNote` does not satisfy `must has @note`"), "{}", found[0]);
+    assert!(
+        found[0]
+            .starts_with("rule WritesExplain: `PutOrderNote` does not satisfy `must has @note`"),
+        "{}",
+        found[0]
+    );
     assert!(found[0].contains("Every write says why it is exempt."));
 }
 
@@ -152,7 +157,9 @@ fn a_violation_is_reported_where_the_element_is_declared() {
 #[test]
 fn has_one_of_and_not_and_or() {
     clean("rule A { every operation must has one of @class, @exempt }");
-    clean("rule B { every operation where @class == read or @class == write must not has @exempt }");
+    clean(
+        "rule B { every operation where @class == read or @class == write must not has @exempt }",
+    );
     let found = errors("rule C { every operation must has one of @exempt, @note }");
     assert_eq!(found.len(), 3, "{found:#?}");
 }
@@ -200,7 +207,8 @@ fn member_conditions() {
     clean("rule Lengths { every member where type == Name must type.length.max >= 100 }");
     clean("rule Optional { every input member must required }");
     clean("rule Kinds { every member where name == color must type is enum }");
-    let found = errors("rule Timed { every member where type is string must type.length.max < 50 }");
+    let found =
+        errors("rule Timed { every member where type is string must type.length.max < 50 }");
     mentions(&found, "does not satisfy");
 }
 
@@ -229,7 +237,7 @@ fn constraints_are_read_from_shapes() {
     assert!(!found.iter().any(|m| m.contains("`Color`")), "{found:#?}");
     mentions(
         &errors("rule Bounded strict { every enum must has pattern }"),
-        "does not apply to a enum",
+        "does not apply to an enum",
     );
 }
 
@@ -258,9 +266,13 @@ fn documents_can_be_forbidden() {
 
 #[test]
 fn an_unreferenced_shape_is_found() {
-    let model = format!("{MODEL}\nstructure Orphan {{ name: Name }}\nstring Lonely {{ length 1..2 }}\n");
+    let model =
+        format!("{MODEL}\nstructure Orphan {{ name: Name }}\nstring Lonely {{ length 1..2 }}\n");
     let found = messages(
-        &compiled_with(&model, "rule Referenced strict { no shape where not referenced }"),
+        &compiled_with(
+            &model,
+            "rule Referenced strict { no shape where not referenced }",
+        ),
         true,
     );
     mentions(&found, "`Orphan`");
@@ -274,7 +286,10 @@ fn shapes_reached_only_through_an_include_or_a_resource_are_referenced() {
     );
     // Bundle is not included anywhere, Tag is a resource entry's type.
     let found = messages(
-        &compiled_with(&model, "rule Referenced strict { no shape where not referenced }"),
+        &compiled_with(
+            &model,
+            "rule Referenced strict { no shape where not referenced }",
+        ),
         true,
     );
     mentions(&found, "`Bundle`");
@@ -295,7 +310,10 @@ fn a_body_that_contains_a_sensitive_member_is_found() {
         "sensitive string Secret { length 1..64 }",
     );
     let found = messages(
-        &compiled_with(&model, "rule Quiet { every operation where role == lists must not output contains sensitive\n every operation must not input contains sensitive }"),
+        &compiled_with(
+            &model,
+            "rule Quiet { every operation where role == lists must not output contains sensitive\n every operation must not input contains sensitive }",
+        ),
         true,
     );
     assert_eq!(found.len(), 1, "{found:#?}");
@@ -306,11 +324,16 @@ fn a_body_that_contains_a_sensitive_member_is_found() {
 fn source_retained_metadata_is_read_and_never_reaches_the_ir() {
     // `audit` is retention source: GetOrder carries it.
     clean("rule Audited { every operation where name == GetOrder must @audit == managed }");
-    let found = errors("rule Audited { every operation where name == GetOrder must @audit == open }");
+    let found =
+        errors("rule Audited { every operation where name == GetOrder must @audit == open }");
     assert_eq!(found.len(), 1, "{found:#?}");
     let compiled = compiled("");
     let service = compiled.service.expect("compiles");
-    let get = service.operations.iter().find(|o| o.name() == "GetOrder").unwrap();
+    let get = service
+        .operations
+        .iter()
+        .find(|o| o.name() == "GetOrder")
+        .unwrap();
     assert!(get.traits.keys().any(|k| k.name() == "class"));
     assert!(!get.traits.keys().any(|k| k.name() == "audit"));
 }
@@ -391,10 +414,7 @@ fn operators_and_operands_are_checked() {
 
 #[test]
 fn a_clause_needs_what_it_says() {
-    mentions(
-        &errors("rule R { every operation }"),
-        "add `must ..`",
-    );
+    mentions(&errors("rule R { every operation }"), "add `must ..`");
     mentions(&errors("rule R { }"), "has no clause");
     mentions(&errors("rule R strict strict { no document }"), "one level");
     mentions(
@@ -479,7 +499,10 @@ rule Classified strict { every operation must has @exempt }
 except Classified for Ping because "No."
 "#,
     );
-    mentions(&found, "rule `Classified` is strict: no exception can excuse it");
+    mentions(
+        &found,
+        "rule `Classified` is strict: no exception can excuse it",
+    );
     // The violation still stands.
     mentions(&found, "rule Classified: `Ping`");
 }
@@ -505,7 +528,10 @@ except Classified for NoSuchOperation because "Nor does this."
     );
     assert_eq!(found.len(), 2, "{found:#?}");
     mentions(&found, "`except Classified for Ping` excuses nothing");
-    mentions(&found, "`except Classified for NoSuchOperation` excuses nothing");
+    mentions(
+        &found,
+        "`except Classified for NoSuchOperation` excuses nothing",
+    );
 }
 
 #[test]

@@ -92,6 +92,17 @@ impl Kind {
         }
     }
 
+    /// `an operation`, `a member`.
+    pub(super) fn indefinite(self) -> String {
+        let words = self.words();
+        let article = if words.starts_with(['a', 'e', 'i', 'o', 'u']) {
+            "an"
+        } else {
+            "a"
+        };
+        format!("{article} {words}")
+    }
+
     pub(super) fn all_words() -> String {
         let mut words: Vec<&str> = KINDS.iter().map(|(name, _)| *name).collect();
         words.extend(["input member", "output member"]);
@@ -188,7 +199,7 @@ pub(super) fn path_type(head: &str, rest: &[&str], kind: Kind) -> Result<PathTyp
         .chain(rest.iter().copied())
         .collect::<Vec<_>>()
         .join(".");
-    let wrong_kind = |wanted: &str| format!("`{full}` reads {wanted}, not a {}", kind.words());
+    let wrong_kind = |wanted: &str| format!("`{full}` reads {wanted}, not {}", kind.indefinite());
     match (head, rest) {
         ("name", []) => Ok(PathType::Str),
         ("role", []) if kind == Kind::Operation => Ok(PathType::Str),
@@ -217,8 +228,8 @@ pub(super) fn path_type(head: &str, rest: &[&str], kind: Kind) -> Result<PathTyp
         ("pattern", []) if kind.is_constrained() => Ok(PathType::Str),
         ("pattern", _) => Err(wrong_kind("a constraint of a string")),
         _ => Err(format!(
-            "unknown condition `{full}`; for a {} the flags are {}, and the values are {}",
-            kind.words(),
+            "unknown condition `{full}`; for {} the flags are {}, and the values are {}",
+            kind.indefinite(),
             flags_for(kind),
             paths_for(kind)
         )),

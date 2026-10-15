@@ -125,7 +125,13 @@ pub(super) fn applies_to(targets: &[String], kind: Kind) -> bool {
         | Kind::Blob
         | Kind::Document => any(&["scalar"]),
         Kind::Shape => any(&[
-            "structure", "union", "error", "enum", "scalar", "list", "map",
+            "structure",
+            "union",
+            "error",
+            "enum",
+            "scalar",
+            "list",
+            "map",
         ]),
         Kind::Member | Kind::InputMember | Kind::OutputMember => any(&["member"]),
     }
