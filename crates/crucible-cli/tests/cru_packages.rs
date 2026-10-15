@@ -55,18 +55,12 @@ fn check_without_a_target_accepts_a_sparse_collection() {
     // Referenced from a reachable structure: an unreferenced shape records
     // no feature use, so it would not exercise the capability check.
     let text = std::fs::read_to_string(&model).unwrap().replace(
-        "structure Coordinates {
-",
-        "structure Coordinates {
-    readings?: Readings
-",
+        "structure Coordinates {\n",
+        "structure Coordinates {\n    readings?: Readings\n",
     );
     assert!(text.contains("readings?: Readings"));
     let text = text
-        + "
-/// Readings that may be missing.
-sparse list Readings: string { length ..10 }
-";
+        + "\n/// Readings that may be missing.\nsparse list Readings: string { length ..10 }\n";
     std::fs::write(&model, text).unwrap();
     let check = crucible(&["check", dir.to_str().unwrap()]);
     assert!(
