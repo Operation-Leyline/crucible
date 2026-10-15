@@ -114,6 +114,22 @@ enum Command {
         #[arg(long, value_name = "GIT_REF")]
         from: Option<String>,
     },
+    /// Compile a `.cru` package and print the lowered model, with its custom
+    /// metadata and documentation, for tools that read the contract (policy
+    /// scripts, build steps) without linking the compiler.
+    Compile {
+        /// The package directory, holding crucible.toml with [model].
+        package: PathBuf,
+        /// The service to lower, when the package declares several.
+        #[arg(long)]
+        service: Option<ShapeId>,
+        /// Print the model as JSON: the release snapshot format, in full.
+        #[arg(long, required = true)]
+        json: bool,
+        /// Write the JSON to this file instead of standard output.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Work with the SDKs a service declares in crucible-sdk.toml.
     Sdk(sdk::SdkArgs),
     /// Write a stub for every operation that has no file yet: one file per
@@ -725,6 +741,12 @@ fn run(command: Command) -> ExitCode {
         }
         Command::Generate { target, audience } => generate(*target, audience.into()),
         Command::Freeze { package, out, from } => freeze(&package, out.as_deref(), from.as_deref()),
+        Command::Compile {
+            package,
+            service,
+            json: _,
+            out,
+        } => compile(package, service, out.as_deref()),
         Command::Sdk(args) => sdk::run(args),
         Command::Scaffold {
             source,
@@ -843,6 +865,38 @@ fn lower_cru(source: &Source) -> Result<Service, String> {
         eprint!("{rendered}");
     }
     Ok(service)
+}
+
+/// `crucible compile --json`: the package's lowered model as the release
+/// snapshot format, documentation and custom metadata included.
+fn compile(package: PathBuf, service: Option<ShapeId>, out: Option<&Path>) -> Result<(), String> {
+    if !is_cru_package(&package) {
+        return Err(format!(
+            "{} is not a Crucible language package (a directory whose crucible.toml has [model])",
+            package.display()
+        ));
+    }
+    let service = lower_cru(&Source {
+        model: package,
+        service,
+    })?;
+    let compiler = format!("crucible {}", env!("CARGO_PKG_VERSION"));
+    let text = crucible_smithy::snapshot::write(&service, &compiler);
+    match out {
+        Some(path) => {
+            // `--out target/model.json` works on a checkout with no `target`.
+            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+                std::fs::create_dir_all(parent)
+                    .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+            }
+            std::fs::write(path, text)
+                .map_err(|error| format!("cannot write {}: {error}", path.display()))
+        }
+        None => {
+            print!("{text}");
+            Ok(())
+        }
+    }
 }
 
 /// `crucible freeze`: writes the package's release, its compiled model, to

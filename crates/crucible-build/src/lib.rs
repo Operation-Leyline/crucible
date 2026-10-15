@@ -535,7 +535,8 @@ impl ServerOutput {
         self
     }
 
-    /// Export the assembled AST for compatibility checks. Prefer a path in OUT_DIR
+    /// Export the assembled AST for compatibility checks, or for a `.cru` package its
+    /// compiled model with metadata and docs (`crucible compile --json`'s document). Prefer a path in OUT_DIR
     /// for normal builds; CI can select a stable path through CRUCIBLE_MODEL_OUT.
     pub fn model_output(mut self, path: impl AsRef<Path>) -> Self {
         self.model_output = Some(absolute(path.as_ref()));
@@ -619,11 +620,14 @@ impl ServerOutput {
                 .map(|path| absolute(&path))
         });
         if let Some(path) = model_output {
-            assert!(
-                !cru::is_package(&self.model),
-                "crucible: exporting the model of a .cru package ({}) for compatibility checks is not supported yet",
-                self.model.display()
-            );
+            if cru::is_package(&self.model) {
+                // The lowered model, documentation and custom metadata
+                // included: a .cru package has no AST to copy.
+                cru::export(&self.model, self.service.as_ref(), &path)
+                    .unwrap_or_else(|message| panic!("crucible: {message}"));
+                println!("cargo::rerun-if-changed={}", path.display());
+                return;
+            }
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)
                     .expect("crucible: cannot create model export directory");
