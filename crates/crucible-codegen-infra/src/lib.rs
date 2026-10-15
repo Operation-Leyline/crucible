@@ -6,10 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{
-    Bounds, Constraints, Member, Service, Shape, SimpleKind, TimestampFormat,
-};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Bounds, Constraints, Member, Service, Shape, SimpleKind, TimestampFormat};
+use crucible_ir::{Diagnostics, ShapeId};
 use serde::Deserialize;
 use serde_json::Value;
 

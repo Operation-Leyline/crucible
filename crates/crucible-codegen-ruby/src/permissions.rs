@@ -11,8 +11,8 @@ use crucible_codegen_common::docs;
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{Service, Shape};
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::{Service, Shape};
 
 use crate::models::{enum_constant, yard};
 use crate::names::{literal, snake};

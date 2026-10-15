@@ -147,7 +147,7 @@ metadata note on operation: string
     assert!(text.contains("\"kept\""), "{text}");
     assert!(text.contains("Fetches one city."), "{text}");
     // The same file a freeze would write: it reads back as a release.
-    crucible_smithy::snapshot::read(&text).expect("a snapshot");
+    crucible_ir::snapshot::read(&text).expect("a snapshot");
 
     // Unchanged contents leave the file alone, so a watched export does not
     // rerun the build that wrote it.

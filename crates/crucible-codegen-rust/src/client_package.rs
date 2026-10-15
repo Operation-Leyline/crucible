@@ -1,5 +1,5 @@
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 use crate::{ClientOptions, File, RuntimeDependency, generate_client, names};
 

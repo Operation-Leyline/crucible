@@ -2,7 +2,7 @@
 
 Crucible checks project API conventions during Cargo builds and compares
 contracts with `crucible diff`. Both use `crucible-policy` over the lowered IR.
-Model validity and supported constructs remain `crucible-smithy`'s
+Model validity and supported constructs remain `crucible-ir`'s
 responsibility; policy cannot disable those diagnostics.
 
 ## Enabling build checks
@@ -137,7 +137,7 @@ crucible compile --json model/api --out target/model.json
 ```
 
 The JSON is the release snapshot format (`crucible freeze` writes the same
-document, and `crucible_smithy::snapshot::read` reads it back), in full: every
+document, and `crucible_ir::snapshot::read` reads it back), in full: every
 operation's `traits` map holds the package's metadata under its namespaced key
 (`example.service#operationClass`), and operations, shapes, members and enum
 values carry `docs`. `crucible generate ts` writes `crucible-model.json` for

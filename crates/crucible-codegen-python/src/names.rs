@@ -1,5 +1,5 @@
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Service, Shape, SimpleKind};
 
 pub fn literal(s: &str) -> String {
     crucible_codegen_common::quoted(s)

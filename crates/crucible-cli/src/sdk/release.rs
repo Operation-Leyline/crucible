@@ -11,6 +11,7 @@ use clap::Args;
 use crucible_codegen::File;
 use crucible_codegen::provenance::{Source, Stamp, files_digest, generator_changes};
 use crucible_codegen::sdk::{self, Channel, Language, Sdk, SdkFile};
+use crucible_ir::ir::Service;
 use crucible_sdk_release::archive::{sha256_file, write_tree_archive};
 use crucible_sdk_release::record::{
     ArtifactRecord, GeneratorRecord, LastSummary, PLAN_FILE, PlanRecord, RECORD_SCHEMA,
@@ -20,7 +21,6 @@ use crucible_sdk_release::version::{Inputs, choose};
 use crucible_sdk_release::{
     Bump, ChangeKind, ChannelConfig, GitChannelConfig, NpmAccess, NpmChannelConfig, Version,
 };
-use crucible_smithy::ir::Service;
 
 use super::lockfile::Reconciled;
 
@@ -106,7 +106,7 @@ fn lower(file: &SdkFile) -> Result<Service, String> {
             .as_ref()
             .map(|id| id.parse().expect("the resolver checked the service ID")),
     };
-    let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
+    let all = crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied());
     crate::lower_with_capabilities(&source, &all)
 }
 
@@ -159,7 +159,7 @@ fn emit(
     source: Option<Source>,
 ) -> Result<Vec<File>, String> {
     let client = sdk.client(file, version)?;
-    let service = crucible_smithy::project(full, sdk.audience)
+    let service = crucible_ir::project(full, sdk.audience)
         .map_err(|diagnostics| format!("sdk.{}:\n{diagnostics}", sdk.name))?;
     let stamp = Stamp {
         config_sha256: Some(sdk.config_sha256(file)),

@@ -1,7 +1,7 @@
 //! What the compiler refuses, and how it says so.
 
+use crucible_ir::ir::Shape;
 use crucible_lang::{Package, SourceFile, compile};
-use crucible_smithy::ir::Shape;
 use serde_json::json;
 
 const SERVICE: &str = r#"
@@ -192,7 +192,7 @@ fn compiled(extra: &str) -> crucible_lang::Compiled {
 }
 
 /// The operation `name` of a model that compiled without an error.
-fn operation(compiled: &crucible_lang::Compiled, name: &str) -> crucible_smithy::ir::Operation {
+fn operation(compiled: &crucible_lang::Compiled, name: &str) -> crucible_ir::ir::Operation {
     let service = compiled.service.as_ref().unwrap_or_else(|| {
         panic!("no service: {}", compiled.render());
     });

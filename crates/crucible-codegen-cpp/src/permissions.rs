@@ -11,8 +11,8 @@ use crate::{File, Options};
 use crucible_codegen_common::permissions::{
     client_resources, code_span, constant_symbol, notes, primary,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 use std::collections::BTreeSet;
 
 /// A permission's factory, `known_read`, as a model enum names a value's.

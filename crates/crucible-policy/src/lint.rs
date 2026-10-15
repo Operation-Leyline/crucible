@@ -1,5 +1,5 @@
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Segment, Service, Shape};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Segment, Service, Shape};
 use regex::Regex;
 
 use crate::{Check, Config, DocumentationTarget, NameCase, Report, Severity};

@@ -3,8 +3,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{Constraints, Member, Service, Shape, SimpleKind, Structure};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Constraints, Member, Service, Shape, SimpleKind, Structure};
+use crucible_ir::{Diagnostics, ShapeId};
 use serde_json::Value;
 
 use crate::names::{check_distinct, documented, field, function, literal, variant};
@@ -233,7 +233,7 @@ fn enumeration(
     out: &mut String,
     id: &ShapeId,
     name: &str,
-    values: &crucible_smithy::ir::Enum,
+    values: &crucible_ir::ir::Enum,
     client: bool,
     debug: bool,
     diagnostics: &mut Diagnostics,
@@ -748,7 +748,7 @@ fn value_checks(
 fn range_check(
     kind: SimpleKind,
     value: &str,
-    range: &crucible_smithy::ir::Bounds<serde_json::Number>,
+    range: &crucible_ir::ir::Bounds<serde_json::Number>,
     pad: &str,
 ) -> String {
     if matches!(kind, SimpleKind::BigInteger | SimpleKind::BigDecimal) {

@@ -1,8 +1,8 @@
 //! `sparse list` and `sparse map`: the elements may be null. The IR and the
 //! runtimes carry the flag; this is the language side.
 
+use crucible_ir::ir::{Service, Shape};
 use crucible_lang::{Compiled, FormatOptions, Package, SourceFile, compile, format};
-use crucible_smithy::ir::{Service, Shape};
 
 fn model(row: &str) -> String {
     format!(
@@ -127,13 +127,13 @@ fn a_sparse_collection_requires_the_sparse_capability() {
         sparse
             .requirements
             .iter()
-            .any(|r| r.feature == crucible_smithy::Feature::Sparse)
+            .any(|r| r.feature == crucible_ir::Feature::Sparse)
     );
     let dense = service(&model("list Row: Cell { length ..10 }").replace("sparse map", "map"));
     assert!(
         dense
             .requirements
             .iter()
-            .all(|r| r.feature != crucible_smithy::Feature::Sparse)
+            .all(|r| r.feature != crucible_ir::Feature::Sparse)
     );
 }

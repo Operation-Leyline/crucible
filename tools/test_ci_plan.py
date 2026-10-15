@@ -78,7 +78,7 @@ class PlanTests(unittest.TestCase):
 
     def test_shared_model_changes_keep_representative_native_consumers(self):
         for path in (
-            "crates/crucible-smithy/src/ir.rs", "crates/crucible-codegen-common/src/lib.rs",
+            "crates/crucible-ir/src/ir.rs", "crates/crucible-codegen-common/src/lib.rs",
             "tests/conformance/http.json", "Cargo.toml", "Cargo.lock",
             "tools/sdk_test_support.py",
         ):
@@ -143,7 +143,7 @@ class PlanTests(unittest.TestCase):
         # Unrelated generators, docs and the TypeScript runtime stay out.
         for path in (
             "crates/crucible-codegen-python/src/lib.rs", "crates/crucible-codegen-ts/src/lib.rs",
-            "crates/crucible-smithy/src/ir.rs",
+            "crates/crucible-ir/src/ir.rs",
             "docs/releases.md", "CHANGELOG.md", "e2e/weather-service/src/main.rs",
         ):
             with self.subTest(path=path):

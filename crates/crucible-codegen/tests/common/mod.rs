@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 
 /// The shared package `tests/models/<name>`.
 pub fn package_dir(name: &str) -> PathBuf {

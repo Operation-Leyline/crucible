@@ -1,7 +1,7 @@
 //! Native R package generation from the shared lowered Smithy IR.
 mod markdown;
 mod permissions;
-use crucible_smithy::{
+use crucible_ir::{
     Diagnostics,
     ir::{Service, Shape},
 };
@@ -77,9 +77,9 @@ fn contains_nul(value: &serde_json::Value) -> bool {
     }
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,

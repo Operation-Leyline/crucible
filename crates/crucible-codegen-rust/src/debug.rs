@@ -1,6 +1,6 @@
 //! Thin Debug implementations; native Debug recursively formats nested models.
 use crate::names::{field, literal, variant};
-use crucible_smithy::ir::{Service, Structure};
+use crucible_ir::ir::{Service, Structure};
 
 pub(crate) fn structure(out: &mut String, service: &Service, name: &str, shape: &Structure) {
     out.push_str(&format!("impl ::std::fmt::Debug for {name} {{\n    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {{\n        let mut debug = f.debug_struct({});\n", literal(name)));

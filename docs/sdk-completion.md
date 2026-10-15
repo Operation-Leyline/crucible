@@ -28,7 +28,7 @@ guide.
 
 ## Integration rules
 
-Semantics are resolved in the IR (`crucible-smithy`); emitters never inspect model source.
+Semantics are resolved in the IR (`crucible-ir`); emitters never inspect model source.
 Capabilities remain explicit during rollout so a target cannot silently emit an
 unsupported wire format. Generated runtimes and packages are upgraded together.
 

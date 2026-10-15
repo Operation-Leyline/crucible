@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Bounds, Constraints, Shape, Traits};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Bounds, Constraints, Shape, Traits};
 use serde_json::Value as Json;
 
 use super::metadata::MetaIndex;
@@ -428,7 +428,7 @@ impl Evaluator<'_, '_> {
             if parts(shape).sensitive {
                 return true;
             }
-            let members: Vec<&crucible_smithy::ir::Member> = match shape {
+            let members: Vec<&crucible_ir::ir::Member> = match shape {
                 Shape::Structure(s) | Shape::Union(s) => s.members.iter().collect(),
                 Shape::List(l) => vec![&l.member],
                 Shape::Map(m) => vec![&m.key, &m.value],

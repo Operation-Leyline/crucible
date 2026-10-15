@@ -6,9 +6,9 @@
 //! has no internal permission to leak; the client-facing helpers drop the
 //! internal tier again regardless.
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::permissions::Binding;
-use crucible_smithy::ir::{
+use crucible_ir::ShapeId;
+use crucible_ir::ir::permissions::Binding;
+use crucible_ir::ir::{
     DocNotes, Mode, Operation, Permission, Requirement, Requirements, ResourcePermissions, Service,
     Tier,
 };

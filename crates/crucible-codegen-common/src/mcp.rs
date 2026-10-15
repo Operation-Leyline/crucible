@@ -1,7 +1,7 @@
 //! Shared MCP descriptor emission from an already selected audience.
 use crate::json_schema;
-use crucible_smithy::ir::{Service, Shape};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Service, Shape};
+use crucible_ir::{Diagnostics, ShapeId};
 use std::collections::BTreeSet;
 
 fn literal(value: &str) -> String {

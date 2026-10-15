@@ -212,7 +212,7 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
     };
     // Lowered once with every capability; each SDK then sees its audience
     // and checks its own language's capabilities.
-    let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
+    let all = crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied());
     let full = crate::lower_with_capabilities(&source, &all)?;
     for sdk in selected {
         if !sdk.takes_metadata() && has_common_keys(sdk) {

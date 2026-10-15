@@ -1,7 +1,7 @@
 use crucible_codegen_common::json_schema::{key, shape, standalone};
 use serde_json::Value;
 
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);

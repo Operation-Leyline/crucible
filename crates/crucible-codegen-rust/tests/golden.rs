@@ -7,13 +7,13 @@ use std::path::Path;
 use crucible_codegen_rust::{Options, generate, generate_client};
 mod common;
 
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     common::load("weather")
 }
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
-fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let mut package = crucible_lang::load_package(&dir).unwrap();
@@ -27,7 +27,7 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
 }
 
-fn leyline() -> crucible_smithy::ir::Service {
+fn leyline() -> crucible_ir::ir::Service {
     leyline_with(|text| text)
 }
 
@@ -65,7 +65,7 @@ fn permissions_server_bindings_match_golden() {
     );
     // The client sees the external audience: open constants, no internal
     // permission, and the requirements in each method's documentation.
-    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
     let client = generate_client(&external).unwrap();
     assert!(!client.contains("organization:read"), "{client}");
     assert!(!client.contains("const REQUIREMENTS"), "{client}");
@@ -252,7 +252,7 @@ fn unsupported_ecma_patterns_are_refused_when_the_model_compiles() {
 #[test]
 fn service_exception_uses_rust_type_spelling() {
     let mut service = weather();
-    service.id = crucible_smithy::ShapeId::new("example.weather", "weather_api");
+    service.id = crucible_ir::ShapeId::new("example.weather", "weather_api");
     let source = generate_client(&service).unwrap();
     assert!(source.contains("pub enum WeatherApiException"));
 }
@@ -364,7 +364,7 @@ fn service_client_name_cannot_collide_with_a_model() {
 
 /// Weather with `old` replaced by `new` in its sources. These tests reshape
 /// weather's shapes; its examples describe the original ones, so they go.
-fn edited(old: &str, new: &str) -> crucible_smithy::ir::Service {
+fn edited(old: &str, new: &str) -> crucible_ir::ir::Service {
     common::load_with("weather", |package| {
         let mut found = false;
         for file in &mut package.files {
@@ -379,7 +379,7 @@ fn edited(old: &str, new: &str) -> crucible_smithy::ir::Service {
 }
 
 /// Weather's pattern for city ids replaced by `pattern`.
-fn with_city_pattern(pattern: &str) -> crucible_smithy::ir::Service {
+fn with_city_pattern(pattern: &str) -> crucible_ir::ir::Service {
     let literal = pattern.replace('\\', "\\\\").replace('"', "\\\"");
     edited(
         "string CityId { pattern \"^c-[a-z0-9]{8}$\" }",
@@ -810,7 +810,7 @@ fn finite_only_float_members_use_checked_codec() {
 #[test]
 fn internal_audience_server_and_projected_client_match_goldens() {
     let full = common::load("internal");
-    let external = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     matches_golden(
         &generate(&full, &Options::default()).unwrap(),
         "internal_server.rs",

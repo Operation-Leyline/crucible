@@ -1,7 +1,7 @@
 //! Terraform/OpenTofu providers backed by the generated Go client's wire runtime.
 use crucible_codegen_infra::{Plan, Property, Resource};
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Service, Shape, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
@@ -61,7 +61,7 @@ fn member_at<'a>(
     service: &'a Service,
     root: &ShapeId,
     path: &[String],
-) -> Option<(&'a crucible_smithy::ir::Member, bool)> {
+) -> Option<(&'a crucible_ir::ir::Member, bool)> {
     let mut target = root;
     let mut sensitive = false;
     let mut result = None;

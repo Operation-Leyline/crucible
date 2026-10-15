@@ -2,8 +2,8 @@
 mod models;
 mod permissions;
 use crucible_codegen_common::documentation as docs;
-use crucible_smithy::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -263,9 +263,9 @@ fn operation_kdoc(
 
 const PAGES_NOTE: &str = "Lazily fetches each page, following the continuation token until the service stops returning one; collecting the flow drives the requests.";
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::Sparse,
         Feature::GreedyLabels,
         Feature::IntEnum,

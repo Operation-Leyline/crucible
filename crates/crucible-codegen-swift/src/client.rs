@@ -1,6 +1,6 @@
 use super::{Options, literal, method, ty};
 use crucible_codegen_common::docs;
-use crucible_smithy::ir::{Operation, Service};
+use crucible_ir::ir::{Operation, Service};
 
 fn client_docs(service: &Service, client_name: &str) -> String {
     let mut text = format!(

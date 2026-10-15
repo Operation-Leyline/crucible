@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
 use crucible_codegen_infra::{Plan, Property};
-use crucible_smithy::{
+use crucible_ir::{
     Diagnostics, ShapeId,
     ir::{Constraints, Service, Shape, SimpleKind, TimestampFormat},
 };
@@ -422,7 +422,7 @@ fn timestamp_name(format: TimestampFormat) -> &'static str {
 }
 fn member_type(
     service: &Service,
-    member: &crucible_smithy::ir::Member,
+    member: &crucible_ir::ir::Member,
     chain: &mut BTreeSet<ShapeId>,
 ) -> String {
     if matches!(service.shape(&member.target),Some(Shape::Simple(s)) if s.kind == SimpleKind::Timestamp)
@@ -432,7 +432,7 @@ fn member_type(
         type_of(service, &member.target, chain)
     }
 }
-fn member_schema(service: &Service, member: &crucible_smithy::ir::Member) -> Value {
+fn member_schema(service: &Service, member: &crucible_ir::ir::Member) -> Value {
     json!({"wire":member.name, "target":member.target.to_string(), "required":!member.optional_on_server(), "constraints":constraints(&member.constraints), "timestamp":if matches!(service.shape(&member.target),Some(Shape::Simple(s)) if s.kind == SimpleKind::Timestamp) {Some(timestamp_name(service.timestamp_format(member)))} else {None}})
 }
 

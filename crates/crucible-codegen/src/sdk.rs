@@ -44,7 +44,7 @@ pub struct SdkFile {
 pub struct Sdk {
     pub name: String,
     pub language: Language,
-    pub audience: crucible_smithy::Audience,
+    pub audience: crucible_ir::Audience,
     /// Where `crucible sdk generate` writes the development export.
     pub out: String,
     /// The version floor (see Versions); development exports ignore it.
@@ -373,8 +373,8 @@ impl Sdk {
         set(
             "audience",
             json!(match self.audience {
-                crucible_smithy::Audience::External => "external",
-                crucible_smithy::Audience::Internal => "internal",
+                crucible_ir::Audience::External => "external",
+                crucible_ir::Audience::Internal => "internal",
             }),
         );
         set("model", json!(file.model));

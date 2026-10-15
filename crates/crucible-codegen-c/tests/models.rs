@@ -1,5 +1,5 @@
 use crucible_codegen_c::{File, Options, emit};
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 use std::{fs, path::Path};
 
 fn options() -> Options {

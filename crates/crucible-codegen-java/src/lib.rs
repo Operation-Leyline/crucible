@@ -1,8 +1,8 @@
 //! Java 17 models and synchronous/asynchronous HTTP clients packaged for Gradle and Maven.
 mod permissions;
 use crucible_codegen_common::documentation as docs;
-use crucible_smithy::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -403,9 +403,9 @@ fn default_expression(
     })
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::Sparse,
         Feature::IntEnum,
@@ -677,7 +677,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 let is_union = matches!(shape, Shape::Union(_));
                 let mut notes = vec![];
                 if let Some(error) = &s.error {
-                    notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends {{@link {package}.{exception}}}.", error.status, if matches!(error.fault, crucible_smithy::ir::Fault::Client) { "client" } else { "server" }));
+                    notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends {{@link {package}.{exception}}}.", error.status, if matches!(error.fault, crucible_ir::ir::Fault::Client) { "client" } else { "server" }));
                 } else if is_union {
                     notes.push("A union: exactly one variant is set. A variant this client does not know is kept in {@code unknownVariant}.".to_string());
                 } else {

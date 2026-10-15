@@ -8,8 +8,7 @@ mod common;
 fn adapters_preserve_every_native_emitters_output() {
     for fixture in ["weather", "internal"] {
         let full = common::load(fixture);
-        let service =
-            crucible_smithy::project(&full, crucible_codegen::Audience::External).unwrap();
+        let service = crucible_ir::project(&full, crucible_codegen::Audience::External).unwrap();
         let rust_options = crucible_codegen::RustOptions {
             package_name: Some("weather-sdk".into()),
             package_version: "1.0.0".into(),

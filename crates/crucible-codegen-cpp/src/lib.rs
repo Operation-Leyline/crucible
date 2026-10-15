@@ -4,7 +4,7 @@ mod models;
 mod names;
 mod permissions;
 
-use crucible_smithy::{
+use crucible_ir::{
     Diagnostics,
     ir::{Service, Shape},
 };
@@ -166,9 +166,9 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     result
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,

@@ -3,7 +3,7 @@
 //! use (paragraphs, lists, code, emphasis, links, headings), and anything else,
 //! raw HTML included, is escaped so it can neither break the markup nor close
 //! the surrounding comment. One CommonMark parser serves all of them.
-use crucible_smithy::ir::{DocNotes, Operation, Service, Shape};
+use crucible_ir::ir::{DocNotes, Operation, Service, Shape};
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
 /// Build-time HTML rendering for API references. Raw HTML remains text, just as

@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use crucible_smithy::ir::{Requirement, Requirements, ResourcePermissions, Tier};
+use crucible_ir::ir::{Requirement, Requirements, ResourcePermissions, Tier};
 
 use crate::Severity;
 use crate::checker::Checker;

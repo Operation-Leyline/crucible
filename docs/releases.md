@@ -36,7 +36,7 @@ Exempt from the policy, and free to change in any release:
   follow their target ecosystem's conventions and change with the generator;
 - generated text itself (golden files, formatting, private names), as long as
   the stable Rust API above is preserved;
-- crates not listed above (`crucible-smithy`'s IR, `crucible-codegen*`
+- crates not listed above (`crucible-ir`'s IR, `crucible-codegen*`
   internals, `crucible-policy`) and anything documented as experimental.
 
 A change that moves the stable surface needs, in the same PR: the `#[deprecated(since = "…", note = "use … instead")]`

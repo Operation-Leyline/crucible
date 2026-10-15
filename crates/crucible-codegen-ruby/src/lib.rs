@@ -4,7 +4,7 @@ mod names;
 mod permissions;
 
 use crucible_codegen_common::docs;
-use crucible_smithy::{
+use crucible_ir::{
     Diagnostics,
     ir::{Service, Shape},
 };
@@ -37,7 +37,7 @@ fn client_docs(service: &Service, client_name: &str) -> String {
 
 fn operation_docs(
     service: &Service,
-    op: &crucible_smithy::ir::Operation,
+    op: &crucible_ir::ir::Operation,
     input: Option<&str>,
     output: &str,
     pages: bool,
@@ -196,9 +196,9 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     diagnostics
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::ErrorPayload,

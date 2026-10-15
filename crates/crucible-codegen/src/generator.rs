@@ -1,5 +1,5 @@
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 use crate::{Client, File, Server};
 
@@ -63,7 +63,7 @@ impl Generator {
         let service = if matches!(self, Self::Server(_)) {
             service
         } else {
-            projected = crucible_smithy::project(service, audience)?;
+            projected = crucible_ir::project(service, audience)?;
             &projected
         };
         match self {

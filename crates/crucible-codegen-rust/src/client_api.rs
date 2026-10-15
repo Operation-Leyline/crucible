@@ -1,8 +1,8 @@
 //! Flat public SDK types; serde and wire implementation modules stay private.
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{Service, Shape};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Service, Shape};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::{client, errors, models, names};
 

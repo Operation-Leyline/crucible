@@ -2,7 +2,7 @@ use crucible_codegen_php::{Options, emit};
 use std::{fs, path::Path};
 
 /// A package under `tests/models`, lowered.
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     compile_with(name, |text| text)
         .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
 }
@@ -12,7 +12,7 @@ fn load(name: &str) -> crucible_smithy::ir::Service {
 fn compile_with(
     name: &str,
     edit: impl Fn(String) -> String,
-) -> Result<crucible_smithy::ir::Service, String> {
+) -> Result<crucible_ir::ir::Service, String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);
@@ -25,11 +25,11 @@ fn compile_with(
 }
 
 /// The weather package with its sources rewritten first.
-fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
 }
 
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 
@@ -154,7 +154,7 @@ fn reserved_enum_constants_are_escaped_with_collision_checks() {
     let both = sky("    DEFAULT = \"default\"\n    DEFAULT_VALUE = \"different\"\n");
     assert!(emit(&both, &options()).is_err());
 }
-fn vault() -> (crucible_smithy::ir::Service, Options) {
+fn vault() -> (crucible_ir::ir::Service, Options) {
     let service = load("client-docs-vault");
     let options = Options {
         package_name: "example/vault".into(),
@@ -298,7 +298,7 @@ fn permissions_match_goldens() {
                     .as_deref()
                     .and_then(|symbol| resource.permission(symbol))
                     .unwrap_or(p);
-                (primary.tier == crucible_smithy::ir::Tier::Internal).then(|| p.value.clone())
+                (primary.tier == crucible_ir::ir::Tier::Internal).then(|| p.value.clone())
             })
         })
         .collect();
@@ -306,7 +306,7 @@ fn permissions_match_goldens() {
         !internal.is_empty(),
         "the fixture declares internal permissions"
     );
-    let service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions");
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
     let mut expected = std::collections::BTreeSet::new();
@@ -366,7 +366,7 @@ fn permissions_match_goldens() {
 }
 
 /// The permissions fixture as a client sees it.
-fn permissions_service() -> crucible_smithy::ir::Service {
+fn permissions_service() -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
@@ -374,7 +374,7 @@ fn permissions_service() -> crucible_smithy::ir::Service {
     let full = compiled
         .service
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
-    crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
+    crucible_ir::project(&full, crucible_ir::Audience::External).unwrap()
 }
 
 /// `READ` names the same constant as `read`: one resource's permissions
@@ -436,7 +436,7 @@ fn hyphenated_permission_symbols_spell_words() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let full = compiled.service.expect("the fixture compiles");
-    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let mut service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let graph = service
         .permissions
         .values_mut()

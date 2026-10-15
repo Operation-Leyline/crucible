@@ -5,9 +5,9 @@
 mod client;
 mod models;
 mod permissions;
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Service, Shape, SimpleKind};
+use crucible_ir::Diagnostics;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Service, Shape, SimpleKind};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -346,9 +346,9 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     result
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::IntEnum,
         Feature::BigInteger,

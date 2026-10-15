@@ -9,7 +9,7 @@ pub mod permissions;
 
 pub use metadata::{PackageMetadata, Registry};
 
-use crucible_smithy::ir::{
+use crucible_ir::ir::{
     Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,
 };
 use serde_json::{Value, json};
@@ -78,11 +78,7 @@ pub fn service_exception_runtime_named(name: &str, source: &str) -> String {
 /// or its target is `@sensitive`, or it is a collection whose elements are.
 /// A collection with any sensitive element is hidden whole, never element by element.
 pub fn redacted(service: &Service, member: &Member) -> bool {
-    fn nested(
-        service: &Service,
-        member: &Member,
-        seen: &mut Vec<crucible_smithy::ShapeId>,
-    ) -> bool {
+    fn nested(service: &Service, member: &Member, seen: &mut Vec<crucible_ir::ShapeId>) -> bool {
         if service.sensitive(member) {
             return true;
         }
@@ -101,9 +97,9 @@ pub fn redacted(service: &Service, member: &Member) -> bool {
     nested(service, member, &mut Vec::new())
 }
 
-pub fn check_service_exception_name(service: &Service) -> Result<(), crucible_smithy::Diagnostics> {
+pub fn check_service_exception_name(service: &Service) -> Result<(), crucible_ir::Diagnostics> {
     let name = service_exception_name(service);
-    let mut diagnostics = crucible_smithy::Diagnostics::default();
+    let mut diagnostics = crucible_ir::Diagnostics::default();
     for id in service.shapes.keys().filter(|id| !id.is_prelude()) {
         if service.name_of(id).eq_ignore_ascii_case(&name) {
             diagnostics.push(
@@ -149,7 +145,7 @@ fn bindings(b: &Bindings) -> Value {
         value["headerEncodings"] = json!(b.header_encodings);
     }
     if let Some(payload) = &b.payload
-        && payload.kind != crucible_smithy::ir::PayloadKind::Blob
+        && payload.kind != crucible_ir::ir::PayloadKind::Blob
     {
         value["payloadKind"] = json!(payload.kind);
     }
@@ -261,7 +257,7 @@ mod quoted_tests {
 
 #[cfg(test)]
 mod tests {
-    fn load(name: &str) -> crucible_smithy::ir::Service {
+    fn load(name: &str) -> crucible_ir::ir::Service {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/models")
             .join(name);
@@ -381,11 +377,11 @@ pub fn doxygen_for(docs: Option<&str>, notes: &DocNotes, indent: &str) -> String
 
 /// Native collection aliases cannot customize element formatting. Conservatively
 /// redact a collection containing sensitive primitive elements as a whole.
-pub fn sensitive_collection(service: &Service, id: &crucible_smithy::ShapeId) -> bool {
+pub fn sensitive_collection(service: &Service, id: &crucible_ir::ShapeId) -> bool {
     fn visit(
         service: &Service,
-        id: &crucible_smithy::ShapeId,
-        seen: &mut std::collections::BTreeSet<crucible_smithy::ShapeId>,
+        id: &crucible_ir::ShapeId,
+        seen: &mut std::collections::BTreeSet<crucible_ir::ShapeId>,
     ) -> bool {
         if !seen.insert(id.clone()) {
             return false;

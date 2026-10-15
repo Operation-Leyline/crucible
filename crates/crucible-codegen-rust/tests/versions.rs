@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crucible_codegen_rust::{Options, generate};
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 
 /// The package at `dir`, lowered with the versions it serves.
 fn lower(dir: &Path) -> Service {

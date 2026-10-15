@@ -1,8 +1,8 @@
 //! Thin declarations for client enums and unions; serde behavior is shared.
 use std::collections::BTreeSet;
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Enum, Service, Structure};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Enum, Service, Structure};
 
 use crate::names::{documented, literal, variant};
 use crate::types::rust_type;
@@ -77,7 +77,7 @@ pub(crate) fn union(
         documented(out, "    ", member.docs.as_deref(), &member.notes);
         let mut ty = rust_type(service, &member.target, "");
         // An event stream's modeled errors live with the other errors.
-        if matches!(service.shape(&member.target), Some(crucible_smithy::ir::Shape::Structure(s)) if s.error.is_some())
+        if matches!(service.shape(&member.target), Some(crucible_ir::ir::Shape::Structure(s)) if s.error.is_some())
         {
             ty = format!("super::errors::{ty}");
         }
@@ -150,7 +150,7 @@ pub(crate) fn union(
 pub(crate) fn int_enumeration(
     out: &mut String,
     name: &str,
-    values: &crucible_smithy::ir::IntEnum,
+    values: &crucible_ir::ir::IntEnum,
     client: bool,
     debug: bool,
 ) {

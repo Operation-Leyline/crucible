@@ -1,5 +1,5 @@
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::Service;
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::Service;
 
 use crate::{Options, names};
 
@@ -124,10 +124,7 @@ pub(crate) fn library(service: &Service) -> String {
             ""
         };
         if operation.output.as_ref().is_some_and(|id| {
-            !matches!(
-                service.shape(id),
-                Some(crucible_smithy::ir::Shape::Unit { .. })
-            )
+            !matches!(service.shape(id), Some(crucible_ir::ir::Shape::Unit { .. }))
         }) {
             code.push_str(&format!("            let output = client.{name}({argument}).await.map_err(|_| Error::request(\"service call failed\"))?;\n            serde_json::to_value(output).map_err(|_| Error::request(\"invalid tool output\"))\n        }}\n"));
         } else {

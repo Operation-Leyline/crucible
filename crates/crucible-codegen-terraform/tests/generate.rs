@@ -1,7 +1,7 @@
 use crucible_codegen_infra::{Bindings, resolve};
 use crucible_codegen_terraform::{Options, emit};
 
-fn fixture() -> (crucible_smithy::ir::Service, Bindings) {
+fn fixture() -> (crucible_ir::ir::Service, Bindings) {
     (
         crucible_lang::load_service(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -81,7 +81,7 @@ fn rejects_unrelated_sources_and_sensitive_identifiers() {
         .unwrap()
         .shape = "example.infra#UpdateInput".parse().unwrap();
     let target = "example.infra#Id".parse().unwrap();
-    let crucible_smithy::ir::Shape::Simple(id) = service.shapes.get_mut(&target).unwrap() else {
+    let crucible_ir::ir::Shape::Simple(id) = service.shapes.get_mut(&target).unwrap() else {
         panic!()
     };
     id.sensitive = true;
@@ -96,8 +96,7 @@ fn diagnoses_lifecycle_constraint_disagreement() {
     let (mut service, bindings) = fixture();
     let plan = resolve(&service, &bindings).unwrap();
     let input = "example.infra#UpdateInput".parse().unwrap();
-    let crucible_smithy::ir::Shape::Structure(input) = service.shapes.get_mut(&input).unwrap()
-    else {
+    let crucible_ir::ir::Shape::Structure(input) = service.shapes.get_mut(&input).unwrap() else {
         panic!()
     };
     input
@@ -147,9 +146,8 @@ fn rejects_unsafe_or_unsupported_lifecycle_policy() {
 fn rejects_unmapped_required_inputs_and_unknown_error_names() {
     let (mut service, bindings) = fixture();
     let plan = resolve(&service, &bindings).unwrap();
-    let input: crucible_smithy::ShapeId = "example.infra#IdentityInput".parse().unwrap();
-    let crucible_smithy::ir::Shape::Structure(input) = service.shapes.get_mut(&input).unwrap()
-    else {
+    let input: crucible_ir::ShapeId = "example.infra#IdentityInput".parse().unwrap();
+    let crucible_ir::ir::Shape::Structure(input) = service.shapes.get_mut(&input).unwrap() else {
         panic!()
     };
     let mut extra = input.members[0].clone();

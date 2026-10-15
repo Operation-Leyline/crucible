@@ -1,7 +1,7 @@
 mod common;
 
 use crucible_codegen_rust::{Options, generate, generate_client};
-use crucible_smithy::ir::{Fault, Service, Shape};
+use crucible_ir::ir::{Fault, Service, Shape};
 
 const UNKNOWN: &str = "crucible.errors#UnknownOperationException";
 const ERRORS: &str =
@@ -12,7 +12,7 @@ fn standard() -> Service {
 }
 
 /// The unknown-operation error, for edits to the lowered service.
-fn unknown(service: &mut Service) -> &mut crucible_smithy::ir::Structure {
+fn unknown(service: &mut Service) -> &mut crucible_ir::ir::Structure {
     match service.shapes.get_mut(&UNKNOWN.parse().unwrap()) {
         Some(Shape::Structure(structure)) => structure,
         _ => panic!("{UNKNOWN} is a structure"),

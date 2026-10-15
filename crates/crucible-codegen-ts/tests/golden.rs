@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 /// A package under `tests/models`, lowered.
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     compile_with(name, |text| text)
         .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
 }
@@ -16,7 +16,7 @@ fn load(name: &str) -> crucible_smithy::ir::Service {
 fn compile_with(
     name: &str,
     edit: impl Fn(String) -> String,
-) -> Result<crucible_smithy::ir::Service, String> {
+) -> Result<crucible_ir::ir::Service, String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);
@@ -29,11 +29,11 @@ fn compile_with(
 }
 
 /// The weather package with its sources rewritten first.
-fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
 }
 
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 
@@ -41,7 +41,7 @@ use crucible_codegen_ts::{Middleware, Options, emit};
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
-fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let mut package = crucible_lang::load_package(&dir).unwrap();
@@ -55,7 +55,7 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
 }
 
-fn leyline() -> crucible_smithy::ir::Service {
+fn leyline() -> crucible_ir::ir::Service {
     leyline_with(|text| text)
 }
 
@@ -64,8 +64,7 @@ fn leyline() -> crucible_smithy::ir::Service {
 /// requirements in its documentation; nothing of the internal tier.
 #[test]
 fn permission_constants_match_golden() {
-    let external =
-        crucible_smithy::project(&leyline(), crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&leyline(), crucible_ir::Audience::External).unwrap();
     let options = Options {
         package_name: "@example/leyline".into(),
         package_version: "0.0.0-dev".into(),
@@ -149,7 +148,7 @@ fn permission_constants_match_golden() {
 #[test]
 fn an_internal_audience_client_names_no_internal_permission() {
     let service = leyline();
-    let internal = crucible_smithy::project(&service, crucible_smithy::Audience::Internal).unwrap();
+    let internal = crucible_ir::project(&service, crucible_ir::Audience::Internal).unwrap();
     let options = Options {
         package_name: "@example/leyline".into(),
         package_version: "0.0.0-dev".into(),
@@ -202,7 +201,7 @@ fn an_internal_audience_client_names_no_internal_permission() {
 #[test]
 fn a_permission_export_named_like_a_model_is_namespaced() {
     let service = leyline_with(|text| text.replace("HistoryRef", "GraphPermission"));
-    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
     let options = Options {
         package_name: "@example/leyline".into(),
         package_version: "0.0.0-dev".into(),
@@ -236,7 +235,7 @@ fn a_permission_export_named_like_a_model_is_namespaced() {
             .replace("list Names: string", "list permissions: string")
             .replace("Names", "permissions")
     });
-    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
     let diagnostics = emit(&external, &options).unwrap_err();
     assert!(
         diagnostics

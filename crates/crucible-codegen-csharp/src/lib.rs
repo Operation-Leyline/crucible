@@ -1,8 +1,8 @@
 //! Native .NET 8 models, asynchronous clients, and NuGet packaging.
 mod permissions;
 use crucible_codegen_common::documentation as docs;
-use crucible_smithy::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -277,9 +277,9 @@ fn collection_cycle(service: &Service, id: &ShapeId, stack: &mut BTreeSet<ShapeI
     stack.remove(id);
     cycle
 }
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::IntEnum,
         Feature::BigInteger,
@@ -501,7 +501,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     format!(
                         "A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and derives from {exception}.",
                         error.status,
-                        if matches!(error.fault, crucible_smithy::ir::Fault::Client) {
+                        if matches!(error.fault, crucible_ir::ir::Fault::Client) {
                             "client"
                         } else {
                             "server"

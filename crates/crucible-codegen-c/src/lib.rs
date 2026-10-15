@@ -4,7 +4,7 @@ pub mod models;
 mod names;
 mod permissions;
 
-use crucible_smithy::{
+use crucible_ir::{
     Diagnostics,
     ir::{Service, Shape},
 };
@@ -149,16 +149,16 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     errors
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    crucible_smithy::Capabilities::new([
-        crucible_smithy::Feature::NonBlobPayload,
-        crucible_smithy::Feature::MediaTypeHeaders,
-        crucible_smithy::Feature::ErrorPayload,
-        crucible_smithy::Feature::GreedyLabels,
-        crucible_smithy::Feature::IntEnum,
-        crucible_smithy::Feature::BigInteger,
-        crucible_smithy::Feature::BigDecimal,
-        crucible_smithy::Feature::Sparse,
+pub fn capabilities() -> crucible_ir::Capabilities {
+    crucible_ir::Capabilities::new([
+        crucible_ir::Feature::NonBlobPayload,
+        crucible_ir::Feature::MediaTypeHeaders,
+        crucible_ir::Feature::ErrorPayload,
+        crucible_ir::Feature::GreedyLabels,
+        crucible_ir::Feature::IntEnum,
+        crucible_ir::Feature::BigInteger,
+        crucible_ir::Feature::BigDecimal,
+        crucible_ir::Feature::Sparse,
     ])
 }
 

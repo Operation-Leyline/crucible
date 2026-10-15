@@ -238,7 +238,7 @@ fn automatic_runtime_revision_survives_an_actual_cargo_git_source_checkout() {
         .to_string();
     let consumer = directory.path().join("consumer");
     fs::create_dir_all(consumer.join("src")).unwrap();
-    fs::write(consumer.join("Cargo.toml"), format!("[package]\nname = 'git-source-sdk-emitter'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\ncrucible-codegen-rust = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-smithy = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-lang = {{ git = {url:?}, rev = {revision:?} }}\n[workspace]\n")).unwrap();
+    fs::write(consumer.join("Cargo.toml"), format!("[package]\nname = 'git-source-sdk-emitter'\nversion = '0.1.0'\nedition = '2024'\n[dependencies]\ncrucible-codegen-rust = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-ir = {{ git = {url:?}, rev = {revision:?} }}\ncrucible-lang = {{ git = {url:?}, rev = {revision:?} }}\n[workspace]\n")).unwrap();
     copy_tree(
         &root.join("tests/models/weather"),
         &consumer.join("weather"),

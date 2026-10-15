@@ -1,7 +1,7 @@
 //! The `'static` descriptions generated code hands the framework: members
 //! and where they travel, operations, errors, the service.
 
-use crucible_smithy::ir::{
+use crucible_ir::ir::{
     Binding, Bindings, Member, PayloadKind, Service, Shape, SimpleKind, Structure, TimestampFormat,
 };
 
@@ -59,7 +59,7 @@ pub(crate) fn members(service: &Service, structure: &Structure, bindings: &Bindi
 }
 
 /// Error structures bind headers and a payload.
-pub(crate) fn error_bindings(error: &crucible_smithy::ir::ErrorInfo) -> Bindings {
+pub(crate) fn error_bindings(error: &crucible_ir::ir::ErrorInfo) -> Bindings {
     Bindings {
         headers: error.headers.clone(),
         payload: error.payload.clone(),
@@ -188,7 +188,7 @@ pub(crate) fn redactions(service: &Service) -> String {
 }
 
 /// Traits from outside Smithy's and AWS's namespaces: the model's own.
-pub(crate) fn custom_traits(traits: &crucible_smithy::ir::Traits) -> String {
+pub(crate) fn custom_traits(traits: &crucible_ir::ir::Traits) -> String {
     let pairs: Vec<String> = traits
         .iter()
         .filter(|(id, _)| {

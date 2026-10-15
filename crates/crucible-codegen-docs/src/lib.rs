@@ -3,8 +3,8 @@
 mod markdown;
 
 use crucible_codegen_common::describe;
-use crucible_smithy::ir::Service;
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::Service;
+use crucible_ir::{Diagnostics, ShapeId};
 
 /// One generated artifact; publication is owned by `crucible-codegen`.
 #[derive(Debug, Clone)]

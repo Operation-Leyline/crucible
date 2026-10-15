@@ -3,7 +3,7 @@ package policy
 // Runtime policy: retry quota, adaptive rate limiting and telemetry. The
 // shared vectors are tests/conformance/{retry-quota,adaptive-retry,
 // telemetry}.json, run against a client
-// generated from crates/crucible-smithy/tests/fixtures/runtime-policy.json.
+// generated from crates/crucible-ir/tests/fixtures/runtime-policy.json.
 
 import (
 	"bytes"

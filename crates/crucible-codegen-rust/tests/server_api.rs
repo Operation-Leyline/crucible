@@ -1,5 +1,5 @@
 use crucible_codegen_rust::{Options, ScaffoldOptions, generate, scaffold};
-use crucible_smithy::ShapeId;
+use crucible_ir::ShapeId;
 
 mod common;
 

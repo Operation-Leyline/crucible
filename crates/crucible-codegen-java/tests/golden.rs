@@ -2,7 +2,7 @@ use crucible_codegen_java::{Options, emit};
 use std::{fs, path::Path};
 
 /// A package under `tests/models`, lowered.
-fn load(name: &str) -> crucible_smithy::ir::Service {
+fn load(name: &str) -> crucible_ir::ir::Service {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);
@@ -11,7 +11,7 @@ fn load(name: &str) -> crucible_smithy::ir::Service {
 }
 
 /// A package under `tests/models` with every source file rewritten first.
-fn load_with(name: &str, edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn load_with(name: &str, edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/models")
         .join(name);
@@ -26,7 +26,7 @@ fn load_with(name: &str, edit: impl Fn(String) -> String) -> crucible_smithy::ir
         .unwrap_or_else(|| panic!("{name} compiles:\n{rendered}"))
 }
 
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     load("weather")
 }
 fn options() -> Options {
@@ -42,7 +42,7 @@ fn options() -> Options {
 #[test]
 fn client_name_follows_service_identity() {
     let mut service = weather();
-    service.id = crucible_smithy::ShapeId::new("dev.leyline", "Leyline");
+    service.id = crucible_ir::ShapeId::new("dev.leyline", "Leyline");
     let files = emit(&service, &options()).unwrap();
     let client = files
         .iter()
@@ -257,7 +257,7 @@ fn permissions_match_goldens() {
                     .as_deref()
                     .and_then(|symbol| resource.permission(symbol))
                     .unwrap_or(p);
-                (primary.tier == crucible_smithy::ir::Tier::Internal).then(|| p.value.clone())
+                (primary.tier == crucible_ir::ir::Tier::Internal).then(|| p.value.clone())
             })
         })
         .collect();
@@ -265,7 +265,7 @@ fn permissions_match_goldens() {
         !internal.is_empty(),
         "the fixture declares internal permissions"
     );
-    let service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions");
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
     let mut expected = std::collections::BTreeSet::new();
@@ -332,7 +332,7 @@ fn colliding_permission_names_are_diagnosed() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let full = compiled.service.expect("the fixture compiles");
-    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let mut service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let graph = service
         .permissions
         .values_mut()
@@ -372,7 +372,7 @@ fn hyphenated_permission_symbols_spell_words() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let full = compiled.service.expect("the fixture compiles");
-    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let mut service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let graph = service
         .permissions
         .values_mut()

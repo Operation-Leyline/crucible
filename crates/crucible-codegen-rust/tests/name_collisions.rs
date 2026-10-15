@@ -1,12 +1,12 @@
 //! Valid Smithy whose Rust spelling collides is diagnosed, or generated
 //! without the collision, never emitted as uncompilable code.
 use crucible_codegen_rust::{Options, generate, generate_client, pages_method};
+use crucible_ir::ShapeId;
 use crucible_lang::SourceFile;
-use crucible_smithy::ShapeId;
 
 mod common;
 
-fn weather(edit: impl FnOnce(&mut crucible_lang::Package)) -> crucible_smithy::ir::Service {
+fn weather(edit: impl FnOnce(&mut crucible_lang::Package)) -> crucible_ir::ir::Service {
     common::load_with("weather", edit)
 }
 
@@ -28,7 +28,7 @@ fn reach(package: &mut crucible_lang::Package, source: &str, target: &str) {
     }
 }
 
-fn both_diagnose(service: &crucible_smithy::ir::Service, expected: &str) {
+fn both_diagnose(service: &crucible_ir::ir::Service, expected: &str) {
     for diagnostics in [
         generate(service, &Options::default())
             .unwrap_err()

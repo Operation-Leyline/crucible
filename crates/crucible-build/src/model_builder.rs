@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crucible_smithy::ShapeId;
+use crucible_ir::ShapeId;
 
 use crate::{ModelPackage, absolute, parse};
 

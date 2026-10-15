@@ -6,8 +6,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ir::{Hook, Operation, Service, Shape, VersionStep};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{Hook, Operation, Service, Shape, VersionStep};
+use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::info::constant;
 use crate::names::{function, literal};
@@ -252,7 +252,7 @@ pub(crate) fn emit(
 fn older_requirements(
     current: &Service,
     module: &mut Service,
-    version: &crucible_smithy::ir::ApiVersion,
+    version: &crucible_ir::ir::ApiVersion,
     diagnostics: &mut Diagnostics,
 ) -> bool {
     let removed: BTreeSet<&ShapeId> = version
@@ -275,8 +275,8 @@ fn older_requirements(
             continue;
         }
         let (id, name) = (operation.id.clone(), operation.name().to_owned());
-        if let crucible_smithy::ir::Requirements::List(clauses)
-        | crucible_smithy::ir::Requirements::Partial(clauses) = &mut operation.requirements
+        if let crucible_ir::ir::Requirements::List(clauses)
+        | crucible_ir::ir::Requirements::Partial(clauses) = &mut operation.requirements
         {
             for clause in clauses.iter_mut() {
                 match current_permission(current, &old, clause) {
@@ -296,7 +296,7 @@ fn older_requirements(
         }
         kept |= !matches!(
             operation.requirements,
-            crucible_smithy::ir::Requirements::Undeclared
+            crucible_ir::ir::Requirements::Undeclared
         );
     }
     if kept {
@@ -325,8 +325,8 @@ fn identifier_list(identifiers: &[String]) -> String {
 /// matched by authorization name and stored value.
 fn current_permission(
     current: &Service,
-    old: &BTreeMap<ShapeId, crucible_smithy::ir::ResourcePermissions>,
-    clause: &crucible_smithy::ir::Requirement,
+    old: &BTreeMap<ShapeId, crucible_ir::ir::ResourcePermissions>,
+    clause: &crucible_ir::ir::Requirement,
 ) -> Result<(ShapeId, String), String> {
     let resource = old
         .get(&clause.resource)
@@ -365,8 +365,7 @@ fn current_permission(
     // the parents are compared too, when the release recorded them (one
     // frozen before they were has none, and is compared by identifiers
     // alone).
-    if clause.mode != crucible_smithy::ir::Mode::Handler && now.identifiers != resource.identifiers
-    {
+    if clause.mode != crucible_ir::ir::Mode::Handler && now.identifiers != resource.identifiers {
         return Err(format!(
             "`{}` on `{}`, whose identifiers have changed since ({} then, {} now)",
             permission.value,
@@ -375,7 +374,7 @@ fn current_permission(
             identifier_list(&now.identifiers)
         ));
     }
-    if clause.mode != crucible_smithy::ir::Mode::Handler
+    if clause.mode != crucible_ir::ir::Mode::Handler
         && let Some(then) = &resource.parents
         && now.parents.as_ref() != Some(then)
     {
@@ -1174,7 +1173,7 @@ fn member_of<'s>(
     service: &'s Service,
     shape: &ShapeId,
     name: &str,
-) -> Option<&'s crucible_smithy::ir::Member> {
+) -> Option<&'s crucible_ir::ir::Member> {
     match service.shape(shape)? {
         Shape::Structure(structure) | Shape::Union(structure) => structure.member(name),
         _ => None,

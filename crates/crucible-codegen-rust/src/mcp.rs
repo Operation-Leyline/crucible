@@ -1,6 +1,6 @@
 //! Server bindings retain the full API; MCP tools use the External projection.
-use crucible_smithy::ir::Service;
-use crucible_smithy::{Audience, Diagnostics, ShapeId, project};
+use crucible_ir::ir::Service;
+use crucible_ir::{Audience, Diagnostics, ShapeId, project};
 use std::collections::BTreeSet;
 pub(crate) fn emit(
     service: &Service,

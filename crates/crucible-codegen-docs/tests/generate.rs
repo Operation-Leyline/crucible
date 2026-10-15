@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 
 use crucible_codegen_docs::generate;
-use crucible_smithy::{Audience, project};
+use crucible_ir::{Audience, project};
 use serde_json::Value;
 
 const WEATHER: &str = "service-docs-weather";
@@ -18,7 +18,7 @@ fn package_dir(name: &str) -> std::path::PathBuf {
 /// The package's service as the reference describes it. A `.cru` package
 /// carries no resource metadata for the reference yet, so its operations are
 /// listed as the service's own.
-fn documented(name: &str) -> crucible_smithy::ir::Service {
+fn documented(name: &str) -> crucible_ir::ir::Service {
     let mut service = ungrouped(name);
     for operation in &mut service.operations {
         operation.resource = None;
@@ -27,7 +27,7 @@ fn documented(name: &str) -> crucible_smithy::ir::Service {
 }
 
 /// The package's lowered service, operations still tied to their resources.
-fn ungrouped(name: &str) -> crucible_smithy::ir::Service {
+fn ungrouped(name: &str) -> crucible_ir::ir::Service {
     crucible_lang::load_service(&package_dir(name))
         .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
 }
@@ -101,7 +101,7 @@ fn rpc_metadata_examples_and_shapes_match_reviewed_goldens() {
 
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
-fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let mut package = crucible_lang::load_package(&dir).unwrap();
@@ -116,7 +116,7 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
 }
 
 /// The fixture as the reference describes it; see [`documented`].
-fn leyline() -> crucible_smithy::ir::Service {
+fn leyline() -> crucible_ir::ir::Service {
     let mut service = leyline_with(|text| text);
     for operation in &mut service.operations {
         operation.resource = None;

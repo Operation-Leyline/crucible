@@ -622,7 +622,7 @@ the bundled `crucible.errors` package: it is the shared error vocabulary.
 ## 5. Compiler checks
 
 All of these are errors unless marked. Everything that holds of the IR
-(all but the grammar) runs in `crucible_smithy::validate`, over the IR that
+(all but the grammar) runs in `crucible_ir::validate`, over the IR that
 `.cru` lowering produces. Operations and resources the service does not
 reach are checked too, in its context, as the other rules check them,
 except what another service of the package reaches: that service's
@@ -849,7 +849,7 @@ Generated server bindings carry it as `ServiceInfo::not_found`
 (`service_info(..).with_not_found("pigeon.api#ResourceNotFoundException")`),
 the shape id the runtime checks the service's factory against.
 
-The checks of §5 run once, in `crucible_smithy::validate::permissions`,
+The checks of §5 run once, in `crucible_ir::validate::permissions`,
 with facts lowering knows and the IR does not keep (`PermissionFacts`:
 identifier types, collection operations, the input member that binds each
 identifier of an operation's resource). So the binding types of check 10,
@@ -1633,7 +1633,7 @@ streams.
 - `crucible.errors#NotFoundException`, attached by `.cru` lowering (check 17).
 - The IR fields of §6.1, all `#[serde(default)]`, and the client audience
   projection.
-- Checks 1-18 in `crucible_smithy::validate`, with a fixture for every
+- Checks 1-18 in `crucible_ir::validate`, with a fixture for every
   accepted and every refused construct; the release-guard and
   `crucible-policy` findings of §5.
 - The syntax into `idl/reference.md` and the decisions into

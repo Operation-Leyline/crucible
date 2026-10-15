@@ -10,7 +10,7 @@ use crucible_codegen_rust::{
 };
 mod common;
 
-fn service() -> crucible_smithy::ir::Service {
+fn service() -> crucible_ir::ir::Service {
     common::load("weather")
 }
 
@@ -261,7 +261,7 @@ fn invalid_local_runtime_workspace_is_a_cargo_metadata_diagnostic() {
 fn operation_names_do_not_collide_with_runtime_shortcuts() {
     for (operation, shortcut) in [("Config", "Config"), ("Retry", "Retry")] {
         let mut service = service();
-        service.operations[0].id = crucible_smithy::ShapeId::new("example.weather", operation);
+        service.operations[0].id = crucible_ir::ShapeId::new("example.weather", operation);
         let files = emit_client_package(&service, &explicit()).unwrap();
         let exports = files[1]
             .contents

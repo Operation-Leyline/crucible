@@ -16,7 +16,7 @@ crucible-codegen = { workspace = true, features = ["all-clients"] }
 crucible-build.workspace = true
 crucible-lang.workspace = true
 crucible-codegen-cli.workspace = true
-crucible-smithy.workspace = true
+crucible-ir.workspace = true
 crucible-policy.workspace = true
 crucible-sdk-release.workspace = true
 crucible-codegen-rust.workspace = true

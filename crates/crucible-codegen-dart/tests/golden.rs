@@ -26,7 +26,7 @@ fn permissions_match_goldens() {
                     .as_deref()
                     .and_then(|symbol| resource.permission(symbol))
                     .unwrap_or(p);
-                (primary.tier == crucible_smithy::ir::Tier::Internal).then(|| p.value.clone())
+                (primary.tier == crucible_ir::ir::Tier::Internal).then(|| p.value.clone())
             })
         })
         .collect();
@@ -34,7 +34,7 @@ fn permissions_match_goldens() {
         !internal.is_empty(),
         "the fixture declares internal permissions"
     );
-    let service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/permissions");
     let bless = std::env::var_os("CRUCIBLE_BLESS").is_some();
     let mut expected = std::collections::BTreeSet::new();
@@ -95,7 +95,7 @@ fn permissions_match_goldens() {
 
 /// The typed permissions fixture (`tests/fixtures/permissions`) projected for
 /// a client, as `crucible generate` lowers it.
-fn permissions_service() -> crucible_smithy::ir::Service {
+fn permissions_service() -> crucible_ir::ir::Service {
     let dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
@@ -103,12 +103,12 @@ fn permissions_service() -> crucible_smithy::ir::Service {
     let full = compiled
         .service
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"));
-    crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap()
+    crucible_ir::project(&full, crucible_ir::Audience::External).unwrap()
 }
 
 /// The fixture with a permission `{symbol}` added to `graph`, whose name
 /// the language spells like an existing one's.
-fn permissions_with(symbol: &str) -> crucible_smithy::ir::Service {
+fn permissions_with(symbol: &str) -> crucible_ir::ir::Service {
     let mut service = permissions_service();
     let graph = service
         .permissions
@@ -153,7 +153,7 @@ fn hyphenated_permission_symbols_spell_words() {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/permissions");
     let compiled = crucible_lang::compile(&crucible_lang::load_package(&dir).unwrap(), None);
     let full = compiled.service.expect("the fixture compiles");
-    let mut service = crucible_smithy::project(&full, crucible_smithy::Audience::External).unwrap();
+    let mut service = crucible_ir::project(&full, crucible_ir::Audience::External).unwrap();
     let graph = service
         .permissions
         .values_mut()

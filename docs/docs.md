@@ -33,7 +33,7 @@ resources, types, members, and enum values with an **Internal** badge:
 cargo run -p crucible-cli -- generate docs tests/models/service-docs-weather --out generated/internal-reference --audience internal
 ```
 
-External projection happens in `crucible-smithy`, before rendering. It also
+External projection happens in `crucible-ir`, before rendering. It also
 projects nested example values, and diagnoses an example that uses a removed
 internal union arm or enum value. It preserves service-level errors even when
 the projected service has no operations.
@@ -282,7 +282,7 @@ idempotency, RPC headers, timestamp examples, and arbitrary-precision wire value
 Run the focused tests after intended changes:
 
 ```sh
-cargo test -p crucible-codegen-common -p crucible-codegen-docs -p crucible-smithy
+cargo test -p crucible-codegen-common -p crucible-codegen-docs -p crucible-ir
 cargo test -p crucible-build --features docs
 cargo test -p crucible-codegen --features docs
 cargo test -p crucible-cli

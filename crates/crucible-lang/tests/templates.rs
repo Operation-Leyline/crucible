@@ -1,7 +1,7 @@
 //! Role templates (decision 47a): what every operation of a role carries.
 
+use crucible_ir::ir::{Service, Shape};
 use crucible_lang::{Compiled, Package, SourceFile, compile};
-use crucible_smithy::ir::{Service, Shape};
 
 const BASE: &str = r#"
 service Shop {

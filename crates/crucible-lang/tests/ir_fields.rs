@@ -1,9 +1,9 @@
 //! The typed IR facts the language produces, which generators read instead of
 //! raw Smithy traits (decisions 43, 61, 63 and 34a).
 
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Mutability, Service, Shape, Structure};
 use crucible_lang::{Package, SourceFile, compile};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Mutability, Service, Shape, Structure};
 
 const MODEL: &str = r#"
 metadata tier on operation: string

@@ -1,5 +1,5 @@
 use crucible_codegen_rust::{Options, generate};
-use crucible_smithy::{Audience, ShapeId};
+use crucible_ir::{Audience, ShapeId};
 
 mod common;
 

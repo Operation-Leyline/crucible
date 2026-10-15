@@ -8,8 +8,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use crucible_smithy::ir::Service;
-use crucible_smithy::snapshot;
+use crucible_ir::ir::Service;
+use crucible_ir::snapshot;
 use sha2::{Digest, Sha256};
 
 /// The lock beside the releases, naming each one's digest.

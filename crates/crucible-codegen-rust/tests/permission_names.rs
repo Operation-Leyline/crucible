@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use crucible_codegen_rust::{Options, generate};
-use crucible_smithy::ir::{Condition, Requirements, Service};
+use crucible_ir::ir::{Condition, Requirements, Service};
 
 const MANIFEST: &str = "[model]\nnamespace = \"example.names\"\nimports = [\"crucible.errors\"]\n";
 

@@ -1,5 +1,5 @@
 use crucible_codegen_infra::{Bindings, resolve};
-use crucible_smithy::ir::TimestampFormat;
+use crucible_ir::ir::TimestampFormat;
 use serde_json::{Value, json};
 
 fn package_dir() -> std::path::PathBuf {
@@ -7,13 +7,13 @@ fn package_dir() -> std::path::PathBuf {
 }
 
 /// The weather package as the infrastructure generators read it.
-fn weather() -> crucible_smithy::ir::Service {
+fn weather() -> crucible_ir::ir::Service {
     crucible_lang::load_service(&package_dir())
         .unwrap_or_else(|rendered| panic!("weather:\n{rendered}"))
 }
 
 /// Weather with `old` replaced by `new` in its sources.
-fn edited(old: &str, new: &str) -> crucible_smithy::ir::Service {
+fn edited(old: &str, new: &str) -> crucible_ir::ir::Service {
     let mut package = crucible_lang::load_package(&package_dir()).unwrap();
     let mut found = false;
     for file in &mut package.files {

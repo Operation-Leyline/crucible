@@ -61,4 +61,4 @@ pub use server::Server;
 
 pub use crucible_codegen_common::metadata;
 pub use crucible_codegen_common::{PackageMetadata, Registry};
-pub use crucible_smithy::Audience;
+pub use crucible_ir::Audience;

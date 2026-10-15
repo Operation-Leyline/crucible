@@ -4,9 +4,9 @@
 //! a resource modelled beside its representation, and a child resource's
 //! properties, which are its own.
 
+use crucible_ir::ir::{Member, Mutability, Service, Shape};
 use crucible_lang::ast::{Decl, MemberKind, ResourceEntryKind};
 use crucible_lang::{Compiled, FormatOptions, Package, SourceFile, compile, format, parse};
-use crucible_smithy::ir::{Member, Mutability, Service, Shape};
 
 const SERVICE: &str = r#"
 service Mail {

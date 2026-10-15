@@ -364,9 +364,9 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen",
  "crucible-codegen-rust",
+ "crucible-ir",
  "crucible-lang",
  "crucible-policy",
- "crucible-smithy",
  "serde",
  "serde_json",
 ]
@@ -377,8 +377,8 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-rust",
+ "crucible-ir",
  "crucible-revision",
- "crucible-smithy",
  "serde",
  "serde_json",
  "sha2",
@@ -390,7 +390,7 @@ name = "crucible-codegen-common"
 version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
- "crucible-smithy",
+ "crucible-ir",
  "crucible-wire",
  "pulldown-cmark",
  "serde",
@@ -403,8 +403,8 @@ name = "crucible-codegen-rust"
 version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
+ "crucible-ir",
  "crucible-revision",
- "crucible-smithy",
  "regex",
  "semver",
  "serde_json",
@@ -412,11 +412,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "crucible-ir"
+version = "0.7.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "regex",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "crucible-lang"
 version = "0.7.0"
 dependencies = [
+ "crucible-ir",
  "crucible-policy",
- "crucible-smithy",
  "regex",
  "serde",
  "serde_json",
@@ -428,7 +440,7 @@ dependencies = [
 name = "crucible-policy"
 version = "0.7.0"
 dependencies = [
- "crucible-smithy",
+ "crucible-ir",
  "regex",
  "serde",
  "serde_json",
@@ -462,18 +474,6 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
-]
-
-[[package]]
-name = "crucible-smithy"
-version = "0.7.0"
-dependencies = [
- "base64 0.22.1",
- "chrono",
- "regex",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]

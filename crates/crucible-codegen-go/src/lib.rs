@@ -1,8 +1,8 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
 mod permissions;
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
-use crucible_smithy::ir::{DocNotes, Service, Shape, SimpleKind};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{DocNotes, Service, Shape, SimpleKind};
+use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -83,9 +83,9 @@ fn ty(service: &Service, id: &ShapeId) -> String {
     }
 }
 
-pub fn capabilities() -> crucible_smithy::Capabilities {
-    use crucible_smithy::Feature;
-    crucible_smithy::Capabilities::new([
+pub fn capabilities() -> crucible_ir::Capabilities {
+    use crucible_ir::Feature;
+    crucible_ir::Capabilities::new([
         Feature::GreedyLabels,
         Feature::Sparse,
         Feature::IntEnum,
@@ -590,7 +590,7 @@ fn emit_package(
     Ok(files)
 }
 
-fn wire_path(service: &Service, root: &crucible_smithy::ShapeId, path: &str) -> String {
+fn wire_path(service: &Service, root: &crucible_ir::ShapeId, path: &str) -> String {
     let mut target = root;
     let mut result = Vec::new();
     for component in path.split('.') {

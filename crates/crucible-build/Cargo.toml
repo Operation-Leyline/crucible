@@ -11,7 +11,7 @@ repository.workspace = true
 crucible-codegen-rust = { workspace = true, optional = true }
 crucible-codegen = { workspace = true, default-features = false }
 crucible-lang.workspace = true
-crucible-smithy.workspace = true
+crucible-ir.workspace = true
 crucible-policy.workspace = true
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }

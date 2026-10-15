@@ -2,8 +2,8 @@
 mod names;
 mod permissions;
 
-use crucible_smithy::ir::{Service, Shape};
-use crucible_smithy::{Capabilities, Diagnostics, Feature, ShapeId};
+use crucible_ir::ir::{Service, Shape};
+use crucible_ir::{Capabilities, Diagnostics, Feature, ShapeId};
 use names::{field, literal, ty};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -174,7 +174,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     );
     let decimal = service.shapes.values().any(|shape| {
         matches!(shape,
-        Shape::Simple(s) if s.kind == crucible_smithy::ir::SimpleKind::BigDecimal)
+        Shape::Simple(s) if s.kind == crucible_ir::ir::SimpleKind::BigDecimal)
     });
     if decimal {
         models.push_str("from decimal import Decimal\n\n");
@@ -223,14 +223,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 let prelude = ShapeId::new(
                     "smithy.api",
                     match s.kind {
-                        crucible_smithy::ir::SimpleKind::String => "String",
-                        crucible_smithy::ir::SimpleKind::Boolean => "Boolean",
-                        crucible_smithy::ir::SimpleKind::Timestamp => "Timestamp",
-                        crucible_smithy::ir::SimpleKind::Document => "Document",
-                        crucible_smithy::ir::SimpleKind::Blob => "Blob",
-                        crucible_smithy::ir::SimpleKind::BigDecimal => "BigDecimal",
-                        crucible_smithy::ir::SimpleKind::Float
-                        | crucible_smithy::ir::SimpleKind::Double => "Double",
+                        crucible_ir::ir::SimpleKind::String => "String",
+                        crucible_ir::ir::SimpleKind::Boolean => "Boolean",
+                        crucible_ir::ir::SimpleKind::Timestamp => "Timestamp",
+                        crucible_ir::ir::SimpleKind::Document => "Document",
+                        crucible_ir::ir::SimpleKind::Blob => "Blob",
+                        crucible_ir::ir::SimpleKind::BigDecimal => "BigDecimal",
+                        crucible_ir::ir::SimpleKind::Float
+                        | crucible_ir::ir::SimpleKind::Double => "Double",
                         _ => "Long",
                     },
                 );

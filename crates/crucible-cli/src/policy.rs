@@ -1,8 +1,8 @@
 use std::path::Path;
 
+use crucible_ir::ShapeId;
+use crucible_ir::ir::Service;
 use crucible_policy::{Config, Report};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::Service;
 
 pub(crate) fn check(service: &Service, path: &Path) -> Result<(), String> {
     emit(crucible_policy::check(service, &Config::load(path)?), false)

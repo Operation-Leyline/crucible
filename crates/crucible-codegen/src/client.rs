@@ -1,5 +1,5 @@
-use crucible_smithy::ir::Service;
-use crucible_smithy::{Capabilities, Diagnostics};
+use crucible_ir::ir::Service;
+use crucible_ir::{Capabilities, Diagnostics};
 
 use crate::File;
 
@@ -126,7 +126,7 @@ impl Client {
         audience: crate::Audience,
         stamp: &crate::provenance::Stamp,
     ) -> Result<Vec<File>, Diagnostics> {
-        let service = crucible_smithy::project(service, audience)?;
+        let service = crucible_ir::project(service, audience)?;
         self.emit_projected(&service, audience, stamp)
     }
 

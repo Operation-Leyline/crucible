@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Member, Service, Shape, SimpleKind, TimestampFormat};
 
 pub(crate) const STRING: &str = "::std::string::String";
 pub(crate) const DATE_TIME: &str = "::crucible_server_runtime_rust::__generated::time::Timestamp";

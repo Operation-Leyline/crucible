@@ -8,7 +8,7 @@ use std::path::Path;
 use crucible_codegen::provenance::{Source, Stamp};
 use crucible_codegen::{Audience, Client, File, RuntimeDependency};
 mod common;
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 use sha2::{Digest, Sha256};
 
 fn weather() -> Service {
@@ -188,11 +188,11 @@ fn the_model_snapshot_is_the_audiences_model() {
         for client in [rust(), ts()] {
             let files = client.emit_for_audience(&full, audience).unwrap();
             let snapshot = find(&files, "crucible-model.json");
-            let read = crucible_smithy::snapshot::read(snapshot).unwrap();
-            let projected = crucible_smithy::project(&full, audience).unwrap();
+            let read = crucible_ir::snapshot::read(snapshot).unwrap();
+            let projected = crucible_ir::project(&full, audience).unwrap();
             assert_eq!(
                 snapshot,
-                crucible_smithy::snapshot::write_contract(
+                crucible_ir::snapshot::write_contract(
                     &projected,
                     &format!("crucible {}", env!("CARGO_PKG_VERSION"))
                 )

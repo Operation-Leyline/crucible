@@ -75,7 +75,7 @@ reach, keyed by shape id. Lowering settles, once:
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
 - **Visibility**: `@internal` becomes explicit `internal` flags on operations,
-  shapes and members. Audience projection in `crucible-smithy` consumes these
+  shapes and members. Audience projection in `crucible-ir` consumes these
   flags and validates removed references once. Shared output selection invokes
   projection before target capability checks; servers keep the full IR.
 - **Documentation notes**: `@deprecated` (message, since), `@since`, `@unstable`

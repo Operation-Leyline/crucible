@@ -2,8 +2,8 @@
 
 use std::path::PathBuf;
 
+use crucible_ir::ShapeId;
 use crucible_lang::{check_manifest, compile, is_package, load_package};
-use crucible_smithy::ShapeId;
 
 fn package_dir(name: &str, manifest: &str, files: &[(&str, &str)]) -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(name);

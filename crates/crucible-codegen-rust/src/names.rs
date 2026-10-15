@@ -2,8 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use crucible_smithy::ir::{DocNotes, Service};
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::ir::{DocNotes, Service};
+use crucible_ir::{Diagnostics, ShapeId};
 
 /// `nextToken` → `next_token`, `HTTPStatus` → `http_status`, keywords escaped.
 pub(crate) fn field(name: &str) -> String {

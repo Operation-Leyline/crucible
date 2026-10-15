@@ -3,8 +3,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::Shape;
+use crucible_ir::ShapeId;
+use crucible_ir::ir::Shape;
 use serde_json::Value as Json;
 
 use crate::ast::{Key, Value};

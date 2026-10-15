@@ -1,4 +1,4 @@
-// The weather model, ported from crates/crucible-smithy/tests/fixtures/weather.json.
+// The weather model, ported from crates/crucible-ir/tests/fixtures/weather.json.
 // Same shape ids, same IR. Lines starting with // are comments; /// is documentation.
 //
 // Members are required unless marked `name?:`; `= value` gives a default.

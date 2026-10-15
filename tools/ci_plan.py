@@ -135,7 +135,7 @@ def affected_groups(paths):
             elif crate == "crucible-lsp":
                 # Editors only: its unit and protocol tests run in the Rust job.
                 selected.add("rust")
-            elif crate in {"crucible-smithy", "crucible-codegen-common"}:
+            elif crate in {"crucible-ir", "crucible-codegen-common"}:
                 selected.update(MODEL_GROUPS)
             elif crate.startswith("crucible-codegen-"):
                 language = crate.removeprefix("crucible-codegen-")

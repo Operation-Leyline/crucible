@@ -13,8 +13,8 @@ use crucible_codegen_common::documentation as docs;
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, constant_symbol, notes, primary,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{DocNotes, Service};
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::{DocNotes, Service};
 
 use super::{File, identifier, literal, param, pascal, returns, xmldoc, xmldoc_with};
 

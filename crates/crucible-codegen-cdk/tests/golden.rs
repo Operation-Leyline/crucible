@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use crucible_codegen_cdk::{Options, emit};
 use crucible_codegen_infra::{Bindings, resolve};
 
-fn inputs() -> (crucible_smithy::ir::Service, Bindings, Options) {
+fn inputs() -> (crucible_ir::ir::Service, Bindings, Options) {
     (
         crucible_lang::load_service(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/cdk-model"),
@@ -46,7 +46,7 @@ fn unsupported_targets_and_symbol_collisions_are_diagnostics() {
         "smithy.api#Document".parse().unwrap();
     service.shapes.insert(
         "smithy.api#Document".parse().unwrap(),
-        crucible_smithy::ir::Shape::Unit { internal: false },
+        crucible_ir::ir::Shape::Unit { internal: false },
     );
     plan.resources[0].cdk.as_mut().unwrap().class_name = Some("CfnResource".into());
     let errors = emit(&service, &plan, &options).unwrap_err().to_string();
@@ -71,7 +71,7 @@ fn absent_prelude_context_shapes_are_supported() {
 #[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn nested_shapes_use_jsii_member_spelling_and_map_to_wire_names() {
     let (mut service, bindings, options) = inputs();
-    if let Some(crucible_smithy::ir::Shape::Structure(s)) =
+    if let Some(crucible_ir::ir::Shape::Structure(s)) =
         service.shapes.get_mut(&"example#Settings".parse().unwrap())
     {
         s.members[0].name = "Max_Count".into();
@@ -134,7 +134,7 @@ fn colliding_camel_case_members_are_diagnosed() {
 #[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn fixed_width_integers_carry_their_type_range() {
     let (mut service, bindings, options) = inputs();
-    if let Some(crucible_smithy::ir::Shape::Structure(s)) =
+    if let Some(crucible_ir::ir::Shape::Structure(s)) =
         service.shapes.get_mut(&"example#Settings".parse().unwrap())
     {
         s.members[1].constraints = Default::default();
@@ -155,10 +155,10 @@ fn timestamps_use_explicit_provider_representation() {
     let id = "example#Epoch".parse().unwrap();
     service.shapes.insert(
         id,
-        crucible_smithy::ir::Shape::Simple(crucible_smithy::ir::Simple {
+        crucible_ir::ir::Shape::Simple(crucible_ir::ir::Simple {
             internal: false,
             sensitive: false,
-            kind: crucible_smithy::ir::SimpleKind::Timestamp,
+            kind: crucible_ir::ir::SimpleKind::Timestamp,
             constraints: Default::default(),
             timestamp_format: None,
             docs: None,
@@ -169,7 +169,7 @@ fn timestamps_use_explicit_provider_representation() {
     let mut plan = resolve(&service, &bindings).unwrap();
     let property = plan.resources[0].properties.get_mut("Name").unwrap();
     property.target = "example#Epoch".parse().unwrap();
-    property.timestamp_format = Some(crucible_smithy::ir::TimestampFormat::EpochSeconds);
+    property.timestamp_format = Some(crucible_ir::ir::TimestampFormat::EpochSeconds);
     plan.resources[0].attributes.get_mut("Id").unwrap().target = "example#Epoch".parse().unwrap();
     let files = emit(&service, &plan, &options).unwrap();
     assert!(files[0].contents.contains("readonly name: number;"));
@@ -197,7 +197,7 @@ fn property_only_packages_do_not_import_unused_resolvable_type() {
 #[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn recursive_collection_aliases_are_diagnosed_instead_of_erased() {
     let (mut service, bindings, options) = inputs();
-    if let Some(crucible_smithy::ir::Shape::List(list)) =
+    if let Some(crucible_ir::ir::Shape::List(list)) =
         service.shapes.get_mut(&"example#Tags".parse().unwrap())
     {
         list.member.target = "example#Tags".parse().unwrap();

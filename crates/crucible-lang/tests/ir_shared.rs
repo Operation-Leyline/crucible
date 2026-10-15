@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use crucible_smithy::ir::{Service, Shape, TimestampFormat};
+use crucible_ir::ir::{Service, Shape, TimestampFormat};
 use serde_json::json;
 
 fn load(name: &str) -> Service {
@@ -13,7 +13,7 @@ fn load(name: &str) -> Service {
     crucible_lang::load_service(&dir).unwrap_or_else(|error| panic!("{error}"))
 }
 
-fn check_input(service: &Service) -> &crucible_smithy::ir::Structure {
+fn check_input(service: &Service) -> &crucible_ir::ir::Structure {
     let operation = service
         .operations
         .iter()
@@ -25,7 +25,7 @@ fn check_input(service: &Service) -> &crucible_smithy::ir::Structure {
     input
 }
 
-fn pattern(input: &crucible_smithy::ir::Structure, member: &str) -> String {
+fn pattern(input: &crucible_ir::ir::Structure, member: &str) -> String {
     input
         .member(member)
         .unwrap()

@@ -2,8 +2,8 @@
 //! lowered against the first and must be declared identically by each of the
 //! others (decision 34).
 
+use crucible_ir::ir::{Member, Mutability, Service, Shape};
 use crucible_lang::{Compiled, FormatOptions, Package, SourceFile, compile, format, parse};
-use crucible_smithy::ir::{Member, Mutability, Service, Shape};
 
 const SERVICE: &str = r#"
 service Jobs {

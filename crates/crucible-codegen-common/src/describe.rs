@@ -4,11 +4,11 @@
 use std::collections::BTreeMap;
 
 use base64::Engine;
-use crucible_smithy::ir::{
+use crucible_ir::ir::{
     Binding, Bindings, Constraints, DocNotes, ErrorInfo, Fault, Member, Operation, Service, Shape,
     SimpleKind, TimestampFormat,
 };
-use crucible_smithy::{Diagnostics, ShapeId};
+use crucible_ir::{Diagnostics, ShapeId};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -453,7 +453,7 @@ fn wire_message(service: &Service, id: Option<&ShapeId>, b: &Bindings, content: 
             && p.member == m.name
         {
             payload = json!({"kind":p.kind,"mediaType":p.media_type,"value":wire,
-                "encoding":if p.kind == crucible_smithy::ir::PayloadKind::Blob { "base64" } else { "identity" }});
+                "encoding":if p.kind == crucible_ir::ir::PayloadKind::Blob { "base64" } else { "identity" }});
         }
     }
     json!({"labels":labels,"query":query,"headers":headers,"body":if b.payload.is_some() || id.is_none()

@@ -13,8 +13,8 @@ use crucible_codegen_common::documentation::with_notes;
 use crucible_codegen_common::permissions::{
     ClientResource, client_resources, code_span, constant_symbol, notes, primary,
 };
-use crucible_smithy::Diagnostics;
-use crucible_smithy::ir::{Permission, Service};
+use crucible_ir::Diagnostics;
+use crucible_ir::ir::{Permission, Service};
 use std::collections::BTreeSet;
 
 /// `GraphPermission` for the resource shape `Graph`.

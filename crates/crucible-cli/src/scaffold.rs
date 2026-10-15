@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use crucible_codegen_rust::{ScaffoldOptions, escape_identifier, scaffold};
-use crucible_smithy::ir::Service;
+use crucible_ir::ir::Service;
 
 /// Writes the missing operation files under `out`, and the `mod` lines that
 /// reach them. An existing file is never touched; an existing `mod.rs` only

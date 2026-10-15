@@ -1,6 +1,6 @@
 [package]
-name = "crucible-smithy"
-description = "The IR every crucible emitter reads, and the release snapshot format"
+name = "crucible-ir"
+description = "The Crucible IR, release snapshots and the helpers every generator shares."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

@@ -1,8 +1,8 @@
 //! Client construction and accessors; field storage remains the wire contract.
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Service, Shape, Structure};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Service, Shape, Structure};
 
 use crate::names::{doc, documented, field, literal};
 use crate::types::rust_type;

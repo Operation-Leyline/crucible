@@ -5,8 +5,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Constraints, Member, Operation, Service, Shape, SimpleKind, Traits};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Constraints, Member, Operation, Service, Shape, SimpleKind, Traits};
 
 use super::Inputs;
 use super::vocabulary::Kind;

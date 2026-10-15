@@ -15,8 +15,8 @@ mod vocabulary;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{PolicyException, Service};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{PolicyException, Service};
 
 use self::check::Checker;
 use self::eval::Evaluator;

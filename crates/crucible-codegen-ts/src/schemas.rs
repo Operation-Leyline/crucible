@@ -3,8 +3,8 @@
 
 use std::collections::BTreeSet;
 
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::{Binding, Member, Operation, Service, Shape, SimpleKind, Structure};
+use crucible_ir::ShapeId;
+use crucible_ir::ir::{Binding, Member, Operation, Service, Shape, SimpleKind, Structure};
 
 use crate::errors::error_shapes;
 use crate::names::{literal, property};
@@ -176,15 +176,15 @@ pub(crate) fn schema_name(service: &Service, id: &ShapeId) -> String {
 /// travel raw, so no schema converts them.
 fn is_payload(service: &Service, structure: &ShapeId, member: &str) -> bool {
     service.operations.iter().any(|op| {
-        let payload = |io: &Option<ShapeId>, bindings: &crucible_smithy::ir::Bindings| {
+        let payload = |io: &Option<ShapeId>, bindings: &crucible_ir::ir::Bindings| {
             io.as_ref() == Some(structure)
                 && bindings.payload.as_ref().is_some_and(|p| {
-                    p.member == member && matches!(p.kind, crucible_smithy::ir::PayloadKind::Blob)
+                    p.member == member && matches!(p.kind, crucible_ir::ir::PayloadKind::Blob)
                 })
         };
         payload(&op.input, &op.request) || payload(&op.output, &op.response)
     }) || service.shape(structure).is_some_and(|shape| {
-        matches!(shape, Shape::Structure(shape) if shape.error.as_ref().and_then(|error| error.payload.as_ref()).is_some_and(|payload| payload.member == member && payload.kind == crucible_smithy::ir::PayloadKind::Blob))
+        matches!(shape, Shape::Structure(shape) if shape.error.as_ref().and_then(|error| error.payload.as_ref()).is_some_and(|payload| payload.member == member && payload.kind == crucible_ir::ir::PayloadKind::Blob))
     })
 }
 
@@ -237,7 +237,7 @@ pub(crate) fn body_schema(
 fn binding_schema(
     service: &Service,
     member: &Member,
-    format: Option<crucible_smithy::ir::TimestampFormat>,
+    format: Option<crucible_ir::ir::TimestampFormat>,
 ) -> Option<String> {
     match service.shape(&member.target)? {
         Shape::Simple(simple) => match simple.kind {
@@ -265,11 +265,11 @@ fn binding_schema(
     }
 }
 
-fn timestamp(format: crucible_smithy::ir::TimestampFormat) -> String {
+fn timestamp(format: crucible_ir::ir::TimestampFormat) -> String {
     let format = match format {
-        crucible_smithy::ir::TimestampFormat::DateTime => "date-time",
-        crucible_smithy::ir::TimestampFormat::HttpDate => "http-date",
-        crucible_smithy::ir::TimestampFormat::EpochSeconds => "epoch-seconds",
+        crucible_ir::ir::TimestampFormat::DateTime => "date-time",
+        crucible_ir::ir::TimestampFormat::HttpDate => "http-date",
+        crucible_ir::ir::TimestampFormat::EpochSeconds => "epoch-seconds",
     };
     format!("timestamp({})", literal(format))
 }
@@ -279,7 +279,7 @@ pub(crate) fn bindings(
     service: &Service,
     structure: &Structure,
     bindings: &[Binding],
-    formats: &std::collections::BTreeMap<String, crucible_smithy::ir::TimestampFormat>,
+    formats: &std::collections::BTreeMap<String, crucible_ir::ir::TimestampFormat>,
 ) -> String {
     let tuples: Vec<String> = bindings
         .iter()
@@ -330,8 +330,8 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         .segments
         .iter()
         .map(|segment| match segment {
-            crucible_smithy::ir::Segment::Literal(text) => literal(text),
-            crucible_smithy::ir::Segment::Label(label) => {
+            crucible_ir::ir::Segment::Literal(text) => literal(text),
+            crucible_ir::ir::Segment::Label(label) => {
                 let schema = input
                     .and_then(|input| input.member(label))
                     .and_then(|member| {
@@ -400,7 +400,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
                 "payload: {{ member: {}, mediaType: {}{} }}",
                 literal(&payload.member),
                 literal(&payload.media_type),
-                if payload.kind != crucible_smithy::ir::PayloadKind::Blob {
+                if payload.kind != crucible_ir::ir::PayloadKind::Blob {
                     format!(", kind: {}", serde_json::to_string(&payload.kind).unwrap())
                 } else {
                     String::new()
@@ -418,7 +418,7 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
         }
         if let Some(payload) = &op.response.payload {
             parts.push(format!("payload: {}", literal(&payload.member)));
-            if payload.kind != crucible_smithy::ir::PayloadKind::Blob {
+            if payload.kind != crucible_ir::ir::PayloadKind::Blob {
                 parts.push(format!(
                     "payloadKind: {}",
                     serde_json::to_string(&payload.kind).unwrap()
@@ -475,8 +475,8 @@ fn error_table(service: &Service, converting: &BTreeSet<ShapeId>) -> String {
         let error = structure.error.as_ref().expect("filtered to errors");
         let name = service.name_of(id);
         let fault = match error.fault {
-            crucible_smithy::ir::Fault::Client => "client",
-            crucible_smithy::ir::Fault::Server => "server",
+            crucible_ir::ir::Fault::Client => "client",
+            crucible_ir::ir::Fault::Server => "server",
         };
         let mut fields = vec![
             format!("status: {}", error.status),

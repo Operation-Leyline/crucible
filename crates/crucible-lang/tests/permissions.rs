@@ -4,11 +4,11 @@
 
 use std::path::Path;
 
+use crucible_ir::ShapeId;
+use crucible_ir::ir::permissions::Binding;
+use crucible_ir::ir::{Condition, Mode, Requirements, Service, Tier};
 use crucible_lang::ast::{BindingValue, ConditionKind, Decl, OpEntry, RequirementKind};
 use crucible_lang::{Compiled, Package, Severity, SourceFile, compile, parse};
-use crucible_smithy::ShapeId;
-use crucible_smithy::ir::permissions::Binding;
-use crucible_smithy::ir::{Condition, Mode, Requirements, Service, Tier};
 use serde_json::json;
 
 const PIGEON: &[&str] = &["service.cru", "tenancy.cru", "mail.cru", "grants.cru"];
@@ -272,7 +272,7 @@ fn resource_bound_operations_get_the_framework_not_found() {
     let not_found = service
         .shape(&ShapeId::new("crucible.errors", "NotFoundException"))
         .expect("the shape is in the IR");
-    let crucible_smithy::ir::Shape::Structure(s) = not_found else {
+    let crucible_ir::ir::Shape::Structure(s) = not_found else {
         panic!()
     };
     assert_eq!(s.error.as_ref().unwrap().status, 404);
@@ -291,8 +291,8 @@ fn the_permission_types_enum_is_recorded() {
 #[test]
 fn a_snapshot_round_trips_and_an_older_one_still_reads() {
     let (service, _) = pigeon();
-    let text = crucible_smithy::snapshot::write(&service, "test");
-    let read = crucible_smithy::snapshot::read(&text).expect("reads back");
+    let text = crucible_ir::snapshot::write(&service, "test");
+    let read = crucible_ir::snapshot::read(&text).expect("reads back");
     assert_eq!(read.permissions, service.permissions);
     assert_eq!(read.permission_types, service.permission_types);
     for (a, b) in read.operations.iter().zip(&service.operations) {
@@ -306,7 +306,7 @@ fn a_snapshot_round_trips_and_an_older_one_still_reads() {
     for op in object["operations"].as_array_mut().unwrap() {
         op.as_object_mut().unwrap().remove("requirements");
     }
-    let old = crucible_smithy::snapshot::read(&value.to_string()).expect("an older release reads");
+    let old = crucible_ir::snapshot::read(&value.to_string()).expect("an older release reads");
     assert!(old.permissions.is_empty());
     assert!(old.permission_types.is_none());
     assert!(
@@ -318,7 +318,7 @@ fn a_snapshot_round_trips_and_an_older_one_still_reads() {
     let mut plain = old.clone();
     plain.versions.clear();
     let written: serde_json::Value =
-        serde_json::from_str(&crucible_smithy::snapshot::write(&plain, "test")).unwrap();
+        serde_json::from_str(&crucible_ir::snapshot::write(&plain, "test")).unwrap();
     assert!(written["service"].get("permissions").is_none());
     assert!(written["service"].get("permission_types").is_none());
     for op in written["service"]["operations"].as_array().unwrap() {
@@ -329,16 +329,16 @@ fn a_snapshot_round_trips_and_an_older_one_still_reads() {
 #[test]
 fn a_snapshot_with_empty_scopes_reads_and_one_with_scopes_is_refused() {
     let (service, _) = pigeon();
-    let text = crucible_smithy::snapshot::write(&service, "test");
+    let text = crucible_ir::snapshot::write(&service, "test");
     let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
     // Snapshots written while Crucible modelled OAuth scopes carry empty lists.
     value["service"]["scopes"] = json!([]);
     for op in value["service"]["operations"].as_array_mut().unwrap() {
         op["scopes"] = json!([]);
     }
-    crucible_smithy::snapshot::read(&value.to_string()).expect("empty scopes are dropped");
+    crucible_ir::snapshot::read(&value.to_string()).expect("empty scopes are dropped");
     value["service"]["operations"][0]["scopes"] = json!(["mail/send"]);
-    let error = crucible_smithy::snapshot::read(&value.to_string()).unwrap_err();
+    let error = crucible_ir::snapshot::read(&value.to_string()).unwrap_err();
     assert!(error.contains("no longer supports scopes"), "{error}");
 }
 
@@ -389,7 +389,7 @@ fn the_client_audience_drops_internal_permissions_and_their_requirements() {
     let service = compiled.service.unwrap();
     let store = ShapeId::new("example.shop", "Store");
     assert_eq!(service.permissions[&store].permissions.len(), 3);
-    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
     let symbols: Vec<&str> = external.permissions[&store]
         .permissions
         .iter()
@@ -408,7 +408,7 @@ fn the_client_audience_drops_internal_permissions_and_their_requirements() {
     };
     let kept: Vec<&str> = clauses.iter().map(|c| c.permission.as_str()).collect();
     assert_eq!(kept, ["read"]);
-    let internal = crucible_smithy::project(&service, crucible_smithy::Audience::Internal).unwrap();
+    let internal = crucible_ir::project(&service, crucible_ir::Audience::Internal).unwrap();
     assert_eq!(internal.permissions[&store].permissions.len(), 3);
 }
 
@@ -428,14 +428,12 @@ fn the_client_audience_leaves_out_internal_filters_without_a_partial_list() {
         );
         let compiled = compile(&small(&format!("{source}\n{list}")), None);
         assert!(!compiled.has_errors(), "{}", compiled.render());
-        let external = crucible_smithy::project(
-            &compiled.service.unwrap(),
-            crucible_smithy::Audience::External,
-        )
-        .unwrap();
-        let errors: Vec<_> = crucible_smithy::validate::permissions_from_ir(&external)
+        let external =
+            crucible_ir::project(&compiled.service.unwrap(), crucible_ir::Audience::External)
+                .unwrap();
+        let errors: Vec<_> = crucible_ir::validate::permissions_from_ir(&external)
             .into_iter()
-            .filter(|f| f.severity == crucible_smithy::validate::FindingSeverity::Error)
+            .filter(|f| f.severity == crucible_ir::validate::FindingSeverity::Error)
             .collect();
         assert!(errors.is_empty(), "{clauses}: {errors:#?}");
         external
@@ -481,9 +479,8 @@ fn the_client_audience_keeps_permission_types_consistent() {
         assert!(!compiled.has_errors(), "{}", compiled.render());
         let service = compiled.service.unwrap();
         assert!(service.permission_types.is_some());
-        let external =
-            crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
-        let findings = crucible_smithy::validate::permissions_from_ir(&external);
+        let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
+        let findings = crucible_ir::validate::permissions_from_ir(&external);
         assert!(
             findings.iter().all(|f| f.code != "permissions.types"),
             "{findings:#?}"
@@ -513,14 +510,14 @@ fn the_client_audience_drops_permission_types_missing_a_grantable_resource() {
     assert!(!compiled.has_errors(), "{}", compiled.render());
     let service = compiled.service.unwrap();
     assert!(service.permission_types.is_some());
-    let external = crucible_smithy::project(&service, crucible_smithy::Audience::External).unwrap();
+    let external = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
     assert!(
         external
             .permissions
             .contains_key(&ShapeId::new("example.shop", "Order"))
     );
     assert_eq!(external.permission_types, None);
-    let findings = crucible_smithy::validate::permissions_from_ir(&external);
+    let findings = crucible_ir::validate::permissions_from_ir(&external);
     assert!(
         findings.iter().all(|f| f.code != "permissions.types"),
         "{findings:#?}"
@@ -1982,7 +1979,7 @@ fn a_service_with_its_own_errors_designates_its_404_and_declares_requirements() 
     );
     let read: Service = serde_json::from_value(json).unwrap();
     assert_eq!(read.not_found, service.not_found);
-    assert!(crucible_smithy::validate::permissions_from_ir(&read).is_empty());
+    assert!(crucible_ir::validate::permissions_from_ir(&read).is_empty());
 }
 
 #[test]
@@ -2085,7 +2082,7 @@ fn the_designated_error_is_a_404_client_error_of_the_package() {
 fn an_ir_designation_is_checked_without_lowering() {
     let mut service = own(OWN_ERRORS).service.unwrap();
     service.not_found = Some(ShapeId::new("example.shop", "ValidationException"));
-    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+    let found: Vec<String> = crucible_ir::validate::permissions_from_ir(&service)
         .iter()
         .map(|f| f.text())
         .collect();
@@ -2097,7 +2094,7 @@ fn an_ir_designation_is_checked_without_lowering() {
     // The operations carry the 404 lowering attached; it is no longer the
     // one the service names, and both say so.
     service.not_found = Some(ShapeId::new("example.shop", "Elsewhere"));
-    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+    let found: Vec<String> = crucible_ir::validate::permissions_from_ir(&service)
         .iter()
         .map(|f| f.text())
         .collect();
@@ -2123,7 +2120,7 @@ fn an_empty_requirement_list_in_the_ir_is_refused() {
         .expect("an operation with requirements");
     let name = operation.id.name().to_owned();
     operation.requirements = Requirements::List(Vec::new());
-    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+    let found: Vec<String> = crucible_ir::validate::permissions_from_ir(&service)
         .iter()
         .map(|f| f.text())
         .filter(|text| text.starts_with("permissions.requires:"))
@@ -2164,7 +2161,7 @@ fn a_resource_with_permissions_declares_its_own_identifier() {
         .unwrap()
         .identifiers
         .clear();
-    let found: Vec<String> = crucible_smithy::validate::permissions_from_ir(&service)
+    let found: Vec<String> = crucible_ir::validate::permissions_from_ir(&service)
         .iter()
         .map(|f| f.text())
         .collect();
