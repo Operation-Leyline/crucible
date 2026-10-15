@@ -225,3 +225,58 @@ fn a_past_release_is_frozen_from_its_git_commit() {
             .success()
     );
 }
+
+#[test]
+fn compile_json_prints_the_model_with_custom_metadata_and_docs() {
+    let tmp = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let dir = tmp.path();
+    std::fs::write(
+        dir.join("crucible.toml"),
+        "[model]\nnamespace = \"example.meta\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.join("a.cru"),
+        r#"service Meta { version "1"  protocol json  operations [Ping] }
+
+/// Marks an operation.
+metadata note on operation: string
+
+/// Ping the service.
+@note("kept")
+readonly operation Ping {
+    http GET "/ping"
+    output { ok: boolean }
+}
+"#,
+    )
+    .unwrap();
+    let path = dir.to_str().unwrap();
+
+    let printed = crucible(&["compile", "--json", path]);
+    assert!(
+        printed.status.success(),
+        "{}",
+        String::from_utf8_lossy(&printed.stderr)
+    );
+    let text = String::from_utf8(printed.stdout).unwrap();
+    assert!(text.contains("example.meta#note"), "{text}");
+    assert!(
+        text.contains("kept") && text.contains("Ping the service."),
+        "{text}"
+    );
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(json["service"]["operations"][0]["id"], "example.meta#Ping");
+
+    // --out writes the same bytes to a file.
+    let file = dir.join("model.json");
+    let written = crucible(&["compile", "--json", path, "--out", file.to_str().unwrap()]);
+    assert!(written.status.success());
+    assert!(written.stdout.is_empty());
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), text);
+
+    // Without --json there is no output format yet, and a non-package is refused.
+    assert!(!crucible(&["compile", path]).status.success());
+    let refused = crucible(&["compile", "--json", env!("CARGO_MANIFEST_DIR")]);
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("not a Crucible language package"));
+}

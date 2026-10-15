@@ -17,6 +17,13 @@ version's section when it is prepared.
 
 ### Added
 
+- `crucible compile --json <package>` prints a `.cru` package's compiled
+  model, custom metadata and documentation included, in the release snapshot
+  format (`--out` writes a file, `--service` picks a service). The build
+  helper's `model_output` / `CRUCIBLE_MODEL_OUT` now export the compiled model
+  of a `.cru` package too; they used to panic. See
+  [docs/api-policy.md](docs/api-policy.md#reading-a-cru-packages-compiled-model).
+
 - `PageTokens::max_cursor` lowers the largest cursor a token seals (default
   and ceiling 4096 bytes), and `max_token_length` / `cursor_capacity(limit)`
   report the longest token that results and the largest cursor a token length
