@@ -1,0 +1,16 @@
+@operationClass(controlRead)
+@auditExcluded("personal")
+readonly operation GetUsage {
+    http GET "/v1/usage"
+    input {
+        @query
+        nextToken?: NextToken
+        @query
+        maxResults?: integer { range 1..100 }
+    }
+    output {
+        days: UsageDays
+        nextToken?: NextToken
+    }
+    errors [ThrottlingException]
+}

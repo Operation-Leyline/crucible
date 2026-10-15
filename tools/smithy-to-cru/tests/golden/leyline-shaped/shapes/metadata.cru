@@ -1,0 +1,13 @@
+/// Audit class.
+metadata auditCategory on operation: enum { management, metadataRead, dataAccess } conflicts auditExcluded
+
+metadata auditExcluded on operation: string { length 1.. } conflicts auditCategory
+
+metadata auditField on member conflicts sensitive
+
+metadata operationClass on operation: enum { controlRead, controlWrite, dataPlane, asyncJob }
+
+/// Has a bucket of its own.
+metadata ownRequestLimit on operation
+
+metadata permittedWhileSuspended on operation

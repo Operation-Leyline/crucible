@@ -1,0 +1,24 @@
+[package]
+name = "smithy-to-cru"
+description = "One-shot migration: a Smithy JSON AST to a Crucible language package, with an IR-equality self-check. Removed with Smithy support."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+repository.workspace = true
+
+[[bin]]
+name = "smithy-to-cru"
+path = "src/main.rs"
+
+[dependencies]
+crucible-smithy.workspace = true
+crucible-lang.workspace = true
+serde_json = { workspace = true, features = ["preserve_order", "arbitrary_precision"] }
+serde.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

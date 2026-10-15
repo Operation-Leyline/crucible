@@ -1,0 +1,45 @@
+string AttributeName { length ..32 }
+
+map Attributes: AttributeName -> document
+
+blob Blob { length ..1024; mediaType "application/octet-stream" }
+
+string ClientToken { length 1..128 }
+
+string DatasetName
+
+structure GraphData for Graph {
+    /// Assigned by the service.
+    $graphId
+    $name
+    $createdAt
+    $homeRegion
+    $organizationId
+}
+
+string GraphId { pattern "^g_[a-z0-9]{8}$" }
+
+list GraphIds: GraphId { length 1..100; unique }
+
+list GraphList: GraphData { length ..100 }
+
+/// What a graph is called.
+string GraphName { length 1..64 }
+
+enum Region {
+    US_EAST_1 = "us-east-1"
+    EU_WEST_1 = "eu-west-1"
+}
+
+union Sample {
+    none
+    dataset: DatasetName
+}
+
+/// One graph.
+resource Graph in Organization {
+    id graphId: GraphId as id
+    immutable property name: GraphName
+    readonly property createdAt: DateTime
+    immutable property homeRegion?: Region
+}

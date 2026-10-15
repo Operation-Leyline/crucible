@@ -1,0 +1,12 @@
+@operationClass(controlRead)
+@auditCategory(metadataRead)
+operation GetOrganization reads Organization {
+    http GET "/v1/organizations/{organizationId}"
+    input {
+        $organizationId
+    }
+    output {
+        organization: OrganizationData
+    }
+    errors [ResourceNotFoundException]
+}

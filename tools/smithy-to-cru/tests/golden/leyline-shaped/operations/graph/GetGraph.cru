@@ -1,0 +1,15 @@
+@operationClass(controlRead)
+@auditCategory(metadataRead)
+operation GetGraph reads Graph {
+    http GET "/v1/organizations/{organizationId}/graphs/{graphId}"
+    input {
+        $organizationId
+        $graphId
+    }
+    output {
+        graph: GraphData
+        @header("ETag")
+        etag?: string
+    }
+    errors [ResourceNotFoundException]
+}

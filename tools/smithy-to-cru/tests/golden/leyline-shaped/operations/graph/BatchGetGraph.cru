@@ -1,0 +1,12 @@
+@operationClass(dataPlane)
+@auditCategory(dataAccess)
+readonly operation BatchGetGraph on Graph collection {
+    http POST "/v1/organizations/{organizationId}/graphs:batchGet"
+    input {
+        $organizationId
+        graphIds: GraphIds
+    }
+    output {
+        graphs: GraphList
+    }
+}
