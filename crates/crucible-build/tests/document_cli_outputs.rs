@@ -152,10 +152,10 @@ fn document_cli_probe() {
     );
     let unsupported = crucible_build::model("unsupported.json").compile();
     let error = unsupported
-        .openapi("openapi")
-        .try_generate_into("exports/openapi")
+        .terraform("terraform")
+        .try_generate_into("exports/terraform")
         .unwrap_err();
-    assert!(error.contains("prefix-headers"), "{error}");
+    assert!(error.contains("error-payload"), "{error}");
     assert_eq!(
         exported_document,
         fs::read("exports/openapi/openapi.json").unwrap()
