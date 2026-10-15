@@ -1,7 +1,7 @@
 // Extension of the docs renderer. Wire rules are read only from describe/1.
 (function (root) {
   "use strict";
-  const JSON_PROTOCOLS = new Set(["crucibleJson", "awsRestJson1", "awsJson1_0", "awsJson1_1", "rpcv2Json"]);
+  const JSON_PROTOCOL = "crucibleJson";
   const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
   const percent = (value) => encodeURIComponent(String(value)).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   const scalar = (value) => typeof value === "string" ? value : JSON.stringify(value);
@@ -18,7 +18,7 @@
   }
 
   function callable(operation) {
-    return operation.callable !== false && JSON_PROTOCOLS.has(operation.protocol)
+    return operation.callable !== false && operation.protocol === JSON_PROTOCOL
       && ![operation.request, operation.response].some((b) => b && (b.eventStream || b.payload && b.payload.streaming));
   }
 
@@ -42,8 +42,8 @@
         return Number(value);
       case "bigInteger":
         if (typeof value === "number" && !Number.isSafeInteger(value)) throw new Error("Use a string for integers beyond JavaScript's safe range; this protocol may require a native client");
-        return description.service.protocolSettings.arbitraryPrecisionStrings ? String(value) : value;
-      case "bigDecimal": return description.service.protocolSettings.arbitraryPrecisionStrings ? String(value) : value;
+        return value;
+      case "bigDecimal": return value;
       case "list": return value.map((v) => wire(v, shape.members[0], description, format));
       case "map": return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, wire(v, shape.members.find((m) => m.name === "value"), description, format)]));
       case "structure": case "union": {
@@ -51,9 +51,7 @@
         for (const m of shape.members) {
           if (own(value, m.wireName)) {
             const v = wire(value[m.wireName], m, description);
-            if (!(v === null && description.service.protocolSettings.omitNullStructureMembers)) {
-              Object.defineProperty(result, m.wireName, { value: v, enumerable: true, configurable: true, writable: true });
-            }
+            Object.defineProperty(result, m.wireName, { value: v, enumerable: true, configurable: true, writable: true });
           }
         }
         return result;
@@ -77,7 +75,7 @@
   }
 
   function buildRequest(description, operation, input, base, credentials = {}, options = {}) {
-    if (!callable(operation)) throw new Error("Use a native client or curl for this protocol or streaming operation");
+    if (!callable(operation)) throw new Error("Use a native client or curl for this streaming operation");
     if (options.readOnly && !operation.readonly) throw new Error("Explorer is read-only for this operation");
     if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Input must be a JSON object");
     const bindings = operation.request;
@@ -141,14 +139,12 @@
         } else if (bindings.payload.kind === "string") body = String(value);
         else body = JSON.stringify(value);
       }
-    } else if (bindings.body.length || ["awsJson1_0", "awsJson1_1", "rpcv2Json"].includes(operation.protocol) && operation.input) {
+    } else if (bindings.body.length) {
       const result = {};
       for (const member of members) {
         if (bindings.body.includes(member.name) && values.has(member.name)) {
           const value = values.get(member.name);
-          if (!(value === null && description.service.protocolSettings.omitNullStructureMembers)) {
-            Object.defineProperty(result, member.wireName, { value, enumerable: true });
-          }
+          Object.defineProperty(result, member.wireName, { value, enumerable: true });
         }
       }
       body = JSON.stringify(result);
@@ -169,7 +165,7 @@
   function errorName(description, operation, response, body) {
     if (response.status < 400) return null;
     const errors = (operation.errors || []).map((id) => description.shapes[id]).filter(Boolean);
-    let code = response.headers.get("X-Crucible-Error") || response.headers.get("X-Amzn-Errortype") || body && (body.__type || body.code);
+    let code = response.headers.get("X-Crucible-Error") || body && (body.__type || body.code);
     if (typeof code === "string") {
       code = code.split(":")[0].split("#").at(-1);
       const match = errors.find((shape) => shape.name === code || shape.error && shape.error.wireCode.split("#").at(-1) === code);
@@ -223,7 +219,7 @@
     if (!callable(operation)) {
       const headers = new Headers(operation.protocolHeaders || {});
       const request = { url: `${base.href}${operation.uri.replace(/^\/+/, "")}`, method: operation.method, headers, body: new Uint8Array() };
-      container.append(element("p", "This protocol or stream needs curl or a native client. Supply the modeled labels and a correctly encoded payload.bin."), element("pre", curl(request), "cx-code"));
+      container.append(element("p", "This stream needs curl or a native client. Supply the modeled labels and a correctly encoded payload.bin."), element("pre", curl(request), "cx-code"));
       return;
     }
     const form = element("form", null, "cx-try-form");

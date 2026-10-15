@@ -172,9 +172,6 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         crucible_smithy::Feature::Waiters,
         crucible_smithy::Feature::EndpointRules,
         crucible_smithy::Feature::EndpointHostPrefix,
-        crucible_smithy::Feature::AwsRestJson1,
-        crucible_smithy::Feature::AwsJson10,
-        crucible_smithy::Feature::AwsJson11,
         crucible_smithy::Feature::HttpChecksum,
     ])
 }

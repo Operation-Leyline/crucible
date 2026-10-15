@@ -91,21 +91,10 @@ fn base(service: &Service, shape: &Shape) -> Value {
                 SimpleKind::Long => {
                     json!({"type": "integer", "format": "int64", "minimum": i64::MIN, "maximum": i64::MAX})
                 }
-                SimpleKind::BigInteger if service.protocol_settings.arbitrary_precision_strings => {
-                    json!({"type": "string", "pattern": "^-?[0-9]+$", "x-smithy-type": "bigInteger"})
-                }
-                SimpleKind::BigDecimal if service.protocol_settings.arbitrary_precision_strings => {
-                    json!({"type": "string", "x-smithy-type": "bigDecimal"})
-                }
                 SimpleKind::BigInteger => json!({"type": "integer"}),
                 SimpleKind::BigDecimal => json!({"type": "number"}),
                 SimpleKind::Float | SimpleKind::Double => {
-                    let number = json!({"type": "number", "format": if simple.kind == SimpleKind::Float { "float" } else { "double" }});
-                    if service.protocol_settings.non_finite_float_strings {
-                        json!({"anyOf": [number, {"type": "string", "enum": ["NaN", "Infinity", "-Infinity"]}]})
-                    } else {
-                        number
-                    }
+                    json!({"type": "number", "format": if simple.kind == SimpleKind::Float { "float" } else { "double" }})
                 }
                 SimpleKind::Timestamp => timestamp(
                     simple
@@ -151,9 +140,6 @@ fn base(service: &Service, shape: &Shape) -> Value {
             let alternatives: Vec<_> = structure.members.iter().map(|m| {
                 let mut value = json!({"type": "object", "properties": {}, "required": [&m.wire_name], "additionalProperties": false});
                 value["properties"][&m.wire_name] = member(service, m, false, None, None);
-                if service.protocol_settings.ignore_unknown_union_type && !structure.members.iter().any(|m| m.wire_name == "__type") {
-                    value["properties"]["__type"] = json!({});
-                }
                 value
             }).collect();
             (

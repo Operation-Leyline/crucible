@@ -208,13 +208,11 @@ def scripted():
         thread.join(timeout=5)
 
 
-def feature_package(output, scratch, model, module, tests, env=None, protocol=None):
+def feature_package(output, scratch, model, module, tests, env=None):
     """Generate a package, add native XCTest sources, and run them over loopback HTTP."""
     package = output / module
     command = ["cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "swift",
                str(model), "--out", str(package), "--package-name", module, "--module-name", module]
-    if protocol:
-        command += ["--protocol", protocol]
     run(*command)
     manifest = package / "Package.swift"
     manifest.write_text(manifest.read_text().replace(
@@ -243,13 +241,6 @@ def qualify_features(output, scratch):
     behaviors_path.write_text(json.dumps(behaviors), encoding="utf-8")
     feature_package(output, scratch, behaviors_path, "Behavior", ["EndpointTests.swift"])
     feature_package(output, scratch, ROOT / "crates/crucible-codegen-java/tests/waiters.json", "Jobs", ["WaiterTests.swift"])
-    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
-    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
-    protocol_path = output / "protocol.json"
-    protocol_path.write_text(json.dumps(protocol_model))
-    for protocol in ("restJson1", "awsJson1_0", "awsJson1_1"):
-        feature_package(output, scratch, protocol_path, "Protocol" + protocol.replace("_", ""), ["ProtocolTests.swift"],
-                        {"PROTOCOL": protocol}, "aws.protocols#" + protocol)
 
 
 def qualify_permissions(output, scratch):
@@ -408,7 +399,7 @@ struct Fake: VoidSDK.HTTPTransport {
     tests.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(ROOT / "crates/crucible-codegen-swift/tests/WireTests.swift", tests / "WireTests.swift")
     swift("test", wire, scratch)
-    # Payload Content-Type precedence under both payload-capable JSON protocols.
+    # Payload Content-Type precedence.
     # Swift has no streaming request payloads, so the model drops UploadStream.
     bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text())
     service = bindings["shapes"]["example.payload#PayloadBindings"]
@@ -418,9 +409,9 @@ struct Fake: VoidSDK.HTTPTransport {
     bindings_path = output / "payload-bindings.json"
     bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
     # Distinct module names, since every package here shares one scratch path.
-    for protocol, module in (("crucible.protocols#json", "Payload"), ("aws.protocols#restJson1", "RestPayload")):
+    for module in ("Payload",):
         payload = output / module
-        generate(bindings_path, payload, module, "--protocol", protocol)
+        generate(bindings_path, payload, module)
         manifest = payload / "Package.swift"
         manifest.write_text(manifest.read_text().replace(
             'resources: [.process("Resources")])]',

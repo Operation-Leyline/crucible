@@ -13,7 +13,7 @@ const CATALOG: &str = include_str!("../../crucible-smithy/tests/fixtures/service
 fn files(source: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
     let service = Model::from_json(source)
         .unwrap()
-        .lower_documentation(None, None)
+        .lower_documentation(None)
         .unwrap();
     generate(&project(&service, audience).unwrap()).unwrap()
 }
@@ -253,13 +253,14 @@ fn audience_filters_values_and_badges_are_visible_at_every_level() {
     )
     .unwrap();
     assert_eq!(
-        describe["operations"]["example.docs#WriteItem"]["examples"][0]["input"]["body"]["item"]["amount"],
+        describe["operations"]["example.docs#WriteItem"]["examples"][0]["input"]["body"]["item"]["amount"]
+            .to_string(),
         "1234567890123456789"
     );
     assert!(
         describe["operations"]["example.docs#WriteItem"]["inputSchema"]["$defs"]["smithy.api.BigInteger"]
             ["type"]
-            == "string"
+            == "integer"
     );
     assert!(
         describe["service"]["documentation"]["html"]
@@ -341,24 +342,15 @@ fn model_object_order_does_not_change_description_or_pages() {
 }
 
 #[test]
-fn unsupported_protocols_and_missing_targets_are_collected() {
-    let mut service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/service-docs-unsupported.json"
-    ))
-    .unwrap()
-    .lower_documentation(None, None)
-    .unwrap();
-    let mut other = Model::from_json(CATALOG)
+fn missing_targets_are_collected() {
+    let mut service = Model::from_json(CATALOG)
         .unwrap()
-        .lower_documentation(None, None)
+        .lower_documentation(None)
         .unwrap();
-    service.shapes = std::mem::take(&mut other.shapes);
-    service.operations = other.operations;
     service
         .shapes
         .remove(&"example.docs#Content".parse().unwrap());
     let error = generate(&service).unwrap_err().to_string();
-    assert!(error.contains("describe.protocol"), "{error}");
     assert!(error.matches("describe.target").count() >= 2, "{error}");
 }
 
@@ -366,7 +358,7 @@ fn unsupported_protocols_and_missing_targets_are_collected() {
 fn streaming_examples_are_refused_without_partial_output() {
     let mut service = Model::from_json(WEATHER)
         .unwrap()
-        .lower_documentation(None, None)
+        .lower_documentation(None)
         .unwrap();
     let op = service
         .operations
@@ -385,26 +377,6 @@ fn streaming_examples_are_refused_without_partial_output() {
 }
 
 #[test]
-fn aws_json_target_is_resolved_without_http_trait_reconstruction() {
-    let mut value: Value = serde_json::from_str(CATALOG).unwrap();
-    let traits = value["shapes"]["example.docs#Catalog"]["traits"]
-        .as_object_mut()
-        .unwrap();
-    traits.remove("smithy.protocols#rpcv2Json");
-    traits.insert("aws.protocols#awsJson1_1".into(), json!({}));
-    let files = files(&value.to_string(), Audience::External);
-    let op = files
-        .iter()
-        .find(|f| f.path.ends_with("API_WriteItem.md"))
-        .unwrap();
-    assert!(op.contents.contains("X-Amz-Target: Catalog.WriteItem"));
-    assert!(
-        op.contents
-            .contains("Content-Type: application/x-amz-json-1.1")
-    );
-}
-
-#[test]
 fn documentation_requires_the_resource_projection_and_detects_filename_collisions() {
     let ordinary = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
     assert!(
@@ -415,7 +387,7 @@ fn documentation_requires_the_resource_projection_and_detects_filename_collision
     );
     let mut service = Model::from_json(CATALOG)
         .unwrap()
-        .lower_documentation(None, None)
+        .lower_documentation(None)
         .unwrap();
     let mut duplicate = service.operations[0].clone();
     duplicate.id = "example.docs#listitems".parse().unwrap();

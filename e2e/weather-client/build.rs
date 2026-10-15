@@ -141,8 +141,8 @@ fn main() {
     event_streams(&out);
 }
 
-/// The event stream fixture under each protocol shape: HTTP bindings
-/// (restJson1), an initial message (awsJson1_0), and SigV4-signed events.
+/// The event stream fixture as a plain Crucible JSON service, and with
+/// SigV4-signed events.
 fn event_streams(out: &std::path::Path) {
     let fixture = "../../crates/crucible-smithy/tests/fixtures/event-streams.json";
     println!("cargo::rerun-if-changed={fixture}");
@@ -151,15 +151,11 @@ fn event_streams(out: &std::path::Path) {
     for (name, traits) in [
         (
             "events_rest_client.rs",
-            serde_json::json!({"aws.protocols#restJson1": {}}),
-        ),
-        (
-            "events_rpc_client.rs",
-            serde_json::json!({"aws.protocols#awsJson1_0": {}}),
+            serde_json::json!({"crucible.protocols#json": {}}),
         ),
         (
             "events_signed_client.rs",
-            serde_json::json!({"aws.protocols#restJson1": {}, "aws.auth#sigv4": {"name": "events"}, "smithy.api#auth": ["aws.auth#sigv4"]}),
+            serde_json::json!({"crucible.protocols#json": {}, "aws.auth#sigv4": {"name": "events"}, "smithy.api#auth": ["aws.auth#sigv4"]}),
         ),
     ] {
         let mut model = base.clone();
@@ -175,53 +171,28 @@ fn event_streams(out: &std::path::Path) {
         )
         .unwrap();
     }
-    for protocol in [
-        "restJson1",
-        "awsJson1_0",
-        "awsJson1_1",
-        "rpcv2Json",
-        "rpcv2Cbor",
+    let mut model = base.clone();
+    model["shapes"]["example.events#Events"]["traits"] =
+        serde_json::json!({"crucible.protocols#json": {}});
+    model["shapes"]["example.events#Events"]["operations"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|op| op["target"] != "example.events#SubscribeChecksums");
+    let path = out.join("events_crucible.json");
+    std::fs::write(&path, model.to_string()).unwrap();
+    for (target, codegen) in [
+        ("client", crucible_build::model(&path).client().render()),
+        ("server", crucible_build::model(&path).server().render()),
     ] {
-        let mut model = base.clone();
-        let namespace = if protocol.starts_with("rpcv2") {
-            "smithy.protocols"
-        } else {
-            "aws.protocols"
-        };
-        model["shapes"]["example.events#Events"]["traits"] =
-            serde_json::json!({format!("{namespace}#{protocol}"): {}});
-        model["shapes"]["example.events#Events"]["operations"]
-            .as_array_mut()
-            .unwrap()
-            .retain(|op| op["target"] != "example.events#SubscribeChecksums");
-        if protocol == "rpcv2Cbor" {
-            model["shapes"]["example.events#StructuredEvent"]["members"]["stamp"] =
-                serde_json::json!({"target":"smithy.api#Timestamp"});
-            model["shapes"]["example.events#StructuredEvent"]["members"]["blob"] =
-                serde_json::json!({"target":"smithy.api#Blob"});
-            model["shapes"]["example.events#StructuredEvent"]["members"]["big"] =
-                serde_json::json!({"target":"smithy.api#BigInteger"});
-            model["shapes"]["example.events#StructuredEvent"]["members"]["number"] =
-                serde_json::json!({"target":"smithy.api#Double"});
-        }
-        let path = out.join(format!("events_{protocol}.json"));
-        std::fs::write(&path, model.to_string()).unwrap();
-        for (target, codegen) in [
-            ("client", crucible_build::model(&path).client().render()),
-            ("server", crucible_build::model(&path).server().render()),
-        ] {
-            std::fs::write(
-                out.join(format!("events_{protocol}_{target}.rs")),
-                codegen.unwrap_or_else(|error| panic!("{protocol}/{target}: {error}")),
-            )
-            .unwrap();
-        }
+        std::fs::write(
+            out.join(format!("events_crucible_{target}.rs")),
+            codegen.unwrap_or_else(|error| panic!("crucible/{target}: {error}")),
+        )
+        .unwrap();
     }
 }
 
-/// Fixtures for payload kinds, media-type headers, AWS JSON protocols and
-/// HTTP checksums. Each protocol variant keeps one protocol trait, as
-/// `--protocol` selects one.
+/// Fixtures for payload kinds, media-type headers and HTTP checksums.
 fn wire_extensions(out: &std::path::Path) {
     let generate = |fixture: &str, name: &str| {
         println!("cargo::rerun-if-changed={fixture}");
@@ -272,62 +243,4 @@ fn wire_extensions(out: &std::path::Path) {
             .expect("streaming checksum fixture"),
     )
     .unwrap();
-    let protocols = "../../crates/crucible-smithy/tests/fixtures/protocol-json.json";
-    println!("cargo::rerun-if-changed={protocols}");
-    for protocol in [
-        "restJson1",
-        "awsJson1_0",
-        "awsJson1_1",
-        "rpcv2Json",
-        "rpcv2Cbor",
-    ] {
-        let mut model: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(protocols).unwrap()).unwrap();
-        let service = &mut model["shapes"]["example.json#JsonService"];
-        let namespace = if protocol.starts_with("rpcv2") {
-            "smithy.protocols"
-        } else {
-            "aws.protocols"
-        };
-        service["traits"] = serde_json::json!({ format!("{namespace}#{protocol}"): {} });
-        if !protocol.starts_with("rpcv2") {
-            service["rename"] = serde_json::json!({"example.json#Problem": "ProblemFault"});
-        }
-        if protocol == "rpcv2Cbor" {
-            for shape in ["ValuesInput", "ValuesOutput"] {
-                model["shapes"][format!("example.json#{shape}")]["members"]
-                    .as_object_mut()
-                    .unwrap()
-                    .remove("document");
-            }
-        }
-        if protocol.starts_with("rpcv2") {
-            for shape in ["ValuesInput", "ValuesOutput"] {
-                model["shapes"][format!("example.json#{shape}")]["members"]["blob"] =
-                    serde_json::json!({"target":"smithy.api#Blob"});
-                model["shapes"][format!("example.json#{shape}")]["members"]["large"] =
-                    serde_json::json!({"target":"smithy.api#BigInteger"});
-                model["shapes"][format!("example.json#{shape}")]["members"]["decimal"] =
-                    serde_json::json!({"target":"smithy.api#BigDecimal"});
-            }
-        }
-        let path = out.join(format!("protocol-{protocol}.json"));
-        std::fs::write(&path, model.to_string()).unwrap();
-        std::fs::write(
-            out.join(format!("protocol_{protocol}_client.rs")),
-            crucible_build::model(&path)
-                .client()
-                .render()
-                .unwrap_or_else(|error| panic!("{protocol}: {error}")),
-        )
-        .unwrap();
-        std::fs::write(
-            out.join(format!("protocol_{protocol}_server.rs")),
-            crucible_build::model(&path)
-                .server()
-                .render()
-                .unwrap_or_else(|error| panic!("{protocol} server: {error}")),
-        )
-        .unwrap();
-    }
 }

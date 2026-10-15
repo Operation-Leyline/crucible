@@ -2,48 +2,24 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use crucible_codegen_common::describe;
-use crucible_smithy::{Model, Protocol};
+use crucible_smithy::Model;
 use serde_json::{Value, json};
 
 #[test]
-fn explorer_retains_non_json_and_streaming_docs_without_buffered_wire_examples() {
-    for (fixture, protocol) in [
-        ("rpcv2-cbor", None),
-        ("rpcv2-json", None),
-        ("mcp-streaming", None),
-        ("dynamic-bindings", Some(Protocol::AwsRestXml)),
-    ] {
+fn explorer_retains_streaming_docs_without_buffered_wire_examples() {
+    for fixture in ["mcp-streaming", "dynamic-bindings"] {
         let source = std::fs::read_to_string(
             Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join(format!("../crucible-smithy/tests/fixtures/{fixture}.json")),
         )
         .unwrap();
-        let mut source: Value = serde_json::from_str(&source).unwrap();
-        if let Some(protocol) = protocol {
-            for shape in source["shapes"]
-                .as_object_mut()
-                .unwrap()
-                .values_mut()
-                .filter(|shape| shape["type"] == "service")
-            {
-                shape["traits"][protocol.trait_id().to_string()] = json!({});
-            }
-        }
-        let service = Model::from_json(&source.to_string())
+        let service = Model::from_json(&source)
             .unwrap()
-            .lower_documentation(None, protocol)
+            .lower_documentation(None)
             .unwrap();
         let description = describe::describe_for_explorer(&service).unwrap();
         assert_eq!(description.operations.len(), service.operations.len());
-        if protocol.is_some() || fixture == "rpcv2-cbor" {
-            assert!(
-                description
-                    .operations
-                    .values()
-                    .all(|op| op["callable"] == false)
-            );
-            assert!(describe::describe(&service).is_err());
-        } else if fixture == "mcp-streaming" {
+        if fixture == "mcp-streaming" {
             assert!(
                 description
                     .operations
@@ -68,57 +44,14 @@ fn browser_request_vector_contracts() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("../crucible-smithy/tests/fixtures");
     let mut cases = Vec::new();
     let mut descriptions = serde_json::Map::new();
-    for (fixture, protocol, operation_names) in [
-        ("dynamic-bindings", None, vec!["Get"]),
-        (
-            "rpcv2-json",
-            None,
-            vec!["SimpleScalarProperties", "RpcV2JsonLists"],
-        ),
-        (
-            "rpcv2-json",
-            Some(Protocol::AwsJson10),
-            vec!["SimpleScalarProperties"],
-        ),
-        (
-            "rpcv2-json",
-            Some(Protocol::AwsJson11),
-            vec!["SimpleScalarProperties"],
-        ),
-        (
-            "weather",
-            Some(Protocol::AwsRestJson1),
-            vec!["GetCity", "ListCities", "CreateCity", "PutCityPhoto"],
-        ),
-    ] {
-        let mut source: Value = serde_json::from_str(
+    for (fixture, operation_names) in [("dynamic-bindings", vec!["Get"])] {
+        let source: Value = serde_json::from_str(
             &std::fs::read_to_string(fixtures.join(format!("{fixture}.json"))).unwrap(),
         )
         .unwrap();
-        if fixture == "weather" {
-            let vectors: Value = serde_json::from_str(
-                &std::fs::read_to_string(fixtures.join("weather-vectors.json")).unwrap(),
-            )
-            .unwrap();
-            for (id, traits) in vectors.as_object().unwrap() {
-                for (name, value) in traits.as_object().unwrap() {
-                    source["shapes"][id]["traits"][name] = value.clone();
-                }
-            }
-        }
-        if let Some(protocol) = protocol {
-            for shape in source["shapes"]
-                .as_object_mut()
-                .unwrap()
-                .values_mut()
-                .filter(|shape| shape["type"] == "service")
-            {
-                shape["traits"][protocol.trait_id().to_string()] = json!({});
-            }
-        }
         let service = Model::from_json(&source.to_string())
             .unwrap()
-            .lower_documentation(None, protocol)
+            .lower_documentation(None)
             .unwrap();
         let mut description = describe::describe_for_explorer(&service).unwrap();
         description
@@ -199,17 +132,7 @@ fn browser_request_vector_contracts() {
                         })
                     })
                     .collect();
-                let mut expected = vector.clone();
-                if protocol == Some(Protocol::AwsRestJson1) {
-                    // The override settles AWS timestamp defaults in lowering.
-                    if expected["id"] == "GetCityLabelAndQuery" {
-                        expected["queryParams"] = json!(["at=2014-04-29T18%3A30%3A38Z"]);
-                    }
-                } else if matches!(protocol, Some(Protocol::AwsJson10 | Protocol::AwsJson11)) {
-                    expected["method"] = json!(op.method);
-                    expected["uri"] = json!(op.uri.to_string());
-                    expected["headers"] = json!(op.protocol_headers);
-                }
+                let expected = vector.clone();
                 cases.push(json!({"name":format!("{} {}",service.protocol.trait_id(),vector["id"].as_str().unwrap()),"description":key,"operation":id,"input":input,"expected":expected}));
             }
         }

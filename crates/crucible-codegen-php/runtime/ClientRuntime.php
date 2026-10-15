@@ -225,31 +225,9 @@ final class ClientRuntime
             if ($body === '') $body = null;
             elseif (!$modelledContentType) $headers['content-type'] = $payload[1];
         }
-        $protocol = $this->codec->schema->get('protocol');
-        if ($protocol === 'awsJson1_0' || $protocol === 'awsJson1_1') {
-            $body ??= '{}';
-            $headers['content-type'] = 'application/x-amz-json-' . ($protocol === 'awsJson1_0' ? '1.0' : '1.1');
-            $service = WireCodec::string($this->codec->schema->get('service'));
-            $headers['x-amz-target'] = substr($service, strrpos($service, '#') + 1) . '.' . $name;
-        }
         // The release this client was generated for (docs/api-versions-clients.md).
         $apiVersion = $this->codec->schema->get('apiVersion');
         if (is_string($apiVersion)) $headers['crucible-version'] = $apiVersion;
-        if (($rpc = self::rpc($protocol)) !== null) {
-            // RPC v2: the lowered URI is /service/{Service}/operation/{Operation}; Unit input sends no body.
-            [$cbor, $media, $marker] = $rpc;
-            $headers['smithy-protocol'] = $marker;
-            $headers['accept'] = $media;
-            unset($headers['content-type']);
-            $body = null;
-            if (is_string($input = $op->get('input'))) {
-                $object = [];
-                foreach ($bodyMembers as $member) if (array_key_exists($member,$values)) $object[$member] = $values[$member];
-                $document = $this->codec->document($input, new JsonObject($object), true);
-                $body = $cbor ? Cbor::encode(Cbor::fromWire($this->codec, $input, $document)) : ExactJson::encode($document);
-                $headers['content-type'] = $media;
-            }
-        }
         $op = new JsonObject([...$op->members, 'name' => $name, 'resolvedEndpoint' => $resolved, 'resolvedChecksum' => $checksum]);
         return [$op, new HttpRequest($endpoint . $path,WireCodec::string($op->get('method')),$headers,$body,$stream)];
     }
@@ -346,33 +324,8 @@ final class ClientRuntime
         }
         throw new \LogicException('No request attempt');
     }
-    /** @return ?array{bool, string, string} whether RPC v2 uses CBOR, its media type, and its Smithy-Protocol value */
-    private static function rpc(mixed $protocol): ?array
-    {
-        return match ($protocol) {
-            'rpcv2Cbor' => [true, 'application/cbor', 'rpc-v2-cbor'],
-            'rpcv2Json' => [false, 'application/json', 'rpc-v2-json'],
-            default => null,
-        };
-    }
-    /** Decodes an RPC v2 body to a wire object; null when the response is malformed for the protocol. */
-    private function rpcBody(array $rpc, HttpResponse $response): ?JsonObject
-    {
-        // A response without the request's Smithy-Protocol value is malformed: only its status is usable.
-        if (($response->headers['smithy-protocol'] ?? null) !== $rpc[2]) return null;
-        if ($response->body === '') return new JsonObject();
-        $value = $rpc[0] ? Cbor::decode($response->body) : ExactJson::decode($response->body);
-        return $value instanceof JsonObject ? $value : null;
-    }
     private function success(JsonObject $op,HttpResponse $response,?ByteStream $stream = null): JsonObject
     {
-        if (($rpc = self::rpc($this->codec->schema->get('protocol'))) !== null) {
-            if (($response->headers['smithy-protocol'] ?? null) !== $rpc[2]) throw new \UnexpectedValueException('Malformed RPC v2 response: missing or different Smithy-Protocol header');
-            $output = $op->get('output');
-            if ($output === null) return new JsonObject();
-            $body = $this->rpcBody($rpc,$response) ?? throw new \UnexpectedValueException('Malformed RPC v2 response body');
-            return WireCodec::object($this->codec->document($output, $rpc[0] ? Cbor::toWire($this->codec,$output,$body) : $body, false));
-        }
         $bindings = WireCodec::object($op->get('response'));
         $payload = $bindings->get('payload');
         if (is_array($payload) && $stream !== null) $body = new JsonObject([$payload[0]=>$stream]);
@@ -405,42 +358,20 @@ final class ClientRuntime
     private function failure(JsonObject $op,HttpResponse $response): ServiceError
     {
         $body = new JsonObject();
-        $rpc = self::rpc($this->codec->schema->get('protocol'));
-        $type = null;
-        if ($rpc !== null) {
-            try { $body = $this->rpcBody($rpc,$response) ?? new JsonObject(); }
-            catch (\UnexpectedValueException) { /* Malformed: only the status is used. */ }
-            // __type is the absolute shape ID; X-Amzn-ErrorType and code are never consulted.
-            $type = is_string($body->get('__type')) ? $body->get('__type') : null;
-        } else {
-            try { $body = WireCodec::object(ExactJson::decode($response->body)); }
-            catch (\UnexpectedValueException) { /* Wire status and headers remain usable. */ }
-        }
-        $aws = in_array($this->codec->schema->get('protocol'), ['awsRestJson1','awsJson1_0','awsJson1_1'], true);
-        if ($rpc !== null) {
-            $name = $type === null ? null : substr($type, (int)strrpos('#' . $type, '#'));
-        } elseif ($aws) {
-            // AWS JSON discriminators may carry a namespace and a trailing ":detail".
-            $name = $response->headers['x-amzn-errortype'] ?? (is_string($body->get('code')) ? $body->get('code') : (is_string($body->get('__type')) ? $body->get('__type') : null));
-            if ($name !== null) { $name = explode(':', $name, 2)[0]; $name = substr($name, (int)strrpos('#' . $name, '#')); }
-        } else {
-            $name = $response->headers['x-crucible-error'] ?? (is_string($body->get('__type')) ? $body->get('__type') : null);
-        }
+        try { $body = WireCodec::object(ExactJson::decode($response->body)); }
+        catch (\UnexpectedValueException) { /* Wire status and headers remain usable. */ }
+        $name = $response->headers['x-crucible-error'] ?? (is_string($body->get('__type')) ? $body->get('__type') : null);
         $matches = [];
         foreach (WireCodec::items($op->get('errors')) as $id) {
             $shape = $this->codec->shape($id);
             $traits = WireCodec::object($shape->get('error'));
-            if ($rpc !== null) {
-                // RPC v2 identifies errors only by __type: the absolute shape ID, or a bare name.
-                if ($type !== null && (str_contains($type, '#') ? $type === $id : $shape->get('name') === $type)) $matches[] = $id;
-            } elseif ($name !== null ? ($traits->get('wireCode') ?? $shape->get('name')) === $name : $traits->get('status')->integer() === $response->status) $matches[] = $id;
+            if ($name !== null ? ($traits->get('wireCode') ?? $shape->get('name')) === $name : $traits->get('status')->integer() === $response->status) $matches[] = $id;
         }
         $target = count($matches) === 1 ? $matches[0] : null;
         $shape = $target === null ? null : $this->codec->shape($target);
         $traits = $shape?->get('error');
-        $message = $body->get('message') ?? ($aws || $rpc !== null ? $body->get('Message') : null);
+        $message = $body->get('message');
         $requestId = $response->headers['x-request-id'] ?? (is_string($body->get('requestId')) ? $body->get('requestId') : null);
-        if ($aws) $requestId = $response->headers['x-amzn-requestid'] ?? $response->headers['x-amz-request-id'] ?? $requestId;
         $metadata = new ErrorMetadata(name:$name ?? ($traits?->get('wireCode') ?? $shape?->get('name')) ?? 'UnknownError',
             message:is_string($message) ? $message : 'HTTP ' . $response->status,
             status:$response->status,requestId:$requestId,
@@ -448,7 +379,6 @@ final class ClientRuntime
         if ($target !== null) {
             try {
                 $payload = $traits->get('payload');
-                if ($rpc !== null && $rpc[0]) $body = Cbor::toWire($this->codec,$target,$body);
                 $body = is_array($payload) ? new JsonObject([$payload[0]=>$this->payloadValue($target,$traits,$response->body)]) : $this->codec->document($target,$body,false);
                 $body = $this->applyHeaders($target,$traits,$response,$body);
                 return ($this->errors)($target,$body,$this->codec->context($target),$metadata);

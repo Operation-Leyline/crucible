@@ -15,7 +15,7 @@
         }
       ],
       "traits": {
-        "smithy.protocols#rpcv2Json": {},
+        "crucible.protocols#json": {},
         "smithy.api#title": "Catalog API",
         "smithy.api#documentation": "Browse **items**. <script>alert(1)</script>",
         "smithy.api#deprecated": {
@@ -98,7 +98,11 @@
               "nextToken": "page-2"
             }
           }
-        ]
+        ],
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/ListItems"
+        }
       }
     },
     "example.docs#WriteItem": {
@@ -138,7 +142,11 @@
               }
             }
           }
-        ]
+        ],
+        "smithy.api#http": {
+          "method": "POST",
+          "uri": "/WriteItem"
+        }
       }
     },
     "example.docs#ListInput": {

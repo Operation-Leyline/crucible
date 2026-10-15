@@ -1,4 +1,4 @@
-//! OpenAPI 3.1 export of the lowered REST JSON wire contract.
+//! OpenAPI 3.1 export of the lowered Crucible JSON wire contract.
 //! Smithy remains authoritative; this document is a downstream projection.
 
 mod examples;
@@ -10,7 +10,7 @@ pub(crate) use crucible_codegen_common::json_schema::{Slot, annotate};
 use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_smithy::ir::{AuthScheme, Binding, Segment, Service, Shape, Traits};
-use crucible_smithy::{Capabilities, Diagnostics, Feature, Protocol, ShapeId};
+use crucible_smithy::{Capabilities, Diagnostics, Feature, ShapeId};
 use serde_json::{Map, Value, json};
 
 #[derive(Debug, Clone, Default)]
@@ -35,7 +35,6 @@ pub fn capabilities() -> Capabilities {
         Feature::ApiKeyAuth,
         Feature::DigestAuth,
         Feature::OptionalAuth,
-        Feature::AwsRestJson1,
     ])
 }
 
@@ -46,15 +45,6 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
         .require_capabilities(&capabilities())
         .err()
         .unwrap_or_default();
-    if !matches!(
-        service.protocol,
-        Protocol::CrucibleJson | Protocol::AwsRestJson1
-    ) {
-        diagnostics.push(
-            &service.id,
-            "OpenAPI export supports Crucible JSON and AWS REST JSON only",
-        );
-    }
     // OpenAPI has one operation per path/method, regardless of literal queries,
     // and forbids differently named templates at the same path hierarchy.
     let mut routes = BTreeSet::new();

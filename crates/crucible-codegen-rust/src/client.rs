@@ -40,7 +40,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
             });
         out.push_str(&format!("\nstatic __CRUCIBLE_CLIENT_METADATA: ::std::sync::LazyLock<::crucible_server_runtime_rust::__generated::ServiceMetadata> = ::std::sync::LazyLock::new(|| ::crucible_server_runtime_rust::__generated::ServiceMetadata::from_json({}).expect(\"compiler validated client metadata\"));\n", literal(&schema.to_string())));
     }
-    out.push_str(&crate::events::statics(service, diagnostics, true));
+    out.push_str(&crate::events::statics(service, diagnostics));
     let mut methods = String::new();
     let mut method_names = method_names(service).into_iter();
     for op in &service.operations {
@@ -258,9 +258,6 @@ fn wire_error(service: &Service, op: &Operation, name: &str) -> String {
     else {
         unreachable!("error structure")
     };
-    if service.protocol.is_rpc_v2() {
-        return id.to_string();
-    }
     shape
         .error
         .as_ref()
@@ -303,13 +300,11 @@ fn error_enum(service: &Service, op: &Operation) -> String {
     let arms: String = errors
         .iter()
         .map(|error| {
-            if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor {
-                format!("            {} => ::crucible_server_runtime_rust::__generated::cbor::read(body).ok().map(Self::{error}),\n", literal(&wire_error(service, op, error)))
-            } else { format!(
+            format!(
                 "            {} => ::crucible_server_runtime_rust::__generated::decode_modelled_at(status, &errors::{}, headers, body).map(Self::{error}),\n",
-                literal(&wire_error(service,op,error)),
+                literal(&wire_error(service, op, error)),
                 info_static(error)
-            ) }
+            )
         })
         .collect();
     let (info_body, display_body) = if errors.is_empty() {
@@ -337,20 +332,12 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             format!("match self {{\n{display}        }}"),
         )
     };
-    let fallback = if service.protocol.is_rpc_v2() {
-        "type_name?".to_owned()
-    } else {
-        format!(
-            "type_name.or_else(|| ::crucible_server_runtime_rust::__generated::by_status(status, &[{}]))?",
-            infos.join(", ")
-        )
-    };
+    let fallback = format!(
+        "type_name.or_else(|| ::crucible_server_runtime_rust::__generated::by_status(status, &[{}]))?",
+        infos.join(", ")
+    );
     let decode_body = if errors.is_empty() {
         "        let _ = (status, type_name, headers, body);\n        None\n".to_owned()
-    } else if service.protocol.is_rpc_v2() {
-        format!(
-            "        let _ = (status, headers);\n        let name = {fallback};\n        match name {{\n{arms}            _ => None,\n        }}\n"
-        )
     } else {
         format!(
             "        let name = match type_name {{\n            Some(name) => name,\n            None => ::crucible_server_runtime_rust::__generated::by_status(status, &[{}])?,\n        }};\n        match name {{\n{arms}            _ => None,\n        }}\n",
@@ -371,11 +358,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             })
             .collect::<Vec<_>>()
             .join(" ");
-        if service.protocol.is_rpc_v2() {
-            format!("let _ = status; let name = {fallback}; match name {{ {arms} _ => None }}")
-        } else {
-            format!("let name = {fallback}; match name {{ {arms} _ => None }}")
-        }
+        format!("let name = {fallback}; match name {{ {arms} _ => None }}")
     };
     out.push_str(&format!(
         "impl ::crucible_server_runtime_rust::__generated::OperationErrors for {name} {{\n    fn decode(status: u16, type_name: ::std::option::Option<&str>, headers: &::crucible_server_runtime_rust::__generated::http::HeaderMap, body: &[u8]) -> ::std::option::Option<Self> {{\n{decode_body}    }}\n\n    fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {{\n        {info_body}\n    }}\n\n    fn classify(status: u16, type_name: ::std::option::Option<&str>) -> ::std::option::Option<&'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo> {{\n        {classify}\n    }}\n}}\n\n"

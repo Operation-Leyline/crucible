@@ -34,8 +34,8 @@ IR, with native emitters and runtimes for the [client language portfolio](client
 
 crucible generates both ends, so it defines its own protocol,
 `crucible.protocols#json` ([smithy/crucible.smithy](../smithy/crucible.smithy)),
-instead of AWS's restJson1. The two share HTTP bindings, JSON bodies and
-status codes. They differ where restJson1 is AWS-shaped:
+and it is the only wire protocol. It uses HTTP bindings, JSON bodies and
+status codes, with these conventions:
 
 - Errors are identified by `X-Crucible-Error` (the shape name), with the
   legacy body `"__type"` as a fallback. Ordinary JSON errors retain `__type`.
@@ -48,8 +48,7 @@ status codes. They differ where restJson1 is AWS-shaped:
 
 Smithy's HTTP binding validators are part of core Smithy and still run. What
 the switch gives up is Smithy's OpenAPI converter, which only knows AWS
-protocols. Crucible [emits OpenAPI from its IR](openapi.md) for supported REST
-JSON services. OpenAPI is a downstream export; SDKs still consume the IR directly.
+protocols. Crucible [emits OpenAPI from its IR](openapi.md). OpenAPI is a downstream export; SDKs still consume the IR directly.
 
 [Service API references](docs.md) consume an audience-projected IR description
 directly, preserving pagination, resources, idempotency, and documentation notes.
@@ -156,7 +155,7 @@ consumer's tests, then replaces it.
    a runtime copied into each package, so a client and its runtime can never
    be out of step and there is nothing else to publish. Idempotency tokens
    filled from the trait, paginators, an error class per error shape (named
-   by `X-Amzn-Errortype` or the body's `__type`/`code`, else by status when
+   by `X-Crucible-Error` or the body's `__type`/`code`, else by status when
    one of the operation's errors has it), retries from `@readonly`/
    `@idempotent`/token/`@retryable`, and middleware (the body digest is
    built in, opt-in per package). Inputs type `@required` members as required,
@@ -205,16 +204,15 @@ types when the language cannot express recursive aliases.
 
 ## Wire rules to get right
 
-For Crucible JSON and AWS REST JSON, nonempty JSON request bodies use
+For Crucible JSON, nonempty JSON request bodies use
 `application/json`. Media type matching ignores case and accepts parameters
 such as `charset=utf-8`; another JSON media type such as `application/hal+json`
 does not replace the modeled type. Empty bodies may omit Content-Type.
 Nonempty requests with missing, duplicate or incompatible Content-Type headers
-receive HTTP 415. Payloads use their derived media type under REST JSON, unless
+receive HTTP 415. Payloads use their derived media type, unless
 an explicit modeled Content-Type header overrides it; Crucible raw blob and
 string payloads accept any media type. A default header from client
-configuration never replaces a document's or a payload's media type. See the
-[REST JSON Content-Type rules](https://smithy.io/2.0/aws/protocols/aws-restjson1-protocol.html#content-type).
+configuration never replaces a document's or a payload's media type.
 
 Protocol details owned here, with round-trip tests from the first emitter:
 timestamp formats by location, list encoding in query strings (repeated
@@ -231,25 +229,14 @@ only space, tab, CR, or LF, follow the same rule with and without HTTP bindings;
 raw payload bytes remain unchanged. See [framework validation](framework.md#errors).
 
 Blob payloads preserve raw bytes. String payloads use UTF-8 text; structures,
-unions and documents use the selected protocol's document encoding. An empty
+unions and documents use JSON. An empty
 body is an absent payload. An explicitly null structure, union or document
-payload follows the protocol's null-member policy: Crucible JSON sends the body
-`null`, AWS REST JSON omits a null structure or union. Readers take a `null`
+payload is sent as the body
+`null`. Readers take a `null`
 payload as the member's explicit null, exactly as a JSON body member, never as
 a structure built from null. A structure is only ever a JSON object, never an
 array of positional values. Error
-payloads require a discriminator outside the body: `X-Crucible-Error` for
-Crucible or `X-Amzn-Errortype` for AWS restJson1. These are separate target
-capabilities, so lowering support does not imply client or server support.
+payloads require a discriminator outside the body: `X-Crucible-Error`.
+Lowering support does not imply client or server support.
 A blob in a label, query parameter or ordinary header remains a diagnostic.
 
-
-The Rust server and client share native CBOR model codecs in `crucible-wire`.
-Smithy RPC v2 uses `Smithy-Protocol` and service/operation paths instead of AWS
-JSON target headers. RPC v2 honors modeled error status codes, uses full error
-shape ids, and ignores HTTP member bindings and timestamp-format overrides.
-Its JSON arbitrary-precision numbers are strings; CBOR uses native byte strings
-and numeric tags. Streaming unions use the shared event framing and protocol
-specific document codecs. Raw streaming blobs remain unsupported for RPC v2.
-See [server protocols](framework.md#protocols) and the
-[Rust client guide](clients/rust.md#smithy-rpc-v2).

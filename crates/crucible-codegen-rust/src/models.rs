@@ -160,11 +160,7 @@ pub(crate) fn emit(
                     );
                 }
             }
-            Shape::Union(union)
-                if client
-                    || union.streaming
-                    || service.protocol_settings.ignore_unknown_union_type =>
-            {
+            Shape::Union(union) if client || union.streaming => {
                 crate::open::union(&mut out, service, id, name, union, &boxed, client)
             }
             Shape::Union(union) => {
@@ -327,20 +323,12 @@ pub(crate) fn member_field(
     } else {
         member.default.as_ref()
     };
-    // A protocol that omits null structure members never sends an explicit
-    // null and reads one as absence; documents keep their nulls.
-    let omit_null = client
-        && optional
-        && service.protocol_settings.omit_null_structure_members
-        && crate::types::simple_kind(service, &member.target) != Some(SimpleKind::Document);
     if optional {
         if default.is_none() {
             serde.push("default".to_owned());
         }
         serde.push(
-            if omit_null {
-                "skip_serializing_if = \"::crucible_server_runtime_rust::__generated::Field::is_unset\""
-            } else if client {
+            if client {
                 "skip_serializing_if = \"::crucible_server_runtime_rust::__generated::Field::is_absent\""
             } else {
                 "skip_serializing_if = \"::std::option::Option::is_none\""
@@ -389,39 +377,19 @@ pub(crate) fn member_field(
                 .to_owned(),
         );
     }
-    if !client
-        && optional
-        && service.protocol_settings.omit_null_structure_members
-        && crate::types::simple_kind(service, &member.target) == Some(SimpleKind::Document)
-    {
-        serde.push(
-            "with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::OptionalDocument>\""
-                .to_owned(),
-        );
-    } else if let Some(mut codec) = crate::types::codec(service, member) {
+    if let Some(mut codec) = crate::types::codec(service, member) {
         if boxed {
             codec = format!("::crucible_server_runtime_rust::__generated::codec::Boxed<{codec}>");
         }
         if optional {
             codec = format!(
                 "::crucible_server_runtime_rust::__generated::codec::{}<{codec}>",
-                if omit_null {
-                    "NullAbsent"
-                } else if client {
-                    "Field"
-                } else {
-                    "Optional"
-                }
+                if client { "Field" } else { "Optional" }
             );
         }
         serde.push(format!(
             "with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<{codec}>\""
         ));
-    } else if omit_null {
-        serde.push(
-            "with = \"::crucible_server_runtime_rust::__generated::codec::Adapter::<::crucible_server_runtime_rust::__generated::codec::NullAbsent<::crucible_server_runtime_rust::__generated::codec::Identity>>\""
-                .to_owned(),
-        );
     }
     out.push_str(&format!("    #[serde({})]\n", serde.join(", ")));
     out.push_str(&format!(

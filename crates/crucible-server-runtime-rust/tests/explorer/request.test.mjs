@@ -6,14 +6,14 @@ import { createWindow } from "../../../crucible-codegen-docs/tests/site/fake-dom
 
 const require = createRequire(import.meta.url);
 const api = require("../../src/explorer/runtime/try-it.js");
-const contracts = JSON.parse(readFileSync(new URL("../../../crucible-codegen-common/tests/golden/explorer/request-vectors.json", import.meta.url)));
-const vectors = contracts.cases.map((vector) => ({ ...vector, description: contracts.descriptions[vector.description] }));
+const description = JSON.parse(readFileSync(new URL("../../../crucible-codegen-docs/tests/golden/weather-internal/describe.json", import.meta.url)));
 const base = "https://localhost:8080/stage/";
 
-for (const vector of vectors) {
+const contracts = JSON.parse(readFileSync(new URL("../../../crucible-codegen-common/tests/golden/explorer/request-vectors.json", import.meta.url)));
+for (const vector of contracts.cases) {
   test(vector.name, () => {
-    const operation = vector.description.operations[vector.operation];
-    const request = api.buildRequest(vector.description, operation, vector.input, base);
+    const vectorDescription = contracts.descriptions[vector.description];
+    const request = api.buildRequest(vectorDescription, vectorDescription.operations[vector.operation], vector.input, base);
     const url = new URL(request.url);
     assert.equal(request.method, vector.expected.method);
     assert.equal(url.pathname, `/stage${vector.expected.uri}`);
@@ -27,19 +27,31 @@ for (const vector of vectors) {
   });
 }
 
+test("labels, query parameters and the method come from the lowered bindings", () => {
+  const get = Object.values(description.operations).find((op) => op.name === "GetCity");
+  const request = api.buildRequest(description, get, { cityId: "c-12345678", at: "2014-04-29T18:30:38Z" }, base);
+  const url = new URL(request.url);
+  assert.equal(request.method, "GET");
+  assert.equal(url.pathname, "/stage/cities/c-12345678");
+  assert.equal(url.searchParams.get("at"), "2014-04-29T18:30:38Z");
+  const list = Object.values(description.operations).find((op) => op.name === "ListCities");
+  const listed = new URL(api.buildRequest(description, list, { maxResults: 2, tags: ["a b", "/"] }, base).url);
+  assert.deepEqual(listed.search.slice(1).split("&").sort(), ["maxResults=2", "tag=%2F", "tag=a%20b"]);
+});
+
 test("service base preserves router mounts and gateway stages", () => {
   assert.equal(api.serviceBase("http://localhost:8080/explorer/#/op/X", 1).href, "http://localhost:8080/");
   assert.equal(api.serviceBase("https://localhost/stage/dev/tools/index.html?q=1#/op/X", 2).href, "https://localhost/stage/");
   assert.equal(api.serviceBase("https://localhost/stage/explorer/", 1).href, "https://localhost/stage/");
 });
 
-const first = vectors[0];
-const op = first.description.operations[first.operation];
+const op = Object.values(description.operations).find((candidate) => candidate.name === "GetCity");
+const first = { description, operation: op.id, input: { cityId: "c-12345678" } };
 test("read-only, unsupported protocols, streams and browser-unsafe requests fail explicitly", () => {
   assert.throws(() => api.buildRequest(first.description, { ...op, readonly: false }, first.input, base, {}, { readOnly: true }), /read-only/);
-  assert.throws(() => api.buildRequest(first.description, { ...op, protocol: "rpcv2Cbor" }, first.input, base), /native client or curl/);
+  assert.throws(() => api.buildRequest(first.description, { ...op, protocol: "unsupported" }, first.input, base), /native client or curl/);
   assert.throws(() => api.buildRequest(first.description, { ...op, request: { ...op.request, eventStream: {} } }, first.input, base), /native client or curl/);
-  assert.throws(() => api.buildRequest(first.description, op, { ...first.input, key: "../private" }, base), /Dot path/);
+  assert.throws(() => api.buildRequest(first.description, op, { ...first.input, cityId: ".." }, base), /Dot path/);
   assert.throws(() => api.buildRequest(first.description, op, [], base), /JSON object/);
 });
 
@@ -53,13 +65,12 @@ test("auth uses lowered API key placement, bearer and prefixes", () => {
 });
 
 test("curl quoting survives apostrophes and binary payloads", () => {
-  const request = api.buildRequest(first.description, op, { ...first.input, "wire-value": "it's a test" }, base);
-  assert.match(api.curl(request), /'\\''/);
+  const request = api.buildRequest(first.description, op, first.input, base);
+  assert.match(api.curl({ ...request, url: request.url + "?q=it's" }), /'\\''/);
   assert.match(api.curl({ ...request, body: new Uint8Array([1]) }), /--data-binary @payload.bin/);
 });
 
 test("modeled error names and pagination tokens use description metadata", () => {
-  const description = JSON.parse(readFileSync(new URL("../../../crucible-codegen-docs/tests/golden/weather-internal/describe.json", import.meta.url)));
   const get = Object.values(description.operations).find((op) => op.name === "GetCity");
   assert.equal(api.errorName(description, get, { status: 404, headers: new Headers({ "X-Crucible-Error": "NotFoundError" }) }, {}), "NotFoundError");
   assert.equal(api.errorName(description, get, { status: 200, headers: new Headers() }, {}), null);

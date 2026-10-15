@@ -13,8 +13,8 @@
 //! let city = client.get_city(GetCityInput::builder().city_id("sea").build()).await?;
 //! ```
 //!
-//! Requests travel as the service's protocol describes them:
-//! `crucible.protocols#json`, or an AWS JSON protocol chosen at generation. Throttling errors are retried; other transient failures
+//! Requests travel as `crucible.protocols#json` describes them. Throttling
+//! errors are retried; other transient failures
 //! only when the operation is safe to repeat (`@readonly`, `@idempotent`,
 //! or carrying an idempotency token, which the client fills when absent).
 
@@ -48,7 +48,7 @@ pub use crucible_wire::blob::Blob;
 pub use crucible_wire::error::ModelledError;
 pub use crucible_wire::field::Field;
 pub use crucible_wire::open::{Enum as OpenEnum, UnknownUnion};
-pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm, Protocol};
+pub use crucible_wire::operation::{Checksum, ChecksumAlgorithm};
 pub use crucible_wire::operation::{Operation, OperationInfo};
 pub use crucible_wire::{blob, number, operation, time, validate};
 
@@ -94,8 +94,8 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, field, number, object, open, operation, permissions,
-        time, validate,
+        codec, error, event_stream, field, number, object, open, operation, permissions, time,
+        validate,
     };
 
     pub const fn build_error(shape: &'static str, member: &'static str) -> crate::BuildError {

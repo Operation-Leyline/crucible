@@ -253,7 +253,6 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
             "bearer":op.auth.iter().any(|id|service.is_bearer(id))});
         if !op.uri.greedy_labels.is_empty() { value["greedyLabels"] = json!(op.uri.greedy_labels); }
         if op.unsigned_payload {value["unsignedPayload"] = json!(true);}
-        if op.unwrapped_xml_output {value["unwrappedXmlOutput"] = json!(true);}
         if let Some(discovery) = &op.discovered_endpoint { value["discoveredEndpoint"] = json!(discovery); }
         if let Some(checksum) = &op.checksum {value["checksum"] = json!(checksum);}
         if op.optional_auth { value["optionalAuth"] = json!(true); }
@@ -288,27 +287,14 @@ pub fn schema(service: &Service, field: impl Fn(&str) -> String) -> Value {
     {
         value["permissions"] = permissions;
     }
-    if service.protocol != crucible_smithy::Protocol::CrucibleJson {
-        value["protocol"] = json!(service.protocol);
-        value["protocolSettings"] = json!(service.protocol_settings);
-    }
     if let Some(discovery) = &service.endpoint_discovery {
         value["endpointDiscovery"] = json!(discovery);
-    }
-    if let Some(namespace) = &service.xml_namespace {
-        value["xmlNamespace"] = json!(namespace);
-    }
-    if !service.xml_shapes.is_empty() {
-        value["xmlShapes"] = json!(service.xml_shapes);
     }
     if !service.recursive_groups.is_empty() {
         value["recursiveGroups"] = json!(service.recursive_groups);
     }
     if let Some(rules) = &service.endpoint_rules {
         value["endpointRules"] = json!(rules);
-    }
-    if !service.protocol_tests.is_empty() {
-        value["protocolTests"] = json!(service.protocol_tests);
     }
     value
 }
@@ -419,36 +405,6 @@ mod tests {
         );
     }
     #[test]
-    fn rest_timestamp_binding_overrides_do_not_change_nested_document_encoding() {
-        use crucible_smithy::{Capabilities, Feature, Model};
-        use serde_json::json;
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/dynamic-bindings.json"
-        ))
-        .unwrap();
-        model["shapes"]["example.dynamic#Dynamic"]["traits"] =
-            json!({"aws.protocols#restJson1":{}});
-        model["shapes"]["example.dynamic#Output"]["members"]["modified"] = json!({"target":"smithy.api#Timestamp","traits":{"smithy.api#default":0,"smithy.api#httpHeader":"last-modified"}});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-            .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        assert_eq!(
-            schema["shapes"]["example.dynamic#Output"]["members"]["modified"]["format"],
-            "epoch-seconds"
-        );
-        assert_eq!(
-            schema["shapes"]["example.dynamic#Output"]["members"]["modified"]["default"],
-            json!(0)
-        );
-        assert_eq!(
-            schema["operations"]["Get"]["response"]["timestampFormats"]["modified"],
-            "http-date"
-        );
-    }
-
-    #[test]
     fn extension_metadata_is_normalized_without_changing_member_identity() {
         use crucible_smithy::{Capabilities, Feature, Model};
         let service = Model::from_json(include_str!(
@@ -558,27 +514,23 @@ mod tests {
     }
 
     #[test]
-    fn event_streams_name_their_member_union_and_initial_message() {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
+    fn event_streams_name_their_member_and_union() {
+        let service = crucible_smithy::Model::from_json(include_str!(
             "../../crucible-smithy/tests/fixtures/event-streams.json"
         ))
+        .unwrap()
+        .lower_with_capabilities(
+            None,
+            &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
+        )
         .unwrap();
-        model["shapes"]["example.events#Events"]["traits"] =
-            serde_json::json!({"aws.protocols#awsJson1_0": {}});
-        let service = crucible_smithy::Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_with_capabilities(
-                None,
-                &crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied()),
-            )
-            .unwrap();
         let schema = super::schema(&service, str::to_owned);
         assert_eq!(
             schema["operations"]["Publish"]["request"]["eventStream"],
-            serde_json::json!({"member": "events", "target": "example.events#ClientEvents", "initialMessage": true})
+            serde_json::json!({"member": "events", "target": "example.events#ClientEvents"})
         );
         assert_eq!(
-            schema["operations"]["Publish"]["request"]["body"],
+            schema["operations"]["Publish"]["request"]["labels"],
             serde_json::json!(["channel"])
         );
         assert_eq!(
@@ -632,55 +584,6 @@ mod tests {
         assert_eq!(members["epoch"]["default"], serde_json::json!(-0.25));
         assert_eq!(members["epoch"]["format"], "epoch-seconds");
         assert_eq!(members["precise"]["default"].to_string(), "-0.250000001");
-    }
-
-    #[test]
-    fn rpc_v2_and_extended_auth_schemes_reach_the_runtime_schema() {
-        use crucible_smithy::{Capabilities, Feature, Model};
-        let all = Capabilities::new(Feature::ALL.iter().copied());
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/rpc-auth.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &all)
-        .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        assert_eq!(schema["protocol"], "rpcv2Cbor");
-        assert_eq!(
-            schema["operations"]["Put"]["uri"],
-            "/service/Vault/operation/Put"
-        );
-        assert_eq!(
-            schema["authSchemes"]["smithy.api#httpDigestAuth"],
-            serde_json::json!({"kind":"digest"})
-        );
-        assert_eq!(
-            schema["authSchemes"]["aws.auth#sigv4a"],
-            serde_json::json!({"kind":"sigV4a","signingName":"vault"})
-        );
-        assert_eq!(
-            schema["shapes"]["smithy.api#Timestamp"]["format"],
-            "epoch-seconds"
-        );
-        // Only RPC v2 JSON carries arbitrary-precision numbers as strings.
-        assert!(
-            schema["protocolSettings"]
-                .get("arbitraryPrecisionStrings")
-                .is_none()
-        );
-        let json = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/rpcv2-json.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &all)
-        .unwrap();
-        let schema = super::schema(&json, str::to_owned);
-        assert_eq!(schema["protocol"], "rpcv2Json");
-        assert_eq!(
-            schema["protocolSettings"]["arbitraryPrecisionStrings"],
-            true
-        );
-        assert_eq!(schema["protocolTests"].as_array().map(Vec::len), Some(82));
     }
 
     #[test]

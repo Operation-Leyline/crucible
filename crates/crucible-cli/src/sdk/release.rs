@@ -105,7 +105,6 @@ fn lower(file: &SdkFile) -> Result<Service, String> {
             .service
             .as_ref()
             .map(|id| id.parse().expect("the resolver checked the service ID")),
-        protocol: None,
     };
     let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
     crate::lower_with_capabilities(&source, &all)

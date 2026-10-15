@@ -104,30 +104,6 @@ fn generate() {
         );
     }
 
-    let mut alternatives: Value = serde_json::from_str(CDK_MODEL).unwrap();
-    alternatives["shapes"]["example#Weather"]["traits"]["aws.protocols#restJson1"] =
-        serde_json::json!({});
-    fs::write(
-        "protocol-alternatives.json",
-        serde_json::to_vec(&alternatives).unwrap(),
-    )
-    .unwrap();
-    let selected = crucible_build::model("protocol-alternatives.json")
-        .protocol("crucible.protocols#json")
-        .compile();
-    let explicit = selected
-        .cdk("selected-protocol")
-        .options(cdk_options())
-        .bindings_value(bindings("cdk-bindings.json"))
-        .try_generate()
-        .unwrap();
-    for path in &explicit.files {
-        assert_eq!(
-            fs::read(explicit.path.join(path)).unwrap(),
-            fs::read(generic.path.join(path)).unwrap()
-        );
-    }
-
     let terraform_model = compile("terraform-model.json");
     terraform_model
         .terraform("default-provider")

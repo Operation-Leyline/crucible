@@ -77,29 +77,3 @@ fn cli_diagnostics_do_not_replace_an_existing_document() {
     assert_eq!(fs::read_to_string(&output).unwrap(), "previous document");
     fs::remove_dir_all(directory).unwrap();
 }
-
-#[test]
-fn cli_forwards_the_explicit_protocol_selection() {
-    let directory = temporary("protocol");
-    let model = directory.join("model.json");
-    let output = directory.join("openapi.json");
-    let mut value: Value = serde_json::from_str(WEATHER).unwrap();
-    value["shapes"]["example.weather#Weather"]["traits"]["aws.protocols#restJson1"] = json!({});
-    fs::write(&model, value.to_string()).unwrap();
-    let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
-        .args(["generate", "openapi"])
-        .arg(&model)
-        .arg("--out")
-        .arg(&output)
-        .args(["--protocol", "aws.protocols#restJson1"])
-        .output()
-        .unwrap();
-    assert!(
-        result.status.success(),
-        "{}",
-        String::from_utf8_lossy(&result.stderr)
-    );
-    let doc: Value = serde_json::from_str(&fs::read_to_string(output).unwrap()).unwrap();
-    assert_eq!(doc["x-smithy-protocol"], "aws.protocols#restJson1");
-    fs::remove_dir_all(directory).unwrap();
-}

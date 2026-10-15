@@ -364,13 +364,6 @@ fn errors_and_unions_report_every_new_member() {
 }
 
 #[test]
-fn unsupported_wire_families_fail_closed() {
-    let mut value = model();
-    value["shapes"]["example.api#Catalog"]["traits"] = json!({"aws.protocols#restXml":{}});
-    assert!(rules(&value, &value).contains(&"compatibility.unchecked".into()));
-}
-
-#[test]
 fn findings_are_deterministic_and_exceptions_do_not_hide_them() {
     let old = model();
     let mut new = old.clone();

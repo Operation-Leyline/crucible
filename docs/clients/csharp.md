@@ -288,11 +288,9 @@ payload; event streams are not supported.
 
 ## Protocols and checksums
 
-Use `--protocol aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, or
-`aws.protocols#awsJson1_1` to select a protocol declared by the service. Its JSON
-names, timestamp formats, HTTP bindings, and error discriminator are resolved
-consistently. AWS JSON omits ordinary null structure members and preserves
-explicit document nulls. Public error type renaming leaves wire codes intact.
+The Crucible JSON protocol resolves JSON names, timestamp formats, HTTP bindings,
+and the error discriminator consistently. Public error type renaming leaves wire
+codes intact.
 
 Buffered checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512.
 Calculation follows middleware and preserves explicitly supplied checksum headers.

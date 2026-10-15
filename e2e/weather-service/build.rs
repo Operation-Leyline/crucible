@@ -151,6 +151,5 @@ fn main() {
         .server()
         .explorer()
         .mcp()
-        .conformance()
         .generate();
 }

@@ -5,7 +5,7 @@
       "type": "service",
       "version": "2024-01-01",
       "traits": {
-        "aws.protocols#restJson1": {}
+        "crucible.protocols#json": {}
       },
       "operations": [
         {

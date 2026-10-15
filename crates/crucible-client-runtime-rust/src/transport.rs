@@ -12,8 +12,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use crucible_wire::bound::{self, BoundValue};
 use crucible_wire::operation::{
-    Checksum, ChecksumAlgorithm, ErrorInfo, Location, MemberInfo, Operation, Protocol, Scalar,
-    Segment,
+    Checksum, ChecksumAlgorithm, ErrorInfo, Location, MemberInfo, Operation, Scalar, Segment,
 };
 use crucible_wire::split;
 use crucible_wire::text::{header_text, scalar_text as text};
@@ -269,13 +268,12 @@ impl Transport {
             None => None,
         };
         let streaming = O::input_stream(input).is_some() || input_events.is_some();
-        let (url, mut bound_headers, mut body, plan) = self.prepare_at(
+        let (url, mut bound_headers, body, plan) = self.prepare_at(
             info,
             input,
             endpoint
                 .as_ref()
                 .map_or(&self.config.endpoint, |endpoint| &endpoint.url),
-            O::PROTOCOL,
             O::CHECKSUM,
             streaming,
         )?;
@@ -284,38 +282,6 @@ impl Transport {
             && let Ok(value) = HeaderValue::from_str(version)
         {
             bound_headers.insert("crucible-version", value);
-        }
-        if O::PROTOCOL.rpc_v2() {
-            bound_headers.insert(
-                "smithy-protocol",
-                HeaderValue::from_static(if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
-                    "rpc-v2-cbor"
-                } else {
-                    "rpc-v2-json"
-                }),
-            );
-            bound_headers.insert(
-                http::header::ACCEPT,
-                HeaderValue::from_static(if O::OUTPUT_EVENTS.is_some() {
-                    crucible_wire::event_stream::CONTENT_TYPE
-                } else if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
-                    "application/cbor"
-                } else {
-                    "application/json"
-                }),
-            );
-            body = if !O::HAS_INPUT {
-                None
-            } else if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
-                let mut encoded = Vec::new();
-                crucible_wire::cbor::write(input, &mut encoded).map_err(Error::Invalid)?;
-                Some(("application/cbor", encoded.into()))
-            } else {
-                Some((
-                    JSON,
-                    body.map_or_else(|| Bytes::from_static(b"{}"), |(_, body)| body),
-                ))
-            };
         }
         // A Content-Type bound to an input member outranks a payload's media
         // type, which outranks endpoint and client header defaults.
@@ -395,38 +361,7 @@ impl Transport {
             let status = response.status().as_u16();
             let response_headers = std::mem::take(response.headers_mut());
             let transient_status = retryable_status(status);
-            if O::PROTOCOL.rpc_v2() {
-                let expected = if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
-                    "rpc-v2-cbor"
-                } else {
-                    "rpc-v2-json"
-                };
-                if response_headers.get_all("smithy-protocol").iter().count() != 1
-                    || response_headers
-                        .get("smithy-protocol")
-                        .and_then(|h| h.to_str().ok())
-                        != Some(expected)
-                {
-                    // Proxies can return transient HTTP failures without RPC headers.
-                    // Apply the status retry contract before rejecting their protocol.
-                    if replayable && retry_safe && transient_status && attempt < retry.max_attempts
-                    {
-                        let delay = retry_after(&response_headers)
-                            .unwrap_or_else(|| backoff(attempt, &retry));
-                        tokio::time::sleep(delay).await;
-                        attempt += 1;
-                        continue;
-                    }
-                    return Err(Error::Decode(format!(
-                        "malformed RPC v2 response (HTTP {status}): smithy-protocol does not match request"
-                    )));
-                }
-            }
-            let success = if O::PROTOCOL.rpc_v2() {
-                status == 200
-            } else {
-                (200..300).contains(&status)
-            };
+            let success = (200..300).contains(&status);
             if let (true, Some(events)) = (success, O::OUTPUT_EVENTS) {
                 let mut stream = guarded_stream(
                     ByteStream::new(response.bytes_stream())
@@ -446,18 +381,7 @@ impl Transport {
                     .map_err(|e| Error::Decode(e.to_string()))?;
                 }
                 let chunks = stream.open().map_err(|e| Error::Decode(e.to_string()))?;
-                let mut reader = crate::events::Reader::new(events, chunks);
-                // Without HTTP bindings the other output members arrive
-                // first, as an `initial-response` event.
-                let (mut initial, mut pending) = (Bytes::new(), None);
-                if events.initial_message {
-                    match reader.next().await {
-                        Some(Ok(crucible_wire::event_stream::Decoded::Initial(document))) => {
-                            initial = document
-                        }
-                        other => pending = other,
-                    }
-                }
+                let reader = crate::events::Reader::new(events, chunks);
                 let mut bound = header_members(status, info.output, &response_headers)
                     .map_err(Error::Decode)?;
                 for member in info.output {
@@ -465,13 +389,9 @@ impl Transport {
                         bound.push((member.name, BoundValue::Json(Value::Null)));
                     }
                 }
-                let mut output: O::Output = if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
-                    crucible_wire::cbor::read(&initial).map_err(Error::Decode)?
-                } else {
-                    bound::read_http(&initial, bound, info.output)
-                        .map_err(|e| Error::Decode(e.to_string()))?
-                };
-                O::set_output_events(&mut output, reader.into_incoming(pending));
+                let mut output: O::Output = bound::read_http(&[], bound, info.output)
+                    .map_err(|e| Error::Decode(e.to_string()))?;
+                O::set_output_events(&mut output, reader.into_incoming());
                 return Ok(output);
             }
             if success
@@ -540,7 +460,7 @@ impl Transport {
                 }
                 return decode_output::<O, E>(status, info.output, &response_headers, &bytes);
             }
-            let error = decode_error::<E>(O::PROTOCOL, status, &response_headers, &bytes);
+            let error = decode_error::<E>(status, &response_headers, &bytes);
             let (throttling, transient) = match &error {
                 Error::Service(error) => {
                     let info = error.error.info();
@@ -571,7 +491,6 @@ impl Transport {
         info: &'static crucible_wire::operation::OperationInfo,
         input: &I,
         endpoint: &str,
-        protocol: Protocol,
         checksum: Option<Checksum>,
         streaming: bool,
     ) -> Result<(String, HeaderMap, Option<Body>, crate::checksum::Plan), Error<E>> {
@@ -726,7 +645,7 @@ impl Transport {
         }
         // A payload is sent raw under its media type; an absent one sends
         // no body.
-        let mut body = match Location::payload(info.input) {
+        let body = match Location::payload(info.input) {
             Some((_, media_type)) => (!body.is_empty()).then(|| (media_type, Bytes::from(body))),
             None => info
                 .input
@@ -734,21 +653,6 @@ impl Transport {
                 .any(|member| member.location == Location::Body)
                 .then(|| (JSON, Bytes::from(body))),
         };
-        if let Protocol::AwsJson10 { service } | Protocol::AwsJson11 { service } = protocol {
-            // Every call carries a JSON document, an empty object when the
-            // input has no members.
-            let content_type = match protocol {
-                Protocol::AwsJson10 { .. } => "application/x-amz-json-1.0",
-                _ => "application/x-amz-json-1.1",
-            };
-            let bytes = body.map_or_else(|| Bytes::from_static(b"{}"), |(_, bytes)| bytes);
-            body = Some((content_type, bytes));
-            headers.insert(
-                HeaderName::from_static("x-amz-target"),
-                HeaderValue::from_str(&format!("{service}.{}", info.name))
-                    .map_err(|e| Error::Invalid(e.to_string()))?,
-            );
-        }
         Ok((url, headers, body, plan))
     }
 
@@ -770,16 +674,9 @@ impl Transport {
         let headers = request.headers_mut();
         headers.extend(self.config.headers.clone());
         headers.extend(bound_headers.clone());
-        let mut body = body;
         let slot = crate::events::SignerSlot::default();
         let has_events = events.is_some();
         if let Some((info, outgoing, deadline, cancellation)) = events {
-            // Without HTTP bindings the document the body would have been
-            // travels as the stream's first message instead.
-            let initial = info.initial_message.then(|| {
-                body.take()
-                    .map_or_else(|| Bytes::from_static(b"{}"), |(_, bytes)| bytes)
-            });
             headers.insert(
                 http::header::CONTENT_TYPE,
                 HeaderValue::from_static(crucible_wire::event_stream::CONTENT_TYPE),
@@ -787,7 +684,6 @@ impl Transport {
             *request.body_mut() = Some(reqwest::Body::wrap_stream(crate::events::body(
                 info,
                 outgoing,
-                initial,
                 slot.clone(),
                 deadline,
                 cancellation,
@@ -964,15 +860,6 @@ where
     O: Operation,
     O::Output: DeserializeOwned,
 {
-    if O::PROTOCOL == Protocol::SmithyRpcV2Cbor {
-        if !O::HAS_OUTPUT && !body.is_empty() {
-            return Err(Error::Decode(
-                "operation without output received a body".to_owned(),
-            ));
-        }
-        return crucible_wire::cbor::read(if body.is_empty() { b"\xA0" } else { body })
-            .map_err(Error::Decode);
-    }
     read_response(status, members, headers, body, || body.clone()).map_err(Error::Decode)
 }
 
@@ -1110,48 +997,16 @@ pub fn by_status(status: u16, errors: &[&'static ErrorInfo]) -> Option<&'static 
     }
 }
 
-fn decode_error<E: OperationErrors>(
-    protocol: Protocol,
-    status: u16,
-    headers: &HeaderMap,
-    body: &[u8],
-) -> Error<E> {
-    let mut envelope: Option<Value> = if protocol == Protocol::SmithyRpcV2Cbor {
-        crucible_wire::cbor::error_envelope(body)
-    } else {
-        serde_json::from_slice(body).ok()
-    };
-    let header = if protocol.aws() {
-        "x-amzn-errortype"
-    } else {
-        "x-crucible-error"
-    };
-    let header_name = if protocol.rpc_v2() {
-        None
-    } else {
-        headers.get(header).and_then(|value| value.to_str().ok())
-    };
-    let body_name = envelope.as_ref().and_then(|e| {
-        e.get("__type")
-            .and_then(Value::as_str)
-            .or_else(|| protocol.aws().then(|| e.get("code")?.as_str()).flatten())
-    });
-    if protocol.rpc_v2()
-        && body_name.is_none_or(|name| {
-            name.split_once('#').is_none_or(|(namespace, shape)| {
-                namespace.is_empty() || shape.is_empty() || shape.contains(['#', ':'])
-            })
-        })
-    {
-        return Error::Decode(format!(
-            "malformed RPC v2 error response (HTTP {status}): missing full error shape id"
-        ));
-    }
-    // `aws.protocols#ThrottlingError:http://...`: the shape name alone.
+fn decode_error<E: OperationErrors>(status: u16, headers: &HeaderMap, body: &[u8]) -> Error<E> {
+    let envelope: Option<Value> = serde_json::from_slice(body).ok();
+    let header_name = headers
+        .get("x-crucible-error")
+        .and_then(|value| value.to_str().ok());
+    let body_name = envelope
+        .as_ref()
+        .and_then(|e| e.get("__type").and_then(Value::as_str));
+    // A qualified name (`namespace#Name:detail`) reduces to the shape name.
     let type_name = header_name.or(body_name).map(|name| {
-        if protocol.rpc_v2() {
-            return name.to_owned();
-        }
         let name = name.split(':').next().unwrap_or(name);
         name.rsplit('#').next().unwrap_or(name).to_owned()
     });
@@ -1165,20 +1020,6 @@ fn decode_error<E: OperationErrors>(
             .find_map(|name| headers.get(name)?.to_str().ok())
             .map(str::to_owned),
     });
-    // AWS JSON protocols may capitalize the message member.
-    let normalized = match envelope.as_mut() {
-        Some(Value::Object(object)) if protocol.aws() && !object.contains_key("message") => {
-            match object.get("Message").cloned() {
-                Some(message) => {
-                    object.insert("message".to_owned(), message);
-                    serde_json::to_vec(&object).ok()
-                }
-                None => None,
-            }
-        }
-        _ => None,
-    };
-    let body = normalized.as_deref().unwrap_or(body);
     match E::decode(status, type_name, headers, body) {
         Some(error) => Error::Service(ServiceError { error, metadata }),
         None => Error::Unknown(UnknownError {
@@ -1402,21 +1243,16 @@ mod tests {
             br#"{"__type":"Throttled","message":42}"#.as_slice(),
             br#"{"message":42}"#.as_slice(),
         ] {
-            let Error::Unknown(error) =
-                decode_error::<Malformed>(Protocol::CrucibleJson, 429, &headers, body)
-            else {
+            let Error::Unknown(error) = decode_error::<Malformed>(429, &headers, body) else {
                 panic!("unknown error")
             };
             assert_eq!(error.type_name.as_deref(), Some("Throttled"));
             assert!(error.retryable && error.throttling);
             assert_eq!(error.message, None);
         }
-        let Error::Unknown(error) = decode_error::<Malformed>(
-            Protocol::CrucibleJson,
-            429,
-            &headers,
-            br#"{"__type":"Future","message":42}"#,
-        ) else {
+        let Error::Unknown(error) =
+            decode_error::<Malformed>(429, &headers, br#"{"__type":"Future","message":42}"#)
+        else {
             panic!("unknown error")
         };
         assert_eq!(error.type_name.as_deref(), Some("Future"));

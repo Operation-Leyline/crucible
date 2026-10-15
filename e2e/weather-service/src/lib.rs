@@ -50,10 +50,3 @@ pub fn builder(cities: Arc<dyn CityStore>) -> crucible_server_runtime_rust::Buil
         .protocol(JsonProtocol)
         .protocol(InvokeProtocol)
 }
-
-// The weather model's smithy.test vectors, run against this service's pipeline
-// with stub operations (see docs/framework.md "Protocol conformance").
-#[cfg(test)]
-mod conformance {
-    crucible_server_runtime_rust::include_conformance!();
-}

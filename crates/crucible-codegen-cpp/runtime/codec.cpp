@@ -29,20 +29,16 @@ Json document(const Schema& schema, std::string_view target, const Json& value, 
     if (kind == "structure" || kind == "union") {
         Json::Object result;
         std::vector<std::string> known, wire_names;
-        // AWS JSON protocols treat a null structure member as absent, except for documents.
-        const bool omit_null = kind == "structure" && schema.setting("omitNullStructureMembers");
         for (const auto& [name, member] : shape.at("members").object()) {
             const auto* renamed = member.find("jsonName");
             const auto& wire = renamed ? renamed->string() : name;
             const auto& source = encode ? name : wire;
             known.push_back(source); wire_names.push_back(wire);
             const auto* item = value.find(source);
-            if (item && item->is_null() && omit_null && schema.shape(member.at("target").string()).at("kind").string() != "document") continue;
             if (item) result.emplace(encode ? wire : name, document(schema, member.at("target").string(), *item, encode));
         }
         if (kind == "union") for (const auto& [name, item] : value.object()) {
             if (std::find(known.begin(), known.end(), name) != known.end()) continue;
-            if (!encode && name == "__type" && schema.setting("ignoreUnknownUnionType")) continue;
             if (encode && std::find(wire_names.begin(), wire_names.end(), name) != wire_names.end()) throw std::invalid_argument("Unknown variant name is declared");
             result.emplace(name, item);
         }

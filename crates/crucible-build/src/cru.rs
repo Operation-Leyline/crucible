@@ -7,8 +7,8 @@
 
 use std::path::Path;
 
+use crucible_smithy::ShapeId;
 use crucible_smithy::ir::Service;
-use crucible_smithy::{Protocol, ShapeId};
 
 /// Whether `path` is a language package rather than Smithy sources or a JSON AST.
 pub(crate) fn is_package(path: &Path) -> bool {
@@ -24,24 +24,11 @@ pub(crate) fn manifest_policy(path: &Path) -> Option<std::path::PathBuf> {
 }
 
 /// Compiles the package at `path` and lowers `service`, or its only service.
-pub(crate) fn lower(
-    path: &Path,
-    service: Option<&ShapeId>,
-    protocol: Option<Protocol>,
-) -> Result<Service, String> {
+pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, String> {
     // Cargo watches a directory recursively, so any edited `.cru` file reruns
     // the build script.
     println!("cargo::rerun-if-changed={}", path.display());
     let package = crucible_lang::load_package(path)?;
-    if let Some(protocol) = protocol
-        && protocol != Protocol::CrucibleJson
-    {
-        return Err(format!(
-            "{}: a .cru package declares its protocol with `protocol ..` in the service; @{} cannot be selected",
-            path.display(),
-            protocol.trait_id()
-        ));
-    }
     if let Some(id) = service
         && id.namespace() != package.namespace
     {

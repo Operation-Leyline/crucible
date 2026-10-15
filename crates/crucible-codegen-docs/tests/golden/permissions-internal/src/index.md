@@ -6,11 +6,7 @@ Service version: <code>2026-10-01</code>.
 
 ## Protocol
 
-Selected wire protocol: <code>crucibleJson</code>.
-
-Declared protocols:
-
-- <code>crucible.protocols#json</code>
+Wire protocol: <code>crucibleJson</code>.
 
 ## Authentication
 

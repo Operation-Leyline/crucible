@@ -63,11 +63,6 @@ impl<'a> BoundValue<'a> {
                     .map(Self::Number)
                     .map_err(|error: serde_json::Error| error.to_string())
             }
-            // Keep protocol non-finite spellings as text for NonFinite; JSON's
-            // value deserializer cannot represent them as numeric values.
-            Scalar::Float if matches!(&*text, "NaN" | "Infinity" | "-Infinity") => {
-                Ok(Self::Text(text))
-            }
             Scalar::Float => text
                 .parse::<f64>()
                 .ok()
@@ -380,8 +375,7 @@ impl<'de, E: de::Error> Deserializer<'de> for Bound<'de, E> {
     fn deserialize_f32<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, E> {
         if let BoundValue::Float(value) = self.value {
             let narrowed = value as f32;
-            // Finite-only protocols deserialize without NonFinite, so guard
-            // their narrowing here rather than relying on Serde's float cast.
+            // Guard the narrowing here rather than relying on Serde's float cast.
             if value.is_finite() && !narrowed.is_finite() {
                 return Err(de::Error::custom("number out of range"));
             }
@@ -481,7 +475,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bound_f32_overflow_is_rejected_without_a_protocol_adapter() {
+    fn bound_f32_overflow_is_rejected() {
         #[derive(Deserialize)]
         struct Single {
             value: f32,
@@ -498,55 +492,17 @@ mod tests {
     }
 
     #[test]
-    fn bound_finite_float_overflow_is_rejected_for_f32_only() {
-        #[derive(Deserialize)]
-        struct Single {
-            #[serde(with = "crate::codec::Adapter::<crate::codec::NonFinite>")]
-            value: f32,
-        }
-        #[derive(Deserialize)]
-        struct Double {
-            #[serde(with = "crate::codec::Adapter::<crate::codec::NonFinite>")]
-            value: f64,
-        }
-        for text in ["1e39", "-1e39"] {
-            let value = BoundValue::parse(text.into(), Scalar::Float).unwrap();
-            assert!(read::<Single>(b"", vec![("value", value.clone())]).is_err());
-            assert_eq!(
-                read::<Double>(b"", vec![("value", value)]).unwrap().value,
-                text.parse::<f64>().unwrap()
-            );
-        }
-        let value = BoundValue::parse(f32::MAX.to_string().into(), Scalar::Float).unwrap();
-        assert_eq!(
-            read::<Single>(b"", vec![("value", value)]).unwrap().value,
-            f32::MAX
-        );
-    }
-
-    #[test]
-    fn bound_non_finite_floats_decode_for_both_widths() {
-        #[derive(Deserialize)]
-        struct Floats {
-            #[serde(with = "crate::codec::Adapter::<crate::codec::NonFinite>")]
-            single: f32,
-            #[serde(with = "crate::codec::Adapter::<crate::codec::NonFinite>")]
-            double: f64,
-        }
-        for (text, expected) in [
-            ("NaN", f64::NAN),
-            ("Infinity", f64::INFINITY),
-            ("-Infinity", f64::NEG_INFINITY),
+    fn bound_non_finite_floats_are_refused() {
+        for text in [
+            "NaN",
+            "Infinity",
+            "-Infinity",
+            "nan",
+            "inf",
+            "+Infinity",
+            "1e400",
+            "not-a-number",
         ] {
-            let value = BoundValue::parse(text.into(), Scalar::Float).unwrap();
-            let decoded: Floats =
-                read(b"", vec![("single", value.clone()), ("double", value)]).unwrap();
-            assert!(
-                decoded.single as f64 == expected || (decoded.single.is_nan() && expected.is_nan())
-            );
-            assert!(decoded.double == expected || (decoded.double.is_nan() && expected.is_nan()));
-        }
-        for text in ["nan", "inf", "+Infinity", "1e400", "not-a-number"] {
             assert!(
                 BoundValue::parse(text.into(), Scalar::Float).is_err(),
                 "{text}"

@@ -90,7 +90,7 @@ and nanoseconds. Date text supports years 1 through 9999.
 
 Generated `runtime::Codec<T>` converts a model to or from `Json` using its
 `schema().context("namespace#Shape")`. Codecs reject malformed types, invalid
-UTF-8, nonfinite numbers (except the AWS JSON string forms below), and
+UTF-8, nonfinite numbers, and
 out-of-range native numbers. JSON and model
 decoding have a nesting limit of 255. Recursive collection aliases without an
 intervening structure or union produce a generator diagnostic.
@@ -140,20 +140,6 @@ for (const auto& resource : permissions::registry)
 Internal permissions never appear in the header or anywhere else in the
 package. Two permissions of one resource with the same `known_` name are a
 generator diagnostic, never a silent rename.
-
-## Protocols
-
-Generated clients speak the model's selected protocol: Crucible JSON,
-`aws.protocols#restJson1`, `awsJson1_0`, or `awsJson1_1` (choose one with
-`--protocol` when a service declares several). AWS JSON RPC clients `POST` to
-`/` with `X-Amz-Target: Service.Operation` and an `application/x-amz-json-1.x`
-body, which is `{}` for an operation without input. REST JSON applies HTTP
-bindings, including HTTP-date headers and date-time query timestamps. Both AWS
-JSON protocols send non-finite floats as `"NaN"`, `"Infinity"`, and
-`"-Infinity"`, omit null structure members (documents keep `null`), ignore a
-`__type` member in unions, and read the error name from `X-Amzn-Errortype`,
-`code`, or `__type`, keeping only the shape name. The request ID comes from
-`X-Amzn-RequestId`.
 
 ## Authentication
 
@@ -335,11 +321,11 @@ Call `close()` after outstanding calls finish.
 `python tools/test-cpp.py` generates and installs a CMake package, compiles a
 separate consumer, runs shared retry/header fixtures, and exercises the weather
 service and transport edge cases over loopback HTTP. It also generates the
-authentication, endpoint-rule, waiter, checksum, and three AWS JSON protocol
+authentication, endpoint-rule, waiter, and checksum
 fixtures and runs their native tests: the published SigV4 vector and a
 server-side signature check, credential chains and concurrent cached refresh,
 the shared checksum vectors, rule-engine functions and host-prefix validation,
-and waiter, checksum, and protocol behavior against a scripted loopback server.
+and waiter and checksum behavior against a scripted loopback server.
 Its streaming package exercises one-shot, factory, byte, file, and stream
 uploads, length rules, upload cancellation, responses returned at their
 headers, deadlines and cancellation after return, connection release on close

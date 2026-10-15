@@ -44,13 +44,6 @@ fn vocabulary_probe() {
                     .render()
                     .unwrap()
             );
-            assert!(
-                crucible_build::RustCodegen::client_from_model("model.json")
-                    .conformance()
-                    .render_conformance()
-                    .unwrap_err()
-                    .contains("test a server")
-            );
             assert_eq!(
                 m.server().mcp().render().unwrap(),
                 crucible_build::RustCodegen::from_model("model.json")

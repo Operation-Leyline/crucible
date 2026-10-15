@@ -91,9 +91,6 @@ pub trait ModelledError: std::error::Error + Send + Sync + 'static {
     fn shape_id(&self) -> &'static str {
         self.info().name
     }
-    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
-        crate::cbor::write_typed(&self.to_json(), self.shape_id(), out)
-    }
     fn response_status(&self) -> u16 {
         self.info().status
     }
@@ -144,8 +141,8 @@ pub fn write_error<E: ModelledError + serde::Serialize>(
 ///
 /// Non-exhaustive: the framework may answer new errors, so a `match` outside
 /// this crate needs a wildcard arm. [`name`](Self::name),
-/// [`status`](Self::status), [`message`](Self::message) and
-/// [`shape_id`](Self::shape_id) cover every variant.
+/// [`status`](Self::status) and [`message`](Self::message) cover every
+/// variant.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FrameworkError {
@@ -212,24 +209,6 @@ impl FrameworkError {
             Self::MethodNotAllowed { .. } => 405,
             Self::UnsupportedMediaType => 415,
             Self::InternalFailure => 500,
-        }
-    }
-
-    /// The absolute shape id of the error, as the RPC v2 protocols name it
-    /// in `__type`: Smithy's `smithy.framework` errors, and the modelled
-    /// `crucible.errors#NotFoundException` for [`Self::NotFound`].
-    pub fn shape_id(&self) -> &'static str {
-        match self {
-            Self::Unauthenticated => "smithy.framework#UnauthenticatedException",
-            Self::Forbidden | Self::PermissionDenied { .. } => {
-                "smithy.framework#ForbiddenException"
-            }
-            Self::Conflict { .. } => "smithy.framework#ConflictException",
-            Self::NotFound { .. } => "crucible.errors#NotFoundException",
-            Self::UnknownOperation => "smithy.framework#UnknownOperationException",
-            Self::MethodNotAllowed { .. } => "smithy.framework#MethodNotAllowedException",
-            Self::UnsupportedMediaType => "smithy.framework#UnsupportedMediaTypeException",
-            Self::InternalFailure => "smithy.framework#InternalFailureException",
         }
     }
 
@@ -456,29 +435,5 @@ mod tests {
         let error = Error::new(current);
         let chain = error.chain();
         assert_eq!(chain.matches(": ").count(), MAX_SOURCE_DEPTH);
-    }
-
-    #[test]
-    fn rpc_v2_shape_ids_are_absolute_and_name_the_error() {
-        for error in [
-            FrameworkError::Unauthenticated,
-            FrameworkError::Forbidden,
-            FrameworkError::Conflict { message: "taken" },
-            FrameworkError::UnknownOperation,
-            FrameworkError::MethodNotAllowed {
-                allowed: vec!["GET"],
-            },
-            FrameworkError::UnsupportedMediaType,
-            FrameworkError::InternalFailure,
-        ] {
-            let id = error.shape_id();
-            assert!(id.starts_with("smithy.framework#"), "{id}");
-            assert!(
-                id.trim_start_matches("smithy.framework#")
-                    .starts_with(error.name()),
-                "{id} for {}",
-                error.name()
-            );
-        }
     }
 }

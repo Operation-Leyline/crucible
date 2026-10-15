@@ -73,65 +73,6 @@ fn legacy_enum_visibility_follows_the_shape_and_preserves_public_values() {
 }
 
 #[test]
-fn projected_request_vectors_check_the_payload_contract() {
-    for (target, body, retained) in [
-        ("smithy.api#String", "raw public payload", true),
-        (
-            "example.audience#PrivateDetails",
-            r#"{"value":"public"}"#,
-            true,
-        ),
-        (
-            "example.audience#PrivateDetails",
-            r#"{"hidden":"secret"}"#,
-            false,
-        ),
-    ] {
-        let mut model: serde_json::Value =
-            serde_json::from_str(include_str!("fixtures/internal-protocol-tests.json")).unwrap();
-        model["shapes"]["example.audience#PublicInput"]["members"] = serde_json::json!({
-            "value": {"target": target, "traits": {"smithy.api#httpPayload": {}}},
-            "privateHeader": {"target": "smithy.api#String", "traits": {
-                "smithy.api#internal": {}, "smithy.api#httpHeader": "X-Private"
-            }}
-        });
-        model["shapes"]["example.audience#Public"]["traits"]["smithy.test#httpRequestTests"] = serde_json::json!([{
-            "id": "PayloadRequest", "protocol": "crucible.protocols#json",
-            "appliesTo": "client", "method": "POST", "uri": "/public",
-            "params": {}, "body": body
-        }]);
-        let external = project(&lower(&model.to_string(), false), Audience::External).unwrap();
-        assert_eq!(
-            external
-                .protocol_tests
-                .iter()
-                .any(|test| test.id == "PayloadRequest"),
-            retained,
-            "{target}: {body}"
-        );
-    }
-}
-
-#[test]
-fn protocol_vectors_keep_only_representable_params_bindings_and_operations() {
-    let full = lower(include_str!("fixtures/internal-protocol-tests.json"), false);
-    assert_eq!(full.protocol_tests.len(), 12);
-    let external = project(&full, Audience::External).unwrap();
-    assert_eq!(
-        external
-            .protocol_tests
-            .iter()
-            .map(|test| test.id.as_str())
-            .collect::<Vec<_>>(),
-        ["PublicRequest", "PublicResponse"]
-    );
-    assert_eq!(
-        project(&full, Audience::Internal).unwrap().protocol_tests,
-        full.protocol_tests
-    );
-}
-
-#[test]
 fn cors_keeps_the_full_server_contract_when_client_bindings_are_projected() {
     let full = lower(include_str!("fixtures/internal-cors.json"), false);
     let cors = full.cors.as_ref().unwrap();
@@ -522,51 +463,6 @@ fn nested_waiter_expressions_check_the_actual_member_scope() {
         };
     }
     assert!(project(&full, Audience::External).is_ok());
-}
-
-/// Raw trait copies would keep what the projection removed from the typed
-/// fields: an external view drops the lowered value-carrying traits.
-#[test]
-fn external_views_drop_raw_vectors_and_examples_that_name_internal_members() {
-    let full = lower(include_str!("fixtures/internal-protocol-tests.json"), false);
-    let raw = serde_json::to_string(&full).unwrap();
-    assert!(raw.contains("secret") && raw.contains("hidden"));
-    let external = serde_json::to_string(&project(&full, Audience::External).unwrap()).unwrap();
-    for private in [
-        "secret",
-        "\"hidden\"",
-        "X-Private",
-        "PrivateNestedRequest",
-        "#Secret",
-    ] {
-        assert!(
-            !external.contains(private),
-            "{private} leaks into the external view"
-        );
-    }
-    assert!(!external.contains("smithy.test#httpRequestTests"));
-    // The internal view is the whole model.
-    let internal = serde_json::to_string(&project(&full, Audience::Internal).unwrap()).unwrap();
-    assert!(internal.contains("smithy.test#httpRequestTests"));
-
-    let mut model: serde_json::Value = serde_json::from_str(INTERNAL).unwrap();
-    let operation = model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|(_, shape)| {
-            shape["type"] == "operation" && shape["traits"].get("smithy.api#internal").is_none()
-        })
-        .map(|(id, _)| id.clone())
-        .unwrap();
-    model["shapes"][&operation]["traits"]["smithy.api#examples"] = serde_json::json!([
-        { "title": "leaky", "input": { "value": "v", "privateHeader": "sentinel-internal-value" } }
-    ]);
-    let full = lower(&model.to_string(), false);
-    let external = project(&full, Audience::External).unwrap();
-    let text = serde_json::to_string(&external).unwrap();
-    assert!(!text.contains("sentinel-internal-value"), "{operation}");
-    assert!(!text.contains("smithy.api#examples"));
 }
 
 /// The external view of everything the adversarial check reproduced, as

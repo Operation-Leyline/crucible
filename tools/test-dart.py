@@ -229,10 +229,10 @@ def qualify_payload_bindings(output):
         del shapes[name]
     path = output / "payload-bindings.json"
     path.write_text(json.dumps(model), encoding="utf-8")
-    for protocol, name in (("crucible.protocols#json", "payload_bindings"), ("aws.protocols#restJson1", "rest_payload_bindings")):
+    for name in ("payload_bindings",):
         generated = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart", str(path),
-            "--protocol", protocol, "--out", str(generated), "--package-name", "payload_bindings_client")
+            "--out", str(generated), "--package-name", "payload_bindings_client")
         manifest = json.loads((generated / "pubspec.yaml").read_text())
         manifest["dev_dependencies"] = {"test": "^1.25.15"}
         (generated / "pubspec.yaml").write_text(json.dumps(manifest), encoding="utf-8")
@@ -254,9 +254,6 @@ def qualify_features(output):
         ("jobs_client", tests / "waiters.json", []),
         ("behavior_client", fixtures / "client-behaviors.json", []),
         ("checksum_client", fixtures / "checksums.json", []),
-        ("restjson_client", fixtures / "protocol-json.json", ["--protocol", "aws.protocols#restJson1"]),
-        ("json10_client", fixtures / "protocol-json.json", ["--protocol", "aws.protocols#awsJson1_0"]),
-        ("json11_client", fixtures / "protocol-json.json", ["--protocol", "aws.protocols#awsJson1_1"]),
     ]
     for name, model, extra in packages:
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
@@ -280,7 +277,7 @@ def qualify_features(output):
     env = dict(os.environ, CRUCIBLE_TEST_AWS="set", AWS_ACCESS_KEY_ID="env", AWS_SECRET_ACCESS_KEY="secret", AWS_SESSION_TOKEN="token")
     dart("test", "--reporter", "expanded", cwd=features, env=env)
     dart("test", "--platform", "chrome", "--reporter", "expanded", cwd=features)
-    print("Dart auth, SigV4, waiters, endpoint rules, checksums and AWS JSON protocols passed on the VM and Chrome")
+    print("Dart auth, SigV4, waiters, endpoint rules and checksums passed on the VM and Chrome")
 
 
 if __name__ == "__main__":

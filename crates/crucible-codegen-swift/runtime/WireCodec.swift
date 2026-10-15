@@ -31,9 +31,6 @@ internal struct WireContext: Sendable {
 }
 internal struct WireCodec: Sendable {
     let schema: JSONValue
-    private func setting(_ name: String) -> Bool { schema["protocolSettings"]?[name]?.flag == true }
-    /// AWS JSON protocols send NaN and infinities as strings.
-    var nonFiniteFloats: Bool { setting("nonFiniteFloatStrings") }
     func shape(_ target: String) throws -> JSONValue {
         guard let shape = schema["shapes"]?[target] else { throw WireError("Unknown shape: \(target)") }
         return shape
@@ -55,18 +52,10 @@ internal struct WireCodec: Sendable {
         case "structure", "union":
             var object = try value.object
             let members = try shape["members"]!.object
-            let structure = shape["kind"]?.text == "structure"
-            if !structure && !encode && setting("ignoreUnknownUnionType")
-                && !members.contains(where: { ($0.value["jsonName"]?.text ?? $0.key) == "__type" }) {
-                object.removeValue(forKey: "__type")
-            }
             var result: [String: JSONValue] = [:]
             for (name, member) in members {
                 let wire = member["jsonName"]?.text ?? name
                 if let item = object[encode ? name : wire] {
-                    // Protocols that omit null structure members treat null as absent; documents keep null.
-                    if item == .null && structure && setting("omitNullStructureMembers")
-                        && (try? self.shape(member["target"]!.string)["kind"]?.text) != "document" { continue }
                     result[encode ? wire : name] = try document(member["target"]!.string, item, encode: encode)
                 }
             }
@@ -129,9 +118,6 @@ internal struct WireCodec: Sendable {
             let wire = format == "epoch-seconds" ? try JSONValue(data: Data(text.utf8)) : .string(text)
             return try Timestamp.fromWire(wire, context(target, format: format)).toWire(context(target, format: member["format"]?.text))
         }
-        // The protocol's string for a non-finite float, which decode converts as it does for a body.
-        let scalar = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if shape["kind"]?.text == "float" || shape["kind"]?.text == "double", nonFiniteFloats, nonFinite(scalar) != nil { return .string(scalar) }
         switch shape["kind"]?.text {
         case "list":
             if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return .array([]) }
@@ -210,28 +196,20 @@ extension Int32: WireInteger {}
 extension Int64: WireInteger {}
 extension Float: WireCodable {
     internal static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Float {
-        if context.codec.nonFiniteFloats, case .string(let text) = value, let special = nonFinite(text) { return Float(special) }
         guard let result = try Float(value.number), result.isFinite else { throw WireError("Float overflow") }; return result
     }
     internal func toWire(_ context: WireContext) throws -> JSONValue {
-        if !isFinite && context.codec.nonFiniteFloats { return .string(nonFiniteText(Double(self))) }
         guard isFinite else { throw WireError("Non-finite float") }; return .number(String(self))
     }
 }
 extension Double: WireCodable {
     internal static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Double {
-        if context.codec.nonFiniteFloats, case .string(let text) = value, let special = nonFinite(text) { return special }
         guard let result = try Double(value.number), result.isFinite else { throw WireError("Double overflow") }; return result
     }
     internal func toWire(_ context: WireContext) throws -> JSONValue {
-        if !isFinite && context.codec.nonFiniteFloats { return .string(nonFiniteText(self)) }
         guard isFinite else { throw WireError("Non-finite double") }; return .number(String(self))
     }
 }
-private func nonFinite(_ text: String) -> Double? {
-    switch text { case "NaN": return .nan; case "Infinity": return .infinity; case "-Infinity": return -.infinity; default: return nil }
-}
-private func nonFiniteText(_ value: Double) -> String { value.isNaN ? "NaN" : value > 0 ? "Infinity" : "-Infinity" }
 extension Data: WireCodable {
     internal static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Data {
         guard let bytes = try Data(base64Encoded: value.string) else { throw WireError("Invalid base64 blob") }; return bytes

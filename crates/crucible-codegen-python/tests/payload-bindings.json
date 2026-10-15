@@ -3,7 +3,7 @@
   "shapes": {
     "example.payload#PayloadBindings": {
       "type": "service", "version": "1",
-      "traits": {"crucible.protocols#json": {}, "aws.protocols#restJson1": {}},
+      "traits": {"crucible.protocols#json": {}},
       "operations": [{"target": "example.payload#PutDocument"}, {"target": "example.payload#Upload"}, {"target": "example.payload#UploadStream"}, {"target": "example.payload#PutRecord"}]
     },
     "example.payload#PutDocument": {

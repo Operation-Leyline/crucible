@@ -1,10 +1,9 @@
-//! A permission refusal reads the same in every protocol: Hidden is the
+//! A permission refusal: Hidden is the
 //! modelled `NotFoundException` (404, never cached, naming only the
 //! resource type), byte-identical to a handler's own `NotFoundException`
 //! for a resource that is genuinely missing, and Denied a 403
 //! `ForbiddenException` without an authentication challenge, whether the
-//! request came over a JSON protocol, RPC v2, a direct invoke or an MCP
-//! tool call.
+//! request came over Crucible JSON, a direct invoke or an MCP tool call.
 use axum::{body::Body, http::Request};
 use crucible_server_runtime_rust::__generated as generated;
 use crucible_server_runtime_rust::mcp::McpConfig;
@@ -16,8 +15,8 @@ use crucible_server_runtime_rust::{
     Crucible, DecodedJob, FrameworkError, Hook, Interceptor, InterceptorExt, InvokeProtocol,
     ModelledError, Operation, Operations, Result,
     operation::{
-        AuthScheme, ErrorInfo, Fault, Location, MemberInfo, OperationInfo, Protocol, Redaction,
-        Scalar, Segment, ServiceInfo, Unit,
+        AuthScheme, ErrorInfo, Fault, Location, MemberInfo, OperationInfo, Redaction, Scalar,
+        Segment, ServiceInfo, Unit,
     },
     protocol::Invocation,
 };
@@ -120,11 +119,11 @@ static SERVICE: ServiceInfo = generated::service_info(
 .with_permissions(&[&READ]);
 
 /// `requires read on Workspace`, bound to a workspace the input does not
-/// carry (it has none), so every protocol's empty request is enough. The
+/// carry (it has none), so an empty request is enough. The
 /// handler finds the workspace missing.
 /// `OWN`: the service designates its own not-found error.
-struct Probe<const P: u8, const OWN: bool>;
-impl<const P: u8, const OWN: bool> Operation for Probe<P, OWN> {
+struct Probe<const OWN: bool>;
+impl<const OWN: bool> Operation for Probe<OWN> {
     const INFO: &'static OperationInfo = if OWN { &OWN_INFO } else { &INFO };
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = Some(&[AuthScheme::Bearer]);
     const HAS_INPUT: bool = false;
@@ -141,18 +140,6 @@ impl<const P: u8, const OWN: bool> Operation for Probe<P, OWN> {
             ResourceRef::new(&WORKSPACE, ["w-secret"]),
         ));
     });
-    const PROTOCOL: Protocol = match P {
-        0 => Protocol::CrucibleJson,
-        1 => Protocol::AwsRestJson1,
-        2 => Protocol::AwsJson10 {
-            service: "Refusals",
-        },
-        3 => Protocol::AwsJson11 {
-            service: "Refusals",
-        },
-        4 => Protocol::SmithyRpcV2Json,
-        _ => Protocol::SmithyRpcV2Cbor,
-    };
     type Input = Unit;
     type Output = Unit;
 }
@@ -173,9 +160,9 @@ struct Answer {
     value: Value,
 }
 
-async fn call<const P: u8, const OWN: bool>(verdict: Verdict, invoke: bool) -> Answer {
+async fn call<const OWN: bool>(verdict: Verdict, invoke: bool) -> Answer {
     let operations = Operations::builder(if OWN { &OWN_SERVICE } else { &SERVICE })
-        .add::<Probe<P, OWN>, _, _>(Arc::new(()), |_, _| async {
+        .add::<Probe<OWN>, _, _>(Arc::new(()), |_, _| async {
             Err::<Unit, _>(if OWN {
                 own_missing(&ResourceRef::new(&WORKSPACE, ["w-secret"]))
             } else {
@@ -195,35 +182,10 @@ async fn call<const P: u8, const OWN: bool>(verdict: Verdict, invoke: bool) -> A
         .interceptor(permissions)
         .build()
         .unwrap();
-    let path = if P >= 4 {
-        "/service/Refusals/operation/Probe"
-    } else if P >= 2 {
-        "/"
-    } else {
-        "/probe"
-    };
-    let media = match P {
-        2 => "application/x-amz-json-1.0",
-        3 => "application/x-amz-json-1.1",
-        5 => "application/cbor",
-        _ => "application/json",
-    };
-    let mut request = Request::post(path).header("content-type", media);
-    if P == 2 || P == 3 {
-        request = request.header("x-amz-target", "Refusals.Probe");
-    }
-    if P >= 4 {
-        request = request.header(
-            "smithy-protocol",
-            if P == 4 { "rpc-v2-json" } else { "rpc-v2-cbor" },
-        );
-    }
-    let body = if P >= 4 && !invoke {
-        Body::empty()
-    } else {
-        Body::from("{}")
-    };
-    let mut request = request.body(body).unwrap();
+    let mut request = Request::post("/probe")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))
+        .unwrap();
     if invoke {
         request.extensions_mut().insert(Invocation {
             operation: "Probe".into(),
@@ -239,11 +201,7 @@ async fn call<const P: u8, const OWN: bool>(verdict: Verdict, invoke: bool) -> A
         .await
         .unwrap()
         .to_vec();
-    let value: Value = if P == 5 && !invoke {
-        crucible_server_runtime_rust::__generated::cbor::read(&body).unwrap()
-    } else {
-        serde_json::from_slice(&body).unwrap()
-    };
+    let value: Value = serde_json::from_slice(&body).unwrap();
     let value = if invoke {
         value["error"].clone()
     } else {
@@ -257,25 +215,20 @@ async fn call<const P: u8, const OWN: bool>(verdict: Verdict, invoke: bool) -> A
     }
 }
 
-async fn check<const P: u8>(invoke: bool) {
-    let context = format!("protocol {P}, invoke {invoke}");
+async fn check(invoke: bool) {
+    let context = format!("invoke {invoke}");
 
-    let hidden = call::<P, false>(Verdict::Hidden, invoke).await;
+    let hidden = call::<false>(Verdict::Hidden, invoke).await;
     assert_eq!(hidden.status, 404, "{context}");
     assert_eq!(hidden.headers["cache-control"], "no-store", "{context}");
     assert!(
         !hidden.headers.contains_key("www-authenticate"),
         "{context}"
     );
-    let name = if !invoke && matches!(P, 2 | 4 | 5) {
-        "crucible.errors#NotFoundException"
-    } else {
-        "NotFoundException"
-    };
     assert_eq!(
         hidden.value,
         json!({
-            "__type": name,
+            "__type": "NotFoundException",
             "message": "No such workspace.",
             "resourceType": "workspace",
         }),
@@ -284,23 +237,18 @@ async fn check<const P: u8>(invoke: bool) {
 
     // Allowed, the handler answers its own NotFoundException for a missing
     // workspace: the same bytes and headers as the hidden one.
-    let missing = call::<P, false>(Verdict::Allowed, invoke).await;
+    let missing = call::<false>(Verdict::Allowed, invoke).await;
     assert_eq!(missing.status, hidden.status, "{context}");
     assert_eq!(missing.headers, hidden.headers, "{context}");
     assert_eq!(missing.body, hidden.body, "{context}");
 
-    let denied = call::<P, false>(Verdict::Denied, invoke).await;
+    let denied = call::<false>(Verdict::Denied, invoke).await;
     assert_eq!(denied.status, 403, "{context}");
     assert!(
         !denied.headers.contains_key("www-authenticate"),
         "{context}"
     );
-    let name = if !invoke && P >= 4 {
-        "smithy.framework#ForbiddenException"
-    } else {
-        "ForbiddenException"
-    };
-    assert_eq!(denied.value["__type"], name, "{context}");
+    assert_eq!(denied.value["__type"], "ForbiddenException", "{context}");
     assert_eq!(
         denied.value["message"], "This principal does not hold workspace:read on that workspace.",
         "{context}"
@@ -312,14 +260,9 @@ async fn check<const P: u8>(invoke: bool) {
 }
 
 #[tokio::test]
-async fn every_serving_protocol_answers_hidden_and_missing_alike_and_denied_as_forbidden() {
-    check::<0>(false).await;
-    check::<1>(false).await;
-    check::<2>(false).await;
-    check::<3>(false).await;
-    check::<4>(false).await;
-    check::<5>(false).await;
-    check::<0>(true).await;
+async fn hidden_and_missing_answer_alike_and_denied_as_forbidden() {
+    check(false).await;
+    check(true).await;
 }
 
 // ---- a service's own not-found error ----------------------------------------
@@ -421,43 +364,30 @@ static OWN_SERVICE: ServiceInfo = generated::service_info(
 .with_permissions(&[&READ])
 .with_not_found("example.auth#ResourceNotFoundException");
 
-async fn check_own<const P: u8>(invoke: bool) {
-    let context = format!("protocol {P}, invoke {invoke}");
-    let hidden = call::<P, true>(Verdict::Hidden, invoke).await;
+async fn check_own(invoke: bool) {
+    let context = format!("invoke {invoke}");
+    let hidden = call::<true>(Verdict::Hidden, invoke).await;
     assert_eq!(hidden.status, 404, "{context}");
     assert_eq!(hidden.headers["cache-control"], "no-store", "{context}");
-    let name = if !invoke && matches!(P, 2 | 4 | 5) {
-        "example.auth#ResourceNotFoundException"
-    } else {
-        "ResourceNotFoundException"
-    };
-    let mut expected = json!({
+    let expected = json!({
+        "__type": "ResourceNotFoundException",
         "message": "Not found.",
         "resourceType": "workspace",
         "resourceId": "w-secret",
     });
-    // REST JSON names the error in its header only.
-    if P != 1 || invoke {
-        expected["__type"] = json!(name);
-    }
     assert_eq!(hidden.value, expected, "{context}");
     // The handler's genuinely missing workspace: the same bytes and the
     // same headers, `Cache-Control: no-store` included.
-    let missing = call::<P, true>(Verdict::Allowed, invoke).await;
+    let missing = call::<true>(Verdict::Allowed, invoke).await;
     assert_eq!(missing.status, hidden.status, "{context}");
     assert_eq!(missing.headers, hidden.headers, "{context}");
     assert_eq!(missing.body, hidden.body, "{context}");
 }
 
 #[tokio::test]
-async fn a_services_own_not_found_error_answers_hidden_and_missing_alike_in_every_protocol() {
-    check_own::<0>(false).await;
-    check_own::<1>(false).await;
-    check_own::<2>(false).await;
-    check_own::<3>(false).await;
-    check_own::<4>(false).await;
-    check_own::<5>(false).await;
-    check_own::<0>(true).await;
+async fn a_services_own_not_found_error_answers_hidden_and_missing_alike() {
+    check_own(false).await;
+    check_own(true).await;
 }
 
 /// Answers `Ping` with `error`, as an authorization or a handler would.

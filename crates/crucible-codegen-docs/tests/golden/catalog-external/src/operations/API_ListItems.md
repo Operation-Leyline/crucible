@@ -10,7 +10,7 @@ Since <code>2026-01</code>.
 
 <p>Read a page of <strong>items</strong>.</p>
 
-Protocol: <code>rpcv2Json</code>.
+Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
@@ -19,10 +19,8 @@ Effective schemes: <code>[]</code>. Optional authentication: false.
 ## Request syntax
 
 ```http
-POST /service/Catalog/operation/ListItems HTTP/1.1
-Accept: application/json
+POST /ListItems HTTP/1.1
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 ```
 
 ### Request body
@@ -44,7 +42,6 @@ Smithy-Protocol: rpc-v2-json
 ```http
 HTTP/1.1 200
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 ```
 
 ### Response body
@@ -90,10 +87,8 @@ Follow the output token until absent or empty; reject repeated tokens.
 Request:
 
 ```http
-POST /service/Catalog/operation/ListItems HTTP/1.1
-Accept: application/json
+POST /ListItems HTTP/1.1
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 
 {
   "pageSize": 2
@@ -105,7 +100,6 @@ Response:
 ```http
 HTTP/1.1 200
 Content-Type: application/json
-Smithy-Protocol: rpc-v2-json
 
 {
   "items": [

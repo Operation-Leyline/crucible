@@ -1,8 +1,6 @@
-package example.waiterquery;
+package example.waiterjson;
 
 import com.sun.net.httpserver.HttpServer;
-import example.waiterquery.model.CustomCodeError;
-import example.waiterquery.model.OtherError;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -23,11 +21,6 @@ public final class WaiterIdentityTest {
     if (!value) throw new AssertionError(message);
   }
 
-  static Reply xml(String code, String value) {
-    return new Reply(400, "application/xml", "<ErrorResponse><Error><Type>Sender</Type><Code>" + code
-        + "</Code><Message>wire detail</Message><value>" + value + "</value></Error><RequestId>identity</RequestId></ErrorResponse>");
-  }
-
   static void plan(Reply... replies) {
     CALLS.set(0);
     REPLIES.set(List.of(replies));
@@ -36,30 +29,6 @@ public final class WaiterIdentityTest {
   static void calls(int expected) {
     check(FAILURE.get() == null, "loopback failure: " + FAILURE.get());
     check(CALLS.get() == expected, "expected " + expected + " requests, received " + CALLS.get());
-  }
-
-  static ServiceError queryError(QueryIdentityClient client, Reply reply) {
-    plan(reply);
-    try {
-      client.queryRead();
-      throw new AssertionError("expected query error");
-    } catch (ServiceError error) {
-      calls(1);
-      check(error.status() == 400 && "identity".equals(error.requestId()), "HTTP error metadata");
-      check(new String(error.body(), StandardCharsets.UTF_8).equals(reply.body()), "raw error body");
-      return error;
-    }
-  }
-
-  static WaiterError queryFailure(Runnable call) {
-    try {
-      call.run();
-      throw new AssertionError("expected terminal waiter failure");
-    } catch (WaiterError error) {
-      calls(1);
-      check(error.attempts() == 1, "unmatched errors fail on the first attempt");
-      return error;
-    }
   }
 
   public static void main(String[] args) throws Exception {
@@ -88,57 +57,22 @@ public final class WaiterIdentityTest {
       var config = new ClientConfig();
       config.endpoint = endpoint;
       config.maxAttempts = 1;
-      var query = new QueryIdentityClient(config);
-      Reply success = new Reply(200, "application/xml", "");
-      ServiceError modeled = queryError(query, xml("Customized", "7"));
-      check(modeled instanceof CustomCodeError && "Customized".equals(modeled.errorName()), "typed custom wire code stays visible");
-      plan(xml("Customized", "7"), success);
-      query.waitUntilByAbsolute(OPTIONS);
-      calls(2);
-      plan(xml("Customized", "7"), success);
-      query.waitUntilByRelative(OPTIONS);
-      calls(2);
-
-      ServiceError unknown = queryError(query, xml("UnmodeledWire", "7"));
-      check(unknown.getClass() == QueryIdentityException.class && "UnmodeledWire".equals(unknown.errorName()), "unmodeled wire name");
-      plan(xml("UnmodeledWire", "7"), success);
-      query.waitUntilByUnknown(OPTIONS);
-      calls(2);
-
-      plan(xml("Customized", "7"));
-      WaiterError byWire = queryFailure(() -> query.waitUntilByWire(OPTIONS));
-      check(byWire.lastError() instanceof CustomCodeError && "Customized".equals(((ServiceError) byWire.lastError()).errorName()), "wire code is not a modeled waiter identity");
-
-      ServiceError malformed = queryError(query, xml("Customized", "not-an-integer"));
-      check(malformed.getClass() == QueryIdentityException.class && "Customized".equals(malformed.errorName()), "malformed modeled error retains generic wire metadata");
-      plan(xml("Customized", "not-an-integer"), success);
-      query.waitUntilByWire(OPTIONS);
-      calls(2);
-      plan(xml("Customized", "not-an-integer"));
-      queryFailure(() -> query.waitUntilByAbsolute(OPTIONS));
-      plan(xml("OtherError", "7"));
-      check(queryFailure(() -> query.waitUntilByAbsolute(OPTIONS)).lastError() instanceof OtherError, "unrelated modeled error fails immediately");
-
-      var jsonConfig = new example.waiterjson.ClientConfig();
-      jsonConfig.endpoint = endpoint;
-      jsonConfig.maxAttempts = 1;
-      var json = new example.waiterjson.JsonIdentityClient(jsonConfig);
+      var json = new JsonIdentityClient(config);
       Reply renamed = new Reply(400, "application/json", "{\"__type\":\"OriginalError\",\"value\":7}");
       plan(renamed);
       try {
         json.jsonRead();
         throw new AssertionError("expected renamed error");
-      } catch (example.waiterjson.ServiceError error) {
+      } catch (ServiceError error) {
         check(error instanceof example.waiterjson.model.RenamedError && "OriginalError".equals(error.errorName()), "renamed public class preserves original wire name");
         calls(1);
       }
-      var jsonOptions = new example.waiterjson.WaiterOptions(Duration.ofSeconds(5), Duration.ZERO, Duration.ZERO);
       Reply jsonSuccess = new Reply(200, "application/json", "");
       plan(renamed, jsonSuccess);
-      json.waitUntilByAbsolute(jsonOptions);
+      json.waitUntilByAbsolute(OPTIONS);
       calls(2);
       plan(renamed, jsonSuccess);
-      json.waitUntilByRelative(jsonOptions);
+      json.waitUntilByRelative(OPTIONS);
       calls(2);
     } finally {
       server.stop(0);

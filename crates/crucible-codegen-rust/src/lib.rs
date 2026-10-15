@@ -21,7 +21,6 @@ mod client_api;
 mod client_options;
 mod client_package;
 mod client_permissions;
-mod conformance;
 mod debug;
 mod errors;
 mod events;
@@ -42,7 +41,6 @@ mod versions;
 pub use client::pages_method;
 pub use client_options::ClientOptions;
 pub use client_package::{client_package_name, emit_client_package};
-pub use conformance::{ConformanceOptions, Seed, Skip, generate_conformance};
 pub use file::File;
 pub use mcp::exclusions as mcp_exclusions;
 pub use names::escape_identifier;
@@ -127,11 +125,6 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::NonBlobPayload,
         Feature::ErrorPayload,
         Feature::MediaTypeHeaders,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
-        Feature::SmithyRpcV2Json,
-        Feature::SmithyRpcV2Cbor,
     ])
 }
 
@@ -284,7 +277,7 @@ pub(crate) fn body_with(
         "{}{}{}{}",
         info::redactions(service),
         operations::emit(service, functions, options.mcp, diagnostics),
-        events::statics(service, diagnostics, false),
+        events::statics(service, diagnostics),
         if parent_permissions {
             "\n#[allow(unused_imports)]\nuse super::super::permissions;\n".to_owned()
         } else {

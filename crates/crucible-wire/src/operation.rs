@@ -31,8 +31,6 @@ pub trait Operation: Send + Sync + 'static {
     /// The release a generated client names in its `Crucible-Version`
     /// header: the `.cru` service's `version` (docs/api-versions-clients.md).
     const API_VERSION: Option<&'static str> = None;
-    /// The modeled wire protocol. Server defaults select the corresponding implementation.
-    const PROTOCOL: Protocol = Protocol::CrucibleJson;
     /// The operation's modeled HTTP checksum behavior, for clients.
     const CHECKSUM: Option<Checksum> = None;
     /// How the operation pages (`@paginated`), for server extensions that
@@ -434,42 +432,6 @@ pub enum TimestampFormat {
     HttpDate,
 }
 
-/// The protocol a generated client or server speaks, chosen once from the model.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum Protocol {
-    /// `crucible.protocols#json`: HTTP bindings, `__type` or
-    /// `x-crucible-error` naming errors.
-    CrucibleJson,
-    /// `aws.protocols#restJson1`: HTTP bindings, `X-Amzn-Errortype`.
-    AwsRestJson1,
-    /// `aws.protocols#awsJson1_0`: every member in a JSON body POSTed to `/`
-    /// with `X-Amz-Target: {service}.{operation}`.
-    AwsJson10 {
-        service: &'static str,
-    },
-    /// `aws.protocols#awsJson1_1`, as `AwsJson10` with its own content type.
-    AwsJson11 {
-        service: &'static str,
-    },
-    SmithyRpcV2Json,
-    SmithyRpcV2Cbor,
-}
-
-impl Protocol {
-    /// Whether errors and messages follow the AWS JSON conventions.
-    pub fn aws(self) -> bool {
-        matches!(
-            self,
-            Self::AwsRestJson1 | Self::AwsJson10 { .. } | Self::AwsJson11 { .. }
-        )
-    }
-
-    pub fn rpc_v2(self) -> bool {
-        matches!(self, Self::SmithyRpcV2Json | Self::SmithyRpcV2Cbor)
-    }
-}
-
 /// The input members of a `@paginated` operation that say where a listing
 /// resumes and how much of it to return.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -652,9 +614,6 @@ pub trait Output: Any + Send + Sync {
     fn events(&self) -> Option<std::io::Result<crate::event_stream::Outgoing>> {
         None
     }
-    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
-        crate::cbor::write(&self.to_json(), out)
-    }
     fn response_status(&self) -> Option<u16> {
         None
     }
@@ -689,9 +648,6 @@ pub trait Output: Any + Send + Sync {
 }
 
 impl<T: Serialize + Any + Send + Sync> Output for T {
-    fn write_cbor(&self, out: &mut Vec<u8>) -> Result<(), String> {
-        crate::cbor::write(self, out)
-    }
     fn to_json(&self) -> Value {
         serde_json::to_value(self).unwrap_or(Value::Null)
     }

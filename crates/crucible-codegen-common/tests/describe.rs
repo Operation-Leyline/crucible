@@ -13,7 +13,7 @@ fn dynamic_bindings_examples_preserve_wire_names_headers_and_encoded_uris() {
     }]);
     let service = Model::from_json(&model.to_string())
         .unwrap()
-        .lower_documentation(None, None)
+        .lower_documentation(None)
         .unwrap();
     let description = describe::describe(&service).unwrap();
     let example = &description.operations["example.dynamic#Get"]["examples"][0];
@@ -35,53 +35,18 @@ fn dynamic_bindings_examples_preserve_wire_names_headers_and_encoded_uris() {
 }
 
 #[test]
-fn error_examples_use_each_protocols_body_and_header_discriminators() {
-    for (protocol, code, header) in [
-        ("aws.protocols#awsJson1_0", "example.docs#Unavailable", true),
-        ("aws.protocols#awsJson1_1", "Unavailable", true),
-        (
-            "smithy.protocols#rpcv2Json",
-            "example.docs#Unavailable",
-            false,
-        ),
-    ] {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/service-docs.json"
-        ))
-        .unwrap();
-        let traits = model["shapes"]["example.docs#Catalog"]["traits"]
-            .as_object_mut()
-            .unwrap();
-        traits.remove("smithy.protocols#rpcv2Json");
-        traits.insert(protocol.into(), serde_json::json!({}));
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower_documentation(None, None)
-            .unwrap();
-        let description = describe::describe(&service).unwrap();
-        let message =
-            &description.operations["example.docs#WriteItem"]["examples"][1]["error"]["message"];
-        assert_eq!(message["body"]["__type"], code);
-        assert_eq!(message["headers"].get("X-Amzn-Errortype").is_some(), header);
-    }
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
+fn error_examples_use_the_body_and_header_discriminators() {
+    let service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"
     ))
+    .unwrap()
+    .lower_documentation(None)
     .unwrap();
-    let traits = model["shapes"]["example.weather#Weather"]["traits"]
-        .as_object_mut()
-        .unwrap();
-    traits.remove("crucible.protocols#json");
-    traits.insert("aws.protocols#restJson1".into(), serde_json::json!({}));
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_documentation(None, None)
-        .unwrap();
     let description = describe::describe(&service).unwrap();
     let message =
         &description.operations["example.weather#GetCity"]["examples"][1]["error"]["message"];
-    assert!(message["body"].get("__type").is_none());
-    assert_eq!(message["headers"]["X-Amzn-Errortype"], "NotFoundError");
+    assert_eq!(message["body"]["__type"], "NotFoundError");
+    assert_eq!(message["headers"]["X-Crucible-Error"], "NotFoundError");
 }
 
 #[test]
@@ -104,13 +69,13 @@ fn description_round_trips_and_reuses_shared_schemas() {
         "../../crucible-smithy/tests/fixtures/service-docs.json"
     ))
     .unwrap()
-    .lower_documentation(None, None)
+    .lower_documentation(None)
     .unwrap();
     let projected = project(&service, Audience::External).unwrap();
     let description = describe::describe(&projected).unwrap();
     assert_eq!(
         description.operations["example.docs#WriteItem"]["outputSchema"]["properties"]["total"]["default"],
-        "1234567890123456789"
+        1234567890123456789_i64
     );
     let parsed: describe::Description = serde_json::from_str(&description.to_json()).unwrap();
     assert_eq!(parsed.to_json(), description.to_json());
@@ -124,6 +89,6 @@ fn description_round_trips_and_reuses_shared_schemas() {
     assert_eq!(
         description.operations["example.docs#WriteItem"]["examples"][1]["error"]["message"]["body"]
             ["__type"],
-        "example.docs#Unavailable"
+        "Unavailable"
     );
 }

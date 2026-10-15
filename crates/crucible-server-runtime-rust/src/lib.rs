@@ -36,9 +36,6 @@ mod auth_refusal;
 mod caller_binding;
 #[cfg(any(feature = "page-tokens", feature = "idempotency"))]
 mod canonical_json;
-#[cfg(any(test, feature = "test-support"))]
-#[doc(hidden)]
-pub mod conformance;
 pub mod context;
 mod deadline_exceeded;
 mod decoded_job;
@@ -81,7 +78,6 @@ pub mod versioning;
 // What the server shares with clients lives in crucible-wire, re-exported
 // at the paths generated code names.
 pub use crucible_wire::blob::Blob;
-pub(crate) use crucible_wire::cbor;
 pub use crucible_wire::event_stream;
 pub use crucible_wire::event_stream::{EventReceiver, EventStream, EventStreamError};
 pub use crucible_wire::{blob, number, operation, time, validate};
@@ -108,10 +104,7 @@ pub use operation_middleware::OperationAwareMiddleware;
 pub use operations::{MissingOperations, Operations};
 pub use outcome::Outcome;
 pub use prepare::{Prepare, ServedOperation};
-pub use protocol::{
-    AwsJsonProtocol, InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch, RestJsonProtocol,
-    RpcV2CborProtocol, RpcV2JsonProtocol,
-};
+pub use protocol::{InvokeProtocol, JsonProtocol, Protocol, ProtocolMatch};
 pub use resolution::Resolution;
 pub use scoped::{InterceptorExt, OperationMiddlewareExt, ProtocolExt, Scoped};
 pub use service::{BuildError, Builder, Crucible, Endpoint, RequestIdSource};
@@ -125,8 +118,6 @@ pub use async_trait::async_trait;
 /// needs no direct dependency on serde, chrono or regex.
 #[doc(hidden)]
 pub mod __generated {
-    #[cfg(any(test, feature = "test-support"))]
-    pub use crate::conformance;
     #[cfg(feature = "explorer")]
     pub use crate::explorer::description::description as explorer_description;
     pub use crate::generated_operations_builder::OperationsBuilder;
@@ -142,8 +133,7 @@ pub mod __generated {
     pub use crucible_wire::number::{BigDecimal, BigInteger};
     pub use crucible_wire::stream::ByteStream;
     pub use crucible_wire::{
-        cbor, codec, error, event_stream, field, number, open, operation, permissions, time,
-        validate,
+        codec, error, event_stream, field, number, open, operation, permissions, time, validate,
     };
 
     pub use chrono;
@@ -159,29 +149,6 @@ pub mod __generated {
 macro_rules! include_service {
     () => {
         include!(concat!(env!("OUT_DIR"), "/crucible_service.rs"));
-    };
-}
-
-/// Includes the `smithy.test` conformance tests generated for this crate's model
-/// by `crucible_build::model(..).server().conformance()`. Declare it inside a
-/// `#[cfg(test)]` module of the crate that called `include_service!()`, with
-/// `crucible-server-runtime-rust/test-support` enabled for tests. The optional
-/// argument configures the service the tests build, as the production builder
-/// does (a `fn(Builder) -> Builder`, closures that capture nothing included); by default only
-/// the framework defaults apply.
-#[cfg(feature = "test-support")]
-#[macro_export]
-macro_rules! include_conformance {
-    () => {
-        $crate::include_conformance!(|builder: $crate::Builder| builder);
-    };
-    ($configure:expr) => {
-        fn __conformance_configure(builder: $crate::Builder) -> $crate::Builder {
-            // A function pointer, so a closure's parameter type is known.
-            let configure: fn($crate::Builder) -> $crate::Builder = $configure;
-            configure(builder)
-        }
-        include!(concat!(env!("OUT_DIR"), "/crucible_conformance.rs"));
     };
 }
 

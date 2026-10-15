@@ -35,16 +35,10 @@ fn raw_error_payloads_require_an_explicit_target_capability() {
     assert_eq!(payload.member, "details");
     assert_eq!(payload.kind, PayloadKind::String);
     assert_eq!(payload.media_type, "text/plain");
-    assert!(
-        service
-            .protocol_tests
-            .iter()
-            .any(|case| case.id == "CrucibleStringErrorPayload" && case.error)
-    );
 }
+
 fn capabilities() -> Capabilities {
     Capabilities::new([
-        Feature::AwsRestJson1,
         Feature::NonBlobPayload,
         Feature::MediaTypeHeaders,
         Feature::HttpChecksum,

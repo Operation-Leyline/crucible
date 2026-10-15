@@ -657,30 +657,64 @@ fn refuses_greedy_labels_and_structured_headers() {
 }
 
 #[test]
-fn requires_explicit_capabilities_for_other_protocols_and_auth() {
+fn requires_explicit_capabilities_for_other_auth() {
     let messages = refused(|model| {
-        let traits = &mut shape(model, "Weather")["traits"];
-        traits["smithy.api#httpBasicAuth"] = json!({});
-        traits["aws.protocols#restJson1"] = json!({});
-        traits
-            .as_object_mut()
-            .unwrap()
-            .remove("crucible.protocols#json");
+        shape(model, "Weather")["traits"]["smithy.api#httpBasicAuth"] = json!({});
     });
-    assert_eq!(messages.len(), 2, "{messages:?}");
-    assert!(messages[0].contains("aws-rest-json-1"), "{messages:?}");
-    assert!(messages[1].contains("httpBasicAuth"), "{messages:?}");
+    assert_eq!(messages.len(), 1, "{messages:?}");
+    assert!(messages[0].contains("httpBasicAuth"), "{messages:?}");
 }
 
 #[test]
-fn tolerates_another_protocol_beside_its_own() {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    model["shapes"]["example.weather#Weather"]["traits"]["aws.protocols#restJson1"] = json!({});
+fn refuses_every_protocol_but_crucible_json() {
+    for protocol in [
+        "aws.protocols#restJson1",
+        "aws.protocols#awsJson1_0",
+        "aws.protocols#awsJson1_1",
+        "aws.protocols#restXml",
+        "aws.protocols#awsQuery",
+        "aws.protocols#ec2Query",
+        "smithy.protocols#rpcv2Cbor",
+        "smithy.protocols#rpcv2Json",
+    ] {
+        let messages = refused(|model| {
+            shape(model, "Weather")["traits"][protocol] = json!({});
+        });
+        assert_eq!(messages.len(), 1, "{protocol}: {messages:?}");
+        assert!(
+            messages[0].contains(&format!("protocol {protocol} is not supported")),
+            "{messages:?}"
+        );
+    }
+}
+
+#[test]
+fn refuses_xml_and_query_traits() {
+    let messages = refused(|model| {
+        shape(model, "Weather")["traits"]["smithy.api#xmlNamespace"] = json!({"uri": "urn:x"});
+    });
+    assert_eq!(messages.len(), 1, "{messages:?}");
     assert!(
-        Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .is_ok()
+        messages[0].contains("xmlNamespace is not supported"),
+        "{messages:?}"
+    );
+}
+
+#[test]
+fn refuses_xml_traits_on_enum_members() {
+    let messages = refused(|model| {
+        model["shapes"]["example.weather#Unit"] = json!({
+            "type": "enum",
+            "members": {"C": {"target": "smithy.api#Unit", "traits": {"smithy.api#xmlName": "c"}}}
+        });
+        model["shapes"]["example.weather#GetCityInput"]["members"]["unit"] =
+            json!({"target": "example.weather#Unit"});
+    });
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("xmlName is not supported")),
+        "{messages:?}"
     );
 }
 

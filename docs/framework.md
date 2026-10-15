@@ -416,9 +416,7 @@ carries the configured origin and exposed headers, including modeled errors, val
 transport rejections, recovered panics, and outer Tower rejection responses.
 Direct JSON invocations do not run HTTP CORS behavior.
 
-Support currently requires an HTTP-binding protocol (Crucible JSON, REST JSON,
-or REST XML; the selected generator must also support that protocol). Named
-`origins` require deployment selection and are diagnosed as unsupported.
+Named `origins` require deployment selection and are diagnosed as unsupported.
 Browser-managed Basic or Digest credentials require an explicit origin; those
 policies also return `Access-Control-Allow-Credentials: true`.
 
@@ -645,8 +643,7 @@ For every operation with a token, before the operation runs:
 `IdempotencyRefusal::default_error` answers the cases a factory leaves alone.
 The error must be declared by the operation or the service. Without a factory
 the conflicts are `FrameworkError::Conflict`, a framework error like
-`Unauthenticated`: HTTP 409 named `ConflictException`
-(`smithy.framework#ConflictException` in RPC v2, a tool error in MCP),
+`Unauthenticated`: HTTP 409 named `ConflictException` (a tool error in MCP),
 outside any model, so a service need not declare one to follow the standard.
 
 **Point of no return.** An operation calls `idempotency::commit()` right
@@ -1072,8 +1069,7 @@ model designates the service's own not-found error, below), encoded
 as the modelled `crucible.errors#NotFoundException` (404, `Cache-Control:
 no-store`, members `message`, the resource's fixed `ResourceInfo::not_found`
 such as `No such inbox.`, and `resourceType`, the authorization name), named
-in each protocol as a modelled error is (`crucible.errors#NotFoundException`
-in RPC v2 and AWS JSON 1.0) and a tool error in MCP. It never names a
+as a modelled error is, and a tool error in MCP. It never names a
 permission or an identifier. A handler reports genuine absence with
 `permissions::not_found(&resource)` (or `ResourceRef::not_found`, which is
 answered the same way, as is a generated reference's `not_found()`; on a
@@ -1238,7 +1234,7 @@ Header/URI protocols can implement synchronous `route`, `route_scoped`, and
 `owns`; default identification uses them. Filter scoped candidates before
 specificity ranking. A malformed URI can return `Route::rejection`, retaining
 operation metadata for admission and audit before decoding is refused.
-Envelope-based RPC protocols implement asynchronous `identify_scoped` to
+Envelope-based protocols implement asynchronous `identify_scoped` to
 apply scopes while identifying. They may parse a bounded envelope there and
 retain it in context attributes for `decode`, avoiding a second parse. A
 protocol declining a request must leave it available to later protocols.
@@ -1248,19 +1244,6 @@ protocol declining a request must leave it available to later protocols.
   use the whole body as bytes or UTF-8 text; structure, union, and document
   payloads are decoded as JSON. Payloads use their target's media type or
   the protocol default. An absent output payload sends no body.
-- `RestJsonProtocol` implements `aws.protocols#restJson1`: HTTP bindings and
-  JSON documents, with errors identified by `X-Amzn-Errortype`.
-- `AwsJsonProtocol::v10()` and `AwsJsonProtocol::v11()` implement AWS JSON
-  1.0 and 1.1: `POST /`, `X-Amz-Target: Service.Operation`, and the version's
-  `application/x-amz-json-*` media type. HTTP binding traits are ignored.
-- `RpcV2JsonProtocol` and `RpcV2CborProtocol` implement Smithy RPC v2:
-  `POST /service/Service/operation/Operation`, with an optional runtime path
-  prefix and `Smithy-Protocol: rpc-v2-json` or `rpc-v2-cbor`. Both reject AWS
-  target headers. Errors carry their full Smithy shape id in `__type`.
-  CBOR preserves native byte strings, tag-1 timestamps, bignums, decimal
-  fractions, and non-finite floating-point values. An absent input or output
-  type uses an empty body (RPC v2 JSON servers also accept `{}` for an absent
-  input); an empty modeled structure still uses a document.
 - `InvokeProtocol` serves direct invocations: an operation called by name
   with its whole input as JSON, answered `{"output": ..}` or
   `{"error": {"__type": .., ..}}`. A payload blob is base64 there, like any
@@ -1300,19 +1283,16 @@ client capability.
 
 ### Event streams
 
-HTTP protocols accept streaming unions as AWS event-stream frames. Inputs stay
+HTTP accepts streaming unions as AWS event-stream frames. Inputs stay
 lazy and obey the operation's body limit. Each event is deserialized and
 validated when the operation reads it. Frame checksums and malformed messages
-are checked by the shared wire reader. REST protocols bind other input members
-to the URI or headers; RPC protocols receive an `initial-request` document first
-and send an `initial-response` document before response events. RPC v2 rejects
-content-length on event-stream requests.
+are checked by the shared wire reader. Other input members bind to the URI or
+headers.
 
 Generated server inputs and outputs use `EventStream<Union>`. Read inputs with
 `open()` and `recv()`; produce outputs with `new`, `try_new`, or `from_events`.
 A modeled error arm becomes an exception frame and ends the response stream.
-Source and encoding failures become a sanitized error frame. CBOR RPC v2 event
-documents use the same native model codecs as buffered calls. Direct invocation
+Source and encoding failures become a sanitized error frame. Direct invocation
 refuses streaming input or output. Lambda HTTP adapters buffer bodies and do
 not provide interactive streaming; use the native HTTP host for streaming calls.
 
@@ -1378,7 +1358,7 @@ error's `unknownOperation` reason. A custom routing error can be selected with
 be a reachable client error with HTTP status 404 and fillable required members
 (`message` and `requestId`). Other 404 errors are never selected implicitly.
 When the path and literal query constraints match an operation but its method
-does not, REST JSON protocols return HTTP 405 `MethodNotAllowed` with an `Allow`
+does not, the JSON protocol returns HTTP 405 `MethodNotAllowed` with an `Allow`
 header listing the supported methods. For example, a starter models
 `POST /hello`: `GET /hello` returns 405 with `Allow: POST`, while `/missing`
 follows the unknown-operation rules. GET operations also accept HEAD.
@@ -1416,11 +1396,9 @@ is absent instead; required-member validation still applies. A structure,
 union or document payload of JSON `null` is the member's explicit null, read
 as the same member would be from a JSON body: Crucible JSON clients send an
 explicitly null payload that way. An optional structure or union is then
-absent; a document is absent, or `Some(Value::Null)` where the protocol keeps
-document nulls (AWS REST JSON). A structure, as the whole body, a payload
+absent; a document is absent. A structure, as the whole body, a payload
 or a member at any depth, is read only from a JSON object: an array of
-positional values is malformed under every JSON protocol, as it is under
-RPC v2 CBOR. Other whitespace
+positional values is malformed. Other whitespace
 bytes are invalid JSON. Raw text and blob payloads retain every byte.
 
 A buffered request body over the limit is refused during reading, as the
@@ -1443,74 +1421,6 @@ An error the generator fills (validation or internal) that has a string
 `requestId` member gets the id of the request it answers, the same one as
 the `x-request-id` header. A translation or `on_rejection` that builds such
 an error itself reads it from `Context::try_current()`.
-
-## Protocol conformance
-
-The Smithy `smithy.test` vectors in a model run against the real pipeline.
-`httpRequestTests`, `httpResponseTests` and `httpMalformedRequestTests` are
-lowered once, in `crucible-smithy`; `testParameters` of a malformed-request
-vector are expanded there (`$name` is replaced in the request and the
-expected response; ids become `Id[name=value]`). Request and response vectors
-without `appliesTo: client`, and every malformed-request vector, are server
-vectors.
-
-Server conformance always uses the full model, including internal operations and
-members, regardless of the selected client audience.
-
-```rust
-// build.rs
-crucible_build::model("weather_model").server()
-    .conformance()
-    .skip_vector("SomeVector", "why the server fails it today")
-    .generate();
-```
-
-```rust
-// lib.rs; Cargo.toml: crucible-server-runtime-rust = { features = ["test-support"] }
-// under [dev-dependencies]
-#[cfg(test)]
-mod conformance {
-    crucible_server_runtime_rust::include_conformance!();
-}
-```
-
-This writes one `#[test]` per vector for the service's protocol. The generated
-file is a vector table and calls into `crucible_server_runtime_rust::conformance`;
-what passes or fails is decided there, once:
-
-- **Request vector**: the request is sent, a stub operation captures the
-  input the pipeline decoded, and it must equal the vector's `params`.
-- **Response vector**: the stub operation returns `params` (as the output, or
-  as the modelled error for an error vector), and the status, headers and
-  body the pipeline serializes are compared with the vector's. JSON bodies
-  compare as documents, other bodies exactly; headers by name without case.
-- **Malformed-request vector**: the request must be refused with the stated
-  status, headers and body (`contents` as a document, or `messageRegex`
-  against the body's `message`), and no operation may run.
-
-`params` are Smithy's, not the model's: blobs are plain text and timestamps
-epoch seconds. A `ParamShape` table generated from the IR translates them to
-the wire form the generated types read, so the comparison is between typed
-values. A response vector is answered through a request the operation accepts:
-the operation's own when it has no labels and no required input, else the first
-request vector of that operation. A service built for the tests applies
-`defaults()`; pass a function to `include_conformance!(|builder| ..)` to add the
-service's own middleware.
-
-Nothing is dropped silently. A vector the generator cannot run (`vendorParams`,
-`authScheme`, a streaming member, no usable request) is a build error naming
-it; a vector the server fails is listed with `skip_vector(id, reason)`, which
-keeps it as an `#[ignore = "reason"]` test so it appears in every run, and a
-skip that names no vector is a build error too. A model with no applicable
-vector, or one using `smithy.protocols#rpcv2Cbor`, fails the build.
-`seed_request(operation, method, uri, headers, body)` names the request for an
-operation whose response vectors have no other (an RPC operation without input,
-for example).
-
-`e2e/rpcv2-json-service` runs Smithy's official RPC v2 JSON protocol tests this
-way (the `rpcv2-json` fixture), and `e2e/weather-service` runs the weather
-model's own, merged from `weather-vectors.json` the way an `apply` statement
-would add them.
 
 ## The service log
 

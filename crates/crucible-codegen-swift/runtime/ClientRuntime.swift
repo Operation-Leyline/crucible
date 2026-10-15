@@ -53,7 +53,6 @@ internal final class ClientRuntime: Sendable {
         let checksum: ChecksumSettings
         let endpoint: ResolvedEndpoint?
     }
-    private var awsProtocol: Bool { ["awsRestJson1", "awsJson1_0", "awsJson1_1"].contains(codec.schema["protocol"]?.text ?? "") }
     func prepare(_ name: String, _ op: JSONValue, input: JSONValue) throws -> Prepared {
         var values = try input.object
         if let token = op["token"]?.text, values[token] == nil || values[token] == .null { values[token] = .string(UUID().uuidString.lowercased()) }
@@ -162,12 +161,6 @@ internal final class ClientRuntime: Sendable {
             }
             // An empty payload sends no body, so its media type does not apply.
             if body?.isEmpty == true { body = nil } else if !modelledContentType { headers["content-type"] = payload.1 }
-        }
-        if let version = ["awsJson1_0": "1.0", "awsJson1_1": "1.1"][codec.schema["protocol"]?.text ?? ""] {
-            if body == nil { body = Data("{}".utf8) }
-            headers["content-type"] = "application/x-amz-json-" + version
-            let service = try codec.schema["service"]!.string
-            headers["x-amz-target"] = String(service.split(separator: "#").last ?? Substring(service)) + "." + name
         }
         // The release this client was generated for (docs/api-versions-clients.md).
         if let apiVersion = codec.schema["apiVersion"]?.text { headers["crucible-version"] = apiVersion }
@@ -278,17 +271,7 @@ internal final class ClientRuntime: Sendable {
     }
     private func failure(_ op: JSONValue, _ response: HTTPResponse) -> any ServiceError {
         var body = (try? JSONValue(data: response.body).object) ?? [:]
-        var name = response.header("x-crucible-error") ?? body["__type"]?.text
-        let aws = awsProtocol
-        if aws {
-            // AWS JSON error codes may carry a namespace and a ':'-separated suffix.
-            if let code = body["code"]?.text { name = code }
-            if let header = response.header("x-amzn-errortype") { name = header }
-            if let raw = name {
-                let code = raw.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? raw
-                name = code.split(separator: "#", omittingEmptySubsequences: false).last.map(String.init) ?? code
-            }
-        }
+        let name = response.header("x-crucible-error") ?? body["__type"]?.text
         let declared = ((try? op["errors"]?.array) ?? []).compactMap(\.text)
         let matches = declared.filter { id in
             guard let shape = try? codec.shape(id) else { return false }
@@ -299,9 +282,8 @@ internal final class ClientRuntime: Sendable {
         let shape = target.flatMap { try? codec.shape($0) }
         let traits = shape?["error"]
         let metadata = ErrorMetadata(name: name ?? shape?["name"]?.text ?? "UnknownError",
-            message: body["message"]?.text ?? (aws ? body["Message"]?.text : nil) ?? "HTTP \(response.status)", status: response.status,
-            requestID: (aws ? response.header("x-amzn-requestid") ?? response.header("x-amz-request-id") : nil)
-                ?? response.header("x-request-id") ?? body["requestId"]?.text, headers: response.headers,
+            message: body["message"]?.text ?? "HTTP \(response.status)", status: response.status,
+            requestID: response.header("x-request-id") ?? body["requestId"]?.text, headers: response.headers,
             retryable: traits?["retryable"]?.flag == true, throttling: traits?["throttling"]?.flag == true)
         if let target, let traits {
             do {

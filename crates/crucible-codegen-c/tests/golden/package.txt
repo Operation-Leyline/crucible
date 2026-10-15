@@ -1857,5 +1857,3 @@ const weather_shape *weather_shape_lookup(weather_string id) {
     if (weather_string_equal(id, weather_shape_38.id)) return &weather_shape_38;
     return NULL;
 }
-/* JSON protocol behavior read by the runtime codec and bindings. */
-const unsigned weather_protocol_flags = 0u;

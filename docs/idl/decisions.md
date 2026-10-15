@@ -51,7 +51,7 @@ trait when a project defines it.
    migration and is removed when the last Smithy model is converted.
 
 3a. **The IR sheds Smithy-shaped fields when the Smithy path is removed.**
-   `protocol_tests`, `xml_*`, `renames`, `requirements` and the raw
+   `renames`, `requirements` and the raw
    `traits` map keyed by Smithy shape ids are reviewed then; custom
    metadata (decision 43) keeps the `traits` map's role under a
    language-native key type. *Replaces:* nothing yet. *Why:* generators
@@ -636,22 +636,16 @@ trait when a project defines it.
     names a binding family and its settings; a service lists one or more
     protocols; a runtime registers an implementation under the same id.**
     The standard package `crucible.protocols` declares `json` (family
-    `http`). The AWS protocols (restJson1, awsJson 1.0/1.1, RPC v2
-    JSON/CBOR, restXml, awsQuery, ec2Query) become declarations in an
-    `aws.protocols` package that the runtimes may or may not implement;
-    the existing capabilities check reports an unsupported protocol at
-    generation time. *Replaces:* `@crucible.protocols#json`,
+    `http`). `json` is the only protocol; a Smithy model declaring
+    any other is refused with "protocol X is not supported". *Replaces:* `@crucible.protocols#json`,
     `aws.protocols#*` and `@protocolDefinition`. The IR keeps
     `ir::Protocol` as the closed list of protocols the generators and
     runtimes implement: every protocol needs wire-format code, so an open
     id would only trade exhaustive matches for string comparisons. A
     language `protocol` declaration names one of them by id, and its
-    family is a property of the implemented protocol
-    (`uses_http_bindings`). Settings stay in `ProtocolSettings`. *Why:* one protocol in real
-    use, and whether to keep the AWS runtimes stops being a language
-    question: dropping one is deleting a declaration and a runtime module.
-    The product call on the AWS runtimes stays deferred to after the
-    hardening pass.
+    family is a property of the implemented protocol. Settings stay in `ProtocolSettings`. *Why:* one protocol in real
+    use. The AWS and Smithy RPC v2 runtimes were deleted rather than
+    kept behind a declaration.
 
 35a. **Binding families are the fixed vocabularies the runtimes implement;
     the language ships `http` and `rpc`.** `http` provides the operation
@@ -671,7 +665,7 @@ trait when a project defines it.
     failure.
 
 35b. **Fault is the core fact about an error; `status` is its `http`
-    binding.** A non-HTTP family maps status (RPC v2 honours it) or
+    binding.** A non-HTTP family maps status or
     ignores it. *Replaces:* nothing; records the HTTP assumption behind
     decision 29.
 
@@ -718,8 +712,7 @@ trait when a project defines it.
 
 35d. **A protocol declaration can narrow its family, never widen it.**
     Settings may restrict which shapes the protocol carries (for example
-    "no `document`" for an XML protocol, "no raw streaming blob" for RPC
-    v2) and the compiler reports a model that uses a restricted shape
+    "no `document`") and the compiler reports a model that uses a restricted shape
     under that protocol. A protocol cannot add bindings its family lacks.
     *Why:* keeps protocol declarations as data while every rule that
     needs code lives in the family.
@@ -1204,7 +1197,7 @@ pass in `reports/`.
     date the model does not record yet), and refuse after the date if the
     service's policy says so (not built yet). A standards rule can bound the number of
     supported versions or the minimum window. Every frozen version's
-    examples and protocol test vectors run against the server through its
+    examples run against the server through its
     transform chain as generated regression tests. *Why:* without sunset
     discipline the transform chain only grows; old-version tests come for
     free from the frozen artifacts.
@@ -1253,8 +1246,7 @@ these are working choices, changed freely as implementation teaches.
 
 62b. **Still Smithy-shaped, to remove when the Smithy front end retires:**
     prelude shape ids (`smithy.api#String`) as member targets, `renames`,
-    `client_optional`, the XML and AWS-query fields, Smithy protocol tests,
-    endpoint rule sets and discovery, and auth scheme ids spelled as Smithy
+    `client_optional`, endpoint rule sets and discovery, and auth scheme ids spelled as Smithy
     trait ids. Each is still produced by the Smithy front end that Leyline
     and Pigeon build with today.
 

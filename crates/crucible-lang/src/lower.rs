@@ -4327,9 +4327,7 @@ impl<'a> Lowerer<'a> {
             traits.insert(smithy("idempotent"), Json::Object(JsonMap::new()));
         }
 
-        let mut protocol_headers = self
-            .protocol
-            .request_headers(&self.service_name, &operation.name.name);
+        let mut protocol_headers = BTreeMap::new();
         if let Some(payload) = &request.payload {
             protocol_headers.insert("Content-Type".into(), payload.media_type.clone());
         } else if !request.body.is_empty() {
@@ -4491,7 +4489,6 @@ impl<'a> Lowerer<'a> {
             response_protocol_headers: self.protocol.response_headers(&response, has_value),
             protocol_headers,
             internal: modifiers.contains("internal"),
-            unwrapped_xml_output: false,
             unsigned_payload: false,
             discovered_endpoint: None,
             checksum: None,
@@ -4834,10 +4831,7 @@ impl<'a> Lowerer<'a> {
             internal: false,
             endpoint_discovery: None,
             recursive_groups: crucible_smithy::ir::recursive_groups(&self.shapes),
-            xml_namespace: None,
-            xml_shapes: BTreeMap::new(),
             protocol: self.protocol,
-            protocols: vec![self.protocol],
             errors: service_errors,
             protocol_settings: ProtocolSettings::default(),
             requirements: std::mem::take(&mut self.requirements).into_iter().collect(),
@@ -4850,7 +4844,6 @@ impl<'a> Lowerer<'a> {
             scopes: Vec::new(),
             auth_schemes,
             endpoint_rules: None,
-            protocol_tests: Vec::new(),
             operations: lowered,
             resources: BTreeMap::new(),
             resource_roots: Vec::new(),

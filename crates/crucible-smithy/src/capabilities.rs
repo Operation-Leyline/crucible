@@ -30,10 +30,6 @@ features! {
     Waiters => "waiters", BasicAuth => "basic-auth", ApiKeyAuth => "api-key-auth",
     OptionalAuth => "optional-auth",
     DigestAuth => "digest-auth", SigV4 => "sigv4", SigV4a => "sigv4a",
-    AwsRestJson1 => "aws-rest-json-1", AwsJson10 => "aws-json-1-0",
-    AwsJson11 => "aws-json-1-1", AwsRestXml => "aws-rest-xml",
-    AwsQuery => "aws-query", Ec2Query => "ec2-query",
-    SmithyRpcV2Cbor => "smithy-rpc-v2-cbor", SmithyRpcV2Json => "smithy-rpc-v2-json",
 }
 
 impl fmt::Display for Feature {

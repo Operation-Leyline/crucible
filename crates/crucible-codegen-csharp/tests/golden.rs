@@ -126,22 +126,6 @@ fn streaming_blobs_are_byte_streams() {
 }
 
 #[test]
-fn streams_outside_the_http_payload_are_diagnosed() {
-    let model = serde_json::json!({"smithy":"2.0","shapes":{
-        "test#Service":{"type":"service","version":"1","traits":{"aws.protocols#awsJson1_0":{}},"operations":[{"target":"test#Put"}]},
-        "test#Put":{"type":"operation","input":{"target":"test#Input"}},
-        "test#Stream":{"type":"blob","traits":{"smithy.api#streaming":{}}},
-        "test#Input":{"type":"structure","members":{"body":{"target":"test#Stream","traits":{"smithy.api#required":{}}}}}
-    }});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_csharp::capabilities())
-        .unwrap();
-    let error = emit(&service, &options()).err().unwrap();
-    assert!(format!("{error:?}").contains("not the streaming payload"));
-}
-
-#[test]
 fn service_exception_cannot_shadow_runtime_failures() {
     let mut service = Model::from_json(include_str!(
         "../../crucible-smithy/tests/fixtures/weather.json"

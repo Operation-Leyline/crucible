@@ -54,9 +54,6 @@ final class ClientRuntime {
     _closed = true;
   }
 
-  String get _protocol => codec.schema['protocol'] as String? ?? 'crucibleJson';
-  bool get _awsJson => const ['awsRestJson1', 'awsJson1_0', 'awsJson1_1'].contains(_protocol);
-
   Map<String, Object?> _operation(String name) =>
       wireObject(wireObject(codec.schema['operations'])[name]);
 
@@ -404,11 +401,6 @@ final class ClientRuntime {
         }
       }
     }
-    if (_protocol == 'awsJson1_0' || _protocol == 'awsJson1_1') {
-      body ??= Uint8List.fromList(utf8.encode('{}'));
-      headers['content-type'] = 'application/x-amz-json-${_protocol == 'awsJson1_0' ? '1.0' : '1.1'}';
-      headers['x-amz-target'] = '${wireString(codec.schema['service']).split('#').last}.$name';
-    }
     // The release this client was generated for (docs/api-versions-clients.md).
     final apiVersion = codec.schema['apiVersion'];
     if (apiVersion is String) headers['crucible-version'] = apiVersion;
@@ -523,13 +515,8 @@ final class ClientRuntime {
       body = wireObject(exactJsonDecode(utf8.decode(response.body)));
     } on FormatException {/* HTTP metadata remains authoritative. */}
     String? text(Object? value) => value is String ? value : null;
-    var name = response.headers['x-crucible-error'] ?? text(body['__type']);
-    String? requestId = response.headers['x-request-id'] ?? text(body['requestId']);
-    if (_awsJson) {
-      // AWS JSON error codes may carry a namespace and a trailing URI.
-      name = (response.headers['x-amzn-errortype'] ?? text(body['code']) ?? text(body['__type']))?.split(':').first.split('#').last;
-      requestId = response.headers['x-amzn-requestid'] ?? response.headers['x-amz-request-id'] ?? requestId;
-    }
+    final name = response.headers['x-crucible-error'] ?? text(body['__type']);
+    final requestId = response.headers['x-request-id'] ?? text(body['requestId']);
     final matches = wireArray(op['errors']).cast<String>().where((id) {
       final shape = codec.shape(id);
       if (name != null) return ((shape['error'] as Map)['wireCode'] ?? shape['name']) == name;
@@ -539,7 +526,7 @@ final class ClientRuntime {
     final target = matches.length == 1 ? matches.single : null;
     final shape = target == null ? null : codec.shape(target);
     final traits = shape == null ? null : wireObject(shape['error']);
-    final message = text(body['message']) ?? (_awsJson ? text(body['Message']) : null);
+    final message = text(body['message']);
     final metadata = ErrorMetadata(
         name: name ?? shape?['name'] as String? ?? 'UnknownError',
         message: message ?? 'HTTP ${response.status}',

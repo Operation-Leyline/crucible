@@ -12,7 +12,7 @@ module CrucibleGenerated
       def member(name) = child(shape.fetch('members').fetch(name))
       def read(name, object, optional: false)
         description = shape.fetch('members').fetch(name)
-        present = object.key?(name) && !(object[name].nil? && @codec.omit_null?(description))
+        present = object.key?(name)
         value = present ? object[name] : description['default']
         unless present || !value.nil?
           return UNSET if optional
@@ -25,7 +25,7 @@ module CrucibleGenerated
         if optional
           return if value.equal?(UNSET)
           if value.nil?
-            object[name] = nil unless @codec.omit_null?(shape.fetch('members').fetch(name))
+            object[name] = nil
             return
           end
         end

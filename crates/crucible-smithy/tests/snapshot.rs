@@ -87,42 +87,31 @@ fn a_newer_format_is_refused() {
 /// `CRUCIBLE_BLESS=1` writes only missing ones, for a newly listed fixture.
 #[test]
 fn committed_format_1_snapshots_still_read() {
-    // (fixture, keeps its protocol tests): two cover those; the rest drop
-    // them to keep the files small.
-    const CANARIES: &[(&str, bool)] = &[
-        ("client-docs", false),
-        ("cors", false),
-        ("discovery-recursion", false),
-        ("doc-notes", false),
-        ("dynamic-bindings", false),
-        ("error-payloads", false),
-        ("examples", false),
-        ("extended-types", false),
-        ("ignored-timestamp-bindings", false),
-        ("internal-default-reference", false),
-        ("internal-endpoint-reference", false),
-        ("internal-protocol-tests", true),
-        ("internal-resource-lifecycle", false),
-        ("internal-waiter-reference", false),
-        ("protocol-malformed-requests", true),
-        ("service-docs-examples-refused", false),
-        ("wire-extensions", false),
-        ("xml-additions-ec2-query", false),
+    const CANARIES: &[&str] = &[
+        "client-docs",
+        "cors",
+        "discovery-recursion",
+        "doc-notes",
+        "dynamic-bindings",
+        "error-payloads",
+        "examples",
+        "extended-types",
+        "internal-default-reference",
+        "internal-endpoint-reference",
+        "internal-resource-lifecycle",
+        "internal-waiter-reference",
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     let dir = root.join("snapshots-format-1");
     let all = Capabilities::new(Feature::ALL.iter().copied());
-    for (name, keeps_tests) in CANARIES {
+    for name in CANARIES {
         let path = dir.join(format!("{name}.json"));
         if std::env::var_os("CRUCIBLE_BLESS").is_some() && !path.exists() {
             let source = std::fs::read_to_string(root.join(format!("{name}.json"))).unwrap();
-            let mut service = Model::from_json(&source)
+            let service = Model::from_json(&source)
                 .unwrap()
                 .lower_with_capabilities(None, &all)
                 .unwrap();
-            if !keeps_tests {
-                service.protocol_tests.clear();
-            }
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(&path, snapshot::write(&service, "fixture")).unwrap();
         }
@@ -191,4 +180,16 @@ fn a_package_contract_has_no_raw_traits() {
     }
     let read = snapshot::read(&contract).unwrap();
     assert!(read.traits.is_empty());
+}
+
+/// A format 1 release frozen with a protocol Crucible no longer implements
+/// cannot be read, and says why.
+#[test]
+fn a_format_1_snapshot_of_a_removed_protocol_is_refused() {
+    let text = r#"{"format":1,"compiler":"old","service":{"protocol":"awsRestJson1"}}"#;
+    let error = snapshot::read(text).unwrap_err();
+    assert!(
+        error.contains("awsRestJson1") && error.contains("no longer supports"),
+        "{error}"
+    );
 }

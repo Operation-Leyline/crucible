@@ -112,8 +112,7 @@ viewer shows status, headers, body and the modeled error name when identifiable.
 Paginated operations offer **Next page** when a successful response contains a
 nonempty output token.
 
-Crucible JSON, AWS REST JSON, AWS JSON 1.0/1.1 and Smithy RPC v2 JSON support
-buffered calls. CBOR, XML-family and streaming operations retain documentation
+Buffered calls are supported. Streaming operations retain documentation
 and curl guidance, without a browser send button. Browser limitations such as
 GET bodies, dot-only path labels and unsafe JavaScript integer precision require
 curl or a native client. Explorer does not perform SigV4 signing or HTTP

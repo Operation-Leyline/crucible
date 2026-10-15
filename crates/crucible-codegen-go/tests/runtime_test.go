@@ -232,19 +232,12 @@ func TestUnquotedHTTPDateHeaderLists(t *testing.T) {
 }
 func TestNonFiniteFloatHeaders(t *testing.T) {
 	schema := &schemaDescription{Shapes: map[string]shapeDescription{"example#Ratio": {Kind: "float"}}}
-	schema.ProtocolSettings.NonFiniteFloatStrings = true
 	member := memberDescription{Target: "example#Ratio"}
-	for _, text := range []string{"NaN", "Infinity", "-Infinity"} {
-		if value, err := headerValue(schema, member, text); err != nil || value != text {
-			t.Fatalf("%q => %#v, %v", text, value, err)
-		}
-	}
 	if value, err := headerValue(schema, member, "1.5"); err != nil || value != json.Number("1.5") {
 		t.Fatalf("finite => %#v, %v", value, err)
 	}
-	schema.ProtocolSettings.NonFiniteFloatStrings = false
 	if _, err := headerValue(schema, member, "NaN"); err == nil {
-		t.Fatal("NaN accepted by a protocol without non-finite floats")
+		t.Fatal("NaN accepted as a float header")
 	}
 }
 func TestMalformedErrorMetadataAndRetry(t *testing.T) {

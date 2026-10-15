@@ -100,37 +100,18 @@ pub(crate) fn emit(service: &Service) -> String {
                     })
                     .collect();
                 let json_names = if names.is_empty() {
-                    if service.protocol_settings.omit_null_structure_members
-                        || service.protocol_settings.ignore_unknown_union_type
-                    {
-                        ", undefined".to_owned()
-                    } else {
-                        String::new()
-                    }
+                    String::new()
                 } else {
                     format!(", {{ {} }}", names.join(", "))
                 };
                 if matches!(shape, Shape::Union(_)) {
-                    format!(
-                        "union(() => ({{ {} }}){json_names}{})",
-                        members.join(", "),
-                        if service.protocol_settings.ignore_unknown_union_type {
-                            ", true"
-                        } else {
-                            ""
-                        }
-                    )
+                    format!("union(() => ({{ {} }}){json_names})", members.join(", "))
                 } else {
                     format!(
-                        "structure(() => ({{ {} }}), {{ {} }}, [{}]{json_names}{})",
+                        "structure(() => ({{ {} }}), {{ {} }}, [{}]{json_names})",
                         members.join(", "),
                         defaults.join(", "),
-                        required.join(", "),
-                        if service.protocol_settings.omit_null_structure_members {
-                            ", true"
-                        } else {
-                            ""
-                        }
+                        required.join(", ")
                     )
                 }
             }
@@ -278,13 +259,7 @@ pub(crate) fn body_schema(
             SimpleKind::Short => "integer(16)".to_owned(),
             SimpleKind::Integer => "integer(32)".to_owned(),
             SimpleKind::Long => "integer(64)".to_owned(),
-            SimpleKind::Float | SimpleKind::Double => {
-                if service.protocol_settings.non_finite_float_strings {
-                    "{ kind: \"number\", nonFinite: true }".to_owned()
-                } else {
-                    "number".to_owned()
-                }
-            }
+            SimpleKind::Float | SimpleKind::Double => "number".to_owned(),
         }),
         Shape::IntEnum(_) => Some("integer(32)".to_owned()),
         Shape::Enum(_) => Some("string".to_owned()),
@@ -316,13 +291,7 @@ fn binding_schema(
             SimpleKind::Short => Some("integer(16)".to_owned()),
             SimpleKind::Integer => Some("integer(32)".to_owned()),
             SimpleKind::Long => Some("integer(64)".to_owned()),
-            SimpleKind::Float | SimpleKind::Double => {
-                Some(if service.protocol_settings.non_finite_float_strings {
-                    "{ kind: \"number\", nonFinite: true }".to_owned()
-                } else {
-                    "number".to_owned()
-                })
-            }
+            SimpleKind::Float | SimpleKind::Double => Some("number".to_owned()),
         },
         Shape::IntEnum(_) => Some("integer(32)".to_owned()),
         Shape::List(list) => Some(format!(
@@ -385,21 +354,6 @@ fn operation_spec(service: &Service, converting: &BTreeSet<ShapeId>, op: &Operat
     // The release this client sends in `Crucible-Version`.
     if let Some(version) = &service.api_version {
         fields.push(format!("apiVersion: {}", literal(version)));
-    }
-    if service.protocol != crucible_smithy::Protocol::CrucibleJson {
-        fields.push(format!(
-            "protocol: {}",
-            serde_json::to_string(&service.protocol).unwrap()
-        ));
-        if matches!(
-            service.protocol,
-            crucible_smithy::Protocol::AwsJson10 | crucible_smithy::Protocol::AwsJson11
-        ) {
-            fields.push(format!(
-                "target: {}",
-                literal(&format!("{}.{}", service.id.name(), op.id.name()))
-            ));
-        }
     }
     if !op.request.header_encodings.is_empty() {
         fields.push(format!(
@@ -727,9 +681,8 @@ fn event_stream(service: &Service, stream: &crucible_smithy::ir::EventStreamBind
         })
         .collect();
     format!(
-        "{{ member: {}, initial: {}, events: {{ {} }} }}",
+        "{{ member: {}, events: {{ {} }} }}",
         literal(&stream.member),
-        stream.initial_message,
         events.join(", ")
     )
 }

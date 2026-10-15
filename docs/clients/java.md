@@ -44,15 +44,9 @@ query maps, prefix headers, and response-code members use the modeled bindings.
 Whole-body payloads support bytes, strings, and JSON structures/unions/documents,
 including modeled errors. Media-type string headers are base64 encoded on the wire.
 
-## AWS JSON protocols and checksums
+## Protocol and checksums
 
-The generator accepts `aws.protocols#restJson1`, `aws.protocols#awsJson1_0`, and
-`aws.protocols#awsJson1_1`. Use `--protocol aws.protocols#restJson1` to choose
-among multiple protocol traits declared by one service. RPC protocols send the
-modeled operation through `X-Amz-Target` and serialize an empty input as `{}`.
-REST JSON applies the lowered HTTP bindings and timestamp formats. AWS JSON
-omits null ordinary structure members, retains explicit document nulls, and
-supports the protocol's string representations of nonfinite floating-point values.
+The Crucible JSON protocol applies the lowered HTTP bindings and timestamp formats.
 
 Buffered payloads support `httpChecksumRequired` and `aws.protocols#httpChecksum`;
 streaming payloads follow the rules under Streaming blobs.
@@ -71,44 +65,6 @@ automatic opt-in while retaining required request checksums and explicit input
 choices. The `checksumValidated` callback receives the operation name and the
 single algorithm actually verified. It is invoked only after successful validation;
 absence of a callback means no checksum was verified for that response.
-
-## AWS XML protocols
-
-The generator also accepts `aws.protocols#restXml`, `aws.protocols#awsQuery`, and
-`aws.protocols#ec2Query`, again chosen with `--protocol` when a service declares
-several. The runtime uses only the JDK's StAX parser (`javax.xml.stream`) with DTD
-support and external entities disabled; it adds no dependency.
-Element and query names, flattening, attributes, and namespaces come from the
-lowered IR (`@xmlName`, `@xmlFlattened`, `@xmlAttribute`, `@xmlNamespace`,
-`aws.protocols#ec2QueryName`). restXml applies the HTTP bindings and writes the
-remaining members under the input's root element, in the input's namespace or
-else the service's; a structure `@httpPayload` is named by the member's
-`@xmlName`, else the target's name. Lists wrap `<member>` (or the list member's
-`@xmlName`) elements, maps wrap `<entry><key>...</key><value>...</value></entry>`,
-and flattened collections repeat the member's own element. awsQuery and ec2Query
-POST `application/x-www-form-urlencoded` forms that start with `Action` and the
-service `Version`: awsQuery lists are `Name.member.N` (`Name.N` when flattened, a
-bare `Name=` when empty) and maps `Name.entry.N.key`/`.value`; ec2Query always
-flattens, leaves empty lists out, and names members by `ec2QueryName` or the
-capitalized XML name. Timestamps default to date-time; non-finite floats are
-`NaN`, `Infinity`, and `-Infinity`; blobs are base64.
-
-Responses are read by local element name, so namespace prefixes do not matter.
-awsQuery reads the `<OperationResult>` element and ignores `<ResponseMetadata>`;
-ec2Query reads the root element. Errors are found in `<ErrorResponse><Error>`,
-restXml's unwrapped `<Error>` (`noErrorWrapping`, as S3 sends), or ec2Query's
-`<Response><Errors><Error>`: `Code` selects the modeled error (an
-`aws.protocols#awsQueryError` code under awsQuery), `Message` becomes the
-error message, and `RequestId`/`RequestID` is the request ID unless an
-`x-amzn-requestid` or `x-amz-request-id` header supplies one. A success
-response's request ID is not exposed. The parser accepts no document type
-declaration, preventing DTD-defined entity expansion. Predefined references
-such as `&amp;` remain part of normal XML parsing. Nesting is limited to 256
-elements, and malformed XML fails the call.
-A restXml body with text XML 1.0 cannot carry (most control characters) is
-rejected before sending. Sparse collections are refused for these protocols at
-generation time, because XML has no null element; document shapes and raw restXml error payloads are refused as
-well, and `awsQueryCompatible` is not supported.
 
 ## Authentication and credentials
 
@@ -400,16 +356,9 @@ Run `python tools/test-java.py` with Maven, a JDK, and Rust available. Set
 `MAVEN` to an executable path if necessary. The harness builds the jar and
 tests it through a separate consumer, shared retry/header cases, the
 weather service over HTTP, and generated feature packages (payloads, streaming,
-authentication, waiters, endpoints, checksums, and the AWS JSON protocols). The
-XML-family fixtures (`protocol-rest-xml.json`, `protocol-aws-query.json`,
-`protocol-ec2-query.json`, assembled from pinned official Smithy sources) run
-through `tests/ProtocolAdapter.java` and
-`tools/protocol_conformance.py`, then `XmlProtocolTest` and `QueryProtocolTest`
-exercise the generated clients over loopback HTTP, including hostile XML. Generate and package the current full Leyline
+authentication, waiters, endpoints, and checksums). Generate and package the current full Leyline
 projection separately, recording its model fingerprint and operation coverage.
-The [XML qualification scope](../xml-qualification.md) records supported cases,
-explicit compression/S3 addressing exclusions, and the separate handwritten
-regression fixtures. Published Maven artifacts and authenticated deployed Leyline traffic are
+Published Maven artifacts and authenticated deployed Leyline traffic are
 separate qualification steps.
 
 ## Migration

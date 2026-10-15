@@ -25,16 +25,14 @@
               "pageSize": 2
             },
             "headers": {
-              "Accept": "application/json",
-              "Content-Type": "application/json",
-              "Smithy-Protocol": "rpc-v2-json"
+              "Content-Type": "application/json"
             },
             "labels": {},
             "method": "POST",
             "payload": null,
             "query": [],
             "responseCode": null,
-            "uri": "/service/Catalog/operation/ListItems"
+            "uri": "/ListItems"
           },
           "output": {
             "body": {
@@ -46,8 +44,7 @@
               "nextToken": "page-2"
             },
             "headers": {
-              "Content-Type": "application/json",
-              "Smithy-Protocol": "rpc-v2-json"
+              "Content-Type": "application/json"
             },
             "labels": {},
             "payload": null,
@@ -164,7 +161,6 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "__type": {},
                   "text": {
                     "deprecated": true,
                     "description": "Item text.",
@@ -207,7 +203,6 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "__type": {},
                   "amount": {
                     "$ref": "#/$defs/smithy.api.BigInteger"
                   }
@@ -272,9 +267,7 @@
             }
           },
           "smithy.api.BigInteger": {
-            "pattern": "^-?[0-9]+$",
-            "type": "string",
-            "x-smithy-type": "bigInteger"
+            "type": "integer"
           },
           "smithy.api.String": {
             "type": "string"
@@ -313,11 +306,9 @@
         "outputToken": "nextToken",
         "pageSize": "pageSize"
       },
-      "protocol": "rpcv2Json",
+      "protocol": "crucibleJson",
       "protocolHeaders": {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Smithy-Protocol": "rpc-v2-json"
+        "Content-Type": "application/json"
       },
       "readonly": true,
       "request": {
@@ -356,12 +347,11 @@
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
-        "Content-Type": "application/json",
-        "Smithy-Protocol": "rpc-v2-json"
+        "Content-Type": "application/json"
       },
       "scopes": [],
       "status": 200,
-      "uri": "/service/Catalog/operation/ListItems"
+      "uri": "/ListItems"
     },
     "example.docs#WriteItem": {
       "auth": [],
@@ -385,29 +375,26 @@
           "input": {
             "body": {
               "item": {
-                "amount": "1234567890123456789"
+                "amount": 1234567890123456789
               }
             },
             "headers": {
-              "Accept": "application/json",
-              "Content-Type": "application/json",
-              "Smithy-Protocol": "rpc-v2-json"
+              "Content-Type": "application/json"
             },
             "labels": {},
             "method": "POST",
             "payload": null,
             "query": [],
             "responseCode": null,
-            "uri": "/service/Catalog/operation/WriteItem"
+            "uri": "/WriteItem"
           },
           "output": {
             "body": {
-              "at": 1767323045,
+              "at": "2026-01-02T03:04:05Z",
               "state": "READY"
             },
             "headers": {
-              "Content-Type": "application/json",
-              "Smithy-Protocol": "rpc-v2-json"
+              "Content-Type": "application/json"
             },
             "labels": {},
             "payload": null,
@@ -426,12 +413,12 @@
           "error": {
             "message": {
               "body": {
-                "__type": "example.docs#Unavailable",
+                "__type": "Unavailable",
                 "message": "Try later"
               },
               "headers": {
                 "Content-Type": "application/json",
-                "Smithy-Protocol": "rpc-v2-json"
+                "X-Crucible-Error": "Unavailable"
               },
               "labels": {},
               "payload": null,
@@ -440,7 +427,7 @@
             },
             "shape": "example.docs#Unavailable",
             "status": 503,
-            "wireCode": "example.docs#Unavailable"
+            "wireCode": "Unavailable"
           },
           "input": {
             "body": {
@@ -449,16 +436,14 @@
               }
             },
             "headers": {
-              "Accept": "application/json",
-              "Content-Type": "application/json",
-              "Smithy-Protocol": "rpc-v2-json"
+              "Content-Type": "application/json"
             },
             "labels": {},
             "method": "POST",
             "payload": null,
             "query": [],
             "responseCode": null,
-            "uri": "/service/Catalog/operation/WriteItem"
+            "uri": "/WriteItem"
           },
           "output": null,
           "title": "Service unavailable"
@@ -480,7 +465,6 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "__type": {},
                   "text": {
                     "deprecated": true,
                     "description": "Item text.",
@@ -523,7 +507,6 @@
               {
                 "additionalProperties": false,
                 "properties": {
-                  "__type": {},
                   "amount": {
                     "$ref": "#/$defs/smithy.api.BigInteger"
                   }
@@ -584,9 +567,7 @@
             }
           },
           "smithy.api.BigInteger": {
-            "pattern": "^-?[0-9]+$",
-            "type": "string",
-            "x-smithy-type": "bigInteger"
+            "type": "integer"
           },
           "smithy.api.String": {
             "type": "string"
@@ -646,8 +627,8 @@
               "at": {
                 "anyOf": [
                   {
-                    "type": "number",
-                    "x-smithy-timestamp-format": "epoch-seconds"
+                    "format": "date-time",
+                    "type": "string"
                   },
                   {
                     "type": "null"
@@ -666,7 +647,7 @@
               },
               "total": {
                 "$ref": "#/$defs/smithy.api.BigInteger",
-                "default": "1234567890123456789",
+                "default": 1234567890123456789,
                 "x-smithy-default": 1234567890123456789,
                 "x-smithy-traits": {
                   "smithy.api#default": 1234567890123456789
@@ -676,21 +657,19 @@
             "type": "object"
           },
           "smithy.api.BigInteger": {
-            "pattern": "^-?[0-9]+$",
-            "type": "string",
-            "x-smithy-type": "bigInteger"
+            "type": "integer"
           },
           "smithy.api.Timestamp": {
-            "type": "number",
-            "x-smithy-timestamp-format": "epoch-seconds"
+            "format": "date-time",
+            "type": "string"
           }
         },
         "properties": {
           "at": {
             "anyOf": [
               {
-                "type": "number",
-                "x-smithy-timestamp-format": "epoch-seconds"
+                "format": "date-time",
+                "type": "string"
               },
               {
                 "type": "null"
@@ -709,7 +688,7 @@
           },
           "total": {
             "$ref": "#/$defs/smithy.api.BigInteger",
-            "default": "1234567890123456789",
+            "default": 1234567890123456789,
             "x-smithy-default": 1234567890123456789,
             "x-smithy-traits": {
               "smithy.api#default": 1234567890123456789
@@ -719,11 +698,9 @@
         "type": "object"
       },
       "pagination": null,
-      "protocol": "rpcv2Json",
+      "protocol": "crucibleJson",
       "protocolHeaders": {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Smithy-Protocol": "rpc-v2-json"
+        "Content-Type": "application/json"
       },
       "readonly": false,
       "request": {
@@ -763,12 +740,11 @@
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {
-        "Content-Type": "application/json",
-        "Smithy-Protocol": "rpc-v2-json"
+        "Content-Type": "application/json"
       },
       "scopes": [],
       "status": 200,
-      "uri": "/service/Catalog/operation/WriteItem"
+      "uri": "/WriteItem"
     }
   },
   "resources": {
@@ -836,23 +812,7 @@
       "since": "2026-01",
       "unstable": true
     },
-    "protocol": "rpcv2Json",
-    "protocolSettings": {
-      "arbitraryPrecisionStrings": true,
-      "eventStreamHttp": [
-        "http/1.1"
-      ],
-      "http": [
-        "http/1.1"
-      ],
-      "ignoreUnknownUnionType": true,
-      "noErrorWrapping": false,
-      "nonFiniteFloatStrings": true,
-      "omitNullStructureMembers": true
-    },
-    "protocols": [
-      "smithy.protocols#rpcv2Json"
-    ],
+    "protocol": "crucibleJson",
     "resourceRoots": [
       "example.docs#Item"
     ],
@@ -909,7 +869,7 @@
           "target": "smithy.api#String",
           "targetName": "String",
           "targetType": "string",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "text"
         },
@@ -942,7 +902,7 @@
           "target": "smithy.api#BigInteger",
           "targetName": "BigInteger",
           "targetType": "bigInteger",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "amount"
         }
@@ -1007,7 +967,7 @@
           "target": "example.docs#Content",
           "targetName": "Content",
           "targetType": "union",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "member"
         }
@@ -1063,7 +1023,7 @@
           "target": "smithy.api#String",
           "targetName": "String",
           "targetType": "string",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "nextToken"
         },
@@ -1099,7 +1059,7 @@
           "target": "smithy.api#Integer",
           "targetName": "Integer",
           "targetType": "integer",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": 10,
           "wireName": "pageSize"
         }
@@ -1154,7 +1114,7 @@
           "target": "example.docs#Items",
           "targetName": "Items",
           "targetType": "list",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "items"
         },
@@ -1187,7 +1147,7 @@
           "target": "smithy.api#String",
           "targetName": "String",
           "targetType": "string",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "nextToken"
         }
@@ -1266,19 +1226,18 @@
           "responseCode": null,
           "timestampFormats": {}
         },
-        "bodyDiscriminator": "example.docs#Unavailable",
-        "discriminatorHeader": null,
+        "bodyDiscriminator": "Unavailable",
+        "discriminatorHeader": "X-Crucible-Error",
         "fault": "server",
         "protocolHeaders": {
-          "Content-Type": "application/json",
-          "Smithy-Protocol": "rpc-v2-json"
+          "Content-Type": "application/json"
         },
         "retryable": {
           "throttling": false
         },
         "shape": "example.docs#Unavailable",
         "status": 503,
-        "wireCode": "example.docs#Unavailable"
+        "wireCode": "Unavailable"
       },
       "id": "example.docs#Unavailable",
       "internal": false,
@@ -1313,7 +1272,7 @@
           "target": "smithy.api#String",
           "targetName": "String",
           "targetType": "string",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "message"
         }
@@ -1368,7 +1327,7 @@
           "target": "example.docs#Content",
           "targetName": "Content",
           "targetType": "union",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "item"
         },
@@ -1401,7 +1360,7 @@
           "target": "smithy.api#String",
           "targetName": "String",
           "targetType": "string",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "clientToken"
         }
@@ -1456,7 +1415,7 @@
           "target": "example.docs#State",
           "targetName": "State",
           "targetType": "enum",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "state"
         },
@@ -1489,7 +1448,7 @@
           "target": "smithy.api#Timestamp",
           "targetName": "Timestamp",
           "targetType": "timestamp",
-          "timestampFormat": "epoch-seconds",
+          "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "at"
         },
@@ -1522,8 +1481,8 @@
           "target": "smithy.api#BigInteger",
           "targetName": "BigInteger",
           "targetType": "bigInteger",
-          "timestampFormat": "epoch-seconds",
-          "wireDefault": "1234567890123456789",
+          "timestampFormat": "date-time",
+          "wireDefault": 1234567890123456789,
           "wireName": "total"
         }
       ],

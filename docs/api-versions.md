@@ -145,8 +145,8 @@ Host
   again. The output, or a modelled error, passes back through each step's
   downgrade, then is read as the old version's output and encoded with the
   old `OperationInfo`. A conversion happens on the typed value, after the
-  protocol decoded it and before it encodes, so it is the same for JSON,
-  CBOR and invoke.
+  protocol decoded it and before it encodes, so it is the same for JSON
+  and invoke.
 - **Cost.** A request at the current version selects the current table and
   runs nothing else. Old versions pay one JSON round trip per step;
   measured before it is optimized.

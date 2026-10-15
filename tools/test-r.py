@@ -85,19 +85,12 @@ def echo_fixture():
 
 
 def qualify_features(output, library):
-    """Authentication, endpoints, waiters, checksums, and AWS JSON protocols."""
-    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text(encoding="utf-8"))
-    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
-    protocol_path = output / "protocol.json"
-    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
+    """Authentication, endpoints, waiters, and checksums."""
     packages = [
         ("auth", ROOT / "crates/crucible-codegen-python/tests/auth.json", ()),
         ("jobs", ROOT / "crates/crucible-codegen-python/tests/waiters.json", ()),
         ("behavior", ROOT / "crates/crucible-smithy/tests/fixtures/client-behaviors.json", ()),
         ("checksum", ROOT / "crates/crucible-smithy/tests/fixtures/checksums.json", ()),
-        ("restjson", protocol_path, ("--protocol", "aws.protocols#restJson1")),
-        ("json10", protocol_path, ("--protocol", "aws.protocols#awsJson1_0")),
-        ("json11", protocol_path, ("--protocol", "aws.protocols#awsJson1_1")),
     ]
     generated = []
     for name, model, extra in packages:
@@ -111,8 +104,6 @@ def qualify_features(output, library):
         env = dict(os.environ, ECHO_URL=echo, CHECKSUM_CASES=str(ROOT / "tests/conformance/checksums.json"))
         for script in ("auth", "endpoints", "waiters", "checksums"):
             run(RSCRIPT, str(tests / f"{script}.R"), str(library), env=env)
-        for package, version in (("restjson.client", ""), ("json10.client", "1.0"), ("json11.client", "1.1")):
-            run(RSCRIPT, str(tests / "protocols.R"), str(library), package, version, env=env)
 
 
 def qualify(output):
@@ -165,7 +156,7 @@ def qualify(output):
     generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", output / "wire", "wire.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "wire"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/wire.R"), str(library))
-    # Payload Content-Type precedence under both protocols. R has no streaming
+    # Payload Content-Type precedence. R has no streaming
     # input, so the streaming operation is dropped from the shared fixture.
     bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text(encoding="utf-8"))
     service = bindings["shapes"]["example.payload#PayloadBindings"]
@@ -174,11 +165,9 @@ def qualify(output):
         del bindings["shapes"]["example.payload#" + name]
     bindings_path = output / "payload-bindings.json"
     bindings_path.write_text(json.dumps(bindings), encoding="utf-8")
-    for name, package_name, protocol in [("payload", "payload.client", "crucible.protocols#json"),
-                                         ("payload-rest", "payload.rest.client", "aws.protocols#restJson1")]:
-        generate(bindings_path, output / name, package_name, "--protocol", protocol)
-        run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / name))
-        run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/payload_content_type.R"), str(library), package_name)
+    generate(bindings_path, output / "payload", "payload.client")
+    run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "payload"))
+    run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/payload_content_type.R"), str(library), "payload.client")
     qualify_features(output, library)
     print("R native package build/install and consumer qualification passed")
 

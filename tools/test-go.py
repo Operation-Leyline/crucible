@@ -18,11 +18,10 @@ def run(*args, **kwargs):
 
 
 def qualify(output):
-    for protocol, name in (("crucible.protocols#json", "payloadbindings"),
-                           ("aws.protocols#restJson1", "restpayloadbindings")):
+    for protocol, name in (("crucible.protocols#json", "payloadbindings"),):
         package = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-            "crates/crucible-codegen-python/tests/payload-bindings.json", "--protocol", protocol,
+            "crates/crucible-codegen-python/tests/payload-bindings.json",
             "--out", str(package), "--module-path", "example.com/" + name, "--package-name", "payloadbindings")
         shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/payload_bindings_test.go", package / "payload_bindings_test.go")
         run(GO, "fmt", "./...", cwd=package)
@@ -45,18 +44,6 @@ def qualify(output):
     shutil.copyfile(ROOT / "tests/conformance/checksums.json", checksum / "checksums.json")
     run(GO, "fmt", "./...", cwd=checksum)
     run(GO, "test", "-count=1", "-v", "./...", cwd=checksum)
-    protocol_model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/protocol-json.json").read_text())
-    protocol_model["shapes"]["example.json#JsonService"]["rename"] = {"example.json#Problem": "ProblemFault"}
-    protocol_path = output / "protocol.json"
-    protocol_path.write_text(json.dumps(protocol_model), encoding="utf-8")
-    for protocol in ("restJson1", "awsJson1_0", "awsJson1_1"):
-        package = output / protocol
-        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
-            str(protocol_path), "--protocol", "aws.protocols#" + protocol,
-            "--out", str(package), "--module-path", "example.com/protocol", "--package-name", "protocol")
-        shutil.copyfile(ROOT / "crates/crucible-codegen-go/tests/protocols_test.go", package / "protocols_test.go")
-        run(GO, "fmt", "./...", cwd=package)
-        run(GO, "test", "-count=1", "-v", "./...", cwd=package)
     behavior = output / "behavior"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "go",
         "crates/crucible-smithy/tests/fixtures/client-behaviors.json", "--out", str(behavior),

@@ -1,4 +1,4 @@
-use crate::operation::{AuthScheme, Input, Operation, Pagination, PaginationMember, Protocol};
+use crate::operation::{AuthScheme, Input, Operation, Pagination, PaginationMember};
 use crate::permissions::{Check, Requirements};
 
 /// [`Operation::CHECKS`] behind the type-erased input: `false` when the
@@ -13,7 +13,6 @@ pub type ErasedChecks = fn(&dyn Input, &mut Vec<Check>) -> bool;
 #[derive(Debug, Clone, Copy)]
 #[non_exhaustive]
 pub struct OperationMetadata {
-    pub protocol: Protocol,
     pub auth_schemes: Option<&'static [AuthScheme]>,
     /// Prepared once at registration for protocol-independent bearer challenges.
     pub bearer_auth: bool,
@@ -67,7 +66,6 @@ impl OperationMetadata {
 
     pub(crate) fn of<O: Operation>() -> Self {
         Self {
-            protocol: O::PROTOCOL,
             auth_schemes: O::AUTH_SCHEMES,
             bearer_auth: O::AUTH_SCHEMES.is_some_and(|schemes| {
                 schemes

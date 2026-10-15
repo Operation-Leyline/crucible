@@ -1,5 +1,5 @@
 //! Lazy event-stream bodies shared by the HTTP protocols.
-use axum::body::{Body, Bytes};
+use axum::body::Body;
 use crucible_wire::event_stream::{EventStreamInfo, HeaderValue, Message, Outgoing, Reader};
 use futures_util::StreamExt;
 
@@ -18,7 +18,7 @@ pub(super) async fn decode(job: &mut Job) -> Result<()> {
         .operation_metadata()
         .and_then(|m| m.input_events)
         .expect("stream input");
-    if !super::rpc_routing::content_type(job.request(), crucible_wire::event_stream::CONTENT_TYPE) {
+    if !super::content_type(job.request(), crucible_wire::event_stream::CONTENT_TYPE) {
         return Err(Rejection::malformed(
             "",
             "event streams require application/vnd.amazon.eventstream",
@@ -31,30 +31,10 @@ pub(super) async fn decode(job: &mut Job) -> Result<()> {
     let chunks = stream
         .open()
         .map_err(|e| Rejection::malformed("", e.to_string()))?;
-    let mut reader = Reader::for_request(info, chunks);
-    let document = if info.initial_message {
-        let message = reader
-            .next_message()
-            .await
-            .ok_or_else(|| Rejection::malformed("", "missing initial-request message"))?
-            .map_err(|e| Rejection::malformed("", e.to_string()))?;
-        if message.string(":message-type") != Some("event")
-            || message.string(":event-type") != Some("initial-request")
-            || message.string(":content-type") != Some(info.document_type)
-        {
-            return Err(Rejection::malformed(
-                "",
-                "expected an initial-request message in the protocol document format",
-            )
-            .into());
-        }
-        message.payload
-    } else {
-        Bytes::new()
-    };
+    let reader = Reader::for_request(info, chunks);
     let bound =
         super::json_protocol::bound_members(job.operation().expect("selected operation"), job)?;
-    let input = job.decode_events(&document, bound, reader.into_request_incoming())?;
+    let input = job.decode_events(bound, reader.into_request_incoming())?;
     job.set_input(input);
     Ok(())
 }
@@ -70,32 +50,16 @@ fn internal_message() -> Message {
 }
 
 /// Pull one event per body poll. Exceptions terminate the response stream.
-pub(super) fn body(
-    info: &'static EventStreamInfo,
-    events: Outgoing,
-    initial: Option<Bytes>,
-) -> Body {
+pub(super) fn body(info: &'static EventStreamInfo, events: Outgoing) -> Body {
     Body::from_stream(futures_util::stream::unfold(
-        Some((events, initial)),
+        Some(events),
         move |state| async move {
-            let (mut events, initial) = state?;
-            let message = match initial {
-                Some(document) => Message::new(document)
-                    .with_header(":message-type", HeaderValue::String("event".into()))
-                    .with_header(
-                        ":event-type",
-                        HeaderValue::String("initial-response".into()),
-                    )
-                    .with_header(
-                        ":content-type",
-                        HeaderValue::String(info.document_type.into()),
-                    ),
-                None => match events.next().await? {
-                    Ok(event) => info.encode(&event).unwrap_or_else(|_| internal_message()),
-                    Err(_) => internal_message(),
-                },
+            let mut events = state?;
+            let message = match events.next().await? {
+                Ok(event) => info.encode(&event).unwrap_or_else(|_| internal_message()),
+                Err(_) => internal_message(),
             };
-            let more = (message.string(":message-type") == Some("event")).then_some((events, None));
+            let more = (message.string(":message-type") == Some("event")).then_some(events);
             match message.encode() {
                 Ok(bytes) => Some((Ok::<_, std::io::Error>(bytes), more)),
                 Err(_) => Some((

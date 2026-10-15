@@ -7,7 +7,6 @@
 
 mod ast;
 mod audience;
-mod audience_protocol_tests;
 mod capabilities;
 mod cors;
 mod diagnostics;
@@ -25,7 +24,6 @@ mod lower_streams;
 mod names;
 mod pattern;
 mod protocol;
-mod protocol_tests;
 mod recursion;
 mod resources;
 mod scopes;
@@ -33,7 +31,6 @@ mod shape_id;
 pub mod snapshot;
 mod timestamp_default;
 pub mod validate;
-mod xml;
 
 use std::collections::BTreeMap;
 
@@ -107,51 +104,24 @@ impl Model {
         service: Option<&ShapeId>,
         capabilities: &Capabilities,
     ) -> Result<ir::Service, Error> {
-        self.lower_selected(service, capabilities, None, false)
-    }
-
-    /// Explicit protocol selection for services that declare alternatives.
-    pub fn lower_with_protocol(
-        &self,
-        service: Option<&ShapeId>,
-        capabilities: &Capabilities,
-        protocol: Protocol,
-    ) -> Result<ir::Service, Error> {
-        self.lower_selected(service, capabilities, Some(protocol), false)
+        self.lower_selected(service, capabilities, false)
     }
 
     /// Lower the operation contract plus resource metadata and resource-only
     /// shapes for infrastructure generators. Includes provisioning diagnostics.
     pub fn lower_infrastructure(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
-        self.lower_selected(service, &Capabilities::default(), None, true)
-    }
-
-    /// Lower resource metadata with an explicitly selected declared protocol.
-    pub fn lower_infrastructure_with_protocol(
-        &self,
-        service: Option<&ShapeId>,
-        protocol: Protocol,
-    ) -> Result<ir::Service, Error> {
-        self.lower_selected(service, &Capabilities::default(), Some(protocol), true)
+        self.lower_selected(service, &Capabilities::default(), true)
     }
 
     fn lower_selected(
         &self,
         service: Option<&ShapeId>,
         capabilities: &Capabilities,
-        protocol: Option<Protocol>,
         infrastructure: bool,
     ) -> Result<ir::Service, Error> {
         let id = self.service_id(service)?;
-        lower::lower(
-            &self.shapes,
-            &id,
-            capabilities,
-            protocol,
-            infrastructure,
-            false,
-        )
-        .map_err(Error::Unsupported)
+        lower::lower(&self.shapes, &id, capabilities, infrastructure, false)
+            .map_err(Error::Unsupported)
     }
 
     fn service_id(&self, service: Option<&ShapeId>) -> Result<ShapeId, Error> {
@@ -169,17 +139,12 @@ impl Model {
 
     /// Lower API reference metadata, including resource lifecycle and resource-only
     /// shapes, without imposing provisioning member-binding restrictions.
-    pub fn lower_documentation(
-        &self,
-        service: Option<&ShapeId>,
-        protocol: Option<Protocol>,
-    ) -> Result<ir::Service, Error> {
+    pub fn lower_documentation(&self, service: Option<&ShapeId>) -> Result<ir::Service, Error> {
         let id = self.service_id(service)?;
         lower::lower(
             &self.shapes,
             &id,
             &Capabilities::new(Feature::ALL.iter().copied()),
-            protocol,
             false,
             true,
         )

@@ -278,7 +278,6 @@ const fn upload_info(members: &'static [MemberInfo]) -> OperationInfo {
 
 struct BufferedUpload;
 impl Operation for BufferedUpload {
-    const PROTOCOL: Protocol = Protocol::AwsRestJson1;
     const INFO: &'static OperationInfo = &upload_info(&[
         upload_member("data", Location::Payload("application/octet-stream")),
         upload_member("content_type", Location::Header("content-type")),
@@ -289,7 +288,6 @@ impl Operation for BufferedUpload {
 
 struct StreamingUpload;
 impl Operation for StreamingUpload {
-    const PROTOCOL: Protocol = Protocol::AwsRestJson1;
     const INFO: &'static OperationInfo = &upload_info(&[
         upload_member(
             "data",
@@ -401,16 +399,8 @@ async fn streaming_upload_content_type_prefers_modeled_header_then_media_type_th
     }
 }
 
-struct JsonBodyProbe<const WIRE_PROTOCOL: u8>;
-impl<const WIRE_PROTOCOL: u8> Operation for JsonBodyProbe<WIRE_PROTOCOL> {
-    const PROTOCOL: Protocol = match WIRE_PROTOCOL {
-        0 => Protocol::CrucibleJson,
-        1 => Protocol::AwsRestJson1,
-        2 => Protocol::AwsJson10 { service: "Test" },
-        3 => Protocol::AwsJson11 { service: "Test" },
-        4 => Protocol::SmithyRpcV2Json,
-        _ => Protocol::SmithyRpcV2Cbor,
-    };
+struct JsonBodyProbe;
+impl Operation for JsonBodyProbe {
     const INFO: &'static OperationInfo = &upload_info(&[
         upload_member("data", Location::Body),
         upload_member("content_type", Location::Header("content-type")),
@@ -419,7 +409,7 @@ impl<const WIRE_PROTOCOL: u8> Operation for JsonBodyProbe<WIRE_PROTOCOL> {
     type Output = Unit;
 }
 
-async fn protocol_content_type<const WIRE_PROTOCOL: u8>(modeled: Option<&str>, expected: &str) {
+async fn json_content_type(modeled: Option<&str>, expected: &str) {
     struct Capture(std::sync::Arc<std::sync::Mutex<Option<String>>>);
     impl crate::Interceptor for Capture {
         fn intercept(&self, request: &mut reqwest::Request) -> Result<(), String> {
@@ -445,7 +435,7 @@ async fn protocol_content_type<const WIRE_PROTOCOL: u8>(modeled: Option<&str>, e
         content_type: modeled.map(str::to_owned),
     };
     let result = Transport::new(config)
-        .send::<JsonBodyProbe<WIRE_PROTOCOL>, Known>(&input)
+        .send::<JsonBodyProbe, Known>(&input)
         .await;
     assert!(matches!(result, Err(Error::Invalid(message)) if message == "request captured"));
     assert_eq!(captured.lock().unwrap().as_deref(), Some(expected));
@@ -454,21 +444,8 @@ async fn protocol_content_type<const WIRE_PROTOCOL: u8>(modeled: Option<&str>, e
 #[tokio::test]
 async fn json_document_content_type_overrides_configured_and_modeled_headers() {
     for modeled in [None, Some("image/jpeg")] {
-        protocol_content_type::<0>(modeled, "application/json").await;
-        protocol_content_type::<1>(modeled, "application/json").await;
+        json_content_type(modeled, "application/json").await;
     }
-}
-
-#[tokio::test]
-async fn aws_json_document_content_types_override_configured_headers() {
-    protocol_content_type::<2>(None, "application/x-amz-json-1.0").await;
-    protocol_content_type::<3>(None, "application/x-amz-json-1.1").await;
-}
-
-#[tokio::test]
-async fn rpc_document_content_types_override_configured_headers() {
-    protocol_content_type::<4>(None, "application/json").await;
-    protocol_content_type::<5>(None, "application/cbor").await;
 }
 
 #[derive(Debug)]
@@ -514,12 +491,7 @@ fn modeled_and_unknown_errors_expose_identical_http_metadata() {
     headers.insert("retry-after", HeaderValue::from_static("2"));
     for name in ["Known", "Future"] {
         let wire = format!("{{\"__type\":\"{name}\"}}");
-        let error = decode_error::<Known>(
-            crucible_wire::operation::Protocol::CrucibleJson,
-            429,
-            &headers,
-            wire.as_bytes(),
-        );
+        let error = decode_error::<Known>(429, &headers, wire.as_bytes());
         let metadata = error.metadata().unwrap();
         assert_eq!(metadata.status, 429);
         assert_eq!(metadata.request_id.as_deref(), Some("request-17"));
@@ -710,96 +682,5 @@ async fn stream_constraints_are_checked_incrementally() {
             }
         }
         assert!(stream.next().await.is_none());
-    }
-}
-
-struct RpcJsonProbe;
-impl Operation for RpcJsonProbe {
-    const PROTOCOL: Protocol = Protocol::SmithyRpcV2Json;
-    const INFO: &'static OperationInfo = Probe::INFO;
-    type Input = Unit;
-    type Output = Unit;
-}
-struct RpcCborProbe;
-impl Operation for RpcCborProbe {
-    const PROTOCOL: Protocol = Protocol::SmithyRpcV2Cbor;
-    const INFO: &'static OperationInfo = Probe::INFO;
-    type Input = Unit;
-    type Output = Unit;
-}
-struct UnsafeRpcProbe;
-impl Operation for UnsafeRpcProbe {
-    const PROTOCOL: Protocol = Protocol::SmithyRpcV2Json;
-    const INFO: &'static OperationInfo = &crate::__generated::operation_info(
-        Probe::INFO.id,
-        Probe::INFO.name,
-        Probe::INFO.resource,
-        Probe::INFO.method,
-        Probe::INFO.path,
-        Probe::INFO.literal_query,
-        Probe::INFO.status,
-        Probe::INFO.input,
-        Probe::INFO.output,
-        Probe::INFO.errors,
-        false,
-        Probe::INFO.idempotent,
-        Probe::INFO.internal,
-        Probe::INFO.idempotency_token,
-        Probe::INFO.traits,
-    );
-    type Input = Unit;
-    type Output = Unit;
-}
-
-async fn rpc_missing_header_attempts<O: Operation<Input = Unit, Output = Unit>>(
-    status: u16,
-    expected: usize,
-) {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    let attempts = Arc::new(AtomicUsize::new(0));
-    let count = attempts.clone();
-    let server = tokio::spawn(async move {
-        loop {
-            let (mut socket, _) = listener.accept().await.unwrap();
-            let mut bytes = Vec::new();
-            loop {
-                let mut chunk = [0; 4096];
-                let size = socket.read(&mut chunk).await.unwrap();
-                assert!(size > 0);
-                bytes.extend_from_slice(&chunk[..size]);
-                if bytes.windows(4).any(|part| part == b"\r\n\r\n") {
-                    break;
-                }
-            }
-            count.fetch_add(1, Ordering::SeqCst);
-            socket.write_all(format!("HTTP/1.1 {status} Result\r\nContent-Length: 5\r\nRetry-After: 0\r\nConnection: close\r\n\r\nproxy").as_bytes()).await.unwrap();
-        }
-    });
-    let error = Transport::new(Config::new(endpoint).retry(crate::Retry {
-        max_attempts: 3,
-        base_delay: Duration::ZERO,
-        ..crate::Retry::default()
-    }))
-    .send::<O, Known>(&Unit {})
-    .await
-    .unwrap_err();
-    assert!(matches!(error, Error::Decode(message) if message.contains("smithy-protocol")));
-    assert_eq!(attempts.load(Ordering::SeqCst), expected, "HTTP {status}");
-    server.abort();
-}
-
-#[tokio::test]
-async fn rpc_v2_missing_protocol_header_retries_only_safe_transient_statuses() {
-    for status in [500, 502, 503, 504] {
-        rpc_missing_header_attempts::<RpcJsonProbe>(status, 3).await;
-        rpc_missing_header_attempts::<RpcCborProbe>(status, 3).await;
-        rpc_missing_header_attempts::<UnsafeRpcProbe>(status, 1).await;
-    }
-    for status in [200, 400, 429, 501] {
-        rpc_missing_header_attempts::<RpcJsonProbe>(status, 1).await;
-        rpc_missing_header_attempts::<RpcCborProbe>(status, 1).await;
     }
 }

@@ -31,9 +31,8 @@ pub(crate) fn info_static(service: &Service, union: &ShapeId) -> String {
 }
 
 /// One `EventStreamInfo` static per streamed union.
-pub(crate) fn statics(service: &Service, diagnostics: &mut Diagnostics, client: bool) -> String {
+pub(crate) fn statics(service: &Service, diagnostics: &mut Diagnostics) -> String {
     let mut out = String::new();
-    let mut codecs = std::collections::BTreeMap::new();
     for (id, sent) in unions(service) {
         let Some(Shape::Union(union)) = service.shape(id) else {
             continue;
@@ -52,18 +51,8 @@ pub(crate) fn statics(service: &Service, diagnostics: &mut Diagnostics, client: 
                         "a client cannot send a modeled error in an input event stream",
                     );
                 }
-                let native = service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor;
-                let document = if native {
-                    codecs.entry(arm.target.clone()).or_insert_with(|| {
-                        let (code, ty) = document_codec(service, &arm.target, target, client, diagnostics);
-                        out.push_str(&code);
-                        ty
-                    }).as_str()
-                } else { "" };
-                let encode = if native { format!("Some(::crucible_server_runtime_rust::__generated::cbor::event_encode::<{document}>)") } else { "None".to_owned() };
-                let decode = if native { format!("Some(::crucible_server_runtime_rust::__generated::cbor::event_decode::<{document}>)") } else { "None".to_owned() };
                 format!(
-                    "::crucible_server_runtime_rust::__generated::event_stream::EventInfo {{ name: {}, json: {}, error: {}, members: &[{}], encode_document: {encode}, decode_document: {decode} }}",
+                    "::crucible_server_runtime_rust::__generated::event_stream::EventInfo {{ name: {}, json: {}, error: {}, members: &[{}] }}",
                     literal(&arm.name),
                     literal(&arm.wire_name),
                     target.error.is_some(),
@@ -72,10 +61,8 @@ pub(crate) fn statics(service: &Service, diagnostics: &mut Diagnostics, client: 
             })
             .collect();
         out.push_str(&format!(
-            "\nstatic {}: ::crucible_server_runtime_rust::__generated::event_stream::EventStreamInfo = ::crucible_server_runtime_rust::__generated::event_stream::EventStreamInfo {{\n    initial_message: {},\n    document_type: {},\n    events: &[\n        {},\n    ],\n}};\n",
+            "\nstatic {}: ::crucible_server_runtime_rust::__generated::event_stream::EventStreamInfo = ::crucible_server_runtime_rust::__generated::event_stream::EventStreamInfo {{\n    document_type: \"application/json\",\n    events: &[\n        {},\n    ],\n}};\n",
             info_static(service, id),
-            !service.protocol.uses_http_bindings(),
-            literal(if service.protocol == crucible_smithy::Protocol::SmithyRpcV2Cbor { "application/cbor" } else { "application/json" }),
             events.join(",\n        ")
         ));
     }
@@ -190,56 +177,6 @@ pub(crate) fn marker_items(service: &Service, op: &Operation, client: bool) -> S
         }
     }
     out
-}
-
-fn document_codec(
-    service: &Service,
-    id: &ShapeId,
-    structure: &Structure,
-    client: bool,
-    diagnostics: &mut Diagnostics,
-) -> (String, String) {
-    let name = crate::names::function(service.name_of(id));
-    let name = name.trim_start_matches("r#");
-    let mut out = String::new();
-    let ty = if let Some(payload) = structure
-        .members
-        .iter()
-        .find(|m| m.event_binding == Some(EventBinding::Payload))
-    {
-        crate::types::rust_type(service, &payload.target, "model::")
-    } else {
-        let ty = format!("__EventDocument{}", service.name_of(id));
-        out.push_str(crate::DERIVE);
-        out.push_str(&format!("struct {ty} {{\n"));
-        let mut fields = String::new();
-        let mut defaults = String::new();
-        let boxed = crate::types::boxed_members(service);
-        for member in structure
-            .members
-            .iter()
-            .filter(|m| m.event_binding.is_none())
-        {
-            crate::models::member_field(
-                &mut fields,
-                service,
-                id,
-                member,
-                boxed.contains(&id.with_member(&member.name)),
-                "model::",
-                &mut defaults,
-                client,
-                diagnostics,
-            );
-        }
-        out.push_str(&fields.replace("defaults::", &format!("__event_defaults_{name}::")));
-        out.push_str("}\n");
-        if !defaults.is_empty() {
-            out.push_str(&format!("mod __event_defaults_{name} {{\n{defaults}}}\n"));
-        }
-        ty
-    };
-    (out, ty)
 }
 
 /// Whether `target` is an event stream: a member of this type is an

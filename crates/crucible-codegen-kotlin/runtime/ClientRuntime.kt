@@ -188,12 +188,6 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             }
             if (stream != null && !modelledContentType) headers["content-type"] = payload[1].jsonPrimitive.content
         }
-        val protocol=schema.text("protocol")
-        if(protocol=="awsJson1_0" || protocol=="awsJson1_1") {
-            if(bytes==null) bytes="{}".encodeToByteArray()
-            headers["content-type"]=if(protocol=="awsJson1_0") "application/x-amz-json-1.0" else "application/x-amz-json-1.1"
-            headers["x-amz-target"]=schema.text("service")!!.substringAfter('#')+"."+name
-        } else if(protocol=="awsRestJson1" && payloadMember(binding)==null) if(!headers.containsKey("content-type")) headers["content-type"]="application/json"
         // The release this client was generated for (docs/api-versions-clients.md).
         schema.text("apiVersion")?.let { headers["crucible-version"] = it }
         return Prepared(op, Url(endpoint + uri), headers, if(stream==null)bytes else null,checksum,stream?.let {checkedStream(op,"input","request",it)},
@@ -554,9 +548,7 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
     private fun decodeError(op: JsonObject, response: WireResponse): ServiceError {
         val body = try { (codec.parse(response.body.decodeToString()) as? JsonObject)?.toMutableMap() ?: mutableMapOf() } catch (_: Exception) { mutableMapOf() }
         fun text(name: String): String? = (body[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        val aws=schema.text("protocol")!=null
-        var name = if(aws) response.header("x-amzn-errortype") ?: text("__type") ?: text("code") else text("__type") ?: response.header("x-crucible-error")
-        if(aws) name=name?.substringBefore(':')?.substringAfter('#')
+        var name = text("__type") ?: response.header("x-crucible-error")
         val declared = op.array("errors").map { it.jsonPrimitive.content }
         val target = if (name != null) declared.firstOrNull { (codec.shape(it).obj("error").text("wireCode") ?: codec.shape(it).text("name")) == name } else
             declared.filter { codec.shape(it).obj("error").text("status")?.toInt() == response.status }.singleOrNull()
@@ -567,8 +559,8 @@ internal class ClientRuntime(input: ClientConfig, endpoint: String, private val 
             applyHeaders(target, body, metadata!!, response)
             codec.decode(target, JsonObject(body)) as ServiceError
         } catch (_: Exception) { ServiceException() }
-        error.initialize(name ?: "UnknownError", text("message") ?: text("Message") ?: "HTTP ${response.status}", response.status,
-            response.header("x-amzn-requestid") ?: response.header("x-amz-request-id") ?: response.header("x-request-id") ?: text("requestId"), response.headers, metadata?.flag("retryable") == true, metadata?.flag("throttling") == true)
+        error.initialize(name ?: "UnknownError", text("message") ?: "HTTP ${response.status}", response.status,
+            response.header("x-request-id") ?: text("requestId"), response.headers, metadata?.flag("retryable") == true, metadata?.flag("throttling") == true)
         return error
     }
     private fun payloadValue(binding: JsonObject, bytes: ByteArray): JsonElement = when (binding.text("payloadKind")) {

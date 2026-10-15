@@ -56,7 +56,6 @@ pub mod auth_weather {
 
         impl ::crucible_server_runtime_rust::__generated::ModelledError for AccessDeniedException {
             fn shape_id(&self) -> &'static str { "example.auth#AccessDeniedException" }
-            fn write_cbor(&self, out: &mut ::std::vec::Vec<u8>) -> ::std::result::Result<(), ::std::string::String> { ::crucible_server_runtime_rust::__generated::cbor::write_typed(self, self.shape_id(), out) }
             fn info(&self) -> &'static ::crucible_server_runtime_rust::__generated::operation::ErrorInfo {
                 &ACCESS_DENIED_EXCEPTION_INFO
             }

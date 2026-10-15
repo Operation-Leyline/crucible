@@ -163,10 +163,6 @@ static status document(yyjson_mut_doc *doc, const yyjson_val *schema, const yyjs
                 if (crucible_generated_string_equal(original, encode ? model : wire)) { member = mv; destination = encode ? wire : model; break; }
             }
             yyjson_mut_val *converted;
-            /* JSON protocols may omit null structure members; documents keep explicit null. */
-            if (member && yyjson_is_null(item) && named(kind, "structure") && (crucible_generated_protocol_flags & CRUCIBLE_GENERATED_OMIT_NULL_MEMBERS)
-                && !named(get(shape(schema, get(member, "target")), "kind"), "document")) continue;
-            if (!member && !encode && named(kind, "union") && (crucible_generated_protocol_flags & CRUCIBLE_GENERATED_IGNORE_UNION_TYPE) && crucible_generated_string_equal(original, VIEW("__type"))) continue;
             if (member) { TRY(document(doc, schema, get(member, "target"), item, encode, &converted, depth + 1, issue)); }
             else {
                 if (!named(kind, "union")) continue;
@@ -381,13 +377,9 @@ static status prepare_path(arena *storage, const yyjson_val *op, const yyjson_va
     if (code) { free(path.data); return code; }
     return take(storage, &path, out, issue);
 }
-static bool aws_json(const yyjson_val *schema) {
-    const yyjson_val *protocol = get(schema, "protocol");
-    return named(protocol, "awsJson1_0") || named(protocol, "awsJson1_1");
-}
-static bool aws_protocol(const yyjson_val *schema) { return aws_json(schema) || named(get(schema, "protocol"), "awsRestJson1"); }
 status crucible_generated_binding_prepare(arena *storage, const yyjson_val *schema, string operation_name, const yyjson_val *op, const yyjson_val *input, string endpoint,
     crucible_generated_headers headers, crucible_generated_request *out, error *issue) {
+    (void)operation_name;
     if (!yyjson_is_obj(input)) return fail(issue, "Operation input must be an object");
     crucible_generated_request request = {0};
     request.method = text(get(op, "method")); request.headers = headers;
@@ -450,19 +442,6 @@ status crucible_generated_binding_prepare(arena *storage, const yyjson_val *sche
             request.has_body = true;
             if (!modelled_content_type) TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), text(yyjson_arr_get((yyjson_val *)payload, 1)), issue));
         }
-    }
-    if (aws_json(schema)) {
-        /* AWS JSON RPC always posts a JSON object and names the target operation. */
-        if (!request.has_body) { request.has_body = true; request.body = (crucible_generated_blob){(const unsigned char *)"{}", 2}; }
-        TRY(crucible_generated_header_set(storage, &request.headers, VIEW("content-type"), VIEW(named(get(schema, "protocol"), "awsJson1_0") ? "application/x-amz-json-1.0" : "application/x-amz-json-1.1"), issue));
-        string service = text(get(schema, "service"));
-        for (size_t i = service.length; i > 0; --i) if (service.data[i - 1] == '#') { service = (string){service.data + i, service.length - i}; break; }
-        buffer target = {0}; status joined = append(&target, service, issue);
-        if (!joined) joined = append(&target, VIEW("."), issue);
-        if (!joined) joined = append(&target, operation_name, issue);
-        if (joined) { free(target.data); return joined; }
-        string value; TRY(take(storage, &target, &value, issue));
-        TRY(crucible_generated_header_set(storage, &request.headers, VIEW("X-Amz-Target"), value, issue));
     }
     /* The release this client was generated for (docs/api-versions-clients.md). */
     const yyjson_val *api_version = get(schema, "apiVersion");
@@ -603,19 +582,9 @@ status crucible_generated_binding_failure(arena *storage, const yyjson_val *sche
     if (parsed == OOM) { if (issue) *issue = ignored; return parsed; }
     if (parsed || !yyjson_is_obj(body)) { TRY(crucible_generated_json_parse(storage, VIEW("{}"), &body, issue)); }
     const yyjson_val *matched = NULL, *type = NULL;
-    const bool aws = aws_protocol(schema);
     bool has_name = yyjson_is_str(get(body, "__type"));
     string wire_name = has_name ? text(get(body, "__type")) : VIEW(""), error_header;
     if (crucible_generated_header_get(result->response.headers, VIEW("x-crucible-error"), &error_header)) { wire_name = error_header; has_name = true; }
-    if (aws) {
-        if (yyjson_is_str(get(body, "code"))) { wire_name = text(get(body, "code")); has_name = true; }
-        if (crucible_generated_header_get(result->response.headers, VIEW("x-amzn-errortype"), &error_header)) { wire_name = error_header; has_name = true; }
-        /* "namespace#Name:metadata" names the shape Name. */
-        const char *colon = wire_name.length ? memchr(wire_name.data, ':', wire_name.length) : NULL;
-        if (colon) wire_name.length = (size_t)(colon - wire_name.data);
-        for (size_t i = wire_name.length; i > 0; --i) if (wire_name.data[i - 1] == '#') { wire_name = (string){wire_name.data + i, wire_name.length - i}; break; }
-        has_name = has_name && wire_name.length;
-    }
     size_t index, count, matches = 0; yyjson_val *candidate;
     yyjson_arr_foreach((yyjson_val *)get(op, "errors"), index, count, candidate) {
         const yyjson_val *target = shape(schema, candidate);
@@ -629,17 +598,12 @@ status crucible_generated_binding_failure(arena *storage, const yyjson_val *sche
     result->name = has_name ? wire_name : type ? text(get(type, "name")) : VIEW("UnknownError");
     TRY(crucible_generated_arena_copy(storage, result->name, &result->name, issue));
     const yyjson_val *message = get(body, "message");
-    if (!yyjson_is_str(message) && aws) message = get(body, "Message");
     if (yyjson_is_str(message)) result->message = text(message);
     else {
         char fallback[32]; (void)snprintf(fallback, sizeof(fallback), "HTTP %d", result->response.status);
         TRY(crucible_generated_arena_copy(storage, VIEW(fallback), &result->message, issue));
     }
-    bool request_id = crucible_generated_header_get(result->response.headers, VIEW("x-request-id"), &result->request_id);
-    if (aws) {
-        string aws_id;
-        if (crucible_generated_header_get(result->response.headers, VIEW("x-amzn-requestid"), &aws_id) || crucible_generated_header_get(result->response.headers, VIEW("x-amz-request-id"), &aws_id)) { result->request_id = aws_id; request_id = true; }
-    }
+    const bool request_id = crucible_generated_header_get(result->response.headers, VIEW("x-request-id"), &result->request_id);
     if (!request_id && yyjson_is_str(get(body, "requestId"))) result->request_id = text(get(body, "requestId"));
     const yyjson_val *traits = get(type, "error");
     result->retryable = yyjson_get_bool((yyjson_val *)get(traits, "retryable"));

@@ -162,7 +162,7 @@ and optionally an error that means "this endpoint is no longer valid".
 and the input members marked `@aws.api#clientEndpointDiscoveryId`, in source
 order). The common runtime schema carries both as `endpointDiscovery` and
 `operations.<name>.discoveredEndpoint`. Every construct the lowering refuses is
-a diagnostic (see `crates/crucible-smithy/tests/xml_discovery.rs`).
+a diagnostic.
 
 ### When a call discovers
 

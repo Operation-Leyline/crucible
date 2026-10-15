@@ -19,7 +19,6 @@ pub(crate) type SignerSlot = Arc<OnceLock<Option<EventSigner>>>;
 struct Sending {
     info: &'static EventStreamInfo,
     events: Outgoing,
-    initial: Option<Bytes>,
     slot: SignerSlot,
     signer: Option<Option<EventSigner>>,
     deadline: Option<tokio::time::Instant>,
@@ -32,15 +31,13 @@ fn frame(message: &Message) -> io::Result<Bytes> {
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))
 }
 
-/// The request body: an `initial-request` message first when the protocol
-/// has one, then one message per event, pulled from the caller's source
+/// The request body: one message per event, pulled from the caller's source
 /// only as the connection takes them. Signed streams end with an empty
 /// signed message. The call's deadline and cancellation stop it too, even
 /// after the response has arrived.
 pub(crate) fn body(
     info: &'static EventStreamInfo,
     events: Outgoing,
-    initial: Option<Bytes>,
     slot: SignerSlot,
     deadline: Option<tokio::time::Instant>,
     cancellation: Option<CancellationToken>,
@@ -48,7 +45,6 @@ pub(crate) fn body(
     let state = Sending {
         info,
         events,
-        initial,
         slot,
         signer: None,
         deadline,
@@ -59,31 +55,28 @@ pub(crate) fn body(
         if state.signer.is_none() {
             state.signer = Some(state.slot.get().cloned().flatten());
         }
-        let message = match state.initial.take() {
-            Some(document) => Some(Ok(state.info.initial_request(document))),
-            None => {
-                let cancelled = async {
-                    match &state.cancellation {
-                        Some(token) => token.cancelled().await,
-                        None => std::future::pending().await,
-                    }
-                };
-                let expired = async {
-                    match state.deadline {
-                        Some(deadline) => tokio::time::sleep_until(deadline).await,
-                        None => std::future::pending().await,
-                    }
-                };
-                tokio::select! {
-                    biased;
-                    () = cancelled => Some(Err(io::Error::new(io::ErrorKind::Interrupted, "call cancelled"))),
-                    () = expired => Some(Err(io::Error::new(io::ErrorKind::TimedOut, "call deadline exceeded"))),
-                    next = state.events.next() => match next {
-                        Some(Ok(event)) => Some(state.info.encode(&event).map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))),
-                        Some(Err(error)) => Some(Err(error)),
-                        None => None,
-                    },
+        let message = {
+            let cancelled = async {
+                match &state.cancellation {
+                    Some(token) => token.cancelled().await,
+                    None => std::future::pending().await,
                 }
+            };
+            let expired = async {
+                match state.deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+            };
+            tokio::select! {
+                biased;
+                () = cancelled => Some(Err(io::Error::new(io::ErrorKind::Interrupted, "call cancelled"))),
+                () = expired => Some(Err(io::Error::new(io::ErrorKind::TimedOut, "call deadline exceeded"))),
+                next = state.events.next() => match next {
+                    Some(Ok(event)) => Some(state.info.encode(&event).map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))),
+                    Some(Err(error)) => Some(Err(error)),
+                    None => None,
+                },
             }
         };
         let signer = state.signer.as_mut().and_then(Option::as_mut);

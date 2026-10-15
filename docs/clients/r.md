@@ -6,8 +6,7 @@
 constructors, operation methods, error conditions, lazy paginators, and modeled
 waiters. It uses the shared lowered IR for bindings, defaults, nullability,
 timestamp formats, retry traits, pagination, authentication schemes, endpoint
-rules, and checksums. The package speaks the Crucible JSON protocol and the
-AWS `restJson1`, `awsJson1_0`, and `awsJson1_1` protocols.
+rules, and checksums. The package speaks the Crucible JSON protocol.
 
 ## Generating and installing
 
@@ -284,27 +283,14 @@ present against the received body, signals `crucible_checksum_error` on a
 mismatch, and calls `checksum_validated(operation, algorithm)` when it passes.
 Unsupported algorithms in the response are ignored.
 
-## AWS JSON protocols
-
-Generate with `--protocol aws.protocols#restJson1`, `#awsJson1_0`, or
-`#awsJson1_1` when a service declares more than one protocol. `awsJson1_x`
-posts every member in the body to `/` with `X-Amz-Target` and the versioned
-media type; `restJson1` uses the HTTP bindings. Timestamps default to epoch
-seconds in documents and HTTP dates in headers. Null structure members are
-omitted when sent and treated as absent when received, `NaN` and infinities
-travel as the strings `"NaN"`, `"Infinity"`, and `"-Infinity"`, and a union's
-`__type` member is ignored. Errors are identified from `X-Amzn-Errortype`,
-`code`, or `__type` (namespace and URL suffix removed), with `message` or
-`Message` and the `X-Amzn-RequestId` header.
-
 ## Qualification
 
 Run `cargo test -p crucible-codegen-r` for deterministic package snapshots and
 diagnostics. `python tools/test-r.py` builds and installs the generated source
 package into an isolated R library, runs shared retry/header fixtures, and
 tests native HTTP against the weather service and loopback transport fixture.
-It also generates the authentication, waiter, endpoint-rule, checksum, and AWS
-JSON protocol fixtures and runs each against fake transports and a loopback
+It also generates the authentication, waiter, endpoint-rule, and checksum
+fixtures and runs each against fake transports and a loopback
 HTTP server: the published S3 SigV4 vector, the shared checksum vectors, and
 credential provider caching. Set `R` and `RSCRIPT` to select a toolchain.
 

@@ -104,15 +104,12 @@ crucible check smithy --target python
 ```
 
 Each emitter also checks capabilities when called as a library. A feature accepted
-by another target never silently changes this target's wire behavior. For a service
-declaring multiple protocols, `--protocol aws.protocols#restJson1` selects that
-protocol explicitly; the selected target must implement it. The default prefers
-Crucible JSON when declared, otherwise requires an unambiguous supported protocol.
+by another target never silently changes this target's wire behavior. Crucible JSON
+is the only protocol; a Smithy model declaring another is refused.
 
 The model can also be a Crucible language package, a directory whose
 `crucible.toml` has a `[model]` table (`crucible check model --target ts`). It
-compiles without Smithy or a JVM and declares its protocol in the service, so
-`--protocol` does not apply.
+compiles without Smithy or a JVM and declares its protocol in the service.
 
 See [SDK releases](sdk-releases.md) for generation, native package builds,
 installed-consumer checks, artifact manifests, and publication recipes.
@@ -140,7 +137,7 @@ matching Java runtime on first use and caches it for later builds. You do not
 need a `smithy-build.json`, a model-publishing Cargo crate, or a separate Java
 installation. Compiler artifacts use a temporary directory and are removed
 after generation. `--service` selects one service when your sources define
-several; `--protocol` selects one declared protocol.
+several.
 
 Non-Rust client generators emit native package metadata and a bundled runtime. The
 language guide's npm, pip, Go, Maven, or other native commands build and consume
@@ -362,6 +359,6 @@ The private Leyline model is not checked into this repository. Qualification mus
 record its source revision, source manifest and model hashes, selected public
 service, protocol adaptation, and operation coverage. Refresh from current source
 before claiming complete coverage; an ignored model left by an earlier build can
-be stale. Leyline's current restJson1 deployment and Crucible's JSON protocol need
+be stale. Leyline's current deployment and Crucible's JSON protocol need
 explicit compatibility checks. Neither a protocol-trait substitution nor a local
 package build establishes authenticated deployment compatibility.

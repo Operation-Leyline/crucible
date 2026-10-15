@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 require 'socket'
-require 'waiter_query_client'
 require 'waiter_json_client'
 
 def check(value, message)
@@ -44,11 +43,6 @@ class IdentityLoopback
   end
 end
 
-def xml_error(code, value = '7')
-  [400, 'application/xml', '<ErrorResponse><Error><Type>Sender</Type><Code>' + code +
-    '</Code><Message>wire detail</Message><value>' + value + '</value></Error><RequestId>identity</RequestId></ErrorResponse>']
-end
-
 def exchange(sdk, client_name, replies, expected_calls)
   server = IdentityLoopback.new(replies)
   client = sdk.const_get(client_name).new(sdk::Runtime::ClientConfig.new(endpoint: server.url, max_attempts: 1, timeout: 5))
@@ -68,45 +62,7 @@ else
 end
 
 options = {timeout: 5, min_delay: 0, max_delay: 0}
-success = [200, 'application/xml', '']
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized')], 1) do |client|
-  error = rejects(WaiterQuery::Runtime::ServiceError) { client.query_read }
-  check(error.is_a?(WaiterQuery::CustomCodeError), 'custom error decoded as its modeled class')
-  check(error.metadata.name == 'Customized' && error.metadata.status == 400 && error.metadata.request_id == 'identity', 'raw wire error metadata preserved')
-  check(error.value == 7, 'modeled integer error member decoded')
-end
-%i[wait_until_by_absolute wait_until_by_relative].each do |waiter|
-  exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized'), success], 2) do |client|
-    client.public_send(waiter, **options)
-  end
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('UnmodeledWire')], 1) do |client|
-  error = rejects(WaiterQuery::Runtime::ServiceError) { client.query_read }
-  check(error.instance_of?(WaiterQuery::QueryIdentityException) && error.metadata.name == 'UnmodeledWire', 'unmodeled wire error retained')
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('UnmodeledWire'), success], 2) do |client|
-  client.wait_until_by_unknown(**options)
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized')], 1) do |client|
-  error = rejects(WaiterQuery::Runtime::WaiterError) { client.wait_until_by_wire(**options) }
-  check(error.attempts == 1 && error.error.is_a?(WaiterQuery::CustomCodeError) && error.error.metadata.name == 'Customized', 'wire code is not a modeled waiter identity')
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized', 'not-an-integer')], 1) do |client|
-  error = rejects(WaiterQuery::Runtime::ServiceError) { client.query_read }
-  check(error.instance_of?(WaiterQuery::QueryIdentityException) && error.metadata.name == 'Customized', 'malformed model decoding retains generic wire error')
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized', 'not-an-integer'), success], 2) do |client|
-  client.wait_until_by_wire(**options)
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('Customized', 'not-an-integer')], 1) do |client|
-  error = rejects(WaiterQuery::Runtime::WaiterError) { client.wait_until_by_absolute(**options) }
-  check(error.attempts == 1, 'malformed generic error does not acquire modeled identity')
-end
-exchange(WaiterQuery, :QueryIdentityClient, [xml_error('OtherError')], 1) do |client|
-  error = rejects(WaiterQuery::Runtime::WaiterError) { client.wait_until_by_absolute(**options) }
-  check(error.attempts == 1 && error.error.is_a?(WaiterQuery::OtherError), 'unrelated modeled error fails immediately')
-end
-
+options = {timeout: 5, min_delay: 0, max_delay: 0}
 renamed = [400, 'application/json', '{"__type":"OriginalError","value":7}']
 exchange(WaiterJson, :JsonIdentityClient, [renamed], 1) do |client|
   error = rejects(WaiterJson::Runtime::ServiceError) { client.json_read }

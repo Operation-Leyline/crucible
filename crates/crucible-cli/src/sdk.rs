@@ -209,7 +209,6 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
             .service
             .as_ref()
             .map(|id| id.parse().expect("the resolver checked the service ID")),
-        protocol: None,
     };
     // Lowered once with every capability; each SDK then sees its audience
     // and checks its own language's capabilities.

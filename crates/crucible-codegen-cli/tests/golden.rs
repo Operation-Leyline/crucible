@@ -311,21 +311,20 @@ fn schema_of(service: &Service) -> Value {
 }
 
 // crucible-build lowers with every capability, so the CLI generator sees
-// restJson1 models that carry @jsonName and HTTP-bound timestamps.
-fn restjson1(edit: impl FnOnce(&mut Value)) -> Service {
+// models that carry @jsonName and HTTP-bound timestamps.
+fn json_service(edit: impl FnOnce(&mut Value)) -> Service {
     let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    model["shapes"]["example.weather#Weather"]["traits"]["aws.protocols#restJson1"] = json!({});
     edit(&mut model);
     let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
     Model::from_json(&model.to_string())
         .unwrap()
-        .lower_with_protocol(None, &all, crucible_smithy::Protocol::AwsRestJson1)
+        .lower_with_capabilities(None, &all)
         .unwrap()
 }
 
 #[test]
 fn descriptor_carries_json_names_for_body_members() {
-    let service = restjson1(|model| {
+    let service = json_service(|model| {
         model["shapes"]["example.weather#CreateCityInput"]["members"]["displayName"] = json!({
             "target": "smithy.api#String",
             "traits": {"smithy.api#jsonName": "display_name"}
@@ -338,8 +337,8 @@ fn descriptor_carries_json_names_for_body_members() {
 }
 
 #[test]
-fn restjson1_query_timestamps_keep_the_document_kind_and_bound_format() {
-    let service = restjson1(|model| {
+fn query_timestamps_keep_the_document_kind_and_bound_format() {
+    let service = json_service(|model| {
         model["shapes"]["example.weather#CreateCityInput"]["members"]["since"] = json!({
             "target": "smithy.api#Timestamp",
             "traits": {"smithy.api#httpQuery": "since"}
@@ -347,9 +346,9 @@ fn restjson1_query_timestamps_keep_the_document_kind_and_bound_format() {
     });
     let schema = schema_of(&service);
     let member = member_of(&schema, "example.weather#CreateCityInput", "since");
-    assert_eq!(member["kind"], "number", "SDK parses the document codec");
-    assert_eq!(member["timestamp_format"], "epoch-seconds");
-    assert_eq!(member["bound_format"], "date-time");
+    assert_eq!(member["kind"], "string", "SDK parses the document codec");
+    assert_eq!(member["timestamp_format"], "date-time");
+    assert!(member["bound_format"].is_null(), "no distinct bound format");
 }
 
 #[test]

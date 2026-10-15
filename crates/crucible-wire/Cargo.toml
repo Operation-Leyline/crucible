@@ -14,7 +14,6 @@ mcp = ["dep:jsonschema"]
 jsonschema = { version = "0.26.2", default-features = false, optional = true }
 base64 = "0.22"
 bytes = "1"
-ciborium = "0.2.2"
 bigdecimal = "0.4.10"
 futures-core = "0.3"
 futures-util = "0.3"

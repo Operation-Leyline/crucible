@@ -1,5 +1,5 @@
-# A model package: the weather fixture's Smithy JSON AST, with its protocol-test
-# vectors merged in, published to the packages that depend on it.
+# A model package: the weather fixture's Smithy JSON AST, published to the
+# packages that depend on it.
 [package]
 name = "weather-model"
 version = "0.0.0"
@@ -9,4 +9,3 @@ links = "weather_model"
 
 [build-dependencies]
 crucible-build = { path = "../../crates/crucible-build" }
-serde_json = "1"

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 
 use crate::ir::{ApiKeyLocation, AuthScheme, Checksum, ChecksumAlgorithm, Operation, Shape};
-use crate::{Diagnostics, Protocol, ShapeId};
+use crate::{Diagnostics, ShapeId};
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Cors {
@@ -21,15 +21,11 @@ pub struct Cors {
 pub(crate) fn lower(
     id: &ShapeId,
     value: &Value,
-    protocol: Protocol,
     operations: &[Operation],
     shapes: &BTreeMap<ShapeId, Shape>,
     auth: &BTreeMap<ShapeId, AuthScheme>,
     diagnostics: &mut Diagnostics,
 ) -> Option<Cors> {
-    if !protocol.uses_http_bindings() {
-        diagnostics.push(id, "@cors requires an HTTP-binding protocol");
-    }
     let Some(object) = value.as_object() else {
         diagnostics.push(id, "@cors must be an object");
         return None;
@@ -83,9 +79,6 @@ pub(crate) fn lower(
         "x-crucible-error".to_owned(),
         "x-request-id".to_owned(),
     ]);
-    if protocol == Protocol::AwsRestJson1 {
-        exposed.extend(["x-amzn-errortype".to_owned(), "x-amzn-requestid".to_owned()]);
-    }
     let mut prefixes = BTreeSet::new();
     let mut methods = BTreeSet::new();
     for operation in operations {

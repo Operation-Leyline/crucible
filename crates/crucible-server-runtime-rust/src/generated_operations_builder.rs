@@ -3,7 +3,7 @@ use crate::error::{Error, Result};
 use crate::operation::{Input, Operation, Output, Segment, ServiceInfo};
 use crate::operations::{
     Entry, Invoke, MissingOperations, OlderVersion, Operations, OutputFromJson, StreamingOutput,
-    decode, decode_bound, decode_cbor, decode_events, decode_json, output_from_json,
+    decode, decode_bound, decode_events, decode_json, output_from_json,
 };
 use crate::validate::Validator;
 use crate::versioning::{
@@ -71,7 +71,6 @@ where
         metadata: OperationMetadata::of::<O>(),
         decode: decode::<O>,
         decode_json: decode_json::<O>,
-        decode_cbor: decode_cbor::<O>,
         decode_bound: decode_bound::<O>,
         decode_events: decode_events::<O>,
         invoke,
@@ -375,7 +374,6 @@ where
         },
         decode: decode::<Old>,
         decode_json: decode_json::<Old>,
-        decode_cbor: decode_cbor::<Old>,
         decode_bound: decode_bound::<Old>,
         decode_events: decode_events::<Old>,
         invoke: serving.invoke.clone(),

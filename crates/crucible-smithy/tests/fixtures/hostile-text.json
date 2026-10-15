@@ -10,7 +10,7 @@
         }
       ],
       "traits": {
-        "aws.protocols#restJson1": {},
+        "crucible.protocols#json": {},
         "smithy.api#documentation": "Doc: cr\rlf\r\n nel\u0085 ls\u2028ps\u2029 bom\ufeff ctl\u0001\u007f end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi\u202ertl\u2066iso\u2069 mark\u200f\n@returns injected\n```\n@throws fenced\n```"
       }
     },

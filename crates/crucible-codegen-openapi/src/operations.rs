@@ -1,6 +1,5 @@
 use std::collections::BTreeMap;
 
-use crucible_smithy::Protocol;
 use crucible_smithy::ir::{Bindings, Member, Operation, PayloadKind, Service, Shape, Structure};
 use serde_json::{Map, Value, json};
 
@@ -288,13 +287,13 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
             examples::map(&samples, |sample| {
                 let mut body = examples::body(service, structure, &bindings, sample)?;
                 // The schema requires the discriminator, so a conforming example carries it.
-                if error.payload.is_none() && service.protocol == Protocol::CrucibleJson {
+                if error.payload.is_none() {
                     body["__type"] = json!(error.wire_code);
                 }
                 Some(body)
             }),
         );
-        if error.payload.is_none() && service.protocol == Protocol::CrucibleJson {
+        if error.payload.is_none() {
             let schema = &mut content["application/json"]["schema"];
             schema["properties"]["__type"] = json!({"type": "string", "const": error.wire_code});
             let required = schema
@@ -309,12 +308,7 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
         }
         let mut response_headers = headers(service, structure, &bindings, &samples);
         response_headers.insert(
-            if service.protocol == Protocol::CrucibleJson {
-                "X-Crucible-Error"
-            } else {
-                "X-Amzn-Errortype"
-            }
-            .into(),
+            "X-Crucible-Error".into(),
             json!({"schema": {"type": "string", "const": error.wire_code}}),
         );
         let mut response = json!({"description": service.name_of(id), "content": content, "headers": response_headers, "x-smithy-errors": [id.to_string()]});

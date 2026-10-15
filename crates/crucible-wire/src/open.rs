@@ -2,7 +2,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use serde::de::{DeserializeSeed, Error, IgnoredAny, MapAccess, Visitor};
+use serde::de::{DeserializeSeed, Error, MapAccess, Visitor};
 use serde::ser::{Error as _, SerializeMap};
 use serde::{Deserialize, Deserializer, Serializer};
 use serde_json::Value;
@@ -31,9 +31,6 @@ pub struct UnknownUnion {
 }
 
 pub trait Union: Sized {
-    /// The protocol tolerates a `__type` key beside the member, as AWS JSON
-    /// protocols do; a union that models a `__type` member never sets it.
-    const IGNORE_TYPE: bool = false;
     fn deserialize_member<'de, D: Deserializer<'de>>(
         name: String,
         value: D,
@@ -82,10 +79,6 @@ pub fn deserialize_union<'de, T: Union, D: Deserializer<'de>>(
         fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<T, A::Error> {
             let mut value = None;
             while let Some(name) = map.next_key::<String>()? {
-                if T::IGNORE_TYPE && name == "__type" {
-                    map.next_value::<IgnoredAny>()?;
-                    continue;
-                }
                 if value.is_some() {
                     return Err(A::Error::invalid_length(2, &self));
                 }
@@ -123,7 +116,6 @@ mod tests {
     enum Shape {
         Text(String),
     }
-    struct Aws(Shape);
     impl Union for Shape {
         fn deserialize_member<'de, D: Deserializer<'de>>(
             name: String,
@@ -138,32 +130,9 @@ mod tests {
             unreachable!()
         }
     }
-    impl Union for Aws {
-        const IGNORE_TYPE: bool = true;
-        fn deserialize_member<'de, D: Deserializer<'de>>(
-            name: String,
-            value: D,
-        ) -> Result<Self, D::Error> {
-            Shape::deserialize_member(name, value).map(Self)
-        }
-        fn serialize_member<S: SerializeMap>(&self, _: &mut S) -> Result<(), S::Error> {
-            unreachable!()
-        }
-    }
-
     #[test]
-    fn a_type_key_is_ignored_only_where_the_protocol_allows_it() {
-        for wire in [
-            r#"{"__type":"x","text":"a"}"#,
-            r#"{"text":"a","__type":"x"}"#,
-        ] {
-            let mut input = serde_json::Deserializer::from_str(wire);
-            let value: Aws = deserialize_union(&mut input).unwrap();
-            assert_eq!(value.0, Shape::Text("a".into()));
-            let mut input = serde_json::Deserializer::from_str(wire);
-            assert!(deserialize_union::<Shape, _>(&mut input).is_err());
-        }
-        let mut input = serde_json::Deserializer::from_str(r#"{"__type":"x"}"#);
-        assert!(deserialize_union::<Aws, _>(&mut input).is_err());
+    fn a_type_key_is_an_unmodelled_member() {
+        let mut input = serde_json::Deserializer::from_str(r#"{"__type":"x","text":"a"}"#);
+        assert!(deserialize_union::<Shape, _>(&mut input).is_err());
     }
 }

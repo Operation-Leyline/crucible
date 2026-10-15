@@ -321,11 +321,9 @@ header while retaining the HTTP failure metadata.
 
 ## Protocols and checksums
 
-Select a declared protocol with `--protocol aws.protocols#restJson1`,
-`aws.protocols#awsJson1_0`, or `aws.protocols#awsJson1_1`. Protocol selection controls
-wire names, timestamp defaults, HTTP bindings, and AWS error decoding. Ordinary
-null structure members are omitted for AWS JSON; explicit document nulls survive.
-Renamed public error types retain their original modeled wire codes.
+The Crucible JSON protocol controls wire names, timestamp defaults, HTTP
+bindings, and error decoding. Renamed public error types retain their original
+modeled wire codes.
 
 Modeled checksums support CRC32, CRC32C, CRC64NVME, MD5, SHA1, SHA256, and SHA512
 over buffered payloads. Middleware runs before checksum calculation. Explicit

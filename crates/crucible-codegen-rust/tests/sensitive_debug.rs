@@ -94,22 +94,15 @@ fn server_models_redact_sensitive_members_in_debug() {
     );
 }
 
-/// Formats real values with `{:?}` under a closed union (Crucible JSON) and an
-/// open one (restJson1, which ignores an unknown `__type`).
+/// Formats real values with `{:?}` under a closed union.
 #[test]
 fn formatting_a_server_input_never_prints_sensitive_values() {
     let directory = tempfile::tempdir().unwrap();
     fs::create_dir_all(directory.path().join("src")).unwrap();
-    let mut source = String::new();
-    for (module, protocol) in [
-        ("crucible", "crucible.protocols#json"),
-        ("rest_json", "aws.protocols#restJson1"),
-    ] {
-        source.push_str(&format!(
-            "mod {module} {{\n{}\n{CONSUMER}\n}}\n",
-            server(protocol)
-        ));
-    }
+    let source = format!(
+        "mod crucible {{\n{}\n{CONSUMER}\n}}\n",
+        server("crucible.protocols#json")
+    );
     fs::write(directory.path().join("src/lib.rs"), source).unwrap();
     let crates = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
     fs::write(
@@ -132,9 +125,9 @@ fn formatting_a_server_input_never_prints_sensitive_values() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    // Both protocols' consumer tests ran, not just compiled.
+    // The consumer tests ran, not just compiled.
     assert!(
-        String::from_utf8_lossy(&output.stdout).contains("test result: ok. 2 passed"),
+        String::from_utf8_lossy(&output.stdout).contains("test result: ok. 1 passed"),
         "{}",
         String::from_utf8_lossy(&output.stdout)
     );

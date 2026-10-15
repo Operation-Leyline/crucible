@@ -190,12 +190,6 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
     body <- if (identical(kind, 'string')) charToRaw(enc2utf8(.crucible_string(value))) else if (identical(kind, 'document')) charToRaw(enc2utf8(json_encode(.crucible_document(value, .crucible_shape(op$input)$members[[payload[[1L]]]]$target, TRUE)))) else openssl::base64_decode(value)
     if (!modelled_content_type) headers[['content-type']] <- payload[[2L]]
   }
-  protocol <- .crucible_schema[['protocol']]
-  if (!is.null(protocol) && protocol %in% c('awsJson1_0', 'awsJson1_1')) {
-    if (is.null(body)) body <- charToRaw('{}')
-    headers[['content-type']] <- paste0('application/x-amz-json-', if (protocol == 'awsJson1_0') '1.0' else '1.1')
-    headers[['x-amz-target']] <- paste0(sub('^.*#', '', .crucible_schema[['service']]), '.', operation_name)
-  }
   # The release this client was generated for (docs/api-versions-clients.md).
   api_version <- .crucible_schema[['apiVersion']]
   if (is.character(api_version) && length(api_version) == 1L) headers[['crucible-version']] <- api_version
@@ -239,26 +233,16 @@ client_config <- function(endpoint = NULL, token = NULL, transport = NULL, timeo
   body <- tryCatch(json_parse(response$body), error = function(e) json_object())
   if (!.crucible_is_object(body)) body <- json_object()
   text <- function(value) if (.crucible_query_is_string(value)) value else NULL
-  protocol <- .crucible_schema[['protocol']]
-  aws <- !is.null(protocol) && protocol %in% c('awsRestJson1', 'awsJson1_0', 'awsJson1_1')
-  if (aws) {
-    # AWS JSON error codes may carry a namespace and a trailing ':'-separated URL.
-    name <- response$headers[['x-amzn-errortype']]
-    if (is.null(name)) name <- if (!is.null(body[['code']])) text(body[['code']]) else text(body[['__type']])
-    if (!is.null(name)) name <- sub('^.*#', '', sub(':.*$', '', name))
-  } else {
-    name <- text(body[['__type']])
-    if (!is.null(response$headers[['x-crucible-error']])) name <- response$headers[['x-crucible-error']]
-  }
+  name <- text(body[['__type']])
+  if (!is.null(response$headers[['x-crucible-error']])) name <- response$headers[['x-crucible-error']]
   matches <- Filter(function(target) { shape <- .crucible_shape(target); if (!is.null(name)) (if (!is.null(shape$error$wireCode)) shape$error$wireCode else shape$name) == name else as.numeric(shape$error$status) == response$status }, op$errors)
   target <- if (length(matches) == 1L) matches[[1L]] else NULL
   shape <- if (!is.null(target)) .crucible_shape(target) else NULL; traits <- shape$error
   if (is.null(name)) name <- if (!is.null(shape)) shape$name else 'UnknownError'
-  message <- text(body[['message']]); if (is.null(message) && aws) message <- text(body[['Message']])
+  message <- text(body[['message']])
   if (is.null(message)) message <- paste('HTTP', response$status)
   request_id <- response$headers[['x-request-id']]
   if (is.null(request_id)) request_id <- text(body[['requestId']])
-  if (aws) for (header in c('x-amz-request-id', 'x-amzn-requestid')) if (!is.null(response$headers[[header]])) request_id <- response$headers[[header]]
   metadata <- list(name = name, message = message, status = response$status, request_id = request_id, headers = response$headers, retryable = isTRUE(traits$retryable), throttling = isTRUE(traits$throttling))
   model <- if (is.null(target)) NULL else tryCatch({
     object <- if (is.null(traits$payload)) .crucible_document(body, target) else { value <- json_object(); value[traits$payload[[1L]]] <- list(.crucible_payload(target, traits, response$body)); value }

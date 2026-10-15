@@ -222,7 +222,7 @@ Do not combine an earlier generated digest with a later body mutation.
 Run `bash tools/test-ts.sh` for generated type checks, fake-fetch runtime tests,
 all 16 shared serialization cases, shared retry cases, the shared checksum
 vectors, and the published event stream framing and signing vectors. The event
-stream suite also drives generated clients (restJson1, awsJson1_0, and SigV4)
+stream suite also drives generated clients (HTTP bindings and SigV4)
 against a loopback Node HTTP/1.1 server. Set `TSC` to use an existing TypeScript compiler and `CRUCIBLE_BIN` to
 generate with a prebuilt CLI instead of `cargo run`.
 `bash tools/test-e2e.sh` also runs the TypeScript client against the real weather
@@ -320,11 +320,8 @@ members are typed headers (`boolean`, byte/short/integer `number`, long
 `@eventPayload` blob or string is the raw payload, and a structure is its JSON
 document; otherwise the remaining members form a JSON document. Prelude and
 message CRC32s are verified; headers are limited to 128 KiB and payloads to
-16 MiB. With `restJson1` the operation's other members use HTTP bindings. With
-`awsJson1_0` and `awsJson1_1` they are sent as an `initial-request` message
-first, and an `initial-response` message, when the service sends one, fills the
-output's other members before the call resolves. HTTP errors before the stream
-are decoded as the operation's errors.
+16 MiB. The operation's other members use HTTP bindings. HTTP errors before the
+stream are decoded as the operation's errors.
 
 With SigV4 authentication the request declares
 `x-amz-content-sha256: STREAMING-AWS4-HMAC-SHA256-EVENTS`, each message is

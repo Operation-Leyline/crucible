@@ -439,12 +439,6 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::EndpointRules,
         Feature::EndpointHostPrefix,
         Feature::HttpChecksum,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
-        Feature::AwsRestXml,
-        Feature::AwsQuery,
-        Feature::Ec2Query,
     ])
 }
 
@@ -556,32 +550,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             for name in enum_names {
                 if !values.insert(field(name).to_uppercase()) {
                     diagnostics.push(id, "Java enum constant name collision");
-                }
-            }
-        }
-    }
-    // The runtime carries a stream only as the whole HTTP body.
-    for op in &service.operations {
-        for (shape, bindings) in [(&op.input, &op.request), (&op.output, &op.response)] {
-            let Some(Shape::Structure(s)) = shape.as_ref().and_then(|id| service.shape(id)) else {
-                continue;
-            };
-            for m in &s.members {
-                let streaming =
-                    matches!(service.shape(&m.target), Some(Shape::Simple(t)) if t.streaming);
-                if streaming
-                    && !bindings
-                        .payload
-                        .as_ref()
-                        .is_some_and(|p| p.streaming && p.member == m.name)
-                {
-                    diagnostics.push(
-                        &op.id,
-                        format!(
-                            "Java streams only an HTTP payload; {} is not the streaming payload",
-                            m.name
-                        ),
-                    );
                 }
             }
         }
@@ -1225,7 +1193,6 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ),
         ("ModelFormat", include_str!("../runtime/ModelFormat.java")),
         ("Query", include_str!("../runtime/Query.java")),
-        ("XmlProtocol", include_str!("../runtime/XmlProtocol.java")),
         ("Endpoints", include_str!("../runtime/Endpoints.java")),
         (
             "WaiterOptions",

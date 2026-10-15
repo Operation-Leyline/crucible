@@ -291,9 +291,6 @@ pub fn capabilities() -> crucible_smithy::Capabilities {
         Feature::EndpointDiscovery,
         Feature::HttpChecksum,
         Feature::Streaming,
-        Feature::AwsRestJson1,
-        Feature::AwsJson10,
-        Feature::AwsJson11,
     ])
 }
 

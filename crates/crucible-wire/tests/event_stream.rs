@@ -155,12 +155,9 @@ fn oversized_and_invalid_headers_are_refused_when_encoding() {
 }
 
 static EVENTS: EventStreamInfo = EventStreamInfo {
-    initial_message: false,
     document_type: "application/json",
     events: &[
         EventInfo {
-            encode_document: None,
-            decode_document: None,
             name: "message",
             json: "message",
             error: false,
@@ -200,8 +197,6 @@ static EVENTS: EventStreamInfo = EventStreamInfo {
             ],
         },
         EventInfo {
-            encode_document: None,
-            decode_document: None,
             name: "data",
             json: "data",
             error: false,
@@ -212,16 +207,12 @@ static EVENTS: EventStreamInfo = EventStreamInfo {
             }],
         },
         EventInfo {
-            encode_document: None,
-            decode_document: None,
             name: "structured",
             json: "structured",
             error: false,
             members: &[],
         },
         EventInfo {
-            encode_document: None,
-            decode_document: None,
             name: "throttled",
             json: "throttled",
             error: true,
@@ -271,7 +262,7 @@ fn events_bind_headers_and_payloads_and_round_trip() {
 }
 
 #[test]
-fn exceptions_errors_unknown_events_and_initial_messages_are_classified() {
+fn exceptions_errors_and_unknown_events_are_classified() {
     let exception = Message::new(&br#"{"message":"slow down"}"#[..])
         .with_header(":message-type", HeaderValue::String("exception".into()))
         .with_header(":exception-type", HeaderValue::String("throttled".into()));
@@ -306,16 +297,6 @@ fn exceptions_errors_unknown_events_and_initial_messages_are_classified() {
     assert_eq!(
         EVENTS.decode(&future).unwrap(),
         Decoded::Event(json!({"future": {"x": 1}}))
-    );
-    let initial = Message::new(&b"{\"a\":1}"[..])
-        .with_header(":message-type", HeaderValue::String("event".into()))
-        .with_header(
-            ":event-type",
-            HeaderValue::String("initial-response".into()),
-        );
-    assert_eq!(
-        EVENTS.decode(&initial).unwrap(),
-        Decoded::Initial(Bytes::from_static(b"{\"a\":1}"))
     );
     let mistyped = Message::new(Bytes::new())
         .with_header(":message-type", HeaderValue::String("event".into()))

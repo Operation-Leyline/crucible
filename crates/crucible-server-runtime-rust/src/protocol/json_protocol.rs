@@ -50,44 +50,36 @@ impl Protocol for JsonProtocol {
     }
 
     fn decode<'a>(&'a self, job: &'a mut Job) -> Hook<'a, Result<()>> {
-        decode_http(job, false)
+        decode_http(job)
     }
 
     fn write(&self, job: &Job, answers: &Answers<'_>) -> Response {
-        super::json_response::write(job, answers, super::json_response::Format::Crucible)
+        super::json_response::write(job, answers)
     }
 }
 
-pub(super) fn decode_http(job: &mut Job, rest_json: bool) -> Hook<'_, Result<()>> {
+fn decode_http(job: &mut Job) -> Hook<'_, Result<()>> {
     if super::server_events::has_input(job) {
         return Hook::wait(super::server_events::decode(job));
     }
-    Hook::Ready(check_content_type(job, rest_json).and_then(|()| read_input(job)))
+    Hook::Ready(check_content_type(job).and_then(|()| read_input(job)))
 }
 
-fn check_content_type(job: &Job, rest_json: bool) -> Result<()> {
+fn check_content_type(job: &Job) -> Result<()> {
     if job.body().is_empty() || job.request().extensions.get::<Invocation>().is_some() {
         return Ok(());
     }
     let op = job.operation().ok_or(FrameworkError::UnknownOperation)?;
     let payload = Location::payload(op.input);
     // Crucible's payload contract accepts raw bytes with any media type.
-    // REST JSON permits a modeled Content-Type header to override the default.
-    if (!rest_json
-        && payload.is_some_and(|(member, _)| {
-            !matches!(member.location, Location::DocumentPayload(_))
-        }))
-        || (rest_json && op.input.iter().any(|member| {
-            matches!(member.location, Location::Header(name) if name.eq_ignore_ascii_case("content-type"))
-        }))
-    {
+    if payload.is_some_and(|(member, _)| !matches!(member.location, Location::DocumentPayload(_))) {
         return Ok(());
     }
     // The document media type also applies to inputs whose members are all
     // HTTP-bound: clients may still send an empty JSON object for those inputs.
     let expected = payload.map_or("application/json", |(_, media_type)| media_type);
     if job.request().headers.get_all("content-type").iter().count() != 1
-        || !super::rpc_routing::content_type(job.request(), expected)
+        || !super::content_type(job.request(), expected)
     {
         return Err(FrameworkError::UnsupportedMediaType.into());
     }

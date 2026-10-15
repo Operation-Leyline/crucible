@@ -93,8 +93,7 @@ Integers use fixed-width C types. Documents preserve exact JSON number text;
 `weather_json_integer` checks signed bounds without floating-point conversion.
 Timestamps use signed seconds plus nanoseconds, with exact epoch serialization
 and Gregorian date-time support for years 1 through 9999. Float and double
-models use native binary floating point. They reject non-finite values, except
-under AWS JSON protocols, which write `"NaN"`, `"Infinity"` and `"-Infinity"`.
+models use native binary floating point. They reject non-finite values.
 
 Blob fields are byte views. JSON codecs use padded base64, while an
 `@httpPayload` blob uses the bytes directly. Model encode/decode functions take
@@ -149,17 +148,6 @@ Internal permissions never appear in the header, the registry, or anywhere
 else in the package. These symbols share C's one namespace with the models and
 operations, so a collision, or two permissions of one resource with the same
 `_known_` name, is a generator diagnostic, never a silent rename.
-
-## Protocols
-
-The `crucible.protocols#json` protocol and the AWS JSON protocols
-(`aws.protocols#restJson1`, `awsJson1_0`, `awsJson1_1`; select one with
-`--protocol`) share the generated API. AWS JSON RPC posts every operation to
-`/` with `X-Amz-Target: Service.Operation` and an `application/x-amz-json-1.x`
-body (`{}` when empty). AWS JSON protocols omit null structure members, ignore
-a `__type` key in unions, and take error names from `X-Amzn-Errortype`, `code`
-or `__type` (dropping any namespace and `:` suffix), messages from `message`
-or `Message`, and request IDs from `X-Amzn-Requestid` or `X-Amz-Request-Id`.
 
 ## Authentication
 
@@ -286,8 +274,7 @@ with `weather_pages_free` and keep its client alive until then.
 HEAD operations with request bodies receive a generator diagnostic because
 the transport cannot preserve that body. Endpoint rules may use only the
 standard functions listed above; the AWS partition and ARN functions fail
-resolution. SigV4a, streaming, event streams, and XML or query protocols are
-not supported by this target. The default transport does not add
+resolution. SigV4a, streaming, and event streams are not supported by this target. The default transport does not add
 an HTTP cache, cookie jar, or redirect following. It discards an irrelevant
 successful response body after headers, but reads error bodies for metadata.
 
@@ -300,11 +287,11 @@ is installed.
 
 Run `python tools/test-c.py` for generated CMake installation, a separate
 consumer, shared fixtures, and native weather-service HTTP tests. It also
-builds the authentication, checksum, endpoint, waiter and AWS JSON packages
+builds the authentication, checksum, endpoint and waiter packages
 and runs them against a loopback feature service: the published SigV4 vector,
 credential providers and concurrent cache refresh, all seven checksum vectors
 and their HTTP validation, endpoint rules and host labels, waiter acceptors,
-deadlines and cancellation, and each AWS JSON protocol. `C_FEATURES_ONLY=1`
+deadlines and cancellation. `C_FEATURES_ONLY=1`
 runs only those. CI covers GCC with sanitizers and MSVC.
 
 Native package tests and full-model compilation are separate from authenticated

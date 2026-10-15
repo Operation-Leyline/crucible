@@ -51,18 +51,14 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
     for operation in &service.operations {
         self::operation(service, operation, diagnostics);
     }
-    if service.protocol.uses_http_bindings() {
-        routes(&service.operations, diagnostics);
-    }
+    routes(&service.operations, diagnostics);
 }
 
 /// The rules of one operation, in the context of `service` (its shapes,
 /// protocol and auth schemes), apart from those that compare operations.
 pub fn operation(service: &Service, operation: &Operation, diagnostics: &mut Diagnostics) {
     errors(operation, diagnostics);
-    if service.protocol.uses_http_bindings() {
-        http(service, operation, diagnostics);
-    }
+    http(service, operation, diagnostics);
     if let Some(paginated) = &operation.paginated {
         pagination(service, operation, paginated, diagnostics);
     }
