@@ -413,7 +413,7 @@ const KEYWORDS: &[Row] = &[
     (
         "for",
         &["structure"],
-        "Makes the structure a view of a resource: `$name` members bind its identifiers and properties, with their types and docs. An output member of the view's type, or a list or map of it, carries those bindings.",
+        "Makes the structure a view of a resource: `$name` members bind its identifiers and properties, with their types and docs. An output member of the view's type, or a list or map of it, carries those bindings. `for A, B` serves several resources, whose shown members must be identical.",
         "structure CityData for City {\n    $cityId as id\n    $name\n}",
     ),
     (
@@ -1030,10 +1030,21 @@ impl<'a> Model<'a> {
             }
             Decl::Structure(structure) => {
                 if let Some(resource) = &structure.resource {
-                    out.push(format!(
-                        "A view of resource {}: its `$members` bind the resource's identifiers and properties.",
-                        code(&resource.name)
-                    ));
+                    let names: Vec<String> = std::iter::once(resource)
+                        .chain(&structure.also)
+                        .map(|r| code(&r.name))
+                        .collect();
+                    out.push(if names.len() == 1 {
+                        format!(
+                            "A view of resource {}: its `$members` bind the resource's identifiers and properties.",
+                            names[0]
+                        )
+                    } else {
+                        format!(
+                            "A view of resources {}: its `$members` bind their identifiers and properties, which each must declare identically.",
+                            names.join(", ")
+                        )
+                    });
                 }
             }
             Decl::Error(error) => {
@@ -1659,6 +1670,9 @@ fn render_item(item: &Item) -> String {
             let mut head = format!("structure {}", structure.name.name);
             if let Some(resource) = &structure.resource {
                 head.push_str(&format!(" for {}", resource.name));
+                for other in &structure.also {
+                    head.push_str(&format!(", {}", other.name));
+                }
             }
             braces(&head, structure.members.iter().map(render_member).collect())
         }
@@ -2477,6 +2491,14 @@ readonly operation GetCity reads City {
         let view = hover_at(MODEL, "CityData", 0).unwrap();
         assert!(view.contains("structure CityData for City {\n    $cityId as id\n    $name?\n}"));
         assert!(view.contains("A view of resource `City`"));
+    }
+
+    #[test]
+    fn a_view_of_several_resources_shows_them_all() {
+        let source = "resource Job {\n    id jobId: string\n}\nresource Old {\n    id jobId: string\n}\nstructure Data for Job, Old {\n    $jobId\n}\n";
+        let view = hover_at(source, "Data", 0).unwrap();
+        assert!(view.contains("structure Data for Job, Old {"), "{view}");
+        assert!(view.contains("A view of resources `Job`, `Old`"), "{view}");
     }
 
     #[test]

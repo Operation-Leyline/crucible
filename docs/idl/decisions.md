@@ -612,6 +612,26 @@ trait when a project defines it.
     structures left from the Smithy model. Considered, not decided: an
     advisory warning on a `lists` output whose items are a `$*` view.
 
+34j. **A view may serve several resources: `structure JobData for
+    QueryJob, GraphHistoryQueryJob`.** Two resources that hold the same
+    state (a live job and its retained history, a record and its archive)
+    show it through one view, and operations of either use it as their
+    output. The view is lowered against the first resource, and each
+    `$name` is lowered again against every other; the two members must be
+    identical (name and spelling, target and constraints, presence,
+    default, mutability), or the compiler names the fields that differ. An
+    identifier spelled differently (`as id` on one) is such a difference,
+    settled with `$jobId as id`. `$*` shows what every listed resource
+    declares as an own entry of the same kind and leaves out the rest, and
+    a member that is not identical still fails. An included view keeps
+    checking its own resources, and the including view's when both are views
+    of the same first resource. A resource of the list counts for the
+    lifecycle warnings (34h) as any `for` view of it does. *Why:* two views
+    kept equal by hand drift, and the one view for the second resource left
+    the first with a "no output shows a property" warning. *Rejected:* a
+    view that takes the union or intersection of differing members
+    silently; a shared member that means two things is a model error.
+
 34i. **OPEN: update semantics.** Clearing an optional property, merge
     versus replace, and field masks are left to their own decision. `$x?`
     in an `updates` input says the member may be absent, not what absence

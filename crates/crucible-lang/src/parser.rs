@@ -853,10 +853,17 @@ impl<'s> Parser<'s> {
                 self.pos += 1;
                 let name = self.ident("a structure name");
                 let resource = self.eat_word("for").then(|| self.ident("a resource name"));
+                let mut also = Vec::new();
+                if resource.is_some() {
+                    while self.eat(TokenKind::Comma) {
+                        also.push(self.ident("a resource name"));
+                    }
+                }
                 let members = self.braced(Self::typed_member);
                 Decl::Structure(Structure {
                     name,
                     resource,
+                    also,
                     members,
                 })
             }
