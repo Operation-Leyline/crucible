@@ -458,6 +458,13 @@ version's section when it is prepared.
 
 ### Fixed
 
+- Framework errors under the Crucible JSON protocol (`crucible.protocols#json`)
+  now send `X-Crucible-Error`, as modelled errors and `NotFoundException`
+  already did (#308). The 401, 403, 405, 409 (including idempotency
+  conflicts), 415 and 500 the framework answers itself carried only the
+  body's `__type`, which clients read only as a fallback; the protocol makes
+  the header the discriminator.
+
 - A Go client call with a streaming request body now returns as soon as its
   context is cancelled or its deadline passes, even while the transport is
   blocked reading the caller's stream, when that stream is an `io.Closer`
