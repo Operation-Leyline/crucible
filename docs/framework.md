@@ -508,7 +508,7 @@ let next_token = last.map(|key| page_tokens::issue(&key)).transpose()?;
   two lengths and the largest cursor that fits
   (`PageTokens::cursor_capacity(limit)`), so a model limit is met at build and
   not by a long cursor at runtime. A model with `@length(max: 2048)` on its
-  token: `PageTokens::new(..).max_cursor(tokens.cursor_capacity(2048)?)`
+  token: `let tokens = PageTokens::new(..); let tokens = tokens.max_cursor(tokens.cursor_capacity(2048)?);`
   (1483 bytes for a 2-character key id). A token member with no `@length`
   accepts any cap. The check reads the input token (`Pagination::input_token_max_length`),
   so give the output's `nextToken` the same shape.
