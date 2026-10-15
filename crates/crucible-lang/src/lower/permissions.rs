@@ -1060,7 +1060,7 @@ mod tests {
         let package = Package::new("example.shop", Vec::new());
         let parsed = vec![parse(own), parse(other)];
         let namespaces = vec!["example.shop".to_owned(), "example.other".to_owned()];
-        let (_, _, diagnostics) = super::super::lower(&package, &parsed, &namespaces, None);
+        let diagnostics = super::super::lower(&package, &parsed, &namespaces, None).diagnostics;
         let messages: Vec<&str> = diagnostics
             .iter()
             .map(|d| d.diagnostic.message.as_str())

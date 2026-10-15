@@ -16,6 +16,8 @@ fn compiled(text: &str) -> Compiled {
         }],
         naming: Default::default(),
         imports: Vec::new(),
+        dependencies: Vec::new(),
+        dir: None,
         baseline: None,
     };
     compile(&package, None)

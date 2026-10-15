@@ -305,6 +305,7 @@ impl<'m> Lowerer<'m> {
             permissions: BTreeMap::new(),
             permission_types: None,
             not_found: None,
+            exceptions: Vec::new(),
         };
         // Rules of the IR itself, shared with the .cru front end.
         crate::validate::service(&service, &mut self.diagnostics);

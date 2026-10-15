@@ -60,7 +60,8 @@ enum Command {
     Check {
         #[command(flatten)]
         source: Source,
-        /// Check the capabilities of a particular generated client.
+        /// Check the capabilities of a particular generated client. Without
+        /// it, every capability some generator supports is accepted.
         #[arg(long, value_enum)]
         target: Option<ClientLanguage>,
         /// Run project policy rules in addition to the supported-subset check.
@@ -667,7 +668,11 @@ fn run(command: Command) -> ExitCode {
             config,
         } => lower_with_capabilities(
             &source,
-            &target.map(ClientLanguage::capabilities).unwrap_or_default(),
+            // An empty set would refuse every gated feature (`sparse`, ...)
+            // that the model is allowed to use; only a named client narrows it.
+            &target.map(ClientLanguage::capabilities).unwrap_or_else(|| {
+                crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied())
+            }),
         )
         .and_then(|service| {
             // A package's manifest may carry its policy; --config selects another.

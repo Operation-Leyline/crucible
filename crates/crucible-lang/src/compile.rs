@@ -25,6 +25,14 @@ pub struct Package {
     /// Packages whose declarations this one uses: the bundled
     /// `crucible.errors` today (decision 60).
     pub imports: Vec<String>,
+    /// The packages `imports` names that are not bundled: each of
+    /// `[model.dependencies]` the package imports, and what those import in
+    /// turn, flattened and deepest first. Their own `dependencies` are empty.
+    /// A dependency's rules apply to this package (decision 47).
+    pub dependencies: Vec<Package>,
+    /// Where the package was loaded from, when it was: a build reruns when
+    /// anything under it changes.
+    pub dir: Option<std::path::PathBuf>,
     /// The last release's snapshot, from `[model.baseline]`
     /// (`releases/<version>.json`): the contract this one must stay
     /// compatible with (decision 47d).
@@ -38,6 +46,8 @@ impl Package {
             files,
             naming: Naming::default(),
             imports: Vec::new(),
+            dependencies: Vec::new(),
+            dir: None,
             baseline: None,
         }
     }
@@ -112,7 +122,7 @@ pub struct FileDiagnostic {
 #[derive(Debug)]
 pub struct Compiled {
     pub namespace: String,
-    /// Every file compiled: the package's own, then its imports'.
+    /// Every file compiled: the package's own, then its dependencies', then the bundled ones.
     pub files: Vec<SourceFile>,
     pub parsed: Vec<Parsed>,
     /// Present when the package compiled without a diagnostic.
@@ -206,12 +216,31 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
             diagnostic: Diagnostic::new(Span::default(), problem),
         });
     }
-    let mut imported = Vec::new();
-    for import in &package.imports {
-        if imported.contains(import) {
+    // A dependency's files follow the package's own, in namespaces of their own.
+    for dependency in &package.dependencies {
+        for file in &dependency.files {
+            files.push(file.clone());
+            namespaces.push(dependency.namespace.clone());
+        }
+    }
+    // The bundled packages the package, and the dependencies it imports by
+    // path, import.
+    let dependency_names: Vec<&str> = package
+        .dependencies
+        .iter()
+        .map(|d| d.namespace.as_str())
+        .collect();
+    let wanted: Vec<&String> = package
+        .imports
+        .iter()
+        .chain(package.dependencies.iter().flat_map(|d| &d.imports))
+        .collect();
+    let mut imported: Vec<&String> = Vec::new();
+    for import in wanted {
+        if imported.contains(&import) || dependency_names.contains(&import.as_str()) {
             continue;
         }
-        imported.push(import.clone());
+        imported.push(import);
         match BUNDLED.iter().find(|(namespace, _)| namespace == import) {
             Some((namespace, text)) => {
                 files.push(SourceFile {
@@ -227,7 +256,7 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
                     diagnostic: Diagnostic::new(
                         Span::default(),
                         format!(
-                            "unknown import `{import}`; the bundled packages are {}",
+                            "unknown import `{import}`; the bundled packages are {}, and a dependency is named in `[model.dependencies]`",
                             known.join(", ")
                         ),
                     ),
@@ -246,13 +275,47 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
             diagnostic: diagnostic.clone(),
         }));
     }
-    let (lowered, source_map, problems) =
-        crate::lower::lower(package, &parsed, &namespaces, service);
+    let crate::lower::Lowered {
+        service: mut lowered,
+        source_map,
+        diagnostics: problems,
+        named_types,
+        template_members,
+    } = crate::lower::lower(package, &parsed, &namespaces, service);
     diagnostics.extend(
         problems
             .into_iter()
             .filter(|problem| !problem.file.is_some_and(|file| broken[file])),
     );
+    // Rules judge a model that compiles; they run once it does, and their
+    // accepted exceptions are recorded in the compiled model.
+    if let Some(model) = lowered.as_mut()
+        && !diagnostics.iter().any(|item| item.diagnostic.is_error())
+    {
+        let outcome = crate::rules::run(&crate::rules::Inputs {
+            package: &package.namespace,
+            files: &files,
+            parsed: &parsed,
+            namespaces: &namespaces,
+            service: model,
+            source_map: &source_map,
+            named_types: &named_types,
+            template_members: &template_members,
+        });
+        diagnostics.extend(outcome.diagnostics.into_iter().filter(|problem| {
+            !problem
+                .file
+                .is_some_and(|file| broken.get(file).copied().unwrap_or(false))
+        }));
+        model.exceptions = outcome.exceptions;
+    }
+    // Metadata kept `retention source` is for the compiler and its rules.
+    if let Some(model) = lowered.as_mut() {
+        let source_only = source_only_keys(&parsed, &namespaces);
+        if !source_only.is_empty() {
+            model.retain_traits(|id| !source_only.contains(id));
+        }
+    }
     let failed = diagnostics.iter().any(|item| item.diagnostic.is_error());
     let (service, best_effort) = if failed {
         (None, lowered)
@@ -268,4 +331,28 @@ pub fn compile(package: &Package, service: Option<&str>) -> Compiled {
         source_map,
         diagnostics,
     }
+}
+
+/// The IR keys of the metadata declared `retention source`.
+fn source_only_keys(
+    parsed: &[Parsed],
+    namespaces: &[String],
+) -> std::collections::BTreeSet<crucible_smithy::ShapeId> {
+    let mut keys = std::collections::BTreeSet::new();
+    for (file, parsed) in parsed.iter().enumerate() {
+        let Some(ns) = namespaces.get(file) else {
+            continue;
+        };
+        for item in &parsed.file.items {
+            if let crate::ast::Decl::Metadata(metadata) = &item.decl
+                && metadata
+                    .retention
+                    .as_ref()
+                    .is_some_and(|retention| retention.name == "source")
+            {
+                keys.insert(crucible_smithy::ShapeId::new(ns, &metadata.name.name));
+            }
+        }
+    }
+    keys
 }
