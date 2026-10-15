@@ -586,6 +586,16 @@ impl<'a> Cx<'a> {
             if self.meta.contains_key(key) {
                 continue;
             }
+            // Read where a list or map is declared; anywhere else it is dropped.
+            if key == "smithy.api#sparse"
+                && self
+                    .m
+                    .shapes
+                    .get(id)
+                    .is_some_and(|shape| matches!(crate::model::kind(shape), "list" | "map"))
+            {
+                continue;
+            }
             if let Some(name) = key.strip_prefix("smithy.api#") {
                 if HANDLED.contains(&name) {
                     continue;
@@ -1391,15 +1401,13 @@ impl<'a> Cx<'a> {
                 let mem = shape.get("member").cloned().unwrap_or_default();
                 self.member_traits_unsupported(id, &mem);
                 let t = self.ty(id, target(&mem));
-                if has_trait(shape, "smithy.api#sparse") {
-                    self.diag(
-                        Severity::Error,
-                        id,
-                        "sparse lists are not supported (decision 14)",
-                    );
-                }
+                let sparse = if has_trait(shape, "smithy.api#sparse") {
+                    "sparse "
+                } else {
+                    ""
+                };
                 out.push_str(&format!(
-                    "{modifiers}list {name}: {t}{}\n",
+                    "{modifiers}{sparse}list {name}: {t}{}\n",
                     Self::constraints(traits)
                 ));
             }
@@ -1410,15 +1418,13 @@ impl<'a> Cx<'a> {
                 self.member_traits_unsupported(id, &value);
                 let kt = self.ty(id, target(&key));
                 let vt = self.ty(id, target(&value));
-                if has_trait(shape, "smithy.api#sparse") {
-                    self.diag(
-                        Severity::Error,
-                        id,
-                        "sparse maps are not supported (decision 14)",
-                    );
-                }
+                let sparse = if has_trait(shape, "smithy.api#sparse") {
+                    "sparse "
+                } else {
+                    ""
+                };
                 out.push_str(&format!(
-                    "{modifiers}map {name}: {kt} -> {vt}{}\n",
+                    "{modifiers}{sparse}map {name}: {kt} -> {vt}{}\n",
                     Self::constraints(traits)
                 ));
             }
