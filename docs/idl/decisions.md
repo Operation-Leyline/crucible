@@ -741,6 +741,15 @@ trait when a project defines it.
 36. **`strict` is a structure modifier.** *Replaces:*
     `@crucible.protocols#strict`. *Why:* same semantics, server only.
 
+36a. **`sparse` is a list and map modifier.** `sparse list Row: Cell`
+    lets an element be null, `sparse map Params: Name -> Cell` a value;
+    without it a collection is dense and refuses a null. *Replaces:*
+    Smithy's `@sparse`. *Why:* a Cypher result row holds nulls, and a
+    dense list makes the server fail the response. Changing a collection
+    between dense and sparse is a compatibility finding (a response
+    that gains nulls breaks clients built for dense rows; the generated
+    element type changes for SDKs).
+
 37. **Auth schemes are declared data like protocols: an `auth scheme`
     names a family the runtimes implement and its settings. A service
     lists its schemes; `public` on an operation opts out; `scopes [..]` on

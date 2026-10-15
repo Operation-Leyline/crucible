@@ -109,6 +109,12 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Sparse lists and maps carry null elements (tests/sparse.rs).
+    std::fs::write(
+        out.join("sparse.rs"),
+        crucible_build::model("sparse").server().render().unwrap(),
+    )
+    .unwrap();
     // Every kind of `when` condition and binding, through the interceptor.
     std::fs::write(
         out.join("conditions.rs"),

@@ -63,6 +63,7 @@ const MODIFIERS: &[&str] = &[
     "internal",
     "strict",
     "sensitive",
+    "sparse",
 ];
 const ROLES: &[&str] = &[
     "creates", "puts", "reads", "updates", "deletes", "lists", "on",
