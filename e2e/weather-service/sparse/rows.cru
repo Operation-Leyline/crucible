@@ -1,0 +1,34 @@
+/// Query results: rows of cells, where a cell can be a Cypher null.
+service Grid {
+    version "1"
+    protocol json
+    operations [Run]
+    errors [ValidationException, InternalServerException]
+}
+
+string Name { length 1..20 }
+document Cell
+
+/// One result row; a cell may be null.
+sparse list Row: Cell { length ..10 }
+
+list Rows: Row { length ..5 }
+
+/// A dense list refuses a null element.
+list DenseRow: Cell { length ..10 }
+
+/// Named parameters; a value may be null.
+sparse map Params: Name -> Cell
+
+operation Run {
+    http POST "/run"
+    input {
+        params: Params
+        dense: DenseRow
+    }
+    output {
+        rows: Rows
+        echo: Params
+        dense: DenseRow
+    }
+}

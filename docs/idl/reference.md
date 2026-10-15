@@ -39,7 +39,8 @@ but are never required.
 ```ebnf
 file        = { item } ;
 item        = [ doc ] { annotation } { modifier } declaration ;
-modifier    = "readonly" | "idempotent" | "public" | "strict" | "internal" | "sensitive" ;
+modifier    = "readonly" | "idempotent" | "public" | "strict" | "internal" | "sensitive"
+            | "sparse" ;
                                                            (* each position checks its own *)
 
 declaration = service | resource | operation | structure | union | enum
@@ -124,6 +125,8 @@ scalar_kind = "string" | "boolean" | "byte" | "short" | "integer" | "long"
             | "timestamp" | "blob" | "document" ;
 list        = "list" ident ":" ident [ constraints ] ;   (* constraints are the list's *)
 map         = "map" ident ":" ident "->" ident [ constraints ] ;
+                 (* modifiers: internal, sensitive, sparse. A `sparse` list or map
+                    allows null elements or values; the default is dense *)
 enum        = "enum" ident [ ":" ident ] "{" { enum_value } "}" ;
 enum_value  = [ doc ] { annotation } { modifier } ident [ "=" value ] ;
                          (* modifier: internal; value: a string, or a number in an integer enum *)

@@ -26,6 +26,7 @@ const MODIFIERS: &[&str] = &[
     "strict",
     "internal",
     "sensitive",
+    "sparse",
 ];
 
 /// Words that may precede a resource's `id` or `property` (decision 34a).

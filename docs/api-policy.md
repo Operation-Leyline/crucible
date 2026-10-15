@@ -126,6 +126,29 @@ Static checks evaluate the current model in full. Existing violations can be
 introduced as warnings or explicitly excepted during adoption. They do not
 depend on the CI diff to select changed shapes.
 
+## Reading a `.cru` package's compiled model
+
+Scripts, gates and build steps that read the contract want the lowered model,
+not the source: resolved names, defaults, HTTP bindings, and the package's own
+`metadata` and `///` documentation. `crucible compile --json <package>`
+prints it (`--out <file>` writes it instead; `--service` picks one of several):
+
+```sh
+crucible compile --json model/api --out target/model.json
+```
+
+The JSON is the release snapshot format (`crucible freeze` writes the same
+document, and `crucible_smithy::snapshot::read` reads it back), in full: every
+operation's `traits` map holds the package's metadata under its namespaced key
+(`example.service#operationClass`), and operations, shapes, members and enum
+values carry `docs`. `crucible generate ts` writes `crucible-model.json` for
+the TypeScript package, which is the compact contract without either.
+
+A build script gets the same file from `crucible_build`: a `.cru` package
+passed to `model(..).server().model_output(path)` (or the
+`CRUCIBLE_MODEL_OUT` environment variable) exports its compiled model there,
+rewritten only when it changes so a watched export does not rerun the build.
+
 ## Guarding a `.cru` package against its last release
 
 A Crucible language package can name its last release as a baseline. Every
