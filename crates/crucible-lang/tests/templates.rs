@@ -296,3 +296,38 @@ operation DeleteA deletes Order {
     assert_eq!(twice.len(), 1, "{found:#?}");
     assert_eq!(twice[0].1, at, "{found:#?}");
 }
+
+#[test]
+fn an_identifier_a_template_include_supplies_satisfies_the_role() {
+    let source = "structure OrderKey for Order { $orderId }
+template reads { input { include OrderKey } }
+readonly operation GetOrder reads Order {
+    http GET \"/orders/{orderId}\"
+    output { order: OrderData }
+}";
+    let found = errors(source);
+    assert!(found.is_empty(), "{found:#?}");
+}
+
+#[test]
+fn a_clash_between_two_template_includes_stays_at_the_template() {
+    let source = "structure TraceA { trace?: Note }
+structure TraceB { trace?: Note }
+template deletes { input { include TraceA include TraceB } }
+operation DeleteA deletes Order {
+    http DELETE \"/a/{orderId}\"
+    input { $orderId }
+}";
+    let text = format!(
+        "{BASE}
+{source}"
+    );
+    let operation = text.find("DeleteA").unwrap() as u32;
+    let found = messages_with_offsets(source);
+    let twice: Vec<_> = found
+        .iter()
+        .filter(|(m, _)| m.contains("`trace` is declared twice"))
+        .collect();
+    assert_eq!(twice.len(), 1, "{found:#?}");
+    assert_ne!(twice[0].1, operation, "{found:#?}");
+}

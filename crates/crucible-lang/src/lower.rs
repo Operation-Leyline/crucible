@@ -68,6 +68,7 @@ pub(crate) fn lower(
         protocol: Protocol::CrucibleJson,
         template_extras,
         template_members: BTreeSet::new(),
+        restating: None,
         service_name: String::new(),
         shapes: BTreeMap::new(),
         meta_shapes: BTreeMap::new(),
@@ -434,6 +435,10 @@ struct Lowerer<'a> {
     template_extras: crate::templates::Extras<'a>,
     /// The members they added, once lowered.
     template_members: BTreeSet<ShapeId>,
+    /// While a template's members are added to an operation: where the
+    /// operation is and the member names it wrote, so a template `include`
+    /// that repeats one is blamed on the operation, not the template.
+    restating: Option<(usize, Span, BTreeSet<String>)>,
     ns: &'a str,
     naming: &'a Naming,
     decls: BTreeMap<&'a str, DeclRef<'a>>,
@@ -843,6 +848,38 @@ impl<'a> Lowerer<'a> {
             .get(&(operation.to_owned(), kind))
             .map(|(_, bodies)| bodies.iter().map(|(_, members)| *members).collect())
             .unwrap_or_default()
+    }
+
+    /// The names `members` elide, through `include`s of structures that are
+    /// plain or for `resource`: what member lowering lands in the input.
+    fn bound_identifiers(
+        &self,
+        members: &[Member],
+        resource: &str,
+        including: &mut Vec<String>,
+        out: &mut BTreeSet<String>,
+    ) {
+        for member in members {
+            match &member.kind {
+                MemberKind::Elided { name, .. } => {
+                    out.insert(name.name.clone());
+                }
+                MemberKind::Include(name) if !including.contains(&name.name) => {
+                    if let Some(Decl::Structure(structure)) =
+                        self.decl(&name.name).map(|d| &d.item.decl)
+                        && structure
+                            .resource
+                            .as_ref()
+                            .is_none_or(|r| r.name == resource)
+                    {
+                        including.push(name.name.clone());
+                        self.bound_identifiers(&structure.members, resource, including, out);
+                        including.pop();
+                    }
+                }
+                _ => {}
+            }
+        }
     }
 
     /// The names of `resource`'s own properties that `members` write:
@@ -1341,16 +1378,19 @@ impl<'a> Lowerer<'a> {
         }
         // What the operation binds, and what its role template binds for it.
         let templated = self.template_bodies(&operation.name.name, BodyKind::Input);
-        let bound: BTreeSet<&str> = input
+        let mut bound: BTreeSet<String> = BTreeSet::new();
+        for members in input
             .map(|body| body.members.as_slice())
             .into_iter()
             .chain(templated)
-            .flat_map(|members| members.iter())
-            .filter_map(|member| match &member.kind {
-                MemberKind::Elided { name, .. } => Some(name.name.as_str()),
-                _ => None,
-            })
-            .collect();
+        {
+            self.bound_identifiers(
+                members,
+                &attachment.resource.name,
+                &mut Vec::new(),
+                &mut bound,
+            );
+        }
         let (inherited, own) = self.identifiers(&attachment.resource.name);
         let collection = matches!(role, "creates" | "lists") || attachment.collection;
         let required: Vec<&String> = if collection {
@@ -3085,6 +3125,11 @@ impl<'a> Lowerer<'a> {
             &mut including,
         );
         if let Some((role, bodies)) = template {
+            // An `include` has no name of its own to compare, so a member it
+            // supplies that the operation wrote is found as a duplicate:
+            // blame the operation, which restated it. A clash inside the
+            // template stays at the template.
+            self.restating = Some((file, operation, names.clone()));
             for (template_file, added) in bodies {
                 for member in *added {
                     let written = match &member.kind {
@@ -3109,17 +3154,11 @@ impl<'a> Lowerer<'a> {
                         continue;
                     }
                     let before = out.len();
-                    // An `include` has no name of its own to compare, so a
-                    // member it supplies that the operation also writes is
-                    // found as a duplicate: blame the operation, which
-                    // restated it, not the template.
-                    let at =
-                        matches!(member.kind, MemberKind::Include(_)).then_some((file, operation));
                     self.members_into(
                         *template_file,
                         std::slice::from_ref(member),
                         context,
-                        at,
+                        None,
                         &mut out,
                         &mut names,
                         &mut including,
@@ -3131,6 +3170,7 @@ impl<'a> Lowerer<'a> {
                 }
             }
         }
+        self.restating = None;
         let mut tokens = out.iter().filter(|member| member.idempotency_token);
         if let (Some(first), Some(second)) = (tokens.next(), tokens.next()) {
             let message = format!(
@@ -3288,7 +3328,10 @@ impl<'a> Lowerer<'a> {
             }
             if let Some(lowered) = self.member(file, member, context) {
                 if !names.insert(lowered.name.clone()) {
-                    let (file, span) = at.unwrap_or((file, member.span));
+                    let (file, span) = match &self.restating {
+                        Some((file, span, own)) if own.contains(&lowered.name) => (*file, *span),
+                        _ => at.unwrap_or((file, member.span)),
+                    };
                     self.error(
                         file,
                         span,
