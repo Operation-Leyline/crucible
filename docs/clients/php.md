@@ -9,11 +9,10 @@ packages have no third-party PHP dependencies.
 
 ## Generating and installing
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate php smithy \
+crucible generate php model \
   --out generated/client --package-name example/weather-client \
   --namespace 'Example\Weather' --package-version 0.1.0 \
   --endpoint https://weather.example
@@ -26,7 +25,7 @@ Generation writes package identity and provenance; it does not publish.
 Supply your license and release metadata before distribution. Use a Composer
 path repository during development or archive the package for distribution.
 
-The public client name comes from the Smithy service: `WeatherClient` for
+The public client name comes from the service: `WeatherClient` for
 `Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
 `Client` imports and construction sites with the service-specific name.
 
@@ -78,7 +77,7 @@ does not receive a default. Lists and maps use PHP arrays, with element types
 recorded in PHPDoc. PHP canonicalizes integer-looking map keys to integers;
 serialization preserves their string wire spelling.
 
-Smithy `long` uses native 64-bit `int`. JSON integer decoding retains numeric
+`long` uses native 64-bit `int`. JSON integer decoding retains numeric
 lexemes and checks bounds before conversion. `Timestamp` stores whole seconds
 and nanoseconds, including negative fractional epochs. Date-time and HTTP-date
 text support years 1–9999; conversion to `DateTimeImmutable` truncates to

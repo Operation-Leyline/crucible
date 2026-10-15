@@ -1,7 +1,7 @@
 # Releasing Crucible
 
 Crucible versions are released manually as GitHub tags (`vX.Y.Z`) and releases.
-The framework, generators, `crucible-traits` Cargo package, and traits model JAR
+The framework and generators
 share `[workspace.package].version`. Package
 registry publication is separate; this workflow publishes no registry packages.
 
@@ -24,7 +24,7 @@ The **stable surface** is what a service or client author writes against:
 - the Rust API that generated server and client bindings expose (type, trait
   and method names and signatures; not the bodies);
 - the `crucible new` starter and the `crucible` CLI's documented commands;
-- the Smithy traits shipped by `crucible-traits` (`smithy/`), and the
+- the documented `.cru` language, and the
   documented behavior of the framework (phase order, error shapes, wire
   semantics).
 
@@ -67,7 +67,7 @@ OS, one shared Cargo cache (`tools/test-consumers.py`):
 1. the starter produced by `crucible new`, built against this checkout;
 2. `e2e/weather-service` (model, service, Rust client and their HTTP tests);
 3. a Leyline-shaped fixture (`tests/consumers/leyline`): a separate model crate;
-   `AuthenticatorChain` and scope checks from `crucible-auth`; a custom async
+   `AuthenticatorChain` from `crucible-auth`; a custom async
    `Middleware` and `OperationAwareMiddleware`; an `Interceptor`; a modelled
    `ValidationException` with typed reasons; `host::lambda_event`; and a
    generated Rust SDK package built by a separate crate.
@@ -75,8 +75,8 @@ OS, one shared Cargo cache (`tools/test-consumers.py`):
 It exists to fail on a change that compiles inside this workspace but breaks
 what real services use. The CI planner selects it on PRs that touch
 `crates/crucible-build`, `crates/crucible-server-runtime-rust`,
-`crates/crucible-wire`, `crates/crucible-codegen-rust`, `crates/crucible-auth`
-or `smithy/`, and always when the manual release qualifies a commit. When a
+`crates/crucible-wire`, `crates/crucible-codegen-rust`, or `crates/crucible-auth`,
+and always when the manual release qualifies a commit. When a
 change breaks the fixture, fix the fixture only if the break is allowed by the
 policy above and has a Migration entry; otherwise fix the change.
 
@@ -108,11 +108,7 @@ git diff -- Cargo.toml Cargo.lock e2e/Cargo.lock tests/consumers/leyline/Cargo.l
 python tools/crucible_release.py check 0.2.1
 ```
 
-The preparation helper updates the workspace version and every lockfile. The
-traits JAR reads that version directly from the workspace manifest, so there is
-no separate Smithy version file to bump. The Traits workflow watches the
-workspace manifest and publishes `traits-vX.Y.Z` with
-`crucible-traits-X.Y.Z.jar`; existing published versions are never replaced. It
+The preparation helper updates the workspace version and every lockfile. It
 preserves registry dependency versions and example-service package versions.
 It does not update checked-in generator golden files. Generated package
 metadata and ABI checks for generated Rust code also record the Crucible
@@ -127,12 +123,11 @@ git diff -- crates
 ```
 
 Docs that pin an exact Crucible version move with it: the dependency example
-in [explorer.md](explorer.md) and the traits coordinates in
-[clients.md](clients.md):
+in [explorer.md](explorer.md):
 
 ```sh
 PREVIOUS=0.2.0   # the version being replaced
-git grep -n -F -e "=$PREVIOUS" -e "crucible-traits:$PREVIOUS" -- docs
+git grep -n -F -e "=$PREVIOUS" -- docs
 ```
 
 Commit the version bump and reviewed golden changes together, then open a PR:

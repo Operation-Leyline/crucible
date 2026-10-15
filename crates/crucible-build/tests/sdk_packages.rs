@@ -74,7 +74,7 @@ fn package_probe() {
         let old = fs::read(out.join("crucible-artifacts.json")).unwrap();
         let result = crucible_build::model("weather")
             .policy("missing.toml")
-            .try_compile_with(|_, _| panic!("a package must not invoke the compiler"));
+            .try_compile();
         assert!(result.is_err());
         assert_eq!(old, fs::read(out.join("crucible-artifacts.json")).unwrap());
         return;
@@ -205,7 +205,7 @@ fn package_probe() {
         let before = fs::read(java.path.join("pom.xml")).unwrap();
         // Another model generation session cannot replace a working native SDK
         // when its requested target configuration has diagnostics.
-        let next = crucible_build::model("weather").compile_with(|_, _| unreachable!());
+        let next = crucible_build::model("weather").compile();
         assert!(
             next.java_client("java")
                 .package("not a Java package")

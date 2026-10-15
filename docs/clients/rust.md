@@ -18,14 +18,14 @@ See [API audience selection](../build-outputs.md#selecting-an-api-audience).
 
 ## Generating a client
 
-For shared Smithy models, named SDKs, and application packages, follow
+For shared models, named SDKs, and application packages, follow
 [building named SDK packages](../build-outputs.md). It supports Rust and Java
 outputs from one compilation. Servers generate their bindings in their own
 crate; Rust SDK packages expose a reusable client library. The named Rust
 artifact contains `Cargo.toml` and `src/lib.rs`, with its matching runtime
 dependency declared automatically. The SDK re-exports `Config`, `Error`, `Token`,
 and other runtime APIs. Consumer crates depend on that package normally, with no
-build script or inclusion macro. The single-crate and AST-based options below
+build script or inclusion macro. The single-crate options below
 remain supported for generating directly inside an existing crate.
 
 `crucible generate rust --client` writes the same package, and takes the
@@ -37,7 +37,7 @@ common package metadata keys as flags: `--description`, `--repository`,
 `crucible-model.json` at its root; see [package provenance](../sdk-releases.md#package-provenance).
 To declare the SDK once, use [`crucible-sdk.toml`](../sdk-releases.md#declare-sdks-crucible-sdktoml).
 
-Create a Rust client library with a Smithy model and runnable example:
+Create a Rust client library with a `.cru` model and runnable example:
 
 ```sh
 crucible new hello-client --client
@@ -50,17 +50,16 @@ release. Its complete build script is:
 
 ```rust
 fn main() {
-    crucible_build::model("smithy").client()
+    crucible_build::model("model").client()
         .policy("crucible.toml")
         .generate();
 }
 ```
 
 `src/lib.rs` exports the generated API with
-`crucible_client_runtime_rust::include_client!()`. Replace `smithy/hello.smithy` with your
+`crucible_client_runtime_rust::include_client!()`. Replace `model/hello.cru` with your
 service's sources; Cargo compiles the model and regenerates the client on model
-edits. Generated files stay under `OUT_DIR`. The helper manages the official
-Smithy compiler, Crucible imports, mixin flattening and matching Java runtime.
+edits. Generated files stay under `OUT_DIR`.
 Client generation does not require the server's rejection-error declarations.
 The starter also checks naming, path and documentation conventions through its
 `crucible.toml`; see [API policy and compatibility](../api-policy.md).
@@ -71,11 +70,9 @@ Run a Hello service created with `crucible new hello-service`, then call it:
 cargo run --example hello -- http://127.0.0.1:8080
 ```
 
-The example prints `Hello, World!`. The same `--crucible-rev`, `--runtime-path`
-and `--smithy-version` options work for service and client starters. See the
-[quick start](../quickstart.md#versioning-and-offline-builds) for compiler
-selection and offline caching. An explicit compiler uses
-`model("smithy").compile_with(|config, out| smithy_tooling::build(config, out)).client()`.
+The example prints `Hello, World!`. The same `--crucible-rev` and `--runtime-path`
+options work for service and client starters. See the
+[quick start](../quickstart.md#versioning) for revision pins.
 
 ### Sharing a model package
 
@@ -86,14 +83,11 @@ depend on `crucible-build` in `[build-dependencies]`, and use:
 ```rust
 // weather-model/build.rs
 fn main() {
-    crucible_build::model("smithy").publish();
+    crucible_build::model("model").publish();
 }
 ```
 
-This replaces hand-written compiler configuration, bundled import copying,
-AST stabilization and publication wiring. Use
-`model("smithy").compile_with(..).publish()` for an explicitly selected compiler,
-or `model("model.json").publish()` when the AST is already compiled. See
+This replaces hand-written compiler configuration and publication wiring. See
 [model packages](../framework.md#model-packages) for the Cargo metadata contract.
 A sibling client consumes the published model as follows:
 
@@ -128,13 +122,11 @@ fn main() {
 crucible_client_runtime_rust::include_client!();
 ```
 
-For an already compiled JSON AST without a separate model package, call
-`crucible_build::model("model.json").client().generate()` in
-`build.rs`. To generate a complete Cargo SDK directly:
+To generate a complete Cargo SDK directly:
 
 ```sh
 cargo run -p crucible-cli -- generate rust \
-  crates/crucible-smithy/tests/fixtures/weather.json \
+  tests/models/weather \
   --client --package-name weather-client --out target/weather-client
 ```
 
@@ -142,7 +134,7 @@ cargo run -p crucible-cli -- generate rust \
 `weather_client::{Config, WeatherClient}` through an ordinary Cargo dependency.
 Use `--package-version` to set its version. `--runtime-path` selects an absolute
 local runtime crate for development; the default pins the generator's matching
-Crucible Git revision. `new --client` creates a crate that owns both Smithy inputs
+Crucible Git revision. `new --client` creates a crate that owns both the model
 and generation. Generation does not publish either package.
 
 ### Migrating the runtime crate name
@@ -211,7 +203,7 @@ on every attempt, so refreshed credentials are picked up.
 
 ## Models and errors
 
-Structures use public snake_case fields. Smithy `long` is `i64`, `integer` is
+Structures use public snake_case fields. `long` is `i64`, `integer` is
 `i32`, document values use `serde_json::Value`, and blobs use
 `weather_client::Blob`. A JSON blob is base64; an `@httpPayload` blob is raw bytes.
 Use `Model::builder()` for ordinary construction. Fluent member methods accept
@@ -238,7 +230,7 @@ set those states explicitly. Builder setters use the modeled snake_case name;
 reserved method names receive a `member_` prefix and a numeric suffix if needed.
 Builder type names also receive a suffix when a model uses the same name.
 
-Members that Smithy permits clients to omit use `weather_client::Field<T>`.
+Members that clients may omit use `weather_client::Field<T>`.
 This includes every member of an `@input` structure and members marked
 `@clientOptional`, even when the server requires them. `Field::Absent` omits the
 member, `Field::Null` writes JSON null, and `Field::Value(value)` writes a value.
@@ -368,7 +360,7 @@ authenticated Leyline compatibility. See [qualification levels](../clients.md#qu
 
 ### Migrating client models
 
-The public client type now derives from the Smithy service name: `Weather`
+The public client type now derives from the service name: `Weather`
 generates `WeatherClient`, and `Leyline` generates `LeylineClient`. Replace old
 `Client` imports and constructors with that service-specific type. No generic
 `Client` alias is generated. Runtime types such as `reqwest::Client` are unchanged.

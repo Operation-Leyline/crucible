@@ -2,15 +2,14 @@
 
 [All clients](../clients.md) · [Repository overview](../../README.md)
 
-Generate a typed Python 3.11+ package from your Smithy sources:
+Generate a typed Python 3.11+ package from your `.cru` package:
 
 ## Generating and installing
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate python smithy \
+crucible generate python model \
   --out target/python-sdk --package-name example-sdk --module-name example_sdk \
   --endpoint https://api.example.com
 python -m pip install ./target/python-sdk
@@ -22,9 +21,9 @@ regeneration. Keep the ownership manifest.
 The package bundles its runtime and depends only on HTTPX. Set the distribution
 version with `--package-version`. `crucible.json` records the generator and
 service versions and SHA-256 of the lowered wire schema. That hash identifies
-the generated wire description, not the original Smithy source file.
+the generated wire description, not the original `.cru` source.
 
-The public client name comes from the Smithy service: `WeatherClient` for
+The public client name comes from the service: `WeatherClient` for
 `Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
 `Client` imports and construction sites with the service-specific name.
 
@@ -56,7 +55,7 @@ raw as a payload), and integer values retain signed 64-bit precision. Unknown en
 and re-encoding. Modeled exceptions subclass `ServiceError`, carrying typed
 modeled fields plus HTTP status, request ID, and headers in `metadata`.
 
-Smithy `bigInteger` uses Python `int`; `bigDecimal` uses `decimal.Decimal` and
+`bigInteger` uses Python `int`; `bigDecimal` uses `decimal.Decimal` and
 retains its decimal digits through JSON encoding and decoding. Construct decimals
 from strings, for example `Decimal("12345678901234567890.0000000001")`; floating-point
 inputs are rejected for `bigDecimal` because their original decimal digits are

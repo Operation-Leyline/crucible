@@ -1,7 +1,0 @@
-readonly operation Status {
-    http GET "/status"
-    input {
-    }
-    output {
-    }
-}

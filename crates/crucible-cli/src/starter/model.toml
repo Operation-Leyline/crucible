@@ -1,0 +1,11 @@
+schema_version = 1
+
+[model]
+namespace = "example.hello"
+language = 1
+sources = ["."]
+imports = ["crucible.errors"]
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

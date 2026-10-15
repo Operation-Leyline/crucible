@@ -1,10 +1,10 @@
 //! Lowering a parsed package to `ir::Service`.
 //!
-//! The IR is shared with the Smithy front end, so the semantics it settles
-//! (bindings, effective constraints, timestamp formats, error envelopes)
-//! must come out the same from both. Lowering works with the Smithy-equivalent
-//! traits internally; the finished IR keeps only project metadata in its raw
-//! `traits` maps, because every generator reads typed fields (decision 63).
+//! Lowering settles the semantics the generators share (bindings, effective
+//! constraints, timestamp formats, error envelopes). It works with
+//! Smithy-style trait ids internally, the IR's trait vocabulary; the finished
+//! IR keeps only project metadata in its raw `traits` maps, because every
+//! generator reads typed fields (decision 63).
 //!
 //! Constructs the compiler cannot lower yet are diagnostics, never skipped.
 
@@ -4628,7 +4628,6 @@ impl<'a> Lowerer<'a> {
             id,
             auth,
             public: modifiers.contains("public"),
-            scopes: Vec::new(),
             resource,
             docs,
             notes: annotations.notes,
@@ -4968,7 +4967,6 @@ impl<'a> Lowerer<'a> {
             docs,
             notes: annotations.notes,
             auth: auth.clone(),
-            scopes: Vec::new(),
             auth_schemes,
             operations: lowered,
             resources: BTreeMap::new(),

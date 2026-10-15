@@ -1,6 +1,6 @@
 # IDL semantic decisions
 
-One decision per entry, with the Smithy rule it replaces and why. The
+One decision per entry, with the Smithy rule it replaces and why (Smithy is no longer an input; decision 66). The
 language has no syntax yet; these fix what it means. Entries marked
 **OPEN** need a product call; the rest are defaults a reviewer can
 overturn by editing the line. Counts come from [inventory.md](inventory.md).
@@ -1342,6 +1342,22 @@ these are working choices, changed freely as implementation teaches.
     Pagination merges operation clause over template over service
     default, and two explicit values for one key are an error. Files use
     `.cru`. The grammar is in [reference.md](reference.md).
+
+66. **The Smithy front end is removed (supersedes decisions 2, 3, 3a and 49
+    where they keep a Smithy path).** Leyline and Pigeon are on `.cru`, so
+    the Smithy JSON AST front end, `Model::from_json`, the JVM/Gradle build
+    driver, the traits jar and the `smithy-to-cru` converter are gone, and
+    `.cru` is the only input. `crucible-smithy` keeps the IR, the snapshot
+    format and the shared validators (it is renamed `crucible-ir` later).
+    Features nothing used left with it: `@crucible.auth#scopes` and OAuth
+    scopes, `rename`, timestamp defaults, enum `mediaType` and 2xx error
+    statuses. *Why:* two front ends doubled every language change for no
+    consumer. The acceptance test of decision 63 is retired with the second
+    front end; the generator goldens and the `tests/models` packages carry
+    it. The documentation, CDK, Terraform and Explorer generators need a
+    `.cru` package with resource lowering (decision 63 notes the language has
+    none yet), so their resource-dependent tests are `#[ignore]`d until it
+    lands. The remaining mentions of Smithy in this file are history.
 
 ## Settled in the syntax pass
 

@@ -43,15 +43,11 @@ pub struct Service {
     pub notes: DocNotes,
     /// Auth schemes the service declares, in declaration order.
     pub auth: Vec<ShapeId>,
-    /// `@crucible.auth#scopes` on the service: the default for operations that
-    /// declare none, and the scope a 401 challenge advertises. Model order.
-    pub scopes: Vec<String>,
     pub auth_schemes: BTreeMap<ShapeId, AuthScheme>,
     /// Sorted by name, so output does not depend on model file order.
     pub operations: Vec<Operation>,
-    /// Resources bound to this service, including nested resources. Populated
-    /// by `Model::lower_infrastructure` and `Model::lower_documentation`.
-    /// Only infrastructure lowering populates design-time references/bindings.
+    /// Resources bound to this service, including nested resources, with their
+    /// design-time references and bindings.
     pub resources: BTreeMap<ShapeId, Resource>,
     /// Direct service bindings, sorted by shape ID.
     pub resource_roots: Vec<ShapeId>,
@@ -273,17 +269,6 @@ impl Service {
         self.not_found
             .clone()
             .unwrap_or_else(crate::validate::not_found_id)
-    }
-    /// Every scope the service declares, service default and operations, sorted
-    /// and unique: what an authorization server or discovery document advertises.
-    pub fn all_scopes(&self) -> Vec<&str> {
-        self.scopes
-            .iter()
-            .chain(self.operations.iter().flat_map(|op| &op.scopes))
-            .map(String::as_str)
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
-            .collect()
     }
     /// Every permission the service declares, sorted by authorization name,
     /// then value: the registry docs, SDKs and discovery publish. Aliases
@@ -804,9 +789,6 @@ pub struct Operation {
     /// (docs/permissions.md §6.1).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub public: bool,
-    /// OAuth scopes a caller must hold, all of them: the operation's own
-    /// `@crucible.auth#scopes`, else the service default. Empty when public.
-    pub scopes: Vec<String>,
     /// The resource that binds the operation; `None` when the service does.
     pub resource: Option<ShapeId>,
     pub docs: Option<String>,

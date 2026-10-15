@@ -3,12 +3,12 @@
 [Repository overview](../README.md)
 
 Crucible provides native clients for Leyline's language portfolio. Every emitter
-reads the same lowered Smithy IR; the language guide explains its public API
+reads the same lowered IR; the language guide explains its public API
 and representation limits.
 
 ## API audiences
 
-Generated clients default to the external audience and omit Smithy `@internal`
+Generated clients default to the external audience and omit `@internal`
 API. Use `--audience internal` on `crucible generate`, or
 `.audience(crucible_build::Audience::Internal)` on a named output, to include the
 full contract. See [selecting an API audience](build-outputs.md#selecting-an-api-audience)
@@ -55,7 +55,7 @@ the design in [SDK packaging](sdk-packaging.md).
 
 ## API documentation and debug formatting
 
-The TypeScript, Python and Go clients preserve Smithy documentation on models,
+The TypeScript, Python and Go clients preserve documentation on models,
 members, enum values and operations. Their client and runtime documentation also
 describes configuration, transport ownership, retries and pagination.
 TypeScript retains CommonMark in escaped documentation comments. Python docstrings
@@ -95,49 +95,42 @@ clients to get these public types; the model and wire format do not change.
 
 ## Checking target support
 
-Extended Smithy support is tracked per generator. Inspect the current build and
+Extended language support is tracked per generator. Inspect the current build and
 validate a model for its intended language before generation:
 
 ```sh
 crucible capabilities
-crucible check smithy --target python
+crucible check model --target python
 ```
 
 Each emitter also checks capabilities when called as a library. A feature accepted
 by another target never silently changes this target's wire behavior. Crucible JSON
-is the only protocol; a Smithy model declaring another is refused.
-
-The model can also be a Crucible language package, a directory whose
-`crucible.toml` has a `[model]` table (`crucible check model --target ts`). It
-compiles without Smithy or a JVM and declares its protocol in the service.
+is the only protocol; a model declaring another is refused.
 
 See [SDK releases](sdk-releases.md) for generation, native package builds,
 installed-consumer checks, artifact manifests, and publication recipes.
 
 ## Preparing a model
 
-Pass a Smithy source directory or a single `.smithy` file directly to `check`
-or `generate`. Run source-generation commands from your service's model
-project. For example, when your service model lives under `smithy/`:
+Pass a Crucible language package, a directory whose `crucible.toml` has a
+`[model]` table beside its `.cru` sources, directly to `check` or `generate`.
+Run source-generation commands from your service's model project. For example,
+when your service model lives under `model/`:
 
 ```sh
-crucible check smithy --target ts
-crucible generate ts smithy --out generated/weather \
+crucible check model --target ts
+crucible generate ts model --out generated/weather \
   --package-name @example/weather --endpoint https://api.example.com
 ```
 
 The language guides use Weather package names and call examples. Supply your
-Weather service sources or adapt those names and calls to your own service.
-The Crucible repository's `smithy/` directory contains trait definitions;
-it does not contain the Weather service.
+Weather service sources or adapt those names and calls to your own service. The
+Crucible repository's `tests/models/weather` package is a ready Weather model.
 
-The CLI runs the pinned official Smithy compiler, imports Crucible's protocol
-and standard errors, and applies `flattenAndRemoveMixins`. It manages the
-matching Java runtime on first use and caches it for later builds. You do not
-need a `smithy-build.json`, a model-publishing Cargo crate, or a separate Java
-installation. Compiler artifacts use a temporary directory and are removed
-after generation. `--service` selects one service when your sources define
-several.
+The CLI compiles the package itself; it needs no Java installation, build
+file or model-publishing Cargo crate. `--service` selects one service when
+your sources define several. `crucible compile --json model` prints the
+compiled model for tools that read the contract.
 
 Non-Rust client generators emit native package metadata and a bundled runtime. The
 language guide's npm, pip, Go, Maven, or other native commands build and consume
@@ -148,58 +141,8 @@ package. See [building named SDK packages](build-outputs.md) for both model-owne
 and separate SDK producers. Pin the CLI version in your toolchain or CI setup.
 
 Rust clients also support automatic generation during Cargo builds through
-[`crucible_build::model("smithy").client()`](clients/rust.md#generating-a-client).
+[`crucible_build::model("model").client()`](clients/rust.md#generating-a-client).
 
-### Using an existing Smithy build
-
-A prepared JSON AST remains accepted and requires no compiler or Java runtime.
-Use this path when you already publish model projections or need custom imports
-and Smithy transforms. Use the `crucible.protocols#json` service trait and bearer
-authentication where needed. Rust model packages can take the definitions as the
-[`crucible-traits` Cargo dependency](../smithy/README.md), with a build-script
-helper for IDE indexing. [The protocol definition](../smithy/crucible.smithy) is also distributed in
-the `crucible-traits` jar on `traits-v<version>` releases. For a Gradle Smithy
-build, configure the artifact repository and dependency:
-
-```kotlin
-repositories {
-    ivy {
-        url = uri("https://github.com/Operation-Leyline/crucible/releases/download")
-        patternLayout { artifact("traits-v[revision]/[module]-[revision].[ext]") }
-        metadataSources { artifact() }
-    }
-}
-dependencies {
-    implementation("crucible:crucible-traits:0.7.0")
-    smithyBuild("crucible:crucible-traits:0.7.0")
-}
-```
-
-Add this projection to `smithy-build.json`, then build the Smithy project:
-
-```json
-{
-  "version": "1.0",
-  "projections": {
-    "crucible": {
-      "transforms": [{ "name": "flattenAndRemoveMixins" }]
-    }
-  }
-}
-```
-
-Pass the resulting JSON AST to Crucible. Select a service explicitly when the
-model contains more than one:
-
-```sh
-cargo run -p crucible-cli -- check model.json --service example.weather#Weather
-cargo run -p crucible-cli -- generate ts model.json \
-  --service example.weather#Weather --out generated/weather \
-  --package-name @example/weather --endpoint https://api.example.com
-```
-
-For a ready model in this checkout, use
-[`crates/crucible-smithy/tests/fixtures/weather.json`](../crates/crucible-smithy/tests/fixtures/weather.json).
 Each target has `generate <target> --help`. Target identity and endpoint
 configuration are explicit; no runtime checks a Leyline operation name.
 
@@ -211,7 +154,7 @@ target writes one file; its normal package integration uses `build.rs`.
 Pin the generator and runtime
 versions, preserve package provenance, and regenerate instead of editing output.
 A lowered-schema digest identifies the emitted wire description, not the original
-Smithy source tree. Provenance fields differ by target; see its package output.
+`.cru` source tree. Provenance fields differ by target; see its package output.
 
 ## Shared model and wire behavior
 
@@ -274,7 +217,7 @@ establish an overall call deadline.
 
 ## Public API conventions
 
-Client types carry the Smithy service name: `LeylineClient` for Leyline and
+Client types carry the service name: `LeylineClient` for Leyline and
 `WeatherClient` for the example service. C uses its configured service prefix;
 R uses a service-specific constructor following R naming conventions.
 
@@ -295,7 +238,7 @@ package consumers as well as the shared serialization fixtures.
 ### API documentation and string representations (Java, Kotlin, C#)
 
 Generated Java, Kotlin and C# clients document every public type in the language's
-doc format (Javadoc, KDoc, C# XML documentation). Smithy `@documentation` is
+doc format (Javadoc, KDoc, C# XML documentation). `@documentation` is
 converted from CommonMark once, in `crucible-codegen-common`: paragraphs, lists,
 code, emphasis, links and headings carry over, and everything else, raw HTML
 included, is escaped so it cannot close the comment or break the markup.

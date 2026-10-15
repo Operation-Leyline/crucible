@@ -38,7 +38,7 @@ class ReleaseTests(unittest.TestCase):
         (root / "CHANGELOG.md").write_text(CHANGELOG)
         (root / "crates/crucible-server-runtime-rust").mkdir(parents=True)
         (root / "crates/crucible-server-runtime-rust/Cargo.toml").write_text('[package]\nname = "crucible-server-runtime-rust"\nversion.workspace = true\n')
-        (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "smithy"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
+        (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/*", "tools/extra"]\n\n[workspace.package]\nversion = "0.1.0"\n\n[workspace.dependencies]\nserde = "1"\n')
         (root / "e2e").mkdir()
         (root / "tests/consumers/leyline/leyline-sdk-consumer").mkdir(parents=True)
         lock = '''version = 4
@@ -89,19 +89,19 @@ version = "0.1.0"
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.fixture(root)
-            (root / "smithy").mkdir()
-            (root / "smithy/Cargo.toml").write_text(
-                '[package]\nname = "crucible-traits"\nversion.workspace = true\n'
+            (root / "tools/extra").mkdir(parents=True)
+            (root / "tools/extra/Cargo.toml").write_text(
+                '[package]\nname = "crucible-extra"\nversion.workspace = true\n'
             )
-            with self.assertRaisesRegex(ValueError, "missing workspace packages.*crucible-traits"):
+            with self.assertRaisesRegex(ValueError, "missing workspace packages.*crucible-extra"):
                 check(root, "0.1.0")
             for path in (root / lock for lock in LOCKFILES):
                 with path.open("a") as lock:
-                    lock.write('\n[[package]]\nname = "crucible-traits"\nversion = "0.1.0"\n')
+                    lock.write('\n[[package]]\nname = "crucible-extra"\nversion = "0.1.0"\n')
             prepare(root, "0.2.0")
             check(root, "0.2.0")
             for path in (root / lock for lock in LOCKFILES):
-                self.assertIn('name = "crucible-traits"\nversion = "0.2.0"', path.read_text())
+                self.assertIn('name = "crucible-extra"\nversion = "0.2.0"', path.read_text())
 
     def test_mismatched_release_and_non_increasing_versions_fail(self):
         with tempfile.TemporaryDirectory() as directory:

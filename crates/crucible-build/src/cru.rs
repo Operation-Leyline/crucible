@@ -1,7 +1,7 @@
 //! Crucible language packages as model sources (`docs/idl/`).
 //!
 //! A directory whose `crucible.toml` has a `[model]` table is compiled by
-//! `crucible-lang` straight to the IR: no Smithy compiler and no JVM. A model
+//! `crucible-lang` straight to the IR. A model
 //! package publishes the directory through Cargo `links`, and dependents
 //! compile it again, which is cheap.
 
@@ -10,7 +10,7 @@ use std::path::Path;
 use crucible_smithy::ShapeId;
 use crucible_smithy::ir::Service;
 
-/// Whether `path` is a language package rather than Smithy sources or a JSON AST.
+/// Whether `path` is a language package.
 pub(crate) fn is_package(path: &Path) -> bool {
     path.is_dir() && crucible_lang::is_package(path)
 }
@@ -28,6 +28,12 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
     // Cargo watches a directory recursively, so any edited `.cru` file reruns
     // the build script.
     println!("cargo::rerun-if-changed={}", path.display());
+    if !is_package(path) {
+        return Err(format!(
+            "{} is not a Crucible language package: expected a directory whose crucible.toml has a [model] table",
+            path.display()
+        ));
+    }
     let package = crucible_lang::load_package(path)?;
     // A dependency's directory is outside the package's; its edits rebuild too.
     for dependency in &package.dependencies {

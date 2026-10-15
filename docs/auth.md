@@ -142,9 +142,8 @@ use crucible_server_runtime_rust::WithContext;
 let principal = self.context().attribute::<Principal>();
 ```
 
-`Principal` contains subject, issuer, matched client ID, token kind, deduplicated
-scopes from the space-separated `scope` claim, Cognito groups from
-`cognito:groups`, the verified raw claims, and `tenant`. Public and anonymous
+`Principal` contains subject, issuer, matched client ID, token kind, Cognito
+groups from `cognito:groups`, the verified raw claims, and `tenant`. Public and anonymous
 optional requests have no Principal. Claims remain identity-provider statements;
 tenant reach and grants must still be checked by the service.
 
@@ -154,7 +153,7 @@ An API key fills it from its stored record. ID and access tokens leave it
 service's membership check. `Principal` is non-exhaustive: an authenticator
 outside this crate builds one with
 `Principal::new(subject, issuer, token_kind)` and the `with_client_id`,
-`with_scopes`, `with_groups`, `with_claims` and `with_tenant` setters.
+`with_groups`, `with_claims` and `with_tenant` setters.
 
 `Principal::caller_binding` names the principal as the runtime's
 `Idempotency` and `PageTokens` bind a token to its caller: the JSON array
@@ -225,7 +224,7 @@ let chain = AuthenticatorChain::new(vec![keys.clone(), jwt]);
 field, an optional expiry (`SystemTime`), and free-form `attributes`
 (`Principal::claims`: a display name, rate limits). The principal's token kind
 is `TokenKind::ApiKey` and its issuer is `issuer(..)` (default `"api-key"`);
-it has no client ID, scopes or groups. Row mapping stays in the store.
+it has no client ID or groups. Row mapping stays in the store.
 
 - `Ok(None)`: no such key. Refused (401).
 - `Err(..)`: the store could not answer. A sanitized 5xx, never a refusal, and
@@ -367,16 +366,16 @@ counts reads. See the
 
 `FrameworkError::Unauthenticated` and `FrameworkError::Forbidden` are typed
 401/403 errors across all serving protocols. Bearer operations receive
-`WWW-Authenticate: Bearer` on a missing credential, `invalid_token` on a chain
-refusal, and `insufficient_scope` on a forbidden response, following
+`WWW-Authenticate: Bearer` on a missing credential and `invalid_token` on a
+chain refusal, following
 [RFC 6750 section 3](https://www.rfc-editor.org/rfc/rfc6750#section-3).
-Authentication does not enforce scopes or groups; authorization interceptors
-can return `FrameworkError::Forbidden`. [`ScopeEnforcer`](#oauth-scopes) is the
-built-in one for model-declared scopes. Permissions on resources (`requires
-mailSend on Inbox`) are a separate gate after scopes, enforced by the runtime's
+Authentication does not enforce groups; authorization interceptors can return
+`FrameworkError::Forbidden`, which sends no challenge. Crucible has no OAuth
+scopes: the model cannot declare them and no interceptor checks them. Permissions on resources (`requires
+mailSend on Inbox`) are a separate gate, enforced by the runtime's
 `Permissions` interceptor through a service `Authorizer` against generated
 descriptions ([framework.md](framework.md#typed-permissions)); a permission is
-never an OAuth scope, and a permission refusal sends no `insufficient_scope`.
+never an OAuth scope, and a permission refusal sends no challenge.
 
 Use `AuthenticatorChain::refusal_factory` to preserve a service's modeled
 refusal body:
@@ -392,110 +391,6 @@ The error must be declared by the operation or service. The chain stores
 the factory, so extensions and alternative protocols can recognize a substituted
 refusal without matching a model error name. Missing and incorrect credentials
 can share an identical modeled body while retaining the bearer challenge.
-
-## OAuth scopes
-
-Declare the scopes an operation needs in the model with `crucible.auth#scopes`
-(shipped in `crucible-traits`, imported beside `crucible.smithy`; see
-[smithy/README.md](../smithy/README.md)). On the service it is the default
-list; on an operation it overrides the default, and `@scopes([])` requires
-nothing.
-
-```smithy
-use crucible.auth#scopes
-
-@httpBearerAuth
-@scopes(["weather/read"])
-service Weather {
-    version: "1"
-    operations: [GetForecast, PutForecast, Health]
-}
-
-@readonly
-@http(method: "GET", uri: "/forecast", code: 200)
-operation GetForecast {}                      // weather/read (the default)
-
-@scopes(["weather/write", "weather/admin"])   // both required
-@http(method: "PUT", uri: "/forecast", code: 200)
-operation PutForecast {}
-
-@auth([])
-@http(method: "GET", uri: "/health", code: 200)
-operation Health {}                           // public: no scopes
-```
-
-Semantics, settled once in `crucible-smithy`:
-
-- **All required.** An operation's list is an AND, like an OpenAPI security
-  requirement. Alternatives are not expressible; model separate operations.
-- **Literal.** Each scope must equal one of the space-separated tokens of the
-  `scope` claim (RFC 6749 section 3.3). There is no prefix, wildcard, or
-  hierarchy matching.
-- A scope is a nonempty token of printable ASCII with no space, `"` or `\`.
-  Duplicates, non-lists, scopes on a public (`@auth([])`) operation, and a
-  service default with no authentication scheme are diagnostics against the
-  shape that declares them.
-- Generated server operations carry the effective list as
-  `Operation::SCOPES` and the service default as `Operation::SERVICE_SCOPES`,
-  also visible on `OperationMetadata`. Lowered IR consumers can call
-  `Service::all_scopes()` for the sorted union of every scope the service
-  declares, for anything that advertises scopes.
-
-Nothing is enforced until you install `ScopeEnforcer`, an `Interceptor`. Choose
-the policy for principals whose token carries no scope claim explicitly:
-
-```rust
-use crucible_auth::{ScopeEnforcer, ScopelessPolicy, TokenKind};
-
-builder
-    .operation_middleware(chain)
-    .interceptor(ScopeEnforcer::exempt_id_tokens());          // web sessions keep working
-// or: ScopeEnforcer::strict()                                // every principal needs the scopes
-// or: ScopeEnforcer::new(ScopelessPolicy::Exempt(vec![TokenKind::Id, TokenKind::ApiKey]))
-```
-
-A Cognito ID token (what Leyline and Pigeon web clients send) has no `scope`
-claim, so `strict()` would refuse every such caller. An API key carries no
-scopes either, so under `strict()` and `exempt_id_tokens()` an API key caller
-is refused (403) on every operation that declares scopes; list
-`TokenKind::ApiKey` in `Exempt` to admit it. `Exempt` skips the check
-for the listed token kinds only, whatever scopes they carry; the service must
-authorize those callers another way (groups, tenant membership). An access token
-with no scope claim is refused. Exemption is never the default: `new` takes the
-policy.
-
-The interceptor runs after input validation, so a caller lacking a scope can
-still receive a `400` for a malformed request before the `403`. An operation
-that declares scopes but receives no principal is refused with `401` (no
-authenticator ran). `refusal_factory` substitutes a
-modeled error as it does on the chain.
-
-Responses follow
-[RFC 6750 section 3](https://www.rfc-editor.org/rfc/rfc6750#section-3):
-
-| Status | `WWW-Authenticate` |
-| --- | --- |
-| `401`, no credentials | `Bearer scope="weather/read"` (the service default; plain `Bearer` when none) |
-| `401`, refused token | `Bearer error="invalid_token", scope="weather/read"` |
-| `403`, scope missing | `Bearer error="insufficient_scope", scope="weather/write weather/admin"` (the operation's list) |
-
-Only operations that require authentication send a challenge.
-
-### Cognito resource-server scopes
-
-Cognito access tokens carry custom scopes as `RESOURCE_SERVER_IDENTIFIER/SCOPE`.
-Create a resource server whose identifier is `weather` with scopes `read`,
-`write` and `admin`, grant them to an app client, and the token's `scope` claim
-reads `weather/read weather/write`. Declare the full `identifier/scope` string in
-the model (`"weather/read"`): matching is literal, so `read` alone never
-matches. Cognito also adds its built-in scopes (`openid`, `aws.cognito.signin.user.admin`)
-to some tokens; they are ordinary strings and only matter if the model names
-them. The provider-side setup is deployment configuration and is not generated.
-ID tokens never carry `scope`; see the policy above.
-
-Not yet derived from the model: scopes from `@readonly`, per-operation OpenAPI
-security requirements, and MCP `scopes_supported` (this repository has no MCP
-server code to feed). `Service::all_scopes()` is the input those will use.
 
 ## Test tokens
 

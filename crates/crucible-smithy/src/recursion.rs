@@ -1,6 +1,5 @@
 //! Recursive components are a property of the model, independent of language boxing.
 use crate::ShapeId;
-use crate::ast::Shape;
 use crate::ir;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -11,25 +10,8 @@ pub struct RecursiveGroup {
     pub members: Vec<ShapeId>,
 }
 
-/// The recursive components among the Smithy shapes `reached`.
-pub(crate) fn lower(model: &BTreeMap<ShapeId, Shape>, reached: &[ShapeId]) -> Vec<RecursiveGroup> {
-    components(reached, |id| {
-        let shape = &model[id];
-        shape
-            .members
-            .iter()
-            .map(|(name, member)| (name.as_str(), member))
-            .chain(shape.member.iter().map(|member| ("member", member)))
-            .chain(shape.key.iter().map(|member| ("key", member)))
-            .chain(shape.value.iter().map(|member| ("value", member)))
-            .map(|(name, member)| (id.with_member(name), member.target.clone()))
-            .collect()
-    })
-}
-
-/// The recursive components among lowered shapes: what a front end that
-/// builds the IR directly (`.cru`) fills `Service::recursive_groups` with,
-/// by the same algorithm the Smithy front end uses.
+/// The recursive components among lowered shapes: what the front end fills
+/// `Service::recursive_groups` with.
 pub fn groups(shapes: &BTreeMap<ShapeId, ir::Shape>) -> Vec<RecursiveGroup> {
     let reached: Vec<ShapeId> = shapes.keys().cloned().collect();
     components(&reached, |id| {

@@ -327,6 +327,22 @@ fn a_snapshot_round_trips_and_an_older_one_still_reads() {
 }
 
 #[test]
+fn a_snapshot_with_empty_scopes_reads_and_one_with_scopes_is_refused() {
+    let (service, _) = pigeon();
+    let text = crucible_smithy::snapshot::write(&service, "test");
+    let mut value: serde_json::Value = serde_json::from_str(&text).unwrap();
+    // Snapshots written while Crucible modelled OAuth scopes carry empty lists.
+    value["service"]["scopes"] = json!([]);
+    for op in value["service"]["operations"].as_array_mut().unwrap() {
+        op["scopes"] = json!([]);
+    }
+    crucible_smithy::snapshot::read(&value.to_string()).expect("empty scopes are dropped");
+    value["service"]["operations"][0]["scopes"] = json!(["mail/send"]);
+    let error = crucible_smithy::snapshot::read(&value.to_string()).unwrap_err();
+    assert!(error.contains("no longer supports scopes"), "{error}");
+}
+
+#[test]
 fn the_ir_serializes_with_the_contract_names() {
     let (service, _) = pigeon();
     let send = service

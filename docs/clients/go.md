@@ -10,7 +10,7 @@ Use your service model as described in
 [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate go smithy \
+crucible generate go model \
   --out target/go-sdk --module-path example.com/weather --package-name weather \
   --endpoint https://api.example.com
 cd target/go-sdk

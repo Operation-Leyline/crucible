@@ -16,7 +16,7 @@ const TERRAFORM_BINDINGS: &str =
     include_str!("../../crucible-codegen-terraform/tests/fixtures/bindings.json");
 
 fn compile(path: &str) -> ModelPackage {
-    crucible_build::model(path).compile_with(|_, _| unreachable!())
+    crucible_build::model(path).compile()
 }
 
 fn bindings(path: &str) -> ProvisioningBindings {

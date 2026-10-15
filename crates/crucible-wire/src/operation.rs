@@ -19,12 +19,6 @@ pub trait Operation: Send + Sync + 'static {
     /// Handwritten operations must opt in explicitly when bearer auth is supported.
     const AUTH_BEARER: bool = false;
     const AUTH_SCHEMES: Option<&'static [AuthScheme]> = None;
-    /// OAuth scopes a caller must hold, all of them (`@crucible.auth#scopes`:
-    /// the operation's own list, else the service default). Declaring them
-    /// enforces nothing until an authorization extension reads them.
-    const SCOPES: &'static [&'static str] = &[];
-    /// The service-wide default scopes, which a 401 challenge advertises.
-    const SERVICE_SCOPES: &'static [&'static str] = &[];
     /// The release a generated client names in its `Crucible-Version`
     /// header: the `.cru` service's `version` (docs/api-versions-clients.md).
     const API_VERSION: Option<&'static str> = None;

@@ -56,7 +56,7 @@ fn safe_url(url: pulldown_cmark::CowStr<'_>) -> pulldown_cmark::CowStr<'_> {
     url
 }
 
-/// Documentation already preserved by Smithy lowering.
+/// Documentation already preserved by lowering.
 pub fn shape(shape: &Shape) -> Option<&str> {
     match shape {
         Shape::Unit { .. } => None,

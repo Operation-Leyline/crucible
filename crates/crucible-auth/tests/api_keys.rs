@@ -216,7 +216,7 @@ async fn principal_carries_key_id_tenant_and_attributes() {
     assert_eq!(principal.issuer, "pigeon-keys");
     assert_eq!(principal.token_kind, TokenKind::ApiKey);
     assert_eq!(principal.client_id, None);
-    assert!(principal.scopes.is_empty() && principal.groups.is_empty());
+    assert!(principal.groups.is_empty());
     assert_eq!(principal.claims, json!({"name": "ci", "rate": 10}));
 }
 

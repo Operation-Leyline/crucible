@@ -10,13 +10,13 @@ Crucible is two products:
    running a phased pipeline), the request context, protocols, validation, the
    error model, the service log, metrics plumbing and transports. A service
    depends on it like any library.
-2. **The Smithy adaptor** (`crucible-smithy` + `crucible-codegen-rust`, run by
+2. **The model adaptor** (`crucible-lang` + `crucible-codegen-rust`, run by
    `crucible-build`): reads a model and generates the API-specific code that
    plugs into the framework. That is the types, an interface per operation,
    and the operation registry.
 
 ```
-leyline-model/      model package: Smithy sources + the JSON AST its smithy build produces
+leyline-model/      model package: `.cru` sources and crucible.toml
 leyline-service/    service package
   Cargo.toml          [dependencies] crucible-server-runtime-rust, leyline-model   [build-dependencies] crucible-build
   build.rs            crucible_build::model("leyline_model").server().generate()
@@ -32,7 +32,7 @@ same revision. Hand wiring needs two hooks:
 ```rust
 // build.rs
 fn main() {
-    crucible_build::model("smithy").server().generate();
+    crucible_build::model("model").server().generate();
 }
 ```
 
@@ -41,7 +41,7 @@ fn main() {
 crucible_server_runtime_rust::include_service!();
 ```
 
-For Smithy `service Weather`, the inclusion hook declares `pub mod weather`.
+For `service Weather`, the inclusion hook declares `pub mod weather`.
 Models, enums, exceptions, operation markers and traits are available directly:
 
 ```rust
@@ -52,12 +52,12 @@ use crucible_server_runtime_rust::Result;
 A string enum is a closed Rust enum with `as_str()` and `VALUES`, the wire values in
 declaration order. There is no wrapper module to create. The source path is relative to this
 crate's manifest; it can also point outside the crate, such as
-`../smithy/model`. With a published model dependency, replace the build call
+`../model`. With a published model dependency, replace the build call
 with `crucible_build::model("weather_model").server().generate()`; inclusion is the
-same, and Smithy is not compiled again.
+same, and the model is not compiled again.
 
-The helper provides the pinned compiler, imports Crucible definitions, watches
-the model, and writes the AST and generated bindings under `OUT_DIR`. The
+The helper compiles the package, watches the model, and writes the compiled
+model and generated bindings under `OUT_DIR`. The
 inclusion macro makes those types visible to Rust without exposing the output
 filename or writing generated code into the source tree. The
 [single-crate quick start](quickstart.md) has a complete runnable service.
@@ -78,30 +78,26 @@ generation. Config changes trigger another Cargo build check. Compatibility is
 a separate old/new contract comparison in CI. See
 [API policy and compatibility](api-policy.md).
 
-A model package is a Cargo crate with `links = "<name>"` holding shared Smithy
-sources. Its build script compiles and publishes the AST with:
+A model package is a Cargo crate with `links = "<name>"` holding shared `.cru`
+sources. Its build script compiles and publishes the model with:
 
 ```rust
 fn main() {
-    crucible_build::model("smithy").publish();
+    crucible_build::model("model").publish();
 }
 ```
 
-The helper manages the pinned compiler, imports Crucible definitions, flattens
-mixins, and keeps a stable AST under `OUT_DIR`. The service and client depend
-on this package and read the AST from `DEP_<NAME>_MODEL`, using
+The helper compiles the package and keeps a stable compiled model under
+`OUT_DIR`. The service and client depend
+on this package and read it from `DEP_<NAME>_MODEL`, using
 `crucible_build::model("<name>").server()` or `crucible_build::model("<name>").client()`.
 "This service depends on leyline-model 1.4" is an ordinary, version-pinned
 Cargo dependency.
 
-Alternatively, check in a precompiled JSON AST and keep it fresh in CI. Publish
-its path with `crucible_build::model("model.json").publish()`; that layout needs
-no JVM when building the service or client.
-
 For model-owned Rust and Java SDK outputs, compile once with
 `crucible_build::model("model")`, publish the model, and add a
 named generation call per SDK variant. Another package can generate from
-`crucible_build::model("<links>")` without assembling Smithy again.
+`crucible_build::model("<links>")` without compiling the package again.
 See [building named SDK packages](build-outputs.md) for feature selection, native
 package export, and direct service/SDK integration.
 
@@ -160,7 +156,7 @@ Types are generated with serde and `Validate`. Errors implement
 protocol-specific: bindings (label, query, header, body, payload) are data
 in `OperationInfo`, read by whichever protocol serves the request.
 
-A Smithy `blob` is `crucible_server_runtime_rust::Blob`, which holds `bytes::Bytes`: base64 in
+A `blob` is `crucible_server_runtime_rust::Blob`, which holds `bytes::Bytes`: base64 in
 a JSON body, its byte count checked by `@length`. An `@httpPayload` blob is
 the request body itself, and its `Blob` shares the body's buffer rather than
 copying it.
@@ -185,7 +181,7 @@ authentication hooks, and transport limits.
 ## Internal operations
 
 Servers implement all operations regardless of client audience. Generated static
-`OperationInfo::internal` records Smithy's `@internal` annotation. An application's
+`OperationInfo::internal` records the `@internal` annotation. An application's
 `OperationAwareMiddleware::before` can check `job.operation().internal` together
 with an authenticated principal in `job.context()` and reject external callers.
 The framework supplies metadata and extension interfaces; caller policy belongs
@@ -207,7 +203,7 @@ src/
     mod.rs              the service type, and what operations share
     service/            operations the service itself binds
       get_me.rs
-    graph/              one folder per resource, its Smithy name in snake_case
+    graph/              one folder per resource, its name in snake_case
       mod.rs            what the graph operations share
       create_graph.rs   impl CreateGraphOperation for Service
   middlewares/
@@ -218,7 +214,7 @@ src/
 
 Each operation file holds one `impl XOperation for Service`; there is no
 dispatch module, and `weather::operations(..)` still refuses to build while
-any operation lacks one. `crucible scaffold <model.json>` writes a stub for
+any operation lacks one. `crucible scaffold <package-dir>` writes a stub for
 every operation that has no file yet, in its resource's folder, and adds missing
 `mod` declarations without replacing existing operation code. (`--out` is the
 operations folder, `src/operations` by default; `--service-type` the
@@ -488,7 +484,7 @@ of its own. Operations that are not `@paginated` pass through untouched;
 `resume` and `issue` called from one are an internal error. The generated
 `Operation::PAGINATION` (on `OperationMetadata::pagination`) names the
 token and page size members it reads, and says whether the token is a map:
-Smithy allows one, but a sealed token is a string, so `build` refuses
+A model may declare one, but a sealed token is a string, so `build` refuses
 `PageTokens` for an operation whose token is a map (leave it out of the
 interceptor's scope). At an older API version the interceptor reads the
 current version's input, so the members are the current ones: a token a
@@ -544,8 +540,7 @@ Option<String>`, given to `new`:
 
 ### Idempotency tokens
 
-An operation whose input has an idempotency token (`@idempotencyToken` in
-Smithy, `@token` in a `.cru` model) is safe to retry: generated SDKs fill the
+An operation whose input has an idempotency token (`@token`) is safe to retry: generated SDKs fill the
 token once per call and send the same one on every attempt. The model never
 marks it required, since SDKs fill it. The `idempotency` feature makes the
 server keep that promise: a retry gets the first success, and does not run
@@ -770,7 +765,7 @@ checks in the operation, or in an interceptor registered after
 
 **Ordering.** The claim is taken in the interceptor phase. Authentication
 middleware runs before it, and so does any authorization interceptor
-registered before `Idempotency` (register `ScopeEnforcer` and `Permissions`
+registered before `Idempotency` (register `Permissions`
 first; building a service that registers `Permissions` after `Idempotency`
 or `PageTokens` fails). Then a refused request never claims its token, so the client can
 retry the same token once it is granted access, and a replay is authorized
@@ -1047,7 +1042,7 @@ nothing to hide and is answered as Denied. Denied is by default
 is the permission's generated `PermissionInfo::denied` (`This principal does
 not hold mail:send on that inbox.`), or a generic one for an internal
 permission. Both messages are `'static` data of the descriptions: nothing is
-formatted per request. It sends no `WWW-Authenticate: insufficient_scope`:
+formatted per request. It sends no `WWW-Authenticate` challenge:
 no token would carry a grant. `Permissions::refusal_factory` builds a
 service's own error from the `PermissionRefusal` instead, from
 `public_permission()` (`None` for an internal permission);
@@ -1201,7 +1196,7 @@ apply scopes while identifying. They may parse a bounded envelope there and
 retain it in context attributes for `decode`, avoiding a second parse. A
 protocol declining a request must leave it available to later protocols.
 
-- `JsonProtocol` implements `crucible.protocols#json` (`smithy/crucible.smithy`):
+- `JsonProtocol` implements `crucible.protocols#json`:
   HTTP bindings, a JSON body, errors with `"__type"`. Blob and text payloads
   use the whole body as bytes or UTF-8 text; structure, union, and document
   payloads are decoded as JSON. Payloads use their target's media type or
@@ -1216,8 +1211,7 @@ protocol declining a request must leave it available to later protocols.
 
 ### Model-driven authentication
 
-The optional [bearer authentication](auth.md) crate (with its opt-in
-[OAuth scope enforcement](auth.md#oauth-scopes)) supplies a model-driven
+The optional [bearer authentication](auth.md) crate supplies a model-driven
 authenticator chain, Cognito presets, cached JWT verification, cached
 [API-key checks](auth.md#api-keys) against a service-owned store, and test
 issuers and stores.
@@ -1225,7 +1219,7 @@ Install it explicitly; `defaults()` continues to leave authentication off.
 
 `Prepare::metadata(operation)`, `OperationJob::metadata()`, and
 `DecodedJob::metadata()` expose the registered `OperationMetadata`: the wire
-protocol, effective auth schemes, required OAuth scopes (and the service default),
+protocol, effective auth schemes,
 and input/output presence. Context retains it after
 selection through `Context::operation_metadata()`.
 
@@ -1515,9 +1509,8 @@ server models keep server nullability and closed enums and unions. See the
 existing consumers.
 
 For a standalone client, `crucible new hello-client --client` creates a library
-whose build script calls `crucible_build::model("smithy").client().generate()`.
-It uses the same managed compiler as the service starter, and needs no separate
-model package or hand-written Smithy build configuration.
+whose build script calls `crucible_build::model("model").client().generate()`.
+It needs no separate model package or hand-written build configuration.
 
 The generated file exposes models and modeled exceptions directly beside the
 client, with private serde implementation modules. It also exposes an operation

@@ -1,6 +1,6 @@
 [package]
 name = "crucible-smithy"
-description = "Smithy JSON AST loader and the IR every crucible emitter reads"
+description = "The IR every crucible emitter reads, and the release snapshot format"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,7 +9,6 @@ repository.workspace = true
 
 [dependencies]
 base64 = "0.22"
-indexmap.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["preserve_order", "arbitrary_precision"] }
 thiserror.workspace = true

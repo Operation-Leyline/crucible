@@ -26,10 +26,9 @@ Check items off in a tracking issue, not in this file.
 
 ## 2. Prepare the repository
 
-- [ ] Add `LICENSE`, `NOTICE` (Smithy attribution, see below), `SECURITY.md`,
+- [ ] Add `LICENSE`, `NOTICE`, `SECURITY.md`,
       `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`.
-- [ ] Replace links to private repositories (`smithy-tooling`,
-      `crucible-service-template`, `crucible-actions`) or make those public.
+- [ ] Replace links to private repositories (`crucible-service-template`, `crucible-actions`) or make those public.
 - [ ] Remove or generalise `examples/infra/leyline.bindings.json` and the
       Leyline/Pigeon prose in `README.md`, `AGENTS.md`, `docs/`.
 - [ ] Remove `.claude`-style or agent scratch files if any appear (none are
@@ -60,10 +59,6 @@ python tools/check_publish_metadata.py --order
 - [ ] Give every workspace dependency in `[workspace.dependencies]` a
       `version` next to its `path` (`crucible-wire = { version = "0.4.0",
       path = "crates/crucible-wire" }`).
-- [ ] Resolve `smithy-tooling`: it lives in `vendor/`, is `publish = false`,
-      and `crucible-build` depends on it. Publish it as its own crate (the
-      bundled jars are about 7 MB) or replace it with a download-at-build
-      step; `crucible-build` and the CLI cannot be published until then.
 - [ ] Keep `crucible-cli` as is and set `publish = false` in its own manifest
       (`tools/check_publish_metadata.py` and the publish workflow skip it).
 - [ ] Add the new `crucible-api` library crate: it re-exports the runtime
@@ -149,5 +144,5 @@ weather example) before announcing:
 ## 7. Announce
 
 - [ ] Make the repository public only after sections 1 to 3 are complete.
-- [ ] Publish release notes that state the licence, the supported Smithy
-      subset and the compatibility promise.
+- [ ] Publish release notes that state the licence, the `.cru` language
+      version and the compatibility promise.

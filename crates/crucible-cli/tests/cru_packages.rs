@@ -1,5 +1,5 @@
-//! A Crucible language package is a model source like Smithy sources: the
-//! CLI compiles it with `crucible-lang`, with no JVM.
+//! A Crucible language package is the model source: the
+//! CLI compiles it with `crucible-lang`.
 
 use std::path::Path;
 use std::process::Command;

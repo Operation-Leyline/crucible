@@ -7,7 +7,6 @@ pub(crate) fn create(
     out: &Path,
     revision: Option<&str>,
     runtime: Option<&Path>,
-    smithy_version: Option<&str>,
     client: bool,
 ) -> Result<(), String> {
     if name.is_empty()
@@ -18,18 +17,6 @@ pub(crate) fn create(
         })
     {
         return Err("package name must start with a lowercase letter and contain only lowercase letters, digits, hyphens or underscores (up to 64 characters)".into());
-    }
-    if let Some(version) = smithy_version {
-        let parts: Vec<_> = version.split('.').collect();
-        if parts.len() != 3
-            || parts.iter().any(|part| {
-                part.is_empty()
-                    || !part.bytes().all(|byte| byte.is_ascii_digit())
-                    || (part.len() > 1 && part.starts_with('0'))
-            })
-        {
-            return Err("Smithy version must be a stable X.Y.Z release".into());
-        }
     }
     if out.exists()
         && (!out.is_dir()
@@ -75,42 +62,27 @@ pub(crate) fn create(
     } else {
         ", default-features = false, features = [\"http\", \"explorer\"]"
     };
-    let mut manifest = format!(
+    let manifest = format!(
         "[package]\nname = {}\nversion = \"0.1.0\"\nedition = \"2024\"\n\n\
-         [package.metadata.smithy]\nsources = [\"smithy\"]\n\n\
          [dependencies]\n{runtime_package} = {{ {}{runtime_features} }}\n\
          tokio = {{ version = \"1\", features = [\"rt-multi-thread\", \"macros\", \"net\"] }}\n\n\
-         [build-dependencies]\ncrucible-build = {{ {}{} }}\n",
+         [build-dependencies]\ncrucible-build = {{ {} }}\n",
         quoted(name),
         dependency(runtime_package)?,
         dependency("crucible-build")?,
-        if smithy_version.is_some() {
-            ", default-features = false, features = [\"rust\"]"
-        } else {
-            ""
-        }
     );
     let helper = if client { "client" } else { "server" };
     let explorer = if client { "" } else { "        .explorer()\n" };
-    let build = if let Some(version) = smithy_version {
-        manifest.push_str(&format!(
-            "smithy-tooling = {{ git = \"https://github.com/Operation-Leyline/smithy-tooling\", tag = {} }}\n",
-            quoted(&format!("smithy-{version}-wrapper-0.3.0"))
-        ));
-        format!(
-            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .compile_with(|config, out| smithy_tooling::build(config, out))\n        .{helper}()\n{explorer}        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
-        )
-    } else {
-        format!(
-            "fn main() {{\n    crucible_build::model(\"smithy\")\n        .{helper}()\n{explorer}        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
-        )
-    };
+    let build = format!(
+        "fn main() {{\n    crucible_build::model(\"model\")\n        .{helper}()\n{explorer}        .policy(\"crucible.toml\")\n        .generate();\n}}\n"
+    );
     let mut files = vec![
         ("Cargo.toml", manifest.as_str()),
         ("build.rs", build.as_str()),
         ("crucible.toml", include_str!("starter/crucible.toml")),
         (".gitignore", "/target/\n"),
-        ("smithy/hello.smithy", include_str!("starter/hello.smithy")),
+        ("model/crucible.toml", include_str!("starter/model.toml")),
+        ("model/hello.cru", include_str!("starter/hello.cru")),
     ];
     let example =
         include_str!("starter/client_hello.rs").replace("hello_client", &name.replace('-', "_"));
@@ -160,7 +132,7 @@ mod tests {
     #[test]
     fn service_starter_enables_explorer_only_in_debug_service_construction() {
         let root = tempfile::tempdir().unwrap();
-        create("hello", root.path(), Some("revision"), None, None, false).unwrap();
+        create("hello", root.path(), Some("revision"), None, false).unwrap();
         let read = |path| std::fs::read_to_string(root.path().join(path)).unwrap();
         assert!(read("build.rs").contains(".server()\n        .explorer()"));
         assert!(
@@ -169,7 +141,7 @@ mod tests {
         );
         assert!(read("Cargo.toml").contains("\"http\", \"explorer\""));
         let root = tempfile::tempdir().unwrap();
-        create("hello", root.path(), Some("revision"), None, None, true).unwrap();
+        create("hello", root.path(), Some("revision"), None, true).unwrap();
         assert!(
             !std::fs::read_to_string(root.path().join("build.rs"))
                 .unwrap()
@@ -178,11 +150,25 @@ mod tests {
     }
 
     #[test]
+    fn starter_models_are_language_packages_that_compile() {
+        for client in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            create("hello", root.path(), Some("revision"), None, client).unwrap();
+            let model = root.path().join("model");
+            assert!(crucible_lang::is_package(&model));
+            let package = crucible_lang::load_package(&model).unwrap();
+            let compiled = crucible_lang::compile(&package, None);
+            assert!(compiled.service.is_some(), "{}", compiled.render());
+            assert!(!root.path().join("smithy").exists());
+        }
+    }
+
+    #[test]
     fn default_starters_pin_the_emitters_source_revision() {
         let revision = crucible_codegen_rust::source_revision();
         for client in [false, true] {
             let root = tempfile::tempdir().unwrap();
-            create("hello", root.path(), None, None, None, client).unwrap();
+            create("hello", root.path(), None, None, client).unwrap();
             let manifest = std::fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
             let expected = match revision {
                 Some(revision) => format!("rev = {revision:?}"),
@@ -198,15 +184,7 @@ mod tests {
     #[test]
     fn explicit_starter_revision_overrides_embedded_provenance() {
         let root = tempfile::tempdir().unwrap();
-        create(
-            "hello",
-            root.path(),
-            Some("chosen-revision"),
-            None,
-            None,
-            false,
-        )
-        .unwrap();
+        create("hello", root.path(), Some("chosen-revision"), None, false).unwrap();
         let manifest = std::fs::read_to_string(root.path().join("Cargo.toml")).unwrap();
         assert_eq!(manifest.matches("rev = \"chosen-revision\"").count(), 2);
     }

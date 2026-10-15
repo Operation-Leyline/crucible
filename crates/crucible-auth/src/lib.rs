@@ -30,8 +30,6 @@ mod presented_credential;
 mod principal;
 mod refresh_claim;
 mod refusal;
-mod scope_enforcer;
-mod scopeless_policy;
 mod signing_key;
 mod token_kind;
 mod token_rule;
@@ -53,8 +51,6 @@ pub use jsonwebtoken::Algorithm;
 pub use jwt_authenticator::JwtAuthenticator;
 pub use mcp_authenticator::McpAuthenticator;
 pub use principal::Principal;
-pub use scope_enforcer::ScopeEnforcer;
-pub use scopeless_policy::ScopelessPolicy;
 pub use token_kind::TokenKind;
 pub use token_rule::TokenRule;
 

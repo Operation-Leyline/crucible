@@ -9,11 +9,10 @@ including JSON and Net::HTTP.
 
 ## Generating and installing
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate ruby smithy \
+crucible generate ruby model \
   --out generated/client --package-name weather_client --module-name Weather \
   --package-version 0.1.0 --endpoint https://weather.example
 cd generated/client
@@ -25,7 +24,7 @@ Generation does not publish the gem. The package owner supplies author,
 license, and repository metadata before publishing. `crucible.json` records
 the generator version, service version, package version, and schema digest.
 
-The public client name comes from the Smithy service: `WeatherClient` for
+The public client name comes from the service: `WeatherClient` for
 `Weather`, or `LeylineClient` for `Leyline`. Regenerate and replace earlier
 `Client` imports and construction sites with the service-specific name.
 
@@ -60,14 +59,14 @@ Ordinary model instances are frozen; their arrays and strings remain native
 Ruby values. A call snapshots its input before invoking hooks. Optional
 members default to `Runtime::UNSET`; `nil` means explicit null. Members that
 the IR makes non-optional on clients are required constructor arguments.
-Smithy input structures and `@clientOptional` members allow omission even
+Input structures and `@clientOptional` members allow omission even
 when marked `@required`: missing HTTP labels are rejected before transport,
 while missing body/query/header members are left for service validation.
 Missing response members receive modeled
 defaults, while explicit null does not. Names use snake_case, with a
 `_value` suffix where a member would hide a keyword or runtime method.
 
-Smithy integers use Ruby `Integer`, with wire bounds enforced for byte,
+Integers use Ruby `Integer`, with wire bounds enforced for byte,
 short, integer, and signed 64-bit long. Floating-point values must be finite.
 The JSON codec preserves exact decimal values before numeric conversion.
 `Timestamp` stores whole seconds and nanoseconds and converts to native `Time`
@@ -89,7 +88,7 @@ no body or content type.
 Every generated type, member, enum value, operation and the client carry YARD
 comments built from the model's `@documentation` plus Crucible's own text for
 the client, `ClientConfig`, transports and errors. The gem ships a
-`.yardopts` that selects Markdown, which is what Smithy documentation is
+`.yardopts` that selects Markdown, which is what `.cru` documentation is
 written in; `yard doc` renders them.
 
 Models define `inspect` (and `to_s`, except on exceptions, whose `to_s` stays

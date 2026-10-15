@@ -46,7 +46,7 @@ impl<A: Authenticator> EndpointGuard for EndpointAuthenticator<A> {
                     if matches!(self.scheme, AuthScheme::Bearer) {
                         response.headers_mut().insert(
                             header::WWW_AUTHENTICATE,
-                            bearer_challenge(present.then_some("invalid_token"), &[]),
+                            bearer_challenge(present.then_some("invalid_token")),
                         );
                     }
                     EndpointAdmission::Respond(response)

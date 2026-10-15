@@ -1,5 +1,5 @@
-// The standard Crucible exceptions (smithy/errors.smithy), bundled with the
-// compiler so a package imports them with `imports = ["crucible.errors"]`.
+// The standard Crucible exceptions, bundled with the compiler
+// so a package imports them with `imports = ["crucible.errors"]`.
 // The generated server fills ValidationException, InternalServerException and
 // UnknownOperationException itself, so their shapes must stay as they are.
 

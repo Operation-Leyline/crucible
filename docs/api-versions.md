@@ -247,7 +247,7 @@ examples against the server at its version as generated tests
   version's types generated from the current model as seen at it
   (decision 57a), not from the frozen release.
 - **Auth is the release's.** An older version's operations carry the
-  auth and scopes their release declared, and `AuthenticatorChain`
+  auth their release declared, and `AuthenticatorChain`
   prepares a plan for each version's entry, so a request is
   authenticated by its own version's schemes. A tightened requirement is a
   breaking change the guard reports, which no migration step declares.

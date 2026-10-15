@@ -17,8 +17,7 @@ other languages until their channels land.
 ## Declare SDKs: `crucible-sdk.toml`
 
 A service declares its SDKs once, in `crucible-sdk.toml` at the root of
-its repository. The file names the model: a `.cru` package, Smithy
-sources or a JSON AST. Every path in it is relative to the file, written
+its repository. The file names the model: a `.cru` package. Every path in it is relative to the file, written
 with `/`, and stays inside the file's directory: every segment is a plain
 file name on every platform (no empty, `.` or `..` segment, no `:` or
 `<>"|?*`, no trailing `.` or space, no device name such as `NUL` or
@@ -30,7 +29,7 @@ anything is written.
 ```toml
 # crucible-sdk.toml, at the root of the Pigeon repository
 schema_version = 1
-model = "model/api"                     # a .cru package, Smithy sources, or a JSON AST
+model = "model/api"                     # a .cru package
 # service = "vip.mailpigeon#Pigeon"     # when the model has several
 
 [defaults]                              # every SDK below, unless it sets its own

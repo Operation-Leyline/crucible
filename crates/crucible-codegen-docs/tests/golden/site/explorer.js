@@ -457,7 +457,6 @@
         ? h("ul", {}, list(s.auth).map((id) => h("li", {}, code(id), " ", code(JSON.stringify((s.authSchemes || {})[id] || {})))))
         : h("p", { class: "cx-muted" }, "No default authentication schemes."),
     );
-    if (list(s.scopes).length) out.push(h("p", {}, "Default scopes: ", list(s.scopes).map((sc) => code(sc))));
     out.push(...permissionsSection(s));
     out.push(h("h2", {}, "Service errors"), errorsTable(m, s.errors));
     out.push(h("h2", {}, "Operations"));
@@ -501,7 +500,7 @@
     const out = [
       pageHeader(op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
       panels,
-      h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", "."), list(op.scopes).length ? h("p", {}, "Required scopes: ", list(op.scopes).map((s) => code(s))) : null),
+      h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", ".")),
       authorizationSection(op),
       messageSection(m, op, true),
       messageSection(m, op, false),

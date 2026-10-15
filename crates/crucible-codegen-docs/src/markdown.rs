@@ -123,12 +123,6 @@ pub(super) fn render(d: &Description) -> Vec<File> {
             code(&d.service["authSchemes"][string(scheme)].to_string())
         ));
     }
-    if !list(&d.service["scopes"]).is_empty() {
-        index.push_str(&format!(
-            "\nDefault scopes: {}.\n",
-            code(&d.service["scopes"].to_string())
-        ));
-    }
     if !list(&d.service["permissions"]).is_empty() {
         index.push_str(&format!(
             "\nOperations name what the caller must hold on which resource; {} lists every permission.\n",
@@ -520,12 +514,6 @@ fn operation(d: &Description, op: &Value) -> String {
     let mut out = format!("# {}\n\n{}{}", string(&op["name"]), notes(op), docs(op));
     out.push_str(&format!("Protocol: {}.\n\n## Authentication\n\nEffective schemes: {}. Optional authentication: {}.\n\n",
         code(string(&op["protocol"])),code(&op["auth"].to_string()),op["optionalAuth"]));
-    if !list(&op["scopes"]).is_empty() {
-        out.push_str(&format!(
-            "Required scopes: {}.\n\n",
-            code(&op["scopes"].to_string())
-        ));
-    }
     out.push_str(&authorization(op));
     out.push_str(&message(d, op, true));
     out.push_str(&message(d, op, false));

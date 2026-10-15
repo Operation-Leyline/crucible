@@ -201,8 +201,6 @@ impl Protocol for McpProtocol {
                         .as_ref()
                         .map(|m| m.issuer()),
                     &self.config.path,
-                    descriptors,
-                    prepare,
                 )
             })
             .transpose()?;

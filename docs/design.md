@@ -20,7 +20,7 @@ On top of that, generated Rust server code was one trait with every operation
 on it (Leyline's `api/mod.rs`, 2,100 lines), and generated clients needed
 splicing for package metadata.
 
-crucible reads the Smithy model itself, so none of those are lost.
+crucible reads the model itself, so none of those are lost.
 
 ## Why not smithy-rs / smithy-typescript
 
@@ -33,8 +33,7 @@ IR, with native emitters and runtimes for the [client language portfolio](client
 ## Protocol
 
 crucible generates both ends, so it defines its own protocol,
-`crucible.protocols#json` ([smithy/crucible.smithy](../smithy/crucible.smithy)),
-and it is the only wire protocol. It uses HTTP bindings, JSON bodies and
+`crucible.protocols#json`, and it is the only wire protocol. It uses HTTP bindings, JSON bodies and
 status codes, with these conventions:
 
 - Errors are identified by `X-Crucible-Error` (the shape name), with the
@@ -46,9 +45,7 @@ status codes, with these conventions:
   in bodies and HTTP dates in headers.
 - The request id travels in `x-request-id`.
 
-Smithy's HTTP binding validators are part of core Smithy and still run. What
-the switch gives up is Smithy's OpenAPI converter, which only knows AWS
-protocols. Crucible [emits OpenAPI from its IR](openapi.md). OpenAPI is a downstream export; SDKs still consume the IR directly.
+Crucible validates HTTP bindings itself, and [emits OpenAPI from its IR](openapi.md). OpenAPI is a downstream export; SDKs still consume the IR directly.
 
 [Service API references](docs.md) consume an audience-projected IR description
 directly, preserving pagination, resources, idempotency, and documentation notes.
@@ -56,30 +53,25 @@ directly, preserving pagination, resources, idempotency, and documentation notes
 ## Pipeline
 
 ```
-smithy build (projection with flattenAndRemoveMixins)
-  → model.json (JSON AST)
-  → crucible-smithy: parse → subset check → lower → ir::Service
+crucible.toml + .cru sources
+  → crucible-lang: parse → resolve → check → lower → ir::Service
   → emitters: rust server · native clients · CDK constructs · Terraform provider
 ```
 
-Smithy stays the authority on the model: it validates, resolves `apply`, and
-flattens mixins. crucible never reimplements a Smithy transform. It reads the
-result.
+`crucible-lang` is the one front end: it validates the package, resolves
+imports and templates, and lowers to the IR. Generators never read source.
 
 ## The IR
 
 `ir::Service` holds the operations (sorted by name) and every shape they
 reach, keyed by shape id. Lowering settles, once:
 
-- **Nullability** (Smithy 2.0): a member is non-null on the server when it is
+- **Nullability**: a member is non-null on the server when it is
   `@required` or has a non-null `@default`. A client may also omit
   `@clientOptional` members and every member of an `@input` structure.
   Client defaults on those members are ignored; server defaults remain intact.
 - **Authentication**: effective schemes inherit from the service, with operation
   `@auth` overrides resolved here. An empty override disables bearer credentials.
-- **Scopes**: `@crucible.auth#scopes` on a service is the default, on an
-  operation the override (`[]` opts out). Each operation carries its effective
-  list, empty when public; misuse is a diagnostic. See [auth.md](auth.md#oauth-scopes).
 - **Constraints**: the target's `@length`/`@range`/`@pattern`/`@uniqueItems`
   with the member's own laid over them.
 - **Visibility**: `@internal` becomes explicit `internal` flags on operations,
@@ -96,7 +88,7 @@ reach, keyed by shape id. Lowering settles, once:
   OpenAPI `deprecated`), falling back to a doc paragraph; `@since`, `@unstable`
   and `@externalDocumentation` are documentation and appear where a target
   already emits doc notes (OpenAPI: `externalDocs`, `x-smithy-since`,
-  `x-smithy-unstable`). Generated code that uses a deprecated item itself opts
+  `x-smithy-unstable`, extension names kept for compatibility). Generated code that uses a deprecated item itself opts
   out of the warning.
 - **Sensitivity**: member and target annotations resolve through the IR; generated
   static metadata supports recursive logging redaction.
@@ -155,7 +147,7 @@ consumer's tests, then replaces it.
    one of the operation's errors has it), retries from `@readonly`/
    `@idempotent`/token/`@retryable`, and middleware (the body digest is
    built in, opt-in per package). Inputs type `@required` members as required,
-   so a missing one fails at compile time. Smithy's client nullability would
+   so a missing one fails at compile time. Client nullability would
    make every `@input` member optional. Leyline's integ suite is the oracle
    once it moves to the new client.
 2. **Rust client.** reqwest-based, with the same features. The oracle is
@@ -169,7 +161,7 @@ consumer's tests, then replaces it.
 
 ## Client API design
 
-Name the public client after the Smithy service (`LeylineClient`, for example).
+Name the public client after the service (`LeylineClient`, for example).
 Use the target language's spelling conventions for function-based APIs, such as
 C prefixes and R constructors. Shared runtime types can keep generic names.
 
@@ -180,7 +172,7 @@ Network, cancellation and other local failures keep their own types.
 Swift uses a service protocol, Go a service interface, R a condition class,
 and Rust a service enum with conversions from operation error enums. C retains
 its service-prefixed error representation. These are public SDK types, not
-Smithy structure inheritance or changes to protocol error codes.
+structure inheritance or changes to protocol error codes.
 
 The shared IR defines wire behavior, not one public API for every language.
 Generate top-level model types in normal packages or modules. Ordinary request

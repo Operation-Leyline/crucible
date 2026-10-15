@@ -43,15 +43,6 @@ fn vocabulary_probe() {
                     .render()
                     .unwrap()
             );
-            assert_eq!(
-                m.server().render().unwrap(),
-                crucible_build::model_from_json("weather-copy")
-                    .server()
-                    .render()
-                    .unwrap()
-            );
-            let old: crucible_build::ModelBuilder = crucible_build::model_from_json("weather");
-            assert_eq!(old.server().render().unwrap(), m.server().render().unwrap());
             m.client().generate();
             assert_eq!(
                 fs::read_to_string(out.join("crucible_client.rs")).unwrap(),
@@ -114,7 +105,6 @@ fn vocabulary_probe() {
             }
         }
         "publish-new" => crucible_build::model("weather").publish(),
-        "publish-old" => crucible_build::publish_model("weather"),
         other => panic!("unknown probe {other}"),
     }
 }
@@ -148,16 +138,9 @@ fn deprecated_shims_match_the_model_vocabulary() {
     for mode in ["json", "links"] {
         run(mode);
     }
-    {
-        let (new, old) = ("publish-new", "publish-old");
-        let metadata = |text: String| {
-            text.lines()
-                .filter(|line| line.starts_with("cargo::metadata=model="))
-                .map(str::to_owned)
-                .collect::<Vec<_>>()
-        };
-        let expected = metadata(run(new));
-        assert_eq!(expected.len(), 1);
-        assert_eq!(expected, metadata(run(old)));
-    }
+    let metadata = run("publish-new")
+        .lines()
+        .filter(|line| line.starts_with("cargo::metadata=model="))
+        .count();
+    assert_eq!(metadata, 1);
 }

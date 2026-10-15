@@ -284,10 +284,8 @@ pub struct IdempotencyPolicy {
 }
 ```
 
-and `once: bool` on an output member. Smithy models have no clause: they
-get the default, and `once` is not expressible (`crucible-smithy` lowers
-`@idempotencyToken` operations with the same default; a Smithy author who needs
-`once` migrates to `.cru`, as for permissions, permissions.md §4.11).
+and `once: bool` on an output member. A service that declares no clause gets
+the default.
 
 ## 5. Compiler checks
 

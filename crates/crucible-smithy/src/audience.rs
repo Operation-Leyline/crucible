@@ -280,7 +280,6 @@ const EXTERNAL_RAW_TRAITS: &[&str] = &[
     "smithy.api#unitType",
     "smithy.api#unstable",
     "aws.api#service",
-    "crucible.auth#scopes",
     "crucible.protocols#json",
     "crucible.protocols#strict",
 ];

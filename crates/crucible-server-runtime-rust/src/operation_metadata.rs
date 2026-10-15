@@ -16,10 +16,6 @@ pub struct OperationMetadata {
     pub auth_schemes: Option<&'static [AuthScheme]>,
     /// Prepared once at registration for protocol-independent bearer challenges.
     pub bearer_auth: bool,
-    /// Every one of these OAuth scopes is required; empty requires none.
-    pub scopes: &'static [&'static str],
-    /// The service default scope list, advertised on authentication challenges.
-    pub service_scopes: &'static [&'static str],
     pub has_input: bool,
     pub has_output: bool,
     /// Where a `@paginated` operation's input carries its token and page size.
@@ -68,8 +64,6 @@ impl OperationMetadata {
                     .iter()
                     .any(|scheme| matches!(scheme, AuthScheme::Bearer))
             }),
-            scopes: O::SCOPES,
-            service_scopes: O::SERVICE_SCOPES,
             has_input: O::HAS_INPUT,
             has_output: O::HAS_OUTPUT,
             pagination: O::PAGINATION,

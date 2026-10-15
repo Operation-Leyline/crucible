@@ -9,11 +9,10 @@ Linux and Visual Studio 2022 on Windows.
 
 ## Generating and installing a package
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate cpp smithy --out sdk \
+crucible generate cpp model --out sdk \
   --package-name weather_client --namespace example::weather \
   --package-version 0.1.0
 cmake -S sdk -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/sdk
@@ -74,7 +73,7 @@ Nonoptional members are constructor arguments. Optional client members use
 `value_or(fallback)` provides a default. Default construction means absent,
 `reset()` restores absence, and `Field<T>::null()` explicitly supplies null.
 Advanced callers can distinguish those states with `is_set()` and `is_null()`;
-`Field<T>::of(value)` remains available. Smithy input and
+`Field<T>::of(value)` remains available. Input and
 `@clientOptional` members can be omitted even when the service requires them.
 Missing HTTP labels fail locally; body, header, and query validation remains
 the service's responsibility.

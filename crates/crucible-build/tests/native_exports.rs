@@ -83,7 +83,7 @@ fn native_exports_build_independently_and_restore_deleted_files_without_cache_ch
             r#"
 fn main() {{
     println!("cargo::rerun-if-changed=build.rs");
-    let model = crucible_build::model("weather").compile_with(|_, _| unreachable!());
+    let model = crucible_build::model("weather").compile();
     model.publish();
     model.rust_client("rust").package("independent-weather-sdk")
         .version("2.3.4").runtime_path({runtime:?}).generate_into("../native/rust");

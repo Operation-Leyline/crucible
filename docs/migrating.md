@@ -35,6 +35,22 @@ versions needs an authenticator for each scheme an older release's
 operations declare; otherwise `Builder::build` returns an error naming the
 API version and scheme.
 
+### Smithy is no longer an input
+
+Crucible reads `.cru` packages only. A model that is still Smithy converts
+once, with the `smithy-to-cru` tool from the last release that carried it
+(0.7.x): build that tool from the 0.7 tag, run it on the model's JSON AST, and
+review the `.cru` package it writes. Then, in a service or client
+`build.rs`, point `crucible_build::model(..)` at the package directory instead
+of the Smithy sources, and drop `smithy-build.json`, the Gradle build, the
+`crucible-traits` dependency and any `--smithy-version` pin. On the command
+line, `check`, `generate`, `scaffold` and `diff` take a package directory (a
+`crucible.toml` with a `[model]` table). `@crucible.auth#scopes`, `rename`,
+timestamp defaults, enum `mediaType` and 2xx error statuses have no `.cru`
+form; remove them from the model.
+The documentation, CDK, Terraform and Explorer generators need resource
+lowering in `.cru`, which the language does not have yet.
+
 ### Smithy-only features are removed
 
 Crucible's IR, generators and runtimes no longer carry what only a Smithy

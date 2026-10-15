@@ -506,7 +506,30 @@ version's section when it is prepared.
   MCP resource, which RFC 7519 makes equivalent to the string. A token for
   several audiences is still refused.
 
+- The documentation, CDK, Terraform and Explorer generators need a `.cru`
+  package with resource lowering (decision 63), which the language does not
+  have yet. Their resource-dependent tests are `#[ignore]`d until it lands,
+  and `generate docs`, `cdk` and `terraform` refuse a `.cru` package for now.
+  Their goldens are kept.
+
 ### Removed
+
+- **The Smithy front end.** Crucible reads `.cru` packages only; Leyline and
+  Pigeon are on `.cru`. Gone: the Smithy JSON AST front end and
+  `Model::from_json`, `.smithy` and `model.json` inputs of the CLI and
+  `crucible_build::model(..)` (`crucible diff`, `check`, `generate` and
+  `scaffold` take a package directory), the JVM and Gradle build driver with
+  its managed Java runtime and `smithy-build.json`, the `crucible-traits`
+  Cargo package and model jar with its `traits-v*` releases, the
+  `crucible new` Smithy starter and `--smithy-version`, the `smithy-tooling`
+  vendor crate, and the one-shot `smithy-to-cru` converter. `crucible-smithy`
+  keeps the IR, the snapshot format and the shared validators (it is renamed
+  `crucible-ir` later).
+
+- **Features only the Smithy front end could express and nothing used:**
+  `@crucible.auth#scopes` and OAuth scopes declared in the model (and the
+  model-driven scope documentation), the IR's `rename`, timestamp defaults,
+  enum `mediaType`, and 2xx error statuses.
 
 - **Every wire protocol except Crucible JSON.** Crucible's own JSON protocol
   (`@crucible.protocols#json`, `.cru` `protocol json`) and the direct
@@ -599,8 +622,8 @@ version's section when it is prepared.
     and `MediaTypeHeaders`, `ProtocolSettings::event_stream_http`, the
     `describe/1` keys of the removed features (`wireName` stays and equals
     `name`), and the Smithy-only test fixtures that exercised them.
-  A Smithy model that uses one of them is refused with a diagnostic naming
-  the trait. Release snapshots move to format 3: older snapshots still
+  A model that uses one of them is refused with a diagnostic naming
+  the trait (Smithy models are no longer read at all, see below). Release snapshots move to format 3: older snapshots still
   read, with the unused fields dropped, and a snapshot that used a removed
   feature is refused with a message naming it.
 
@@ -1242,8 +1265,18 @@ version's section when it is prepared.
   `Options::content_sha256` of every SDK generator, the `crucible_build`
   `content_sha256(..)` builders and the matching CLI options. Regenerate bindings and SDKs. The Smithy front end
   refuses the traits that used the removed features, so a Smithy model that
-  used one has no replacement. No shim is possible: the features, not an
+  used one has no replacement (Smithy models are no longer read at all, see below). No shim is possible: the features, not an
   API, are removed. See [migrating](docs/migrating.md#unreleased).
+
+- **Smithy is no longer an input.** A model that is still Smithy converts once
+  with the `smithy-to-cru` tool of the last release that carried it (0.7.x);
+  review the `.cru` package it writes, then point `crucible_build::model(..)`
+  and the CLI at the package directory. Drop `smithy-build.json`, the Gradle
+  build, the `crucible-traits` dependency and any `--smithy-version` pin.
+  `@crucible.auth#scopes` (and `ScopeEnforcer`'s model-declared scopes),
+  `rename`, timestamp defaults, enum `mediaType` and 2xx error statuses have
+  no `.cru` form and must be removed from the model. No shim is possible: the
+  input, not an API, is removed. See [migrating](docs/migrating.md#unreleased).
 
 ## [0.7.0] - 2026-10-12
 

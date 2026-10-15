@@ -7,11 +7,6 @@
 
 use std::collections::BTreeMap;
 
-use serde_json::Value;
-
-use crate::diagnostics::Diagnostics;
-use crate::shape_id::ShapeId;
-
 /// `smithy.api#deprecated`: both fields are optional in Smithy.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Deprecation {
@@ -94,70 +89,4 @@ impl DocNotes {
         paragraphs.extend(self.deprecated.as_ref().map(Deprecation::sentence));
         (!paragraphs.is_empty()).then(|| paragraphs.join("\n\n"))
     }
-
-    /// Lower the traits on `id`, collecting a diagnostic for each malformed one.
-    pub(crate) fn lower(
-        id: &ShapeId,
-        traits: &BTreeMap<ShapeId, Value>,
-        diagnostics: &mut Diagnostics,
-    ) -> Self {
-        let get = |name: &str| traits.get(&ShapeId::new("smithy.api", name));
-        let mut notes = Self::default();
-        if let Some(value) = get("deprecated") {
-            notes.deprecated = deprecation(id, value, diagnostics);
-        }
-        if let Some(value) = get("since") {
-            match value.as_str() {
-                Some(since) => notes.since = Some(since.to_owned()),
-                None => diagnostics.push(id, "@since must be a string"),
-            }
-        }
-        match get("unstable") {
-            None => {}
-            Some(Value::Object(fields)) if fields.is_empty() => notes.unstable = true,
-            Some(_) => diagnostics.push(id, "@unstable must be an empty structure"),
-        }
-        if let Some(value) = get("externalDocumentation") {
-            match value.as_object() {
-                Some(links) => {
-                    for (name, url) in links {
-                        match url.as_str() {
-                            Some(url) => {
-                                notes.external_docs.insert(name.clone(), url.to_owned());
-                            }
-                            None => diagnostics.push(
-                                id,
-                                format!(
-                                    "@externalDocumentation entry {name:?} must be a string URL"
-                                ),
-                            ),
-                        }
-                    }
-                }
-                None => {
-                    diagnostics.push(id, "@externalDocumentation must be a map of names to URLs")
-                }
-            }
-        }
-        notes
-    }
-}
-
-fn deprecation(id: &ShapeId, value: &Value, diagnostics: &mut Diagnostics) -> Option<Deprecation> {
-    let Some(fields) = value.as_object() else {
-        diagnostics.push(id, "@deprecated must be a structure");
-        return None;
-    };
-    let mut field = |name: &str| match fields.get(name) {
-        None => None,
-        Some(Value::String(text)) => Some(text.clone()),
-        Some(_) => {
-            diagnostics.push(id, format!("@deprecated {name} must be a string"));
-            None
-        }
-    };
-    Some(Deprecation {
-        message: field("message"),
-        since: field("since"),
-    })
 }

@@ -174,6 +174,7 @@ pub fn read(text: &str) -> Result<Service, String> {
     if format <= 2 {
         migrate_format_2(&mut value)?;
     }
+    drop_scopes(&mut value)?;
     let snapshot: Snapshot = serde_json::from_value(value.clone())
         .map_err(|error| format!("release snapshot format {format}: {error}"))?;
     // Whatever this compiler does not know would be dropped silently: a
@@ -365,6 +366,45 @@ fn migrate_format_2(value: &mut serde_json::Value) -> Result<(), String> {
         }
     }
     value["format"] = Value::from(3);
+    Ok(())
+}
+
+/// Drops the OAuth `scopes` every snapshot carried while Crucible modelled
+/// them (an empty list for a service without any, which is every `.cru`
+/// service) and refuses one that declared some.
+fn drop_scopes(value: &mut serde_json::Value) -> Result<(), String> {
+    use serde_json::Value;
+    let Some(service) = value.get_mut("service").and_then(Value::as_object_mut) else {
+        return Ok(());
+    };
+    drop_scopes_of(service, "the service")?;
+    for operation in service
+        .get_mut("operations")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_object_mut)
+    {
+        let name = operation
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("an operation")
+            .to_owned();
+        drop_scopes_of(operation, &name)?;
+    }
+    Ok(())
+}
+
+fn drop_scopes_of(
+    object: &mut serde_json::Map<String, serde_json::Value>,
+    owner: &str,
+) -> Result<(), String> {
+    if object.get("scopes").is_some_and(|value| !is_zero(value)) {
+        return Err(format!(
+            "the release snapshot declares OAuth scopes on {owner}, and Crucible no longer supports scopes"
+        ));
+    }
+    object.remove("scopes");
     Ok(())
 }
 

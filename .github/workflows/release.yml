@@ -60,10 +60,6 @@ jobs:
           CARGO_BUILD_JOBS: '2'
       - uses: actions/download-artifact@v8
         with:
-          name: smithy-cargo-plugin
-          path: dist
-      - uses: actions/download-artifact@v8
-        with:
           pattern: crucible-lsp-*
           path: dist
           merge-multiple: true
@@ -79,5 +75,5 @@ jobs:
           gh release create "v$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" \
             --verify-tag --title "Crucible $RELEASE_VERSION" --generate-notes \
             "dist/hello-service-v$RELEASE_VERSION.zip" \
-            "dist/hello-client-v$RELEASE_VERSION.zip" dist/smithy-cargo-0.1.0.zip \
+            "dist/hello-client-v$RELEASE_VERSION.zip" \
             dist/crucible-lsp-*.zip

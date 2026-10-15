@@ -379,7 +379,7 @@ async fn credential_headers_read_the_first_present_header_in_order() {
 }
 
 #[tokio::test]
-async fn es256_audience_array_scopes_groups_and_strict_claim_types() {
+async fn es256_audience_array_groups_and_strict_claim_types() {
     let issuer = TestTokenIssuer::es256("https://ec.example", "ec-1").unwrap();
     let mut config = issuer.config(vec!["client".into()]);
     config.algorithms = vec![
@@ -389,10 +389,8 @@ async fn es256_audience_array_scopes_groups_and_strict_claim_types() {
     let auth = JwtAuthenticator::with_jwks(config, issuer.jwks()).unwrap();
     let mut claims = issuer.id_claims("person", "client");
     claims["aud"] = json!(["other", "client"]);
-    claims["scope"] = json!("read write read");
     claims["cognito:groups"] = json!(["operators", "users"]);
     let principal = auth.verify(&issuer.mint(&claims).unwrap()).await.unwrap();
-    assert_eq!(principal.scopes.len(), 2);
     assert!(principal.groups.contains("operators"));
     assert_eq!(principal.claims, claims);
     for (name, value) in [

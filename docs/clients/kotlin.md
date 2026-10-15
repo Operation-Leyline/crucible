@@ -13,11 +13,10 @@ and Android callers who do not need Gradle Multiplatform metadata.
 
 ## Generating and installing
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate kotlin smithy \
+crucible generate kotlin model \
   --out generated/client --group-id example --artifact-id weather-client \
   --package-name example.weather --package-version 0.1.0 \
   --endpoint https://api.example
@@ -37,7 +36,7 @@ Native targets and their compiler setup; omit this property when publishing
 Apple or Windows artifacts. Kotlin 2.2 consumers using timestamp properties
 must opt in to `kotlin.time.ExperimentalTime`.
 
-The client name comes from the Smithy service: `LeylineClient` for `Leyline`,
+The client name comes from the service: `LeylineClient` for `Leyline`,
 or `WeatherClient` for the example below. The package also contains `ClientConfig`, error metadata, and top-level
 model types in the `.model` package. Structures expose read-only properties and
 type-safe builders; unions are sealed interfaces with one data class per variant,

@@ -19,16 +19,16 @@
 //! SDK and import its client and runtime API, without an inclusion macro.
 //! Java generation emits Gradle and Maven metadata. Build native exports with
 //! Cargo, Gradle or Maven; generation does not publish them to remote registries.
-//! A separate SDK producer can use `model("<links>")` without recompiling
-//! Smithy. `.generate()` keeps artifacts under OUT_DIR for explicit export with
+//! A separate SDK producer can use `model("<links>")` without a second
+//! hand-written model. `.generate()` keeps artifacts under OUT_DIR for explicit export with
 //! `crucible export-artifact`. `.generate_into()` also publishes a stable native
 //! package path and watches its generated files so deleted exports regenerate.
 //!
-//! Defaults enable `smithy` and `rust`. Select `java` or other native client
+//! Defaults enable `rust`. Select `java` or other native client
 //! features explicitly. Each native target has a matching fluent helper such as
 //! `swift_client`, `python_client`, or `ts_client`. Select `openapi`, `docs`, `cdk`,
 //! `terraform`, or `cli` for named non-client outputs. With defaults disabled,
-//! AST publication and model compilation remain usable without any Rust emitter
+//! Package publication and model compilation remain usable without any Rust emitter
 //! dependency. The `cli` target generates a Rust executable and uses the Rust emitter.
 //!
 //! ## Rust server integration and source-only clients
@@ -37,29 +37,26 @@
 //! Server helpers generate bindings inside the service crate. Source-only client
 //! helpers are also available alongside native SDK package generation.
 //!
-//! Compile a service's Smithy sources and generate its Rust contract:
+//! Compile a service's `.cru` package and generate its Rust contract:
 //!
 //! ```ignore
-//! fn main() { crucible_build::model("smithy").server().generate(); }
+//! fn main() { crucible_build::model("model").server().generate(); }
 //! ```
 //!
-//! A standalone Rust client uses the same compiler setup:
+//! A standalone Rust client uses the same package:
 //!
 //! ```ignore
-//! fn main() { crucible_build::model("smithy").client().generate(); }
+//! fn main() { crucible_build::model("model").client().generate(); }
 //! ```
 //!
-//! The default compiler and matching runtime are managed by the build helper.
 //! Larger applications can share their contract through separate packages:
 //!
-//! A **model package** holds Smithy sources. Its manifest sets
-//! `links = "<name>"`, and its `build.rs` compiles and publishes the AST:
+//! A **model package** holds `.cru` sources. Its manifest sets
+//! `links = "<name>"`, and its `build.rs` publishes the package:
 //!
 //! ```ignore
-//! fn main() { crucible_build::model("smithy").publish(); }
+//! fn main() { crucible_build::model("model").publish(); }
 //! ```
-//!
-//! For a precompiled AST, use `model("model/model.json").publish()`.
 //!
 //! A **service package** depends on the model package and generates the code
 //! that plugs it into crucible:
@@ -84,8 +81,6 @@ use std::path::{Path, PathBuf};
 
 #[cfg(feature = "rust")]
 use crucible_codegen_rust::Options;
-#[cfg(feature = "rust")]
-use crucible_smithy::Model as SmithyModel;
 use crucible_smithy::ShapeId;
 
 #[cfg(feature = "rust")]
@@ -317,42 +312,6 @@ pub use swift_sdk::SwiftSdk;
 #[cfg(feature = "ts")]
 pub use ts_sdk::TsSdk;
 
-mod smithy;
-#[cfg(all(feature = "smithy", feature = "rust"))]
-#[allow(deprecated)]
-pub use smithy::client_from_smithy;
-#[cfg(feature = "rust")]
-#[allow(deprecated)]
-pub use smithy::client_from_smithy_with;
-#[cfg(feature = "smithy")]
-#[allow(deprecated)]
-pub use smithy::compile_smithy;
-#[allow(deprecated)]
-pub use smithy::compile_smithy_with;
-#[cfg(feature = "smithy")]
-#[allow(deprecated)]
-pub use smithy::publish_model_from_smithy;
-#[allow(deprecated)]
-pub use smithy::publish_model_from_smithy_with;
-#[cfg(all(feature = "smithy", feature = "rust"))]
-#[allow(deprecated)]
-pub use smithy::rust_service_from_smithy;
-#[cfg(feature = "rust")]
-#[allow(deprecated)]
-pub use smithy::rust_service_from_smithy_with;
-
-/// Compile a source-only Smithy package and select named generated outputs.
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
-pub fn smithy(sources: impl AsRef<Path>) -> Model {
-    Model::from_sources(sources)
-}
-
-/// Use a compiled AST without invoking a Smithy compiler.
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
-pub fn model_from_json(source: impl AsRef<Path>) -> Model {
-    Model::from_json(source)
-}
-
 /// Generate outputs in a separate package using its model dependency's AST.
 #[deprecated(since = "0.5.0", note = "use crucible_build::model(..)")]
 pub fn model_dependency(links: &str) -> ModelPackage {
@@ -382,14 +341,6 @@ pub fn artifact(links: &str, name: &str) -> Artifact {
         "crucible: artifact registry does not match Cargo metadata"
     );
     artifact
-}
-
-/// From a model package's `build.rs`: makes `path` (a Smithy JSON AST built
-/// with the `flattenAndRemoveMixins` transform) the model its dependents
-/// generate from. The package's manifest needs `links`.
-#[deprecated(since = "0.5.0", note = "use crucible_build::model(..).publish()")]
-pub fn publish_model(path: impl AsRef<Path>) {
-    Model::from_json(path).publish();
 }
 
 fn publish_path(path: &Path) {
@@ -441,7 +392,7 @@ fn try_published(links: &str) -> Result<PathBuf, MissingModelDependency> {
         })
 }
 
-/// Select Smithy sources, a JSON AST, or a direct model dependency's `links` name.
+/// Select a `.cru` package or a direct model dependency's `links` name.
 pub fn model(source: impl AsRef<Path>) -> Model {
     Model::new(source.as_ref())
 }
@@ -502,7 +453,7 @@ impl ServerOutput {
     /// Deprecated direct server constructor.
     #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).server()")]
     pub fn from_model(source: impl AsRef<Path>) -> Self {
-        Model::from_json(source).server()
+        Model::from_package(source).server()
     }
 
     /// Select client or Explorer visibility. Explorer defaults to Internal;
@@ -519,7 +470,7 @@ impl ServerOutput {
     /// A client, from a model file directly.
     #[deprecated(since = "0.5.0", note = "use crucible_build::model(..).client()")]
     pub fn client_from_model(source: impl AsRef<Path>) -> Self {
-        Model::from_json(source).client().into_legacy()
+        Model::from_package(source).client().into_legacy()
     }
 
     /// The service to generate, when the model defines several.
@@ -620,34 +571,10 @@ impl ServerOutput {
                 .map(|path| absolute(&path))
         });
         if let Some(path) = model_output {
-            if cru::is_package(&self.model) {
-                // The lowered model, documentation and custom metadata
-                // included: a .cru package has no AST to copy.
-                cru::export(&self.model, self.service.as_ref(), &path)
-                    .unwrap_or_else(|message| panic!("crucible: {message}"));
-                println!("cargo::rerun-if-changed={}", path.display());
-                return;
-            }
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .expect("crucible: cannot create model export directory");
-            }
-            std::fs::copy(&self.model, &path).unwrap_or_else(|error| {
-                panic!(
-                    "crucible: cannot export model to {}: {error}",
-                    path.display()
-                )
-            });
-            // Copy preserves the source timestamp on Windows but not Linux.
-            // A newer watched export would invalidate Cargo's own build result.
-            let modified = std::fs::metadata(&self.model)
-                .and_then(|metadata| metadata.modified())
-                .expect("crucible: cannot read model timestamp");
-            std::fs::File::options()
-                .write(true)
-                .open(&path)
-                .and_then(|file| file.set_modified(modified))
-                .expect("crucible: cannot preserve model export timestamp");
+            // The lowered model, documentation and custom metadata
+            // included: a .cru package has no AST to copy.
+            cru::export(&self.model, self.service.as_ref(), &path)
+                .unwrap_or_else(|message| panic!("crucible: {message}"));
             println!("cargo::rerun-if-changed={}", path.display());
         }
     }
@@ -657,18 +584,7 @@ impl ServerOutput {
             Side::Server => crucible_codegen_rust::capabilities(),
             Side::Client => crucible_codegen_rust::client_capabilities(),
         };
-        let service = if cru::is_package(&self.model) {
-            cru::lower(&self.model, self.service.as_ref())?
-        } else {
-            let json = std::fs::read_to_string(&self.model)
-                .map_err(|error| format!("cannot read {}: {error}", self.model.display()))?;
-            let model = SmithyModel::from_json(&json).map_err(|error| error.to_string())?;
-            let capabilities_all =
-                crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
-            model
-                .lower_with_capabilities(self.service.as_ref(), &capabilities_all)
-                .map_err(|error| error.to_string())?
-        };
+        let service = cru::lower(&self.model, self.service.as_ref())?;
         if let Some(policy) = &self.policy {
             check_policy(&service, policy)?;
         }
@@ -688,22 +604,11 @@ impl ServerOutput {
         let service = self.lower()?;
         let generated = match self.side {
             Side::Server => {
+                // The language does not lower resources yet, so the
+                // description of a service whose operations belong to a
+                // resource is refused by the describe check.
                 let explorer_service = if self.options.explorer.is_some() {
-                    if cru::is_package(&self.model) {
-                        // The language does not lower resources yet, so the
-                        // description of a service whose operations belong to
-                        // a resource is refused by the describe check.
-                        Some(cru::lower(&self.model, self.service.as_ref())?)
-                    } else {
-                        let json =
-                            std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
-                        let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
-                        Some(
-                            model
-                                .lower_documentation(self.service.as_ref())
-                                .map_err(|e| e.to_string())?,
-                        )
-                    }
+                    Some(cru::lower(&self.model, self.service.as_ref())?)
                 } else {
                     None
                 };

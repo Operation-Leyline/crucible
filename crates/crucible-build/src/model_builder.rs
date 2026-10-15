@@ -1,34 +1,28 @@
-use std::io;
 use std::path::{Path, PathBuf};
 
-use crucible_smithy::{Capabilities, Feature, Model, ShapeId};
+use crucible_smithy::ShapeId;
 
 use crate::{ModelPackage, absolute, parse};
 
 /// Compile a language-neutral model once before selecting named SDK outputs.
 #[derive(Clone)]
 pub struct ModelConfig {
+    /// A `.cru` package directory (`docs/idl/`).
     pub(crate) source: PathBuf,
-    /// Already an artifact: a JSON AST, or a `.cru` package (see `cru`).
-    pub(crate) json: bool,
-    /// A `.cru` package: needs no compiler, behaves like sources for
-    /// starter defaults such as requiring a fillable validation error.
-    pub(crate) cru: bool,
     pub(crate) service: Option<ShapeId>,
     pub(crate) policy: Option<PathBuf>,
 }
 
 impl ModelConfig {
-    pub(crate) fn new(source: &Path, json: bool) -> Self {
+    pub(crate) fn new(source: &Path) -> Self {
         let source = absolute(source);
-        let cru = crate::cru::is_package(&source);
         // A package's manifest may carry its policy; `.policy(..)` still
         // selects another file.
-        let policy = cru.then(|| crate::cru::manifest_policy(&source)).flatten();
+        let policy = crate::cru::is_package(&source)
+            .then(|| crate::cru::manifest_policy(&source))
+            .flatten();
         Self {
             source,
-            json: json || cru,
-            cru,
             service: None,
             policy,
         }
@@ -46,85 +40,25 @@ impl ModelConfig {
         self
     }
 
-    /// Compile with the managed compiler. Existing JSON ASTs need no compiler.
+    /// Compile the package, panicking with the diagnostics on failure.
     pub fn compile(self) -> ModelPackage {
-        #[cfg(feature = "smithy")]
-        {
-            self.compile_with(|config, out| smithy_tooling::build(config, out))
-        }
-        #[cfg(not(feature = "smithy"))]
-        {
-            self.compile_with(|_, _| {
-                Err(io::Error::other(
-                    "Smithy source compilation requires the crucible-build smithy feature or compile_with; compiled JSON ASTs need neither",
-                ))
-            })
-        }
-    }
-
-    /// Assemble with an explicitly selected official Smithy compiler.
-    pub fn compile_with(
-        self,
-        compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-    ) -> ModelPackage {
-        self.try_compile_with(compiler)
+        self.try_compile()
             .unwrap_or_else(|message| panic!("crucible: {message}"))
     }
 
     /// Fallible equivalent for tooling and build integrations.
-    pub fn try_compile_with(
-        self,
-        compiler: impl FnOnce(&Path, &Path) -> io::Result<()>,
-    ) -> Result<ModelPackage, String> {
+    pub fn try_compile(self) -> Result<ModelPackage, String> {
         let output = std::env::var_os("OUT_DIR")
             .map(PathBuf::from)
             .ok_or_else(|| "OUT_DIR: run model generation from a Cargo build script".to_string())?;
         println!("cargo::rerun-if-changed={}", self.source.display());
-        let source = self.source.clone();
-        let path = if self.json {
-            self.source
-        } else {
-            crate::compile_smithy_with(&self.source, output.join("smithy"), compiler)
-                .map_err(|error| error.to_string())?
-        };
         // Lower shared semantics once. Each selected emitter still checks its
         // own supported capabilities before producing output.
-        let (service, model) = if crate::cru::is_package(&path) {
-            (crate::cru::lower(&path, self.service.as_ref())?, None)
-        } else {
-            let text = std::fs::read_to_string(&path)
-                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-            let model = Model::from_json(&text).map_err(|e| e.to_string())?;
-            let capabilities = Capabilities::new(Feature::ALL.iter().copied());
-            let service = model
-                .lower_with_capabilities(self.service.as_ref(), &capabilities)
-                .map_err(|e| e.to_string())?;
-            (service, Some(model))
-        };
-        #[cfg(not(any(feature = "docs", feature = "cdk", feature = "terraform")))]
-        let _ = model;
+        let service = crate::cru::lower(&self.source, self.service.as_ref())?;
         if let Some(policy) = &self.policy {
             println!("cargo::rerun-if-changed={}", policy.display());
             crate::check_policy(&service, policy)?;
         }
-        ModelPackage::new(
-            path,
-            !self.json || self.cru,
-            service,
-            output,
-            #[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
-            model,
-            #[cfg(any(
-                feature = "rust",
-                feature = "docs",
-                feature = "cdk",
-                feature = "terraform"
-            ))]
-            self.policy,
-        )
-        .map(|mut package| {
-            package.source = source;
-            package
-        })
+        ModelPackage::new(self.source, service, output, self.policy)
     }
 }

@@ -10,7 +10,7 @@ Generate descriptors in the service's build script:
 
 ```rust
 fn main() {
-    crucible_build::model("smithy").server().mcp().generate();
+    crucible_build::model("model").server().mcp().generate();
 }
 ```
 
@@ -48,7 +48,7 @@ claude mcp add --transport http weather https://api.example.com/mcp
 ```
 
 The endpoint supports `initialize`, `notifications/initialized`, `ping`,
-`tools/list`, and `tools/call`. Tool names are the Smithy operation names,
+`tools/list`, and `tools/call`. Tool names are the operation names,
 including their case. A call takes a JSON object containing the operation's
 whole input, including members ordinarily bound to labels, queries, or headers.
 Blobs use base64 and timestamps use the generated model's document encoding.
@@ -111,21 +111,18 @@ For `/agents/mcp`, the location is
 `/.well-known/oauth-protected-resource/agents/mcp`. Only this path-suffixed
 document is registered, so other resources can publish their own metadata.
 It contains `resource`, sorted and deduplicated `authorization_servers`,
-`scopes_supported` from the external tools' effective model scopes plus the
-endpoint's required scope, and `bearer_methods_supported: ["header"]`.
+and `bearer_methods_supported: ["header"]`. Crucible has no OAuth scopes, so the
+document lists none.
 Metadata is prepared once at construction, without reading raw model traits.
 
 An unauthenticated request gets HTTP 401 before body parsing, with:
 
 ```http
-WWW-Authenticate: Bearer scope="weather/mcp", resource_metadata="https://api.example.com/.well-known/oauth-protected-resource/mcp"
+WWW-Authenticate: Bearer resource_metadata="https://api.example.com/.well-known/oauth-protected-resource/mcp"
 ```
 
-Invalid tokens get 401 with `error="invalid_token"`; missing scopes get 403
-with `error="insufficient_scope"`. Tool scope refusals retain their operation
-scopes and include the same metadata URL. Install `ScopeEnforcer::strict()` to
-enforce the model scopes on calls; the endpoint guard always checks its own
-required scope and stores the verified `Principal` in `Context`.
+Invalid tokens get 401 with `error="invalid_token"` and the same metadata URL.
+The endpoint guard stores the verified `Principal` in `Context`.
 Provider outages return 503, rather than labeling credentials invalid.
 `endpoint_guard` and `authorization` cannot be combined on one MCP endpoint.
 
@@ -151,17 +148,15 @@ and app client, and an MCP client that supports pre-registered OAuth clients.
 The following walkthrough uses `https://api.example.com/mcp` as the public MCP
 resource and `weather` as this service's unique resource-server identifier.
 
-1. Create a resource server in the user pool, with identifier `weather` and a
-   scope named `mcp`. This produces `weather/mcp`; only this service should
-   define and accept it. Add scopes for the model's operation policies, such as
-   `weather/read`, `weather/write`, and `weather/admin`. See
+1. Create a user pool resource server for the service if the MCP client
+   requests a custom scope. Crucible does not check scopes, so any scope the
+   pool issues is accepted once the audience and client checks pass. See
    [Cognito resource servers and scopes](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-define-resource-servers.html).
-2. Create a dedicated app client. Enable authorization code grant and the
-   custom scopes it needs, configure the MCP client's exact callback URL, and
+2. Create a dedicated app client. Enable authorization code grant, configure the MCP client's exact callback URL, and
    use PKCE with S256. For a public client, create the app client without a
    secret. Pre-register its client ID with the MCP client; Cognito discovery
    does not provide arbitrary dynamic registration for MCP clients.
-3. Request `weather/mcp` and the needed model scopes. Include
+3. Include
    `resource=https://api.example.com/mcp` in the authorization request and the
    token request as required by MCP. Cognito now documents resource binding in
    its [authorization endpoint](https://docs.aws.amazon.com/cognito/latest/developerguide/authorization-endpoint.html);
@@ -172,27 +167,25 @@ resource and `weather` as this service's unique resource-server identifier.
    app-client allowlist. Keep it local to the MCP endpoint:
 
 ```rust
-use crucible_auth::{IssuerConfig, JwtAuthenticator, McpAuthenticator, ScopeEnforcer};
+use crucible_auth::{IssuerConfig, JwtAuthenticator, McpAuthenticator};
 use crucible_server_runtime_rust::{Crucible, mcp::McpConfig};
 
 let verifier = JwtAuthenticator::new(IssuerConfig::cognito_access(
     "us-east-1", "us-east-1_EXAMPLE", vec!["YOUR_MCP_APP_CLIENT_ID".into()],
 ))?;
 let authorization = McpAuthenticator::new(
-    "https://api.example.com/mcp", vec![verifier], "weather/mcp",
+    "https://api.example.com/mcp", vec![verifier],
 )?;
 let service = Crucible::builder(weather::operations(implementation))
     .defaults()
     .mcp(McpConfig::new().authorization(authorization))
-    .interceptor(ScopeEnforcer::strict())
     .build()?;
 ```
 
 For pools or token flows without resource binding, explicitly opt into
 `authorization.allow_unbound_cognito_tokens()`. This compatibility mode accepts
-absent `aud` only with all three substitute controls: access-token verification
-on the MCP endpoint, an allowed `client_id`, and the required service-owned
-resource-server scope. A present `aud` must still be the MCP URL alone. This mode
+absent `aud` only with both substitute controls: access-token verification
+on the MCP endpoint and an allowed `client_id`. A present `aud` must still be the MCP URL alone. This mode
 is not RFC 8707 audience binding and does not claim full MCP authorization
 conformance. Prefer bound tokens where the deployment supports them.
 
@@ -265,14 +258,13 @@ Cognito issues, which the verifier still checks.
 
 ### Cognito app client settings and client setup
 
-[Configuring Cognito](#configuring-cognito) creates the resource server, scopes
-and verifier. For the app client these clients use, set:
+[Configuring Cognito](#configuring-cognito) creates the verifier. For the app client these clients use, set:
 
 | Setting | Value |
 |---|---|
 | Application type / client secret | Public client, no secret. Claude treats a blank secret as a public client; Cursor and VS Code accept a client id alone. Use a secret only if you want a confidential client. |
 | OAuth grant types | Authorization code grant only. Do not enable implicit or client credentials. |
-| OpenID Connect and custom scopes | The service-owned `weather/mcp` and model scopes from "Configuring Cognito"; add `openid` only if clients need it. |
+| OpenID Connect and custom scopes | Whatever the MCP client requests; Crucible does not check scopes. Add `openid` only if clients need it. |
 | Allowed callback URLs | Exactly the URLs below. Cognito matches them exactly, requires HTTPS except `http://localhost`, and has no wildcard or port-agnostic match. |
 
 PKCE needs no setting: Cognito accepts `code_challenge_method=S256` only, which is
@@ -310,7 +302,7 @@ there is no Internal audience option for MCP.
 
 JSON Schema emission is shared with OpenAPI. MCP embeds only reachable
 definitions under `$defs` instead of OpenAPI's `components/schemas`. Inputs use
-Smithy client nullability: `@input` and `@clientOptional` members may be omitted
+Client nullability: `@input` and `@clientOptional` members may be omitted
 or null in the description, while the normal server validator remains
 authoritative about whether the handler can receive them. Success returns an
 object as `structuredContent` and its serialized JSON as a text content block.

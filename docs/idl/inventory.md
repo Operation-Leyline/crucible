@@ -1,6 +1,6 @@
 # IDL inventory
 
-What a Crucible-native modelling language must express, taken from what the
+Historical (Smithy is no longer an input; decision 66). What a Crucible-native modelling language must express, taken from what the
 real models use and what the IR carries. Input to the semantic decisions
 page; nothing here is a design.
 

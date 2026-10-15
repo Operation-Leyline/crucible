@@ -5,14 +5,12 @@ use axum::response::{IntoResponse, Response};
 use serde_json::json;
 use url::Url;
 
-use super::{McpAuthorization, ToolDescriptor};
-use crate::Prepare;
+use super::McpAuthorization;
 
 pub(super) struct OAuthDiscovery {
     pub path: String,
     body: String,
     metadata_url: String,
-    scopes: String,
 }
 
 impl OAuthDiscovery {
@@ -22,8 +20,6 @@ impl OAuthDiscovery {
         // so clients discover metadata that advertises PKCE.
         authorization_server: Option<&str>,
         endpoint: &str,
-        tools: &[ToolDescriptor],
-        prepare: &Prepare<'_>,
     ) -> Result<Self, String> {
         let resource = Url::parse(authorization.resource()).map_err(|e| e.to_string())?;
         if resource.scheme() != "https"
@@ -60,19 +56,6 @@ impl OAuthDiscovery {
                 return Err("MCP authorization issuers must be HTTPS URLs without credentials, query or fragment".into());
             }
         }
-        let required: BTreeSet<_> = authorization.required_scopes().into_iter().collect();
-        let mut supported = required.clone();
-        for tool in tools {
-            let metadata = prepare
-                .service()
-                .operation(tool.operation)
-                .and_then(|operation| prepare.metadata(operation))
-                .ok_or_else(|| format!("MCP tool {} has no operation metadata", tool.name))?;
-            supported.extend(metadata.scopes.iter().copied());
-        }
-        if supported.iter().any(|scope| !valid_scope(scope)) {
-            return Err("MCP OAuth scopes must be RFC 6749 scope tokens".into());
-        }
         let path = format!("/.well-known/oauth-protected-resource{endpoint}");
         let mut metadata = resource.clone();
         metadata.set_path(&path);
@@ -81,12 +64,10 @@ impl OAuthDiscovery {
             body: json!({
                 "resource": authorization.resource(),
                 "authorization_servers": servers,
-                "scopes_supported": supported,
                 "bearer_methods_supported": ["header"],
             })
             .to_string(),
             metadata_url: metadata.to_string(),
-            scopes: required.into_iter().collect::<Vec<_>>().join(" "),
         })
     }
 
@@ -118,19 +99,9 @@ impl OAuthDiscovery {
                 self.metadata_url
             ));
         }
-        if !challenge.contains("scope=\"") && !self.scopes.is_empty() {
-            challenge.push_str(&format!(", scope=\"{}\"", self.scopes));
-        }
         response.headers_mut().insert(
             header::WWW_AUTHENTICATE,
             HeaderValue::from_str(&challenge).expect("validated OAuth challenge"),
         );
     }
-}
-
-fn valid_scope(scope: &str) -> bool {
-    !scope.is_empty()
-        && scope
-            .bytes()
-            .all(|b| b == 0x21 || (0x23..=0x5b).contains(&b) || (0x5d..=0x7e).contains(&b))
 }

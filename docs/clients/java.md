@@ -16,11 +16,10 @@ build, then consume the package through a Gradle composite build. The
 includes a Gradle wrapper and runnable Java example. `crucible export-artifact` and
 direct CLI generation also remain supported:
 
-Use your service's `smithy/` source directory, a `.smithy` file, or a prepared
-JSON AST as described in [preparing a model](../clients.md#preparing-a-model).
+Use your service's `.cru` package directory as described in [preparing a model](../clients.md#preparing-a-model).
 
 ```sh
-crucible generate java smithy \
+crucible generate java model \
   --out target/java-sdk --group-id example --artifact-id weather-client \
   --package-name example.weather --endpoint https://api.example.com
 gradle -p target/java-sdk build
@@ -56,7 +55,7 @@ over HTTPS, except to loopback test endpoints.
 
 ## Calling operations
 
-The client name comes from the Smithy service: `LeylineClient` for `Leyline`,
+The client name comes from the service: `LeylineClient` for `Leyline`,
 or `WeatherClient` for the example below.
 
 ```java
