@@ -1,0 +1,27 @@
+timestamp DateTime { format date-time }
+
+string NextToken { length 1..2048 }
+
+string OrganizationId { length 12..12; pattern "^org_[a-z0-9]{8}$" }
+
+enum Priority: integer {
+    LOW = 1
+    HIGH = 2
+}
+
+enum Tier {
+    FREE = "free"
+    /// Paid.
+    PRO = "pro"
+    @deprecated(since: "2026-01", message: "Use pro.")
+    LEGACY = "legacy"
+}
+
+structure UsageDay {
+    day: DateTime
+    queries: long = 0
+    tier: Tier = FREE
+    priority?: Priority
+}
+
+list UsageDays: UsageDay { length ..31 }

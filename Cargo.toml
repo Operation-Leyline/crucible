@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/*", "smithy"]
+members = ["crates/*", "smithy", "tools/smithy-to-cru"]
 # The end-to-end harness builds generated crates: its own workspace.
 exclude = ["e2e", "tests/consumers/leyline", "vendor/smithy-tooling"]
 

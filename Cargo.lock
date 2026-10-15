@@ -3021,6 +3021,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9395f0f0eee849a9b707b2f06bb92a6a422090e2123bb2ef8e87a0e61892a8e"
 
 [[package]]
+name = "smithy-to-cru"
+version = "0.7.0"
+dependencies = [
+ "crucible-lang",
+ "crucible-smithy",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "smithy-tooling"
 version = "0.3.0"
 dependencies = [

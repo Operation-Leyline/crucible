@@ -446,3 +446,76 @@ readonly operation ReadNote reads Note {
     generate(&lower(&dir), &Options::default())
         .expect("a parent shape rename is not a resource move");
 }
+
+#[test]
+fn a_renamed_member_is_converted_under_both_names() {
+    let v1 = r#"service Shop {
+    version "v1"
+    protocol json
+    operations [PutNote]
+    errors [ValidationException, InternalServerException]
+}
+
+operation PutNote {
+    http POST "/notes"
+    input {
+        description?: string
+        size?: string
+    }
+    output { description?: string, size?: string }
+}
+"#;
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-renamed");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    // `description` becomes a required `notes`; `size` becomes an integer
+    // `bytes`.
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("description?: string\n", "notes: string\n")
+        .replace("size?: string\n", "bytes?: integer\n")
+        .replace(
+            "output { description?: string, size?: string }",
+            "output { notes?: string, bytes?: integer }",
+        );
+    fs::write(
+        dir.join("shop.cru"),
+        format!(
+            "{current}
+migration \"v2\" from \"v1\" {{
+    rename PutNoteInput.description -> notes
+    require PutNoteInput.notes default \"\"
+    rename PutNoteInput.size -> bytes
+    retype PutNoteInput.bytes -> integer by hook
+    rename PutNoteOutput.description -> notes
+    rename PutNoteOutput.size -> bytes
+    retype PutNoteOutput.bytes -> integer by hook
+}}
+"
+        ),
+    )
+    .unwrap();
+    let code = generate(&lower(&dir), &Options::default()).unwrap();
+    // A request reads `size` before it is renamed, and the default fills
+    // `notes` only when `description` did not arrive to be renamed into it.
+    for expected in [
+        r#"Transform::Hook { at: &[Seg::Field("size")], hook: "versions::v1::Migration::upgrade_put_note_input_bytes" }"#,
+        r#"Transform::Rename { at: &[], from: "description", to: "notes" }"#,
+        r#"Transform::Default { at: &[], member: "notes", value: "\"\"" }"#,
+        r#"Transform::Rename { at: &[], from: "size", to: "bytes" }"#,
+        // A response converts `bytes` before it is renamed back.
+        r#"Transform::Hook { at: &[Seg::Field("bytes")], hook: "versions::v1::Migration::downgrade_put_note_output_bytes" }"#,
+        r#"Transform::Rename { at: &[], from: "bytes", to: "size" }"#,
+    ] {
+        assert!(code.contains(expected), "{expected}\n{code}");
+    }
+    let at = |text: &str| code.find(text).expect(text);
+    assert!(at("upgrade_put_note_input_bytes") < at(r#"from: "size", to: "bytes""#));
+    assert!(at("downgrade_put_note_output_bytes") < at(r#"from: "bytes", to: "size""#));
+}
