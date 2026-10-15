@@ -384,12 +384,15 @@ enum ValidationExceptionReason {
 }
 
 /// The inputs that failed validation.
-list ValidationExceptionFieldList: ValidationExceptionField
+list ValidationExceptionFieldList: ValidationExceptionField { length ..100 }
+
+/// A JSON pointer to a member, such as `/name`.
+string JsonPointer { length 1..256 }
 
 /// One input that failed validation.
 structure ValidationExceptionField {
     /// A JSON pointer to the member, such as `/name`.
-    path: string
+    path: JsonPointer
     /// What is wrong with it.
     message: ErrorMessage
 }

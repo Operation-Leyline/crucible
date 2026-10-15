@@ -921,9 +921,9 @@ trait when a project defines it.
 > run on the lowered model on every compile. The policy in `crucible.toml`
 > (`[rules.naming]` and the rest, read by `crucible-policy`; see
 > [api-policy.md](../api-policy.md)) remains for the checks it already
-> covers; a package may use both. Imported packages' rules, role templates
-> (47a) and `advice` as a declaration are below as each lands; the text of
-> 45 on rule severities now reads `strict`, none, `exceptable` and `advice`.
+> covers; a package may use both. Imported packages' rules (47) and role
+> templates (47a) are implemented too. The text of 45 on rule severities now
+> reads `strict`, none, `exceptable` and `advice`.
 
 The goal: a service's rules are written once, and a person or a language
 model adding an operation or a member cannot produce a model that breaks
@@ -990,7 +990,7 @@ server binding exists for it.
     `policy/` files, which a CODEOWNERS entry can route to the people who
     own the policy.
 
-47a. **Role templates make the common rules true by construction.** A
+47a. **Role templates make the common rules true by construction.** *(Implemented: `crates/crucible-lang/src/templates.rs`.)* A
     service or standards package may declare what every operation of a
     role carries: `template lists { paginated(inputToken: nextToken,
     outputToken: nextToken, pageSize: maxResults); input { @query

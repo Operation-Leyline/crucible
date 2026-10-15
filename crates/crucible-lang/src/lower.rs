@@ -52,14 +52,22 @@ pub(crate) fn lower(
     namespaces: &[String],
     service: Option<&str>,
 ) -> Lowered {
+    // Role templates complete the templated operations; the template members
+    // themselves are lowered where they are written (`templates`).
+    let (completed, template_problems) =
+        crate::templates::apply(&package.namespace, parsed, namespaces);
+    let parsed = completed.as_slice();
+    let template_extras = crate::templates::extras(&package.namespace, parsed, namespaces);
     let mut lowerer = Lowerer {
         ns: &package.namespace,
         naming: &package.naming,
         decls: BTreeMap::new(),
         bodies: BTreeMap::new(),
-        diagnostics: Vec::new(),
+        diagnostics: template_problems,
         source_map: SourceMap::new(),
         protocol: Protocol::CrucibleJson,
+        template_extras,
+        template_members: BTreeSet::new(),
         service_name: String::new(),
         shapes: BTreeMap::new(),
         meta_shapes: BTreeMap::new(),
@@ -85,12 +93,24 @@ pub(crate) fn lower(
     lowerer.check_restated_resources();
     lowerer.check_metadata();
     let service = lowerer.service(service);
+    // A template member lowered for each operation of its role reports a
+    // problem once, where it is written.
+    let mut said = BTreeSet::new();
+    lowerer.diagnostics.retain(|item| {
+        said.insert((
+            item.file,
+            item.diagnostic.span.start,
+            item.diagnostic.span.end,
+            item.diagnostic.message.clone(),
+            item.diagnostic.severity,
+        ))
+    });
     Lowered {
         service,
         source_map: lowerer.source_map,
         diagnostics: lowerer.diagnostics,
         named_types: lowerer.named_types,
-        template_members: BTreeSet::new(),
+        template_members: lowerer.template_members,
     }
 }
 
@@ -123,6 +143,10 @@ struct BodySource<'a> {
     /// The operation's URI labels: input members of these names bind to them.
     labels: Vec<String>,
 }
+
+/// A role template's bodies for one side of an operation, with the file
+/// each is written in.
+type TemplateBodies<'m> = &'m [(usize, &'m [Member])];
 
 /// What a member is lowered inside of.
 #[derive(Clone, Copy)]
@@ -406,6 +430,10 @@ fn doc_text(doc: Option<&Doc>) -> Option<String> {
 }
 
 struct Lowerer<'a> {
+    /// The members role templates add to operations, by operation and side.
+    template_extras: crate::templates::Extras<'a>,
+    /// The members they added, once lowered.
+    template_members: BTreeSet<ShapeId>,
     ns: &'a str,
     naming: &'a Naming,
     decls: BTreeMap<&'a str, DeclRef<'a>>,
@@ -546,7 +574,9 @@ impl<'a> Lowerer<'a> {
                     Decl::Migration(_) => continue,
                     // Checked and run apart from the model (`crate::rules`).
                     Decl::Rule(_) | Decl::Except(_) => continue,
-                    Decl::Template(_) | Decl::Protocol(_) | Decl::Conversion(_) => {
+                    // Applied to the operations of its role (`crate::templates`).
+                    Decl::Template(_) => continue,
+                    Decl::Protocol(_) | Decl::Conversion(_) => {
                         let keyword = decl_keyword(&item.decl);
                         self.error(
                             file,
@@ -807,6 +837,14 @@ impl<'a> Lowerer<'a> {
         })
     }
 
+    /// The members the role template of `operation` adds to its `kind` body.
+    fn template_bodies(&self, operation: &str, kind: BodyKind) -> Vec<&'a [Member]> {
+        self.template_extras
+            .get(&(operation.to_owned(), kind))
+            .map(|(_, bodies)| bodies.iter().map(|(_, members)| *members).collect())
+            .unwrap_or_default()
+    }
+
     /// The names of `resource`'s own properties that `members` write:
     /// elisions not under `@query`, through `include`s of structures for no
     /// other resource. Mirrors which bindings `bound_mutability` treats as
@@ -930,23 +968,32 @@ impl<'a> Lowerer<'a> {
                 let Some(input) = Self::body(operation, BodyKind::Input) else {
                     continue;
                 };
+                // The operation's own members, then the ones its template adds.
+                let mut sides: Vec<&'a [Member]> = vec![&input.members];
+                sides.extend(self.template_bodies(&operation.name.name, BodyKind::Input));
                 match (attachment.role.name.as_str(), attachment.collection) {
                     // A custom collection action makes new instances, as
                     // Pigeon's `CreateApiKey` does (34g), so what it binds
                     // is set at creation.
                     ("creates", _) | ("on", true) => {
-                        self.written(&input.members, name, &mut Vec::new(), &mut created)
+                        for members in &sides {
+                            self.written(members, name, &mut Vec::new(), &mut created);
+                        }
                     }
                     // A custom instance action's input is not checked
                     // against the keywords, but what it binds does change
                     // after creation (Leyline's `PutGraphGroupMembership`
                     // moves a graph's `groupId`), so it counts as a change.
                     ("updates", _) | ("on", false) => {
-                        self.written(&input.members, name, &mut Vec::new(), &mut updated)
+                        for members in &sides {
+                            self.written(members, name, &mut Vec::new(), &mut updated);
+                        }
                     }
                     ("puts", _) => {
                         let mut put = BTreeSet::new();
-                        self.written(&input.members, name, &mut Vec::new(), &mut put);
+                        for members in &sides {
+                            self.written(members, name, &mut Vec::new(), &mut put);
+                        }
                         created.extend(put.iter().copied());
                         updated.extend(put);
                     }
@@ -1292,17 +1339,18 @@ impl<'a> Lowerer<'a> {
         ) {
             return;
         }
+        // What the operation binds, and what its role template binds for it.
+        let templated = self.template_bodies(&operation.name.name, BodyKind::Input);
         let bound: BTreeSet<&str> = input
-            .map(|body| {
-                body.members
-                    .iter()
-                    .filter_map(|member| match &member.kind {
-                        MemberKind::Elided { name, .. } => Some(name.name.as_str()),
-                        _ => None,
-                    })
-                    .collect()
+            .map(|body| body.members.as_slice())
+            .into_iter()
+            .chain(templated)
+            .flat_map(|members| members.iter())
+            .filter_map(|member| match &member.kind {
+                MemberKind::Elided { name, .. } => Some(name.name.as_str()),
+                _ => None,
             })
-            .unwrap_or_default();
+            .collect();
         let (inherited, own) = self.identifiers(&attachment.resource.name);
         let collection = matches!(role, "creates" | "lists") || attachment.collection;
         let required: Vec<&String> = if collection {
@@ -2925,7 +2973,19 @@ impl<'a> Lowerer<'a> {
             role: attachment.map(|a| a.role.name.as_str()),
             view: false,
         };
-        let members = self.members(file, &source.body.members, context);
+        let extras = self
+            .template_extras
+            .get(&(source.operation.name.name.clone(), source.body.kind))
+            .cloned();
+        let members = self.members_extended(
+            file,
+            &source.body.members,
+            context,
+            extras
+                .as_ref()
+                .map(|(role, bodies)| (*role, bodies.as_slice())),
+            source.operation.name.span,
+        );
         let docs = self.doc(file, source.body.doc.as_ref());
         if let Some(docs) = &docs {
             traits.insert(smithy("documentation"), Json::String(docs.clone()));
@@ -2998,6 +3058,20 @@ impl<'a> Lowerer<'a> {
         members: &[Member],
         context: MemberContext<'_>,
     ) -> Vec<IrMember> {
+        self.members_extended(file, members, context, None, Span::default())
+    }
+
+    /// [`members`](Self::members), then the members a role template adds
+    /// (`template`: its role and bodies). A template member the operation
+    /// also writes is an error at `operation`, and the operation's wins.
+    fn members_extended(
+        &mut self,
+        file: usize,
+        members: &[Member],
+        context: MemberContext<'_>,
+        template: Option<(&str, TemplateBodies<'_>)>,
+        operation: Span,
+    ) -> Vec<IrMember> {
         let mut out = Vec::new();
         let mut including = Vec::new();
         let mut names = BTreeSet::new();
@@ -3010,6 +3084,53 @@ impl<'a> Lowerer<'a> {
             &mut names,
             &mut including,
         );
+        if let Some((role, bodies)) = template {
+            for (template_file, added) in bodies {
+                for member in *added {
+                    let written = match &member.kind {
+                        MemberKind::Field { name, .. } => Some(name.name.as_str()),
+                        MemberKind::Elided { name, alias, .. } => Some(
+                            alias
+                                .as_ref()
+                                .map_or(name.name.as_str(), |a| a.name.as_str()),
+                        ),
+                        _ => None,
+                    };
+                    if let Some(written) = written
+                        && names.contains(written)
+                    {
+                        self.error(
+                            file,
+                            operation,
+                            format!(
+                                "`{written}` comes from `template {role}`: remove it from the operation, which cannot restate it"
+                            ),
+                        );
+                        continue;
+                    }
+                    let before = out.len();
+                    // An `include` has no name of its own to compare, so a
+                    // member it supplies that the operation also writes is
+                    // found as a duplicate: blame the operation, which
+                    // restated it, not the template.
+                    let at =
+                        matches!(member.kind, MemberKind::Include(_)).then_some((file, operation));
+                    self.members_into(
+                        *template_file,
+                        std::slice::from_ref(member),
+                        context,
+                        at,
+                        &mut out,
+                        &mut names,
+                        &mut including,
+                    );
+                    for added in &out[before..] {
+                        self.template_members
+                            .insert(context.owner.with_member(&added.name));
+                    }
+                }
+            }
+        }
         let mut tokens = out.iter().filter(|member| member.idempotency_token);
         if let (Some(first), Some(second)) = (tokens.next(), tokens.next()) {
             let message = format!(
