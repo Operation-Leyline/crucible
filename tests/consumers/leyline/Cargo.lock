@@ -449,6 +449,7 @@ version = "0.7.0"
 dependencies = [
  "crucible-policy",
  "crucible-smithy",
+ "regex",
  "serde",
  "serde_json",
  "sha2",
