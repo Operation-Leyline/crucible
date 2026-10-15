@@ -142,8 +142,7 @@ async fn protected_resource_metadata_names_the_service_issuer() {
     )
     .unwrap();
     let authorization =
-        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier])
-            .unwrap();
+        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier]).unwrap();
     let derived = service(McpConfig::new().authorization(authorization)).unwrap();
     let (_, _, body) = get(&derived, "GET", PRM, &[]).await;
     let token_issuers =
@@ -156,8 +155,7 @@ async fn protected_resource_metadata_names_the_service_issuer() {
     )
     .unwrap();
     let authorization =
-        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier])
-            .unwrap();
+        McpAuthenticator::new("https://api.example.com/mcp", vec![verifier]).unwrap();
     let service = service(
         McpConfig::new()
             .authorization(authorization)

@@ -79,7 +79,10 @@ async fn check(invoke: bool) {
         // Only a missing or bad credential is challenged: a 403 names no
         // credential to go and get.
         assert_eq!(
-            response.headers().get("www-authenticate").map(|v| v.to_str().unwrap()),
+            response
+                .headers()
+                .get("www-authenticate")
+                .map(|v| v.to_str().unwrap()),
             (error == FrameworkError::Unauthenticated).then_some("Bearer")
         );
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
