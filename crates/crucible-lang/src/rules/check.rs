@@ -71,10 +71,17 @@ impl Checker<'_, '_> {
         let name = &reference.name.name;
         if BUILT_IN.contains(&name.as_str()) && !self.meta.contains_key(name) {
             if !built_in_applies(name, kind) {
-                self.error(
-                    reference.name.span,
-                    format!("`@{name}` is on a member, not {}", kind.indefinite()),
-                );
+                // `@deprecated` fits everything but a resource; the others
+                // are member annotations.
+                let message = if name == "deprecated" {
+                    format!(
+                        "`@deprecated` is not on {}: resources take no annotations",
+                        kind.indefinite()
+                    )
+                } else {
+                    format!("`@{name}` is on a member, not {}", kind.indefinite())
+                };
+                self.error(reference.name.span, message);
                 return None;
             }
             return Some(MetaTy::Flag);

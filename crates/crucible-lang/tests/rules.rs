@@ -377,6 +377,20 @@ fn a_rule_that_could_never_match_is_an_error_in_the_rule() {
 }
 
 #[test]
+fn deprecated_on_a_resource_is_not_called_a_member_annotation() {
+    let found = errors("rule R { every resource must has @deprecated }");
+    mentions(&found, "`@deprecated` is not on a resource");
+    assert!(
+        !found.iter().any(|m| m.contains("is on a member")),
+        "{found:#?}"
+    );
+    mentions(
+        &errors("rule R { every operation must has @header }"),
+        "`@header` is on a member, not an operation",
+    );
+}
+
+#[test]
 fn operators_and_operands_are_checked() {
     mentions(
         &errors("rule R { every operation must http.status startsWith \"2\" }"),
@@ -609,4 +623,35 @@ fn an_unknown_side_does_not_hide_what_the_other_decides() {
         true,
     );
     mentions(&found, "`Orphan`");
+}
+
+#[test]
+fn an_error_members_header_and_payload_bindings_are_visible_to_rules() {
+    let model = format!(
+        "{}
+error Busy {{
+    status 429
+    @header(\"Retry-After\") retryAfter: Count
+    reason: Name
+}}
+error Raw {{
+    status 400
+    @payload data: blob
+}}
+@class(read)
+readonly operation Probe {{
+    http GET \"/probe\"
+    errors [Busy, Raw]
+}}
+",
+        MODEL.replace("operations [Ping]", "operations [Ping, Probe]")
+    );
+    let found = |policy: &str| messages(&compiled_with(&model, policy), true);
+    let held = found("rule A { every member where name == retryAfter must has @header }");
+    assert!(held.is_empty(), "{held:#?}");
+    let held = found("rule B { every member where name == data must has @payload }");
+    assert!(held.is_empty(), "{held:#?}");
+    // The unbound member still fails: the binding is read, not assumed.
+    let loose = found("rule C { every member where name == reason must has @header }");
+    mentions(&loose, "`Busy.reason` does not satisfy");
 }

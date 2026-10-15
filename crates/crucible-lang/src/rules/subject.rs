@@ -366,7 +366,23 @@ impl<'a> World<'a> {
                         member,
                         sides: carried.iter().map(|(side, _)| *side).collect(),
                         template: inputs.template_members.contains(&member_id),
-                        bindings: bound.get(&(id, name)).cloned().unwrap_or_default(),
+                        bindings: {
+                            let mut bindings = bound.get(&(id, name)).cloned().unwrap_or_default();
+                            // An error structure carries its own header and
+                            // payload bindings; no operation's request or
+                            // response holds them.
+                            if let Shape::Structure(s) = shape
+                                && let Some(error) = &s.error
+                            {
+                                if error.headers.iter().any(|b| b.member == name) {
+                                    bindings.push("header");
+                                }
+                                if error.payload.as_ref().is_some_and(|p| p.member == name) {
+                                    bindings.push("payload");
+                                }
+                            }
+                            bindings
+                        },
                     },
                     name: name.to_owned(),
                     display: format!("{}.{name}", id.name()),
