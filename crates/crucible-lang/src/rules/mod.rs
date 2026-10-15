@@ -167,6 +167,11 @@ fn collect_rules<'a>(
                 let first: &RuleDef<'_> = &defs[earlier];
                 let message = if first.package == package {
                     format!("rule `{}` is declared twice", rule.name.name)
+                } else if package != inputs.package {
+                    format!(
+                        "rule `{}` is declared by both `{}` and `{package}`: an exception could not say which, so one of them must be renamed",
+                        rule.name.name, first.package
+                    )
                 } else {
                     format!(
                         "rule `{}` shadows the rule of that name in `{}`: an importing package cannot replace a rule",

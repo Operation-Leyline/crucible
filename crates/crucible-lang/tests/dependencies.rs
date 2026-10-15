@@ -363,3 +363,60 @@ fn a_dependency_cycle_is_refused() {
     let error = load_package(&dir.join("a")).unwrap_err();
     assert!(error.contains("a cycle"), "{error}");
 }
+
+#[test]
+fn a_package_reached_two_ways_loads_once() {
+    let dir = scratch("diamond");
+    standards(&dir);
+    write(
+        &dir,
+        &[
+            (
+                "base/crucible.toml",
+                "[model]\nnamespace = \"org.base\"\nsources = [\"policy\"]\nimports = [\"org.standards\"]\n\n[model.dependencies]\n\"org.standards\" = { path = \"../standards\" }\n",
+            ),
+            (
+                "base/policy/base.cru",
+                "/// No booleans.\nrule NoBooleans { no boolean }\n",
+            ),
+            (
+                "shop/crucible.toml",
+                // The same package by a different spelling of its path.
+                "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\nimports = [\"org.base\", \"org.standards\"]\n\n[model.dependencies]\n\"org.base\" = { path = \"../base\" }\n\"org.standards\" = { path = \"../base/../standards\" }\n",
+            ),
+            ("shop/model/shop.cru", SHOP),
+        ],
+    );
+    let package = load_package(&dir.join("shop")).unwrap();
+    let names: Vec<&str> = package
+        .dependencies
+        .iter()
+        .map(|d| d.namespace.as_str())
+        .collect();
+    assert_eq!(names, ["org.standards", "org.base"]);
+}
+
+#[test]
+fn two_dependencies_cannot_share_a_rule_name() {
+    let dir = scratch("same-rule");
+    standards(&dir);
+    write(
+        &dir,
+        &[
+            (
+                "other/crucible.toml",
+                "[model]\nnamespace = \"org.other\"\nsources = [\"policy\"]\n",
+            ),
+            ("other/policy/other.cru", "rule Bounded { no boolean }\n"),
+            (
+                "shop/crucible.toml",
+                "[model]\nnamespace = \"example.shop\"\nsources = [\"model\"]\nimports = [\"org.standards\", \"org.other\"]\n\n[model.dependencies]\n\"org.standards\" = { path = \"../standards\" }\n\"org.other\" = { path = \"../other\" }\n",
+            ),
+            ("shop/model/shop.cru", SHOP),
+        ],
+    );
+    mentions(
+        &errors(&compiled(&dir)),
+        "is declared by both `org.standards` and `org.other`",
+    );
+}

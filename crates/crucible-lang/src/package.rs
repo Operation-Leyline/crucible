@@ -261,6 +261,10 @@ fn load_dependencies(
                 target.display()
             ));
         }
+        // A package reached again (a diamond) is loaded once.
+        if out.iter().any(|p| same_dir(p.dir.as_deref(), &canonical)) {
+            continue;
+        }
         let manifest = target.join("crucible.toml");
         let text = std::fs::read_to_string(&manifest)
             .map_err(|error| format!("cannot read {}: {error}", manifest.display()))?;
@@ -269,7 +273,12 @@ fn load_dependencies(
         package.baseline = None;
         for dependency in nested.into_iter().chain([package]) {
             match out.iter().find(|p| p.namespace == dependency.namespace) {
-                Some(seen) if seen.dir != dependency.dir => {
+                Some(seen)
+                    if !dependency
+                        .dir
+                        .as_deref()
+                        .is_some_and(|d| same_dir(seen.dir.as_deref(), d)) =>
+                {
                     return Err(format!(
                         "two dependencies are the package `{}`: {} and {}",
                         dependency.namespace,
@@ -289,6 +298,12 @@ fn load_dependencies(
     }
     loading.pop();
     Ok(out)
+}
+
+/// Whether `dir` and `other` are one directory, however each is spelled.
+fn same_dir(dir: Option<&Path>, other: &Path) -> bool {
+    let canonical = |p: &Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    dir.is_some_and(|dir| canonical(dir) == canonical(other))
 }
 
 /// Why a `sources` entry is not allowed, if it is not. Sources stay inside
