@@ -93,6 +93,7 @@ pub(crate) fn run(inputs: &Inputs<'_>) -> Outcome {
     let evaluator = Evaluator {
         world: &world,
         meta: &meta,
+        patterns: Default::default(),
     };
     let mut violations = Vec::new();
     for (index, def) in defs.iter().enumerate() {
@@ -376,18 +377,26 @@ fn is_kind(subject: &Subject<'_>, kind: Kind) -> bool {
         Entity::Resource { .. } => kind == Kind::Resource,
         Entity::Operation(_) => kind == Kind::Operation,
         Entity::Shape { class, .. } => class.is(kind),
-        Entity::Member { side, .. } => match kind {
+        Entity::Member { sides, .. } => match kind {
             Kind::Member => true,
-            Kind::InputMember => *side == Some(Side::Input),
-            Kind::OutputMember => *side == Some(Side::Output),
+            Kind::InputMember => sides.contains(&Side::Input),
+            Kind::OutputMember => sides.contains(&Side::Output),
             _ => false,
         },
     }
 }
 
-/// The names an exception may give for a subject.
-fn answers_to(subject: &Subject<'_>, target: &str) -> bool {
-    subject.name == target || subject.aliases.iter().any(|alias| alias == target)
+/// The names an exception may give for a subject: a shape, operation or
+/// resource by its name, and a member only through its shape or operation, so
+/// a member's own name never excuses every member that shares it.
+fn targets<'a>(subject: &'a Subject<'_>) -> Vec<&'a str> {
+    use self::subject::Entity;
+    let mut out = Vec::new();
+    if !matches!(subject.entity, Entity::Member { .. }) {
+        out.push(subject.name.as_str());
+    }
+    out.extend(subject.aliases.iter().map(String::as_str));
+    out
 }
 
 fn report(
@@ -464,18 +473,23 @@ fn report(
         }
         allowed[index] = true;
     }
+    // Exceptions by (rule, target), so a violation finds its own at once.
+    let mut by_key: BTreeMap<(&str, &str), Vec<usize>> = BTreeMap::new();
+    for (index, except) in excepts.iter().enumerate() {
+        by_key
+            .entry((except.rule.name.as_str(), except.target.name.as_str()))
+            .or_default()
+            .push(index);
+    }
     for violation in violations {
         let def = &defs[violation.rule];
         let subject = &world.subjects[violation.subject];
-        let excused: Vec<usize> = excepts
-            .iter()
-            .enumerate()
-            .filter(|(index, except)| {
-                allowed[*index]
-                    && except.rule.name == def.name
-                    && answers_to(subject, &except.target.name)
-            })
-            .map(|(index, _)| index)
+        let excused: Vec<usize> = targets(subject)
+            .into_iter()
+            .filter_map(|target| by_key.get(&(def.name, target)))
+            .flatten()
+            .copied()
+            .filter(|index| allowed[*index])
             .collect();
         if !excused.is_empty() {
             for index in excused {

@@ -7,7 +7,7 @@ use crucible_smithy::ir::{Bounds, Constraints, Shape, Traits};
 use serde_json::Value as Json;
 
 use super::metadata::MetaIndex;
-use super::subject::{Class, Entity, Subject, World, parts};
+use super::subject::{Class, Entity, Subject, World, parts, prelude_class};
 use super::vocabulary::{TypeIs, type_is};
 use crate::ast::{Expr, ExprKind, Operand, Operator, Path, Ref, Value};
 
@@ -19,35 +19,90 @@ pub(super) struct Unknown;
 
 pub(super) type Tri = Result<bool, Unknown>;
 
+/// A number as the model holds it: whole numbers stay exact, so two bounds
+/// past 2^53 do not compare equal.
+#[derive(Debug, Clone, Copy)]
+enum Num {
+    Int(i128),
+    Float(f64),
+}
+
+impl Num {
+    fn from_json(number: &serde_json::Number) -> Option<Num> {
+        if let Some(i) = number.as_i64() {
+            Some(Num::Int(i128::from(i)))
+        } else if let Some(u) = number.as_u64() {
+            Some(Num::Int(i128::from(u)))
+        } else {
+            number.as_f64().map(Num::Float)
+        }
+    }
+
+    fn from_literal(text: &str) -> Option<Num> {
+        text.parse::<i128>()
+            .map(Num::Int)
+            .or_else(|_| text.parse::<f64>().map(Num::Float))
+            .ok()
+    }
+
+    fn compare(self, other: Num) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Num::Int(a), Num::Int(b)) => Some(a.cmp(&b)),
+            (a, b) => a.float().partial_cmp(&b.float()),
+        }
+    }
+
+    fn float(self) -> f64 {
+        match self {
+            Num::Int(i) => i as f64,
+            Num::Float(f) => f,
+        }
+    }
+}
+
 enum Val {
     Str(String),
-    Num(f64),
+    Num(Num),
     Bool(bool),
 }
 
 pub(super) struct Evaluator<'a, 'w> {
     pub world: &'w World<'a>,
     pub meta: &'w MetaIndex,
+    /// Each `matches` pattern, compiled once.
+    pub patterns: std::cell::RefCell<std::collections::HashMap<String, Option<regex::Regex>>>,
 }
 
 impl Evaluator<'_, '_> {
     pub(super) fn eval(&self, subject: &Subject<'_>, expr: &Expr) -> Tri {
         match &expr.kind {
+            // Three-valued: an unknown side does not hide what the other decides.
             ExprKind::Or(left, right) => {
-                Ok(self.eval(subject, left)? || self.eval(subject, right)?)
+                match (self.eval(subject, left), self.eval(subject, right)) {
+                    (Ok(true), _) | (_, Ok(true)) => Ok(true),
+                    (Ok(false), Ok(false)) => Ok(false),
+                    _ => Err(Unknown),
+                }
             }
             ExprKind::And(left, right) => {
-                Ok(self.eval(subject, left)? && self.eval(subject, right)?)
+                match (self.eval(subject, left), self.eval(subject, right)) {
+                    (Ok(false), _) | (_, Ok(false)) => Ok(false),
+                    (Ok(true), Ok(true)) => Ok(true),
+                    _ => Err(Unknown),
+                }
             }
             ExprKind::Not(inner) => Ok(!self.eval(subject, inner)?),
             ExprKind::Has(reference) => self.has(subject, reference),
             ExprKind::HasOneOf(references) => {
+                let mut unknown = false;
                 for reference in references {
-                    if self.has(subject, reference)? {
-                        return Ok(true);
+                    match self.has(subject, reference) {
+                        Ok(true) => return Ok(true),
+                        Ok(false) => {}
+                        Err(_) => unknown = true,
                     }
                 }
-                Ok(false)
+                if unknown { Err(Unknown) } else { Ok(false) }
             }
             ExprKind::Addresses(resource) => Ok(match &subject.entity {
                 Entity::Operation(operation) => operation
@@ -173,18 +228,18 @@ impl Evaluator<'_, '_> {
                 .and_then(|v| match v {
                     Json::String(s) => Some(Val::Str(s.clone())),
                     Json::Bool(b) => Some(Val::Bool(*b)),
-                    Json::Number(n) => n.as_f64().map(Val::Num),
+                    Json::Number(n) => Num::from_json(n).map(Val::Num),
                     _ => None,
                 }));
         }
         let rest: Vec<&str> = path.rest.iter().map(|r| r.name.as_str()).collect();
         let bound = |b: &Bounds<u64>, which: &str| match which {
-            "min" => b.min.map(|n| Val::Num(n as f64)),
-            _ => b.max.map(|n| Val::Num(n as f64)),
+            "min" => b.min.map(|n| Val::Num(Num::Int(i128::from(n)))),
+            _ => b.max.map(|n| Val::Num(Num::Int(i128::from(n)))),
         };
         let range = |b: &Bounds<serde_json::Number>, which: &str| match which {
-            "min" => b.min.as_ref().and_then(|n| n.as_f64()).map(Val::Num),
-            _ => b.max.as_ref().and_then(|n| n.as_f64()).map(Val::Num),
+            "min" => b.min.as_ref().and_then(Num::from_json).map(Val::Num),
+            _ => b.max.as_ref().and_then(Num::from_json).map(Val::Num),
         };
         Ok(match (path.head.name.name.as_str(), rest.as_slice()) {
             ("name", []) => Some(Val::Str(subject.name.clone())),
@@ -196,7 +251,7 @@ impl Evaluator<'_, '_> {
                 Entity::Operation(op) => match *field {
                     "method" => Some(Val::Str(op.method.clone())),
                     "uri" => Some(Val::Str(op.uri.to_string())),
-                    _ => Some(Val::Num(f64::from(op.status))),
+                    _ => Some(Val::Num(Num::Int(i128::from(op.status)))),
                 },
                 _ => None,
             },
@@ -260,17 +315,19 @@ impl Evaluator<'_, '_> {
                 _ => false,
             },
             Operator::Lt | Operator::Le | Operator::Gt | Operator::Ge => {
+                use std::cmp::Ordering::{Equal, Greater, Less};
                 let (Val::Num(left), Value::Number(right)) = (&left, value) else {
                     return Ok(false);
                 };
-                let Ok(right) = right.text.parse::<f64>() else {
+                let Some(ordering) = Num::from_literal(&right.text).and_then(|r| left.compare(r))
+                else {
                     return Ok(false);
                 };
                 match op {
-                    Operator::Lt => *left < right,
-                    Operator::Le => *left <= right,
-                    Operator::Gt => *left > right,
-                    _ => *left >= right,
+                    Operator::Lt => ordering == Less,
+                    Operator::Le => ordering != Greater,
+                    Operator::Gt => ordering == Greater,
+                    _ => ordering == Greater || ordering == Equal,
                 }
             }
             Operator::StartsWith | Operator::EndsWith | Operator::Contains | Operator::Matches => {
@@ -281,7 +338,13 @@ impl Evaluator<'_, '_> {
                     Operator::StartsWith => left.starts_with(&right.value),
                     Operator::EndsWith => left.ends_with(&right.value),
                     Operator::Contains => left.contains(&right.value),
-                    _ => regex::Regex::new(&right.value).is_ok_and(|re| re.is_match(left)),
+                    _ => self
+                        .patterns
+                        .borrow_mut()
+                        .entry(right.value.clone())
+                        .or_insert_with(|| regex::Regex::new(&right.value).ok())
+                        .as_ref()
+                        .is_some_and(|re| re.is_match(left)),
                 }
             }
             Operator::Is => false,
@@ -301,13 +364,17 @@ impl Evaluator<'_, '_> {
         };
         match test {
             TypeIs::InlinePrimitive => member.target.is_prelude() && member.target.name() != "Unit",
-            TypeIs::Kind(kind) => self
-                .world
-                .service
-                .shapes
-                .get(&member.target)
-                .and_then(Class::of)
-                .is_some_and(|class| class.is(kind)),
+            TypeIs::Kind(kind) => if member.target.is_prelude() {
+                // A built-in type is not among the service's shapes.
+                prelude_class(member.target.name())
+            } else {
+                self.world
+                    .service
+                    .shapes
+                    .get(&member.target)
+                    .and_then(Class::of)
+            }
+            .is_some_and(|class| class.is(kind)),
         }
     }
 
@@ -359,10 +426,9 @@ fn equals(left: &Val, right: &Value) -> bool {
     match (left, right) {
         (Val::Str(l), Value::Str(r)) => *l == r.value,
         (Val::Str(l), Value::Ident(r)) => *l == r.name,
-        (Val::Num(l), Value::Number(r)) => r
-            .text
-            .parse::<f64>()
-            .is_ok_and(|r| (*l - r).abs() < f64::EPSILON),
+        (Val::Num(l), Value::Number(r)) => Num::from_literal(&r.text)
+            .and_then(|r| l.compare(r))
+            .is_some_and(|ordering| ordering == std::cmp::Ordering::Equal),
         (Val::Bool(l), Value::Ident(r)) => {
             (r.name == "true") == *l && matches!(r.name.as_str(), "true" | "false")
         }

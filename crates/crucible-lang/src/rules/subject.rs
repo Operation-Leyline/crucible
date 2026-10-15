@@ -173,7 +173,8 @@ pub(super) enum Entity<'a> {
     },
     Member {
         member: &'a Member,
-        side: Option<Side>,
+        /// Which sides of an operation carry the structure it belongs to.
+        sides: Vec<Side>,
         template: bool,
     },
 }
@@ -258,7 +259,7 @@ impl<'a> World<'a> {
         for (name, (file, item)) in resources {
             subjects.push(Subject {
                 entity: Entity::Resource {
-                    documented: item.doc.is_some(),
+                    documented: has_text(item),
                 },
                 name: name.clone(),
                 display: name.clone(),
@@ -267,16 +268,20 @@ impl<'a> World<'a> {
                 declared: Some((*file, item.span)),
             });
         }
-        let mut io: BTreeMap<&ShapeId, (Side, &str)> = BTreeMap::new();
+        let mut io: BTreeMap<&ShapeId, Vec<(Side, &str)>> = BTreeMap::new();
         for operation in &service.operations {
             if operation.id.namespace() != package {
                 continue;
             }
             if let Some(input) = &operation.input {
-                io.insert(input, (Side::Input, operation.name()));
+                io.entry(input)
+                    .or_default()
+                    .push((Side::Input, operation.name()));
             }
             if let Some(output) = &operation.output {
-                io.insert(output, (Side::Output, operation.name()));
+                io.entry(output)
+                    .or_default()
+                    .push((Side::Output, operation.name()));
             }
             subjects.push(Subject {
                 entity: Entity::Operation(operation),
@@ -309,7 +314,7 @@ impl<'a> World<'a> {
                 id: id.clone(),
                 declared: None,
             });
-            let side = io.get(id).copied();
+            let carried = io.get(id).cloned().unwrap_or_default();
             let members: Vec<(&str, &Member)> = match shape {
                 Shape::Structure(s) | Shape::Union(s) => {
                     s.members.iter().map(|m| (m.name.as_str(), m)).collect()
@@ -321,11 +326,11 @@ impl<'a> World<'a> {
             for (name, member) in members {
                 let member_id = id.with_member(name);
                 let mut aliases = vec![id.name().to_owned()];
-                aliases.extend(side.map(|(_, operation)| operation.to_owned()));
+                aliases.extend(carried.iter().map(|(_, operation)| (*operation).to_owned()));
                 subjects.push(Subject {
                     entity: Entity::Member {
                         member,
-                        side: side.map(|(side, _)| side),
+                        sides: carried.iter().map(|(side, _)| *side).collect(),
                         template: inputs.template_members.contains(&member_id),
                     },
                     name: name.to_owned(),
@@ -354,7 +359,7 @@ impl<'a> World<'a> {
                     entity: Entity::Shape {
                         shape: None,
                         class,
-                        documented: item.doc.is_some(),
+                        documented: has_text(item),
                         referenced: referenced.contains(&name),
                     },
                     display: name.clone(),
@@ -410,13 +415,13 @@ impl<'a> World<'a> {
     /// Whether `resource` is `ancestor` or below it.
     pub(super) fn is_within(&self, resource: &str, ancestor: &str) -> bool {
         let mut current = Some(resource);
-        let mut steps = 0;
+        // A cycle is reported by resource checking; do not follow it forever.
+        let mut seen = BTreeSet::new();
         while let Some(name) = current {
             if name == ancestor {
                 return true;
             }
-            steps += 1;
-            if steps > 64 {
+            if !seen.insert(name) {
                 return false;
             }
             current = self.parents.get(name).and_then(|p| p.as_deref());
@@ -427,6 +432,13 @@ impl<'a> World<'a> {
     pub(super) fn has_resource(&self, name: &str) -> bool {
         self.parents.contains_key(name)
     }
+}
+
+/// Whether a declaration has documentation with something in it.
+fn has_text(item: &Item) -> bool {
+    item.doc
+        .as_ref()
+        .is_some_and(|doc| !doc.text.trim().is_empty())
 }
 
 /// A declared type: its name and what it is.
@@ -445,6 +457,22 @@ fn declared_shape(decl: &Decl) -> Option<(String, Class)> {
         ),
         _ => return None,
     })
+}
+
+/// The class of a built-in type by its shape name (`String`, `Document`).
+pub(super) fn prelude_class(name: &str) -> Option<Class> {
+    let word = match name {
+        "BigInteger" => "bigInteger".to_owned(),
+        "BigDecimal" => "bigDecimal".to_owned(),
+        other => {
+            let mut chars = other.chars();
+            chars
+                .next()
+                .map(|first| first.to_lowercase().chain(chars).collect())
+                .unwrap_or_default()
+        }
+    };
+    scalar_kind(&word).map(Class::Simple)
 }
 
 fn scalar_kind(word: &str) -> Option<SimpleKind> {
