@@ -160,10 +160,10 @@ fn duplicate_declarations_are_refused() {
 
 #[test]
 fn declarations_the_compiler_cannot_lower_yet_are_not_skipped() {
-    let m = messages("template lists {\n    input {}\n}");
+    let m = messages("conversion A -> B by hook");
     assert_mentions(
         &m,
-        "`template` declarations are not supported by the compiler yet",
+        "`conversion` declarations are not supported by the compiler yet",
     );
 }
 

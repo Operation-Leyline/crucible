@@ -20,6 +20,7 @@ mod parser;
 pub mod release;
 mod rules;
 pub mod span;
+mod templates;
 
 pub use compile::{
     Compiled, FileDiagnostic, Location, Naming, Package, SourceFile, SourceMap, bundled_packages,

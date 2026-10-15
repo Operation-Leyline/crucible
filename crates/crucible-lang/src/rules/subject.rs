@@ -176,6 +176,8 @@ pub(super) enum Entity<'a> {
         /// Which sides of an operation carry the structure it belongs to.
         sides: Vec<Side>,
         template: bool,
+        /// The built-in annotation that binds it: `query`, `header`, `payload`.
+        bindings: Vec<&'static str>,
     },
 }
 
@@ -269,6 +271,8 @@ impl<'a> World<'a> {
             });
         }
         let mut io: BTreeMap<&ShapeId, Vec<(Side, &str)>> = BTreeMap::new();
+        // Which member is bound how, by the structure that holds it.
+        let mut bound: BTreeMap<(&ShapeId, &str), Vec<&'static str>> = BTreeMap::new();
         for operation in &service.operations {
             if operation.id.namespace() != package {
                 continue;
@@ -277,11 +281,41 @@ impl<'a> World<'a> {
                 io.entry(input)
                     .or_default()
                     .push((Side::Input, operation.name()));
+                for binding in &operation.request.query {
+                    bound
+                        .entry((input, binding.member.as_str()))
+                        .or_default()
+                        .push("query");
+                }
+                for binding in &operation.request.headers {
+                    bound
+                        .entry((input, binding.member.as_str()))
+                        .or_default()
+                        .push("header");
+                }
+                if let Some(payload) = &operation.request.payload {
+                    bound
+                        .entry((input, payload.member.as_str()))
+                        .or_default()
+                        .push("payload");
+                }
             }
             if let Some(output) = &operation.output {
                 io.entry(output)
                     .or_default()
                     .push((Side::Output, operation.name()));
+                for binding in &operation.response.headers {
+                    bound
+                        .entry((output, binding.member.as_str()))
+                        .or_default()
+                        .push("header");
+                }
+                if let Some(payload) = &operation.response.payload {
+                    bound
+                        .entry((output, payload.member.as_str()))
+                        .or_default()
+                        .push("payload");
+                }
             }
             subjects.push(Subject {
                 entity: Entity::Operation(operation),
@@ -332,6 +366,23 @@ impl<'a> World<'a> {
                         member,
                         sides: carried.iter().map(|(side, _)| *side).collect(),
                         template: inputs.template_members.contains(&member_id),
+                        bindings: {
+                            let mut bindings = bound.get(&(id, name)).cloned().unwrap_or_default();
+                            // An error structure carries its own header and
+                            // payload bindings; no operation's request or
+                            // response holds them.
+                            if let Shape::Structure(s) = shape
+                                && let Some(error) = &s.error
+                            {
+                                if error.headers.iter().any(|b| b.member == name) {
+                                    bindings.push("header");
+                                }
+                                if error.payload.as_ref().is_some_and(|p| p.member == name) {
+                                    bindings.push("payload");
+                                }
+                            }
+                            bindings
+                        },
                     },
                     name: name.to_owned(),
                     display: format!("{}.{name}", id.name()),

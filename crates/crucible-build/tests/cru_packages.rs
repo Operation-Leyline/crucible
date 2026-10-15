@@ -127,6 +127,8 @@ operation GetCity reads City {",
 metadata note on operation: string
 ";
     let root = package(&source);
+    let stamp = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    set_stamp(root.path(), stamp);
     let output = run(
         root.path(),
         "cru_package_export_probe",
@@ -158,4 +160,34 @@ metadata note on operation: string
     );
     assert!(again.status.success());
     assert_eq!(before, fs::metadata(&exported).unwrap().modified().unwrap());
+    // Dated at the run's stamp, not the epoch: never newer than the script's
+    // last run, and never older than a consumer's.
+    assert_ne!(before, std::time::UNIX_EPOCH);
+    assert_eq!(before, stamp);
+
+    // A changed model advances the date so a downstream watcher reruns.
+    let later = stamp + std::time::Duration::from_secs(3600);
+    set_stamp(root.path(), later);
+    fs::write(
+        root.path().join("api/weather.cru"),
+        source.replace("Fetches one city.", "Fetches a city."),
+    )
+    .unwrap();
+    let changed = run(
+        root.path(),
+        "cru_package_export_probe",
+        "CRUCIBLE_CRU_EXPORT_PROBE",
+    );
+    assert!(changed.status.success());
+    let after = fs::metadata(&exported).unwrap().modified().unwrap();
+    assert!(
+        after > before,
+        "a changed export must look newer to watchers"
+    );
+    assert_eq!(after, later);
+}
+
+fn set_stamp(root: &Path, time: std::time::SystemTime) {
+    let file = fs::File::create(root.join("invoked.timestamp")).unwrap();
+    file.set_modified(time).unwrap();
 }

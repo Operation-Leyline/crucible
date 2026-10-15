@@ -17,6 +17,15 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: `template <role> { .. }` compiles. Every operation of the role gets
+  the template's `paginated` arguments, `errors`, and `input` and `output`
+  members; restating one is an error. Rules read them with the `template`
+  condition and the built-in annotations with `has @token`, `@query`,
+  `@header`, `@payload` and `@deprecated`. The `docs/idl/examples/leyline-graph`
+  example, with `org.standards` as a path dependency, now compiles whole and its
+  rules fire (`crates/crucible-lang/tests/examples.rs`).
+
+
 - `.cru`: `[model.dependencies]` imports a package by path,
   `"org.standards" = { path = "../standards" }`. An importing package sees the
   dependency's shapes and metadata, and the dependency's rules apply to it:
