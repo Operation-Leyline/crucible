@@ -275,6 +275,9 @@ pub mod leyline {
         }
 
         impl ResourceKind {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["org", "graph"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {
@@ -387,6 +390,9 @@ pub mod leyline {
         }
 
         impl ValidationExceptionReason {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["unknownOperation", "cannotParse", "fieldValidationFailed", "other"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {

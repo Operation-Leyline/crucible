@@ -51,6 +51,7 @@ reviewed by CodeRabbit; never push to main.
 | `crucible-lang` | the Crucible modelling language front end (`docs/idl/`): lossless lexer, parser with recovery, typed syntax tree, name resolution, checks, and lowering to the same IR `crucible-smithy` produces, plus a source map, the compatibility guard and frozen releases (`release.rs`: `releases/<version>.json` and their lock) |
 | `crucible-lsp` | the language server for `.cru` files and `crucible.toml`: package-wide diagnostics, completion, semantic tokens, navigation, rename, folding, formatting and quick fixes. Editor plugins live in their own repositories (`crucible-intellij`), bundle its release binaries and only start it |
 | `crucible-traits` (`smithy/`) | canonical Smithy trait sources, exposed as a Cargo package and model JAR |
+| `smithy-to-cru` (`tools/`) | one-shot Smithy JSON AST to `.cru` migration, with an IR-equality self-check; unpublished, removed with Smithy support. It leans on `crucible-smithy` lowering and `crucible-lang` compile/format only |
 | `crucible-codegen-rust` | IR → Rust server/client bindings, and complete Cargo SDK packages with automatic runtime dependencies |
 | `crucible-codegen` | shared native client and document/infrastructure/CLI output selection, target checks, generated-file ownership and stable output publication |
 | `crucible-build` | Cargo build scripts: compile/publish models, generate/export named client, document, infrastructure and CLI outputs and generate service contracts |

@@ -17,6 +17,10 @@ version's section when it is prepared.
 
 ### Added
 
+- Generated server string enums carry `VALUES: &'static [&'static str]`, every wire
+  value in declaration order, beside `as_str`, so a service can enumerate
+  them (a quota code list, say) without parsing the model.
+
 - `JwtAuthenticator::credential_headers`: an ordered list of headers to read
   the bearer token from, the first one present being the only one read, as
   `ApiKeyAuthenticator::credential_headers` does. `credential_header` stays as

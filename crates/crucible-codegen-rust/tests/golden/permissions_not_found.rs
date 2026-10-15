@@ -20,6 +20,9 @@ pub mod desk {
         }
 
         impl AccessDeniedReason {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["permission_missing", "workspace_suspended"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {
@@ -40,6 +43,9 @@ pub mod desk {
         }
 
         impl ErrorResourceType {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["workspace", "room"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {

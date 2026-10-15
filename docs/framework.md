@@ -49,7 +49,8 @@ use crate::weather::{GetCityInput, GetCityOutput, GetCityOperation, NotFoundErro
 use crucible_server_runtime_rust::Result;
 ```
 
-There is no wrapper module to create. The source path is relative to this
+A string enum is a closed Rust enum with `as_str()` and `VALUES`, the wire values in
+declaration order. There is no wrapper module to create. The source path is relative to this
 crate's manifest; it can also point outside the crate, such as
 `../smithy/model`. With a published model dependency, replace the build call
 with `crucible_build::model("weather_model").server().generate()`; inclusion is the

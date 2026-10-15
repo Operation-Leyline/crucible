@@ -32,6 +32,9 @@ pub mod vault {
         }
 
         impl Level {
+            /// Every value on the wire, in declaration order.
+            pub const VALUES: &'static [&'static str] = &["SECRET-ENUM"];
+
             /// The value on the wire.
             pub fn as_str(&self) -> &'static str {
                 match self {

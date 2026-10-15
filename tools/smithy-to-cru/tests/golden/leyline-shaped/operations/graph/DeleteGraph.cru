@@ -1,0 +1,11 @@
+@operationClass(controlWrite)
+@auditCategory(management)
+@permittedWhileSuspended
+operation DeleteGraph deletes Graph {
+    http DELETE "/v1/organizations/{organizationId}/graphs/{graphId}" -> 204
+    input {
+        $organizationId
+        $graphId
+    }
+    errors [ResourceNotFoundException]
+}

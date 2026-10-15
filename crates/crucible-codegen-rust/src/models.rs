@@ -277,8 +277,14 @@ fn enumeration(
         ));
     }
     out.push_str("}\n\n");
+    let all = values
+        .values
+        .iter()
+        .map(|value| literal(&value.value))
+        .collect::<Vec<_>>()
+        .join(", ");
     out.push_str(&format!(
-        "impl {name} {{\n    /// The value on the wire.\n    pub fn as_str(&self) -> &'static str {{\n        match self {{\n"
+        "impl {name} {{\n    /// Every value on the wire, in declaration order.\n    pub const VALUES: &'static [&'static str] = &[{all}];\n\n    /// The value on the wire.\n    pub fn as_str(&self) -> &'static str {{\n        match self {{\n"
     ));
     for value in &values.values {
         out.push_str(&format!(
