@@ -119,3 +119,21 @@ fn making_a_collection_sparse_or_dense_is_a_compatibility_finding() {
     let narrowed = crucible_policy::diff(&sparse, &dense, &config);
     assert!(!narrowed.findings.is_empty());
 }
+
+#[test]
+fn a_sparse_collection_requires_the_sparse_capability() {
+    let sparse = service(&model("sparse list Row: Cell { length ..10 }"));
+    assert!(
+        sparse
+            .requirements
+            .iter()
+            .any(|r| r.feature == crucible_smithy::Feature::Sparse)
+    );
+    let dense = service(&model("list Row: Cell { length ..10 }").replace("sparse map", "map"));
+    assert!(
+        dense
+            .requirements
+            .iter()
+            .all(|r| r.feature != crucible_smithy::Feature::Sparse)
+    );
+}

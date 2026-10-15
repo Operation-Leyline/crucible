@@ -2539,6 +2539,9 @@ impl<'a> Lowerer<'a> {
                 let target = self.resolve_type(file, &list.member)?;
                 let member = self.collection_member(id, "member", &target);
                 traits.extend(info.traits);
+                if modifiers.contains("sparse") {
+                    self.require(id, Feature::Sparse, smithy("sparse"));
+                }
                 Shape::List(List {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),
@@ -2571,6 +2574,9 @@ impl<'a> Lowerer<'a> {
                 let key = self.collection_member(id, "key", &key);
                 let value = self.collection_member(id, "value", &value);
                 traits.extend(info.traits);
+                if modifiers.contains("sparse") {
+                    self.require(id, Feature::Sparse, smithy("sparse"));
+                }
                 Shape::Map(Map {
                     internal: modifiers.contains("internal"),
                     sensitive: modifiers.contains("sensitive"),

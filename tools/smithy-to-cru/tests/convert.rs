@@ -221,3 +221,36 @@ fn constructs_without_cru_syntax_are_diagnosed_by_shape() {
     has("t#OpInput$c", "clientOptional");
     has("t#Names", "set");
 }
+
+#[test]
+fn sparse_lists_and_maps_become_sparse_declarations() {
+    let json = r#"{
+      "smithy": "2.0",
+      "shapes": {
+        "t#Svc": { "type": "service", "version": "1", "operations": [{"target": "t#Op"}],
+          "traits": { "aws.protocols#restJson1": {} } },
+        "t#Op": { "type": "operation", "input": {"target": "smithy.api#Unit"}, "output": {"target": "t#OpOutput"},
+          "traits": { "smithy.api#http": {"method": "GET", "uri": "/"}, "smithy.api#readonly": {} } },
+        "t#OpOutput": { "type": "structure", "traits": {"smithy.api#output": {}},
+          "members": { "row": {"target": "t#Row"}, "params": {"target": "t#Params"} } },
+        "t#Cell": { "type": "document" },
+        "t#Name": { "type": "string", "traits": {"smithy.api#length": {"min": 1, "max": 20}} },
+        "t#Row": { "type": "list", "member": {"target": "t#Cell"},
+          "traits": {"smithy.api#sparse": {}, "smithy.api#length": {"max": 10}} },
+        "t#Params": { "type": "map", "key": {"target": "t#Name"}, "value": {"target": "t#Cell"},
+          "traits": {"smithy.api#sparse": {}} }
+      }
+    }"#;
+    let converted = convert(json, &Options::default()).expect("converts");
+    let text: String = converted.files.values().cloned().collect();
+    assert!(text.contains("sparse list Row: Cell"), "{text}");
+    assert!(text.contains("sparse map Params: Name -> Cell"), "{text}");
+    assert!(
+        converted
+            .diagnostics
+            .iter()
+            .all(|d| !d.message.contains("sparse")),
+        "{:#?}",
+        converted.diagnostics
+    );
+}
