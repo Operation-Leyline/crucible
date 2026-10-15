@@ -228,7 +228,7 @@ fn sparse_lists_and_maps_become_sparse_declarations() {
       "smithy": "2.0",
       "shapes": {
         "t#Svc": { "type": "service", "version": "1", "operations": [{"target": "t#Op"}],
-          "traits": { "aws.protocols#restJson1": {} } },
+          "traits": { "crucible.protocols#json": {} } },
         "t#Op": { "type": "operation", "input": {"target": "smithy.api#Unit"}, "output": {"target": "t#OpOutput"},
           "traits": { "smithy.api#http": {"method": "GET", "uri": "/"}, "smithy.api#readonly": {} } },
         "t#OpOutput": { "type": "structure", "traits": {"smithy.api#output": {}},
@@ -245,11 +245,33 @@ fn sparse_lists_and_maps_become_sparse_declarations() {
     let text: String = converted.files.values().cloned().collect();
     assert!(text.contains("sparse list Row: Cell"), "{text}");
     assert!(text.contains("sparse map Params: Name -> Cell"), "{text}");
+    let errors: Vec<_> = converted
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect();
+    assert!(errors.is_empty(), "{errors:#?}");
+}
+
+#[test]
+fn sparse_on_anything_but_a_list_or_map_is_still_reported() {
+    let json = r#"{
+      "smithy": "2.0",
+      "shapes": {
+        "t#Svc": { "type": "service", "version": "1", "operations": [{"target": "t#Op"}],
+          "traits": { "crucible.protocols#json": {} } },
+        "t#Op": { "type": "operation", "input": {"target": "smithy.api#Unit"}, "output": {"target": "t#OpOutput"},
+          "traits": { "smithy.api#http": {"method": "GET", "uri": "/"}, "smithy.api#readonly": {} } },
+        "t#OpOutput": { "type": "structure", "traits": {"smithy.api#output": {}},
+          "members": { "a": {"target": "smithy.api#String", "traits": {"smithy.api#sparse": {}}} } }
+      }
+    }"#;
+    let converted = convert(json, &Options::default()).expect("converts");
     assert!(
         converted
             .diagnostics
             .iter()
-            .all(|d| !d.message.contains("sparse")),
+            .any(|d| d.message.contains("sparse") && d.severity == Severity::Error),
         "{:#?}",
         converted.diagnostics
     );

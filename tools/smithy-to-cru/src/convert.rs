@@ -186,7 +186,6 @@ const HANDLED: &[&str] = &[
     "idempotencyToken",
     "paginated",
     "sensitive",
-    "sparse",
     "internal",
     "deprecated",
     "since",
@@ -585,6 +584,16 @@ impl<'a> Cx<'a> {
         out.extend(self.meta_uses(Some(t)));
         for key in t.keys() {
             if self.meta.contains_key(key) {
+                continue;
+            }
+            // Read where a list or map is declared; anywhere else it is dropped.
+            if key == "smithy.api#sparse"
+                && self
+                    .m
+                    .shapes
+                    .get(id)
+                    .is_some_and(|shape| matches!(crate::model::kind(shape), "list" | "map"))
+            {
                 continue;
             }
             if let Some(name) = key.strip_prefix("smithy.api#") {
