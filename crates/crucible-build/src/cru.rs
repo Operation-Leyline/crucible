@@ -76,7 +76,18 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
             .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
     }
     std::fs::write(out, text)
-        .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))
+        .map_err(|error| format!("cannot export the model to {}: {error}", out.display()))?;
+    // A watched export newer than this run's own result would rerun the build
+    // that wrote it, so it takes the manifest's timestamp, as a copied AST took
+    // its source's.
+    let manifest = std::fs::metadata(path.join("crucible.toml"))
+        .and_then(|metadata| metadata.modified())
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    std::fs::File::options()
+        .write(true)
+        .open(out)
+        .and_then(|file| file.set_modified(manifest))
+        .map_err(|error| format!("cannot date the model export {}: {error}", out.display()))
 }
 
 /// The compatibility guard (decision 47d): the package against its frozen
@@ -120,12 +131,7 @@ fn check_baseline(
 }
 
 /// The error for an output the language cannot feed yet.
-#[cfg(any(
-    feature = "rust",
-    feature = "docs",
-    feature = "cdk",
-    feature = "terraform"
-))]
+#[cfg(any(feature = "docs", feature = "cdk", feature = "terraform"))]
 pub(crate) fn unsupported(what: &str, path: &Path) -> String {
     format!(
         "{what} from a .cru package ({}) is not supported yet: the language does not lower resources for documentation or infrastructure",

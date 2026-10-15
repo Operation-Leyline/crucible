@@ -1,0 +1,10 @@
+readonly operation DescribeEndpoints {
+    http POST "/endpoints" -> 200
+    input {
+        Operation?: string
+        Identifiers?: IdentifierMap
+    }
+    output {
+        Endpoints: EndpointList
+    }
+}

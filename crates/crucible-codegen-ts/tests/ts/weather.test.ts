@@ -1,6 +1,6 @@
 // Behaviour of a generated client, end to end against a fake fetch. The
-// client under test is generated from crates/crucible-core/tests/fixtures/
-// weather.json by tools/test-ts.sh.
+// client under test is generated from tests/models/weather by
+// tools/test-ts.sh.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 

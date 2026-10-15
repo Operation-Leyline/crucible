@@ -13,6 +13,8 @@
     feature = "r"
 ))]
 
+mod common;
+
 use std::fs;
 use std::process::Command;
 
@@ -23,7 +25,7 @@ fn fluent_probe() {
     if std::env::var_os("CRUCIBLE_FLUENT_PROBE").is_none() {
         return;
     }
-    let package = crucible_build::model("model.json").compile();
+    let package = crucible_build::model("weather").compile();
     macro_rules! equivalent {
         ($name:literal, $fluent:expr, $native:expr) => {{
             let fluent = $fluent
@@ -301,11 +303,7 @@ fn fluent_probe() {
 #[test]
 fn every_enabled_fluent_target_emits_the_native_options_and_exports_a_package() {
     let root = tempfile::tempdir().unwrap();
-    fs::write(
-        root.path().join("model.json"),
-        include_str!("../../crucible-smithy/tests/fixtures/weather.json"),
-    )
-    .unwrap();
+    common::install_shared(root.path(), "weather");
     let output = Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "fluent_probe", "--nocapture"])
         .env("CRUCIBLE_FLUENT_PROBE", "1")

@@ -108,22 +108,18 @@ final class CredentialUnknownVariant extends Credential {
   }
 }
 final class GetSecretInput implements wire.WireModel {
-  final core.String? _name;
-  final wire.Field<core.String>? _namePresence;
-  core.String? get name => _namePresence != null ? _namePresence.value : _name;
-  /// Whether `name` was omitted, set to null, or given a value.
-  wire.Field<core.String> get namePresence => _namePresence ?? (_name == null ? const wire.Field.unset() : wire.Field.value(_name));
-  const GetSecretInput({core.String? name, wire.Field<core.String>? namePresence}) : _name = name, _namePresence = namePresence;
+  final core.String name;
+  const GetSecretInput({required this.name});
   factory GetSecretInput.fromWire(core.Object? value, wire.WireContext context) {
     final object = wire.wireObject(value);
     return GetSecretInput(
-      namePresence: context.optional<core.String>("name", object),
+      name: context.read<core.String>("name", object),
     );
   }
   @core.override
   core.Object toWire(wire.WireContext context) {
     final object = <core.String, core.Object?>{};
-    context.put(object, "name", this.namePresence);
+    context.put(object, "name", this.name);
     return object;
   }
   @core.override
@@ -244,28 +240,24 @@ typedef Names = core.List<core.String>;
 typedef Passwords = core.List<core.String>;
 typedef PasswordsByName = core.Map<core.String, core.String>;
 final class PutSecretInput implements wire.WireModel {
-  final Secret? _secret;
-  final wire.Field<Secret>? _secretPresence;
-  Secret? get secret => _secretPresence != null ? _secretPresence.value : _secret;
-  /// Whether `secret` was omitted, set to null, or given a value.
-  wire.Field<Secret> get secretPresence => _secretPresence ?? (_secret == null ? const wire.Field.unset() : wire.Field.value(_secret));
+  final Secret secret;
   final core.String? _clientToken;
   final wire.Field<core.String>? _clientTokenPresence;
   core.String? get clientToken => _clientTokenPresence != null ? _clientTokenPresence.value : _clientToken;
   /// Whether `clientToken` was omitted, set to null, or given a value.
   wire.Field<core.String> get clientTokenPresence => _clientTokenPresence ?? (_clientToken == null ? const wire.Field.unset() : wire.Field.value(_clientToken));
-  const PutSecretInput({Secret? secret, wire.Field<Secret>? secretPresence, core.String? clientToken, wire.Field<core.String>? clientTokenPresence}) : _secret = secret, _secretPresence = secretPresence, _clientToken = clientToken, _clientTokenPresence = clientTokenPresence;
+  const PutSecretInput({required this.secret, core.String? clientToken, wire.Field<core.String>? clientTokenPresence}) : _clientToken = clientToken, _clientTokenPresence = clientTokenPresence;
   factory PutSecretInput.fromWire(core.Object? value, wire.WireContext context) {
     final object = wire.wireObject(value);
     return PutSecretInput(
-      secretPresence: context.optional<Secret>("secret", object),
+      secret: context.read<Secret>("secret", object),
       clientTokenPresence: context.optional<core.String>("clientToken", object),
     );
   }
   @core.override
   core.Object toWire(wire.WireContext context) {
     final object = <core.String, core.Object?>{};
-    context.put(object, "secret", this.secretPresence);
+    context.put(object, "secret", this.secret);
     context.put(object, "clientToken", this.clientTokenPresence);
     return object;
   }

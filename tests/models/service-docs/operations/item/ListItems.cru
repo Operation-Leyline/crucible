@@ -1,0 +1,21 @@
+/// Read a page of **items**.
+@deprecated(since: "2026-09", message: "Use the next revision.")
+@since("2026-01")
+@unstable
+@externalDocs("Guide" = "https://example.com/guide")
+operation ListItems lists Item {
+    http POST "/ListItems"
+    paginated(inputToken: nextToken, outputToken: nextToken, items: items, pageSize: pageSize)
+    input {
+        nextToken?: string
+        pageSize: integer { range 1..100 } = 10
+    }
+    output {
+        items?: Items
+        nextToken?: string
+    }
+    example "Read items" {
+        input { pageSize: 2 }
+        output { items: [{ text: "hello" }], nextToken: "page-2" }
+    }
+}

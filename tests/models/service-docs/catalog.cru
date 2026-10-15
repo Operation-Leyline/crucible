@@ -1,0 +1,12 @@
+/// Browse **items**. <script>alert(1)</script>
+@deprecated(since: "2026-09", message: "Use the next revision.")
+@since("2026-01")
+@unstable
+@externalDocs("Guide" = "https://example.com/guide")
+service Catalog {
+    version "2026-10"
+    title "Catalog API"
+    protocol json
+    resources [Item]
+    errors [Unavailable]
+}

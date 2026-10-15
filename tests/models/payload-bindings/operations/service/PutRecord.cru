@@ -1,0 +1,7 @@
+idempotent operation PutRecord {
+    http PUT "/record" -> 200
+    input {
+        @payload
+        record?: Record
+    }
+}

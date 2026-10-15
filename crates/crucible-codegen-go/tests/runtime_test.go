@@ -335,7 +335,7 @@ func TestBindingsTokensAndAuth(t *testing.T) {
 		io.WriteString(w, `{"city":{"id":"c1","name":"é"}}`)
 	})
 	client.config.Token = func(context.Context) (string, error) { credential++; return string(rune('0' + credential)), nil }
-	input := &CreateCityInput{Name: Some[CityName]("é"), ExpectedRevision: Some[int64](7), Location: Some(&Location{Unknown: Some(Unit{})})}
+	input := &CreateCityInput{Name: "é", ExpectedRevision: Some[int64](7), Location: Some(&Location{Unknown: Some(Unit{})})}
 	output, err := client.CreateCity(context.Background(), input)
 	if err != nil {
 		t.Fatal(err)
@@ -361,7 +361,7 @@ func TestPathQueryAndResponseBindings(t *testing.T) {
 		w.Header().Set("x-request-id", "req-1")
 		io.WriteString(w, `{"city":{"id":"c1","name":"city","population":9223372036854775807,"createdAt":-0.000000001},"forecast":{"new-sky":{"n":9223372036854775807}}}`)
 	})
-	output, err := client.GetCity(context.Background(), &GetCityInput{CityId: Some[CityId]("a/b c~é"), At: Some(time.Date(2026, 10, 1, 0, 0, 0, 123, time.UTC))})
+	output, err := client.GetCity(context.Background(), &GetCityInput{CityId: "a/b c~é", At: Some(time.Date(2026, 10, 1, 0, 0, 0, 123, time.UTC))})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +389,7 @@ func TestUnknownUnionAndAbsence(t *testing.T) {
 	if err != nil || string(data) != `{"newVariant":{"n":9223372036854775807}}` {
 		t.Fatalf("%s %v", data, err)
 	}
-	input := &CreateCityInput{Name: Some[CityName]("x"), Location: Null[*Location]()}
+	input := &CreateCityInput{Name: "x", Location: Null[*Location]()}
 	encoded, err = encodeModel(wireSchema, "example.weather#CreateCityInput", input)
 	if err != nil {
 		t.Fatal(err)
@@ -448,18 +448,18 @@ func TestPayloadsTravelRawAndBlobsInJSONAreBase64(t *testing.T) {
 			w.WriteHeader(200)
 		}
 	})
-	stored, err := client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some[CityId]("c-00000001"), Caption: Some("harbour"), Photo: Some[Photo](photo)})
+	stored, err := client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: "c-00000001", Caption: Some("harbour"), Photo: photo})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(stored.Photo.Thumbnail, photo[:9]) {
 		t.Fatalf("base64 thumbnail: %q", stored.Photo.Thumbnail)
 	}
-	read, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: Some[CityId]("c-00000001")})
+	read, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: "c-00000001"})
 	if err != nil || !bytes.Equal(read.Photo.Value, photo) || read.Caption.Value != "harbour" {
 		t.Fatalf("%v %v", read, err)
 	}
-	empty, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: Some[CityId]("c-00000001")})
+	empty, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: "c-00000001"})
 	if err != nil || !empty.Photo.Set || len(empty.Photo.Value) != 0 {
 		t.Fatalf("empty payload: %v %v", empty, err)
 	}
@@ -608,7 +608,7 @@ func TestHTTPWeatherService(t *testing.T) {
 	if err != nil || got.City.Name != "go-http" {
 		t.Fatalf("%v %v", got, err)
 	}
-	_, err = client.CreateCity(context.Background(), &CreateCityInput{Name: Some[CityName]("go-http")})
+	_, err = client.CreateCity(context.Background(), &CreateCityInput{Name: "go-http"})
 	var conflict *ConflictError
 	if !errors.As(err, &conflict) {
 		t.Fatal(err)
@@ -633,15 +633,15 @@ func TestHTTPWeatherService(t *testing.T) {
 		t.Fatal("created city missing")
 	}
 	photo := []byte("\xff\xd8{\"looks\": \"like json\"}\x00\x80")
-	stored, err := client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some(city.City.Id), Caption: Some("aurora"), Photo: Some[Photo](photo)})
+	stored, err := client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: city.City.Id, Caption: Some("aurora"), Photo: photo})
 	if err != nil || stored.Photo.Size != int32(len(photo)) || !bytes.Equal(stored.Photo.Thumbnail, photo[:8]) {
 		t.Fatalf("%v %v", stored, err)
 	}
-	read, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: Some(city.City.Id)})
+	read, err := client.GetCityPhoto(context.Background(), &GetCityPhotoInput{CityId: city.City.Id})
 	if err != nil || !bytes.Equal(read.Photo.Value, photo) || read.Caption.Value != "aurora" {
 		t.Fatalf("%v %v", read, err)
 	}
-	_, err = client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: Some(city.City.Id), Photo: Some[Photo](make([]byte, 4097))})
+	_, err = client.PutCityPhoto(context.Background(), &PutCityPhotoInput{CityId: city.City.Id, Photo: make([]byte, 4097)})
 	var invalid *ValidationError
 	if !errors.As(err, &invalid) {
 		t.Fatal(err)

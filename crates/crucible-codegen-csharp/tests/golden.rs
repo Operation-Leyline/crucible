@@ -1,6 +1,29 @@
 use crucible_codegen_csharp::{Options, emit};
-use crucible_smithy::Model;
+use crucible_smithy::{ShapeId, ir::Service};
 use std::{fs, path::Path};
+fn model_dir(name: &str) -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+fn weather() -> Service {
+    crucible_lang::load_service(&model_dir("weather")).unwrap()
+}
+/// The weather package with `edit` applied to every source file.
+fn weather_with(edit: impl Fn(&str) -> String) -> Service {
+    let mut package = crucible_lang::load_package(&model_dir("weather")).unwrap();
+    for file in &mut package.files {
+        file.text = edit(&file.text);
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled.service.unwrap_or_else(|| {
+        panic!(
+            "the model compiles:
+{rendered}"
+        )
+    })
+}
 fn options() -> Options {
     Options {
         namespace: "Example.Weather".into(),
@@ -11,12 +34,7 @@ fn options() -> Options {
 }
 #[test]
 fn weather_matches_goldens() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".cs")
             && !file.path.starts_with("Models/")
@@ -43,12 +61,7 @@ fn weather_matches_goldens() {
 }
 #[test]
 fn configuration_diagnostics_are_collected() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let mut options = options();
     options.namespace = "../escape".into();
     options.package_id = "bad<id".into();
@@ -57,52 +70,38 @@ fn configuration_diagnostics_are_collected() {
 
 #[test]
 fn model_name_diagnostics_are_collected() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary": "CON"});
-    for name in ["message", "messageValue"] {
-        model["shapes"]["example.weather#CreateCityInput"]["members"][name] =
-            serde_json::json!({"target":"smithy.api#String"});
-    }
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut service = weather_with(|text| {
+        text.replace(
+            "location?: Location",
+            "location?: Location\n        message?: string\n        messageValue?: string",
+        )
+    });
+    service.renames.insert(
+        ShapeId::new("example.weather", "CitySummary"),
+        "CON".to_owned(),
+    );
     assert_eq!(emit(&service, &options()).err().unwrap().len(), 2);
 }
 
 #[test]
 fn service_client_name_is_reserved() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut service = weather();
+    service.renames.insert(
+        ShapeId::new("example.weather", "CitySummary"),
+        "WeatherClient".to_owned(),
+    );
     assert!(emit(&service, &options()).is_err());
 }
 
 fn docs_files() -> Vec<crucible_codegen_csharp::File> {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = crucible_lang::load_service(&model_dir("client-docs-jvm")).unwrap();
     let mut options = options();
     options.namespace = "Example.Docs".into();
     emit(&service, &options).unwrap()
 }
 
 #[test]
-fn smithy_documentation_is_well_formed_xml_doc() {
+fn model_documentation_is_well_formed_xml_doc() {
     let files = docs_files();
     for file in files.iter().filter(|f| f.path.ends_with(".cs")) {
         for line in file

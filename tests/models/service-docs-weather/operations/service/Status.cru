@@ -1,0 +1,7 @@
+readonly internal operation Status {
+    http GET "/status"
+    input {
+    }
+    output {
+    }
+}

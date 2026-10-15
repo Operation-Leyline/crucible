@@ -1,0 +1,7 @@
+string Media { mediaType "application/json" }
+
+list MediaList: Media
+
+structure Record {
+    name?: string
+}

@@ -1,0 +1,12 @@
+service Recursive {
+    version "1"
+    protocol json
+    operations [Read]
+}
+
+readonly operation Read {
+    http GET "/"
+    output {
+        root: A
+    }
+}

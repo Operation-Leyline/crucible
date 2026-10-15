@@ -18,7 +18,7 @@ struct Service;
 impl wire::TextOperation for Service {
     async fn text(&self, input: wire::TextInput) -> Result<wire::TextOutput> {
         if input.text.as_deref() == Some("error") {
-            return Err(wire::TextError {
+            return Err(wire::TextFault {
                 details: Some("invalid text".into()),
             }
             .into());
@@ -56,7 +56,7 @@ async fn text_document_error_payloads_and_media_headers_round_trip() {
         crucible_server_runtime_rust::Crucible::builder(wire::operations(Arc::new(Service)))
             .defaults()
             .on_rejection(|_| {
-                Box::new(wire::TextError {
+                Box::new(wire::TextFault {
                     details: Some("invalid input".into()),
                 })
             })
@@ -107,7 +107,7 @@ async fn an_explicitly_null_structure_payload_reaches_the_server_as_absent() {
         crucible_server_runtime_rust::Crucible::builder(wire::operations(Arc::new(Service)))
             .defaults()
             .on_rejection(|rejection| {
-                Box::new(wire::TextError {
+                Box::new(wire::TextFault {
                     details: Some(rejection.summary()),
                 })
             })

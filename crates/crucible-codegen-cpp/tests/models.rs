@@ -1,5 +1,6 @@
 use crucible_codegen_cpp::{Options, emit};
-use crucible_smithy::Model;
+use crucible_smithy::ShapeId;
+use crucible_smithy::ir::Service;
 use std::{fs, path::Path};
 
 fn options() -> Options {
@@ -10,21 +11,34 @@ fn options() -> Options {
         endpoint: None,
     }
 }
-fn weather() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
+fn weather_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather")
 }
-fn lower(value: &serde_json::Value) -> crucible_smithy::ir::Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+fn weather() -> Service {
+    crucible_lang::load_service(&weather_dir()).unwrap()
+}
+/// The weather package with `edit` applied to every source file, and
+/// `extra` added as a file of its own.
+fn weather_with(edit: impl Fn(&str) -> String, extra: Option<&str>) -> Service {
+    let mut package = crucible_lang::load_package(&weather_dir()).unwrap();
+    for file in &mut package.files {
+        file.text = edit(&file.text);
+    }
+    if let Some(text) = extra {
+        package.files.push(crucible_lang::SourceFile {
+            path: "extra.cru".to_owned(),
+            text: text.to_owned(),
+        });
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the model compiles:\n{rendered}"))
 }
 #[test]
 fn weather_models_generate_deterministically() {
-    let service = lower(&weather());
+    let service = weather();
     let files = emit(&service, &options()).unwrap();
     let again = emit(&service, &options()).unwrap();
     let snapshot = files
@@ -67,7 +81,7 @@ fn weather_models_generate_deterministically() {
 }
 #[test]
 fn package_namespace_and_version_are_validated() {
-    let service = lower(&weather());
+    let service = weather();
     for name in [
         "../escape",
         "weather-client",
@@ -113,44 +127,39 @@ fn enum_union_and_member_collisions_are_diagnosed() {
         ("CitySummary", "std"),
         ("CitySummary", "NULL"),
     ] {
-        let mut model = weather();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({format!("example.weather#{shape}"):name});
-        assert!(
-            emit(&lower(&model), &options()).is_err(),
-            "{shape} -> {name}"
-        );
+        let mut service = weather();
+        service
+            .renames
+            .insert(ShapeId::new("example.weather", shape), name.to_owned());
+        assert!(emit(&service, &options()).is_err(), "{shape} -> {name}");
     }
-    let mut model = weather();
-    let members = model["shapes"]["example.weather#CreateCityInput"]["members"]
-        .as_object_mut()
-        .unwrap();
-    members.insert(
-        "class".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
+    let service = weather_with(
+        |text| {
+            text.replace(
+                "location?: Location",
+                "location?: Location\n        class?: string\n        class_value?: string",
+            )
+        },
+        None,
     );
-    members.insert(
-        "class_value".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
-    );
-    assert!(emit(&lower(&model), &options()).is_err());
+    assert!(emit(&service, &options()).is_err());
 }
 
 #[test]
 fn head_request_bodies_are_diagnosed_before_generation() {
-    let mut model = weather();
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
-        "HEAD".into();
-    // A HEAD response has no body either, which lowering already refuses;
-    // drop the output (and its examples) so only the generator's request-body
-    // check is left.
-    let create = &mut model["shapes"]["example.weather#CreateCity"];
-    create.as_object_mut().unwrap().remove("output");
-    create["traits"]
-        .as_object_mut()
-        .unwrap()
-        .remove("smithy.api#examples");
-    let diagnostics = emit(&lower(&model), &options())
+    let mut service = weather();
+    // Lowering refuses a HEAD operation with a response body or a request
+    // body, so the generator's own check is reached by editing the lowered
+    // operation: HEAD, no output, and no examples.
+    let create = service
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id.name() == "CreateCity")
+        .unwrap();
+    create.method = "HEAD".to_owned();
+    create.output = None;
+    create.examples.clear();
+    let diagnostics = emit(&service, &options())
         .err()
         .expect("diagnostic")
         .to_string();
@@ -159,30 +168,25 @@ fn head_request_bodies_are_diagnosed_before_generation() {
 
 #[test]
 fn service_client_name_is_reserved() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
-    assert!(emit(&lower(&model), &options()).is_err());
+    let mut service = weather();
+    service.renames.insert(
+        ShapeId::new("example.weather", "CitySummary"),
+        "WeatherClient".to_owned(),
+    );
+    assert!(emit(&service, &options()).is_err());
 }
 
 #[test]
 fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    let examples: serde_json::Value =
-        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
-    model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .extend(examples.as_object().unwrap().clone());
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
-        serde_json::json!({"target": "example.weather#DebugModel"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather_with(
+        |text| {
+            text.replace(
+                "expectedRevision?: long",
+                "expectedRevision?: long\n        debugModel?: DebugModel",
+            )
+        },
+        Some(include_str!("../../../tests/conformance/native-docs.cru")),
+    );
     let files = emit(&service, &options()).unwrap();
     let text = files
         .iter()
@@ -206,7 +210,7 @@ fn client_config_docs_describe_their_own_entities() {
 
 #[test]
 fn only_the_bearer_runtime_is_emitted() {
-    let files = emit(&lower(&weather()), &options()).unwrap();
+    let files = emit(&weather(), &options()).unwrap();
     for gone in ["stream", "checksums", "auth", "query", "endpoints"] {
         assert!(
             files

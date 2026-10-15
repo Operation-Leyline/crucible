@@ -1,0 +1,30 @@
+operation JSON {
+    http POST "/echo"
+    input {
+        record?: Record
+        partial?: Partial
+        promise?: Promise
+        bytes?: blob
+        array?: Array
+        set?: Set
+        date?: Date
+        when?: timestamp
+        colors?: ColorMap
+        map?: Map
+        buffer?: Uint8Array
+    }
+    output {
+        record?: Record
+        partial?: Partial
+        promise?: Promise
+        bytes?: blob
+        array?: Array
+        set?: Set
+        date?: Date
+        when?: timestamp
+        colors?: ColorMap
+        map?: Map
+        buffer?: Uint8Array
+    }
+    errors [Object, Error]
+}

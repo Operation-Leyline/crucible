@@ -1,0 +1,7 @@
+operation DeleteWidget deletes Widget {
+    http DELETE "/widgets/{widgetId}" -> 200
+    input {
+        $widgetId
+    }
+    errors [NotFound]
+}

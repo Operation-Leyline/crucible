@@ -1,0 +1,143 @@
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+union Choice {
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    record: Record
+    /// Member documentation.
+    sensitive secret: string
+}
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+enum Code: integer {
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    ONE = 1
+}
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+sensitive structure Hidden {
+    /// Member documentation.
+    value?: string
+}
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+structure Record {
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    ///
+    /// Label marker.
+    label?: string
+    /// Member documentation.
+    sensitive secret?: string
+    /// Member documentation.
+    token?: Token
+    /// Member documentation.
+    children?: Records
+    /// Member documentation.
+    lookup?: RecordMap
+    /// Member documentation.
+    choice?: Choice
+    /// Member documentation.
+    hidden?: Hidden
+    /// Member documentation.
+    status?: Status
+    /// Member documentation.
+    code?: Code
+    sensitive __proto__?: string
+}
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+map RecordMap: string -> Record
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+list Records: Record
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+enum Status {
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    READY = "ready"
+}
+
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+sensitive string Token

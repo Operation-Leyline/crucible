@@ -1,0 +1,16 @@
+operation Text {
+    http POST "/text" -> 200
+    input {
+        @payload
+        text?: string
+        @header("x-meta")
+        meta?: MediaList
+    }
+    output {
+        @payload
+        text?: string
+        @header("x-meta")
+        meta?: MediaList
+    }
+    errors [TextError]
+}

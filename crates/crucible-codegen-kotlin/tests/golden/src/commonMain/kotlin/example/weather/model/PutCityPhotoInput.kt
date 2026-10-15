@@ -6,22 +6,20 @@ package example.weather.model
  * Build one with `PutCityPhotoInput { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#PutCityPhotoInput`.
  */
 class `PutCityPhotoInput` internal constructor(
-    internal val __crucibleField0: example.weather.OptionalValue<kotlin.String>,
-    internal val __crucibleField1: example.weather.OptionalValue<kotlin.String>,
-    internal val __crucibleField2: example.weather.OptionalValue<kotlin.ByteArray>,
-) {
     /**
      * The `cityId` member.
      *
-     * Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.
+     * Required.
      */
-    val `cityId`: kotlin.String? get() = __crucibleField0.value
+    val `cityId`: kotlin.String,
+    internal val __crucibleField1: example.weather.OptionalValue<kotlin.String>,
     /**
-     * Whether `cityId` was set, even to `null`.
+     * The `photo` member.
      *
-     * @return true when the member is present
+     * Required.
      */
-    fun hasCityId(): kotlin.Boolean = __crucibleField0.present
+    val `photo`: kotlin.ByteArray,
+) {
     /**
      * The `caption` member.
      *
@@ -35,43 +33,24 @@ class `PutCityPhotoInput` internal constructor(
      */
     fun hasCaption(): kotlin.Boolean = __crucibleField1.present
     /**
-     * The `photo` member.
-     *
-     * Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.
-     */
-    val `photo`: kotlin.ByteArray? get() = __crucibleField2.value
-    /**
-     * Whether `photo` was set, even to `null`.
-     *
-     * @return true when the member is present
-     */
-    fun hasPhoto(): kotlin.Boolean = __crucibleField2.present
-    /**
      * Formats every set member as `Type(member=value, ...)`; sensitive members print as a redaction marker, never their value.
      */
-    override fun toString(): kotlin.String = example.weather.ModelFormat.format("PutCityPhotoInput", "cityId" to __crucibleField0, "caption" to __crucibleField1, "photo" to __crucibleField2)
+    override fun toString(): kotlin.String = example.weather.ModelFormat.format("PutCityPhotoInput", "cityId" to `cityId`, "caption" to __crucibleField1, "photo" to `photo`)
     companion object {
         operator fun invoke(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`PutCityPhotoInput` = Builder().apply(block).build()
     }
     fun copy(block: Builder.() -> kotlin.Unit = {}): example.weather.model.`PutCityPhotoInput` = Builder().also { builder ->
-        builder.__crucibleField0 = __crucibleField0
+        builder.`cityId` = this.`cityId`
         builder.__crucibleField1 = __crucibleField1
-        builder.__crucibleField2 = __crucibleField2
+        builder.`photo` = this.`photo`
     }.apply(block).build()
     class Builder {
-        internal var __crucibleField0: example.weather.OptionalValue<kotlin.String> = example.weather.OptionalValue.unset()
         /**
          * The `cityId` member.
          *
-         * Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.
+         * Required: `build()` fails when it is left unset.
          */
-        var `cityId`: kotlin.String?
-            get() = __crucibleField0.value
-            set(value) { __crucibleField0 = example.weather.OptionalValue.of(value) }
-        /**
-         * Clears `cityId` so it is omitted from requests.
-         */
-        fun unsetCityId() { __crucibleField0 = example.weather.OptionalValue.unset() }
+        var `cityId`: kotlin.String? = null
         internal var __crucibleField1: example.weather.OptionalValue<kotlin.String> = example.weather.OptionalValue.unset()
         /**
          * The `caption` member.
@@ -85,23 +64,16 @@ class `PutCityPhotoInput` internal constructor(
          * Clears `caption` so it is omitted from requests.
          */
         fun unsetCaption() { __crucibleField1 = example.weather.OptionalValue.unset() }
-        internal var __crucibleField2: example.weather.OptionalValue<kotlin.ByteArray> = example.weather.OptionalValue.unset()
         /**
          * The `photo` member.
          *
-         * Optional: `null` when unset or explicitly null; use the matching `has` function to tell the two apart.
+         * Required: `build()` fails when it is left unset.
          */
-        var `photo`: kotlin.ByteArray?
-            get() = __crucibleField2.value
-            set(value) { __crucibleField2 = example.weather.OptionalValue.of(value) }
-        /**
-         * Clears `photo` so it is omitted from requests.
-         */
-        fun unsetPhoto() { __crucibleField2 = example.weather.OptionalValue.unset() }
+        var `photo`: kotlin.ByteArray? = null
         fun build(): example.weather.model.`PutCityPhotoInput` = example.weather.model.`PutCityPhotoInput`(
-            __crucibleField0 = __crucibleField0,
+            `cityId` = requireNotNull(`cityId`) { "Missing required member: cityId" },
             __crucibleField1 = __crucibleField1,
-            __crucibleField2 = __crucibleField2,
+            `photo` = requireNotNull(`photo`) { "Missing required member: photo" },
         )
     }
 }

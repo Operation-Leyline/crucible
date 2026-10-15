@@ -1,0 +1,6 @@
+union Choice {
+    public: string
+    internal private: SecretValue
+}
+
+internal string SecretValue

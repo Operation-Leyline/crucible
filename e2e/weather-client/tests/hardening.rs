@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
-use crucible_client_runtime_rust::{Config, Error, Field, Interceptor, Retry, Token};
+use crucible_client_runtime_rust::{Config, Error, Interceptor, Retry, Token};
 
 #[allow(dead_code)]
 mod fixture {
@@ -56,7 +56,7 @@ async fn dot_only_labels_are_rejected_before_transport() {
     );
     for key in [".", ".."] {
         let error = client
-            .get_item(fixture::GetItemInput::builder().key(key).build())
+            .get_item(fixture::GetItemInput::builder().key(key).build().unwrap())
             .await
             .unwrap_err();
         assert!(matches!(error, Error::Invalid(ref message) if message.contains("dot-only")));
@@ -65,9 +65,11 @@ async fn dot_only_labels_are_rejected_before_transport() {
 }
 
 #[test]
-fn client_optional_defaults_stay_absent_and_dense_strings_reject_null() {
-    let value: fixture::Values = serde_json::from_str("{}").unwrap();
-    assert_eq!(value.optional_default, Field::Absent);
-    assert!(serde_json::from_str::<fixture::Values>(r#"{"strings":[null]}"#).is_err());
-    assert!(serde_json::from_str::<fixture::Values>(r#"{"mapping":{"key":null}}"#).is_err());
+fn defaults_hold_their_value_and_dense_strings_reject_null() {
+    let value: fixture::ReadValuesOutput = serde_json::from_str("{}").unwrap();
+    assert_eq!(value.optional_default, 7);
+    assert!(serde_json::from_str::<fixture::ReadValuesOutput>(r#"{"strings":[null]}"#).is_err());
+    assert!(
+        serde_json::from_str::<fixture::ReadValuesOutput>(r#"{"mapping":{"key":null}}"#).is_err()
+    );
 }

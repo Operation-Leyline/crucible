@@ -1,0 +1,3 @@
+readonly operation Get {
+    http GET "/Get"
+}

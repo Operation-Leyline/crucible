@@ -1,15 +1,41 @@
 use crucible_codegen_ruby::{Options, emit};
-use crucible_smithy::Model;
 use std::{fs, path::Path};
+
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    compile_with(name, |text| text)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first;
+/// the rendered diagnostics when it does not compile.
+fn compile_with(
+    name: &str,
+    edit: impl Fn(String) -> String,
+) -> Result<crucible_smithy::ir::Service, String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    compiled.service.clone().ok_or_else(|| compiled.render())
+}
+
+/// The weather package with its sources rewritten first.
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
 
 #[test]
 fn weather_models_generate() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let options = Options {
         package_name: "weather_client".into(),
         module_name: "Weather".into(),
@@ -62,22 +88,9 @@ fn options() -> Options {
         endpoint: None,
     }
 }
-fn weather() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-}
-fn lower(value: &serde_json::Value) -> crucible_smithy::ir::Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
-}
-
 #[test]
 fn invalid_package_and_root_module_are_diagnosed() {
-    let service = lower(&weather());
+    let service = weather();
     for name in ["../escape", "Weather", "weather-client", "", "3client"] {
         let mut config = options();
         config.package_name = name.into();
@@ -94,21 +107,13 @@ fn invalid_package_and_root_module_are_diagnosed() {
 
 #[test]
 fn ambiguous_ruby_identifiers_are_collected() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary":"Registry"});
-    let members = model["shapes"]["example.weather#CreateCityInput"]["members"]
-        .as_object_mut()
-        .unwrap();
-    members.insert(
-        "toWire".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
-    );
-    members.insert(
-        "to_wire_value".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
-    );
-    let diagnostics = emit(&lower(&model), &options())
+    let service = weather_with(|text| {
+        text.replace("CitySummary", "Registry").replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        toWire?: string\n        to_wire_value?: string\n",
+        )
+    });
+    let diagnostics = emit(&service, &options())
         .err()
         .expect("diagnostics")
         .to_string();
@@ -118,28 +123,23 @@ fn ambiguous_ruby_identifiers_are_collected() {
 
 #[test]
 fn case_conversion_cannot_overwrite_model_files() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({"example.weather#CitySummary":"Http_Value","example.weather#Location":"HttpValue"});
-    assert!(emit(&lower(&model), &options()).is_err());
+    let service = weather_with(|text| {
+        text.replace("CitySummary", "Http_Value")
+            .replace("Location", "HttpValue")
+    });
+    assert!(emit(&service, &options()).is_err());
 }
 
 #[test]
 fn top_level_support_names_are_diagnosed() {
     for name in ["WeatherClient", "Runtime", "Registry"] {
-        let mut model = weather();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({"example.weather#CitySummary":name});
-        assert!(emit(&lower(&model), &options()).is_err(), "{name}");
+        let service = weather_with(|text| text.replace("CitySummary", name));
+        assert!(emit(&service, &options()).is_err(), "{name}");
     }
 }
 
 fn vault_files() -> Vec<crucible_codegen_ruby::File> {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_ruby::capabilities())
-    .unwrap();
+    let service = load("client-docs-vault");
     let options = Options {
         package_name: "vault_client".into(),
         module_name: "Vault".into(),
@@ -388,7 +388,7 @@ fn permission_constant_collisions_are_diagnosed() {
 /// registry's record types, required before the client.
 #[test]
 fn permissions_ship_only_with_permissions() {
-    let files = emit(&lower(&weather()), &options()).unwrap();
+    let files = emit(&weather(), &options()).unwrap();
     assert!(!files.iter().any(|f| f.path.contains("permission")));
     let files = emit(&permissions_service(), &options()).unwrap();
     let entry = &files

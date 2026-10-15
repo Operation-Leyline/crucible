@@ -1,0 +1,10 @@
+operation ReadWidget reads Widget {
+    http GET "/widgets/{widgetId}" -> 200
+    input {
+        $widgetId
+    }
+    output {
+        widget: WidgetState
+    }
+    errors [NotFound]
+}

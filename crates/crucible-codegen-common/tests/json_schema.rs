@@ -1,15 +1,16 @@
 use crucible_codegen_common::json_schema::{key, shape, standalone};
-use crucible_smithy::Model;
 use serde_json::Value;
+
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    crucible_lang::load_service(&dir).unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
+}
 
 #[test]
 fn standalone_schemas_are_identical_to_openapi_definitions_except_reference_roots() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = load("weather");
     for op in &service.operations {
         for id in op.input.iter().chain(&op.output) {
             let schema = standalone(&service, Some(id));
@@ -68,10 +69,7 @@ fn standalone_schemas_are_identical_to_openapi_definitions_except_reference_root
 
 #[test]
 fn recursive_refs_stay_local_and_finite() {
-    let service = Model::from_json(include_str!("fixtures/recursion.json"))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load("recursion");
     let op = service
         .operations
         .iter()

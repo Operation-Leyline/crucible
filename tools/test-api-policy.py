@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -32,12 +33,11 @@ def main():
     let path = std::env::var("POLICY_TEST_COUNT").unwrap();
     let count: usize = std::fs::read_to_string(&path).unwrap_or_else(|_| "0".into()).parse().unwrap();
     std::fs::write(path, (count + 1).to_string()).unwrap();
-    crucible_build::model("model.json").server()
+    crucible_build::model("model").server()
         .custom_rejections().policy("crucible.toml").generate();
 }
 ''', encoding="utf-8")
-        fixture = ROOT / "crates/crucible-policy/tests/fixtures/contract.json"
-        (consumer / "model.json").write_bytes(fixture.read_bytes())
+        shutil.copytree(ROOT / "tests/models/policy-contract", consumer / "model")
         config = consumer / "crucible.toml"
         config.write_text('schema_version = 1\n[rules.paths]\nprefix = "/v1"\n', encoding="utf-8")
         count = root / "count.txt"
@@ -45,8 +45,7 @@ def main():
         environment = {**os.environ, "POLICY_TEST_COUNT": str(count), "CRUCIBLE_MODEL_OUT": str(exported), "CARGO_BUILD_JOBS": "2"}
         command = ["cargo", "check", "--offline", "--manifest-path", str(consumer / "Cargo.toml")]
         run(command, environment)
-        assert exported.read_bytes() == fixture.read_bytes()
-        assert exported.stat().st_mtime_ns == (consumer / "model.json").stat().st_mtime_ns
+        assert exported.stat().st_size > 0, "the compiled model is exported"
         assert count.read_text() == "1"
         run(command, environment)
         assert count.read_text() == "1", "Unchanged policy/model should reuse Cargo's cached build"

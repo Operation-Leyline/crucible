@@ -1,0 +1,7 @@
+readonly operation ListRecords {
+    http GET "/records" -> 200
+    output {
+        count?: integer
+    }
+    errors [Throttled, Unavailable]
+}

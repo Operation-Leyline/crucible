@@ -279,52 +279,53 @@ mod tests {
     #[test]
     fn run_scaffolds_keyword_operations_and_resources_with_default_service_struct() {
         let dir = TempDir::new("crucible-test-scaffold-keywords");
-        let model_json = r#"{
-            "smithy": "2.0",
-            "shapes": {
-                "example#KeywordService": {
-                    "type": "service",
-                    "version": "2026-01-01",
-                    "operations": [
-                        { "target": "example#Type" },
-                        { "target": "example#Self" }
-                    ],
-                    "resources": [
-                        { "target": "example#Match" }
-                    ],
-                    "traits": {
-                        "crucible.protocols#json": {}
-                    }
-                },
-                "example#Match": {
-                    "type": "resource",
-                    "operations": [
-                        { "target": "example#Return" },
-                        { "target": "example#Move" }
-                    ]
-                },
-                "example#Type": {
-                    "type": "operation",
-                    "traits": { "smithy.api#http": { "method": "GET", "uri": "/type" } }
-                },
-                "example#Self": {
-                    "type": "operation",
-                    "traits": { "smithy.api#http": { "method": "GET", "uri": "/self" } }
-                },
-                "example#Return": {
-                    "type": "operation",
-                    "traits": { "smithy.api#http": { "method": "GET", "uri": "/return" } }
-                },
-                "example#Move": {
-                    "type": "operation",
-                    "traits": { "smithy.api#http": { "method": "GET", "uri": "/move" } }
-                }
-            }
-        }"#;
-        let service = crucible_smithy::Model::from_json(model_json)
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let package = dir.path().join("package");
+        std::fs::create_dir(&package).unwrap();
+        for (name, text) in [
+            (
+                "crucible.toml",
+                "schema_version = 1
+
+[model]
+namespace = \"example\"
+language = 1
+sources = [\".\"]
+imports = []
+",
+            ),
+            (
+                "model.cru",
+                "service KeywordService {
+    version \"2026-01-01\"
+    protocol json
+    operations [Type, Self]
+    resources [Match]
+}
+
+resource Match {
+}
+
+readonly operation Type {
+    http GET \"/type\"
+}
+
+readonly operation Self {
+    http GET \"/self\"
+}
+
+readonly operation Return on Match collection {
+    http GET \"/return\"
+}
+
+readonly operation Move on Match collection {
+    http GET \"/move\"
+}
+",
+            ),
+        ] {
+            std::fs::write(package.join(name), text).unwrap();
+        }
+        let service = crucible_lang::load_service(&package).unwrap();
         let options = ScaffoldOptions::default();
         run(&service, dir.path(), &options).unwrap();
 

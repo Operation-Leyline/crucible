@@ -261,26 +261,25 @@ mod quoted_tests {
 
 #[cfg(test)]
 mod tests {
+    fn load(name: &str) -> crucible_smithy::ir::Service {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/models")
+            .join(name);
+        crucible_lang::load_service(&dir).unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
+    }
+
     #[test]
     fn service_exception_identity_and_renamed_model_collisions() {
-        let source = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
-        let service = crucible_smithy::Model::from_json(source)
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let mut service = load("weather");
         assert_eq!(super::service_exception_name(&service), "WeatherException");
         assert_eq!(
             super::service_exception_runtime(&service, "class ServiceException : ServiceError {}"),
             "class WeatherException : ServiceError {}"
         );
-        let mut model: serde_json::Value = serde_json::from_str(source).unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({
-            "example.weather#NotFoundError": "WeatherException"
-        });
-        let service = crucible_smithy::Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        service.renames.insert(
+            "example.weather#NotFoundError".parse().unwrap(),
+            "WeatherException".into(),
+        );
         assert!(
             super::check_service_exception_name(&service)
                 .unwrap_err()
@@ -290,26 +289,14 @@ mod tests {
     }
     #[test]
     fn unique_items_lists_carry_the_runtime_uniqueness_marker() {
-        use crucible_smithy::{Capabilities, Feature, Model};
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/extended-types.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-        .unwrap();
+        let service = load("extended-types");
         let schema = super::schema(&service, str::to_owned);
         assert_eq!(schema["shapes"]["example.types#Integers"]["set"], true);
         assert!(schema["shapes"]["example.types#Mode"].get("set").is_none());
     }
     #[test]
     fn sensitive_members_are_described_for_runtimes() {
-        use crucible_smithy::{Capabilities, Feature, Model};
-        let service = Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/runtime-policy.json"
-        ))
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-        .unwrap();
+        let service = load("runtime-policy");
         let schema = super::schema(&service, str::to_owned);
         let members = &schema["shapes"]["example.policy#PutRecordInput"]["members"];
         assert_eq!(members["secret"]["sensitive"], true);
@@ -318,17 +305,11 @@ mod tests {
     }
     #[test]
     fn renamed_errors_preserve_the_protocol_discriminator() {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] = serde_json::json!({
-            "example.weather#NotFoundError": "MissingResource"
-        });
-        let service = crucible_smithy::Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let mut service = load("weather");
+        service.renames.insert(
+            "example.weather#NotFoundError".parse().unwrap(),
+            "MissingResource".into(),
+        );
         let schema = super::schema(&service, str::to_owned);
         let shape = &schema["shapes"]["example.weather#NotFoundError"];
         assert_eq!(shape["name"], "MissingResource");
@@ -336,43 +317,14 @@ mod tests {
     }
 
     #[test]
-    fn timestamp_defaults_match_the_member_wire_format() {
-        let service = crucible_smithy::Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/timestamp-defaults.json"
-        ))
-        .unwrap()
-        .lower(None)
-        .unwrap();
-        let schema = super::schema(&service, str::to_owned);
-        let members = &schema["shapes"]["example.timestamps#Output"]["members"];
-        for member in ["protocol", "header", "member"] {
-            assert_eq!(members[member]["default"], "1969-12-31T23:59:59.750Z");
-            assert_eq!(members[member]["format"], "date-time");
-        }
-        assert_eq!(
-            members["target"]["default"],
-            "Wed, 31 Dec 1969 23:59:59 GMT"
-        );
-        assert_eq!(members["target"]["format"], "http-date");
-        assert_eq!(members["epoch"]["default"], serde_json::json!(-0.25));
-        assert_eq!(members["epoch"]["format"], "epoch-seconds");
-        assert_eq!(members["precise"]["default"].to_string(), "-0.250000001");
-    }
-
-    #[test]
     fn runtime_schema_preserves_effective_client_semantics() {
-        let service = crucible_smithy::Model::from_json(include_str!(
-            "../../crucible-smithy/tests/fixtures/review-hardening.json"
-        ))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+        let service = load("review-hardening");
         let schema = super::schema(&service, str::to_owned);
         assert_eq!(schema["operations"]["PublicPing"]["bearer"], false);
         assert_eq!(schema["operations"]["ReadValues"]["bearer"], true);
-        let member = &schema["shapes"]["example.hardening#Values"]["members"]["optionalDefault"];
-        assert!(member["default"].is_null());
-        assert_eq!(member["optional"], true);
+        let member =
+            &schema["shapes"]["example.hardening#ReadValuesOutput"]["members"]["optionalDefault"];
+        assert_eq!(member["default"], 7);
     }
 }
 

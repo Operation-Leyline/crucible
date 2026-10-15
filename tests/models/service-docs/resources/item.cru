@@ -1,0 +1,31 @@
+@deprecated(since: "2026-09", message: "Use the next revision.")
+@since("2026-01")
+@unstable
+@externalDocs("Guide" = "https://example.com/guide")
+union Content {
+    /// Item text.
+    @deprecated(since: "2026-09", message: "Use the next revision.")
+    @since("2026-01")
+    @unstable
+    @externalDocs("Guide" = "https://example.com/guide")
+    text: string { length 1..100 }
+    amount: bigInteger
+    sensitive internal secret: string
+}
+
+list Items: Content
+
+enum State {
+    /// Ready.
+    @deprecated(since: "2026-09", message: "Use the next revision.")
+    @since("2026-01")
+    @unstable
+    @externalDocs("Guide" = "https://example.com/guide")
+    READY
+    internal HIDDEN
+}
+
+/// Catalog items.
+resource Item {
+    id itemId: string
+}

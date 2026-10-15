@@ -1,0 +1,5 @@
+error TextError {
+    status 422
+    @payload
+    details?: string
+}

@@ -1,0 +1,5 @@
+service Api {
+    version "1"
+    protocol json
+    operations [Public, Secret]
+}

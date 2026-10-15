@@ -657,6 +657,7 @@ dependencies = [
  "crucible-codegen-swift",
  "crucible-codegen-terraform",
  "crucible-codegen-ts",
+ "crucible-lang",
  "crucible-revision",
  "crucible-smithy",
  "serde",
@@ -683,6 +684,7 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-infra",
+ "crucible-lang",
  "crucible-smithy",
  "serde",
  "serde_json",
@@ -694,6 +696,7 @@ version = "0.7.0"
 dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-rust",
+ "crucible-lang",
  "crucible-smithy",
  "semver",
  "serde_json",
@@ -704,6 +707,7 @@ name = "crucible-codegen-common"
 version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
+ "crucible-lang",
  "crucible-smithy",
  "crucible-wire",
  "pulldown-cmark",
@@ -770,6 +774,7 @@ dependencies = [
 name = "crucible-codegen-infra"
 version = "0.7.0"
 dependencies = [
+ "crucible-lang",
  "crucible-smithy",
  "serde",
  "serde_json",
@@ -886,6 +891,7 @@ dependencies = [
  "crucible-codegen-common",
  "crucible-codegen-go",
  "crucible-codegen-infra",
+ "crucible-lang",
  "crucible-smithy",
  "serde",
  "serde_json",
@@ -932,6 +938,7 @@ dependencies = [
 name = "crucible-policy"
 version = "0.7.0"
 dependencies = [
+ "crucible-lang",
  "crucible-smithy",
  "regex",
  "serde",

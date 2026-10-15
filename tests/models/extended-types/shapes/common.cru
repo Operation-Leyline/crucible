@@ -1,0 +1,14 @@
+list Decimals: bigDecimal { unique }
+
+list Integers: bigInteger { unique }
+
+enum Mode: integer {
+    OFF = -1
+    ON = 2147483647
+}
+
+list Names: string { unique }
+
+sparse map SparseMap: string -> Mode
+
+sparse list SparseNames: string

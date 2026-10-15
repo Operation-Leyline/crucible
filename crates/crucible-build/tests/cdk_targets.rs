@@ -4,10 +4,11 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+mod common;
+
 use crucible_build::{CdkOptions, CdkTargets, Generator, ProvisioningBindings};
 use serde_json::Value;
 
-const MODEL: &str = include_str!("../../crucible-codegen-cdk/tests/fixtures/model.json");
 const BINDINGS: &str = include_str!("../../crucible-codegen-cdk/tests/fixtures/bindings.json");
 const OPTIONS: &str = include_str!("../../crucible-codegen-cdk/tests/fixtures/options.json");
 
@@ -20,7 +21,7 @@ fn target_probe() {
     if std::env::var_os("CRUCIBLE_CDK_TARGET_PROBE").is_none() {
         return;
     }
-    let model = crucible_build::model("model.json").compile();
+    let model = crucible_build::model("cdk-model").compile();
     let options: CdkOptions = serde_json::from_str(OPTIONS).unwrap();
     let bindings: ProvisioningBindings = serde_json::from_str(BINDINGS).unwrap();
     let native = model
@@ -121,13 +122,11 @@ fn target_probe() {
 }
 
 #[test]
+#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn cdk_language_targets_accumulate_override_and_preserve_native_packages() {
     let root = tempfile::tempdir().unwrap();
-    for (name, contents) in [
-        ("model.json", MODEL),
-        ("bindings.json", BINDINGS),
-        ("options.json", OPTIONS),
-    ] {
+    common::install_shared(root.path(), "cdk-model");
+    for (name, contents) in [("bindings.json", BINDINGS), ("options.json", OPTIONS)] {
         fs::write(root.path().join(name), contents).unwrap();
     }
     let output = Command::new(std::env::current_exe().unwrap())

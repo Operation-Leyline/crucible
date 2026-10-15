@@ -20,25 +20,25 @@ def qualify(package):
     for protocol, module in (("crucible.protocols#json", "payloadbindings_client"),):
         output = package.parent / module
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-            "crates/crucible-codegen-python/tests/payload-bindings.json",
+            "tests/models/payload-bindings",
             "--out", str(output), "--package-name", module.replace("_", "-"), "--module-name", module)
         run(sys.executable, "-m", "mypy", str(output / "src"))
         payload_bindings.append(output)
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
+        "tests/models/weather", "--out", str(package),
         "--package-name", "weather-client", "--module-name", "weather_client",
         "--endpoint", "https://weather.example")
     extended = package.parent / "extended"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/extended-types.json", "--out", str(extended),
+        "tests/models/extended-types", "--out", str(extended),
         "--package-name", "types-client", "--module-name", "types_client")
     payload = package.parent / "payload"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/error-payloads.json", "--out", str(payload),
+        "tests/models/error-payloads", "--out", str(payload),
         "--package-name", "wire-client", "--module-name", "wire_client")
     policy = package.parent / "policy"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "crates/crucible-smithy/tests/fixtures/runtime-policy.json", "--out", str(policy),
+        "tests/models/runtime-policy", "--out", str(policy),
         "--package-name", "policy-client", "--module-name", "policy_client")
     # Typed permissions: the open permission types and the registry
     # (tests/test_permissions.py), from the shared .cru fixture.
@@ -49,7 +49,7 @@ def qualify(package):
     protocols = []
     docs = package.parent / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "python",
-        "tests/fixtures/client-docs.json", "--out", str(docs),
+        "tests/models/client-docs", "--out", str(docs),
         "--package-name", "docs-client", "--module-name", "docs_client")
     run(sys.executable, "-m", "mypy", str(docs / "src"))
     protocols.append(docs)

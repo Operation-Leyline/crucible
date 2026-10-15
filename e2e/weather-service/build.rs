@@ -1,35 +1,26 @@
 fn main() {
-    let auth = "tests/fixtures/auth-chain.json";
+    let auth = "tests/fixtures/auth-chain";
     println!("cargo::rerun-if-changed={auth}");
     let auth_out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     std::fs::write(
         auth_out.join("auth_chain.rs"),
         crucible_build::model(auth)
             .server()
+            .custom_rejections()
             .mcp()
             .explorer()
             .render()
             .unwrap(),
     )
     .unwrap();
-    let scopes = "../../crates/crucible-smithy/tests/fixtures/scopes.json";
-    println!("cargo::rerun-if-changed={scopes}");
-    std::fs::write(
-        auth_out.join("scopes.rs"),
-        crucible_build::model(scopes)
-            .server()
-            .mcp()
-            .render()
-            .unwrap(),
-    )
-    .unwrap();
-    let model = "../../crates/crucible-smithy/tests/fixtures/observability.json";
+    let model = "../../tests/models/observability";
     println!("cargo::rerun-if-changed={model}");
     let out = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
     std::fs::write(
         out.join("observability.rs"),
         crucible_build::model(model)
             .server()
+            .custom_rejections()
             .mcp()
             .render()
             .unwrap(),
@@ -40,12 +31,13 @@ fn main() {
         crucible_build::model(model).client().render().unwrap(),
     )
     .unwrap();
-    let model = "tests/fixtures/audience.json";
+    let model = "tests/fixtures/audience";
     println!("cargo::rerun-if-changed={model}");
     std::fs::write(
         out.join("audience_server.rs"),
         crucible_build::model(model)
             .server()
+            .custom_rejections()
             .mcp()
             .explorer()
             .render()
@@ -146,9 +138,10 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // No `.explorer()` yet: the weather description lists the City resource,
+    // and the language does not lower resources (decision 63).
     crucible_build::model("weather_model")
         .server()
-        .explorer()
         .mcp()
         .generate();
 }

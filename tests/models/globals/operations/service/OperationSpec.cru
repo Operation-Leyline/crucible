@@ -1,0 +1,6 @@
+operation OperationSpec {
+    http POST "/operation-spec"
+    output {
+        name?: string
+    }
+}

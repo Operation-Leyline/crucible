@@ -1,5 +1,5 @@
 # frozen_string_literal: true
-# Run against a gem generated from crates/crucible-smithy/tests/fixtures/client-docs.json
+# Run against a gem generated from tests/models/client-docs-vault
 # with module Vault: ruby -I <gem>/lib describe.rb
 require 'pp'
 require 'vault_client'

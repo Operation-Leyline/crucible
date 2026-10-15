@@ -15,12 +15,17 @@ mod generated_api {
 }
 use generated_api::observability as api;
 
+/// `Echo` and `Other` have the same members; each answers with its input.
+fn reflect<I: serde::Serialize, O: serde::de::DeserializeOwned>(input: &I) -> O {
+    serde_json::from_value(serde_json::to_value(input).unwrap()).unwrap()
+}
+
 struct Echo;
 impl api::EchoOperation for Echo {
     async fn echo(
         &self,
-        input: api::Payload,
-    ) -> crucible_server_runtime_rust::Result<api::Payload> {
+        input: api::EchoInput,
+    ) -> crucible_server_runtime_rust::Result<api::EchoOutput> {
         tracing::info!("application event");
         let context = Context::current();
         tokio::spawn(context.scope(async {
@@ -35,15 +40,15 @@ impl api::EchoOperation for Echo {
             }
             .into());
         }
-        Ok(input)
+        Ok(reflect(&input))
     }
 }
 impl api::OtherOperation for Echo {
     async fn other(
         &self,
-        input: api::Payload,
-    ) -> crucible_server_runtime_rust::Result<api::Payload> {
-        Ok(input)
+        input: api::OtherInput,
+    ) -> crucible_server_runtime_rust::Result<api::OtherOutput> {
+        Ok(reflect(&input))
     }
 }
 

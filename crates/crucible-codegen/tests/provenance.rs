@@ -7,17 +7,12 @@ use std::path::Path;
 
 use crucible_codegen::provenance::{Source, Stamp};
 use crucible_codegen::{Audience, Client, File, RuntimeDependency};
-use crucible_smithy::Model;
+mod common;
 use crucible_smithy::ir::Service;
 use sha2::{Digest, Sha256};
 
 fn weather() -> Service {
-    Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap()
+    common::load("weather")
 }
 
 fn rust() -> Client {
@@ -187,12 +182,7 @@ fn the_record_tracks_the_service_and_the_stamp() {
 /// an external package reveals nothing `@internal`.
 #[test]
 fn the_model_snapshot_is_the_audiences_model() {
-    let full = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/internal.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let full = common::load("internal");
     for audience in [Audience::External, Audience::Internal] {
         for client in [rust(), ts()] {
             let files = client.emit_for_audience(&full, audience).unwrap();

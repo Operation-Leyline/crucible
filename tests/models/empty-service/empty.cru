@@ -1,0 +1,4 @@
+service Empty {
+    version "1"
+    protocol json
+}

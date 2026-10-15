@@ -1,0 +1,9 @@
+service Api {
+    version "1"
+    protocol json
+    operations [Ping]
+}
+
+readonly operation Ping {
+    http GET "/"
+}

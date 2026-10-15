@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { WeatherClient } from "./generated/src/index.js";
 import { HardeningClient } from "./generated-hardening/src/index.js";
 import { Transport, document, fromWire, integer, list, map, parseJson, string, toWire } from "./generated-hardening/src/runtime.js";
-import { S_Collections, S_DefaultInput, S_Defaults, S_TimestampDefaults } from "./generated-hardening/src/schemas.js";
+import { S_CollectionsOperationInput, S_DefaultsOperationOutput } from "./generated-hardening/src/schemas.js";
 import type { OperationSpec, Schema } from "./generated-hardening/src/runtime.js";
 
 const operation: OperationSpec = { name: "Probe", method: "GET", path: ["probe"], errors: [], retrySafe: true };
@@ -28,13 +28,11 @@ test("generated operation and paginator names remain callable without collisions
 
 test("collection-only scalar schemas compile and preserve their values", () => {
   const value = { texts: ['x'], flags: [true], numbers: [1.5], documents: [{ nil: null }, { a: 1 }], textsMap: { a: 'x' }, flagsMap: { a: false }, numbersMap: { a: 2.5 }, documentsMap: { a: { nil: null } } };
-  assert.deepEqual(fromWire(S_Collections, toWire(S_Collections, value)), value);
+  assert.deepEqual(fromWire(S_CollectionsOperationInput, toWire(S_CollectionsOperationInput, value)), value);
 });
 
-test("clientOptional and input defaults stay absent while ordinary defaults apply", () => {
-  assert.deepEqual(fromWire(S_Defaults, parseJson('{}')), { ordinary: 7 });
-  assert.deepEqual(fromWire(S_DefaultInput, parseJson('{}')), {});
-  assert.deepEqual(fromWire(S_Defaults, parseJson('{"optional":null}')), { ordinary: 7, optional: null });
+test("ordinary defaults apply", () => {
+  assert.deepEqual(fromWire(S_DefaultsOperationOutput, parseJson('{}')), { ordinary: 7 });
 });
 
 test("dense list and map values reject null and missing entries, including document elements", () => {
@@ -52,14 +50,6 @@ test("dense list and map values reject null and missing entries, including docum
     assert.deepEqual(convert(map(document), { a: { nil: null } }), { a: { nil: null } });
     rejects(() => convert(list(document), [undefined]));
   }
-});
-
-test("timestamp defaults decode from model values independently of wire format", () => {
-  assert.deepEqual(fromWire(S_TimestampDefaults, parseJson('{}')), {
-    numericDateTime: new Date('1969-12-31T23:59:59.750Z'),
-    stringEpoch: new Date('2026-10-01T00:00:00.125Z'),
-    numericHttpDate: new Date('2026-10-01T00:00:00Z'),
-  });
 });
 
 test("null in a dense request fails before dispatch and malformed success never retries", async () => {

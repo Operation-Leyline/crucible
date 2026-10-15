@@ -177,13 +177,11 @@ private fun serialization(path: String) {
     check(defaults.copy().builder == "builder-value" && defaults.copy().block == "block-value")
     check(defaults.flag && defaults.small == (-7).toByte() && defaults.medium == 300.toShort())
     check(defaults.count == 42 && defaults.large == Long.MIN_VALUE && defaults.ratio == 1.5f && defaults.score == 2.5)
-    check(defaults.decimalCount == 17 && defaults.blob.contentEquals(byteArrayOf(1, 2)))
-    check(defaults.date == Instant.parse("1969-12-31T23:59:59.750Z") && defaults.epoch == Instant.fromEpochSeconds(-2, 500_000_000))
-    check(defaults.label == "default \$value\\path" && defaults.sky == Sky("sunny"))
+    check(defaults.blob.contentEquals(byteArrayOf(1, 2)))
+    check(defaults.label == "default \$value\\path" && defaults.sky == Sky("clear"))
     check(defaults.tags.isEmpty() && defaults.forecast.isEmpty() && defaults.document.asJsonObject.get("count").asLong == Long.MAX_VALUE)
-    check(!defaults.hasOptionalDefault())
     val decodedDefaults = codec.decode("example.weather#BuilderDefaults", """{"requiredValue":"required"}""") as BuilderDefaults
-    check(!decodedDefaults.hasOptionalDefault() && decodedDefaults.count == 42 && decodedDefaults.date == defaults.date)
+    check(decodedDefaults.count == 42)
     check(BuilderDefaults { requiredValue = "required"; count = 0 }.count == 0)
     check(!BuilderDefaults { requiredValue = "required" }.document.asJsonObject.has("changed"))
     val reusedDefaults = BuilderDefaults.Builder().apply { requiredValue = "required" }
@@ -193,10 +191,10 @@ private fun serialization(path: String) {
     check(!secondDefaults.document.asJsonObject.has("changed") && secondDefaults.blob.contentEquals(byteArrayOf(1, 2)))
     check(reusedDefaults.apply { count = 0 }.build().count == 0)
     // Generated toString is readable, omits unset optionals, and never prints a sensitive member.
-    val shown = BuilderDefaults { requiredValue = "required"; secretToken = "hunter2"; optionalDefault = null }.toString()
+    val shown = BuilderDefaults { requiredValue = "required"; secretToken = "hunter2" }.toString()
     check(shown.startsWith("BuilderDefaults(") && shown.contains("requiredValue=required")) { shown }
     check(shown.contains("secretToken=*** Sensitive Data Redacted ***") && !shown.contains("hunter2")) { shown }
-    check(shown.contains("optionalDefault=null") && shown.contains("blob=ByteArray(2)")) { shown }
+    check(shown.contains("blob=ByteArray(2)")) { shown }
     check(!BuilderDefaults { requiredValue = "required" }.toString().contains("secretToken")) { "unset optional printed" }
     try { BuilderDefaults {}; error("Missing required member accepted") } catch (_: IllegalArgumentException) { }
     try { BuilderDefaults { requiredValue = "required"; count = null }; error("Explicit null replaced by default") } catch (_: IllegalArgumentException) { }

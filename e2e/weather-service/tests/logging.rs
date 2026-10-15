@@ -15,12 +15,17 @@ mod client {
     include!(concat!(env!("OUT_DIR"), "/observability_client.rs"));
 }
 
+/// `Echo` and `Other` have the same members; each answers with its input.
+fn reflect<I: serde::Serialize, O: serde::de::DeserializeOwned>(input: &I) -> O {
+    serde_json::from_value(serde_json::to_value(input).unwrap()).unwrap()
+}
+
 struct Echo;
 impl api::EchoOperation for Echo {
     async fn echo(
         &self,
-        input: api::Payload,
-    ) -> crucible_server_runtime_rust::Result<api::Payload> {
+        input: api::EchoInput,
+    ) -> crucible_server_runtime_rust::Result<api::EchoOutput> {
         if input.profile.as_ref().and_then(|p| p.name.as_deref()) == Some("fail") {
             return Err(api::SecretError {
                 profile: input.profile,
@@ -28,15 +33,15 @@ impl api::EchoOperation for Echo {
             }
             .into());
         }
-        Ok(input)
+        Ok(reflect(&input))
     }
 }
 impl api::OtherOperation for Echo {
     async fn other(
         &self,
-        input: api::Payload,
-    ) -> crucible_server_runtime_rust::Result<api::Payload> {
-        Ok(input)
+        input: api::OtherInput,
+    ) -> crucible_server_runtime_rust::Result<api::OtherOutput> {
+        Ok(reflect(&input))
     }
 }
 
@@ -206,9 +211,10 @@ async fn literal_queries_select_the_operation_and_the_generated_client_sends_the
     ));
     let client =
         client::ObservabilityClient::new(crucible_client_runtime_rust::Config::new(endpoint));
-    let payload = || serde_json::from_value::<client::Payload>(json!({})).unwrap();
+    let payload = || serde_json::from_value::<client::EchoInput>(json!({})).unwrap();
     client.echo(payload()).await.unwrap();
-    client.other(payload()).await.unwrap();
+    let other = serde_json::from_value::<client::OtherInput>(json!({})).unwrap();
+    client.other(other).await.unwrap();
     server.abort();
     let records = records.0.lock().unwrap();
     assert_eq!(records[5]["operation"], "Echo");
@@ -241,14 +247,16 @@ fn exact_query_values_outrank_any_value_matches() {
                 base.traits,
             )
         };
-        type Input = api::Payload;
-        type Output = api::Payload;
+        type Input = api::EchoInput;
+        type Output = api::EchoInput;
     }
 
     // Echo sorts before Other, so a tie would incorrectly select Echo.
     let operations = crucible_server_runtime_rust::Operations::builder(&api::SERVICE)
         .add::<AnyMode, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
-        .add::<api::Other, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<api::Other, _, _>(Arc::new(()), |_, input| {
+            Box::pin(async move { Ok(reflect(&input)) })
+        })
         .build()
         .unwrap();
     for (uri, expected) in [
@@ -319,7 +327,7 @@ impl serde::Serialize for BrokenOutput {
 struct BrokenEcho;
 impl Operation for BrokenEcho {
     const INFO: &'static crucible_server_runtime_rust::OperationInfo = api::Echo::INFO;
-    type Input = api::Payload;
+    type Input = api::EchoInput;
     type Output = BrokenOutput;
 }
 
@@ -328,7 +336,9 @@ async fn serialization_faults_are_logged_after_writing_and_scopes_still_apply() 
     let records = Records::default();
     let operations = crucible_server_runtime_rust::Operations::builder(&api::SERVICE)
         .add::<BrokenEcho, _, _>(Arc::new(()), |_, _| Box::pin(async { Ok(BrokenOutput) }))
-        .add::<api::Other, _, _>(Arc::new(()), |_, input| Box::pin(async { Ok(input) }))
+        .add::<api::Other, _, _>(Arc::new(()), |_, input| {
+            Box::pin(async move { Ok(reflect(&input)) })
+        })
         .build()
         .unwrap();
     let service = Crucible::builder(operations)

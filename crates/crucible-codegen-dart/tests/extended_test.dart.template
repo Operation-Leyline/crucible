@@ -9,7 +9,7 @@ void main() {
   final codec = WireCodec(wireObject(exactJsonDecode(schemaSource)), decodeModel);
   test('exact defaults, sparse collections and future integer enum', () {
     final node = exactJsonDecode('{"mode":123,"names":["a","b"],"sparseNames":[null,"x"],"sparseMap":{"absent":null,"future":123}}');
-    final output = codec.decode(node, codec.context('example.types#Output')) as Output;
+    final output = codec.decode(node, codec.context('example.types#ReadOutput')) as ReadOutput;
     expect(output.integer.toString(), '12345678901234567890123456789012345678901234567890');
     expect(output.decimal.toString(), '12345678901234567890.12345678901234567890123456789');
     expect(output.mode!.value, 123);
@@ -17,7 +17,7 @@ void main() {
     expect(output.sparseMap!.containsKey('absent'), isTrue);
     expect(output.sparseMap!['absent'], isNull);
     expect(output.sparseMap!['future']!.value, 123);
-    final encoded = wireObject(codec.encode(output, codec.context('example.types#Output')));
+    final encoded = wireObject(codec.encode(output, codec.context('example.types#ReadOutput')));
     expect(jsonEquivalent(encoded['sparseNames'], wireObject(node)['sparseNames']), isTrue);
     expect(jsonEquivalent(encoded['sparseMap'], wireObject(node)['sparseMap']), isTrue);
   });

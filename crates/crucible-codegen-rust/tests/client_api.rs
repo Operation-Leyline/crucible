@@ -1,12 +1,9 @@
 use crucible_codegen_rust::{ClientOptions, emit_client_package, generate_client};
-use crucible_smithy::Model;
-use serde_json::{Value, json};
-
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
 #[test]
 fn sdk_exposes_models_and_exceptions_directly() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = common::load("weather");
     let code = generate_client(&service).unwrap();
     assert!(code.contains("pub use model::{"));
     assert!(code.contains("pub use errors::{"));
@@ -33,13 +30,8 @@ fn flattened_names_diagnose_collisions_before_emitting_code() {
         "GET_CITY_OPERATION",
         "__redaction",
     ] {
-        let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-        ast["shapes"]["example.weather#Weather"]["rename"] =
-            json!({"example.weather#GetCityInput": name});
-        let service = Model::from_json(&ast.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let mut service = common::load("weather");
+        common::rename(&mut service, &[("example.weather#GetCityInput", name)]);
         let diagnostics = generate_client(&service).unwrap_err().to_string();
         assert!(
             diagnostics.contains("example.weather#GetCityInput"),
@@ -52,13 +44,11 @@ fn flattened_names_diagnose_collisions_before_emitting_code() {
 
 #[test]
 fn modeled_errors_colliding_with_operation_errors_are_diagnosed() {
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    ast["shapes"]["example.weather#Weather"]["rename"] =
-        json!({"example.weather#NotFoundError": "GetCityError"});
-    let service = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut service = common::load("weather");
+    common::rename(
+        &mut service,
+        &[("example.weather#NotFoundError", "GetCityError")],
+    );
     let diagnostics = generate_client(&service).unwrap_err().to_string();
     assert!(
         diagnostics.contains("example.weather#NotFoundError"),
@@ -69,42 +59,38 @@ fn modeled_errors_colliding_with_operation_errors_are_diagnosed() {
 
 #[test]
 fn flat_exports_are_deterministic() {
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    let service = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
-    let expected = generate_client(&service).unwrap();
-    let shapes = ast["shapes"].as_object_mut().unwrap();
-    let reversed: Vec<_> = shapes.clone().into_iter().rev().collect();
-    shapes.clear();
-    shapes.extend(reversed);
-    let service = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let expected = generate_client(&common::load("weather")).unwrap();
+    let service = common::load_with("weather", |package| package.files.reverse());
     assert_eq!(expected, generate_client(&service).unwrap());
 }
 
 #[test]
 fn sensitive_enum_debug_does_not_rewrite_documentation() {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    for (name, kind, value) in [
-        ("SecretEnum", "enum", json!("known")),
-        ("SecretIntEnum", "intEnum", json!(1)),
-    ] {
-        let id = format!("example.weather#{name}");
-        model["shapes"][&id] = json!({
-            "type": kind,
-            "traits": {"smithy.api#sensitive": {}, "smithy.api#documentation": "Debug, for example #[derive(Debug, Clone)]"},
-            "members": {"Known": {"target": "smithy.api#Unit", "traits": {"smithy.api#enumValue": value, "smithy.api#documentation": "Debug, member documentation"}}}
+    let service = common::load_with("weather", |package| {
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                "        location?: Location\n",
+                "        location?: Location\n        secretEnum?: SecretEnum\n        secretIntEnum?: SecretIntEnum\n",
+            );
+        }
+        package.files.push(crucible_lang::SourceFile {
+            path: "secrets.cru".into(),
+            text: r#"
+/// Debug, for example #[derive(Debug, Clone)]
+sensitive enum SecretEnum {
+    /// Debug, member documentation
+    Known = "known"
+}
+
+/// Debug, for example #[derive(Debug, Clone)]
+sensitive enum SecretIntEnum: integer {
+    /// Debug, member documentation
+    Known = 1
+}
+"#
+            .into(),
         });
-        model["shapes"]["example.weather#CreateCityInput"]["members"][name] = json!({"target": id});
-    }
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
-        .unwrap();
+    });
     let code = generate_client(&service).unwrap();
     assert_eq!(
         // Model docs are escaped for rustdoc (a bare `[x]` is no link), and

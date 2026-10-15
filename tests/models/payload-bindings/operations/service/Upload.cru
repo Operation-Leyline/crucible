@@ -1,0 +1,9 @@
+idempotent operation Upload {
+    http PUT "/upload" -> 200
+    input {
+        @payload
+        data?: blob
+        @header("CoNtEnT-TyPe")
+        contentType?: string
+    }
+}

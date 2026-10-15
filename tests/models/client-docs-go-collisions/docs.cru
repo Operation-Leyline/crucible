@@ -1,0 +1,5 @@
+service Docs {
+    version "1"
+    protocol json
+    operations [Inspect]
+}

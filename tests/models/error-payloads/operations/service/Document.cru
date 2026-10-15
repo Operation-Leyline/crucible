@@ -1,0 +1,11 @@
+operation Document {
+    http POST "/document" -> 200
+    input {
+        @payload
+        document?: Record
+    }
+    output {
+        @payload
+        document?: Record
+    }
+}

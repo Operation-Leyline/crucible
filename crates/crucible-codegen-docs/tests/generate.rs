@@ -3,27 +3,45 @@ use std::fs;
 use std::path::Path;
 
 use crucible_codegen_docs::generate;
-use crucible_smithy::{Audience, Model, project};
-use serde_json::{Value, json};
+use crucible_smithy::{Audience, project};
+use serde_json::Value;
 
-const WEATHER: &str =
-    include_str!("../../crucible-smithy/tests/fixtures/service-docs-weather.json");
-const CATALOG: &str = include_str!("../../crucible-smithy/tests/fixtures/service-docs.json");
+const WEATHER: &str = "service-docs-weather";
+const CATALOG: &str = "service-docs";
 
-fn files(source: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
-    let service = Model::from_json(source)
-        .unwrap()
-        .lower_documentation(None)
-        .unwrap();
-    generate(&project(&service, audience).unwrap()).unwrap()
+fn package_dir(name: &str) -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+
+/// The package's service as the reference describes it. A `.cru` package
+/// carries no resource metadata for the reference yet, so its operations are
+/// listed as the service's own.
+fn documented(name: &str) -> crucible_smithy::ir::Service {
+    let mut service = ungrouped(name);
+    for operation in &mut service.operations {
+        operation.resource = None;
+    }
+    service
+}
+
+/// The package's lowered service, operations still tied to their resources.
+fn ungrouped(name: &str) -> crucible_smithy::ir::Service {
+    crucible_lang::load_service(&package_dir(name))
+        .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
+}
+
+fn files(name: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
+    generate(&project(&documented(name), audience).unwrap()).unwrap()
 }
 
 /// The renderer is identical for every service; `golden/site` holds its single
 /// reviewed copy, so a runtime edit shows up once rather than in every fixture.
 const SITE_RUNTIME: [&str; 3] = ["index.html", "explorer.js", "explorer.css"];
 
-fn golden(name: &str, source: &str, audience: Audience) {
-    golden_files(name, files(source, audience));
+fn golden(name: &str, package: &str, audience: Audience) {
+    golden_files(name, files(package, audience));
 }
 
 fn golden_files(name: &str, files: Vec<crucible_codegen_docs::File>) {
@@ -97,10 +115,7 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
 }
 
-/// The fixture as the reference describes it. A `.cru` package carries no
-/// resource metadata for the reference yet (only Smithy's
-/// `lower_documentation` fills `Service::resources`), so its operations are
-/// listed as the service's own.
+/// The fixture as the reference describes it; see [`documented`].
 fn leyline() -> crucible_smithy::ir::Service {
     let mut service = leyline_with(|text| text);
     for operation in &mut service.operations {
@@ -317,18 +332,18 @@ fn raw_payload_syntax_uses_the_resolved_content_type_once() {
 }
 
 #[test]
-fn model_object_order_does_not_change_description_or_pages() {
-    let mut value: Value = serde_json::from_str(CATALOG).unwrap();
-    let mut reversed: Vec<_> = value["shapes"]
-        .as_object()
-        .unwrap()
-        .iter()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    reversed.reverse();
-    value["shapes"] = Value::Object(reversed.into_iter().collect());
+fn model_file_order_does_not_change_description_or_pages() {
+    let reordered = {
+        let mut package = crucible_lang::load_package(&package_dir(CATALOG)).unwrap();
+        package.files.reverse();
+        let compiled = crucible_lang::compile(&package, None);
+        let mut service = compiled.service.expect("the package compiles");
+        for operation in &mut service.operations {
+            operation.resource = None;
+        }
+        generate(&project(&service, Audience::External).unwrap()).unwrap()
+    };
     let original = files(CATALOG, Audience::External);
-    let reordered = files(&value.to_string(), Audience::External);
     assert_eq!(
         original
             .iter()
@@ -343,10 +358,7 @@ fn model_object_order_does_not_change_description_or_pages() {
 
 #[test]
 fn missing_targets_are_collected() {
-    let mut service = Model::from_json(CATALOG)
-        .unwrap()
-        .lower_documentation(None)
-        .unwrap();
+    let mut service = documented(CATALOG);
     service
         .shapes
         .remove(&"example.docs#Content".parse().unwrap());
@@ -356,17 +368,14 @@ fn missing_targets_are_collected() {
 
 #[test]
 fn documentation_requires_the_resource_projection_and_detects_filename_collisions() {
-    let ordinary = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let ordinary = ungrouped(WEATHER);
     assert!(
         generate(&ordinary)
             .unwrap_err()
             .to_string()
             .contains("describe.resources")
     );
-    let mut service = Model::from_json(CATALOG)
-        .unwrap()
-        .lower_documentation(None)
-        .unwrap();
+    let mut service = documented(CATALOG);
     let mut duplicate = service.operations[0].clone();
     duplicate.id = "example.docs#listitems".parse().unwrap();
     duplicate.resource = None;
@@ -381,13 +390,29 @@ fn documentation_requires_the_resource_projection_and_detects_filename_collision
 
 #[test]
 fn file_description_preserves_arbitrary_example_keys() {
-    let mut source: Value = serde_json::from_str(WEATHER).unwrap();
-    source["shapes"]["example.weather#ExampleDocument"] = json!({"type": "document"});
-    source["shapes"]["example.weather#CreateCityInput"]["members"]["metadata"] =
-        json!({"target": "example.weather#ExampleDocument"});
-    source["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#examples"][0]["input"]["metadata"] =
-        json!({"__proto__": {"example": true}});
-    let generated = files(&source.to_string(), Audience::Internal);
+    let mut package = crucible_lang::load_package(&package_dir(WEATHER)).unwrap();
+    for file in &mut package.files {
+        file.text = file
+            .text
+            .replace("\r\n", "\n")
+            .replace(
+                "        location?: Location\n        @token",
+                "        location?: Location\n        metadata?: document\n        @token",
+            )
+            .replace(
+                "input { name: \"Lisbon\", location:",
+                "input { name: \"Lisbon\", metadata: { \"__proto__\": { example: true } }, location:",
+            );
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    let mut service = compiled
+        .service
+        .unwrap_or_else(|| panic!("the package compiles:\n{rendered}"));
+    for operation in &mut service.operations {
+        operation.resource = None;
+    }
+    let generated = generate(&project(&service, Audience::Internal).unwrap()).unwrap();
     let script = &generated
         .iter()
         .find(|f| f.path == "describe.js")

@@ -262,7 +262,7 @@ public final class ClientTest {
                 null);
     check(absent.population == 0, "default missing");
     var input = new CreateCityInput();
-    input.name = OptionalValue.of("x");
+    input.name = "x";
     input.location = OptionalValue.of(null);
     var encoded = runtime.encode("example.weather#CreateCityInput", input, null).getAsJsonObject();
     check(encoded.get("location").isJsonNull() && !encoded.has("clientToken"), "presence lost");
@@ -314,7 +314,7 @@ public final class ClientTest {
       config.idempotencyToken = () -> { tokenCalls.incrementAndGet(); return "deterministic-idempotency-token"; };
       var client = new WeatherClient(config);
       var input = new CreateCityInput();
-      input.name = OptionalValue.of("é");
+      input.name = "é";
       input.expectedRevision = OptionalValue.of(7L);
       var city = client.createCityAsync(input).get(5, TimeUnit.SECONDS);
       check(city.city.name.equals("é"), "typed output");
@@ -338,7 +338,7 @@ public final class ClientTest {
             })) {
       var client = new WeatherClient(server.config());
       var input = new GetCityInput();
-      input.cityId = OptionalValue.of("a/b c~é*");
+      input.cityId = "a/b c~é*";
       var output = client.getCity(input);
       check(
           output.requestId.value().equals("req-1")
@@ -506,15 +506,15 @@ public final class ClientTest {
             })) {
       var client = new WeatherClient(server.config());
       var put = new PutCityPhotoInput();
-      put.cityId = OptionalValue.of("c-00000001");
+      put.cityId = "c-00000001";
       put.caption = OptionalValue.of("harbour");
-      put.photo = OptionalValue.of(photo);
+      put.photo = photo;
       var stored = client.putCityPhoto(put);
       check(
           java.util.Arrays.equals(stored.photo.thumbnail, java.util.Arrays.copyOf(photo, 9)),
           "base64 thumbnail");
       var get = new GetCityPhotoInput();
-      get.cityId = OptionalValue.of("c-00000001");
+      get.cityId = "c-00000001";
       var read = client.getCityPhoto(get);
       check(java.util.Arrays.equals(read.photo.value(), photo), "payload read raw");
       check("harbour".equals(read.caption.value()), "payload header member");

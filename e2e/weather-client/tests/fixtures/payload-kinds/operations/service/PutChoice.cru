@@ -1,0 +1,11 @@
+idempotent operation PutChoice {
+    http PUT "/choice" -> 200
+    input {
+        @payload
+        choice?: Choice
+    }
+    output {
+        @payload
+        choice?: Choice
+    }
+}

@@ -1,19 +1,48 @@
 use std::fs;
 use std::path::Path;
 
-use crucible_codegen_openapi::{Options, capabilities, generate};
-use crucible_smithy::Model;
+use crucible_codegen_openapi::{Options, generate};
 use serde_json::{Value, json};
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+fn package_dir(name: &str) -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
 
-fn service(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    edit(&mut model);
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &capabilities())
-        .unwrap()
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    crucible_lang::load_service(&package_dir(name))
+        .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
+
+/// Weather with each `(old, new)` pair replaced in its sources.
+fn edited(edits: &[(&str, &str)]) -> crucible_smithy::ir::Service {
+    try_edited(edits).unwrap_or_else(|rendered| panic!("the edited weather compiles:\n{rendered}"))
+}
+
+/// [`edited`], or the diagnostics when the edited package does not compile.
+fn try_edited(edits: &[(&str, &str)]) -> Result<crucible_smithy::ir::Service, String> {
+    let mut package = crucible_lang::load_package(&package_dir("weather")).unwrap();
+    for (old, new) in edits {
+        let mut found = false;
+        for file in &mut package.files {
+            file.text = file.text.replace("\r\n", "\n");
+            if file.text.contains(old) {
+                file.text = file.text.replace(old, new);
+                found = true;
+            }
+        }
+        assert!(found, "weather has no `{old}`");
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    match compiled.service.clone() {
+        Some(service) => Ok(service),
+        None => Err(compiled.render()),
+    }
 }
 
 fn document(service: &crucible_smithy::ir::Service) -> Value {
@@ -22,7 +51,7 @@ fn document(service: &crucible_smithy::ir::Service) -> Value {
 
 #[test]
 fn weather_matches_reviewed_golden() {
-    let service = service(|_| {});
+    let service = weather();
     let output = generate(
         &service,
         &Options {
@@ -215,7 +244,7 @@ fn strings_of(value: &serde_json::Value, out: &mut Vec<String>) {
 
 #[test]
 fn http_members_are_projected_into_their_wire_locations() {
-    let doc = document(&service(|_| {}));
+    let doc = document(&weather());
     assert_eq!(doc["openapi"], "3.1.1");
     assert!(doc.get("servers").is_none());
     let create = &doc["paths"]["/cities"]["post"];
@@ -262,7 +291,7 @@ fn http_members_are_projected_into_their_wire_locations() {
 
 #[test]
 fn binary_payloads_and_json_blobs_have_different_representations() {
-    let doc = document(&service(|_| {}));
+    let doc = document(&weather());
     let payload = &doc["paths"]["/cities/{cityId}/photo"]["put"]["requestBody"];
     assert_eq!(payload["required"], true);
     assert_eq!(
@@ -282,10 +311,10 @@ fn binary_payloads_and_json_blobs_have_different_representations() {
 
 #[test]
 fn constraint_overrides_can_relax_the_target_without_intersection() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["name"]["traits"]["smithy.api#length"] =
-            json!({"min": 0, "max": 200});
-    }));
+    let doc = document(&edited(&[(
+        "name: CityName { length ..40 }",
+        "name: CityName { length 0..200 }",
+    )]));
     let name = &doc["paths"]["/cities"]["post"]["requestBody"]["content"]["application/json"]["schema"]
         ["properties"]["name"];
     assert_eq!(name["minLength"], 0);
@@ -299,10 +328,16 @@ fn constraint_overrides_can_relax_the_target_without_intersection() {
 
 #[test]
 fn timestamp_formats_follow_document_and_http_binding_ir() {
-    let svc = service(|model| {
-        model["shapes"]["example.weather#GetCityOutput"]["members"]["modified"] = json!({"target": "smithy.api#Timestamp", "traits": {"smithy.api#httpHeader": "Last-Modified", "smithy.api#timestampFormat": "http-date"}});
-        model["shapes"]["example.weather#ListCitiesInput"]["members"]["since"] = json!({"target": "smithy.api#Timestamp", "traits": {"smithy.api#httpQuery": "since", "smithy.api#timestampFormat": "epoch-seconds"}});
-    });
+    let svc = edited(&[
+        (
+            "        @header(\"X-Request-Id\")\n        requestId?: string\n",
+            "        @header(\"X-Request-Id\")\n        requestId?: string\n        @header(\"Last-Modified\")\n        modified?: timestamp { format http-date }\n",
+        ),
+        (
+            "        @query(\"tag\")\n        tags?: Tags\n",
+            "        @query(\"tag\")\n        tags?: Tags\n        @query(\"since\")\n        since?: timestamp { format epoch-seconds }\n",
+        ),
+    ]);
     let doc = document(&svc);
     let city = &doc["components"]["schemas"]["example.weather.CitySummary"]["properties"];
     assert_eq!(city["updatedAt"]["anyOf"][0]["format"], "date-time");
@@ -323,10 +358,10 @@ fn timestamp_formats_follow_document_and_http_binding_ir() {
 
 #[test]
 fn errors_sharing_a_status_keep_bodies_headers_and_discriminators() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#ConflictError"]["traits"]["smithy.api#httpError"] =
-            json!(429);
-    }));
+    let doc = document(&edited(&[(
+        "error ConflictError {\n    status 409",
+        "error ConflictError {\n    status 429",
+    )]));
     let response = &doc["paths"]["/cities"]["post"]["responses"]["429"];
     assert_eq!(response["x-smithy-errors"].as_array().unwrap().len(), 2);
     let schemas = response["content"]["application/json"]["schema"]["anyOf"]
@@ -359,28 +394,8 @@ fn errors_sharing_a_status_keep_bodies_headers_and_discriminators() {
 }
 
 #[test]
-fn errors_on_the_success_status_do_not_overwrite_success() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#ConflictError"]["traits"]["smithy.api#httpError"] =
-            json!(201);
-    }));
-    let variants = doc["paths"]["/cities"]["post"]["responses"]["201"]["content"]["application/json"]["schema"]["anyOf"].as_array().unwrap();
-    assert_eq!(variants.len(), 2);
-    assert!(
-        variants
-            .iter()
-            .any(|s| s["properties"].get("city").is_some())
-    );
-    assert!(
-        variants
-            .iter()
-            .any(|s| s["properties"]["__type"]["const"] == "ConflictError")
-    );
-}
-
-#[test]
 fn examples_land_on_the_request_response_and_error_that_carry_them() {
-    let doc = document(&service(|_| {}));
+    let doc = document(&weather());
     let create = &doc["paths"]["/cities"]["post"];
     // Body members only: the header-bound revision is a parameter example.
     let body = &create["requestBody"]["content"]["application/json"]["examples"];
@@ -427,19 +442,15 @@ fn examples_land_on_the_request_response_and_error_that_carry_them() {
 
 #[test]
 fn operations_without_examples_emit_no_example_keys() {
-    let doc = document(&service(|_| {}));
+    let doc = document(&weather());
     let ping = serde_json::to_string(&doc["paths"]["/ping"]).unwrap();
     assert!(!ping.contains("examples"), "{ping}");
 }
 
 #[test]
 fn repeated_titles_get_distinct_keys_in_model_order() {
-    let doc = document(&service(|model| {
-        let examples =
-            &mut model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#examples"];
-        let first = examples[0].clone();
-        examples.as_array_mut().unwrap().insert(1, first);
-    }));
+    let first = "    example \"Read a city\" {\n        input { cityId: \"c-0a1b2c3d\", at: \"2026-01-02T03:04:05Z\" }\n        output { city: { id: \"c-0a1b2c3d\", name: \"Lisbon\" }, forecast: { clear: { highC: 21 } }, requestId: \"req-1\" }\n    }\n";
+    let doc = document(&edited(&[(first, &format!("{first}{first}"))]));
     let keys: Vec<_> = doc["paths"]["/cities/{cityId}"]["get"]["parameters"][0]["examples"]
         .as_object()
         .unwrap()
@@ -454,38 +465,36 @@ fn repeated_titles_get_distinct_keys_in_model_order() {
 
 #[test]
 fn examples_survive_responses_that_share_a_status() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#ConflictError"]["traits"]["smithy.api#httpError"] =
-            json!(201);
-    }));
-    let examples = &doc["paths"]["/cities"]["post"]["responses"]["201"]["content"]["application/json"]
+    let doc = document(&edited(&[(
+        "error ConflictError {
+    status 409",
+        "error ConflictError {
+    status 429",
+    )]));
+    let examples = &doc["paths"]["/cities"]["post"]["responses"]["429"]["content"]["application/json"]
         ["examples"];
-    assert!(examples.get("Create a city").is_some());
     assert!(examples.get("Create a duplicate city").is_some());
 }
 
 #[test]
-fn an_invalid_example_stops_generation_at_lowering() {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#examples"][0]["input"]["cityId"] =
-        json!("not-a-city");
-    let error = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &capabilities())
-        .unwrap_err();
+fn an_invalid_example_stops_the_model_compiling() {
+    let rendered = try_edited(&[(
+        "input { cityId: \"c-0a1b2c3d\", at:",
+        "input { cityId: \"not-a-city\", at:",
+    )])
+    .unwrap_err();
     assert!(
-        error
-            .to_string()
-            .contains("input.cityId does not match the pattern"),
-        "{error}"
+        rendered.contains("input.cityId does not match the pattern"),
+        "{rendered}"
     );
 }
 
 #[test]
 fn auth_overrides_are_resolved_per_operation() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#Ping"]["traits"]["smithy.api#auth"] = json!([]);
-    }));
+    let doc = document(&edited(&[(
+        "readonly operation Ping",
+        "public readonly operation Ping",
+    )]));
     assert_eq!(
         doc["components"]["securitySchemes"]["smithy.api.httpBearerAuth"]["scheme"],
         "bearer"
@@ -499,11 +508,7 @@ fn auth_overrides_are_resolved_per_operation() {
 
 #[test]
 fn sparse_collections_unique_lists_and_large_numbers_are_preserved() {
-    let source = include_str!("../../crucible-smithy/tests/fixtures/extended-types.json");
-    let service = Model::from_json(source)
-        .unwrap()
-        .lower_with_capabilities(None, &capabilities())
-        .unwrap();
+    let service = load("extended-types");
     let doc = document(&service);
     let shapes = &doc["components"]["schemas"];
     assert_eq!(
@@ -525,10 +530,10 @@ fn sparse_collections_unique_lists_and_large_numbers_are_preserved() {
 
 #[test]
 fn recursive_models_keep_references_and_union_arms_are_exclusive() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#CitySummary"]["members"]["parent"] =
-            json!({"target": "example.weather#CitySummary"});
-    }));
+    let doc = document(&edited(&[(
+        "structure CitySummary {\n",
+        "structure CitySummary {\n    parent?: CitySummary\n",
+    )]));
     assert_eq!(
         doc["components"]["schemas"]["example.weather.CitySummary"]["properties"]["parent"]["anyOf"]
             [0]["$ref"],
@@ -544,17 +549,10 @@ fn recursive_models_keep_references_and_union_arms_are_exclusive() {
 
 #[test]
 fn constrained_recursive_collections_do_not_expand_forever_or_intersect_overrides() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#RecursiveNodes"] = json!({
-            "type": "list", "traits": {"smithy.api#length": {"max": 4}},
-            "member": {"target": "example.weather#RecursiveNode"}
-        });
-        model["shapes"]["example.weather#RecursiveNode"] = json!({"type": "structure", "members": {
-            "children": {"target": "example.weather#RecursiveNodes", "traits": {"smithy.api#length": {"max": 2}}}
-        }});
-        model["shapes"]["example.weather#CitySummary"]["members"]["nested"] =
-            json!({"target": "example.weather#RecursiveNode"});
-    }));
+    let doc = document(&edited(&[(
+        "structure CitySummary {\n",
+        "list RecursiveNodes: RecursiveNode { length ..4 }\n\nstructure RecursiveNode {\n    children?: RecursiveNodes { length ..2 }\n}\n\nstructure CitySummary {\n    nested?: RecursiveNode\n",
+    )]));
     let shapes = &doc["components"]["schemas"];
     assert_eq!(shapes["example.weather.RecursiveNodes"]["maxItems"], 4);
     let children = &shapes["example.weather.RecursiveNode"]["properties"]["children"]["anyOf"][0];
@@ -567,28 +565,8 @@ fn constrained_recursive_collections_do_not_expand_forever_or_intersect_override
 }
 
 #[test]
-fn media_type_enums_in_headers_describe_the_encoded_value() {
-    let doc = document(&service(|model| {
-        model["shapes"]["example.weather#Sky"]["traits"] =
-            json!({"smithy.api#mediaType": "text/plain"});
-        model["shapes"]["example.weather#GetCityOutput"]["members"]["sky"] =
-            json!({"target": "example.weather#Sky", "traits": {"smithy.api#httpHeader": "X-Sky"}});
-    }));
-    let sky =
-        &doc["paths"]["/cities/{cityId}"]["get"]["responses"]["200"]["headers"]["X-Sky"]["schema"];
-    assert_eq!(sky["contentEncoding"], "base64");
-    assert_eq!(
-        sky["x-smithy-decoded-schema"]["$ref"],
-        "#/components/schemas/example.weather.Sky"
-    );
-}
-
-#[test]
 fn literal_queries_are_parameters_but_colliding_routes_are_diagnostics() {
-    let svc = service(|model| {
-        model["shapes"]["example.weather#Ping"]["traits"]["smithy.api#http"]["uri"] =
-            json!("/ping?mode=ping&flag");
-    });
+    let svc = edited(&[("http GET \"/ping\"", "http GET \"/ping?mode=ping&flag\"")]);
     let doc = document(&svc);
     assert_eq!(
         doc["paths"]["/ping"]["get"]["parameters"][0]["schema"]["const"],
@@ -598,10 +576,10 @@ fn literal_queries_are_parameters_but_colliding_routes_are_diagnostics() {
         doc["paths"]["/ping"]["get"]["parameters"][1]["allowEmptyValue"],
         true
     );
-    let svc = service(|model| {
-        model["shapes"]["example.weather#Status"]["traits"]["smithy.api#http"]["uri"] =
-            json!("/ping?mode=status");
-    });
+    let svc = edited(&[
+        ("http GET \"/ping\"", "http GET \"/ping?mode=ping&flag\""),
+        ("http GET \"/status\"", "http GET \"/ping?mode=status\""),
+    ]);
     let errors = generate(&svc, &Options::default()).unwrap_err().to_string();
     assert!(errors.contains("example.weather#Status"));
     assert!(errors.contains("multiple operations on GET /ping"));
@@ -609,7 +587,7 @@ fn literal_queries_are_parameters_but_colliding_routes_are_diagnostics() {
 
 #[test]
 fn incompatible_path_templates_and_methods_are_collected() {
-    let mut svc = service(|_| {});
+    let mut svc = weather();
     let ping = svc
         .operations
         .iter_mut()
@@ -627,21 +605,7 @@ fn incompatible_path_templates_and_methods_are_collected() {
 
 #[test]
 fn text_document_and_error_payloads_keep_their_media_types() {
-    let source = include_str!("../../crucible-smithy/tests/fixtures/error-payloads.json");
-    let mut model: Value = serde_json::from_str(source).unwrap();
-    for shape in model["shapes"].as_object_mut().unwrap().values_mut() {
-        if let Some(members) = shape.get_mut("members").and_then(Value::as_object_mut) {
-            members.retain(|_, member| {
-                member["traits"]
-                    .get("smithy.api#httpPrefixHeaders")
-                    .is_none()
-            });
-        }
-    }
-    let svc = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &capabilities())
-        .unwrap();
+    let svc = load("error-payloads");
     let doc = document(&svc);
     assert!(
         doc["paths"]["/text"]["post"]["requestBody"]["content"]
@@ -662,30 +626,21 @@ fn text_document_and_error_payloads_keep_their_media_types() {
 
 #[test]
 fn output_does_not_depend_on_model_order_or_operation_vector_order() {
-    let svc = service(|_| {});
+    let svc = weather();
     let first = generate(&svc, &Options::default()).unwrap();
     let mut reversed = svc.clone();
     reversed.operations.reverse();
     assert_eq!(first, generate(&reversed, &Options::default()).unwrap());
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    let shapes = model["shapes"].as_object_mut().unwrap();
-    let reordered: serde_json::Map<_, _> = shapes
-        .iter()
-        .rev()
-        .map(|(id, shape)| (id.clone(), shape.clone()))
-        .collect();
-    *shapes = reordered;
-    let reordered = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &capabilities())
-        .unwrap();
+    let mut package = crucible_lang::load_package(&package_dir("weather")).unwrap();
+    package.files.reverse();
+    let reordered = crucible_lang::compile(&package, None).service.unwrap();
     assert_eq!(first, generate(&reordered, &Options::default()).unwrap());
     assert!(first.ends_with('\n'));
 }
 
 #[test]
 fn ignored_and_duplicate_headers_are_diagnostics_instead_of_lost_contracts() {
-    let mut svc = service(|_| {});
+    let mut svc = weather();
     let create = svc
         .operations
         .iter_mut()

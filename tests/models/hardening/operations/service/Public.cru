@@ -1,0 +1,3 @@
+readonly public operation Public {
+    http GET "/Public"
+}

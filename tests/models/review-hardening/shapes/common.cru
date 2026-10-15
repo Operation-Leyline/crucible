@@ -1,0 +1,3 @@
+map StringMap: string -> string
+
+list Strings: string

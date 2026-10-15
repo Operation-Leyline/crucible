@@ -1,0 +1,5 @@
+service PayloadBindings {
+    version "1"
+    protocol json
+    operations [PutDocument, PutRecord, Upload]
+}

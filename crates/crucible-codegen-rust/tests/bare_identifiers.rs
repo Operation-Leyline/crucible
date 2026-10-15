@@ -3,6 +3,7 @@
 //! and SDK must still compile, so each is checked with `cargo check`.
 #[path = "../../../tests/support/cargo_target.rs"]
 mod cargo_target;
+mod common;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,31 +12,25 @@ use std::process::Command;
 use crucible_codegen_rust::{
     ClientOptions, Options, RuntimeDependency, emit_client_package, generate,
 };
-use crucible_smithy::Model;
-use serde_json::{Value, json};
-
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
 
 fn service() -> crucible_smithy::ir::Service {
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    ast["shapes"]["example.weather#Weather"]["rename"] = json!({
-        "example.weather#Coordinates": "Option",
-        "example.weather#ValidationField": "Validator",
-        "example.weather#Location": "Validate",
-        "example.weather#NotFoundError": "Fault",
-        "example.weather#ConflictError": "ErrorInfo",
-    });
-    // An intEnum generates `from_i32 -> Option<Self>`.
-    ast["shapes"]["example.weather#Level"] = json!({ "type": "intEnum", "members": {
-        "LOW": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": 1 } },
-        "HIGH": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": 2 } },
-    } });
-    ast["shapes"]["example.weather#CitySummary"]["members"]["level"] =
-        json!({ "target": "example.weather#Level" });
-    Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .unwrap()
+    // An integer enum generates `from_i32 -> Option<Self>`.
+    let mut service = common::load_replacing(
+        "weather",
+        "    createdAt?: timestamp { format epoch-seconds }\n}\n",
+        "    createdAt?: timestamp { format epoch-seconds }\n    level?: Level\n}\n\nenum Level: integer {\n    LOW = 1\n    HIGH = 2\n}\n",
+    );
+    common::rename(
+        &mut service,
+        &[
+            ("example.weather#Coordinates", "Option"),
+            ("example.weather#ValidationField", "Validator"),
+            ("example.weather#Location", "Validate"),
+            ("example.weather#NotFoundError", "Fault"),
+            ("example.weather#ConflictError", "ErrorInfo"),
+        ],
+    );
+    service
 }
 
 fn check(manifest: &Path) {

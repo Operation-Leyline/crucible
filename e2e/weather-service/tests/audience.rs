@@ -237,8 +237,8 @@ async fn middleware_uses_generated_visibility_and_server_retains_every_operation
         .unwrap();
     for (method, path, caller, status) in [
         ("POST", "/public", "external", 200),
-        ("DELETE", "/secret", "external", 400),
-        ("DELETE", "/secret", "internal", 200),
+        ("POST", "/secret", "external", 400),
+        ("POST", "/secret", "internal", 200),
     ] {
         let request = Request::builder()
             .method(method)

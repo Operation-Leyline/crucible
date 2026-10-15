@@ -25,7 +25,7 @@ func TestExtendedTypesOverHTTP(t *testing.T) {
     if output.Decimal.String() != "12345678901234567890.12345678901234567890123456789" { t.Fatal(output.Decimal) }
     if output.GetMode() != Mode(42) || *output.GetSparseNames()[0] != "a" || output.GetSparseNames()[1] != nil { t.Fatal(output) }
     if output.GetSparseMap()["absent"] != nil || *output.GetSparseMap()["known"] != ModeOFF { t.Fatal(output) }
-    encoded, err := encodeValue(client.schema, "example.types#Output", reflect.ValueOf(output), "")
+    encoded, err := encodeValue(client.schema, "example.types#ReadOutput", reflect.ValueOf(output), "")
     if err != nil { t.Fatal(err) }
     data, err := json.Marshal(encoded)
     if err != nil { t.Fatal(err) }
@@ -41,14 +41,14 @@ func TestExtendedModelValidation(t *testing.T) {
         decoder := json.NewDecoder(strings.NewReader(text)); decoder.UseNumber()
         var value any
         if err := decoder.Decode(&value); err != nil { t.Fatal(err) }
-        var output Output
-        if err := decodeModel(client.schema, "example.types#Output", value, &output); err == nil { t.Fatal("accepted", text) }
+        var output ReadOutput
+        if err := decodeModel(client.schema, "example.types#ReadOutput", value, &output); err == nil { t.Fatal("accepted", text) }
     }
-    output := &Output{Integer:big.NewInt(1), Decimal:Decimal("NaN")}
-    if _, err := encodeValue(client.schema, "example.types#Output", reflect.ValueOf(output), ""); err == nil { t.Fatal("nonfinite decimal accepted") }
+    output := &ReadOutput{Integer:big.NewInt(1), Decimal:Decimal("NaN")}
+    if _, err := encodeValue(client.schema, "example.types#ReadOutput", reflect.ValueOf(output), ""); err == nil { t.Fatal("nonfinite decimal accepted") }
     output.Decimal = Decimal("1.00000000000000000000000001")
     output.SetNames(Names{"duplicate", "duplicate"})
-    if _, err := encodeValue(client.schema, "example.types#Output", reflect.ValueOf(output), ""); err == nil { t.Fatal("duplicate set accepted") }
+    if _, err := encodeValue(client.schema, "example.types#ReadOutput", reflect.ValueOf(output), ""); err == nil { t.Fatal("duplicate set accepted") }
     for _, invalid := range []string{"", "NaN", "+1", "01", "1/2", "null", "[1]", "1 ", "1\n"} {
         if _, err := ParseDecimal(invalid); err == nil { t.Fatal("invalid decimal accepted", invalid) }
     }

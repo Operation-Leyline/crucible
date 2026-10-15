@@ -1,0 +1,9 @@
+operation ReadCity reads City {
+    http GET "/cities/{cityId}"
+    input {
+        $cityId
+    }
+    output {
+        id: string
+    }
+}

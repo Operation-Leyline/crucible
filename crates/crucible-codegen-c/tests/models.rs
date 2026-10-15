@@ -1,6 +1,5 @@
 use crucible_codegen_c::{File, Options, emit};
-use crucible_smithy::{Model, ir::Service};
-use serde_json::{Value, json};
+use crucible_smithy::ir::Service;
 use std::{fs, path::Path};
 
 fn options() -> Options {
@@ -11,17 +10,29 @@ fn options() -> Options {
         endpoint: None,
     }
 }
-fn lower(value: &Value) -> Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+/// Compiles one `.cru` source as a package of its own.
+fn lower(source: &str) -> Service {
+    let package = crucible_lang::Package::new(
+        "test",
+        vec![crucible_lang::SourceFile {
+            path: "test.cru".to_owned(),
+            text: source.to_owned(),
+        }],
+    );
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled.service.unwrap_or_else(|| {
+        panic!(
+            "the model compiles:
+{rendered}"
+        )
+    })
 }
-fn weather() -> Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
+fn weather_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather")
+}
+fn weather() -> Service {
+    crucible_lang::load_service(&weather_dir()).unwrap()
 }
 fn write(files: &[File], directory: &Path) {
     for file in files {
@@ -30,21 +41,28 @@ fn write(files: &[File], directory: &Path) {
         fs::write(path, &file.contents).unwrap();
     }
 }
-fn tiny(shapes: Value) -> Value {
-    let mut model = json!({"smithy":"2.0","shapes":{
-        "test#Service":{"type":"service","version":"1","operations":[{"target":"test#Get"}],"traits":{"crucible.protocols#json":{}}},
-        "test#Get":{"type":"operation","output":{"target":"test#Root"},"traits":{"smithy.api#http":{"method":"GET","uri":"/","code":200}}}
-    }});
-    model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .extend(shapes.as_object().unwrap().clone());
-    model
+/// A service whose one `GET /` operation has `output`, beside `declarations`.
+fn tiny(output: &str, declarations: &str) -> String {
+    format!(
+        "service Service {{
+    version \"1\"
+    protocol json
+    operations [Get]
+}}
+
+readonly operation Get {{
+    http GET \"/\"
+    output {{ {output} }}
+}}
+
+{declarations}
+"
+    )
 }
 
 #[test]
 fn weather_output_is_deterministic_and_native_fixture() {
-    let service = lower(&weather());
+    let service = weather();
     let first = emit(&service, &options()).unwrap();
     let second = emit(&service, &options()).unwrap();
     assert_eq!(
@@ -99,8 +117,12 @@ fn weather_output_is_deterministic_and_native_fixture() {
 
 #[test]
 fn empty_model_golden() {
-    let model = json!({"smithy":"2.0","shapes":{"test#Service":{"type":"service","version":"1","traits":{"crucible.protocols#json":{}}}}});
-    let files = emit(&lower(&model), &options()).unwrap();
+    let model = "service Service {
+    version \"1\"
+    protocol json
+}
+";
+    let files = emit(&lower(model), &options()).unwrap();
     let source = &files
         .iter()
         .find(|f| f.path == "src/models.c")
@@ -114,14 +136,24 @@ fn empty_model_golden() {
 
 #[test]
 fn recursive_collections_and_structures_use_pointers() {
-    let model = tiny(json!({
-        "test#Root":{"type":"structure","members":{"node":{"target":"test#Node"},"choice":{"target":"test#Choice"},"loop":{"target":"test#Loop"},"document":{"target":"smithy.api#Document","traits":{"smithy.api#required":{}}}}},
-        "test#Node":{"type":"structure","members":{"next":{"target":"test#Node"},"children":{"target":"test#Nodes"},"lookup":{"target":"test#NodeMap"}}},
-        "test#Nodes":{"type":"list","member":{"target":"test#Node"}},
-        "test#NodeMap":{"type":"map","key":{"target":"smithy.api#String"},"value":{"target":"test#Node"}},
-        "test#Loop":{"type":"list","member":{"target":"test#Node"}},
-        "test#Choice":{"type":"union","members":{"node":{"target":"test#Node"},"choice":{"target":"test#Choice"},"none":{"target":"smithy.api#Unit"}}}
-    }));
+    let model = tiny(
+        "node?: Node; choice?: Choice; loop?: Loop; document: document",
+        r#"
+structure Node {
+    next?: Node
+    children?: Nodes
+    lookup?: NodeMap
+}
+list Nodes: Node
+map NodeMap: string -> Node
+list Loop: Node
+union Choice {
+    node: Node
+    choice: Choice
+    none
+}
+"#,
+    );
     let files = emit(&lower(&model), &options()).unwrap();
     let header = &files
         .iter()
@@ -138,17 +170,19 @@ fn recursive_collections_and_structures_use_pointers() {
 #[test]
 fn member_and_generated_symbol_collisions_are_diagnostics() {
     for model in [
+        tiny("fooBar?: string; foo_bar?: string", ""),
+        tiny("other?: GetOutputEncode", "structure GetOutputEncode {}"),
         tiny(
-            json!({"test#Root":{"type":"structure","members":{"fooBar":{"target":"smithy.api#String"},"foo_bar":{"target":"smithy.api#String"}}}}),
+            "value?: Kind",
+            "enum Kind {
+    FOO = \"a\"
+    Foo = \"b\"
+}",
         ),
         tiny(
-            json!({"test#Root":{"type":"structure","members":{"other":{"target":"test#RootEncode"}}},"test#RootEncode":{"type":"structure","members":{}}}),
-        ),
-        tiny(
-            json!({"test#Root":{"type":"structure","members":{"value":{"target":"test#Kind"}}},"test#Kind":{"type":"enum","members":{"FOO":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"a"}},"Foo":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"b"}}}}}),
-        ),
-        tiny(
-            json!({"test#Root":{"type":"structure","members":{"choice":{"target":"test#Choice"}}},"test#Choice":{"type":"union","members":{"value":{"target":"test#ChoiceTag"}}},"test#ChoiceTag":{"type":"structure","members":{}}}),
+            "choice?: Choice",
+            "union Choice { value: ChoiceTag }
+structure ChoiceTag {}",
         ),
     ] {
         assert!(emit(&lower(&model), &options()).is_err());
@@ -156,14 +190,15 @@ fn member_and_generated_symbol_collisions_are_diagnostics() {
     for prefix in ["_bad", "a__b", "int", "bad-name"] {
         let mut config = options();
         config.prefix = prefix.into();
-        assert!(emit(&lower(&weather()), &config).is_err());
+        assert!(emit(&weather(), &config).is_err());
     }
 }
 
 #[test]
 fn enum_literals_preserve_nuls_backslashes_and_utf8() {
     let model = tiny(
-        json!({"test#Root":{"type":"structure","members":{"kind":{"target":"test#Kind"}}},"test#Kind":{"type":"enum","members":{"CONTROL":{"target":"smithy.api#Unit","traits":{"smithy.api#enumValue":"\u{0}\\u0001é??="}}}}}),
+        "kind?: Kind",
+        r#"enum Kind { CONTROL = "\u{0}\\u0001\u{e9}??=" }"#,
     );
     let files = emit(&lower(&model), &options()).unwrap();
     let header = &files
@@ -177,32 +212,36 @@ fn enum_literals_preserve_nuls_backslashes_and_utf8() {
 
 #[test]
 fn client_symbols_head_bodies_and_package_options_are_diagnosed() {
-    let mut model = tiny(json!({"test#Root":{"type":"structure","members":{}}}));
-    model["shapes"]["test#Get"]["input"] = json!({"target":"test#Root"});
-    model["shapes"]["test#Get"]["traits"]["smithy.api#http"]["method"] = json!("HEAD");
-    model["shapes"]["test#Root"]["members"] = json!({"body":{"target":"smithy.api#String"}});
-    // A HEAD response has no body either, which lowering already refuses;
-    // drop the output so only the generator's request-body check is left.
-    model["shapes"]["test#Get"]
-        .as_object_mut()
-        .unwrap()
-        .remove("output");
-    assert!(emit(&lower(&model), &options()).is_err());
+    // Lowering refuses a HEAD request with a body, so the generator's own
+    // check is reached by changing the method of a lowered POST.
+    let model = r#"
+service Service {
+    version "1"
+    protocol json
+    operations [Get]
+}
+
+operation Get {
+    http POST "/"
+    input { body: string }
+}
+"#;
+    let mut service = lower(model);
+    service.operations[0].method = "HEAD".to_owned();
+    assert!(emit(&service, &options()).is_err());
     for value in ["", "1..2", "1.2.3.4.5", "1.0-beta", "1\n0"] {
         let mut config = options();
         config.package_version = value.into();
-        assert!(emit(&lower(&weather()), &config).is_err());
+        assert!(emit(&weather(), &config).is_err());
     }
     let mut config = options();
     config.package_name = "install".into();
-    assert!(emit(&lower(&weather()), &config).is_err());
-    let mut model = tiny(json!({"test#Root":{"type":"structure","members":{}}}));
-    model["shapes"]["test#GetResult"] = model["shapes"]["test#Get"].clone();
-    model["shapes"]["test#GetResult"]["traits"]["smithy.api#http"]["uri"] = json!("/result");
-    model["shapes"]["test#Service"]["operations"]
-        .as_array_mut()
-        .unwrap()
-        .push(json!({"target":"test#GetResult"}));
+    assert!(emit(&weather(), &config).is_err());
+    let model = tiny(
+        "",
+        "readonly operation GetResult {\n    http GET \"/result\"\n    output { }\n}",
+    )
+    .replace("operations [Get]", "operations [Get, GetResult]");
     assert!(emit(&lower(&model), &options()).is_err());
 }
 
@@ -237,22 +276,22 @@ fn yyjson_number_buffers_meet_the_documented_minimum() {
 
 #[test]
 fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    let examples: serde_json::Value =
-        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
-    model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .extend(examples.as_object().unwrap().clone());
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
-        serde_json::json!({"target": "example.weather#DebugModel"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut package = crucible_lang::load_package(&weather_dir()).unwrap();
+    for file in &mut package.files {
+        file.text = file.text.replace(
+            "expectedRevision?: long",
+            "expectedRevision?: long\n        debugModel?: DebugModel",
+        );
+    }
+    package.files.push(crucible_lang::SourceFile {
+        path: "native-docs.cru".to_owned(),
+        text: include_str!("../../../tests/conformance/native-docs.cru").to_owned(),
+    });
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    let service = compiled
+        .service
+        .unwrap_or_else(|| panic!("the model compiles:\n{rendered}"));
     let files = emit(&service, &options()).unwrap();
     let text = files
         .iter()
@@ -269,10 +308,7 @@ fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
 
 #[test]
 fn debug_helper_collisions_use_the_existing_collected_symbol_diagnostic() {
-    let model = tiny(json!({
-        "test#Root": {"type":"structure","members":{"value":{"target":"test#RootDebug"}}},
-        "test#RootDebug": {"type":"structure","members":{}}
-    }));
+    let model = tiny("value?: GetOutputDebug", "structure GetOutputDebug {}");
     let diagnostics = emit(&lower(&model), &options()).err().unwrap().to_string();
     assert!(diagnostics.contains("C generated symbol collision"));
 }

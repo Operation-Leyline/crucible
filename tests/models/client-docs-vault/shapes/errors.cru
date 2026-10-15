@@ -1,0 +1,7 @@
+/// The caller may not read this secret.
+error AccessDenied {
+    status 403
+    message?: string
+    /// Redacted.
+    reason?: Password
+}

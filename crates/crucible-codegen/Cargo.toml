@@ -62,6 +62,7 @@ serde_json.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+crucible-lang.workspace = true
 
 [lints]
 workspace = true

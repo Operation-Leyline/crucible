@@ -1,0 +1,5 @@
+service Catalog {
+    version "1"
+    protocol json
+    operations [GetItem]
+}

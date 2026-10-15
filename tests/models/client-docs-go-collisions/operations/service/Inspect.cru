@@ -1,0 +1,7 @@
+operation Inspect {
+    http POST "/inspect" -> 200
+    input {
+        String?: string
+        GoString?: string
+    }
+}

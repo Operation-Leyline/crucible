@@ -1,0 +1,4 @@
+error NotFound {
+    status 404
+    message?: string
+}

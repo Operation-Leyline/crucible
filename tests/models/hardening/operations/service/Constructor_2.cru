@@ -1,0 +1,3 @@
+readonly operation Constructor_2 {
+    http GET "/Constructor_2"
+}

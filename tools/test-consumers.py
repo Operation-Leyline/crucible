@@ -4,7 +4,7 @@
 1. the starter `crucible new` writes, built and served;
 2. e2e/: the weather model, service, Rust client and conformance suite;
 3. tests/consumers/leyline: a Leyline-shaped service (separate model crate,
-   auth chain and scopes, custom middleware and interceptors, typed validation
+   auth chain, custom middleware and interceptors, typed validation
    errors, Lambda events) and an independent consumer of its generated Rust SDK.
 
 Everything shares one Cargo target directory (CARGO_TARGET_DIR if set,

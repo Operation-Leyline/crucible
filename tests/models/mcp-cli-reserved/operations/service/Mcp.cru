@@ -1,0 +1,3 @@
+readonly operation Mcp {
+    http GET "/mcp" -> 200
+}

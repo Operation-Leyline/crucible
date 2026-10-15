@@ -1,0 +1,9 @@
+error InternalError {
+    status 500
+    message: string
+}
+
+error ValidationError {
+    status 400
+    message: string
+}

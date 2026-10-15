@@ -1,0 +1,18 @@
+readonly operation Read {
+    http GET "/defaults" -> 200
+    output {
+        flag: boolean = true
+        tiny: byte = -7
+        small: short = 1234
+        count: integer = 17
+        large: long = 9223372036854775807
+        ratio: float = 1.25
+        fraction: double = -3.125
+        label: string = "quote\"\\ newline\n"
+        document: document
+        blob: blob = "YWI="
+        mode: Mode = Known
+        strings: Strings = []
+        lookup: Lookup = {  }
+    }
+}

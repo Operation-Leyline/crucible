@@ -1,6 +1,37 @@
 use crucible_codegen_r::{Options, emit};
-use crucible_smithy::Model;
 use std::{fs, path::Path};
+
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    compile_with(name, |text| text)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first;
+/// the rendered diagnostics when it does not compile.
+fn compile_with(
+    name: &str,
+    edit: impl Fn(String) -> String,
+) -> Result<crucible_smithy::ir::Service, String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    compiled.service.clone().ok_or_else(|| compiled.render())
+}
+
+/// The weather package with its sources rewritten first.
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
 fn options() -> Options {
     Options {
         package_name: "weather.client".into(),
@@ -8,18 +39,9 @@ fn options() -> Options {
         endpoint: None,
     }
 }
-fn weather() -> serde_json::Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-}
 #[test]
 fn weather_package_is_deterministic() {
-    let service = Model::from_json(&weather().to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather();
     let files = emit(&service, &options()).unwrap();
     let snapshot = files
         .iter()
@@ -52,11 +74,7 @@ fn weather_package_is_deterministic() {
 }
 #[test]
 fn invalid_metadata_and_collisions_are_diagnosed() {
-    let mut model = weather();
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather();
     for name in [
         "x",
         "../escape",
@@ -74,23 +92,12 @@ fn invalid_metadata_and_collisions_are_diagnosed() {
         config.package_version = version.into();
         assert!(emit(&service, &config).is_err());
     }
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary":"WeatherClient"});
-    let members = model["shapes"]["example.weather#CreateCityInput"]["members"]
-        .as_object_mut()
-        .unwrap();
-    members.insert(
-        "httpURL".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
-    );
-    members.insert(
-        "http_url".into(),
-        serde_json::json!({"target":"smithy.api#String"}),
-    );
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather_with(|text| {
+        text.replace("CitySummary", "WeatherClient").replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        httpURL?: string\n        http_url?: string\n",
+        )
+    });
     let diagnostic = emit(&service, &options()).err().unwrap().to_string();
     assert!(diagnostic.contains("model export"));
     assert!(diagnostic.contains("member name"));
@@ -108,36 +115,20 @@ fn runtime_names_and_static_nul_are_diagnosed() {
         "suppressWarnings",
         "C_crucible_now",
     ] {
-        let mut model = weather();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({"example.weather#CitySummary":name});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let service = weather_with(|text| text.replace("CitySummary", name));
         assert!(emit(&service, &options()).is_err(), "{name}");
     }
-    let mut model = weather();
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["staticNul"] = serde_json::json!({"target":"smithy.api#Document", "traits":{"smithy.api#default":{"bad\0key":"value"}}});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
-    // Client readers ignore input defaults, so the NUL is never emitted.
-    assert!(emit(&service, &options()).is_ok());
-    model["shapes"]["example.weather#CitySummary"]["members"]["staticNul"] =
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["staticNul"].clone();
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let static_nul = r#"document = {"bad\u{0}key": "value"}"#;
+    let service = weather_with(|text| {
+        text.replace(
+            "    id: CityId\n",
+            &format!("    id: CityId\n    staticNul: {static_nul}\n"),
+        )
+    });
     let diagnostic = emit(&service, &options()).err().unwrap().to_string();
     assert!(diagnostic.contains("CitySummary$staticNul"));
     assert!(diagnostic.contains("NUL"));
-    let service = Model::from_json(&weather().to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather();
     let mut config = options();
     config.endpoint = Some("https://example.invalid/\0".into());
     assert!(emit(&service, &config).is_err());
@@ -145,10 +136,7 @@ fn runtime_names_and_static_nul_are_diagnosed() {
 
 #[test]
 fn head_request_bodies_are_diagnosed() {
-    let mut service = Model::from_json(&weather().to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut service = weather();
     service
         .operations
         .iter_mut()
@@ -166,22 +154,23 @@ fn head_request_bodies_are_diagnosed() {
 
 #[test]
 fn documentation_and_sensitive_debug_metadata_are_emitted_from_ir() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    let examples: serde_json::Value =
-        serde_json::from_str(include_str!("../../../tests/conformance/native-docs.json")).unwrap();
-    model["shapes"]
-        .as_object_mut()
-        .unwrap()
-        .extend(examples.as_object().unwrap().clone());
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["debugModel"] =
-        serde_json::json!({"target": "example.weather#DebugModel"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = file.text.replace("\r\n", "\n").replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        debugModel?: DebugModel\n",
+        );
+    }
+    package.files.push(crucible_lang::SourceFile {
+        path: "native-docs.cru".to_owned(),
+        text: include_str!("../../../tests/conformance/native-docs.cru").to_owned(),
+    });
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    let service = compiled
+        .service
+        .unwrap_or_else(|| panic!("the model compiles:\n{rendered}"));
     let files = emit(&service, &options()).unwrap();
     let text = files
         .iter()
@@ -206,15 +195,17 @@ fn model_names_cannot_collide_with_package_documentation() {
         "Operations",
         "Runtime",
     ] {
-        let mut model = weather();
-        let id = format!("example.weather#{name}");
-        model["shapes"][&id] = serde_json::json!({"type": "structure", "members": {}});
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["value"] =
-            serde_json::json!({"target": id});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let service = weather_with(|text| {
+            let text = text.replace(
+                "        clientToken?: string\n",
+                &format!("        clientToken?: string\n        value?: {name}\n"),
+            );
+            if text.contains("service Weather") {
+                text + &format!("\nstructure {name} {{\n}}\n")
+            } else {
+                text
+            }
+        });
         let diagnostics = emit(&service, &options()).err().unwrap().to_string();
         assert!(
             diagnostics.contains("R model export name collision"),

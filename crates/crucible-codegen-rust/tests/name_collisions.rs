@@ -1,23 +1,31 @@
 //! Valid Smithy whose Rust spelling collides is diagnosed, or generated
 //! without the collision, never emitted as uncompilable code.
 use crucible_codegen_rust::{Options, generate, generate_client, pages_method};
-use crucible_smithy::{Model, ShapeId};
-use serde_json::{Value, json};
+use crucible_lang::SourceFile;
+use crucible_smithy::ShapeId;
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
-fn weather(edit: impl FnOnce(&mut Value)) -> crucible_smithy::ir::Service {
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    edit(&mut ast);
-    Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::capabilities())
-        .unwrap()
+fn weather(edit: impl FnOnce(&mut crucible_lang::Package)) -> crucible_smithy::ir::Service {
+    common::load_with("weather", edit)
 }
 
-fn reach(ast: &mut Value, id: &str, shape: Value) {
-    ast["shapes"][id] = shape;
-    ast["shapes"]["example.weather#CitySummary"]["members"]["reached"] = json!({ "target": id });
+fn add_source(package: &mut crucible_lang::Package, text: &str) {
+    package.files.push(SourceFile {
+        path: "added.cru".into(),
+        text: text.into(),
+    });
+}
+
+/// Adds `source` and a `reached` member of `CitySummary` that targets `target`.
+fn reach(package: &mut crucible_lang::Package, source: &str, target: &str) {
+    add_source(package, source);
+    for file in &mut package.files {
+        file.text = file.text.replace(
+            "structure CitySummary {\n",
+            &format!("structure CitySummary {{\n    reached?: {target}\n"),
+        );
+    }
 }
 
 fn both_diagnose(service: &crucible_smithy::ir::Service, expected: &str) {
@@ -33,10 +41,13 @@ fn both_diagnose(service: &crucible_smithy::ir::Service, expected: &str) {
 
 #[test]
 fn members_colliding_after_case_conversion_are_diagnosed() {
-    let service = weather(|ast| {
-        let members = &mut ast["shapes"]["example.weather#CitySummary"]["members"];
-        members["fooBar"] = json!({ "target": "smithy.api#String" });
-        members["foo_bar"] = json!({ "target": "smithy.api#String" });
+    let service = weather(|package| {
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                "structure CitySummary {\n",
+                "structure CitySummary {\n    fooBar?: string\n    foo_bar?: string\n",
+            );
+        }
     });
     both_diagnose(
         &service,
@@ -46,10 +57,13 @@ fn members_colliding_after_case_conversion_are_diagnosed() {
 
 #[test]
 fn error_members_colliding_after_case_conversion_are_diagnosed() {
-    let service = weather(|ast| {
-        let members = &mut ast["shapes"]["example.weather#NotFoundError"]["members"];
-        members["fooBar"] = json!({ "target": "smithy.api#String" });
-        members["foo_bar"] = json!({ "target": "smithy.api#String" });
+    let service = weather(|package| {
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                "error NotFoundError {\n",
+                "error NotFoundError {\n    fooBar?: string\n    foo_bar?: string\n",
+            );
+        }
     });
     both_diagnose(
         &service,
@@ -59,30 +73,24 @@ fn error_members_colliding_after_case_conversion_are_diagnosed() {
 
 #[test]
 fn int_enum_variants_colliding_after_case_conversion_are_diagnosed() {
-    let service = weather(|ast| {
+    let service = weather(|package| {
         reach(
-            ast,
-            "example.weather#Level",
-            json!({ "type": "intEnum", "members": {
-                "fooBar": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": 1 } },
-                "FOO_BAR": { "target": "smithy.api#Unit", "traits": { "smithy.api#enumValue": 2 } },
-            } }),
+            package,
+            "enum Level: integer {\n    fooBar = 1\n    FOO_BAR = 2\n}\n",
+            "Level",
         );
     });
-    // Which member is reported depends on whether serde_json keeps source order.
+    // Which member is reported depends on the order the model keeps.
     both_diagnose(&service, "are both variant `FooBar` in Rust");
 }
 
 #[test]
 fn union_variants_colliding_after_case_conversion_are_diagnosed() {
-    let service = weather(|ast| {
+    let service = weather(|package| {
         reach(
-            ast,
-            "example.weather#Choice",
-            json!({ "type": "union", "members": {
-                "fooBar": { "target": "smithy.api#String" },
-                "FOO_BAR": { "target": "smithy.api#String" },
-            } }),
+            package,
+            "union Choice {\n    fooBar: string\n    FOO_BAR: string\n}\n",
+            "Choice",
         );
     });
     both_diagnose(&service, "are both variant `FooBar` in Rust");
@@ -92,15 +100,17 @@ fn union_variants_colliding_after_case_conversion_are_diagnosed() {
 /// operation keeps `list_cities_pages`, the paginator takes a suffix.
 #[test]
 fn a_paginator_does_not_take_another_operations_method_name() {
-    let service = weather(|ast| {
-        ast["shapes"]["example.weather#ListCitiesPages"] =
-            ast["shapes"]["example.weather#Ping"].clone();
-        ast["shapes"]["example.weather#ListCitiesPages"]["traits"]["smithy.api#http"]["uri"] =
-            json!("/list-cities-pages");
-        ast["shapes"]["example.weather#Weather"]["operations"]
-            .as_array_mut()
-            .unwrap()
-            .push(json!({ "target": "example.weather#ListCitiesPages" }));
+    let service = weather(|package| {
+        add_source(
+            package,
+            "readonly operation ListCitiesPages {\n    http GET \"/list-cities-pages\"\n}\n",
+        );
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                "operations [Ping, Status]",
+                "operations [Ping, Status, ListCitiesPages]",
+            );
+        }
     });
     let code = generate_client(&service).unwrap();
     for method in [

@@ -2,21 +2,40 @@ use crucible_codegen_dart::{
     CODEC_RUNTIME, DESCRIBE_RUNTIME, ERROR_RUNTIME, JSON_RUNTIME, Options, TIMESTAMP_RUNTIME, emit,
     emit_models,
 };
-use crucible_smithy::{Model, ir::Service};
-use serde_json::{Value, json};
+use crucible_smithy::{ShapeId, ir::Service};
 use std::{fs, path::Path};
 
-fn weather() -> Value {
-    serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
+fn model_dir(name: &str) -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
 }
-fn lower(value: &Value) -> Service {
-    Model::from_json(&value.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+fn weather() -> Service {
+    crucible_lang::load_service(&model_dir("weather")).unwrap()
+}
+/// Compiles the weather package with `edit` applied to every source file;
+/// the rendered diagnostics when it does not compile.
+fn try_weather_with(edit: impl Fn(&str) -> String) -> Result<Service, String> {
+    let mut package = crucible_lang::load_package(&model_dir("weather")).unwrap();
+    for file in &mut package.files {
+        file.text = edit(&file.text);
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    match compiled.service.clone() {
+        Some(service) => Ok(service),
+        None => Err(compiled.render()),
+    }
+}
+fn weather_with(edit: impl Fn(&str) -> String) -> Service {
+    try_weather_with(edit).unwrap_or_else(|rendered| panic!("the model compiles:\n{rendered}"))
+}
+/// The weather service with its shape `shape` spelled `name`.
+fn weather_renamed(shape: &str, name: &str) -> Service {
+    let mut service = weather();
+    service
+        .renames
+        .insert(ShapeId::new("example.weather", shape), name.to_owned());
+    service
 }
 fn options() -> Options {
     Options {
@@ -28,12 +47,7 @@ fn options() -> Options {
 
 #[test]
 fn weather_models_are_deterministic() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let source = emit_models(&service);
     let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/models.dart");
     if std::env::var_os("CRUCIBLE_BLESS").is_some() {
@@ -76,7 +90,7 @@ fn weather_models_are_deterministic() {
 
 #[test]
 fn package_matches_goldens_and_repeated_emission() {
-    let service = lower(&weather());
+    let service = weather();
     let files = emit(&service, &options()).unwrap();
     let again = emit(&service, &options()).unwrap();
     assert_eq!(
@@ -116,7 +130,7 @@ fn package_matches_goldens_and_repeated_emission() {
 
 #[test]
 fn package_paths_and_names_are_diagnosed() {
-    let service = lower(&weather());
+    let service = weather();
     for name in [
         "../escape",
         "with/path",
@@ -140,16 +154,17 @@ fn package_paths_and_names_are_diagnosed() {
 
 #[test]
 fn model_member_union_and_operation_collisions_are_collected() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        json!({"example.weather#CitySummary":"Client"});
-    for name in ["fromWire", "fromWireValue"] {
-        model["shapes"]["example.weather#CreateCityInput"]["members"][name] =
-            json!({"target":"smithy.api#String"});
-    }
-    model["shapes"]["example.weather#Location"]["members"]["unknownVariant"] =
-        json!({"target":"smithy.api#String"});
-    let service = lower(&model);
+    let mut service = weather_with(|text| {
+        text.replace(
+            "location?: Location",
+            "location?: Location\n        fromWire?: string\n        fromWireValue?: string",
+        )
+        .replace("    unknown\n", "    unknown\n    unknownVariant: string\n")
+    });
+    service.renames.insert(
+        ShapeId::new("example.weather", "CitySummary"),
+        "Client".to_owned(),
+    );
     let diagnostics = emit(&service, &options()).err().unwrap();
     assert_eq!(diagnostics.len(), 3, "{diagnostics}");
     assert!(
@@ -161,31 +176,30 @@ fn model_member_union_and_operation_collisions_are_collected() {
 
 #[test]
 fn recursive_aliases_are_diagnosed_but_nominal_recursion_is_supported() {
-    let mut model = weather();
-    model["shapes"]["example.weather#CitySummaries"]["member"]["target"] =
-        json!("example.weather#CitySummaries");
-    assert!(
-        Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .err()
-            .unwrap()
-            .to_string()
-            .contains("recursive collection")
-    );
-    let mut model = weather();
-    model["shapes"]["example.weather#Coordinates"]["members"]["nested"] =
-        json!({"target":"example.weather#Coordinates"});
-    assert!(emit(&lower(&model), &options()).is_ok());
+    let rendered = try_weather_with(|text| {
+        text.replace(
+            "list CitySummaries: CitySummary",
+            "list CitySummaries: CitySummaries",
+        )
+    })
+    .err()
+    .unwrap();
+    assert!(rendered.contains("recursive"), "{rendered}");
+    let service = weather_with(|text| {
+        text.replace(
+            "    longitude: double\n",
+            "    longitude: double\n    nested?: Coordinates\n",
+        )
+    });
+    assert!(emit(&service, &options()).is_ok());
 }
 
 #[test]
 fn enum_normalization_detects_collisions() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Sky"]["members"]["clear"] =
-        json!({"target":"smithy.api#Unit", "traits":{"smithy.api#enumValue":"other"}});
+    let service =
+        weather_with(|text| text.replace("enum Sky {\n", "enum Sky {\n    clear = \"other\"\n"));
     assert!(
-        emit(&lower(&model), &options())
+        emit(&service, &options())
             .err()
             .unwrap()
             .iter()
@@ -198,11 +212,8 @@ fn decoder_local_names_are_diagnosed() {
     for name in [
         "context", "value", "object", "target", "key", "item", "entry", "other",
     ] {
-        let mut model = weather();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            json!({"example.weather#CitySummary": name});
         assert!(
-            emit(&lower(&model), &options())
+            emit(&weather_renamed("CitySummary", name), &options())
                 .err()
                 .unwrap()
                 .iter()
@@ -214,7 +225,7 @@ fn decoder_local_names_are_diagnosed() {
 
 #[test]
 fn underscore_digit_operation_is_diagnosed_after_mapping() {
-    let mut service = lower(&weather());
+    let mut service = weather();
     service.operations[0].id = "example.weather#_123Operation".parse().unwrap();
     assert!(
         emit(&service, &options())
@@ -227,11 +238,11 @@ fn underscore_digit_operation_is_diagnosed_after_mapping() {
 
 #[test]
 fn void_and_empty_clients_do_not_require_a_unit_schema() {
-    let empty: Value = serde_json::from_str(include_str!(
-        "../../../tests/conformance/empty-service.json"
-    ))
+    let files = emit(
+        &crucible_lang::load_service(&model_dir("empty-service")).unwrap(),
+        &options(),
+    )
     .unwrap();
-    let files = emit(&lower(&empty), &options()).unwrap();
     let client = &files
         .iter()
         .find(|f| f.path == "lib/src/client.dart")
@@ -246,11 +257,7 @@ fn void_and_empty_clients_do_not_require_a_unit_schema() {
         .contents;
     assert!(!models.contains("runtime/describe.dart"));
     assert!(emit_models(&vault()).contains("import 'runtime/describe.dart' as describe;"));
-    let void = json!({"smithy":"2.0", "shapes": {
-        "example.void#Api": {"type":"service", "version":"1", "traits":{"crucible.protocols#json":{}}, "operations":[{"target":"example.void#Ping"}]},
-        "example.void#Ping": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET", "uri":"/"}}}
-    }});
-    let service = lower(&void);
+    let service = crucible_lang::load_service(&model_dir("void-service")).unwrap();
     assert!(
         !service
             .shapes
@@ -270,12 +277,16 @@ fn void_and_empty_clients_do_not_require_a_unit_schema() {
 
 #[test]
 fn body_on_get_is_explicitly_diagnosed_for_browser_transport() {
-    let mut model = weather();
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["method"] =
-        json!("GET");
-    model["shapes"]["example.weather#CreateCity"]["traits"]["smithy.api#http"]["uri"] =
-        json!("/create-city");
-    let diagnostics = emit(&lower(&model), &options()).err().unwrap();
+    // Lowering refuses a GET operation that takes a body, so the generator's
+    // own check is reached by editing the lowered operation.
+    let mut service = weather();
+    let create = service
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id.name() == "CreateCity")
+        .unwrap();
+    create.method = "GET".to_owned();
+    let diagnostics = emit(&service, &options()).err().unwrap();
     assert!(
         diagnostics
             .iter()
@@ -287,7 +298,7 @@ fn body_on_get_is_explicitly_diagnosed_for_browser_transport() {
 fn endpoint_escapes_dart_interpolation() {
     let mut config = options();
     config.endpoint = Some("https://example.invalid/$secret/\\value\"".into());
-    let files = emit(&lower(&weather()), &config).unwrap();
+    let files = emit(&weather(), &config).unwrap();
     let source = &files
         .iter()
         .find(|f| f.path == "lib/src/client.dart")
@@ -298,20 +309,12 @@ fn endpoint_escapes_dart_interpolation() {
 
 #[test]
 fn service_client_name_is_reserved() {
-    let mut model = weather();
-    model["shapes"]["example.weather#Weather"]["rename"] =
-        serde_json::json!({"example.weather#CitySummary": "WeatherClient"});
-    assert!(emit(&lower(&model), &options()).is_err());
+    assert!(emit(&weather_renamed("CitySummary", "WeatherClient"), &options()).is_err());
 }
 
 #[test]
 fn service_exception_cannot_shadow_runtime_failures() {
-    let mut service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let mut service = weather();
     service.id = crucible_smithy::ShapeId::new("example.weather", "Network");
     assert!(
         emit(&service, &options())
@@ -323,12 +326,7 @@ fn service_exception_cannot_shadow_runtime_failures() {
 }
 
 fn vault() -> Service {
-    Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs.json"
-    ))
-    .unwrap()
-    .lower_with_capabilities(None, &crucible_codegen_dart::capabilities())
-    .unwrap()
+    crucible_lang::load_service(&model_dir("client-docs-vault")).unwrap()
 }
 
 fn golden(name: &str, source: &str) {
@@ -349,7 +347,7 @@ fn golden(name: &str, source: &str) {
 }
 
 #[test]
-fn smithy_documentation_reaches_models_and_client() {
+fn model_documentation_reaches_models_and_client() {
     let service = vault();
     let files = emit(&service, &options()).unwrap();
     let file = |path: &str| {

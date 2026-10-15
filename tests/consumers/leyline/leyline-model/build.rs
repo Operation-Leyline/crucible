@@ -1,5 +1,5 @@
 fn main() {
-    let model = crucible_build::model("smithy");
+    let model = crucible_build::model("model");
     model.publish();
     // The SDK pins the client runtime to this checkout, the way a released SDK
     // pins it to a Crucible tag.

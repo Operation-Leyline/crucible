@@ -686,15 +686,20 @@ impl ServerOutput {
             Side::Server => {
                 let explorer_service = if self.options.explorer.is_some() {
                     if cru::is_package(&self.model) {
-                        return Err(cru::unsupported("An Explorer description", &self.model));
+                        // The language does not lower resources yet, so the
+                        // description of a service whose operations belong to
+                        // a resource is refused by the describe check.
+                        Some(cru::lower(&self.model, self.service.as_ref())?)
+                    } else {
+                        let json =
+                            std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
+                        let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
+                        Some(
+                            model
+                                .lower_documentation(self.service.as_ref())
+                                .map_err(|e| e.to_string())?,
+                        )
                     }
-                    let json = std::fs::read_to_string(&self.model).map_err(|e| e.to_string())?;
-                    let model = SmithyModel::from_json(&json).map_err(|e| e.to_string())?;
-                    Some(
-                        model
-                            .lower_documentation(self.service.as_ref())
-                            .map_err(|e| e.to_string())?,
-                    )
                 } else {
                     None
                 };

@@ -12,7 +12,7 @@ func TestDocumentPayloadPresence(t *testing.T) {
     for _, state := range []string{"omitted", "null", "value"} {
         t.Run(state, func(t *testing.T) {
             expected := ""
-            input := &DocumentInput{}
+            input := &PutDocumentInput{}
             switch state {
             case "null": input.SetDocument(nil); expected = "null"
             case "value": input.SetDocument(map[string]any{"answer": 42}); expected = `{"answer":42}`
@@ -35,7 +35,7 @@ func TestRecordNullIsSentAsNull(t *testing.T) {
     for _, state := range []string{"omitted", "null", "value"} {
         t.Run(state, func(t *testing.T) {
             expected := ""
-            input := &RecordInput{}
+            input := &PutRecordInput{}
             switch state {
             case "null":
                 input.SetRecord(nil)

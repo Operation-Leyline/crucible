@@ -8,19 +8,15 @@ namespace Example.Weather.Models;
 /// </summary>
 public sealed class @GetCityPhotoInput {
     /// <summary>
-    /// Whether cityId was set, to a value or to an explicit null.
-    /// </summary>
-    public global::Example.Weather.Optional<string> @CityIdPresence { get; set; }
-    /// <summary>
     /// The <c>cityId</c> member.
     /// </summary>
     /// <remarks>
-    /// <para>Optional: null when unset or explicitly null; CityIdPresence tells the two apart.</para>
+    /// <para>Required.</para>
     /// </remarks>
-    public string? @CityId { get => @CityIdPresence.IsSet && !@CityIdPresence.IsNull ? @CityIdPresence.Value : (string?)null; set => @CityIdPresence = value is null ? global::Example.Weather.Optional<string>.Null : global::Example.Weather.Optional<string>.Of(value); }
+    public string @CityId { get; set; } = default!;
     /// <summary>
     /// Formats every set member as <c>Type(Member=value, ...)</c>; sensitive members print as a redaction marker, never their value.
     /// </summary>
     /// <returns>The debug representation.</returns>
-    public override string ToString() => global::Example.Weather.ModelFormat.Format("GetCityPhotoInput", ("CityId", @CityIdPresence));
+    public override string ToString() => global::Example.Weather.ModelFormat.Format("GetCityPhotoInput", ("CityId", @CityId));
 }

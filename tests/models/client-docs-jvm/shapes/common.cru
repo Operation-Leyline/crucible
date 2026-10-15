@@ -1,0 +1,26 @@
+union Choice {
+    label: string
+    code: Secret
+}
+
+sensitive structure Classified {
+    detail?: string
+}
+
+/// How fast.
+enum Mode {
+    /// Quick `mode`.
+    Fast = "fast"
+    Slow = "slow"
+}
+
+list Names: string
+
+structure Profile {
+    nickname?: string
+    sensitive pin?: string
+}
+
+sensitive string Secret
+
+list Secrets: Secret

@@ -1,23 +1,27 @@
+mod common;
+
 use crucible_codegen_rust::{Options, generate, generate_client};
-use crucible_smithy::{Model, ir::Service};
-use serde_json::{Value, json};
+use crucible_smithy::ir::{Fault, Service, Shape};
 
-const STANDARD: &str =
-    include_str!("../../crucible-smithy/tests/fixtures/standard-service-errors.json");
 const UNKNOWN: &str = "crucible.errors#UnknownOperationException";
+const ERRORS: &str =
+    "errors [ValidationException, InternalServerException, UnknownOperationException]";
 
-fn edited(edit: impl FnOnce(&mut Value)) -> Service {
-    let mut model: Value = serde_json::from_str(STANDARD).unwrap();
-    edit(&mut model);
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+fn standard() -> Service {
+    common::load("standard-service-errors")
+}
+
+/// The unknown-operation error, for edits to the lowered service.
+fn unknown(service: &mut Service) -> &mut crucible_smithy::ir::Structure {
+    match service.shapes.get_mut(&UNKNOWN.parse().unwrap()) {
+        Some(Shape::Structure(structure)) => structure,
+        _ => panic!("{UNKNOWN} is a structure"),
+    }
 }
 
 #[test]
 fn the_shared_exception_overrides_the_validation_reason_even_without_operations() {
-    let service = edited(|_| {});
+    let service = standard();
     let code = generate(&service, &Options::default()).unwrap();
     assert!(code.contains("Some(internal),\n        Some(unknown),"));
     assert!(code.contains("fn unknown()"));
@@ -29,9 +33,8 @@ fn the_shared_exception_overrides_the_validation_reason_even_without_operations(
 
 #[test]
 fn a_renamed_shared_exception_is_selected_by_shape_id() {
-    let service = edited(|model| {
-        model["shapes"]["example.empty#Empty"]["rename"] = json!({UNKNOWN: "NoSuchRouteException"});
-    });
+    let mut service = standard();
+    common::rename(&mut service, &[(UNKNOWN, "NoSuchRouteException")]);
     let code = generate(&service, &Options::default()).unwrap();
     assert!(code.contains("Box::new(errors::NoSuchRouteException"));
 }
@@ -39,16 +42,18 @@ fn a_renamed_shared_exception_is_selected_by_shape_id() {
 #[test]
 fn a_custom_404_requires_explicit_selection_and_can_include_request_id() {
     let custom = "example.empty#ResourceNotFoundException";
-    let service = edited(|model| {
-        let mut shape = model["shapes"]
-            .as_object_mut()
-            .unwrap()
-            .remove(UNKNOWN)
-            .unwrap();
-        shape["members"]["requestId"] =
-            json!({"target":"smithy.api#String", "traits":{"smithy.api#required":{}}});
-        model["shapes"][custom] = shape;
-        model["shapes"]["example.empty#Empty"]["errors"][2]["target"] = json!(custom);
+    let service = common::load_with("standard-service-errors", |package| {
+        for file in &mut package.files {
+            file.text = file.text.replace(
+                ERRORS,
+                "errors [ValidationException, InternalServerException, ResourceNotFoundException]",
+            );
+        }
+        package.files.push(crucible_lang::SourceFile {
+            path: "not_found.cru".into(),
+            text: "error ResourceNotFoundException {\n    status 404\n    message: string\n    requestId: string\n}\n"
+            .into(),
+        });
     });
     let default = generate(&service, &Options::default()).unwrap();
     assert!(default.contains("reason: model::ValidationExceptionReason::UnknownOperation"));
@@ -68,7 +73,7 @@ fn a_custom_404_requires_explicit_selection_and_can_include_request_id() {
 
 #[test]
 fn invalid_unknown_operation_configuration_is_diagnosed_at_generation() {
-    let service = edited(|_| {});
+    let service = standard();
     for id in [
         "example.empty#Missing",
         "crucible.errors#ValidationExceptionReason",
@@ -88,11 +93,14 @@ fn invalid_unknown_operation_configuration_is_diagnosed_at_generation() {
                 .contains("is not an @error structure")
         );
     }
-    for (trait_id, value) in [
-        ("smithy.api#httpError", json!(400)),
-        ("smithy.api#error", json!("server")),
+    for edit in [
+        (|service: &mut Service| {
+            unknown(service).error.as_mut().unwrap().status = 400;
+        }) as fn(&mut Service),
+        |service| unknown(service).error.as_mut().unwrap().fault = Fault::Server,
     ] {
-        let service = edited(|model| model["shapes"][UNKNOWN]["traits"][trait_id] = value);
+        let mut service = standard();
+        edit(&mut service);
         let diagnostics = generate(&service, &Options::default()).unwrap_err();
         assert!(
             diagnostics
@@ -100,32 +108,26 @@ fn invalid_unknown_operation_configuration_is_diagnosed_at_generation() {
                 .contains("client error with HTTP status 404")
         );
     }
-    let service = edited(|model| {
-        model["shapes"][UNKNOWN]["members"]["detail"] =
-            json!({"target":"smithy.api#String", "traits":{"smithy.api#required":{}}});
-    });
+    let mut service = standard();
+    let mut detail = unknown(&mut service).members[0].clone();
+    detail.name = "detail".into();
+    unknown(&mut service).members.push(detail);
     let diagnostics = generate(&service, &Options::default()).unwrap_err();
     assert!(diagnostics.to_string().contains("required members besides"));
 }
 
 #[test]
 fn declared_standard_errors_are_typed_client_responses() {
-    let standard: Value = serde_json::from_str(STANDARD).unwrap();
-    let mut weather: Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    for (id, shape) in standard["shapes"].as_object().unwrap() {
-        if id.starts_with("crucible.errors#") {
-            weather["shapes"][id] = shape.clone();
+    let service = common::load_with("weather", |package| {
+        package.imports.push("crucible.errors".into());
+        for file in &mut package.files {
+            // The imported package declares its own ValidationError.
+            file.text = file
+                .text
+                .replace("errors [ThrottlingError, ValidationError]", ERRORS)
+                .replace("ValidationError", "InvalidRequestError");
         }
-    }
-    weather["shapes"]["example.weather#Weather"]["errors"] =
-        standard["shapes"]["example.empty#Empty"]["errors"].clone();
-    let service = Model::from_json(&weather.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    });
     let code = generate_client(&service).unwrap();
     for name in [
         "UnknownOperationException",

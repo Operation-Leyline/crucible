@@ -6,51 +6,60 @@ fn main() {
         let model = crucible_build::model(fixture);
         let code = match side {
             Side::Client => model.client().render(),
-            Side::Server => model.server().render(),
+            Side::Server => model.server().custom_rejections().render(),
         }
         .unwrap_or_else(|error| panic!("{fixture}: {error}"));
         std::fs::write(out.join(name), code).unwrap();
     };
     render(
-        "tests/fixtures/presence.json",
+        "tests/fixtures/presence",
         "presence_client.rs",
         Side::Client,
     );
     render(
-        "../../crates/crucible-smithy/tests/fixtures/review-hardening.json",
+        "../../tests/models/review-hardening",
         "hardening_client.rs",
         Side::Client,
     );
     render(
-        "tests/fixtures/extended-runtime.json",
+        "tests/fixtures/extended-runtime",
         "types_client.rs",
         Side::Client,
     );
     render(
-        "tests/fixtures/extended-runtime.json",
+        "tests/fixtures/extended-runtime",
         "types_server.rs",
         Side::Server,
     );
     render(
-        "tests/fixtures/payload-kinds.json",
+        "tests/fixtures/payload-kinds",
         "kinds_client.rs",
         Side::Client,
     );
-    let fixture = "../../crates/crucible-smithy/tests/fixtures/error-payloads.json";
-    render(fixture, "wire_server.rs", Side::Server);
-    let mut model: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(fixture).unwrap()).unwrap();
-    // Preserve the shared wire contract while disambiguating the flat Rust API.
-    model["shapes"]["example.wire#Wire"]["rename"] =
-        serde_json::json!({"example.wire#TextError": "TextFault"});
-    let path = out.join("wire-client.json");
-    std::fs::write(&path, model.to_string()).unwrap();
+    // The flat Rust API would hold a `TextError` operation enum and a
+    // `TextError` structure, so both sides build from a copy of the package
+    // that names the structure `TextFault`.
+    let fixture = "../../tests/models/error-payloads";
+    println!("cargo::rerun-if-changed={fixture}");
+    let renamed = out.join("wire");
+    copy_renamed(
+        std::path::Path::new(fixture),
+        &renamed,
+        "TextError",
+        "TextFault",
+    );
+    let wire = crucible_build::model(&renamed);
     std::fs::write(
-        out.join("wire_client.rs"),
-        crucible_build::model(&path).client().render().unwrap(),
+        out.join("wire_server.rs"),
+        wire.server().custom_rejections().render().unwrap(),
     )
     .unwrap();
-    let fixture = "../../crates/crucible-smithy/tests/fixtures/internal.json";
+    std::fs::write(
+        out.join("wire_client.rs"),
+        crucible_build::model(&renamed).client().render().unwrap(),
+    )
+    .unwrap();
+    let fixture = "../../tests/models/internal";
     for (file, audience) in [
         ("audience_external.rs", crucible_build::Audience::External),
         ("audience_internal.rs", crucible_build::Audience::Internal),
@@ -65,6 +74,24 @@ fn main() {
                 .unwrap(),
         )
         .unwrap();
+    }
+}
+
+/// Copies a package, spelling `from` as `to` wherever a source names it.
+fn copy_renamed(source: &std::path::Path, target: &std::path::Path, from: &str, to: &str) {
+    std::fs::create_dir_all(target).unwrap();
+    for entry in std::fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        let destination = target.join(entry.file_name());
+        if path.is_dir() {
+            copy_renamed(&path, &destination, from, to);
+        } else if path.extension().is_some_and(|extension| extension == "cru") {
+            let text = std::fs::read_to_string(&path).unwrap();
+            std::fs::write(destination, text.replace(from, to)).unwrap();
+        } else {
+            std::fs::copy(&path, destination).unwrap();
+        }
     }
 }
 

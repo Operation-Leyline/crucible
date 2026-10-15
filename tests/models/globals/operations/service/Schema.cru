@@ -1,0 +1,6 @@
+operation Schema {
+    http POST "/schema"
+    output {
+        name?: string
+    }
+}

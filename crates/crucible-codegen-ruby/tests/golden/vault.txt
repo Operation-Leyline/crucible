@@ -230,22 +230,22 @@ end
 # frozen_string_literal: true
 module Vault
     class GetSecretInput
-      # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      # @return [String]
       attr_reader :name
       # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
-      def initialize(name: ::Vault::Runtime::UNSET)
+      def initialize(name:)
         @name = name
         freeze
       end
       def self.from_wire(value, context)
         object = ::Vault::Runtime::WireCodec.object(value)
         new(
-          name: context.read('name', object, optional: true),
+          name: context.read('name', object, optional: false),
         )
       end
       def to_wire(context)
         object = {}
-        context.put(object, 'name', @name, optional: true)
+        context.put(object, 'name', @name, optional: false)
         object
       end
       # @return [String] `GetSecretInput(member=value, ...)` with sensitive members redacted and unset ones omitted
@@ -401,12 +401,12 @@ end
 # frozen_string_literal: true
 module Vault
     class PutSecretInput
-      # @return [Secret, nil] nil when sent as null; {Runtime::UNSET} when omitted
+      # @return [Secret]
       attr_reader :secret
       # @return [String, nil] nil when sent as null; {Runtime::UNSET} when omitted
       attr_reader :client_token
       # Optional members default to {Runtime::UNSET}, which leaves them out of the request.
-      def initialize(secret: ::Vault::Runtime::UNSET, client_token: ::Vault::Runtime::UNSET)
+      def initialize(secret:, client_token: ::Vault::Runtime::UNSET)
         @secret = secret
         @client_token = client_token
         freeze
@@ -414,13 +414,13 @@ module Vault
       def self.from_wire(value, context)
         object = ::Vault::Runtime::WireCodec.object(value)
         new(
-          secret: context.read('secret', object, optional: true),
+          secret: context.read('secret', object, optional: false),
           client_token: context.read('clientToken', object, optional: true),
         )
       end
       def to_wire(context)
         object = {}
-        context.put(object, 'secret', @secret, optional: true)
+        context.put(object, 'secret', @secret, optional: false)
         context.put(object, 'clientToken', @client_token, optional: true)
         object
       end

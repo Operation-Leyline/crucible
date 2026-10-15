@@ -1,0 +1,15 @@
+list Documents: document
+
+map DocumentsMap: string -> document
+
+list Flags: boolean
+
+map FlagsMap: string -> boolean
+
+list Numbers: double
+
+map NumbersMap: string -> double
+
+list Texts: string
+
+map TextsMap: string -> string

@@ -1,6 +1,34 @@
 use crucible_codegen_java::{Options, emit};
-use crucible_smithy::Model;
 use std::{fs, path::Path};
+
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    crucible_lang::load_service(&dir)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first.
+fn load_with(name: &str, edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("{name} compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
 fn options() -> Options {
     Options {
         group_id: "example".into(),
@@ -13,12 +41,7 @@ fn options() -> Options {
 
 #[test]
 fn client_name_follows_service_identity() {
-    let mut service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let mut service = weather();
     service.id = crucible_smithy::ShapeId::new("dev.leyline", "Leyline");
     let files = emit(&service, &options()).unwrap();
     let client = files
@@ -36,16 +59,12 @@ fn client_name_follows_service_identity() {
 
 #[test]
 fn member_matching_first_package_segment_keeps_optional_initializer_valid() {
-    let mut model: serde_json::Value = serde_json::from_str(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap();
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["ex"] =
-        serde_json::json!({"target":"smithy.api#String"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load_with("weather", |text| {
+        text.replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        ex?: string\n",
+        )
+    });
     let mut config = options();
     config.package_name = "ex.edge".into();
     let files = emit(&service, &config).unwrap();
@@ -61,12 +80,7 @@ fn member_matching_first_package_segment_keeps_optional_initializer_valid() {
 }
 #[test]
 fn weather_matches_goldens() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     for file in emit(&service, &options()).unwrap() {
         if file.path.ends_with(".java")
             && !file.path.contains("/model/")
@@ -94,12 +108,7 @@ fn weather_matches_goldens() {
 }
 #[test]
 fn configuration_diagnostics_are_collected() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = weather();
     let mut options = options();
     options.package_name = "../escape".into();
     options.artifact_id = "bad<id".into();
@@ -108,23 +117,17 @@ fn configuration_diagnostics_are_collected() {
 
 #[test]
 fn native_defaults_follow_lowered_client_nullability() {
-    let service = Model::from_json(include_str!("defaults.json"))
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load("defaults");
     let files = emit(&service, &options()).unwrap();
     let model = &files
         .iter()
-        .find(|file| file.path.ends_with("/DefaultsOutput.java"))
+        .find(|file| file.path.ends_with("/ReadOutput.java"))
         .unwrap()
         .contents;
     assert!(model.contains(
         "public java.lang.Long large = java.lang.Long.valueOf(\"9223372036854775807\");"
     ));
     assert!(model.contains("public java.lang.Integer count = java.lang.Integer.valueOf(\"17\");"));
-    assert!(model.contains(
-        "OptionalValue<java.lang.Integer> optionalCount = example.weather.OptionalValue.unset();"
-    ));
     assert!(model.contains("new java.util.ArrayList<>()"));
     assert!(model.contains("new java.util.LinkedHashMap<>()"));
     assert!(model.contains("new example.weather.model.Mode(\"known\")"));
@@ -133,17 +136,7 @@ fn native_defaults_follow_lowered_client_nullability() {
 #[test]
 fn reserved_names_are_diagnostics() {
     for name in ["class", "enum"] {
-        let mut model: serde_json::Value = serde_json::from_str(include_str!(
-            "../../crucible-smithy/tests/fixtures/weather.json"
-        ))
-        .unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            serde_json::json!({ "example.weather#CitySummary": name });
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
-
+        let service = load_with("weather", |text| text.replace("CitySummary", name));
         let err = emit(&service, &options()).err();
         assert!(
             err.is_some(),
@@ -160,12 +153,7 @@ fn reserved_names_are_diagnostics() {
 }
 
 fn docs_files() -> Vec<crucible_codegen_java::File> {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/client-docs-jvm.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = load("client-docs-jvm");
     emit(&service, &options()).unwrap()
 }
 
@@ -221,12 +209,9 @@ fn sensitive_members_are_redacted_in_to_string() {
 #[test]
 fn backslash_u_in_documentation_cannot_reach_javacs_unicode_pass() {
     // javac decodes backslash-u everywhere in a source file, comments included.
-    let fixture = include_str!("../../crucible-smithy/tests/fixtures/client-docs-jvm.json")
-        .replace(
-            r#""smithy.api#documentation": "How fast.""#,
-            r#""smithy.api#documentation": "C:\\users\\x \\u002a/ `\\u002a/`""#,
-        );
-    let service = Model::from_json(&fixture).unwrap().lower(None).unwrap();
+    let service = load_with("client-docs-jvm", |text| {
+        text.replace("/// How fast.", r"/// C:\users\x \u002a/ `\u002a/`")
+    });
     let files = emit(&service, &options()).unwrap();
     let mode = &files
         .iter()

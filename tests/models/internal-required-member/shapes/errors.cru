@@ -1,0 +1,10 @@
+internal error InternalFault {
+    status 400
+    message?: string
+}
+
+error PublicFault {
+    status 400
+    message?: string
+    internal requiredSecret: string
+}

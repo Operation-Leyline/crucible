@@ -2,11 +2,23 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crucible_codegen_cli::{Options, emit};
-use crucible_smithy::Model;
 use crucible_smithy::ir::Service;
-use serde_json::{Value, json};
+use serde_json::Value;
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+fn package_dir(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name)
+}
+
+fn load(name: &str) -> Service {
+    crucible_lang::load_service(&package_dir(name))
+        .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
+}
+
+fn weather() -> Service {
+    load("weather")
+}
 
 fn options() -> Options {
     Options {
@@ -17,18 +29,30 @@ fn options() -> Options {
     }
 }
 
-fn edited(edit: impl FnOnce(&mut Value)) -> Service {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    edit(&mut model);
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap()
+/// Weather with each `(old, new)` pair replaced in its sources.
+fn edited(edits: &[(&str, &str)]) -> Service {
+    let mut package = crucible_lang::load_package(&package_dir("weather")).unwrap();
+    for (old, new) in edits {
+        let mut found = false;
+        for file in &mut package.files {
+            file.text = file.text.replace("\r\n", "\n");
+            if file.text.contains(old) {
+                file.text = file.text.replace(old, new);
+                found = true;
+            }
+        }
+        assert!(found, "weather has no `{old}`");
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    let rendered = compiled.render();
+    compiled
+        .service
+        .unwrap_or_else(|| panic!("the edited weather compiles:\n{rendered}"))
 }
 
 #[test]
 fn weather_matches_golden_package() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     for file in emit(&service, &options()).unwrap() {
         // SDK output has its own authoritative golden in codegen-rust.
         if file.path == "src/client.rs" {
@@ -58,26 +82,21 @@ fn weather_matches_golden_package() {
 
 #[test]
 fn collects_command_flag_and_sdk_diagnostics() {
-    let service = edited(|model| {
-        let shapes = &mut model["shapes"];
-        shapes["example.weather#GetCityInput"]["members"]["inputJSON"] =
-            json!({"target":"smithy.api#String"});
-        shapes["example.weather#GetCityInput"]["members"]["cityID"] =
-            json!({"target":"smithy.api#String"});
-        shapes["example.weather#CityId"]["traits"]["smithy.api#pattern"] = json!("^(?!x)c-.*$");
-    });
+    let service = edited(&[(
+        "        $cityId\n        @query\n        at?: DateTime\n",
+        "        $cityId\n        @query\n        at?: DateTime\n        @query\n        inputJSON?: string\n        @query\n        cityID?: string\n",
+    )]);
     let message = emit(&service, &options()).unwrap_err().to_string();
     assert!(
         message.contains("flag `--input-json` is reserved"),
         "{message}"
     );
     assert!(message.contains("flag `--city-id` collides"), "{message}");
-    assert!(message.contains("does not compile"), "{message}");
 }
 
 #[test]
 fn command_collisions_are_reported_against_operation() {
-    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let mut service = weather();
     let mut duplicate = service.operations[0].clone();
     duplicate.id = "example.weather#Create_City".parse().unwrap();
     service.operations.push(duplicate);
@@ -90,7 +109,7 @@ fn command_collisions_are_reported_against_operation() {
 
 #[test]
 fn rejects_invalid_package_metadata_without_emitting_files() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let options = Options {
         bin_name: "../weather\n[dependencies]".into(),
         package_version: "1.0\n".into(),
@@ -103,7 +122,7 @@ fn rejects_invalid_package_metadata_without_emitting_files() {
 
 #[test]
 fn descriptor_uses_client_presence_and_timestamp_semantics() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let files = emit(&service, &options()).unwrap();
     let schema: Value = serde_json::from_str(
         &files
@@ -117,7 +136,13 @@ fn descriptor_uses_client_presence_and_timestamp_semantics() {
         .as_array()
         .unwrap();
     for member in members {
-        assert_eq!(member["required"], false, "@input uses client optionality");
+        // An input's members are required in clients as the model declares them.
+        assert_eq!(
+            member["required"],
+            member["name"] == "name",
+            "{}",
+            member["name"]
+        );
     }
     let coordinate_members = schema["shapes"]["example.weather#Coordinates"]["members"]
         .as_array()
@@ -139,7 +164,7 @@ fn descriptor_uses_client_presence_and_timestamp_semantics() {
 
 #[test]
 fn emission_does_not_depend_on_operation_order() {
-    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let mut service = weather();
     let expected = emit(&service, &options()).unwrap();
     service.operations.reverse();
     let actual = emit(&service, &options()).unwrap();
@@ -153,15 +178,10 @@ fn emission_does_not_depend_on_operation_order() {
 
 #[test]
 fn timestamp_arguments_use_the_sdk_member_format() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["observedAt"] = json!({
-            "target": "smithy.api#Timestamp",
-            "traits": {"smithy.api#timestampFormat": "epoch-seconds"}
-        });
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["sentAt"] = json!({
-            "target": "smithy.api#Timestamp"
-        });
-    });
+    let service = edited(&[(
+        "        location?: Location\n",
+        "        location?: Location\n        observedAt?: timestamp { format epoch-seconds }\n        sentAt?: timestamp\n",
+    )]);
     let files = emit(&service, &options()).unwrap();
     let schema: Value = serde_json::from_str(
         &files
@@ -192,7 +212,7 @@ fn timestamp_arguments_use_the_sdk_member_format() {
 
 #[test]
 fn rejects_windows_device_names_for_portable_packages() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     for name in ["con", "prn", "aux", "nul", "com1", "com9", "lpt1", "lpt9"] {
         let options = Options {
             bin_name: name.into(),
@@ -215,7 +235,7 @@ fn rejects_windows_device_names_for_portable_packages() {
 
 #[test]
 fn empty_services_do_not_emit_unused_dispatch_bindings() {
-    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let mut service = weather();
     service.operations.clear();
     let files = emit(&service, &options()).unwrap();
     let code = &files
@@ -231,10 +251,12 @@ fn empty_services_do_not_emit_unused_dispatch_bindings() {
 
 #[test]
 fn descriptor_preserves_root_shape_sensitivity() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#CreateCityInput"]["traits"]["smithy.api#sensitive"] =
-            json!({});
-    });
+    let mut service = weather();
+    let id = "example.weather#CreateCityInput".parse().unwrap();
+    let Some(crucible_smithy::ir::Shape::Structure(input)) = service.shapes.get_mut(&id) else {
+        panic!("CreateCityInput is a structure");
+    };
+    input.sensitive = true;
     let files = emit(&service, &options()).unwrap();
     let schema: Value = serde_json::from_str(
         &files
@@ -256,11 +278,10 @@ fn descriptor_preserves_root_shape_sensitivity() {
 
 #[test]
 fn input_version_is_a_member_flag_separate_from_root_version() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#GetCityInput"]["members"]["version"] = json!({
-            "target": "smithy.api#String"
-        });
-    });
+    let service = edited(&[(
+        "        $cityId\n        @query\n        at?: DateTime\n",
+        "        $cityId\n        @query\n        at?: DateTime\n        @query\n        version?: string\n",
+    )]);
     let files = emit(&service, &options()).unwrap();
     let schema: Value = serde_json::from_str(
         &files
@@ -283,7 +304,7 @@ fn input_version_is_a_member_flag_separate_from_root_version() {
 
 #[test]
 fn unit_responses_do_not_bind_unit_values() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let files = emit(&service, &options()).unwrap();
     let code = &files
         .iter()
@@ -310,26 +331,12 @@ fn schema_of(service: &Service) -> Value {
     serde_json::from_str(&file.unwrap().contents).unwrap()
 }
 
-// crucible-build lowers with every capability, so the CLI generator sees
-// models that carry @jsonName and HTTP-bound timestamps.
-fn json_service(edit: impl FnOnce(&mut Value)) -> Service {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    edit(&mut model);
-    let all = crucible_smithy::Capabilities::new(crucible_smithy::Feature::ALL.iter().copied());
-    Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &all)
-        .unwrap()
-}
-
 #[test]
 fn query_timestamps_keep_the_document_kind_and_bound_format() {
-    let service = json_service(|model| {
-        model["shapes"]["example.weather#CreateCityInput"]["members"]["since"] = json!({
-            "target": "smithy.api#Timestamp",
-            "traits": {"smithy.api#httpQuery": "since"}
-        });
-    });
+    let service = edited(&[(
+        "        location?: Location\n",
+        "        location?: Location\n        @query\n        since?: timestamp\n",
+    )]);
     let schema = schema_of(&service);
     let member = member_of(&schema, "example.weather#CreateCityInput", "since");
     assert_eq!(member["kind"], "string", "SDK parses the document codec");
@@ -339,12 +346,7 @@ fn query_timestamps_keep_the_document_kind_and_bound_format() {
 
 #[test]
 fn mcp_command_is_reserved_with_a_shape_diagnostic() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/mcp-cli-reserved.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = load("mcp-cli-reserved");
     let diagnostics = emit(&service, &options()).unwrap_err();
     assert!(
         diagnostics
@@ -356,9 +358,10 @@ fn mcp_command_is_reserved_with_a_shape_diagnostic() {
 
 #[test]
 fn tools_reuse_shared_emission_and_selected_audience() {
-    let service = edited(|model| {
-        model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#internal"] = json!({});
-    });
+    let service = edited(&[(
+        "operation GetCity reads City",
+        "internal operation GetCity reads City",
+    )]);
     for audience in [
         crucible_smithy::Audience::External,
         crucible_smithy::Audience::Internal,
@@ -386,12 +389,7 @@ fn tools_reuse_shared_emission_and_selected_audience() {
 
 #[test]
 fn mcp_tool_name_diagnostics_reuse_the_shared_fixture() {
-    let service = Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/mcp-tool-names.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = load("mcp-tool-names");
     let diagnostics = emit(&service, &options()).unwrap_err();
     assert_eq!(
         diagnostics

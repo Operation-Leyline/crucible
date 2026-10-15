@@ -1,0 +1,11 @@
+/// Stores secrets.
+///
+/// See [the guide](https://example.com/guide) and [Secret] for `*/` details. @since 1
+service Vault {
+    version "2026-10-08"
+    title "Vault"
+    protocol json
+    auth bearer
+    operations [GetSecret, ListSecrets, PutSecret]
+    errors [AccessDenied]
+}

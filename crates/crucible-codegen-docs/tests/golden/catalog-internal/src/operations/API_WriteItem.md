@@ -18,6 +18,7 @@ Content-Type: application/json
 
 ```json
 {
+  "itemId": "<string>",
   "item": "<union>",
   "clientToken": "<string>"
 }
@@ -25,6 +26,7 @@ Content-Type: application/json
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
+| <code>itemId</code> | <code>body: itemId</code> | <code>string</code> | Yes | — | — |  |
 | <code>item</code> | <code>body: item</code> | [Content](../shapes/Content.md) | Yes | — | — |  |
 | <code>clientToken</code> | <code>body: clientToken</code> | <code>string</code> | No | — | — |  |
 
@@ -77,7 +79,8 @@ Content-Type: application/json
 {
   "item": {
     "amount": 1234567890123456789
-  }
+  },
+  "itemId": "i1"
 }
 ```
 
@@ -105,7 +108,8 @@ Content-Type: application/json
 {
   "item": {
     "text": "retry"
-  }
+  },
+  "itemId": "i1"
 }
 ```
 

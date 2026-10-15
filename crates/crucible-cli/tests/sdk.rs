@@ -5,10 +5,10 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
 const SDK_FILE: &str = r#"schema_version = 1
-model = "model.json"
+model = "weather"
 
 [defaults]
 description = "Client for the Weather API."
@@ -66,7 +66,7 @@ fn service(sdk_file: &str) -> tempfile::TempDir {
     let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
     let root = directory.path();
     fs::create_dir(root.join(".git")).unwrap();
-    fs::write(root.join("model.json"), WEATHER).unwrap();
+    common::install_shared(root, "weather");
     fs::create_dir(root.join("sdk")).unwrap();
     fs::write(root.join("sdk/README.md"), "# Weather\r\n\r\nThe SDK.\r\n").unwrap();
     fs::write(root.join("crucible-sdk.toml"), sdk_file).unwrap();
@@ -84,7 +84,7 @@ fn config_prints_each_sdks_effective_configuration() {
     // Found from a subdirectory, as in a service repository.
     let config: serde_json::Value =
         serde_json::from_str(&success(crucible(&nested, &["sdk", "config", "--json"]))).unwrap();
-    assert_eq!(config["model"], "model.json");
+    assert_eq!(config["model"], "weather");
     let ts = &config["sdks"]["ts"];
     assert_eq!(ts["endpoint"], "https://api.weather.example");
     assert_eq!(ts["endpoint_env"], "WEATHER_SDK_TEST_ENDPOINT");
@@ -199,7 +199,7 @@ fn generate_writes_each_declared_sdk_to_its_out() {
 #[test]
 fn an_invalid_sdk_file_reports_every_error_and_writes_nothing() {
     let directory = service(
-        "schema_version = 1\nmodel = \"model.json\"\n[sdk.rust]\nout = \"generated/rust\"\nendpoint = \"https://x.example\"\n[sdk.ts]\nout = \"generated/ts\"\n",
+        "schema_version = 1\nmodel = \"weather\"\n[sdk.rust]\nout = \"generated/rust\"\nendpoint = \"https://x.example\"\n[sdk.ts]\nout = \"generated/ts\"\n",
     );
     let error = failure(crucible(directory.path(), &["sdk", "generate"]));
     assert!(error.contains("sdk.rust.endpoint"), "{error}");
@@ -257,7 +257,7 @@ fn a_missing_sdk_file_names_where_it_looked() {
     let error = failure(crucible(directory.path(), &["sdk", "config"]));
     assert!(error.contains("no crucible-sdk.toml"), "{error}");
     fs::write(directory.path().join("other.toml"), SDK_FILE).unwrap();
-    fs::write(directory.path().join("model.json"), WEATHER).unwrap();
+    common::install_shared(directory.path(), "weather");
     fs::create_dir(directory.path().join("sdk")).unwrap();
     fs::write(directory.path().join("sdk/README.md"), "# Weather\n").unwrap();
     success(crucible(
@@ -293,7 +293,7 @@ fn generate_takes_the_common_keys_as_flags() {
     let mut ts = vec![
         "generate",
         "ts",
-        "model.json",
+        "weather",
         "--out",
         "adhoc/ts",
         "--package-name",
@@ -317,7 +317,7 @@ fn generate_takes_the_common_keys_as_flags() {
     let mut rust = vec![
         "generate",
         "rust",
-        "model.json",
+        "weather",
         "--client",
         "--out",
         "adhoc/rust",
@@ -343,7 +343,7 @@ fn generate_takes_the_common_keys_as_flags() {
         &[
             "generate",
             "rust",
-            "model.json",
+            "weather",
             "--out",
             "server.rs",
             "--private",
@@ -355,7 +355,7 @@ fn generate_takes_the_common_keys_as_flags() {
         &[
             "generate",
             "rust",
-            "model.json",
+            "weather",
             "--client",
             "--out",
             "adhoc/bad",
@@ -399,7 +399,7 @@ fn generate_ts_takes_an_npm_registry() {
         &[
             "generate",
             "ts",
-            "model.json",
+            "weather",
             "--out",
             "adhoc/ts",
             "--package-name",
@@ -422,7 +422,7 @@ fn generate_ts_takes_an_npm_registry() {
         &[
             "generate",
             "ts",
-            "model.json",
+            "weather",
             "--out",
             "adhoc/public",
             "--package-name",
@@ -486,7 +486,7 @@ fn generate_ts_accepts_documentation_without_a_field_for_it() {
         &[
             "generate",
             "ts",
-            "model.json",
+            "weather",
             "--out",
             "adhoc/docs",
             "--package-name",

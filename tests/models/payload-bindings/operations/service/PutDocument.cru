@@ -1,0 +1,7 @@
+idempotent operation PutDocument {
+    http PUT "/document" -> 200
+    input {
+        @payload
+        document?: document
+    }
+}

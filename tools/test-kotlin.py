@@ -1,5 +1,4 @@
 """Install a Kotlin SDK jar, then compile and exercise a separate coroutine consumer."""
-import json
 import os
 from pathlib import Path
 import shutil
@@ -7,9 +6,51 @@ import tempfile
 import xml.etree.ElementTree as ET
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
+from sdk_cru_packages import add_operations, copy_package, rename_shapes, replace_once, write_package
 
 MAVEN = os.environ.get("MAVEN", "mvn")
 REPO = "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo")
+
+
+BUILDER_DEFAULTS = """structure BuilderDefaults {
+    builder: string = "builder-value"
+    block: string = "block-value"
+    flag: boolean = true
+    small: byte = -7
+    medium: short = 300
+    count: integer = 42
+    large: long = -9223372036854775808
+    ratio: float = 1.5
+    score: double = 2.5
+    label: string = "default $value\\\\path"
+    sky: Sky = CLEAR
+    tags: Tags = []
+    forecast: Forecast = {  }
+    document: document = {"count": 9223372036854775807}
+    blob: blob = "AQI="
+    requiredValue: string
+    sensitive secretToken?: string
+}
+
+readonly operation ReadBuilderDefaults {
+    http GET "/builder-defaults"
+    output {
+        defaults: BuilderDefaults
+    }
+}
+
+// The shared payload-bindings upload, named apart from the weather shapes,
+// for the Content-Type precedence test.
+idempotent operation TypedUpload {
+    http PUT "/typed-upload" -> 200
+    input {
+        @payload
+        data?: blob
+        @header("CoNtEnT-TyPe")
+        contentType?: string
+    }
+}
+"""
 
 
 def generate(model, output, package="example.weather"):
@@ -18,50 +59,22 @@ def generate(model, output, package="example.weather"):
         "--package-name", package, "--package-version", "0.0.0-test")
 
 
+def large_package(output):
+    """100 records of 20 required strings, each an optional member of one output."""
+    members = "".join(f"        record{index}?: Record{index}\n" for index in range(100))
+    records = "".join(
+        f"structure Record{index} {{\n" + "".join(f"    field{field}: string\n" for field in range(20)) + "}\n\n"
+        for index in range(100))
+    return write_package(output / "large", "example.large", **{"large.cru": (
+        "service Large {\n    version \"1\"\n    protocol json\n    operations [Read]\n}\n\n"
+        "readonly operation Read {\n    http GET \"/\"\n    output {\n" + members + "    }\n}\n\n" + records)})
+
+
 def qualify(output):
     package = output / "sdk"
     model_path = qualification_model(output)
-    model = json.loads(model_path.read_text())
-    defaults = {
-        "builder": ("smithy.api#String", "builder-value"),
-        "block": ("smithy.api#String", "block-value"),
-        "flag": ("smithy.api#Boolean", True),
-        "small": ("smithy.api#Byte", -7),
-        "medium": ("smithy.api#Short", 300),
-        "count": ("smithy.api#Integer", 42),
-        "decimalCount": ("smithy.api#Integer", 17.0),
-        "large": ("smithy.api#Long", -9223372036854775808),
-        "ratio": ("smithy.api#Float", 1.5),
-        "score": ("smithy.api#Double", 2.5),
-        "label": ("smithy.api#String", 'default $value\\path'),
-        "sky": ("example.weather#Sky", "sunny"),
-        "tags": ("example.weather#Tags", []),
-        "forecast": ("example.weather#Forecast", {}),
-        "document": ("smithy.api#Document", {"count": 9223372036854775807}),
-        "blob": ("smithy.api#Blob", "AQI="),
-        "date": ("smithy.api#Timestamp", -0.25),
-        "epoch": ("smithy.api#Timestamp", -1.5),
-    }
-    members = {name: {"target": target, "traits": {"smithy.api#default": value}}
-               for name, (target, value) in defaults.items()}
-    members["requiredValue"] = {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
-    members["secretToken"] = {"target": "smithy.api#String", "traits": {"smithy.api#sensitive": {}}}
-    members["epoch"]["traits"]["smithy.api#timestampFormat"] = "epoch-seconds"
-    members["optionalDefault"] = {"target": "smithy.api#Integer", "traits": {"smithy.api#default": 19, "smithy.api#clientOptional": {}}}
-    model["shapes"]["example.weather#BuilderDefaults"] = {"type": "structure", "members": members}
-    model["shapes"]["example.weather#ReadBuilderDefaults"] = {
-        "type": "operation", "output": {"target": "example.weather#BuilderDefaults"},
-        "traits": {"smithy.api#http": {"method": "GET", "uri": "/builder-defaults"}, "smithy.api#readonly": {}}}
-    model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.weather#ReadBuilderDefaults"})
-    # The shared payload-bindings upload, renamed apart from the weather
-    # shapes, for the Content-Type precedence test.
-    bindings = json.loads((ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json").read_text()
-                          .replace("example.payload#", "example.payload#Typed"))["shapes"]
-    model["shapes"]["example.weather#Weather"]["operations"].append({"target": "example.payload#TypedUpload"})
-    bindings["example.payload#TypedUpload"]["traits"]["smithy.api#http"]["uri"] = "/typed-upload"
-    model["shapes"].update({key: value for key, value in bindings.items() if key.split("#Typed")[1] in (
-        "Upload", "UploadInput")})
-    model_path.write_text(json.dumps(model), encoding="utf-8")
+    (model_path / "builder-defaults.cru").write_text(BUILDER_DEFAULTS, encoding="utf-8", newline="\n")
+    add_operations(model_path, "ReadBuilderDefaults", "TypedUpload")
     generate(model_path, package)
     run(MAVEN, "-q", REPO, "install", "dependency:copy-dependencies", cwd=package)
     consumer = output / "consumer"
@@ -103,37 +116,18 @@ public final class JavaEnumConsumer {
         run("java", "-Xmx256m", "-cp", classpath, "example.weather.MainKt",
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),
             env=dict(os.environ, WEATHER_URL=endpoint))
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#CitySummaries": "OptionalValue",
-        "example.weather#ConflictError": "ServiceError", "example.weather#Location": "Request",
-    }
-    renamed["shapes"]["example.weather#CreateCityInput"]["members"]["class"] = {"target": "smithy.api#String"}
-    renamed_path = output / "renamed.json"
-    renamed_path.write_text(json.dumps(renamed), encoding="utf-8")
-    for name, model in [("empty", ROOT / "tests/conformance/empty-service.json"), ("renamed", renamed_path)]:
+    renamed_path = copy_package("weather", output / "renamed")
+    rename_shapes(renamed_path, {"CitySummary": "String", "CitySummaries": "OptionalValue",
+                                 "ConflictError": "ServiceError", "Location": "Request"})
+    replace_once(renamed_path, "        clientToken?: string\n", "        clientToken?: string\n        class?: string\n")
+    for name, model in [("empty", ROOT / "tests/models/empty-service"), ("renamed", renamed_path)]:
         generated = output / name
         generate(model, generated, "example." + name)
         run(MAVEN, "-q", REPO, "package", cwd=generated)
     permissions(output)
     # A single giant decoder compiles for weather but exceeds the JVM method-size
     # limit for real services. Keep a public, synthetic full-size package in CI.
-    shapes = {
-        "example.large#Large": {"type": "service", "version": "1", "traits": {"crucible.protocols#json": {}},
-            "operations": [{"target": "example.large#Read"}]},
-        "example.large#Read": {"type": "operation", "output": {"target": "example.large#Output"},
-            "traits": {"smithy.api#readonly": {}, "smithy.api#http": {"method": "GET", "uri": "/"}}},
-        "example.large#Output": {"type": "structure", "members": {}},
-    }
-    for index in range(100):
-        target = f"example.large#Record{index}"
-        shapes[target] = {"type": "structure", "members": {
-            f"field{field}": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}}
-            for field in range(20)
-        }}
-        shapes["example.large#Output"]["members"][f"record{index}"] = {"target": target}
-    large = output / "large.json"
-    large.write_text(json.dumps({"smithy": "2.0", "shapes": shapes}), encoding="utf-8")
+    large = large_package(output)
     generated = output / "large"
     generate(large, generated, "example.large")
     run(MAVEN, "-q", REPO, "package", cwd=generated)

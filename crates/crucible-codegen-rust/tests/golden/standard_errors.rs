@@ -7,6 +7,7 @@ pub mod empty {
     #[allow(clippy::all, unused_imports, unused_variables, dead_code, non_snake_case, non_camel_case_types, deprecated)]
     mod model {
 
+        /// A request field that failed validation.
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationExceptionField {
@@ -26,6 +27,7 @@ pub mod empty {
 
         pub type ValidationExceptionFieldList = ::std::vec::Vec<ValidationExceptionField>;
 
+        /// A machine-readable reason; clients never need to parse message text.
         #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub enum ValidationExceptionReason {
@@ -59,6 +61,7 @@ pub mod empty {
     mod errors {
         use super::__redaction;
 
+        /// An unexpected server failure. Its message never exposes the underlying cause.
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct InternalServerException {
@@ -112,6 +115,7 @@ pub mod empty {
 
         impl ::std::error::Error for InternalServerException {}
 
+        /// No operation matches the request's method and path.
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct UnknownOperationException {
@@ -161,6 +165,7 @@ pub mod empty {
 
         impl ::std::error::Error for UnknownOperationException {}
 
+        /// A request cannot be parsed or does not satisfy the service's input model.
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
         pub struct ValidationException {

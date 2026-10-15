@@ -1,0 +1,40 @@
+error ConflictError {
+    status 409
+    message: string
+}
+
+error NotFoundError {
+    status 404
+    message: string
+    resourceId?: string
+}
+
+error ThrottlingError {
+    status 429
+    retryable throttling
+    message: string
+    @header("Retry-After")
+    retryAfter?: integer
+}
+
+error ValidationError {
+    status 400
+    message: string
+    reason: ValidationReason
+    fieldList?: ValidationFieldList
+    requestId?: string
+}
+
+structure ValidationField {
+    path: string
+    message: string
+}
+
+list ValidationFieldList: ValidationField
+
+enum ValidationReason {
+    UNKNOWN_OPERATION = "unknownOperation"
+    CANNOT_PARSE = "cannotParse"
+    FIELD_VALIDATION_FAILED = "fieldValidationFailed"
+    OTHER = "other"
+}

@@ -101,12 +101,7 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         }
     }
     public struct `CreateCityInput`: Swift.Sendable, WireCodable, ModelDescription {
-        /// Whether `name` was omitted, set to null, or given a value.
-        public var `namePresence`: OptionalValue<Swift.String>
-        public var `name`: Swift.String? {
-            get { `namePresence`.value }
-            set { `namePresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `name`: Swift.String
         /// Whether `location` was omitted, set to null, or given a value.
         public var `locationPresence`: OptionalValue<`Location`>
         public var `location`: `Location`? {
@@ -126,8 +121,8 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
             set { `expectedRevisionPresence` = newValue.map { .value($0) } ?? .null }
         }
         public var description: Swift.String { Describe.format("CreateCityInput", [("name", `name`), ("location", `location`), ("clientToken", `clientToken`), ("expectedRevision", `expectedRevision`)]) }
-        public init(`name`: Swift.String? = nil, `namePresence`: OptionalValue<Swift.String>? = nil, `location`: `Location`? = nil, `locationPresence`: OptionalValue<`Location`>? = nil, `clientToken`: Swift.String? = nil, `clientTokenPresence`: OptionalValue<Swift.String>? = nil, `expectedRevision`: Swift.Int64? = nil, `expectedRevisionPresence`: OptionalValue<Swift.Int64>? = nil) {
-            self.`namePresence` = `namePresence` ?? (`name`.map { .value($0) } ?? .unset)
+        public init(`name`: Swift.String, `location`: `Location`? = nil, `locationPresence`: OptionalValue<`Location`>? = nil, `clientToken`: Swift.String? = nil, `clientTokenPresence`: OptionalValue<Swift.String>? = nil, `expectedRevision`: Swift.Int64? = nil, `expectedRevisionPresence`: OptionalValue<Swift.Int64>? = nil) {
+            self.`name` = `name`
             self.`locationPresence` = `locationPresence` ?? (`location`.map { .value($0) } ?? .unset)
             self.`clientTokenPresence` = `clientTokenPresence` ?? (`clientToken`.map { .value($0) } ?? .unset)
             self.`expectedRevisionPresence` = `expectedRevisionPresence` ?? (`expectedRevision`.map { .value($0) } ?? .unset)
@@ -135,7 +130,7 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
             let object = try value.object
             return try Self(
-                namePresence: context.codec.optional(context.target, "name", object, as: Swift.String.self),
+                name: context.codec.read(context.target, "name", object, as: Swift.String.self),
                 locationPresence: context.codec.optional(context.target, "location", object, as: `Location`.self),
                 clientTokenPresence: context.codec.optional(context.target, "clientToken", object, as: Swift.String.self),
                 expectedRevisionPresence: context.codec.optional(context.target, "expectedRevision", object, as: Swift.Int64.self)
@@ -143,7 +138,7 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         }
         func toWire(_ context: WireContext) throws -> JSONValue {
             var object: [Swift.String: JSONValue] = [:]
-            try context.codec.put(context.target, "name", self.`namePresence`, into: &object)
+            try context.codec.put(context.target, "name", self.`name`, into: &object)
             try context.codec.put(context.target, "location", self.`locationPresence`, into: &object)
             try context.codec.put(context.target, "clientToken", self.`clientTokenPresence`, into: &object)
             try context.codec.put(context.target, "expectedRevision", self.`expectedRevisionPresence`, into: &object)
@@ -170,12 +165,7 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
     }
     public typealias `Forecast` = Swift.Dictionary<`Sky`, JSONValue>
     public struct `GetCityInput`: Swift.Sendable, WireCodable, ModelDescription {
-        /// Whether `cityId` was omitted, set to null, or given a value.
-        public var `cityIdPresence`: OptionalValue<Swift.String>
-        public var `cityId`: Swift.String? {
-            get { `cityIdPresence`.value }
-            set { `cityIdPresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `cityId`: Swift.String
         /// Whether `at` was omitted, set to null, or given a value.
         public var `atPresence`: OptionalValue<Timestamp>
         public var `at`: Timestamp? {
@@ -183,20 +173,20 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
             set { `atPresence` = newValue.map { .value($0) } ?? .null }
         }
         public var description: Swift.String { Describe.format("GetCityInput", [("cityId", `cityId`), ("at", `at`)]) }
-        public init(`cityId`: Swift.String? = nil, `cityIdPresence`: OptionalValue<Swift.String>? = nil, `at`: Timestamp? = nil, `atPresence`: OptionalValue<Timestamp>? = nil) {
-            self.`cityIdPresence` = `cityIdPresence` ?? (`cityId`.map { .value($0) } ?? .unset)
+        public init(`cityId`: Swift.String, `at`: Timestamp? = nil, `atPresence`: OptionalValue<Timestamp>? = nil) {
+            self.`cityId` = `cityId`
             self.`atPresence` = `atPresence` ?? (`at`.map { .value($0) } ?? .unset)
         }
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
             let object = try value.object
             return try Self(
-                cityIdPresence: context.codec.optional(context.target, "cityId", object, as: Swift.String.self),
+                cityId: context.codec.read(context.target, "cityId", object, as: Swift.String.self),
                 atPresence: context.codec.optional(context.target, "at", object, as: Timestamp.self)
             )
         }
         func toWire(_ context: WireContext) throws -> JSONValue {
             var object: [Swift.String: JSONValue] = [:]
-            try context.codec.put(context.target, "cityId", self.`cityIdPresence`, into: &object)
+            try context.codec.put(context.target, "cityId", self.`cityId`, into: &object)
             try context.codec.put(context.target, "at", self.`atPresence`, into: &object)
             return .object(object)
         }
@@ -238,25 +228,20 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         }
     }
     public struct `GetCityPhotoInput`: Swift.Sendable, WireCodable, ModelDescription {
-        /// Whether `cityId` was omitted, set to null, or given a value.
-        public var `cityIdPresence`: OptionalValue<Swift.String>
-        public var `cityId`: Swift.String? {
-            get { `cityIdPresence`.value }
-            set { `cityIdPresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `cityId`: Swift.String
         public var description: Swift.String { Describe.format("GetCityPhotoInput", [("cityId", `cityId`)]) }
-        public init(`cityId`: Swift.String? = nil, `cityIdPresence`: OptionalValue<Swift.String>? = nil) {
-            self.`cityIdPresence` = `cityIdPresence` ?? (`cityId`.map { .value($0) } ?? .unset)
+        public init(`cityId`: Swift.String) {
+            self.`cityId` = `cityId`
         }
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
             let object = try value.object
             return try Self(
-                cityIdPresence: context.codec.optional(context.target, "cityId", object, as: Swift.String.self)
+                cityId: context.codec.read(context.target, "cityId", object, as: Swift.String.self)
             )
         }
         func toWire(_ context: WireContext) throws -> JSONValue {
             var object: [Swift.String: JSONValue] = [:]
-            try context.codec.put(context.target, "cityId", self.`cityIdPresence`, into: &object)
+            try context.codec.put(context.target, "cityId", self.`cityId`, into: &object)
             return .object(object)
         }
     }
@@ -456,43 +441,33 @@ public struct Unit: Swift.Sendable, WireCodable, ModelDescription {
         }
     }
     public struct `PutCityPhotoInput`: Swift.Sendable, WireCodable, ModelDescription {
-        /// Whether `cityId` was omitted, set to null, or given a value.
-        public var `cityIdPresence`: OptionalValue<Swift.String>
-        public var `cityId`: Swift.String? {
-            get { `cityIdPresence`.value }
-            set { `cityIdPresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `cityId`: Swift.String
         /// Whether `caption` was omitted, set to null, or given a value.
         public var `captionPresence`: OptionalValue<Swift.String>
         public var `caption`: Swift.String? {
             get { `captionPresence`.value }
             set { `captionPresence` = newValue.map { .value($0) } ?? .null }
         }
-        /// Whether `photo` was omitted, set to null, or given a value.
-        public var `photoPresence`: OptionalValue<Foundation.Data>
-        public var `photo`: Foundation.Data? {
-            get { `photoPresence`.value }
-            set { `photoPresence` = newValue.map { .value($0) } ?? .null }
-        }
+        public var `photo`: Foundation.Data
         public var description: Swift.String { Describe.format("PutCityPhotoInput", [("cityId", `cityId`), ("caption", `caption`), ("photo", `photo`)]) }
-        public init(`cityId`: Swift.String? = nil, `cityIdPresence`: OptionalValue<Swift.String>? = nil, `caption`: Swift.String? = nil, `captionPresence`: OptionalValue<Swift.String>? = nil, `photo`: Foundation.Data? = nil, `photoPresence`: OptionalValue<Foundation.Data>? = nil) {
-            self.`cityIdPresence` = `cityIdPresence` ?? (`cityId`.map { .value($0) } ?? .unset)
+        public init(`cityId`: Swift.String, `caption`: Swift.String? = nil, `captionPresence`: OptionalValue<Swift.String>? = nil, `photo`: Foundation.Data) {
+            self.`cityId` = `cityId`
             self.`captionPresence` = `captionPresence` ?? (`caption`.map { .value($0) } ?? .unset)
-            self.`photoPresence` = `photoPresence` ?? (`photo`.map { .value($0) } ?? .unset)
+            self.`photo` = `photo`
         }
         static func fromWire(_ value: JSONValue, _ context: WireContext) throws -> Self {
             let object = try value.object
             return try Self(
-                cityIdPresence: context.codec.optional(context.target, "cityId", object, as: Swift.String.self),
+                cityId: context.codec.read(context.target, "cityId", object, as: Swift.String.self),
                 captionPresence: context.codec.optional(context.target, "caption", object, as: Swift.String.self),
-                photoPresence: context.codec.optional(context.target, "photo", object, as: Foundation.Data.self)
+                photo: context.codec.read(context.target, "photo", object, as: Foundation.Data.self)
             )
         }
         func toWire(_ context: WireContext) throws -> JSONValue {
             var object: [Swift.String: JSONValue] = [:]
-            try context.codec.put(context.target, "cityId", self.`cityIdPresence`, into: &object)
+            try context.codec.put(context.target, "cityId", self.`cityId`, into: &object)
             try context.codec.put(context.target, "caption", self.`captionPresence`, into: &object)
-            try context.codec.put(context.target, "photo", self.`photoPresence`, into: &object)
+            try context.codec.put(context.target, "photo", self.`photo`, into: &object)
             return .object(object)
         }
     }

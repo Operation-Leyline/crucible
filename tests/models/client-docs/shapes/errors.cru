@@ -1,0 +1,24 @@
+/// ## Details
+///
+/// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+///
+/// ```text
+/// line one
+/// line two
+/// ```
+error Problem {
+    status 400
+    /// ## Details
+    ///
+    /// **Readable** [link](https://example.com). Literal */ and \"quotes\".
+    ///
+    /// ```text
+    /// line one
+    /// line two
+    /// ```
+    sensitive message?: string
+    /// Member documentation.
+    record?: Record
+    /// Member documentation.
+    token?: Token
+}

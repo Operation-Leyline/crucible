@@ -1,0 +1,37 @@
+idempotent operation Echo {
+    http POST "/echo?mode=echo&flag"
+    input {
+        profile?: Profile
+        profiles?: Profiles
+        byName?: ProfilesByName
+        choice?: Choice
+        hiddenKeys?: HiddenKeys
+        whole?: Whole
+        secretTarget?: Secret
+        secretScores?: SecretScores
+        sensitive privateScores?: Scores
+        scores?: Scores
+        scoreMaps?: ScoreMaps
+        scoreMapList?: ScoreMapList
+        tierScores?: TierScores
+        sensitive privateTierScores?: TierScores
+        secretTierScores?: SecretTierScores
+    }
+    output {
+        profile?: Profile
+        profiles?: Profiles
+        byName?: ProfilesByName
+        choice?: Choice
+        hiddenKeys?: HiddenKeys
+        whole?: Whole
+        secretTarget?: Secret
+        secretScores?: SecretScores
+        sensitive privateScores?: Scores
+        scores?: Scores
+        scoreMaps?: ScoreMaps
+        scoreMapList?: ScoreMapList
+        tierScores?: TierScores
+        sensitive privateTierScores?: TierScores
+        secretTierScores?: SecretTierScores
+    }
+}

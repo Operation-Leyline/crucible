@@ -1,0 +1,7 @@
+readonly operation Protected {
+    http GET "/protected" -> 200
+    output {
+        subject?: string
+        kind?: string
+    }
+}

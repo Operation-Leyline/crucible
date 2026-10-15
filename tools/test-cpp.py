@@ -1,10 +1,10 @@
 """Qualify generated C++20 packages with native consumers and loopback HTTP."""
-import json
 import os
 import shutil
 from pathlib import Path
 import tempfile
 
+from sdk_cru_packages import copy_package, rename_shapes, replace_once
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
 from sdk_test_support import ROOT, run, weather
@@ -33,27 +33,25 @@ def executable(build, name):
     return build / "Debug" / (name + ".exe") if os.name == "nt" else build / name
 
 
+RECURSIVE = """structure Recursive {
+    children?: RecursiveList
+    parent?: Recursive
+}
+
+list RecursiveList: Recursive
+"""
+
+
 def edge_packages(output):
-    model = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text(encoding="utf-8"))
-    model["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#Location": "Array", "example.weather#Sky": "Time",
-    }
-    sky_value = "literal\\u0001\0é"
-    model["shapes"]["example.weather#Sky"]["members"]["CLEAR"]["traits"]["smithy.api#enumValue"] = sky_value
+    edge = copy_package("weather", output / "edge-model")
+    sky_value = r'"literal\\u0001\u{0}é"'
+    replace_once(edge, 'CLEAR = "clear"', "CLEAR = " + sky_value)
     # Examples must stay valid when this fixture changes the enum's wire value.
-    for example in model["shapes"]["example.weather#GetCity"]["traits"]["smithy.api#examples"]:
-        forecast = example.get("output", {}).get("forecast", {})
-        if "clear" in forecast:
-            forecast[sky_value] = forecast.pop("clear")
-    model["shapes"]["example.weather#Recursive"] = {"type": "structure", "members": {
-        "children": {"target": "example.weather#RecursiveList"},
-        "parent": {"target": "example.weather#Recursive"},
-    }}
-    model["shapes"]["example.weather#RecursiveList"] = {"type": "list", "member": {"target": "example.weather#Recursive"}}
-    model["shapes"]["example.weather#CreateCityInput"]["members"]["node"] = {"target": "example.weather#Recursive"}
-    source = output / "edge.json"
-    source.write_text(json.dumps(model), encoding="utf-8")
-    for name, path in [("edge", source), ("empty", ROOT / "tests/conformance/empty-service.json")]:
+    replace_once(edge, "forecast: { clear: {", "forecast: { " + sky_value + ": {")
+    replace_once(edge, "location?: Location\n", "location?: Location\n        node?: Recursive\n")
+    (edge / "recursive.cru").write_text(RECURSIVE, encoding="utf-8", newline="\n")
+    rename_shapes(edge, {"CitySummary": "String", "Location": "Array", "Sky": "Time"})
+    for name, path in [("edge", edge), ("empty", ROOT / "tests/models/empty-service")]:
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp", str(path),
             "--out", str(output / name), "--package-name", name + "_client", "--namespace", name)
 
@@ -81,11 +79,11 @@ def qualify(output):
     package = output / "sdk"
     for name, fixture_name, namespace in [("extended", "extended-types", "types"), ("wire", "error-payloads", "wire_sdk")]:
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
-            str(ROOT / f"crates/crucible-smithy/tests/fixtures/{fixture_name}.json"), "--out", str(output / name),
+            str(ROOT / "tests/models" / fixture_name), "--out", str(output / name),
             "--package-name", {"extended": "types_client", "wire": "wire_client"}[name], "--namespace", namespace)
     # Payload Content-Type precedence.
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "cpp",
-        str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"),
+        str(ROOT / "tests/models/payload-bindings"),
         "--out", str(output / "payload"), "--package-name", "payload_client", "--namespace", "payload_sdk")
     edge_packages(output)
     # Typed permissions (docs/permissions.md §6.3), from the `.cru` fixture package.

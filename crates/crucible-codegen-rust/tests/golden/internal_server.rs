@@ -276,6 +276,7 @@ pub mod api {
     impl ::crucible_server_runtime_rust::__generated::Operation for Public {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUBLIC_OPERATION;
         type Input = model::PublicInput;
         type Output = model::PublicOutput;
@@ -311,6 +312,7 @@ pub mod api {
     impl ::crucible_server_runtime_rust::__generated::Operation for Secret {
         const AUTH_BEARER: bool = false;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("1");
         const HAS_OUTPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &SECRET_OPERATION;
         type Input = model::SecretInput;
@@ -368,7 +370,7 @@ pub mod api {
     }
 
     pub fn builder() -> OperationsBuilder {
-        OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))
+        OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE).versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, "1"), &[]))
     }
 
     /// Every operation, served by one type: checked at compile time.

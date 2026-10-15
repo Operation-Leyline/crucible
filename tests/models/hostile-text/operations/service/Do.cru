@@ -1,0 +1,42 @@
+/// Doc: crlf
+///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+/// @returns injected
+/// ```
+/// @throws fenced
+/// ```
+@deprecated(message: "dep cr\rlf\r\n nel ls ps  bom﻿ ctl\u{1}\u{7f} end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```")
+operation Do {
+    http POST "/do"
+    /// Doc: crlf
+    ///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+    /// @returns injected
+    /// ```
+    /// @throws fenced
+    /// ```
+    input {
+        /// Doc: crlf
+        ///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+        /// @returns injected
+        /// ```
+        /// @throws fenced
+        /// ```
+        text: Text = "q\" bs\\ d$x ${x} #{x} ls ps  bom﻿ cr\r fin*/"
+        /// Doc: crlf
+        ///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+        /// @returns injected
+        /// ```
+        /// @throws fenced
+        /// ```
+        kind?: Kind
+        /// Doc: crlf
+        ///  nel ls ps  bom﻿ ctl end*/ q" bs\ d$x ${x} #{x} `t` """ ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏
+        /// @returns injected
+        /// ```
+        /// @throws fenced
+        /// ```
+        weird?: string
+    }
+    output {
+        kind?: Kind
+    }
+}

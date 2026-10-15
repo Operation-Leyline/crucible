@@ -1,0 +1,7 @@
+service AuthWeather {
+    version "1"
+    protocol json
+    auth bearer
+    operations [BearerOnly, Protected, Public]
+    errors [AccessDeniedException]
+}

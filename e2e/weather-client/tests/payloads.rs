@@ -26,7 +26,7 @@ fn echo(
         if request.path() == "/fail" {
             return (
                 422,
-                vec![("x-crucible-error".into(), "TextError".into())],
+                vec![("x-crucible-error".into(), "TextFault".into())],
                 b"invalid text".to_vec(),
             );
         }
@@ -166,7 +166,11 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
 
     let choice = kinds::Choice::Text("hi".into());
     let output = client
-        .put_choice(kinds::ChoiceInput::builder().choice(choice.clone()).build())
+        .put_choice(
+            kinds::PutChoiceInput::builder()
+                .choice(choice.clone())
+                .build(),
+        )
         .await
         .unwrap();
     assert_eq!(
@@ -176,7 +180,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     assert_eq!(output.choice(), Some(&choice));
     let output = client
         .put_choice(
-            kinds::ChoiceInput::builder()
+            kinds::PutChoiceInput::builder()
                 .choice(kinds::Choice::Count(2))
                 .build(),
         )
@@ -192,7 +196,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
             .unwrap();
     let output = client
         .put_free(
-            kinds::FreeInput::builder()
+            kinds::PutFreeInput::builder()
                 .document(document.clone())
                 .build(),
         )
@@ -201,7 +205,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     assert_eq!(output.document(), Some(&document));
     // Explicit null is a document value; omission remains an empty body.
     let output = client
-        .put_free(kinds::FreeInput {
+        .put_free(kinds::PutFreeInput {
             document: Field::Null,
         })
         .await
@@ -210,7 +214,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
     // A `null` payload reads back as explicit null, as a body member does.
     assert!(output.document.is_null());
     let output = client
-        .put_free(kinds::FreeInput::builder().build())
+        .put_free(kinds::PutFreeInput::builder().build())
         .await
         .unwrap();
     assert!(seen.lock().unwrap().last().unwrap().body.is_empty());
@@ -218,7 +222,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
 
     let output = client
         .put_mood(
-            kinds::MoodInput::builder()
+            kinds::PutMoodInput::builder()
                 .mood(kinds::Mood::Grumpy)
                 .build(),
         )
@@ -226,7 +230,7 @@ async fn union_document_and_enum_payloads_and_error_payloads() {
         .unwrap();
     let request = seen.lock().unwrap().last().cloned().unwrap();
     assert_eq!(request.body, b"grumpy");
-    assert_eq!(request.header("content-type"), Some("text/x-mood"));
+    assert_eq!(request.header("content-type"), Some("text/plain"));
     assert_eq!(output.mood(), &kinds::Mood::Grumpy);
 
     let Error::Service(error) = client.fail().await.unwrap_err() else {

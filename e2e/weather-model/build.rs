@@ -1,6 +1,6 @@
 //! Publishes the weather model: the fixture the other packages share.
 fn main() {
-    let model = "../../crates/crucible-smithy/tests/fixtures/weather.json";
+    let model = "../../tests/models/weather";
     println!("cargo::rerun-if-changed={model}");
     crucible_build::model(model).publish();
 }

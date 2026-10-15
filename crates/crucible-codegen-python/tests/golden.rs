@@ -1,10 +1,39 @@
 use crucible_codegen_python::{Options, emit};
-use crucible_smithy::Model;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::fs;
 use std::path::Path;
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+/// A package under `tests/models`, lowered.
+fn load(name: &str) -> crucible_smithy::ir::Service {
+    compile_with(name, |text| text)
+        .unwrap_or_else(|rendered| panic!("{name} compiles:\n{rendered}"))
+}
+
+/// A package under `tests/models` with every source file rewritten first;
+/// the rendered diagnostics when it does not compile.
+fn compile_with(
+    name: &str,
+    edit: impl Fn(String) -> String,
+) -> Result<crucible_smithy::ir::Service, String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models")
+        .join(name);
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = edit(std::mem::take(&mut file.text).replace("\r\n", "\n"));
+    }
+    let compiled = crucible_lang::compile(&package, None);
+    compiled.service.clone().ok_or_else(|| compiled.render())
+}
+
+/// The weather package with its sources rewritten first.
+fn weather_with(edit: impl Fn(String) -> String) -> crucible_smithy::ir::Service {
+    compile_with("weather", edit).unwrap_or_else(|rendered| panic!("weather compiles:\n{rendered}"))
+}
+
+fn weather() -> crucible_smithy::ir::Service {
+    load("weather")
+}
 
 fn options() -> Options {
     Options {
@@ -17,7 +46,7 @@ fn options() -> Options {
 
 #[test]
 fn weather_matches_goldens() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     for file in emit(&service, &options()).unwrap() {
         if ["runtime.py", "auth.py", "policy.py", "telemetry.py"]
             .iter()
@@ -45,7 +74,7 @@ fn weather_matches_goldens() {
 
 #[test]
 fn runtime_nullability_is_taken_from_ir() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = weather();
     let files = emit(&service, &options()).unwrap();
     let models = &files
         .iter()
@@ -66,20 +95,22 @@ fn runtime_nullability_is_taken_from_ir() {
     assert_eq!(city["updatedAt"]["optional"], true);
     assert_eq!(
         schema["shapes"]["example.weather#CreateCityInput"]["members"]["name"]["optional"],
+        false
+    );
+    assert_eq!(
+        schema["shapes"]["example.weather#CreateCityInput"]["members"]["location"]["optional"],
         true
     );
 }
 
 #[test]
 fn naming_collisions_are_collected_before_emission() {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    let members = &mut model["shapes"]["example.weather#CreateCityInput"]["members"];
-    members["fooBar"] = json!({"target":"smithy.api#String"});
-    members["foo_bar"] = json!({"target":"smithy.api#String"});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = weather_with(|text| {
+        text.replace(
+            "        clientToken?: string\n",
+            "        clientToken?: string\n        fooBar?: string\n        foo_bar?: string\n",
+        )
+    });
     let mut config = options();
     config.module_name = "../escape".into();
     let errors = emit(&service, &config).err().expect("invalid names fail");
@@ -88,19 +119,11 @@ fn naming_collisions_are_collected_before_emission() {
 
 #[test]
 fn reversed_shape_order_does_not_change_output() {
-    let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-    let shapes = model["shapes"].as_object_mut().unwrap();
-    let reversed = shapes
-        .iter()
-        .rev()
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    *shapes = reversed;
-    let a = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
-    let b = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather");
+    let a = crucible_lang::load_service(&dir).unwrap();
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    package.files.reverse();
+    let b = crucible_lang::compile(&package, None).service.unwrap();
     let files = |service| {
         emit(service, &options())
             .unwrap()
@@ -113,15 +136,7 @@ fn reversed_shape_order_does_not_change_output() {
 
 #[test]
 fn unit_only_service_has_valid_empty_exports() {
-    let model = json!({"smithy":"2.0", "shapes": {
-        "test#Api": {"type":"service", "version":"1", "operations":[{"target":"test#Ping"}],
-            "traits":{"crucible.protocols#json":{}}},
-        "test#Ping": {"type":"operation", "traits":{"smithy.api#http":{"method":"GET","uri":"/","code":200}}}
-    }});
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let service = load("void-service");
     let files = emit(&service, &options()).unwrap();
     let init = files
         .iter()
@@ -137,23 +152,14 @@ fn unit_only_service_has_valid_empty_exports() {
 #[test]
 fn service_client_export_collisions_are_diagnosed() {
     for name in ["WeatherClient", "AsyncWeatherClient"] {
-        let mut model: Value = serde_json::from_str(WEATHER).unwrap();
-        model["shapes"]["example.weather#Weather"]["rename"] =
-            json!({"example.weather#CitySummary":name});
-        let service = Model::from_json(&model.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let service = weather_with(|text| text.replace("CitySummary", name));
         assert!(emit(&service, &options()).is_err(), "{name}");
     }
 }
 
 #[test]
 fn documentation_and_formatting_use_the_lowered_contract() {
-    let service = Model::from_json(include_str!("../../../tests/fixtures/client-docs.json"))
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_python::capabilities())
-        .unwrap();
+    let service = load("client-docs");
     let files = emit(&service, &options()).unwrap();
     let models = &files
         .iter()
@@ -175,12 +181,7 @@ fn documentation_and_formatting_use_the_lowered_contract() {
 
 #[test]
 fn formatting_helper_names_are_reserved() {
-    let service = Model::from_json(include_str!(
-        "../../../tests/fixtures/client-docs-python-collisions.json"
-    ))
-    .unwrap()
-    .lower(None)
-    .unwrap();
+    let service = load("client-docs-python-collisions");
     let diagnostics = emit(&service, &options()).err().unwrap();
     assert!(diagnostics.to_string().contains("model_repr"));
 }
@@ -316,7 +317,7 @@ fn permission_constant_collisions_are_diagnosed() {
 /// registry's record types in the bundled runtime.
 #[test]
 fn permissions_module_ships_only_with_permissions() {
-    let weather = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let weather = weather();
     let files = emit(&weather, &options()).unwrap();
     assert!(!files.iter().any(|f| f.path.ends_with("permissions.py")));
     let files = emit(&permissions_service(), &options()).unwrap();

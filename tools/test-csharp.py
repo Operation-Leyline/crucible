@@ -1,10 +1,23 @@
 """Pack a NuGet SDK, install it in a separate consumer, and exercise HTTP behavior."""
-import json
 import os
 from pathlib import Path
 import shutil
 import tempfile
+from sdk_cru_packages import copy_package, rename_shapes, replace_once
 from sdk_test_support import ROOT, run, weather
+
+
+RECURSIVE = """structure RecursiveNode {
+    children?: RecursiveList
+    mapping?: RecursiveMap
+}
+
+list RecursiveList: RecursiveNode
+
+map RecursiveMap: string -> RecursiveListMap
+
+list RecursiveListMap: RecursiveNode
+"""
 
 
 def generate(model, output, namespace="Example.Weather", package="Example.Weather"):
@@ -16,7 +29,7 @@ def generate(model, output, namespace="Example.Weather", package="Example.Weathe
 def policy(output):
     """Retry modes and telemetry against the shared runtime-policy vectors."""
     package = output / "policy"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/runtime-policy.json", package, "Example.Policy", "Example.Policy")
+    generate(ROOT / "tests/models/runtime-policy", package, "Example.Policy", "Example.Policy")
     feed = output / "policy-feed"
     run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
     consumer = output / "policy-consumer"
@@ -56,11 +69,11 @@ def permissions(output):
 
 def qualify(output):
     # Doc comments and ToString of the generated models; pack runs with -warnaserror, so a malformed comment fails.
-    consume(output, ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json", "display", "Example.Docs", "Display.cs")
+    consume(output, ROOT / "tests/models/client-docs-jvm", "display", "Example.Docs", "Display.cs")
     permissions(output)
     policy(output)
     wire = output / "wire"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json", wire, "Example.Wire", "Example.Wire")
+    generate(ROOT / "tests/models/error-payloads", wire, "Example.Wire", "Example.Wire")
     wire_feed = output / "wire-feed"
     run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(wire_feed), cwd=wire)
     wire_consumer = output / "wire-consumer"
@@ -74,7 +87,7 @@ def qualify(output):
     run("dotnet", "run", "--no-restore", "--project", str(wire_consumer), cwd=wire_consumer)
     for protocol, label in (("crucible.protocols#json", "payload-bindings"),):
         bindings = output / label
-        generate(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json", bindings,
+        generate(ROOT / "tests/models/payload-bindings", bindings,
                  "Example.PayloadBindings", "Example.PayloadBindings")
         bindings_feed = output / (label + "-feed")
         run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(bindings_feed), cwd=bindings)
@@ -88,7 +101,7 @@ def qualify(output):
         run("dotnet", "restore", "--source", str(bindings_feed), "--packages", str(output / (label + "-installed")), cwd=bindings_consumer)
         run("dotnet", "run", "--no-restore", "--project", str(bindings_consumer), cwd=bindings_consumer)
     extended = output / "types"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json", extended, "Example.Types", "Example.Types")
+    generate(ROOT / "tests/models/extended-types", extended, "Example.Types", "Example.Types")
     types_feed = output / "types-feed"
     run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(types_feed), cwd=extended)
     types_consumer = output / "types-consumer"
@@ -102,7 +115,7 @@ def qualify(output):
     run("dotnet", "run", "--no-restore", "--project", str(types_consumer), cwd=types_consumer)
     package = output / "sdk"
     feed = output / "feed"
-    generate(ROOT / "crates/crucible-smithy/tests/fixtures/weather.json", package)
+    generate(ROOT / "tests/models/weather", package)
     run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", "-o", str(feed), cwd=package)
     consumer = output / "consumer"
     consumer.mkdir()
@@ -118,29 +131,15 @@ def qualify(output):
         run("dotnet", str(consumer / "bin/Debug/net8.0/Consumer.dll"),
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),
             env=dict(os.environ, WEATHER_URL=endpoint))
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String", "example.weather#CitySummaries": "Optional",
-        "example.weather#ConflictError": "ServiceError", "example.weather#Location": "UnknownUnion",
-    }
-    for name in ["toString", "getType", "equals", "getHashCode"]:
-        renamed["shapes"]["example.weather#CreateCityInput"]["members"][name] = {"target": "smithy.api#String"}
-    for name in ["getBaseException", "getObjectData"]:
-        renamed["shapes"]["example.weather#ConflictError"]["members"][name] = {"target": "smithy.api#String"}
-    renamed_path = output / "renamed.json"
-    renamed_path.write_text(json.dumps(renamed), encoding="utf-8")
-    recursive = json.loads(json.dumps(renamed))
-    recursive["shapes"].update({
-        "example.weather#RecursiveNode": {"type": "structure", "members": {"children": {"target": "example.weather#RecursiveList"}, "mapping": {"target": "example.weather#RecursiveMap"}}},
-        "example.weather#RecursiveList": {"type": "list", "member": {"target": "example.weather#RecursiveNode"}},
-        "example.weather#RecursiveMap": {"type": "map", "key": {"target": "smithy.api#String"}, "value": {"target": "example.weather#RecursiveListMap"}},
-        "example.weather#RecursiveListMap": {"type": "list", "member": {"target": "example.weather#RecursiveNode"}},
-    })
-    for name in ["RecursiveList", "RecursiveMap"]:
-        recursive["shapes"]["example.weather#CreateCityInput"]["members"][name] = {"target": "example.weather#" + name}
-    recursive_path = output / "recursive.json"
-    recursive_path.write_text(json.dumps(recursive), encoding="utf-8")
-    for label, model in [("Empty", ROOT / "tests/conformance/empty-service.json"), ("Renamed", renamed_path), ("Recursive", recursive_path)]:
+    renamed = copy_package("weather", output / "renamed-model")
+    replace_once(renamed, "location?: Location\n", "location?: Location\n" + "".join(f"        {name}?: string\n" for name in ["toString", "getType", "equals", "getHashCode"]))
+    replace_once(renamed, "    status 409\n", "    status 409\n" + "".join(f"    {name}?: string\n" for name in ["getBaseException", "getObjectData"]))
+    rename_shapes(renamed, {"CitySummary": "String", "CitySummaries": "Optional", "ConflictError": "ServiceError", "Location": "UnknownUnion"})
+    recursive = output / "recursive-model"
+    shutil.copytree(renamed, recursive, dirs_exist_ok=True)
+    (recursive / "recursive.cru").write_text(RECURSIVE, encoding="utf-8", newline="\n")
+    replace_once(recursive, "        toString?: string\n", "        RecursiveList?: RecursiveList\n        RecursiveMap?: RecursiveMap\n        toString?: string\n")
+    for label, model in [("Empty", ROOT / "tests/models/empty-service"), ("Renamed", renamed), ("Recursive", recursive)]:
         generated = output / label
         generate(model, generated, "Example." + label, "Example." + label)
         run("dotnet", "pack", "--nologo", "-v", "quiet", "-warnaserror", cwd=generated)

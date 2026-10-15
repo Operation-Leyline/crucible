@@ -1,12 +1,11 @@
 use crucible_codegen_rust::{Options, ScaffoldOptions, generate, scaffold};
-use crucible_smithy::{Model, ShapeId};
-use serde_json::{Value, json};
+use crucible_smithy::ShapeId;
 
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
+mod common;
 
 #[test]
 fn server_namespace_exposes_models_and_exceptions_directly() {
-    let service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let service = common::load("weather");
     let code = generate(&service, &Options::default()).unwrap();
     assert!(code.contains("pub mod weather {"));
     assert!(code.contains("pub use model::{"));
@@ -19,7 +18,7 @@ fn server_namespace_exposes_models_and_exceptions_directly() {
 
 #[test]
 fn service_module_escapes_keywords_and_acronyms() {
-    let mut service = Model::from_json(WEATHER).unwrap().lower(None).unwrap();
+    let mut service = common::load("weather");
     for (name, module) in [
         ("APIService", "api_service"),
         ("type", "r#type"),
@@ -45,13 +44,8 @@ fn flattened_names_diagnose_collisions_before_emitting_code() {
         "model",
         "errors",
     ] {
-        let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-        ast["shapes"]["example.weather#Weather"]["rename"] =
-            json!({"example.weather#GetCityInput": name});
-        let service = Model::from_json(&ast.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
+        let mut service = common::load("weather");
+        common::rename(&mut service, &[("example.weather#GetCityInput", name)]);
         let diagnostics = generate(&service, &Options::default())
             .unwrap_err()
             .to_string();
@@ -65,13 +59,8 @@ fn flattened_names_diagnose_collisions_before_emitting_code() {
 
 #[test]
 fn custom_scaffold_paths_and_result_model_names_are_supported() {
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    ast["shapes"]["example.weather#Weather"]["rename"] =
-        json!({"example.weather#GetCityInput": "Result"});
-    let service = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut service = common::load("weather");
+    common::rename(&mut service, &[("example.weather#GetCityInput", "Result")]);
     let stubs = scaffold(
         &service,
         &ScaffoldOptions {
@@ -99,15 +88,14 @@ fn custom_scaffold_paths_and_result_model_names_are_supported() {
 
 #[test]
 fn scaffold_aliases_all_conflicting_runtime_and_implementation_imports() {
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    ast["shapes"]["example.weather#Weather"]["rename"] = json!({
-        "example.weather#GetCityInput": "Result",
-        "example.weather#GetCityOutput": "ServerResult",
-    });
-    let service = Model::from_json(&ast.to_string())
-        .unwrap()
-        .lower(None)
-        .unwrap();
+    let mut service = common::load("weather");
+    common::rename(
+        &mut service,
+        &[
+            ("example.weather#GetCityInput", "Result"),
+            ("example.weather#GetCityOutput", "ServerResult"),
+        ],
+    );
     let stubs = scaffold(
         &service,
         &ScaffoldOptions {
@@ -134,54 +122,43 @@ fn scaffold_aliases_all_conflicting_runtime_and_implementation_imports() {
     );
 }
 
+/// The weather service with `ListCities` as a POST whose pagination token is
+/// `token`, a map or a string with a length limit.
+fn paginated(token: &str) -> String {
+    let service = common::load_with("weather", |package| {
+        let list = package
+            .files
+            .iter_mut()
+            .find(|file| file.text.starts_with("operation ListCities"))
+            .unwrap();
+        list.text = format!(
+            "operation ListCities lists City {{\n    http POST \"/cities/search\"\n    paginated(items: cities, pageSize: maxResults)\n    input {{\n        nextToken?: {token}\n        maxResults?: integer {{ range 1..100 }}\n    }}\n    output {{\n        cities: CitySummaries\n        nextToken?: {token}\n    }}\n}}\n"
+        );
+        package.files.push(crucible_lang::SourceFile {
+            path: "token.cru".into(),
+            text: "map TokenMap: string -> string\n".into(),
+        });
+    });
+    let code = generate(&service, &Options::default()).unwrap();
+    let start = code.find("Pagination { input_token").unwrap();
+    code[start..start + code[start..].find('\n').unwrap()].to_owned()
+}
+
 #[test]
 fn pagination_says_whether_the_input_token_is_a_map() {
-    // Smithy allows a map token (a composite database key); a server
-    // extension that seals string tokens refuses one at build.
-    let marker = |ast: &Value| {
-        let service = Model::from_json(&ast.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
-        let code = generate(&service, &Options::default()).unwrap();
-        let start = code.find("Pagination { input_token").unwrap();
-        code[start..start + code[start..].find('\n').unwrap()].to_owned()
-    };
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    assert!(marker(&ast).contains("input_token_map: false"));
-
-    let shapes = &mut ast["shapes"];
-    shapes["example.weather#TokenMap"] = json!({
-        "type": "map",
-        "key": {"target": "smithy.api#String"},
-        "value": {"target": "smithy.api#String"}
-    });
-    let list = &mut shapes["example.weather#ListCities"]["traits"];
-    list["smithy.api#http"] = json!({"method": "POST", "uri": "/cities/search"});
-    list.as_object_mut().unwrap().remove("smithy.api#examples");
-    shapes["example.weather#ListCitiesInput"]["members"]["nextToken"] =
-        json!({"target": "example.weather#TokenMap"});
-    shapes["example.weather#ListCitiesOutput"]["members"]["nextToken"] =
-        json!({"target": "example.weather#TokenMap"});
-    assert!(marker(&ast).contains("input_token_map: true"));
+    // A server extension that seals string tokens refuses a map token (a
+    // composite database key) at build.
+    assert!(paginated("string").contains("input_token_map: false"));
+    assert!(paginated("TokenMap").contains("input_token_map: true"));
 }
 
 #[test]
 fn pagination_carries_the_input_tokens_length_limit() {
     // A server extension that issues tokens checks at build that the longest
-    // fits the member's `@length`.
-    let marker = |ast: &Value| {
-        let service = Model::from_json(&ast.to_string())
-            .unwrap()
-            .lower(None)
-            .unwrap();
-        let code = generate(&service, &Options::default()).unwrap();
-        let start = code.find("Pagination { input_token").unwrap();
-        code[start..start + code[start..].find('\n').unwrap()].to_owned()
-    };
-    let mut ast: Value = serde_json::from_str(WEATHER).unwrap();
-    assert!(marker(&ast).contains("input_token_max_length: ::std::option::Option::None"));
-    ast["shapes"]["example.weather#ListCitiesInput"]["members"]["nextToken"]["traits"]["smithy.api#length"] =
-        json!({"max": 2048});
-    assert!(marker(&ast).contains("input_token_max_length: ::std::option::Option::Some(2048)"));
+    // fits the member's `length`.
+    assert!(paginated("string").contains("input_token_max_length: ::std::option::Option::None"));
+    assert!(
+        paginated("string { length ..2048 }")
+            .contains("input_token_max_length: ::std::option::Option::Some(2048)")
+    );
 }

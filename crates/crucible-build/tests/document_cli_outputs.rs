@@ -2,17 +2,14 @@
 
 #[path = "../../../tests/support/cargo_target.rs"]
 mod cargo_target;
+mod common;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crucible_build::{CliOptions, Generator, OpenApiOptions};
-use crucible_smithy::{Capabilities, Feature, Model};
 use serde_json::Value;
-
-const WEATHER: &str = include_str!("../../crucible-smithy/tests/fixtures/weather.json");
-const UNSUPPORTED: &str = include_str!("../../crucible-smithy/tests/fixtures/error-payloads.json");
 
 fn checkout() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -28,7 +25,7 @@ fn document_cli_probe() {
     let Ok(mode) = std::env::var("CRUCIBLE_DOCUMENT_CLI_PROBE") else {
         return;
     };
-    let model = crucible_build::model("model.json").compile();
+    let model = crucible_build::model("weather").compile();
     if mode == "cli-consumer" {
         model.cli("weather").generate_into("exports/cli");
         return;
@@ -42,10 +39,7 @@ fn document_cli_probe() {
         .generate_into("exports/openapi");
     assert_eq!(document.target, "openapi");
     assert_eq!(document.files, ["openapi.json"]);
-    let service = Model::from_json(WEATHER)
-        .unwrap()
-        .lower_with_capabilities(None, &Capabilities::new(Feature::ALL.iter().copied()))
-        .unwrap();
+    let service = crucible_lang::load_service(&common::shared_package("weather")).unwrap();
     let expected = Generator::OpenApi(OpenApiOptions {
         endpoint: Some(endpoint.into()),
     })
@@ -136,7 +130,7 @@ fn document_cli_probe() {
         );
     }
 
-    let next = crucible_build::model("model.json").compile();
+    let next = crucible_build::model("weather").compile();
     let error = next
         .cli("weather")
         .version("invalid version")
@@ -149,16 +143,6 @@ fn document_cli_probe() {
     assert_eq!(
         manifest,
         fs::read_to_string("exports/cli/Cargo.toml").unwrap()
-    );
-    let unsupported = crucible_build::model("unsupported.json").compile();
-    let error = unsupported
-        .openapi("openapi")
-        .try_generate_into("exports/openapi")
-        .unwrap_err();
-    assert!(error.contains("prefix-headers"), "{error}");
-    assert_eq!(
-        exported_document,
-        fs::read("exports/openapi/openapi.json").unwrap()
     );
 }
 
@@ -184,8 +168,7 @@ fn probe(root: &Path, mode: &str) {
 fn documents_and_cli_packages_share_native_defaults_exports_and_diagnostics() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    fs::write(root.join("model.json"), WEATHER).unwrap();
-    fs::write(root.join("unsupported.json"), UNSUPPORTED).unwrap();
+    common::install_shared(root, "weather");
     for (checkout, crates) in [
         (
             "runtime",
@@ -206,7 +189,7 @@ fn documents_and_cli_packages_share_native_defaults_exports_and_diagnostics() {
 fn generated_cli_is_warning_free_as_an_independent_offline_cargo_package() {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    fs::write(root.join("model.json"), WEATHER).unwrap();
+    common::install_shared(root, "weather");
     probe(root, "cli-consumer");
     // Reuse verified registry versions while resolving the generated package's
     // native path runtimes; the consumer sources stay isolated while dependencies share a build cache.

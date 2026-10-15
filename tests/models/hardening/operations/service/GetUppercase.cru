@@ -1,0 +1,4 @@
+// Same name as Get apart from case; the file name differs for case-insensitive filesystems.
+readonly operation GET {
+    http GET "/GET"
+}

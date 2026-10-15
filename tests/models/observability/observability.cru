@@ -1,0 +1,7 @@
+service Observability {
+    version "1"
+    protocol json
+    auth bearer
+    operations [Echo, Other]
+    errors [ValidationError, SecretError]
+}

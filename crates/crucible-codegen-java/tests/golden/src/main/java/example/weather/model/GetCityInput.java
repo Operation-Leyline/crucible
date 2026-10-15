@@ -11,9 +11,9 @@ package example.weather.model;
         public GetCityInput() {}
         /**
          * <p>The <code>cityId</code> member.</p>
-         * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
+         * <p>Required.</p>
          */
-        public example.weather.OptionalValue<java.lang.String> cityId = example.weather.OptionalValue.unset();
+        public java.lang.String cityId;
         /**
          * <p>The <code>at</code> member.</p>
          * <p>Unset members are omitted from requests; see {@link example.weather.OptionalValue}.</p>
@@ -26,11 +26,11 @@ package example.weather.model;
          */
         public static Builder builder() { return new Builder(); }
         /**
-         * <p>Returns the <code>cityId</code> member, or null when unset.</p>
+         * <p>Returns the <code>cityId</code> member.</p>
          *
-         * @return the <code>cityId</code> member, or null when unset
+         * @return the <code>cityId</code> member
          */
-        public java.lang.String cityId() { return cityId.value(); }
+        public java.lang.String cityId() { return cityId; }
         /**
          * <p>Returns the <code>at</code> member, or null when unset.</p>
          *
@@ -52,7 +52,7 @@ package example.weather.model;
              * @param item the new value
              * @return this builder
              */
-            public Builder cityId(java.lang.String item) { value.cityId = example.weather.OptionalValue.of(item); return this; }
+            public Builder cityId(java.lang.String item) { value.cityId = item; return this; }
             /**
              * <p>Sets the <code>at</code> member.</p>
              *

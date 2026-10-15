@@ -13,7 +13,7 @@ int main() {
     if (edge::models::Time::known_clear().value != text) throw std::runtime_error("Enum literal");
     if (edge::schema().shape("example.weather#Sky").at("values").array()[0].string() != text) throw std::runtime_error("Embedded schema escapes");
     const auto context = edge::schema().context("example.weather#CreateCityInput");
-    const auto value = rt::Json::parse(R"({"node":{"children":[{"children":[]}]}})");
+    const auto value = rt::Json::parse(R"({"name":"edge","node":{"children":[{"children":[]}]}})");
     const auto model = rt::Codec<CreateCityInput>::decode(value, context);
     auto copy = model;
     copy.node.value().children.value()[0].value().children.value().clear();

@@ -1,0 +1,52 @@
+/// A way to prove identity.
+union Credential {
+    /// A password.
+    password: Password
+    username: string
+    sensitive pin: string
+}
+
+/// What a secret unlocks.
+enum Kind {
+    /// A website login.
+    LOGIN = "login"
+    API_KEY = "api-key"
+}
+
+map Labels: string -> string
+
+/// How sensitive a secret is.
+enum Level: integer {
+    /// Rarely rotated.
+    LOW = 1
+    HIGH = 2
+}
+
+list Names: string
+
+sensitive string Password
+
+list Passwords: Password
+
+map PasswordsByName: string -> Password
+
+/// A stored secret.
+structure Secret {
+    /// The <b>name</b> of the secret.
+    name: string
+    /// Never printed.
+    password?: Password
+    sensitive pin?: string
+    history?: Passwords
+    byName?: PasswordsByName
+    aliases?: Names
+    labels?: Labels
+    kind?: Kind
+    level?: Level
+    credential?: Credential
+    createdAt?: timestamp
+    payload?: blob
+    revision?: integer
+}
+
+list Secrets: Secret

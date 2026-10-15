@@ -1,0 +1,5 @@
+service Globals {
+    version "1"
+    protocol json
+    operations [JSON, OperationSpec, Schema, list]
+}

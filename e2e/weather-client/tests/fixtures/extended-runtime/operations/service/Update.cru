@@ -1,0 +1,25 @@
+operation Update {
+    http POST "/types"
+    input {
+        @header("x-decimal")
+        decimal: bigDecimal { range 12345678901234567890..12345678901234567891 }
+        integer?: bigInteger { range 0..123456789012345678901234567890 }
+        choice?: Choice
+    }
+    output {
+        integer: bigInteger = 12345678901234567890123456789012345678901234567890
+        decimal: bigDecimal = 12345678901234567890.12345678901234567890123456789
+        @header("x-mode")
+        mode?: Mode
+        names?: Names
+        integers?: Integers
+        decimals?: Decimals
+        sparseNames?: SparseNames
+        sparseMap?: SparseMap
+        numbers?: Numbers
+        documents?: Documents
+        dates?: DateMap
+        choice?: Choice
+    }
+    errors [Bad]
+}

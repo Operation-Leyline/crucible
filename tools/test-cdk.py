@@ -47,7 +47,7 @@ def prepare(work, npm, node):
     package = work / "package"
     cli = os.environ.get("CRUCIBLE_BIN")
     command = [str(Path(cli).resolve())] if cli else ["cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--"]
-    run(*command, "generate", "cdk", FIXTURES / "model.json", "--bindings", FIXTURES / "bindings.json",
+    run(*command, "generate", "cdk", ROOT / "tests/models/cdk-model", "--bindings", FIXTURES / "bindings.json",
         "--config", FIXTURES / "options.json", "--out", package)
     run(npm, "install", "--ignore-scripts", "--no-audit", "--no-fund", cwd=package)
     run(npm, "run", "build", cwd=package)

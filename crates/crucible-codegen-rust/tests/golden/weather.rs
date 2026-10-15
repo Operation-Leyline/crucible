@@ -790,6 +790,7 @@ pub mod weather {
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
         const IDEMPOTENCY_TOKEN: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::PaginationMember> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "clientToken" });
         const OUTPUT_FROM_JSON: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::OutputFromJson<Self::Output>> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::serde_json::from_value::<model::CreateCityOutput>);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &CREATE_CITY_OPERATION;
         type Input = model::CreateCityInput;
         type Output = model::CreateCityOutput;
@@ -829,6 +830,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetCity {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_CITY_OPERATION;
         type Input = model::GetCityInput;
         type Output = model::GetCityOutput;
@@ -866,6 +868,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for GetCityPhoto {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &GET_CITY_PHOTO_OPERATION;
         type Input = model::GetCityPhotoInput;
         type Output = model::GetCityPhotoOutput;
@@ -906,6 +909,7 @@ pub mod weather {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
         const PAGINATION: ::std::option::Option<::crucible_server_runtime_rust::__generated::operation::Pagination> = ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::Pagination { input_token: ::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "nextToken" }, page_size: ::std::option::Option::Some(::crucible_server_runtime_rust::__generated::operation::PaginationMember { name: "maxResults" }), input_token_map: false, input_token_max_length: ::std::option::Option::None });
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &LIST_CITIES_OPERATION;
         type Input = model::ListCitiesInput;
         type Output = model::ListCitiesOutput;
@@ -941,6 +945,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Ping {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const HAS_INPUT: bool = false;
         const HAS_OUTPUT: bool = false;
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PING_OPERATION;
@@ -982,6 +987,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for PutCityPhoto {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &PUT_CITY_PHOTO_OPERATION;
         type Input = model::PutCityPhotoInput;
         type Output = model::PutCityPhotoOutput;
@@ -1015,6 +1021,7 @@ pub mod weather {
     impl ::crucible_server_runtime_rust::__generated::Operation for Status {
         const AUTH_BEARER: bool = true;
         const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[::crucible_server_runtime_rust::__generated::operation::AuthScheme::Bearer]);
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("2026-10-01");
         const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &STATUS_OPERATION;
         type Input = model::StatusInput;
         type Output = model::StatusOutput;
@@ -1126,7 +1133,7 @@ pub mod weather {
     }
 
     pub fn builder() -> OperationsBuilder {
-        OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE))
+        OperationsBuilder(::crucible_server_runtime_rust::__generated::Operations::builder(&SERVICE).versions(::crucible_server_runtime_rust::__generated::versioning::ApiVersion::new(0, "2026-10-01"), &[]))
     }
 
     /// Every operation, served by one type: checked at compile time.

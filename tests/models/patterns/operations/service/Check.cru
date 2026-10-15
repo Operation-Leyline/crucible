@@ -1,0 +1,16 @@
+operation Check {
+    http POST "/check" -> 200
+    input {
+        digits?: Digits
+        word?: string { pattern "^\\w+$" }
+        dot?: string { pattern "^a.b$" }
+        space?: string { pattern "^\\s$" }
+        boundary?: string { pattern "\\ba\\b" }
+        class?: string { pattern "^[\\D\\W\\S\\b.]+$" }
+        literal?: string { pattern "^\\\\d\\.\\u00e9\\x41\\cA$" }
+        operators?: string { pattern "^[a&&b~~c]$" }
+        empty?: string { pattern "^[]$" }
+        any?: string { pattern "^[^]$" }
+        anySuffix?: string { pattern "^[^]x]$" }
+    }
+}

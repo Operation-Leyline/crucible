@@ -1,0 +1,4 @@
+operation Fail {
+    http POST "/fail" -> 204
+    errors [RecordError, BinaryError]
+}

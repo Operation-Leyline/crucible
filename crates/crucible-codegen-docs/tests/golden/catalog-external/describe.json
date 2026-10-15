@@ -55,10 +55,10 @@
       "id": "example.docs#ListItems",
       "idempotencyToken": null,
       "idempotent": false,
-      "input": "example.docs#ListInput",
+      "input": "example.docs#ListItemsInput",
       "inputSchema": {
         "$defs": {
-          "example.docs.ListInput": {
+          "example.docs.ListItemsInput": {
             "properties": {
               "nextToken": {
                 "anyOf": [
@@ -71,24 +71,15 @@
                 ]
               },
               "pageSize": {
+                "default": 10,
                 "format": "int32",
                 "maximum": 100,
                 "minimum": 1,
                 "type": "integer",
-                "x-smithy-default": 10,
-                "x-smithy-traits": {
-                  "smithy.api#default": 10,
-                  "smithy.api#range": {
-                    "max": 100,
-                    "min": 1
-                  }
-                }
+                "x-smithy-default": 10
               }
             },
-            "type": "object",
-            "x-smithy-traits": {
-              "smithy.api#input": {}
-            }
+            "type": "object"
           },
           "smithy.api.Integer": {
             "format": "int32",
@@ -112,24 +103,15 @@
             ]
           },
           "pageSize": {
+            "default": 10,
             "format": "int32",
             "maximum": 100,
             "minimum": 1,
             "type": "integer",
-            "x-smithy-default": 10,
-            "x-smithy-traits": {
-              "smithy.api#default": 10,
-              "smithy.api#range": {
-                "max": 100,
-                "min": 1
-              }
-            }
+            "x-smithy-default": 10
           }
         },
-        "type": "object",
-        "x-smithy-traits": {
-          "smithy.api#input": {}
-        }
+        "type": "object"
       },
       "internal": false,
       "method": "POST",
@@ -145,7 +127,7 @@
         "since": "2026-01",
         "unstable": true
       },
-      "output": "example.docs#ListOutput",
+      "output": "example.docs#ListItemsOutput",
       "outputSchema": {
         "$defs": {
           "example.docs.Content": {
@@ -173,22 +155,6 @@
                       "since": "2026-09"
                     },
                     "x-smithy-since": "2026-01",
-                    "x-smithy-traits": {
-                      "smithy.api#deprecated": {
-                        "message": "Use the next revision.",
-                        "since": "2026-09"
-                      },
-                      "smithy.api#documentation": "Item text.",
-                      "smithy.api#externalDocumentation": {
-                        "Guide": "https://example.com/guide"
-                      },
-                      "smithy.api#length": {
-                        "max": 100,
-                        "min": 1
-                      },
-                      "smithy.api#since": "2026-01",
-                      "smithy.api#unstable": {}
-                    },
                     "x-smithy-unstable": true
                   }
                 },
@@ -215,17 +181,6 @@
               "since": "2026-09"
             },
             "x-smithy-since": "2026-01",
-            "x-smithy-traits": {
-              "smithy.api#deprecated": {
-                "message": "Use the next revision.",
-                "since": "2026-09"
-              },
-              "smithy.api#externalDocumentation": {
-                "Guide": "https://example.com/guide"
-              },
-              "smithy.api#since": "2026-01",
-              "smithy.api#unstable": {}
-            },
             "x-smithy-unstable": true
           },
           "example.docs.Items": {
@@ -235,7 +190,7 @@
             "type": "array",
             "uniqueItems": false
           },
-          "example.docs.ListOutput": {
+          "example.docs.ListItemsOutput": {
             "properties": {
               "items": {
                 "anyOf": [
@@ -258,10 +213,7 @@
                 ]
               }
             },
-            "type": "object",
-            "x-smithy-traits": {
-              "smithy.api#output": {}
-            }
+            "type": "object"
           },
           "smithy.api.BigInteger": {
             "type": "integer"
@@ -292,10 +244,7 @@
             ]
           }
         },
-        "type": "object",
-        "x-smithy-traits": {
-          "smithy.api#output": {}
-        }
+        "type": "object"
       },
       "pagination": {
         "inputToken": "nextToken",
@@ -320,9 +269,7 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [
-        "example.docs#Item"
-      ],
+      "resources": [],
       "response": {
         "body": [
           "items",
@@ -365,7 +312,8 @@
             "body": {
               "item": {
                 "amount": 1234567890123456789
-              }
+              },
+              "itemId": "i1"
             },
             "headers": {
               "Content-Type": "application/json"
@@ -419,7 +367,8 @@
             "body": {
               "item": {
                 "text": "retry"
-              }
+              },
+              "itemId": "i1"
             },
             "headers": {
               "Content-Type": "application/json"
@@ -437,7 +386,7 @@
       "id": "example.docs#WriteItem",
       "idempotencyToken": "clientToken",
       "idempotent": true,
-      "input": "example.docs#WriteInput",
+      "input": "example.docs#WriteItemInput",
       "inputSchema": {
         "$defs": {
           "example.docs.Content": {
@@ -465,22 +414,6 @@
                       "since": "2026-09"
                     },
                     "x-smithy-since": "2026-01",
-                    "x-smithy-traits": {
-                      "smithy.api#deprecated": {
-                        "message": "Use the next revision.",
-                        "since": "2026-09"
-                      },
-                      "smithy.api#documentation": "Item text.",
-                      "smithy.api#externalDocumentation": {
-                        "Guide": "https://example.com/guide"
-                      },
-                      "smithy.api#length": {
-                        "max": 100,
-                        "min": 1
-                      },
-                      "smithy.api#since": "2026-01",
-                      "smithy.api#unstable": {}
-                    },
                     "x-smithy-unstable": true
                   }
                 },
@@ -507,20 +440,9 @@
               "since": "2026-09"
             },
             "x-smithy-since": "2026-01",
-            "x-smithy-traits": {
-              "smithy.api#deprecated": {
-                "message": "Use the next revision.",
-                "since": "2026-09"
-              },
-              "smithy.api#externalDocumentation": {
-                "Guide": "https://example.com/guide"
-              },
-              "smithy.api#since": "2026-01",
-              "smithy.api#unstable": {}
-            },
             "x-smithy-unstable": true
           },
-          "example.docs.WriteInput": {
+          "example.docs.WriteItemInput": {
             "properties": {
               "clientToken": {
                 "anyOf": [
@@ -531,25 +453,20 @@
                     "type": "null"
                   }
                 ],
-                "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.",
-                "x-smithy-traits": {
-                  "smithy.api#idempotencyToken": {}
-                }
+                "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
               },
               "item": {
-                "$ref": "#/$defs/example.docs.Content",
-                "x-smithy-traits": {
-                  "smithy.api#required": {}
-                }
+                "$ref": "#/$defs/example.docs.Content"
+              },
+              "itemId": {
+                "$ref": "#/$defs/smithy.api.String"
               }
             },
             "required": [
+              "itemId",
               "item"
             ],
-            "type": "object",
-            "x-smithy-traits": {
-              "smithy.api#input": {}
-            }
+            "type": "object"
           },
           "smithy.api.BigInteger": {
             "type": "integer"
@@ -568,25 +485,20 @@
                 "type": "null"
               }
             ],
-            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one.",
-            "x-smithy-traits": {
-              "smithy.api#idempotencyToken": {}
-            }
+            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
           },
           "item": {
-            "$ref": "#/$defs/example.docs.Content",
-            "x-smithy-traits": {
-              "smithy.api#required": {}
-            }
+            "$ref": "#/$defs/example.docs.Content"
+          },
+          "itemId": {
+            "$ref": "#/$defs/smithy.api.String"
           }
         },
         "required": [
+          "itemId",
           "item"
         ],
-        "type": "object",
-        "x-smithy-traits": {
-          "smithy.api#input": {}
-        }
+        "type": "object"
       },
       "internal": false,
       "method": "POST",
@@ -597,7 +509,7 @@
         "since": null,
         "unstable": false
       },
-      "output": "example.docs#WriteOutput",
+      "output": "example.docs#WriteItemOutput",
       "outputSchema": {
         "$defs": {
           "example.docs.State": {
@@ -606,7 +518,7 @@
             ],
             "type": "string"
           },
-          "example.docs.WriteOutput": {
+          "example.docs.WriteItemOutput": {
             "properties": {
               "at": {
                 "anyOf": [
@@ -632,10 +544,7 @@
               "total": {
                 "$ref": "#/$defs/smithy.api.BigInteger",
                 "default": 1234567890123456789,
-                "x-smithy-default": 1234567890123456789,
-                "x-smithy-traits": {
-                  "smithy.api#default": 1234567890123456789
-                }
+                "x-smithy-default": 1234567890123456789
               }
             },
             "type": "object"
@@ -673,10 +582,7 @@
           "total": {
             "$ref": "#/$defs/smithy.api.BigInteger",
             "default": 1234567890123456789,
-            "x-smithy-default": 1234567890123456789,
-            "x-smithy-traits": {
-              "smithy.api#default": 1234567890123456789
-            }
+            "x-smithy-default": 1234567890123456789
           }
         },
         "type": "object"
@@ -689,6 +595,7 @@
       "readonly": false,
       "request": {
         "body": [
+          "itemId",
           "item",
           "clientToken"
         ],
@@ -699,9 +606,7 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [
-        "example.docs#Item"
-      ],
+      "resources": [],
       "response": {
         "body": [
           "state",
@@ -723,46 +628,7 @@
       "uri": "/WriteItem"
     }
   },
-  "resources": {
-    "example.docs#Item": {
-      "documentation": {
-        "html": "<p>Catalog items.</p>\n",
-        "markdown": "Catalog items.",
-        "text": "Catalog items."
-      },
-      "id": "example.docs#Item",
-      "identifiers": {
-        "itemId": "smithy.api#String"
-      },
-      "internal": false,
-      "lifecycle": {
-        "create": null,
-        "delete": null,
-        "list": "example.docs#ListItems",
-        "put": null,
-        "read": null,
-        "update": null
-      },
-      "name": "Item",
-      "notes": {
-        "deprecated": {
-          "message": "Use the next revision.",
-          "since": "2026-09"
-        },
-        "externalDocs": {
-          "Guide": "https://example.com/guide"
-        },
-        "since": "2026-01",
-        "unstable": true
-      },
-      "operations": [
-        "example.docs#ListItems",
-        "example.docs#WriteItem"
-      ],
-      "properties": {},
-      "resources": []
-    }
-  },
+  "resources": {},
   "service": {
     "auth": [],
     "authSchemes": {},
@@ -789,9 +655,7 @@
       "unstable": true
     },
     "protocol": "crucibleJson",
-    "resourceRoots": [
-      "example.docs#Item"
-    ],
+    "resourceRoots": [],
     "scopes": [],
     "title": "Catalog API",
     "version": "2026-10"
@@ -955,19 +819,19 @@
       "set": false,
       "sparse": false
     },
-    "example.docs#ListInput": {
+    "example.docs#ListItemsInput": {
       "documentation": {
         "html": "",
         "markdown": "",
         "text": ""
       },
       "error": null,
-      "id": "example.docs#ListInput",
+      "id": "example.docs#ListItemsInput",
       "internal": false,
       "kind": "structure",
       "members": [
         {
-          "clientOptional": true,
+          "clientOptional": false,
           "constraints": {
             "length": null,
             "pattern": null,
@@ -999,7 +863,7 @@
           "wireName": "nextToken"
         },
         {
-          "clientOptional": true,
+          "clientOptional": false,
           "constraints": {
             "length": null,
             "pattern": null,
@@ -1034,7 +898,7 @@
           "wireName": "pageSize"
         }
       ],
-      "name": "ListInput",
+      "name": "ListItemsInput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},
@@ -1043,14 +907,14 @@
       },
       "sensitive": false
     },
-    "example.docs#ListOutput": {
+    "example.docs#ListItemsOutput": {
       "documentation": {
         "html": "",
         "markdown": "",
         "text": ""
       },
       "error": null,
-      "id": "example.docs#ListOutput",
+      "id": "example.docs#ListItemsOutput",
       "internal": false,
       "kind": "structure",
       "members": [
@@ -1119,7 +983,7 @@
           "wireName": "nextToken"
         }
       ],
-      "name": "ListOutput",
+      "name": "ListItemsOutput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},
@@ -1247,19 +1111,51 @@
       },
       "sensitive": false
     },
-    "example.docs#WriteInput": {
+    "example.docs#WriteItemInput": {
       "documentation": {
         "html": "",
         "markdown": "",
         "text": ""
       },
       "error": null,
-      "id": "example.docs#WriteInput",
+      "id": "example.docs#WriteItemInput",
       "internal": false,
       "kind": "structure",
       "members": [
         {
-          "clientOptional": true,
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "itemId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "itemId"
+        },
+        {
+          "clientOptional": false,
           "constraints": {
             "length": null,
             "pattern": null,
@@ -1291,7 +1187,7 @@
           "wireName": "item"
         },
         {
-          "clientOptional": true,
+          "clientOptional": false,
           "constraints": {
             "length": null,
             "pattern": null,
@@ -1323,7 +1219,7 @@
           "wireName": "clientToken"
         }
       ],
-      "name": "WriteInput",
+      "name": "WriteItemInput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},
@@ -1332,14 +1228,14 @@
       },
       "sensitive": false
     },
-    "example.docs#WriteOutput": {
+    "example.docs#WriteItemOutput": {
       "documentation": {
         "html": "",
         "markdown": "",
         "text": ""
       },
       "error": null,
-      "id": "example.docs#WriteOutput",
+      "id": "example.docs#WriteItemOutput",
       "internal": false,
       "kind": "structure",
       "members": [
@@ -1440,7 +1336,7 @@
           "wireName": "total"
         }
       ],
-      "name": "WriteOutput",
+      "name": "WriteItemOutput",
       "notes": {
         "deprecated": null,
         "externalDocs": {},

@@ -1,0 +1,14 @@
+operation PutRecord {
+    http POST "/records/{table}" -> 200
+    input {
+        table: string
+        @header("X-Record-Secret")
+        secret?: Secret
+        @query
+        ticket?: Secret
+        @query
+        label?: string
+        value?: string
+    }
+    errors [InvalidEndpointException, Throttled, Unavailable]
+}

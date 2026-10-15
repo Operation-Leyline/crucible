@@ -1,36 +1,57 @@
 #[path = "../../../tests/support/cargo_target.rs"]
 mod cargo_target;
+mod common;
 
 use std::{fs, path::Path, process::Command};
 
 use crucible_codegen_rust::{Options, generate, generate_client};
-use crucible_smithy::Model;
-use serde_json::json;
 
 #[test]
 fn generated_document_payloads_preserve_presence_and_structure_omission() {
     let directory = tempfile::tempdir().unwrap();
     fs::create_dir_all(directory.path().join("src")).unwrap();
-    let protocol = "crucible.protocols#json";
-    let model = json!({
-        "smithy": "2.0",
-        "shapes": {
-            "test.payloads#Payloads": {"type": "service", "version": "1", "traits": {protocol: {}}, "operations": [{"target": "test.payloads#Document"}, {"target": "test.payloads#Structure"}, {"target": "test.payloads#Required"}]},
-            "test.payloads#Document": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/document", "code": 200}}, "input": {"target": "test.payloads#DocumentInput"}, "output": {"target": "test.payloads#DocumentOutput"}},
-            "test.payloads#Structure": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/structure", "code": 200}}, "input": {"target": "test.payloads#StructureInput"}, "output": {"target": "test.payloads#StructureOutput"}},
-            "test.payloads#DocumentInput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
-            "test.payloads#DocumentOutput": {"type": "structure", "members": {"payload": {"target": "smithy.api#Document", "traits": {"smithy.api#httpPayload": {}}}}},
-            "test.payloads#StructureInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
-            "test.payloads#StructureOutput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}}}}},
-            "test.payloads#Required": {"type": "operation", "traits": {"smithy.api#http": {"method": "POST", "uri": "/required", "code": 200}}, "input": {"target": "test.payloads#RequiredInput"}},
-            "test.payloads#RequiredInput": {"type": "structure", "members": {"payload": {"target": "test.payloads#Record", "traits": {"smithy.api#httpPayload": {}, "smithy.api#required": {}}}}},
-            "test.payloads#Record": {"type": "structure", "members": {"name": {"target": "smithy.api#String"}}}
-        }
-    });
-    let service = Model::from_json(&model.to_string())
-        .unwrap()
-        .lower_with_capabilities(None, &crucible_codegen_rust::client_capabilities())
-        .unwrap();
+    let service = common::from_source(
+        "test.payloads",
+        &[r#"
+service Payloads {
+    version "1"
+    protocol json
+    operations [Document, Structure, Required]
+}
+structure Record {
+    name?: string
+}
+operation Document {
+    http POST "/document" -> 200
+    input {
+        @payload
+        payload?: document
+    }
+    output {
+        @payload
+        payload?: document
+    }
+}
+operation Structure {
+    http POST "/structure" -> 200
+    input {
+        @payload
+        payload?: Record
+    }
+    output {
+        @payload
+        payload?: Record
+    }
+}
+operation Required {
+    http POST "/required" -> 200
+    input {
+        @payload
+        payload: Record
+    }
+}
+"#],
+    );
     let source = format!(
         "mod crucible {{\n{}\nmod sdk {{\n{}\n}}\n{}\n}}\n",
         generate(&service, &Options::default()).unwrap(),

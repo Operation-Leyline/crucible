@@ -1,0 +1,13 @@
+operation Check {
+    http POST "/check" -> 200
+    input {
+        flags?: string { pattern "(?i)abc" }
+        anchor?: string { pattern "\\Aabc" }
+        property?: string { pattern "\\p{Letter}" }
+        surrogate?: string { pattern "\\uD800" }
+        lookahead?: string { pattern "(?=abc)" }
+        backreference?: string { pattern "(abc)\\1" }
+        wordstart?: string { pattern "\\<abc" }
+        wordend?: string { pattern "abc\\>" }
+    }
+}

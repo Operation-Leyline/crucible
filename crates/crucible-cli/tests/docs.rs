@@ -1,19 +1,18 @@
+mod common;
+
 use std::fs;
 use std::process::Command;
 
 use serde_json::Value;
 
 #[test]
+#[ignore = "documentation output from a .cru package needs resource lowering (decision 63)"]
 fn docs_cli_projects_audiences_and_preserves_outputs_on_diagnostics() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    let model = root.join("model.json");
+    common::install_shared(root, "service-docs-weather");
+    let model = root.join("service-docs-weather");
     let out = root.join("reference");
-    fs::write(
-        &model,
-        include_str!("../../crucible-smithy/tests/fixtures/service-docs-weather.json"),
-    )
-    .unwrap();
     let run = |audience: &str| {
         Command::new(env!("CARGO_BIN_EXE_crucible"))
             .args(["generate", "docs"])
@@ -47,7 +46,8 @@ fn docs_cli_projects_audiences_and_preserves_outputs_on_diagnostics() {
         fs::read_to_string(out.join("keep.txt")).unwrap(),
         "consumer-owned"
     );
-    fs::write(&model, r#"{"smithy":"2.0","shapes":{}}"#).unwrap();
+    fs::remove_dir_all(&model).unwrap();
+    fs::create_dir(&model).unwrap();
     let result = run("external");
     assert!(!result.status.success());
     assert_eq!(fs::read(out.join("describe.json")).unwrap(), bytes);

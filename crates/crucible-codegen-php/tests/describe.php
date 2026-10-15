@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-// Run against a package generated from crates/crucible-smithy/tests/fixtures/client-docs.json
+// Run against a package generated from tests/models/client-docs-vault
 // with namespace VaultSdk.
 spl_autoload_register(function (string $class): void {
     $path = getenv('PHP_VAULT_PACKAGE') . '/src/' . str_replace('\\', '/', substr($class, strlen('VaultSdk\\'))) . '.php';

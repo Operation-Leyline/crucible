@@ -153,11 +153,9 @@ fn colliding_permission_symbols_are_diagnostics() {
 /// A model without permissions gets no permission files.
 #[test]
 fn a_model_without_permissions_has_no_permission_files() {
-    let weather = crucible_smithy::Model::from_json(include_str!(
-        "../../crucible-smithy/tests/fixtures/weather.json"
-    ))
-    .unwrap()
-    .lower(None)
+    let weather = crucible_lang::load_service(
+        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather"),
+    )
     .unwrap();
     let files = emit(&weather, &options()).unwrap();
     assert!(files.iter().all(|file| !file.path.contains("permissions")));

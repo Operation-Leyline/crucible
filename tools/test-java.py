@@ -1,18 +1,29 @@
 """Build a Java SDK jar, then exercise that jar with a separate consumer."""
 import os
-import json
 import sys
 from pathlib import Path
 import tempfile
+from sdk_cru_packages import copy_package, rename_shapes, write_package
 from sdk_test_support import ROOT, run, weather
 
 MAVEN = os.environ.get("MAVEN", "mvn")
 
 
+def large_package(output):
+    """100 records of 20 required strings, each an optional member of one output."""
+    members = "".join(f"        record{index}?: Record{index}\n" for index in range(100))
+    records = "".join(
+        f"structure Record{index} {{\n" + "".join(f"    field{field}: string\n" for field in range(20)) + "}\n\n"
+        for index in range(100))
+    return write_package(output / "large", "example.large", **{"large.cru": (
+        "service Large {\n    version \"1\"\n    protocol json\n    operations [Read]\n}\n\n"
+        "readonly operation Read {\n    http GET \"/\"\n    output {\n" + members + "    }\n}\n\n" + records)})
+
+
 def qualify(output):
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        "crates/crucible-smithy/tests/fixtures/weather.json", "--out", str(package),
+        "tests/models/weather", "--out", str(package),
         "--group-id", "example", "--artifact-id", "weather-client", "--package-name", "example.weather",
         "--endpoint", "https://weather.example")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
@@ -26,27 +37,11 @@ def qualify(output):
         run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), classpath]), "example.weather.ClientTest",
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),
             env=dict(os.environ, WEATHER_URL=endpoint))
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#CitySummary": "String",
-        "example.weather#CitySummaries": "OptionalValue",
-        "example.weather#ConflictError": "ServiceError",
-        "example.weather#Location": "UnknownUnion",
-    }
-    renamed_path = output / "renamed.json"
-    renamed_path.write_text(json.dumps(renamed), encoding="utf-8")
-    shapes = {
-        "example.large#Large": {"type": "service", "version": "1", "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.large#Read"}]},
-        "example.large#Read": {"type": "operation", "output": {"target": "example.large#Output"}, "traits": {"smithy.api#http": {"method": "GET", "uri": "/"}}},
-        "example.large#Output": {"type": "structure", "members": {}},
-    }
-    for index in range(100):
-        target = f"example.large#Record{index}"
-        shapes[target] = {"type": "structure", "members": {f"field{field}": {"target": "smithy.api#String", "traits": {"smithy.api#required": {}}} for field in range(20)}}
-        shapes["example.large#Output"]["members"][f"record{index}"] = {"target": target}
-    large_path = output / "large.json"
-    large_path.write_text(json.dumps({"smithy": "2.0", "shapes": shapes}), encoding="utf-8")
-    for label, model in [("empty", ROOT / "tests/conformance/empty-service.json"), ("renamed", renamed_path), ("large", large_path)]:
+    renamed_path = copy_package("weather", output / "renamed")
+    rename_shapes(renamed_path, {"CitySummary": "String", "CitySummaries": "OptionalValue",
+                                 "ConflictError": "ServiceError", "Location": "UnknownUnion"})
+    large_path = large_package(output)
+    for label, model in [("empty", ROOT / "tests/models/empty-service"), ("renamed", renamed_path), ("large", large_path)]:
         generated = output / label
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
             str(model), "--out", str(generated), "--group-id", "example", "--artifact-id", label,
@@ -54,7 +49,7 @@ def qualify(output):
         run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", cwd=generated)
     types = output / "types"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json"), "--out", str(types),
+        str(ROOT / "tests/models/extended-types"), "--out", str(types),
         "--group-id", "example", "--artifact-id", "types", "--package-name", "example.types")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=types)
     types_classpath = os.pathsep.join([str(types / "target/classes"), str(types / "target/dependency/*")])
@@ -63,7 +58,7 @@ def qualify(output):
     run("java", "-cp", os.pathsep.join([str(classes), types_classpath]), "example.types.TypesTest")
     payloads = output / "payloads"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(payloads),
+        str(ROOT / "tests/models/error-payloads"), "--out", str(payloads),
         "--group-id", "example", "--artifact-id", "payloads", "--package-name", "example.wire")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=payloads)
     payload_classpath = os.pathsep.join([str(payloads / "target/classes"), str(payloads / "target/dependency/*")])
@@ -74,7 +69,7 @@ def qualify(output):
     for protocol in ("crucible.protocols#json",):
         bindings = output / ("payload-bindings-" + protocol.split("#")[1])
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-            str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"), "--out", str(bindings),
+            str(ROOT / "tests/models/payload-bindings"), "--out", str(bindings),
             "--group-id", "example", "--artifact-id", "payload-bindings",
             "--package-name", "example.payload")
         run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=bindings)
@@ -85,7 +80,7 @@ def qualify(output):
         run("java", "-cp", os.pathsep.join([str(bindings_classes), bindings_classpath]), "example.payload.PayloadContentTypeTest")
     docs = output / "docs"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs-jvm.json"), "--out", str(docs),
+        str(ROOT / "tests/models/client-docs-jvm"), "--out", str(docs),
         "--group-id", "example", "--artifact-id", "docs", "--package-name", "example.docs")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"), "package", "dependency:copy-dependencies", cwd=docs)
     docs_classpath = os.pathsep.join([str(docs / "target/classes"), str(docs / "target/dependency/*")])
@@ -99,7 +94,7 @@ def qualify(output):
     permissions(output, classes)
     defaults = output / "defaults"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
-        str(ROOT / "crates/crucible-codegen-java/tests/defaults.json"), "--out", str(defaults),
+        str(ROOT / "tests/models/defaults"), "--out", str(defaults),
         "--group-id", "example", "--artifact-id", "defaults", "--package-name", "example.defaults")
     run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
         "package", "dependency:copy-dependencies", cwd=defaults)

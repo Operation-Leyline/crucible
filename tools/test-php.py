@@ -6,10 +6,24 @@ import subprocess
 import tempfile
 from sdk_test_support import ROOT, run, weather
 from sdk_conformance_model import qualification_model
+from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 from sdk_http_fixture import fixture
 
 PHP = os.environ.get("PHP", "php")
 COMPOSER = os.environ.get("COMPOSER_PHAR")
+
+def void_package(output):
+    """A service whose one operation has no input or output."""
+    return write_package(output / "void", "example.void", **{"void.cru": (
+        "service Service {\n    version \"1\"\n    protocol json\n    operations [Ping]\n}\n\n"
+        "readonly operation Ping {\n    http GET \"/ping\"\n}\n")})
+
+
+def add_input_members(package, *names):
+    """Optional string members on CreateCity's input."""
+    replace_once(package, "        clientToken?: string\n",
+                 "        clientToken?: string\n" + "".join(f"        {name}?: string\n" for name in names))
+
 
 def composer(*args, **kwargs):
     command = [PHP, COMPOSER] if COMPOSER else ["composer"]
@@ -52,20 +66,11 @@ $client->close();
 echo "PHP archive consumer passed\\n";
 """, encoding="utf-8")
     run(PHP, str(consumer / "main.php"))
-    void_path = output / "void.json"
-    void_path.write_text(json.dumps({"smithy": "2.0", "shapes": {
-        "example.void#Service": {"type": "service", "version": "1", "traits": {"crucible.protocols#json": {}}, "operations": [{"target": "example.void#Ping"}]},
-        "example.void#Ping": {"type": "operation", "traits": {"smithy.api#http": {"method": "GET", "uri": "/ping"}}},
-    }}))
-    renamed = json.loads((ROOT / "crates/crucible-smithy/tests/fixtures/weather.json").read_text())
-    renamed["shapes"]["example.weather#Weather"]["rename"] = {
-        "example.weather#DateTime": "Instant", "example.weather#CitySummary": "DateTime", "example.weather#Location": "Field", "example.weather#Sky": "NativeSky",
-    }
-    for member in ["this", "context", "object", "metadata", "code", "message"]:
-        renamed["shapes"]["example.weather#CreateCityInput"]["members"][member] = {"target": "smithy.api#String"}
-    renamed_path = output / "renamed.json"
-    renamed_path.write_text(json.dumps(renamed))
-    for name, model in [("empty", ROOT / "tests/conformance/empty-service.json"), ("void", void_path), ("renamed", renamed_path)]:
+    void_path = void_package(output)
+    renamed_path = copy_package("weather", output / "renamed")
+    rename_shapes(renamed_path, {"DateTime": "Instant", "CitySummary": "DateTime", "Location": "Field", "Sky": "NativeSky"})
+    add_input_members(renamed_path, "this", "context", "object", "metadata", "code", "message")
+    for name, model in [("empty", ROOT / "tests/models/empty-service"), ("void", void_path), ("renamed", renamed_path)]:
         generated = output / name
         run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php", str(model),
             "--out", str(generated), "--package-name", "example/" + name, "--namespace", "Example\\Weather")
@@ -81,24 +86,24 @@ $client->close();
 """.replace("PLACEHOLDER_CLIENT", {"empty":"EmptyClient", "void":"ServiceClient", "renamed":"WeatherClient"}[name]), encoding="utf-8")
         run(PHP, str(generated / "check.php"))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/extended-types.json"), "--out", str(output / "extended"),
+        str(ROOT / "tests/models/extended-types"), "--out", str(output / "extended"),
         "--package-name", "example/extended", "--namespace", "Types")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/extensions.php"), env=dict(os.environ,
         PHP_EXTENDED_PACKAGE=str(output / "extended")))
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/error-payloads.json"), "--out", str(output / "wire"),
+        str(ROOT / "tests/models/error-payloads"), "--out", str(output / "wire"),
         "--package-name", "example/wire", "--namespace", "WireSdk")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/wire.php"), env=dict(os.environ, PHP_WIRE_PACKAGE=str(output / "wire")))
     # Payload Content-Type precedence.
     payload_package = output / "payload"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "crates/crucible-codegen-python/tests/payload-bindings.json"),
+        str(ROOT / "tests/models/payload-bindings"),
         "--out", str(payload_package), "--package-name", "example/payload", "--namespace", "PayloadSdk")
     run(PHP, str(ROOT / "crates/crucible-codegen-php/tests/payload_bindings.php"),
         env=dict(os.environ, PHP_PAYLOAD_PACKAGE=str(payload_package)))
     # String representations must hide sensitive members from every inspection path.
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
-        str(ROOT / "crates/crucible-smithy/tests/fixtures/client-docs.json"), "--out", str(output / "describe"),
+        str(ROOT / "tests/models/client-docs-vault"), "--out", str(output / "describe"),
         "--package-name", "example/vault", "--namespace", "VaultSdk")
     for path in sorted((output / "describe").rglob("*.php")):
         run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)

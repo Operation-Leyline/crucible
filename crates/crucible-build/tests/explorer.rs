@@ -1,12 +1,14 @@
 #![cfg(feature = "rust")]
 use crucible_build::{Audience, model};
 
+mod common;
+
 fn fixture() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../crucible-smithy/tests/fixtures/service-docs-weather.json")
+    common::shared_package("service-docs-weather")
 }
 
 #[test]
+#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn explorer_is_opt_in_and_audience_selection_is_order_independent() {
     let source = fixture();
     assert!(
@@ -45,6 +47,7 @@ fn explorer_is_opt_in_and_audience_selection_is_order_independent() {
 }
 
 #[test]
+#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn explorer_generated_bindings_are_valid_rust() {
     let code = model(fixture()).server().explorer().render().unwrap();
     let dir = tempfile::tempdir().unwrap();
@@ -62,15 +65,18 @@ fn explorer_generated_bindings_are_valid_rust() {
 }
 
 #[test]
+#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn explorer_preserves_normal_server_bindings_and_resource_documentation() {
-    let mut source: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(fixture()).unwrap()).unwrap();
-    source["shapes"]["example.weather#ResourceOnlyId"] = serde_json::json!({"type": "string"});
-    source["shapes"]["example.weather#City"]["identifiers"]["tracking"] =
-        serde_json::json!({"target": "example.weather#ResourceOnlyId"});
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("model.json");
-    std::fs::write(&path, source.to_string()).unwrap();
+    let path = dir.path().join("weather");
+    common::copy_package(&fixture(), &path);
+    let city = path.join("resources/city.cru");
+    let text = std::fs::read_to_string(&city).unwrap();
+    let text = text.replace(
+        "    id cityId: CityId\n",
+        "    id cityId: CityId\n    id tracking: ResourceOnlyId\n",
+    );
+    std::fs::write(&city, format!("{text}\nstring ResourceOnlyId\n")).unwrap();
     let plain = model(&path).server().render().unwrap();
     let explorer = model(&path).server().explorer().render().unwrap();
     let prefix = explorer

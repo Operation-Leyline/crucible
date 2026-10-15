@@ -1,0 +1,7 @@
+readonly public operation Public {
+    http GET "/public" -> 200
+    output {
+        subject?: string
+        kind?: string
+    }
+}

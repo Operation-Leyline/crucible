@@ -1,12 +1,13 @@
 #![cfg(feature = "rust")]
 
+mod common;
+
 use std::path::PathBuf;
 
 use crucible_build::model;
 
 fn fixture() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../crucible-policy/tests/fixtures/contract.json")
+    common::shared_package("policy-contract")
 }
 
 #[test]

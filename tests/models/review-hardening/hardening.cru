@@ -1,0 +1,6 @@
+service Hardening {
+    version "1"
+    protocol json
+    auth bearer
+    operations [EmptyWrite, GetItem, PublicPing, ReadValues]
+}

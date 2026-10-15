@@ -1,0 +1,4 @@
+error AccessDeniedException {
+    status 401
+    message: string
+}

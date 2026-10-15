@@ -1,0 +1,35 @@
+operation Echo {
+    http POST "/" -> 200
+    input {
+        requiredDocument: document
+        document?: document
+        items?: Items
+        next?: Root
+        choice?: Choice
+        state?: State
+        builder?: string
+        validate?: string
+        memberBuilder?: string
+        build?: string
+        memberBuild?: string
+        related?: RootBuilder
+        fallback: integer = 3
+        httpDate?: timestamp { format http-date }
+    }
+    output {
+        requiredDocument: document
+        document?: document
+        items?: Items
+        next?: Root
+        choice?: Choice
+        state?: State
+        builder?: string
+        validate?: string
+        memberBuilder?: string
+        build?: string
+        memberBuild?: string
+        related?: RootBuilder
+        fallback: integer = 3
+        httpDate?: timestamp { format http-date }
+    }
+}
