@@ -47,6 +47,7 @@ pub fn source(file: &SdkFile, sdk: &Sdk, allow_dirty: bool) -> Result<Source, St
         .to_owned();
     let mut inputs = vec![name, file.model.clone()];
     inputs.extend(sdk.metadata.readme.clone());
+    inputs.extend(sdk.metadata.agents.clone());
     inputs.extend(sdk.metadata.license_file.clone());
     // One problem per input: untracked, or tracked but different from HEAD.
     let mut problems = Vec::new();

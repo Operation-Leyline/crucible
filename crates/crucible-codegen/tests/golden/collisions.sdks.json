@@ -14,7 +14,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$SURFACE_ENDPOINT/Constructor\" \\\n  -H 'Crucible-Version: 1'\n",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/Constructor' \\\n  -H 'Crucible-Version: 1'\n",
         "uri": "/Constructor"
       },
       "example.surface#ListThings": {
@@ -28,7 +29,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$SURFACE_ENDPOINT/ListThings?token=nextToken&build=build\" \\\n  -H 'Crucible-Version: 1'\n",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThings?token=nextToken&build=build' \\\n  -H 'Crucible-Version: 1'\n",
         "uri": "/ListThings?token=nextToken&build=build"
       },
       "example.surface#ListThingsPages": {
@@ -42,7 +44,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$SURFACE_ENDPOINT/ListThingsPages\" \\\n  -H 'Crucible-Version: 1'\n",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThingsPages' \\\n  -H 'Crucible-Version: 1'\n",
         "uri": "/ListThingsPages"
       },
       "example.surface#ListThingsPaginator": {
@@ -56,7 +59,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$SURFACE_ENDPOINT/ListThingsPaginator\" \\\n  -H 'Crucible-Version: 1'\n",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThingsPaginator' \\\n  -H 'Crucible-Version: 1'\n",
         "uri": "/ListThingsPaginator"
       },
       "example.surface#ListThingsWithOptions": {
@@ -70,7 +74,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$SURFACE_ENDPOINT/ListThingsWithOptions\" \\\n  -H 'Crucible-Version: 1'\n",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/ListThingsWithOptions' \\\n  -H 'Crucible-Version: 1'\n",
         "uri": "/ListThingsWithOptions"
       },
       "example.surface#PaginateListThings": {
@@ -84,7 +89,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$SURFACE_ENDPOINT/PaginateListThings\" \\\n  -H 'Crucible-Version: 1'\n",
+        "omitted": [],
+        "snippet": "curl \"$SURFACE_ENDPOINT\"'/PaginateListThings' \\\n  -H 'Crucible-Version: 1'\n",
         "uri": "/PaginateListThings"
       }
     },

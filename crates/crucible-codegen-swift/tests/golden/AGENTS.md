@@ -4,7 +4,7 @@
 
 This is the generated Swift client for the Weather API (`example.weather#Weather`, API version `2026-10-01`, sent as `Crucible-Version: 2026-10-01` on every request). The names below are exact: do not guess other package, import or method names.
 
-- Install: add `.package(url: "https://github.com/OWNER/WeatherClient.git", from: "0.0.0-dev"), // the repository the package is published to` to the project's manifest. The package is `WeatherClient` at version `0.0.0-dev`.
+- Install: Add the package with SwiftPM's `.package(url:from:)` from the Git repository it is released to, and its `WeatherClient` product to the target that calls the API. The package is `WeatherClient` at version `0.0.0-dev`.
 - Import: `import Foundation` then `import WeatherClient`.
 - Client: `WeatherClient`. Construct it as below. `token` is the bearer token source: an `async throws` closure returning the token, or `nil` to send none, called on every attempt so a refreshed token is used. The initializer throws for an invalid configuration; share one client, and call `close()` when finished.
 
@@ -17,8 +17,8 @@ let client = try WeatherClient(ClientConfig(token: { ProcessInfo.processInfo.env
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>Pages` method returning `Pages<Output>`, an `AsyncSequence` of pages (`for try await page in try client.listThingsPages(input)`): each page is one response, each step makes one call, and it stops when the response carries no next token.
-- Errors: Each modelled error is a struct conforming to `WeatherException` and `ServiceError`: catch it with `catch let error as TheError` and read its properties and `metadata.status`. An error the client does not model is `UnknownServiceError`; a failure without a response throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws `TimeoutError`.
+- Pagination: A paginated operation also has a `<operation>Pages` method returning `Pages<Output>`, an `AsyncSequence` of pages (`for try await page in try client.listCitiesPages(input)`): each page is one response, each step makes one call, and it stops when the response carries no next token.
+- Errors: Each modelled error is a struct conforming to `WeatherException` and `ServiceError`: catch it with `catch let error as NotFoundError` and read its properties and `metadata.status`. An error the client does not model is `UnknownServiceError`; a failure without a response throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws `TimeoutError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `baseDelay` and `maxDelay` for the backoff.
 - Idempotency: these calls fill an idempotency token when it is unset: `createCity` (`clientToken`). Set it yourself to replay one logical request.
 - Generated code: do not edit files in this package; they are replaced when it is regenerated.

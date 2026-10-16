@@ -461,6 +461,7 @@ pub(crate) fn snippets(
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("Kotlin", "kotlin");
+    guide.metadata = options.metadata.clone();
     guide.version = Some(options.package_version.clone());
     guide.manifest = Some((
         "kotlin".to_owned(),
@@ -489,10 +490,10 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
         .auth
         .push_str(" The client is `AutoCloseable`; share one instance.");
     guide.pagination = "A paginated operation also has a `<operation>Pages` method returning a \
-        cold `Flow` of pages (`client.listThingsPages(input).collect { page -> ... }`): each page \
+        cold `Flow` of pages (`client.{paginator}(input).collect { page -> ... }`): each page \
         is one response, and it stops when the response carries no next token. Every operation \
         is a `suspend` function, called from a coroutine; each also takes the input's DSL block \
-        (`client.getThing { id = \"...\" }`)."
+        (`client.{showcase} { ... }`)."
         .to_owned();
     guide.errors = format!(
         "Each modelled error is an exception class in `{package}.model`, extending \

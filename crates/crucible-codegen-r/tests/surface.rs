@@ -9,6 +9,7 @@ use crucible_ir::ir::Service;
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather.client".into(),
         package_version: "0.0.0".into(),
         endpoint: None,
@@ -166,6 +167,7 @@ fn weather_surface_names_the_generated_declarations() {
 #[test]
 fn a_default_endpoint_needs_no_configuration() {
     let options = Options {
+        metadata: Default::default(),
         package_name: "forecast".into(),
         package_version: "0.0.0".into(),
         endpoint: Some("https://api.weather.example".into()),

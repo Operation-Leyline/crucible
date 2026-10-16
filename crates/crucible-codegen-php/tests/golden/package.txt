@@ -17,7 +17,7 @@ $client = new \Example\Weather\WeatherClient(new \Example\Weather\Runtime\Client
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<method>Pages` method returning a `Generator` of pages (`foreach ($client->listThingsPages($input) as $page)`): each page is one response, requested as the loop reaches it, and it stops when the response carries no next token.
+- Pagination: A paginated operation also has a `<method>Pages` method returning a `Generator` of pages (`foreach ($client->listCitiesPages($input) as $page)`): each page is one response, requested as the loop reaches it, and it stops when the response carries no next token.
 - Errors: Each modelled error is a class in `Example\Weather`, extending `WeatherException` (a `Runtime\ServiceError`, itself a `RuntimeException`): catch it and read its properties and `$error->metadata->status`. A modelled `message` member is the `messageValue` property, since `getMessage()` belongs to the exception. A failure without a response throws `Runtime\NetworkException`; a call that outlasts the configured `timeout` throws `Runtime\TimeoutException`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Pass `maxAttempts` to `Example\Weather\Runtime\ClientConfig` to change the attempt limit (3, the first included); 1 turns retries off.
 - Idempotency: these calls fill an idempotency token when it is unset: `createCity` (`clientToken`). Set it yourself to replay one logical request.
@@ -118,7 +118,7 @@ try {
 
 ## Pagination
 
-A paginated operation also has a `<method>Pages` method returning a `Generator` of pages (`foreach ($client->listThingsPages($input) as $page)`): each page is one response, requested as the loop reaches it, and it stops when the response carries no next token.
+A paginated operation also has a `<method>Pages` method returning a `Generator` of pages (`foreach ($client->listCitiesPages($input) as $page)`): each page is one response, requested as the loop reaches it, and it stops when the response carries no next token.
 
 ```php
 <?php

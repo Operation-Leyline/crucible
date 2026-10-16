@@ -3,7 +3,9 @@
 //! the input as an object literal, the awaited call, the output, and one
 //! modelled error caught with `instanceof`.
 
+use crucible_codegen_common::Registry;
 use crucible_codegen_common::guide::Guide;
+use crucible_codegen_common::metadata::is_public_npm_registry;
 use crucible_codegen_common::snippet::{Call, Kind, Node, added_headers_sentence, env_var};
 use crucible_codegen_common::surface::Middleware;
 use crucible_ir::ir::{Service, SimpleKind};
@@ -302,11 +304,30 @@ fn unindent(text: &str) -> String {
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let client = crate::client_name(service, options);
     let mut guide = Guide::new("TypeScript", "ts");
+    guide.metadata = options.metadata.clone();
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
-    guide.install = vec![match &version {
-        Some(version) => format!("npm install {}@{version}", options.package_name),
-        None => format!("npm install {}", options.package_name),
-    }];
+    let name = &options.package_name;
+    let spec = match &version {
+        Some(version) => format!("{name}@{version}"),
+        None => name.clone(),
+    };
+    match &options.metadata.registry {
+        // Published to another registry (GitHub Packages, say): a scoped
+        // name resolves through its scope's registry, so configure that
+        // first; an unqualified `npm install` could fetch a public package
+        // of the same name.
+        Some(Registry::Npm { url, .. }) if !is_public_npm_registry(url) => {
+            guide.install = match name.strip_prefix('@').and_then(|rest| rest.split_once('/')) {
+                Some((scope, _)) => vec![
+                    format!("npm config set @{scope}:registry {url}"),
+                    format!("npm install {spec}"),
+                ],
+                None => vec![format!("npm install {spec} --registry {url}")],
+            };
+        }
+        _ if !guide.published() => guide.install_note = Some(guide.release_note(name)),
+        _ => guide.install = vec![format!("npm install {spec}")],
+    }
     guide.version = version;
     guide.construct = construct(service, options, &client);
     guide.auth = if service.auth.iter().any(|s| service.is_bearer(s)) {
@@ -322,7 +343,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `endpoint` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `paginate<Operation>` method returning \
-        an async iterator of pages (`for await (const page of client.paginateListThings(input))`): \
+        an async iterator of pages (`for await (const page of client.{paginator}(input))`): \
         each page is one response, and it stops when the response carries no next token."
         .to_owned();
     guide.errors = format!(
@@ -334,16 +355,6 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     guide.retries = "Set `retry: { maxAttempts }` in the client configuration to change the \
         attempt limit (3, the first included), or `retry: false` to turn retries off."
         .to_owned();
-    let metadata = &options.metadata;
-    for (name, url) in [
-        ("Documentation", &metadata.documentation),
-        ("Home page", &metadata.homepage),
-        ("Repository", &metadata.repository),
-    ] {
-        if let Some(url) = url {
-            guide.links.push((name.to_owned(), url.clone()));
-        }
-    }
     guide.links.push((
         "The TypeScript client guide".to_owned(),
         "https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/typescript.md"

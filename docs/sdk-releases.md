@@ -56,7 +56,7 @@ channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{
 
 - **`[defaults]`** holds only the common keys: `description`,
   `repository`, `homepage`, `documentation`, `license` or `license_file`,
-  `authors`, `readme`, `keywords`, `private` and `provenance` (`"full"`).
+  `authors`, `readme`, `agents`, `keywords`, `private` and `provenance` (`"full"`).
   An SDK inherits each key it does not set; a list it sets replaces the
   default's, and setting `license` or `license_file` replaces both.
 - **`[sdk.<name>]`** is one SDK, named like a build output: a lowercase
@@ -96,9 +96,12 @@ Every error in the file is reported in one run, at its key.
 
 Rust and TypeScript packages map the common keys onto `Cargo.toml` and
 `package.json` (see [the mapping](sdk-packaging.md#the-common-keys-built-for-rust-and-typescript));
-the README and license are copied into the package with LF line endings.
-The other languages record the keys in their configuration and take them
-in a later release.
+the README, AGENTS.md and license are copied into the package with LF line
+endings. Every language takes `readme`, `agents`, the URLs, `private` and
+the channel for its generated README.md and AGENTS.md
+([generated package documentation](clients.md#generated-package-documentation));
+the other languages record `description`, `license`, `authors` and
+`keywords` in their configuration and take them in a later release.
 
 ## Print and generate declared SDKs
 

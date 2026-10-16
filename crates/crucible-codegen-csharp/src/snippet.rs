@@ -474,6 +474,10 @@ pub(crate) fn snippets(
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("C#", "csharp");
+    guide.metadata = options.metadata.clone();
+    // Its install line names the public registry: a private or
+    // Git-released package shows its release instead.
+    guide.public_registry = true;
     guide.version = Some(options.package_version.clone());
     guide.install = vec![format!(
         "dotnet add package {} --version {}",
@@ -503,7 +507,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
         .auth
         .push_str(" The client is `IDisposable`; share one instance.");
     guide.pagination = "A paginated operation also has a `<Operation>PagesAsync` method returning \
-        an `IAsyncEnumerable` of pages (`await foreach (var page in client.ListThingsPagesAsync(input))`): \
+        an `IAsyncEnumerable` of pages (`await foreach (var page in client.{paginator}(input))`): \
         each page is one response, and it stops when the response carries no next token. Every \
         operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside \
         it, each taking an optional `CancellationToken`."

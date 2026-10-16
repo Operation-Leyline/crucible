@@ -766,7 +766,8 @@ as `x-amz-content-sha256`); the input, written with native literals of
 real values; the call; each top-level output member read; and one modelled
 error handled by its generated type. The values are the operation's first
 `example` with an input, or else its generated [sample](#generated-samples)
-with every member (less a client-filled idempotency token), and a comment
+with every member, less a client-filled idempotency token and any optional
+member whose sample is longer than 160 characters of JSON, and a comment
 says which. Values keep their types: `long` is a TypeScript `bigint`, a
 timestamp is the language's instant type, a blob its byte type, an enum or
 union its generated value, and optional members take whatever presence
@@ -790,11 +791,11 @@ the widest audience among the listed SDKs. It is a fixed name beside
 | Field | Type and meaning |
 |---|---|
 | `endpointEnv`, `tokenEnv` | The environment variables the snippets read the endpoint and bearer token from; `tokenEnv` is null for a service without bearer auth |
-| `operations` | Operation ID to `{method, uri, headers, body, bodyEncoding, example, snippet}` |
+| `operations` | Operation ID to `{method, uri, headers, body, bodyEncoding, example, omitted, snippet}` |
 
 The request is the one `describe.json` shows: the first example with an
-input, else the generated sample (`example` is that example's title, or
-null). `uri` is percent-encoded and includes the query. `headers` is an
+input, else the generated sample without its idempotency token (`example`
+is that example's title, or null). `uri` is percent-encoded and includes the query. `headers` is an
 array of `{name, value}`, sorted by lowercase name: the modeled and
 protocol headers (`Content-Type` included wherever a body or payload is
 sent), `Authorization: Bearer <token>` for an operation with bearer auth,
@@ -802,10 +803,17 @@ sent), `Authorization: Bearer <token>` for an operation with bearer auth,
 middleware header the listed SDKs add. `x-amz-content-sha256`
 (`content-sha256`) is the SHA-256 of exactly the bytes in `body`, in
 lowercase hex, and of zero bytes for an empty POST, PUT or PATCH. `body`
-is null without one; else UTF-8 text (`bodyEncoding: "utf-8"`, a JSON
-document as sent) or a raw payload's bytes in base64 (`"base64"`).
-`snippet` is a `curl` command sending that request to `$WEATHER_ENDPOINT`
-with `$WEATHER_TOKEN`; a raw payload is decoded and piped in.
+is null without one; else the body as this command sends it: UTF-8 text
+(`bodyEncoding: "utf-8"`, a JSON document as sent) when every character
+prints, or the bytes in base64 (`"base64"`) for a raw payload and for any
+body holding a control (other than a line feed or tab), a format or
+bidirectional character, a line or paragraph separator or a byte order
+mark. `snippet` is a `curl` command sending that request to
+`$WEATHER_ENDPOINT` with `$WEATHER_TOKEN`, the path and query in single
+quotes; a base64 body is decoded and piped in, so a pasted command never
+carries a raw `\x03` or `ESC [201~`. A header whose value holds a line
+break, a NUL or another control cannot be sent: it stays in `headers`,
+is left out of `snippet`, and `omitted` lists it as `{name, reason}`.
 
 `crucible_codegen_common::surface::Surface` is the in-memory form, built by
 each client generator's `surface(&Service, &Options)` and by

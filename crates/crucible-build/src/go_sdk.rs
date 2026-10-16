@@ -23,6 +23,7 @@ impl<'a> GoSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: GoOptions {
+                metadata: Default::default(),
                 module_path: format!("example.com/{name}-sdk"),
                 package_name: format!("{}_sdk", crate::output_builder::native_snake(name)),
                 endpoint: None,

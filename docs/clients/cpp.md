@@ -41,7 +41,7 @@ and `LeylineClient` for Leyline. Package and module names remain configurable.
 The package also ships a generated `README.md` (install, client
 construction, one complete call, pagination, errors and retries) and
 `AGENTS.md` (the same facts, tersely, for coding agents), which CMake
-installs beside `crucible.json`, and a `Doxyfile`: `doxygen` in the package
+installs under `share/doc/<package>` as the C package does, and a `Doxyfile`: `doxygen` in the package
 directory writes the API reference to `docs/html` with the README as its
 front page. Their programs are the operations' `crucible.sdks/1` snippets
 ([docs/docs.md](../docs.md#the-cruciblesdks1-contract)): each is a complete

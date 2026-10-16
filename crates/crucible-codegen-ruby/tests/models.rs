@@ -37,6 +37,7 @@ fn weather() -> crucible_ir::ir::Service {
 fn weather_models_generate() {
     let service = weather();
     let options = Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         module_name: "Weather".into(),
         package_version: "0.0.0".into(),
@@ -82,6 +83,7 @@ fn weather_models_generate() {
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         module_name: "Weather".into(),
         package_version: "0.0.0".into(),
@@ -141,6 +143,7 @@ fn top_level_support_names_are_diagnosed() {
 fn vault_files() -> Vec<crucible_codegen_ruby::File> {
     let service = load("client-docs-vault");
     let options = Options {
+        metadata: Default::default(),
         package_name: "vault_client".into(),
         module_name: "Vault".into(),
         package_version: "0.0.0".into(),

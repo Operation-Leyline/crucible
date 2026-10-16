@@ -578,9 +578,14 @@ struct MetadataArgs {
     /// `Name <email>`; repeat for more. The first is the maintainer.
     #[arg(long = "author", value_name = "AUTHOR")]
     authors: Vec<String>,
-    /// A Markdown file, copied into the package as README.md.
+    /// A Markdown file, copied into the package as README.md in place of
+    /// the generated one.
     #[arg(long)]
     readme: Option<PathBuf>,
+    /// A Markdown file, copied into the package as AGENTS.md in place of
+    /// the generated one.
+    #[arg(long)]
+    agents: Option<PathBuf>,
     /// A registry keyword; repeat for more.
     #[arg(long = "keyword", value_name = "KEYWORD")]
     keywords: Vec<String>,
@@ -599,6 +604,7 @@ impl MetadataArgs {
             && self.license_file.is_none()
             && self.authors.is_empty()
             && self.readme.is_none()
+            && self.agents.is_none()
             && self.keywords.is_empty()
             && !self.private
     }
@@ -622,6 +628,7 @@ impl MetadataArgs {
         metadata.license_file = read(self.license_file)?;
         metadata.authors = self.authors;
         metadata.readme = read(self.readme)?;
+        metadata.agents = read(self.agents)?;
         metadata.keywords = self.keywords;
         metadata.private = self.private;
         Ok(metadata)
@@ -1216,6 +1223,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_ruby::capabilities())?;
             let client = crucible_codegen::Client::Ruby(crucible_codegen::RubyOptions {
+                metadata: Default::default(),
                 package_name,
                 module_name,
                 package_version,
@@ -1239,6 +1247,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
         } => {
             let service = lower_for_client(&source, audience, &crucible_codegen_c::capabilities())?;
             let client = crucible_codegen::Client::C(crucible_codegen::COptions {
+                metadata: Default::default(),
                 package_name,
                 prefix,
                 package_version,
@@ -1261,6 +1270,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
         } => {
             let service = lower_for_client(&source, audience, &crucible_codegen_r::capabilities())?;
             let client = crucible_codegen::Client::R(crucible_codegen::ROptions {
+                metadata: Default::default(),
                 package_name,
                 package_version,
                 endpoint,
@@ -1284,6 +1294,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_cpp::capabilities())?;
             let client = crucible_codegen::Client::Cpp(crucible_codegen::CppOptions {
+                metadata: Default::default(),
                 package_name,
                 namespace,
                 package_version,
@@ -1308,6 +1319,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_php::capabilities())?;
             let client = crucible_codegen::Client::Php(crucible_codegen::PhpOptions {
+                metadata: Default::default(),
                 package_name,
                 namespace,
                 package_version,
@@ -1331,6 +1343,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_dart::capabilities())?;
             let client = crucible_codegen::Client::Dart(crucible_codegen::DartOptions {
+                metadata: Default::default(),
                 package_name,
                 package_version,
                 endpoint,
@@ -1354,6 +1367,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_swift::capabilities())?;
             let client = crucible_codegen::Client::Swift(crucible_codegen::SwiftOptions {
+                metadata: Default::default(),
                 package_name,
                 module_name,
                 package_version,
@@ -1378,6 +1392,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_csharp::capabilities())?;
             let client = crucible_codegen::Client::Csharp(crucible_codegen::CsharpOptions {
+                metadata: Default::default(),
                 namespace,
                 package_id,
                 package_version,
@@ -1403,6 +1418,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_kotlin::capabilities())?;
             let client = crucible_codegen::Client::Kotlin(crucible_codegen::KotlinOptions {
+                metadata: Default::default(),
                 group_id,
                 artifact_id,
                 package_name,
@@ -1429,6 +1445,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_java::capabilities())?;
             let client = crucible_codegen::Client::Java(crucible_codegen::JavaOptions {
+                metadata: Default::default(),
                 group_id,
                 artifact_id,
                 package_name,
@@ -1453,6 +1470,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_go::capabilities())?;
             let client = crucible_codegen::Client::Go(crucible_codegen::GoOptions {
+                metadata: Default::default(),
                 module_path,
                 package_name,
                 endpoint,
@@ -1476,6 +1494,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             let service =
                 lower_for_client(&source, audience, &crucible_codegen_python::capabilities())?;
             let client = crucible_codegen::Client::Python(crucible_codegen::PythonOptions {
+                metadata: Default::default(),
                 package_name,
                 module_name,
                 package_version,

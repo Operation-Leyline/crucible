@@ -430,6 +430,10 @@ pub(crate) fn snippets(
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("PHP", "php");
+    guide.metadata = options.metadata.clone();
+    // Its install line names the public registry: a private or
+    // Git-released package shows its release instead.
+    guide.public_registry = true;
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
     guide.install = vec![match &version {
         Some(version) => format!("composer require {}:{version}", options.package_name),
@@ -452,7 +456,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `endpoint` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `<method>Pages` method returning a \
-        `Generator` of pages (`foreach ($client->listThingsPages($input) as $page)`): each page \
+        `Generator` of pages (`foreach ($client->{paginator}($input) as $page)`): each page \
         is one response, requested as the loop reaches it, and it stops when the response \
         carries no next token."
         .to_owned();

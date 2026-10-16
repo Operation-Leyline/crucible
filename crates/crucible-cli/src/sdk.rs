@@ -272,7 +272,7 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
     for sdk in selected {
         if !sdk.takes_metadata() && has_common_keys(sdk) {
             eprintln!(
-                "warning: sdk.{}: {} packages take the common metadata keys in a later release; they are recorded in its configuration only",
+                "warning: sdk.{}: {} packages take `description`, `license`, `license_file`, `authors` and `keywords` in a later release; they are recorded in its configuration only",
                 sdk.name,
                 sdk.language.display()
             );
@@ -310,13 +310,11 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
 /// which every language honors through its channel rules.
 fn has_common_keys(sdk: &sdk::Sdk) -> bool {
     let metadata = &sdk.metadata;
+    // Every language takes the README, AGENTS.md, URLs and `private`, for
+    // its generated README and AGENTS.md; only these wait for its manifest.
     metadata.description.is_some()
-        || metadata.repository.is_some()
-        || metadata.homepage.is_some()
-        || metadata.documentation.is_some()
         || metadata.license.is_some()
         || metadata.license_file.is_some()
         || !metadata.authors.is_empty()
-        || metadata.readme.is_some()
         || !metadata.keywords.is_empty()
 }

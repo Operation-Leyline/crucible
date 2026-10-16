@@ -10,7 +10,7 @@ The Go client for the Weather API (`example.weather#Weather`, API version `2026-
 go get example.com/weather
 ```
 
-The package is `example.com/weather`; code refers to it as `example.com/weather`.
+The package is `example.com/weather`; code refers to it as `weather`.
 
 ## Create a client
 
@@ -78,7 +78,7 @@ func main() {
 
 ## Pagination
 
-A paginated operation also has a `<Operation>Pages` method (`client.ListThingsPages(input)`) returning a paginator: call `NextPage(ctx)` while `HasMorePages()` is true. Each page is one response; a repeated token stops it with an error. A paginator is for one goroutine at a time. Every method takes a `context.Context` first; an operation without input takes `weather.Unit{}`.
+A paginated operation also has a `<Operation>Pages` method (`client.ListCitiesPages(input)`) returning a paginator: call `NextPage(ctx)` while `HasMorePages()` is true. Each page is one response; a repeated token stops it with an error. A paginator is for one goroutine at a time. Every method takes a `context.Context` first; an operation without input takes `weather.Unit{}`.
 
 ```go
 package main

@@ -10,6 +10,7 @@ use crucible_ir::ir::Service;
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         prefix: "weather".into(),
         package_version: "0.0.0".into(),
@@ -295,6 +296,7 @@ fn sample_snippets_name_the_generated_declarations() {
 #[test]
 fn another_prefix_names_every_symbol() {
     let options = Options {
+        metadata: Default::default(),
         package_name: "forecast".into(),
         prefix: "fc".into(),
         package_version: "0.0.0".into(),

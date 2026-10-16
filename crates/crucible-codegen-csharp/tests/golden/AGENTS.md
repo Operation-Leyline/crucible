@@ -4,7 +4,7 @@
 
 This is the generated C# client for the Weather API (`example.weather#Weather`, API version `2026-10-01`, sent as `Crucible-Version: 2026-10-01` on every request). The names below are exact: do not guess other package, import or method names.
 
-- Install: `dotnet add package Example.Weather --version 0.0.0-dev`. The package is `Example.Weather` at version `0.0.0-dev`.
+- Install: `dotnet add package Example.Weather --version 0.0.0-dev`, then in the manifest, `<PackageReference Include="Example.Weather" Version="0.0.0-dev" />`. The package is `Example.Weather` at version `0.0.0-dev`.
 - Import: `using Example.Weather;` then `using Example.Weather.Models;`.
 - Client: `WeatherClient`. Construct it as below. `ClientConfig.Token` returns the bearer token (a `ValueTask<string?>`), called for every attempt with the call's cancellation token, so a refreshed token is used. The client is `IDisposable`; share one instance.
 
@@ -20,7 +20,7 @@ using var client = new WeatherClient(new ClientConfig
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `CreateCity`, `GetCity`, `GetCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<Operation>PagesAsync` method returning an `IAsyncEnumerable` of pages (`await foreach (var page in client.ListThingsPagesAsync(input))`): each page is one response, and it stops when the response carries no next token. Every operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside it, each taking an optional `CancellationToken`.
+- Pagination: A paginated operation also has a `<Operation>PagesAsync` method returning an `IAsyncEnumerable` of pages (`await foreach (var page in client.ListCitiesPagesAsync(input))`): each page is one response, and it stops when the response carries no next token. Every operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside it, each taking an optional `CancellationToken`.
 - Errors: Each modelled error is an exception class in `Example.Weather.Models`, deriving from `Example.Weather.WeatherException` and `ServiceError`: catch it and read its properties, and `StatusCode`, `RequestId` and `Headers`. A modelled member named like an `Exception` property takes a `Value` suffix (`MessageValue`). Transport failures throw `NetworkError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `MaxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `Timeout`, `BaseDelay` and `MaxDelay` for the call budget and backoff, and `RetryMode` to `RetryMode.Standard` or `RetryMode.Adaptive` for a shared retry quota or client-side rate limiting.
 - Idempotency: these calls fill an idempotency token when it is unset: `CreateCity` (`ClientToken`). Set it yourself to replay one logical request.

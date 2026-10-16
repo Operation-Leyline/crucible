@@ -59,7 +59,7 @@ suspend fun main() {
 
 ## Pagination
 
-A paginated operation also has a `<operation>Pages` method returning a cold `Flow` of pages (`client.listThingsPages(input).collect { page -> ... }`): each page is one response, and it stops when the response carries no next token. Every operation is a `suspend` function, called from a coroutine; each also takes the input's DSL block (`client.getThing { id = "..." }`).
+A paginated operation also has a `<operation>Pages` method returning a cold `Flow` of pages (`client.listCitiesPages(input).collect { page -> ... }`): each page is one response, and it stops when the response carries no next token. Every operation is a `suspend` function, called from a coroutine; each also takes the input's DSL block (`client.getCity { ... }`).
 
 ```kotlin
 import example.weather.ClientConfig

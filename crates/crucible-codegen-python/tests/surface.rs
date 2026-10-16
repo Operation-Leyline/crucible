@@ -14,6 +14,7 @@ fn load(name: &str) -> crucible_ir::ir::Service {
 
 fn options(endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather-client".into(),
         module_name: "weather_client".into(),
         package_version: "0.0.0.dev0".into(),

@@ -4,7 +4,7 @@
 
 This is the generated Kotlin client for the Weather API (`example.weather#Weather`, API version `2026-10-01`, sent as `Crucible-Version: 2026-10-01` on every request). The names below are exact: do not guess other package, import or method names.
 
-- Install: add `implementation("example:weather-client:0.0.0-dev")` to the project's manifest. The package is `example:weather-client` at version `0.0.0-dev`.
+- Install: in the manifest, `implementation("example:weather-client:0.0.0-dev")`. The package is `example:weather-client` at version `0.0.0-dev`.
 - Import: `import example.weather.WeatherClient` then `import example.weather.ClientConfig` then `import example.weather.model.*`.
 - Client: `WeatherClient`. Construct it as below. `ClientConfig.token` is a `suspend` function returning the bearer token, called for every attempt, so a refreshed token is used. The client is `AutoCloseable`; share one instance.
 
@@ -18,7 +18,7 @@ val client = WeatherClient(ClientConfig(token = { System.getenv("WEATHER_TOKEN")
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>Pages` method returning a cold `Flow` of pages (`client.listThingsPages(input).collect { page -> ... }`): each page is one response, and it stops when the response carries no next token. Every operation is a `suspend` function, called from a coroutine; each also takes the input's DSL block (`client.getThing { id = "..." }`).
+- Pagination: A paginated operation also has a `<operation>Pages` method returning a cold `Flow` of pages (`client.listCitiesPages(input).collect { page -> ... }`): each page is one response, and it stops when the response carries no next token. Every operation is a `suspend` function, called from a coroutine; each also takes the input's DSL block (`client.getCity { ... }`).
 - Errors: Each modelled error is an exception class in `example.weather.model`, extending `example.weather.WeatherException` and `ServiceError`: catch it and read its properties, and `status`, `requestId` and `headers`. A modelled member named like an exception property takes a `Value` suffix (`messageValue`). Transport failures throw `NetworkError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), `timeout`, `baseDelay` and `maxDelay` for the call budget and backoff, and `retryMode` to `RetryMode.STANDARD` or `RetryMode.ADAPTIVE` for a shared retry quota or client-side rate limiting.
 - Idempotency: these calls fill an idempotency token when it is unset: `createCity` (`clientToken`). Set it yourself to replay one logical request.

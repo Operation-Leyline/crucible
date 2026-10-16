@@ -32,6 +32,7 @@ fn weather() -> crucible_ir::ir::Service {
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         group_id: "example".into(),
         artifact_id: "weather-client".into(),
         package_name: "example.weather".into(),
@@ -420,6 +421,7 @@ fn doc_links_are_kdoc_links() {
     let service =
         crucible_ir::project(&load("doc-links"), crucible_ir::Audience::External).unwrap();
     let options = Options {
+        metadata: Default::default(),
         group_id: "example".into(),
         artifact_id: "links-client".into(),
         package_name: "example.links".into(),

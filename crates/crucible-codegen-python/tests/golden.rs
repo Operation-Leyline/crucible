@@ -37,6 +37,7 @@ fn weather() -> crucible_ir::ir::Service {
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather-client".into(),
         module_name: "weather_client".into(),
         package_version: "0.0.0.dev0".into(),

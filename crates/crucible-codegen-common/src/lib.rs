@@ -12,7 +12,7 @@ pub mod sample;
 pub mod snippet;
 pub mod surface;
 
-pub use metadata::{PackageMetadata, Registry};
+pub use metadata::{GitRelease, PackageMetadata, Registry};
 
 use crucible_ir::ir::{
     Bindings, DocNotes, Fault, Member, Service, Shape, SimpleKind, TimestampFormat,

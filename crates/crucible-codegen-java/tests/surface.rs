@@ -14,6 +14,7 @@ fn load(name: &str) -> crucible_ir::ir::Service {
 
 fn options(package: &str, endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         group_id: "example".into(),
         artifact_id: "weather-client".into(),
         package_name: package.into(),

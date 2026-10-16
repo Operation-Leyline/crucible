@@ -45,6 +45,7 @@ impl Sdk {
         package.license_file = read("license_file", &metadata.license_file)?;
         package.authors.clone_from(&metadata.authors);
         package.readme = read("readme", &metadata.readme)?;
+        package.agents = read("agents", &metadata.agents)?;
         package.keywords.clone_from(&metadata.keywords);
         package.private = metadata.private;
         package.registry = match &self.channel {
@@ -55,10 +56,26 @@ impl Sdk {
         Ok(package)
     }
 
+    /// [`package_metadata`](Self::package_metadata) at `version`: with the
+    /// Git tag a Git channel releases it as.
+    fn release_metadata(&self, file: &SdkFile, version: &str) -> Result<PackageMetadata, String> {
+        let mut metadata = self.package_metadata(file)?;
+        if let Some(Channel::Git { url, tag, .. }) = &self.channel
+            && !version.is_empty()
+        {
+            metadata.git = Some(crucible_codegen_common::GitRelease::new(
+                url,
+                tag.replace("{version}", version),
+            ));
+        }
+        Ok(metadata)
+    }
+
     /// This SDK's generator configuration at `version` (ignored for Go,
     /// which has none). Its endpoint must be resolved (see
-    /// [`resolve`](super::resolve)). Languages other than Rust and
-    /// TypeScript take no common metadata yet.
+    /// [`resolve`](super::resolve)). Every language takes the common
+    /// metadata for its README and AGENTS.md; Rust and TypeScript also map
+    /// it onto their manifests.
     pub fn client(&self, file: &SdkFile, version: Option<&str>) -> Result<Client, String> {
         let options = &self.options;
         let endpoint = match &options.endpoint {
@@ -89,8 +106,8 @@ impl Sdk {
             Language::Rust => {
                 let mut rust = crucible_codegen_rust::ClientOptions {
                     package_name: options.package.clone(),
-                    package_version: version,
-                    metadata: self.package_metadata(file)?,
+                    package_version: version.clone(),
+                    metadata: self.release_metadata(file, &version)?,
                     ..Default::default()
                 };
                 if let Some(runtime) = &options.runtime {
@@ -128,7 +145,7 @@ impl Sdk {
             #[cfg(feature = "ts")]
             Language::Ts => Ok(Client::Ts(crucible_codegen_ts::Options {
                 package_name: required(&options.package),
-                package_version: version,
+                package_version: version.clone(),
                 client_name: options.client_name.clone(),
                 endpoint,
                 middleware: options
@@ -137,10 +154,11 @@ impl Sdk {
                     .map(|_| crucible_codegen_ts::Middleware::ContentSha256)
                     .collect(),
                 package_json: options.package_json.clone(),
-                metadata: self.package_metadata(file)?,
+                metadata: self.release_metadata(file, &version)?,
             })),
             #[cfg(feature = "python")]
             Language::Python => Ok(Client::Python(crucible_codegen_python::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 module_name: required(&options.module_name),
                 package_version: version,
@@ -148,12 +166,14 @@ impl Sdk {
             })),
             #[cfg(feature = "go")]
             Language::Go => Ok(Client::Go(crucible_codegen_go::Options {
+                metadata: self.release_metadata(file, &version)?,
                 module_path: required(&options.module_path),
                 package_name: required(&options.package),
                 endpoint,
             })),
             #[cfg(feature = "java")]
             Language::Java => Ok(Client::Java(crucible_codegen_java::Options {
+                metadata: self.release_metadata(file, &version)?,
                 group_id: required(&options.group_id),
                 artifact_id: required(&options.artifact_id),
                 package_name: required(&options.package),
@@ -162,6 +182,7 @@ impl Sdk {
             })),
             #[cfg(feature = "kotlin")]
             Language::Kotlin => Ok(Client::Kotlin(crucible_codegen_kotlin::Options {
+                metadata: self.release_metadata(file, &version)?,
                 group_id: required(&options.group_id),
                 artifact_id: required(&options.artifact_id),
                 package_name: required(&options.package),
@@ -170,6 +191,7 @@ impl Sdk {
             })),
             #[cfg(feature = "csharp")]
             Language::Csharp => Ok(Client::Csharp(crucible_codegen_csharp::Options {
+                metadata: self.release_metadata(file, &version)?,
                 namespace: required(&options.namespace),
                 package_id: required(&options.package_id),
                 package_version: version,
@@ -177,6 +199,7 @@ impl Sdk {
             })),
             #[cfg(feature = "swift")]
             Language::Swift => Ok(Client::Swift(crucible_codegen_swift::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 module_name: required(&options.module_name),
                 package_version: version,
@@ -184,12 +207,14 @@ impl Sdk {
             })),
             #[cfg(feature = "dart")]
             Language::Dart => Ok(Client::Dart(crucible_codegen_dart::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 package_version: version,
                 endpoint,
             })),
             #[cfg(feature = "php")]
             Language::Php => Ok(Client::Php(crucible_codegen_php::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 namespace: required(&options.namespace),
                 package_version: version,
@@ -197,6 +222,7 @@ impl Sdk {
             })),
             #[cfg(feature = "ruby")]
             Language::Ruby => Ok(Client::Ruby(crucible_codegen_ruby::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 module_name: required(&options.module_name),
                 package_version: version,
@@ -204,6 +230,7 @@ impl Sdk {
             })),
             #[cfg(feature = "cpp")]
             Language::Cpp => Ok(Client::Cpp(crucible_codegen_cpp::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 namespace: required(&options.namespace),
                 package_version: version,
@@ -211,6 +238,7 @@ impl Sdk {
             })),
             #[cfg(feature = "c")]
             Language::C => Ok(Client::C(crucible_codegen_c::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 prefix: required(&options.prefix),
                 package_version: version,
@@ -218,6 +246,7 @@ impl Sdk {
             })),
             #[cfg(feature = "r")]
             Language::R => Ok(Client::R(crucible_codegen_r::Options {
+                metadata: self.release_metadata(file, &version)?,
                 package_name: required(&options.package),
                 package_version: version,
                 endpoint,

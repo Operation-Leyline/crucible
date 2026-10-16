@@ -77,7 +77,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Pagination
 
-A paginated operation also has a `<operation>_pages` method returning a paginator: call `next_page().await` until it returns `None`; each page is one response.
+A paginated operation also has a `<operation>_pages` method returning a paginator (`client.list_cities_pages(input)`): call `next_page().await` until it returns `None`; each page is one response.
 
 ```rust
 use weather_sdk::*;

@@ -173,7 +173,8 @@ cannot set the name, version, `crucible`, `files`, `private` or
 | `repository`, `homepage`, `documentation` | URLs |
 | `license` / `license_file` | an SPDX expression, or a file copied into the package as `LICENSE` |
 | `authors` | `Name <email>` strings; the first is the maintainer where one is required |
-| `readme` | a Markdown file copied into the package as `README.md` |
+| `readme` | a Markdown file copied into the package as `README.md`, in place of the generated one (every language) |
+| `agents` | a Markdown file copied into the package as `AGENTS.md`, in place of the generated one (every language) |
 | `keywords` | where the ecosystem has them, checked against its rules (crates.io: at most 5, at most 20 characters, ASCII letters, digits, `_`, `-`, `+`, starting with a letter); a keyword that breaks them is an error |
 | `private` | never a public registry: a channel must be named and must not be a public default (registry.npmjs.org, crates.io, pypi.org, ...), and the package carries the native guard |
 | `provenance` | `"full"`; `"minimal"` comes later (section 4) |

@@ -569,6 +569,7 @@ fn input(
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("Java", "java");
+    guide.metadata = options.metadata.clone();
     guide.version = Some(options.package_version.clone());
     guide.manifest = Some((
         "xml".to_owned(),
@@ -593,7 +594,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `ClientConfig.endpoint` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `<operation>Pages` method returning a \
-        lazy `java.util.Iterator` of pages (`client.listThingsPages(input)`), and \
+        lazy `java.util.Iterator` of pages (`client.{paginator}(input)`), and \
         `<operation>PagesAsync` returning a `Flow.Publisher`: each page is one response, and it \
         stops when the response carries no next token. Each operation also has an `<operation>Async` \
         method returning a `CompletableFuture`, and an overload taking a `Consumer` of the input's \

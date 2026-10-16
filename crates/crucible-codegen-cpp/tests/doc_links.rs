@@ -8,6 +8,7 @@ fn headers() -> String {
     let service = crucible_lang::load_service(&dir).unwrap();
     let service = project(&service, Audience::External).unwrap();
     let options = Options {
+        metadata: Default::default(),
         package_name: "links_client".into(),
         namespace: "example::links".into(),
         package_version: "0.0.0".into(),

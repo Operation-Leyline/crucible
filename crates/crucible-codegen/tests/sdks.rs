@@ -299,7 +299,7 @@ out = "generated/r"
     assert_eq!(header("x-amz-content-sha256"), Some(digest));
     let curl = create["snippet"].as_str().unwrap();
     assert!(
-        curl.starts_with("curl -X POST \"$WEATHER_ENDPOINT/cities\""),
+        curl.starts_with("curl -X POST \"$WEATHER_ENDPOINT\"'/cities'"),
         "{curl}"
     );
     assert!(
@@ -331,4 +331,26 @@ out = "generated/r"
     assert_eq!(sdks["ts"]["client"]["construct"], "new WeatherClient()");
     assert_eq!(sdks["python"]["endpoint"], "https://api.weather.example");
     assert_eq!(sdks["rust"]["package"]["name"], "weather-sdk");
+}
+
+/// A sample's raw request leaves out the idempotency token, as the SDK
+/// snippets do: a fixed token in a copied command would replay one logical
+/// request. Samples' `PutGraph` has no example, so its request is the
+/// sample's, and its digest covers the body without the token.
+#[test]
+fn a_sample_request_carries_no_idempotency_token() {
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/samples\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/ts\"\n";
+    let (_directory, path) = repository("samples", text);
+    let text = describe(&path, "samples", Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let put = &document["http"]["operations"]["example.samples#PutGraph"];
+    assert!(put["example"].is_null(), "{put}");
+    let body = put["body"].as_str().unwrap();
+    assert!(!body.contains("clientToken"), "{body}");
+    assert!(body.contains("\"name\""), "{body}");
+    let digest: String = <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert!(put["snippet"].as_str().unwrap().contains(&digest), "{put}");
 }

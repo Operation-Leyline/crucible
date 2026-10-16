@@ -71,7 +71,7 @@ catch (NotFoundError error)
 
 ## Pagination
 
-A paginated operation also has a `<Operation>PagesAsync` method returning an `IAsyncEnumerable` of pages (`await foreach (var page in client.ListThingsPagesAsync(input))`): each page is one response, and it stops when the response carries no next token. Every operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside it, each taking an optional `CancellationToken`.
+A paginated operation also has a `<Operation>PagesAsync` method returning an `IAsyncEnumerable` of pages (`await foreach (var page in client.ListCitiesPagesAsync(input))`): each page is one response, and it stops when the response carries no next token. Every operation has an awaitable `<Operation>Async` method and a blocking `<Operation>` beside it, each taking an optional `CancellationToken`.
 
 ```csharp
 using System;

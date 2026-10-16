@@ -129,6 +129,7 @@ fn entry(file: &SdkFile, service: &Service, sdk: &Sdk) -> Result<Value, String> 
     // The README and license are package contents, not names: describing
     // needs neither file.
     sdk.metadata.readme = None;
+    sdk.metadata.agents = None;
     sdk.metadata.license_file = None;
     let client = sdk
         .client(file, None)

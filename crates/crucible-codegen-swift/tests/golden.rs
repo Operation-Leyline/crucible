@@ -5,6 +5,7 @@ use std::{fs, path::Path};
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "WeatherClient".into(),
         module_name: "WeatherClient".into(),
         package_version: "0.0.0-dev".into(),
@@ -723,6 +724,7 @@ fn permissions_with(symbol: &str) -> crucible_ir::ir::Service {
 
 fn permission_options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "Leyline".into(),
         module_name: "Leyline".into(),
         package_version: "0.0.0-dev".into(),

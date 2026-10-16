@@ -54,7 +54,7 @@ except weather_client.NotFoundError as error:
 
 ## Pagination
 
-A paginated operation also has a `<operation>_pages` method returning an iterator of pages (`for page in client.list_things_pages(request)`; `async for` on the async client): each page is one response, and it stops when the response carries no next token.
+A paginated operation also has a `<operation>_pages` method returning an iterator of pages (`for page in client.list_cities_pages(request)`; `async for` on the async client): each page is one response, and it stops when the response carries no next token.
 
 ```python
 import os

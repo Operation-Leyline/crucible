@@ -707,3 +707,18 @@ fn a_manifest_may_hold_policy_but_not_unknown_keys() {
     assert!(problems[0].message.contains("unknown key `rule`"));
     assert_eq!(problems[0].span.text(typo), "rule");
 }
+
+/// An `@externalDocs` link is a web or mail address without white space or
+/// control characters: another scheme, a relative path, a space, a line
+/// break and an escape are each refused at the URL, and the rest lower.
+#[test]
+fn external_docs_links_are_web_or_mail_addresses() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/external-docs-refusals");
+    let refused = crucible_lang::load_service(&dir).unwrap_err();
+    let message = "an `@externalDocs` URL is an `http`, `https` or `mailto` URL";
+    assert_eq!(refused.matches(message).count(), 5, "{refused}");
+    for line in ["links.cru:1:", "links.cru:8:"] {
+        assert!(refused.contains(line), "{refused}");
+    }
+}

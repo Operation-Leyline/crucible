@@ -62,6 +62,7 @@ serde_json.workspace = true
 
 [dev-dependencies]
 tempfile = "3"
+pulldown-cmark = { version = "0.13", default-features = false }
 crucible-lang.workspace = true
 
 [lints]

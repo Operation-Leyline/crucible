@@ -257,6 +257,11 @@ pub fn base64_bytes(text: &str) -> Option<Vec<u8>> {
     base64::engine::general_purpose::STANDARD.decode(text).ok()
 }
 
+/// `bytes` as standard padded base64.
+pub fn base64_text(bytes: &[u8]) -> String {
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
 /// The modelled error a snippet handles, and the member it reads.
 #[derive(Debug, Clone, Copy)]
 pub struct ErrorCase<'a> {
@@ -318,7 +323,21 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
                 let text = text_members(operation);
                 let generated =
                     sample::structure(service, Some(id), sample::Variant::Full, "input", &text);
-                let mut node = structure(service, id, shape, &generated.value);
+                // A long optional value (a hundred-entry list, a long
+                // string its minimum length asks for) would bury the call:
+                // a sample shows it only where the input needs it.
+                let mut value = generated.value;
+                if let Some(object) = value.as_object_mut() {
+                    object.retain(|name, member| {
+                        let optional = shape
+                            .members
+                            .iter()
+                            .find(|m| &m.name == name)
+                            .is_some_and(|m| !m.required_without_default());
+                        !optional || member.to_string().len() <= SAMPLE_BUDGET
+                    });
+                }
+                let mut node = structure(service, id, shape, &value);
                 // A fixed idempotency token in copied code would replay
                 // one logical request forever: the client fills it.
                 if let Kind::Structure(members) = &mut node.kind {
@@ -372,6 +391,10 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
         bearer,
     }
 }
+
+/// The longest optional member value, as JSON text, a sampled snippet
+/// shows; a longer one is left out.
+const SAMPLE_BUDGET: usize = 160;
 
 /// The members bound to a header, a path label or the query string.
 fn text_members(operation: &Operation) -> Vec<&str> {
@@ -468,7 +491,8 @@ pub fn added_headers_sentence(
     sentence(added_headers(service, middleware))
 }
 
-/// [`added_headers_sentence`] with each header as Markdown code.
+/// [`added_headers_sentence`] with each header as a Markdown code span,
+/// which no model text in a header can close.
 pub fn added_headers_markdown(
     service: &Service,
     middleware: &[crate::surface::Middleware],
@@ -477,8 +501,12 @@ pub fn added_headers_markdown(
         added_headers(service, middleware)
             .into_iter()
             .map(|header| match header.split_once(" (") {
-                Some((header, rest)) => format!("`{header}` ({rest}"),
-                None => format!("`{header}`"),
+                Some((header, rest)) => format!(
+                    "{} ({})",
+                    crate::guide::code_span(header),
+                    crate::guide::markdown_text(rest.trim_end_matches(')'))
+                ),
+                None => crate::guide::code_span(&header),
             })
             .collect(),
     )

@@ -18,7 +18,7 @@ client = weather_client.WeatherClient(token=os.environ["WEATHER_TOKEN"])
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `create_city`, `get_city`, `get_city_photo`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>_pages` method returning an iterator of pages (`for page in client.list_things_pages(request)`; `async for` on the async client): each page is one response, and it stops when the response carries no next token.
+- Pagination: A paginated operation also has a `<operation>_pages` method returning an iterator of pages (`for page in client.list_cities_pages(request)`; `async for` on the async client): each page is one response, and it stops when the response carries no next token.
 - Errors: Each modelled error is a class exported from the package, subclassing `WeatherException` and `ServiceError`: catch it with `except` and read its fields and `metadata.status`. Transport failures raise `NetworkError`; an exhausted `timeout` raises `TimeoutError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Pass `max_attempts=` to the client to change the attempt limit (3, the first included; 1 turns retries off), and `retry_mode="standard"` or `"adaptive"` for a retry quota.
 - Idempotency: these calls fill an idempotency token when it is unset: `create_city` (`client_token`). Set it yourself to replay one logical request.

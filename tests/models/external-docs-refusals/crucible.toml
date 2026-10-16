@@ -1,0 +1,10 @@
+schema_version = 1
+
+# `@externalDocs` links the compiler refuses: documentation and SDK READMEs
+# link them as written, so each is a web or mail address with no white
+# space or control character.
+[model]
+namespace = "example.links"
+language = 1
+sources = ["."]
+imports = []

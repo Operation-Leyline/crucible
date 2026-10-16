@@ -42,6 +42,7 @@ fn keywords_with_class() -> Service {
 
 fn options(package: &str, endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         group_id: "com.example".into(),
         artifact_id: "weather-client".into(),
         package_name: package.into(),

@@ -23,6 +23,7 @@ impl<'a> CsharpSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: CsharpOptions {
+                metadata: Default::default(),
                 namespace: "Sdk".into(),
                 package_id: format!("{name}-sdk"),
                 package_version: std::env::var("CARGO_PKG_VERSION")

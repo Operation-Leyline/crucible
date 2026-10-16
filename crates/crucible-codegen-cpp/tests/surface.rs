@@ -9,6 +9,7 @@ use crucible_ir::ir::Service;
 
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         namespace: "weather".into(),
         package_version: "0.0.0".into(),
@@ -307,6 +308,7 @@ fn weather_surface_names_the_generated_declarations() {
 #[test]
 fn a_nested_namespace_qualifies_every_name() {
     let options = Options {
+        metadata: Default::default(),
         package_name: "forecast".into(),
         namespace: "example::weather".into(),
         package_version: "0.0.0".into(),
@@ -412,6 +414,7 @@ fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
 #[test]
 fn samples_snippets_name_the_generated_declarations() {
     let options = Options {
+        metadata: Default::default(),
         package_name: "samples_client".into(),
         namespace: "example::samples".into(),
         package_version: "0.0.0".into(),
@@ -432,7 +435,7 @@ fn samples_snippets_name_the_generated_declarations() {
 }
 
 /// The package ships its README, `AGENTS.md` and Doxygen configuration,
-/// and installs the first two beside `crucible.json`.
+/// and installs the first two under `share/doc/<package>`, as C does.
 #[test]
 fn the_package_ships_its_guides() {
     let files = emit(&load("weather"), &options()).unwrap();
@@ -451,6 +454,7 @@ fn the_package_ships_its_guides() {
         "{doxyfile}"
     );
     assert!(
-        file(&files, "CMakeLists.txt").contains("install(FILES crucible.json README.md AGENTS.md ")
+        file(&files, "CMakeLists.txt")
+            .contains("install(FILES README.md AGENTS.md DESTINATION ${CMAKE_INSTALL_DOCDIR})")
     );
 }

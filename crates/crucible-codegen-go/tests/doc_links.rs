@@ -11,6 +11,7 @@ fn doc_links_are_go_doc_links() {
     )
     .unwrap();
     let options = Options {
+        metadata: Default::default(),
         module_path: "example.com/links".into(),
         package_name: "links".into(),
         endpoint: None,

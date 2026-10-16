@@ -4,7 +4,7 @@
 
 This is the generated Rust client for the Weather API (`example.weather#Weather`, API version `2026-10-01`, sent as `Crucible-Version: 2026-10-01` on every request). The names below are exact: do not guess other package, import or method names.
 
-- Install: `cargo add weather-sdk@1.2.3`. The package is `weather-sdk` at version `1.2.3`.
+- Install: `cargo add weather-sdk@1.2.3`, then `cargo add tokio --features macros,rt-multi-thread`, then in the manifest, `weather-sdk = "1.2.3"` and `tokio = { version = "1", features = ["macros", "rt-multi-thread"] }`. The package is `weather-sdk` at version `1.2.3`.
 - Import: `use weather_sdk::*;`.
 - Client: `WeatherClient`. Construct it as below. `runtime::Token::fixed` sends one bearer token; `runtime::Token::provider` takes an async function called for every attempt, so a refreshed token is used. Methods are `async`: run them on an async runtime such as Tokio.
 
@@ -21,7 +21,7 @@ let client = WeatherClient::new(
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `create_city`, `get_city`, `get_city_photo`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>_pages` method returning a paginator: call `next_page().await` until it returns `None`; each page is one response.
+- Pagination: A paginated operation also has a `<operation>_pages` method returning a paginator (`client.list_cities_pages(input)`): call `next_page().await` until it returns `None`; each page is one response.
 - Errors: A call returns `Result<Output, runtime::Error<OperationError>>`. A modelled error is `runtime::Error::Service(runtime::ServiceError { error, metadata })`, where `error` is the operation's error enum (`GetCityError::NotFoundError(..)`, say) and `metadata` holds the HTTP status and request ID; `WeatherException` unifies every operation's errors. Other variants are transport, decoding, timeout and cancellation failures.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. `runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit (3, the first included) and backoff; `runtime::Retry::none()` turns retries off.
 - Idempotency: these calls fill an idempotency token when it is unset: `create_city` (`client_token`). Set it yourself to replay one logical request.

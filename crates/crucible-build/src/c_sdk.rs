@@ -24,6 +24,7 @@ impl<'a> CSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: COptions {
+                metadata: Default::default(),
                 package_name: native_name.clone(),
                 prefix: native_name,
                 package_version: std::env::var("CARGO_PKG_VERSION")

@@ -350,46 +350,40 @@ pub(crate) fn snippets(
 pub(crate) fn guide(service: &Service, options: &ClientOptions) -> Guide {
     let package = client_package_name(service, options);
     let mut guide = Guide::new("Rust", "rust");
+    guide.metadata = options.metadata.clone();
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
-    let metadata = &options.metadata;
-    // A Cargo SDK is released by Git tag or path unless it is published to
-    // a registry (docs/sdk-releases.md): a private or Git-released one is
-    // not on crates.io, so its README names its source instead.
-    let registry =
-        !metadata.private && metadata.registry != Some(crucible_codegen_common::Registry::Git);
-    let requirement = version.as_deref().unwrap_or("*");
-    let source = if registry {
-        literal(requirement)
-    } else {
-        match &metadata.repository {
-            Some(repository) => format!(
-                "{{ git = {}, version = {} }}",
-                literal(repository),
-                literal(requirement)
-            ),
-            None => format!(
-                "{{ path = \"../{package}\", version = {} }}",
-                literal(requirement)
-            ),
+    // A Cargo SDK is released by Git tag unless it is published to a
+    // registry (docs/sdk-releases.md): a Git-released one is depended on at
+    // its tag, and a private one without a channel names no source at all.
+    let source = match &options.metadata.git {
+        Some(git) => Some(format!(
+            "{{ git = {}, tag = {} }}",
+            literal(&cargo_git_url(&git.url)),
+            literal(&git.tag)
+        )),
+        None if guide.published() => {
+            guide.install = vec![
+                match &version {
+                    Some(version) => format!("cargo add {package}@{version}"),
+                    None => format!("cargo add {package}"),
+                },
+                "cargo add tokio --features macros,rt-multi-thread".to_owned(),
+            ];
+            Some(literal(version.as_deref().unwrap_or("*")))
+        }
+        None => {
+            guide.install_note = Some(guide.release_note(&package));
+            None
         }
     };
-    if registry {
-        guide.install = vec![
-            match &version {
-                Some(version) => format!("cargo add {package}@{version}"),
-                None => format!("cargo add {package}"),
-            },
-            "cargo add tokio --features macros,rt-multi-thread".to_owned(),
-        ];
-    }
-    guide.manifest = Some((
-        "toml".to_owned(),
-        format!(
-            "[dependencies]
-{package} = {source}
-tokio = {{ version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }}"
-        ),
-    ));
+    guide.manifest = source.map(|source| {
+        (
+            "toml".to_owned(),
+            format!(
+                "[dependencies]\n{package} = {source}\ntokio = {{ version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }}"
+            ),
+        )
+    });
     guide.version = version;
     guide.construct = format!(
         "use {}::*;\n\n{}",
@@ -407,12 +401,12 @@ tokio = {{ version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }}"
         .auth
         .push_str(" Methods are `async`: run them on an async runtime such as Tokio.");
     guide.pagination = "A paginated operation also has a `<operation>_pages` method returning a \
-        paginator: call `next_page().await` until it returns `None`; each page is one response."
+        paginator (`client.{paginator}(input)`): call `next_page().await` until it returns `None`; each page is one response."
         .to_owned();
     guide.errors = format!(
         "A call returns `Result<Output, runtime::Error<OperationError>>`. A modelled error is \
          `runtime::Error::Service(runtime::ServiceError {{ error, metadata }})`, where `error` is \
-         the operation's error enum (`GetCityError::NotFoundError(..)`, say) and `metadata` holds \
+         the operation's error enum (`{{operation}}Error::{{error}}(..)`, say) and `metadata` holds \
          the HTTP status and request ID; `{}` unifies every operation's errors. Other variants \
          are transport, decoding, timeout and cancellation failures.",
         crucible_codegen_common::service_exception_name(service)
@@ -420,18 +414,20 @@ tokio = {{ version = \"1\", features = [\"macros\", \"rt-multi-thread\"] }}"
     guide.retries = "`runtime::Config::retry(runtime::Retry { .. })` changes the attempt limit \
         (3, the first included) and backoff; `runtime::Retry::none()` turns retries off."
         .to_owned();
-    for (name, url) in [
-        ("Documentation", &metadata.documentation),
-        ("Home page", &metadata.homepage),
-        ("Repository", &metadata.repository),
-    ] {
-        if let Some(url) = url {
-            guide.links.push((name.to_owned(), url.clone()));
-        }
-    }
     guide.links.push((
         "The Rust client guide".to_owned(),
         "https://github.com/Operation-Leyline/crucible/blob/main/docs/clients/rust.md".to_owned(),
     ));
     guide
+}
+
+/// `url` as Cargo's `git` key takes it: an scp-like `git@host:path`, as a
+/// Git channel may name it, is `ssh://git@host/path` to Cargo.
+fn cargo_git_url(url: &str) -> String {
+    match url.split_once(':') {
+        Some((host, path)) if !url.contains("://") && host.contains('@') => {
+            format!("ssh://{host}/{}", path.trim_start_matches('/'))
+        }
+        _ => url.to_owned(),
+    }
 }

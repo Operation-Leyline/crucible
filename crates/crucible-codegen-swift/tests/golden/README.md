@@ -6,10 +6,7 @@ The Swift client for the Weather API (`example.weather#Weather`, API version `20
 
 ## Install
 
-```swift
-.package(url: "https://github.com/OWNER/WeatherClient.git", from: "0.0.0-dev"), // the repository the package is published to
-.product(name: "WeatherClient", package: "WeatherClient"), // in the dependencies of the target that calls the API
-```
+Add the package with SwiftPM's `.package(url:from:)` from the Git repository it is released to, and its `WeatherClient` product to the target that calls the API.
 
 The package is `WeatherClient`, version `0.0.0-dev`; code refers to it as `WeatherClient`.
 
@@ -54,7 +51,7 @@ client.close()
 
 ## Pagination
 
-A paginated operation also has a `<operation>Pages` method returning `Pages<Output>`, an `AsyncSequence` of pages (`for try await page in try client.listThingsPages(input)`): each page is one response, each step makes one call, and it stops when the response carries no next token.
+A paginated operation also has a `<operation>Pages` method returning `Pages<Output>`, an `AsyncSequence` of pages (`for try await page in try client.listCitiesPages(input)`): each page is one response, each step makes one call, and it stops when the response carries no next token.
 
 ```swift
 import Foundation
@@ -81,7 +78,7 @@ client.close()
 
 ## Errors
 
-Each modelled error is a struct conforming to `WeatherException` and `ServiceError`: catch it with `catch let error as TheError` and read its properties and `metadata.status`. An error the client does not model is `UnknownServiceError`; a failure without a response throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws `TimeoutError`.
+Each modelled error is a struct conforming to `WeatherException` and `ServiceError`: catch it with `catch let error as NotFoundError` and read its properties and `metadata.status`. An error the client does not model is `UnknownServiceError`; a failure without a response throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws `TimeoutError`.
 
 ## Retries and idempotency
 

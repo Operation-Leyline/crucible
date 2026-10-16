@@ -626,17 +626,18 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let package = &options.package_name;
     let ns = &options.namespace;
     let mut guide = Guide::new("C++", "cpp");
+    guide.metadata = options.metadata.clone();
     guide.version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
-    guide.install = vec![
-        "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release".to_owned(),
-        "cmake --build build --config Release".to_owned(),
-        "cmake --install build --config Release --prefix /path/to/prefix".to_owned(),
-    ];
+    guide.install = cmake_install(&[]);
+    let version = guide
+        .version
+        .as_ref()
+        .map(|v| format!(" {v}"))
+        .unwrap_or_default();
     guide.manifest = Some((
         "cmake".to_owned(),
         format!(
-            "find_package({package} {} CONFIG REQUIRED)\ntarget_link_libraries(app PRIVATE {package}::{package})",
-            options.package_version
+            "find_package({package}{version} CONFIG REQUIRED)\ntarget_link_libraries(app PRIVATE {package}::{package})\n"
         ),
     ));
     guide.construct = construct(service, options);
@@ -653,7 +654,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `config.endpoint` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `<method>_pages` method returning a lazy \
-        `runtime::Pages<Output>`: `while (auto page = pages.next())` yields each response as a \
+        `runtime::Pages<Output>` (`auto pages = client.{paginator}(input);`): `while (auto page = pages.next())` yields each response as a \
         `std::optional`, and it ends when the response carries no next token."
         .to_owned();
     guide.errors = format!(
@@ -694,6 +695,19 @@ pub(crate) fn doxyfile(options: &Options) -> String {
          WARN_IF_UNDOCUMENTED = NO\n",
         options.package_name, options.package_version
     )
+}
+
+/// The commands that build and install the CMake package, run in its
+/// directory, into a prefix `find_package` searches with
+/// `CMAKE_PREFIX_PATH="$HOME/.local"`; `notes` follow as comments.
+fn cmake_install(notes: &[&str]) -> Vec<String> {
+    let mut lines = vec![
+        "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release".to_owned(),
+        "cmake --build build --config Release".to_owned(),
+        "cmake --install build --config Release --prefix \"$HOME/.local\"".to_owned(),
+    ];
+    lines.extend(notes.iter().map(|note| (*note).to_owned()));
+    lines
 }
 
 #[cfg(test)]

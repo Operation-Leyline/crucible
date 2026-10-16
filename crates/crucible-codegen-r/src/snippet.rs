@@ -157,9 +157,17 @@ impl Literal<'_> {
             Kind::Boolean(value) => if *value { "TRUE" } else { "FALSE" }.to_owned(),
             // A value outside an enum's list is still built with its
             // constructor: the codec checks the class.
+            // An R string cannot hold a NUL, which R refuses even escaped
+            // (written \u0000): a snippet's value leaves it out.
             Kind::String(text) => match self.shape(node) {
-                Some(Shape::Enum(_)) => format!("{}({})", self.constructor(node), literal(text)),
-                _ => literal(text),
+                Some(Shape::Enum(_)) => {
+                    format!(
+                        "{}({})",
+                        self.constructor(node),
+                        literal(&text.replace('\0', ""))
+                    )
+                }
+                _ => literal(&text.replace('\0', "")),
             },
             Kind::Number { kind, text } => {
                 let number = match kind {
@@ -476,6 +484,7 @@ pub(crate) fn snippets(
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("R", "r");
+    guide.metadata = options.metadata.clone();
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
     let package = &options.package_name;
     // The package is distributed as the source tarball `R CMD build`
@@ -501,7 +510,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     guide.auth.push_str(" Call `client$close()` when finished.");
     guide.pagination = "A paginated operation also has a `<method>_pages` method returning a \
         function: each call sends one request and returns that page, and `NULL` once a response \
-        carries no next token (`next_page <- client$list_things_pages(input)`, then \
+        carries no next token (`next_page <- client${paginator}(input)`, then \
         `while (!is.null(page <- next_page())) ...`)."
         .to_owned();
     // An error the service declares, to name in the example handler.

@@ -6,11 +6,20 @@
 //! The request is the one `describe.json` shows for the operation: its first
 //! example with an input, else its generated sample, built by the same code
 //! (`crucible_codegen_common::describe`), so the reference and the snippet
-//! never disagree about a label, a query parameter or a body.
+//! never disagree about a label, a query parameter or a body. A sample
+//! leaves out the idempotency token, as the SDK snippets do: a fixed token
+//! in a copied command would replay one logical request forever.
+//!
+//! The command is pasted into a terminal, so model text reaches it only as
+//! printable characters: a body holding any other is sent through
+//! `base64 -d`, and a header value no HTTP request may carry (a line
+//! break, a NUL, another control) is left out of the command and named in
+//! `omitted`. A raw `\x03` or `ESC [201~` would otherwise interrupt the
+//! shell or end a bracketed paste early and run what follows.
 
-use crucible_codegen_common::snippet::{base64_bytes, env_var};
+use crucible_codegen_common::snippet::{base64_bytes, base64_text, env_var};
 use crucible_ir::Audience;
-use crucible_ir::ir::Service;
+use crucible_ir::ir::{Operation, Service};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
@@ -20,53 +29,121 @@ const CONTENT_SHA256: &str = "content-sha256";
 /// What a request body is, as the snippet sends it.
 struct Body {
     bytes: Vec<u8>,
-    /// The JSON contract's form: UTF-8 text, or base64 for raw bytes.
+    /// UTF-8 text, or base64 of raw or unprintable bytes.
     text: String,
     encoding: &'static str,
+}
+
+impl Body {
+    /// `bytes` as text where every character prints, else as base64.
+    fn of(bytes: Vec<u8>) -> Self {
+        match String::from_utf8(bytes) {
+            Ok(text) if text.chars().all(printable) => Self {
+                bytes: text.as_bytes().to_vec(),
+                text,
+                encoding: "utf-8",
+            },
+            Ok(text) => Self::base64(text.into_bytes()),
+            Err(error) => Self::base64(error.into_bytes()),
+        }
+    }
+
+    fn base64(bytes: Vec<u8>) -> Self {
+        Self {
+            text: base64_text(&bytes),
+            bytes,
+            encoding: "base64",
+        }
+    }
+}
+
+/// A character that shows as itself in a terminal and an editor: not a
+/// control (C0, DEL, C1) other than a line feed or tab, not a format
+/// character (the bidirectional controls, zero-width characters, a byte
+/// order mark, a soft hyphen) and not a line or paragraph separator.
+fn printable(c: char) -> bool {
+    if matches!(c, '\n' | '\t') {
+        return true;
+    }
+    !(c.is_control()
+        || crucible_codegen_common::bidi(c)
+        || matches!(
+            c,
+            '\u{ad}'
+                | '\u{180e}'
+                | '\u{200b}'..='\u{200f}'
+                | '\u{2028}'..='\u{202e}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{feff}'
+                | '\u{fff9}'..='\u{fffb}'
+        ))
 }
 
 fn body(message: &Value) -> Option<Body> {
     if let Some(payload) = message["payload"].as_object() {
         let value = payload.get("value")?.as_str()?;
         return Some(if payload.get("encoding") == Some(&json!("base64")) {
-            Body {
-                bytes: base64_bytes(value).unwrap_or_default(),
-                text: value.to_owned(),
-                encoding: "base64",
-            }
+            Body::base64(base64_bytes(value).unwrap_or_default())
         } else {
-            Body {
-                bytes: value.as_bytes().to_vec(),
-                text: value.to_owned(),
-                encoding: "utf-8",
-            }
+            Body::of(value.as_bytes().to_vec())
         });
     }
     let document = message.get("body").filter(|body| !body.is_null())?;
     let text = serde_json::to_string(document).expect("a document serializes");
-    Some(Body {
-        bytes: text.as_bytes().to_vec(),
-        text,
-        encoding: "utf-8",
-    })
+    Some(Body::of(text.into_bytes()))
 }
 
-/// `text` inside single quotes for a POSIX shell.
+/// `message` without the operation's idempotency token: the body member,
+/// header or query parameter it travels in.
+fn without_token(operation: &Operation, message: &Value) -> Value {
+    let mut message = message.clone();
+    let Some(token) = &operation.idempotency_token else {
+        return message;
+    };
+    if let Some(body) = message["body"].as_object_mut() {
+        body.remove(token);
+    }
+    let request = &operation.request;
+    if let Some(binding) = request.headers.iter().find(|b| &b.member == token)
+        && let Some(headers) = message["headers"].as_object_mut()
+    {
+        headers.retain(|name, _| !name.eq_ignore_ascii_case(&binding.name));
+    }
+    if let Some(binding) = request.query.iter().find(|b| &b.member == token)
+        && let Some(uri) = message["uri"].as_str()
+        && let Some((path, query)) = uri.split_once('?')
+    {
+        let kept: Vec<&str> = query
+            .split('&')
+            .filter(|pair| pair.split('=').next() != Some(binding.name.as_str()))
+            .collect();
+        message["uri"] = json!(if kept.is_empty() {
+            path.to_owned()
+        } else {
+            format!("{path}?{}", kept.join("&"))
+        });
+    }
+    message
+}
+
+/// `text` inside single quotes for a POSIX shell, where nothing expands.
 fn quoted(text: &str) -> String {
     format!("'{}'", text.replace('\'', r"'\''"))
 }
 
-/// `text` as it stands inside double quotes, where `$VARIABLE` would
-/// otherwise expand.
-fn in_double_quotes(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for c in text.chars() {
-        if matches!(c, '"' | '\\' | '`' | '$') {
-            out.push('\\');
-        }
-        out.push(c);
+/// Why a header value cannot be sent as written, if it cannot: HTTP field
+/// values hold no control but a tab (RFC 9110, section 5.5), and a
+/// pasted command holds no unprintable character.
+fn unsendable(value: &str) -> Option<&'static str> {
+    if value.contains(['\r', '\n']) {
+        Some("holds a line break")
+    } else if value.contains('\0') {
+        Some("holds a NUL")
+    } else if value.chars().any(|c| c != '\t' && !printable(c)) {
+        Some("holds a control or format character")
+    } else {
+        None
     }
-    out
 }
 
 /// The `http` object: `{endpointEnv, tokenEnv, operations}`, operations by
@@ -93,12 +170,15 @@ pub(super) fn document(
             .flatten()
             .find(|example| !example["input"].is_null());
         let (message, title) = match example {
-            Some(example) => (&example["input"], example["title"].clone()),
-            None => (&described["sample"]["input"], Value::Null),
+            Some(example) => (example["input"].clone(), example["title"].clone()),
+            None => (
+                without_token(operation, &described["sample"]["input"]),
+                Value::Null,
+            ),
         };
         let method = message["method"].as_str().unwrap_or(&operation.method);
         let uri = message["uri"].as_str().unwrap_or_default();
-        let body = body(message);
+        let body = body(&message);
         let mut headers: Vec<(String, String)> = message["headers"]
             .as_object()
             .into_iter()
@@ -134,27 +214,30 @@ pub(super) fn document(
         }
         headers.sort_by_key(|(name, _)| name.to_ascii_lowercase());
 
-        let mut curl = Vec::new();
+        let mut omitted = Vec::new();
         let mut command = String::from("curl");
         if method != "GET" || body.is_some() {
             command.push_str(&format!(" -X {method}"));
         }
-        // The endpoint and token are the caller's variables; the rest is
-        // literal.
-        command.push_str(&format!(" \"${endpoint}{}\"", in_double_quotes(uri)));
+        // The endpoint is the caller's variable, expanded in double quotes;
+        // the path and query are literal, in single quotes, where neither
+        // `$` nor `!` expands.
+        command.push_str(&format!(" \"${endpoint}\"{}", quoted(uri)));
         let mut prefix = String::new();
         if let Some(body) = &body
             && body.encoding == "base64"
         {
             prefix = format!("printf '%s' {} | base64 -d | ", quoted(&body.text));
         }
-        curl.push(format!("{prefix}{command}"));
+        let mut curl = vec![format!("{prefix}{command}")];
         for (name, value) in &headers {
-            curl.push(if name == "Authorization" && bearer {
-                format!("-H \"Authorization: Bearer ${token}\"")
+            if name == "Authorization" && bearer {
+                curl.push(format!("-H \"Authorization: Bearer ${token}\""));
+            } else if let Some(reason) = unsendable(value) {
+                omitted.push(json!({"name": name, "reason": reason}));
             } else {
-                format!("-H {}", quoted(&format!("{name}: {value}")))
-            });
+                curl.push(format!("-H {}", quoted(&format!("{name}: {value}"))));
+            }
         }
         if let Some(body) = &body {
             curl.push(match body.encoding {
@@ -174,6 +257,7 @@ pub(super) fn document(
                 "body": body.as_ref().map(|body| body.text.clone()),
                 "bodyEncoding": body.as_ref().map(|body| body.encoding),
                 "example": title,
+                "omitted": omitted,
                 "snippet": format!("{}\n", curl.join(" \\\n  ")),
             }),
         );

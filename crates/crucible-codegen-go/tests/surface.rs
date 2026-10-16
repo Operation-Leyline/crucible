@@ -14,6 +14,7 @@ fn load(name: &str) -> crucible_ir::ir::Service {
 
 fn options(endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         module_path: "example.com/weather".into(),
         package_name: "weather".into(),
         endpoint: endpoint.map(str::to_owned),
@@ -250,6 +251,7 @@ fn surface_names_what_the_module_declares() {
 fn the_package_name_qualifies_types() {
     let service = load("weather");
     let options = Options {
+        metadata: Default::default(),
         module_path: "example.com/sdk/v2".into(),
         package_name: "forecast".into(),
         endpoint: None,
@@ -277,6 +279,7 @@ fn the_package_name_qualifies_types() {
 fn a_package_named_like_a_snippet_variable_is_aliased() {
     let service = load("weather");
     let options = Options {
+        metadata: Default::default(),
         module_path: "example.com/client".into(),
         package_name: "client".into(),
         endpoint: None,
@@ -437,6 +440,7 @@ fn a_package_named_like_the_standard_library_is_aliased() {
     let service = crucible_lang::compile(&package, None).service.unwrap();
     for name in ["time", "big"] {
         let options = Options {
+            metadata: Default::default(),
             module_path: format!("example.com/{name}"),
             package_name: name.into(),
             endpoint: None,

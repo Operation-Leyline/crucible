@@ -7,12 +7,17 @@ use crucible_codegen::PackageMetadata;
 #[derive(Debug, Clone, Default)]
 pub(crate) struct MetadataFiles {
     readme: Option<PathBuf>,
+    agents: Option<PathBuf>,
     license_file: Option<PathBuf>,
 }
 
 impl MetadataFiles {
     pub(crate) fn readme(&mut self, path: &Path) {
         self.readme = Some(crate::absolute(path));
+    }
+
+    pub(crate) fn agents(&mut self, path: &Path) {
+        self.agents = Some(crate::absolute(path));
     }
 
     pub(crate) fn license_file(&mut self, path: &Path) {
@@ -34,6 +39,9 @@ impl MetadataFiles {
         };
         if let Some(path) = &self.readme {
             metadata.readme = Some(read(path)?);
+        }
+        if let Some(path) = &self.agents {
+            metadata.agents = Some(read(path)?);
         }
         if let Some(path) = &self.license_file {
             metadata.license_file = Some(read(path)?);
@@ -95,6 +103,13 @@ macro_rules! metadata_setters {
         /// package as `README.md`.
         pub fn readme(mut self, path: impl AsRef<std::path::Path>) -> Self {
             self.files.readme(path.as_ref());
+            self
+        }
+
+        /// A Markdown file, relative to this `Cargo.toml`, copied into the
+        /// package as `AGENTS.md` in place of the generated one.
+        pub fn agents(mut self, path: impl AsRef<std::path::Path>) -> Self {
+            self.files.agents(path.as_ref());
             self
         }
 

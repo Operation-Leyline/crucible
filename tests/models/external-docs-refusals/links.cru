@@ -1,0 +1,11 @@
+@externalDocs("Script" = "javascript:alert(1)", "Relative" = "/docs", "Spaced" = "https://x.example/a b")
+service Links {
+    version "1"
+    protocol json
+    operations [Read]
+}
+
+@externalDocs("Broken" = "https://x.example/a\nb", "Paste" = "https://x.example/\u{1b}[201~", "Mail" = "mailto:docs@x.example", "Web" = "https://x.example/a>b)")
+readonly operation Read {
+    http GET "/read"
+}

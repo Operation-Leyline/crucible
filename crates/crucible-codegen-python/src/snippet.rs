@@ -394,6 +394,10 @@ pub(crate) fn snippets(
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("Python", "python");
+    guide.metadata = options.metadata.clone();
+    // Its install line names the public registry: a private or
+    // Git-released package shows its release instead.
+    guide.public_registry = true;
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
     guide.install = vec![match &version {
         Some(version) => format!("pip install {}=={version}", options.package_name),
@@ -418,7 +422,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
         crate::async_client_name(service)
     ));
     guide.pagination = "A paginated operation also has a `<operation>_pages` method returning \
-        an iterator of pages (`for page in client.list_things_pages(request)`; `async for` on \
+        an iterator of pages (`for page in client.{paginator}(request)`; `async for` on \
         the async client): each page is one response, and it stops when the response carries \
         no next token."
         .to_owned();

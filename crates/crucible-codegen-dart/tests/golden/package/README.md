@@ -68,7 +68,7 @@ Future<void> main() async {
 
 ## Pagination
 
-A paginated operation also has a `<operation>Pages` method returning a `Stream` of pages (`await for (final page in client.listThingsPages(input))`): each page is one response, the stream ends when a response carries no next token, and cancelling the subscription cancels the call in flight.
+A paginated operation also has a `<operation>Pages` method returning a `Stream` of pages (`await for (final page in client.listCitiesPages(input))`): each page is one response, the stream ends when a response carries no next token, and cancelling the subscription cancels the call in flight.
 
 ```dart
 import 'dart:io' as io;
@@ -101,7 +101,7 @@ Future<void> main() async {
 
 ## Errors
 
-Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: catch it with `on NotFound catch (error)` and read its fields and `error.metadata.status`. An error response the model does not describe is an `UnknownServiceError`; a call that gets no response throws `NetworkException`, a cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a `TimeoutException`.
+Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: catch it with `on NotFoundError catch (error)` and read its fields and `error.metadata.status`. An error response the model does not describe is an `UnknownServiceError`; a call that gets no response throws `NetworkException`, a cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a `TimeoutException`.
 
 ## Retries and idempotency
 

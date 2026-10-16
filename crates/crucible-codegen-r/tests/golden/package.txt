@@ -529,7 +529,7 @@ client$close()
 
 ## Pagination
 
-A paginated operation also has a `<method>_pages` method returning a function: each call sends one request and returns that page, and `NULL` once a response carries no next token (`next_page <- client$list_things_pages(input)`, then `while (!is.null(page <- next_page())) ...`).
+A paginated operation also has a `<method>_pages` method returning a function: each call sends one request and returns that page, and `NULL` once a response carries no next token (`next_page <- client$list_cities_pages(input)`, then `while (!is.null(page <- next_page())) ...`).
 
 ```r
 library(weather.client)
@@ -590,7 +590,7 @@ client <- WeatherClient(client_config(
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `create_city`, `get_city`, `get_city_photo`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<method>_pages` method returning a function: each call sends one request and returns that page, and `NULL` once a response carries no next token (`next_page <- client$list_things_pages(input)`, then `while (!is.null(page <- next_page())) ...`).
+- Pagination: A paginated operation also has a `<method>_pages` method returning a function: each call sends one request and returns that page, and `NULL` once a response carries no next token (`next_page <- client$list_cities_pages(input)`, then `while (!is.null(page <- next_page())) ...`).
 - Errors: A modelled error is signalled as a condition classed with the error's name, then `WeatherException`, `crucible_service_error` and `crucible_error`: handle it with `tryCatch(..., ConflictError = function(error) ...)` and read `conditionMessage(error)`, `error$metadata$status` and its decoded members in `error$model`. Transport failures signal `crucible_network`, an exhausted `timeout` `crucible_deadline`, and a cancelled call `crucible_cancelled`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `max_attempts` in `client_config()` to change the attempt limit (3, the first included); `max_attempts = 1` turns retries off.
 - Idempotency: these calls fill an idempotency token when it is unset: `create_city` (`client_token`). Set it yourself to replay one logical request.

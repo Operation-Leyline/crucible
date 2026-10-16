@@ -18,7 +18,7 @@ const client = new WeatherClient({ token: process.env.WEATHER_TOKEN });
 - Headers: The client sends `Authorization: Bearer <token>`, `Crucible-Version: 2026-10-01` and `x-amz-content-sha256` (content-sha256) on every request. Do not set them yourself.
 - Middleware: the service requires `content-sha256` (adds x-amz-content-sha256); the client runs it by default.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListThings(input))`): each page is one response, and it stops when the response carries no next token.
+- Pagination: A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListCities(input))`): each page is one response, and it stops when the response carries no next token.
 - Errors: Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: test it with `instanceof` and read its fields and `$metadata.status`. Transport failures throw `NetworkError`; an exhausted `timeoutMs` throws `TimeoutError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `retry: { maxAttempts }` in the client configuration to change the attempt limit (3, the first included), or `retry: false` to turn retries off.
 - Idempotency: these calls fill an idempotency token when it is unset: `createCity` (`clientToken`). Set it yourself to replay one logical request.

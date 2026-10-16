@@ -23,7 +23,7 @@ client = Weather::WeatherClient.new(Weather::Runtime::ClientConfig.new(endpoint:
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `create_city`, `get_city`, `get_city_photo`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>_pages` method returning an `Enumerator` of pages (`client.list_things_pages(input).each do |page| ... end`): each page is one response, fetched as the enumerator is consumed, and it stops when the response carries no next token.
+- Pagination: A paginated operation also has a `<operation>_pages` method returning an `Enumerator` of pages (`client.list_cities_pages(input).each do |page| ... end`): each page is one response, fetched as the enumerator is consumed, and it stops when the response carries no next token.
 - Errors: Each modelled error is a class under `Weather`, a subclass of `Weather::WeatherException`: `rescue` it and read its members and `metadata.status` (a modelled `message` member is `message_value`). An error response the model does not describe raises `Weather::WeatherException` itself; no response raises `Weather::Runtime::NetworkError`, and a call outlasting `timeout:` raises `Weather::Runtime::DeadlineError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `max_attempts:` in `Weather::Runtime::ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `base_delay:` and `max_delay:` for the backoff.
 - Idempotency: these calls fill an idempotency token when it is unset: `create_city` (`client_token`). Set it yourself to replay one logical request.
@@ -111,7 +111,7 @@ end
 
 ## Pagination
 
-A paginated operation also has a `<operation>_pages` method returning an `Enumerator` of pages (`client.list_things_pages(input).each do |page| ... end`): each page is one response, fetched as the enumerator is consumed, and it stops when the response carries no next token.
+A paginated operation also has a `<operation>_pages` method returning an `Enumerator` of pages (`client.list_cities_pages(input).each do |page| ... end`): each page is one response, fetched as the enumerator is consumed, and it stops when the response carries no next token.
 
 ```ruby
 require 'weather_client'

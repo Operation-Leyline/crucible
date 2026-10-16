@@ -338,6 +338,10 @@ fn version(options: &Options) -> Option<String> {
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let package = &options.package_name;
     let mut guide = Guide::new("Dart", "dart");
+    guide.metadata = options.metadata.clone();
+    // Its install line names the public registry: a private or
+    // Git-released package shows its release instead.
+    guide.public_registry = true;
     let version = version(options);
     let constraint = version.as_ref().map_or(String::new(), |v| format!(":{v}"));
     guide.install = vec![format!("dart pub add {package}{constraint}")];
@@ -372,13 +376,13 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `endpoint` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `<operation>Pages` method returning a \
-        `Stream` of pages (`await for (final page in client.listThingsPages(input))`): each page \
+        `Stream` of pages (`await for (final page in client.{paginator}(input))`): each page \
         is one response, the stream ends when a response carries no next token, and cancelling \
         the subscription cancels the call in flight."
         .to_owned();
     guide.errors = format!(
         "Each modelled error is a class exported from the package, extending `{}` and \
-         `ServiceError`: catch it with `on NotFound catch (error)` and read its fields and \
+         `ServiceError`: catch it with `on {{error}} catch (error)` and read its fields and \
          `error.metadata.status`. An error response the model does not describe is an \
          `UnknownServiceError`; a call that gets no response throws `NetworkException`, a \
          cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a \

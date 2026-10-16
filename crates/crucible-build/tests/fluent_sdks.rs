@@ -84,6 +84,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .module_name("weather_client"),
             Client::Python(crucible_build::PythonOptions {
+                metadata: Default::default(),
                 package_name: "weather-sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -102,6 +103,7 @@ fn fluent_probe() {
                 .package("weather_sdk")
                 .endpoint("https://sdk.example"),
             Client::Go(crucible_build::GoOptions {
+                metadata: Default::default(),
                 module_path: "example.com/weather-sdk".into(),
                 package_name: "weather_sdk".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -123,6 +125,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example"),
             Client::Csharp(crucible_build::CsharpOptions {
+                metadata: Default::default(),
                 namespace: "Example.Weather".into(),
                 package_id: "Weather.SDK".into(),
                 package_version: "1.2.3".into(),
@@ -146,6 +149,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example"),
             Client::Kotlin(crucible_build::KotlinOptions {
+                metadata: Default::default(),
                 group_id: "example.weather".into(),
                 artifact_id: "weather-sdk".into(),
                 package_name: "example.weather".into(),
@@ -183,6 +187,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .module_name("WeatherClientSDK"),
             Client::Swift(crucible_build::SwiftOptions {
+                metadata: Default::default(),
                 package_name: "WeatherSDK".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -201,6 +206,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example"),
             Client::Dart(crucible_build::DartOptions {
+                metadata: Default::default(),
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -219,6 +225,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .namespace("ExampleWeather"),
             Client::Php(crucible_build::PhpOptions {
+                metadata: Default::default(),
                 package_name: "example/weather-sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -238,6 +245,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .module_name("WeatherClientSDK"),
             Client::Ruby(crucible_build::RubyOptions {
+                metadata: Default::default(),
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -257,6 +265,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .namespace("ExampleWeather"),
             Client::Cpp(crucible_build::CppOptions {
+                metadata: Default::default(),
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -276,6 +285,7 @@ fn fluent_probe() {
                 .endpoint("https://sdk.example")
                 .prefix("weather"),
             Client::C(crucible_build::COptions {
+                metadata: Default::default(),
                 package_name: "weather_sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),
@@ -294,6 +304,7 @@ fn fluent_probe() {
                 .version("1.2.3")
                 .endpoint("https://sdk.example"),
             Client::R(crucible_build::ROptions {
+                metadata: Default::default(),
                 package_name: "weather.sdk".into(),
                 package_version: "1.2.3".into(),
                 endpoint: Some("https://sdk.example".into()),

@@ -73,6 +73,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Python,
             crucible_codegen_python,
             crucible_codegen::PythonOptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 module_name: "weather".into(),
                 package_version: "1.0.0".into(),
@@ -83,6 +84,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Go,
             crucible_codegen_go,
             crucible_codegen::GoOptions {
+                metadata: Default::default(),
                 module_path: "example.test/weather".into(),
                 package_name: "weather".into(),
                 endpoint: Some("https://example.test".into()),
@@ -92,6 +94,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Java,
             crucible_codegen_java,
             crucible_codegen::JavaOptions {
+                metadata: Default::default(),
                 group_id: "example.weather".into(),
                 artifact_id: "weather-sdk".into(),
                 package_name: "weather".into(),
@@ -103,6 +106,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Csharp,
             crucible_codegen_csharp,
             crucible_codegen::CsharpOptions {
+                metadata: Default::default(),
                 namespace: "Weather".into(),
                 package_id: "Example.Weather".into(),
                 package_version: "1.0.0".into(),
@@ -113,6 +117,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Kotlin,
             crucible_codegen_kotlin,
             crucible_codegen::KotlinOptions {
+                metadata: Default::default(),
                 group_id: "example.weather".into(),
                 artifact_id: "weather-sdk".into(),
                 package_name: "weather".into(),
@@ -124,6 +129,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Swift,
             crucible_codegen_swift,
             crucible_codegen::SwiftOptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 module_name: "Weather".into(),
                 package_version: "1.0.0".into(),
@@ -134,6 +140,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Dart,
             crucible_codegen_dart,
             crucible_codegen::DartOptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),
@@ -143,6 +150,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Php,
             crucible_codegen_php,
             crucible_codegen::PhpOptions {
+                metadata: Default::default(),
                 package_name: "example/weather".into(),
                 namespace: "Weather".into(),
                 package_version: "1.0.0".into(),
@@ -153,6 +161,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Ruby,
             crucible_codegen_ruby,
             crucible_codegen::RubyOptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 module_name: "Weather".into(),
                 package_version: "1.0.0".into(),
@@ -163,6 +172,7 @@ fn adapters_preserve_every_native_emitters_output() {
             Cpp,
             crucible_codegen_cpp,
             crucible_codegen::CppOptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 namespace: "Weather".into(),
                 package_version: "1.0.0".into(),
@@ -173,6 +183,7 @@ fn adapters_preserve_every_native_emitters_output() {
             C,
             crucible_codegen_c,
             crucible_codegen::COptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 prefix: "weather".into(),
                 package_version: "1.0.0".into(),
@@ -183,6 +194,7 @@ fn adapters_preserve_every_native_emitters_output() {
             R,
             crucible_codegen_r,
             crucible_codegen::ROptions {
+                metadata: Default::default(),
                 package_name: "weather".into(),
                 package_version: "1.0.0".into(),
                 endpoint: Some("https://example.test".into()),

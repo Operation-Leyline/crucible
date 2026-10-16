@@ -4,7 +4,7 @@
 
 This is the generated Java client for the Weather API (`example.weather#Weather`, API version `2026-10-01`, sent as `Crucible-Version: 2026-10-01` on every request). The names below are exact: do not guess other package, import or method names.
 
-- Install: add `<dependency><groupId>example</groupId><artifactId>weather-client</artifactId><version>0.0.0-SNAPSHOT</version></dependency>` to the project's manifest. The package is `example:weather-client` at version `0.0.0-SNAPSHOT`.
+- Install: in the manifest, `<dependency><groupId>example</groupId><artifactId>weather-client</artifactId><version>0.0.0-SNAPSHOT</version></dependency>`. The package is `example:weather-client` at version `0.0.0-SNAPSHOT`.
 - Import: `import example.weather.ClientConfig;` then `import example.weather.WeatherClient;`.
 - Client: `WeatherClient`. Construct it as below. `ClientConfig.token` is a `Supplier<String>` of the bearer token, called for every attempt, so a refreshed token is used.
 
@@ -19,7 +19,7 @@ WeatherClient client = new WeatherClient(config);
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>Pages` method returning a lazy `java.util.Iterator` of pages (`client.listThingsPages(input)`), and `<operation>PagesAsync` returning a `Flow.Publisher`: each page is one response, and it stops when the response carries no next token. Each operation also has an `<operation>Async` method returning a `CompletableFuture`, and an overload taking a `Consumer` of the input's builder.
+- Pagination: A paginated operation also has a `<operation>Pages` method returning a lazy `java.util.Iterator` of pages (`client.listCitiesPages(input)`), and `<operation>PagesAsync` returning a `Flow.Publisher`: each page is one response, and it stops when the response carries no next token. Each operation also has an `<operation>Async` method returning a `CompletableFuture`, and an overload taking a `Consumer` of the input's builder.
 - Errors: Each modelled error is an unchecked exception class in `example.weather.model`, extending `example.weather.WeatherException` and `ServiceError`: catch it and read its accessors, and `status()`, `requestId()` and `headers()`. Transport failures throw `NetworkError`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `ClientConfig.maxAttempts` to change the attempt limit (3, the first included; 1 turns retries off), and `timeout`, `baseDelay` and `maxDelay` for the call budget and backoff.
 - Idempotency: these calls fill an idempotency token when it is unset: `createCity` (`clientToken`). Set it yourself to replay one logical request.

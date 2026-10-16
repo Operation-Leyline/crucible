@@ -4,7 +4,7 @@
 
 This is the generated Dart client for the Weather API (`example.weather#Weather`, API version `2026-10-01`, sent as `Crucible-Version: 2026-10-01` on every request). The names below are exact: do not guess other package, import or method names.
 
-- Install: `dart pub add weather_client:0.0.0-dev`. The package is `weather_client` at version `0.0.0-dev`.
+- Install: `dart pub add weather_client:0.0.0-dev`, then in the manifest, `dependencies:` and `weather_client: 0.0.0-dev`. The package is `weather_client` at version `0.0.0-dev`.
 - Import: `import 'package:weather_client/weather_client.dart';` then `import 'dart:typed_data';`.
 - Client: `WeatherClient`. Construct it as below. `token` returns the bearer token (or a `Future` of one, or `null` to send none); it is called for every attempt, so a refreshed token is used.
 
@@ -21,8 +21,8 @@ final client = WeatherClient(ClientConfig(
 
 - Headers: The client sends `Authorization: Bearer <token>` and `Crucible-Version: 2026-10-01` on every request. Do not set them yourself.
 - Operations: one method per operation, such as `createCity`, `getCity`, `getCityPhoto`. Each takes its input type and returns its output type.
-- Pagination: A paginated operation also has a `<operation>Pages` method returning a `Stream` of pages (`await for (final page in client.listThingsPages(input))`): each page is one response, the stream ends when a response carries no next token, and cancelling the subscription cancels the call in flight.
-- Errors: Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: catch it with `on NotFound catch (error)` and read its fields and `error.metadata.status`. An error response the model does not describe is an `UnknownServiceError`; a call that gets no response throws `NetworkException`, a cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a `TimeoutException`.
+- Pagination: A paginated operation also has a `<operation>Pages` method returning a `Stream` of pages (`await for (final page in client.listCitiesPages(input))`): each page is one response, the stream ends when a response carries no next token, and cancelling the subscription cancels the call in flight.
+- Errors: Each modelled error is a class exported from the package, extending `WeatherException` and `ServiceError`: catch it with `on NotFoundError catch (error)` and read its fields and `error.metadata.status`. An error response the model does not describe is an `UnknownServiceError`; a call that gets no response throws `NetworkException`, a cancelled one `CancelledException`, and one outlasting `ClientConfig.timeout` a `TimeoutException`.
 - Retries: automatic for safe calls; do not wrap calls in your own retry loop. Set `maxAttempts` in `ClientConfig` to change the attempt limit (3, the first included; 1 turns retries off), and `baseDelay` and `maxDelay` to change the backoff.
 - Idempotency: these calls fill an idempotency token when it is unset: `createCity` (`clientToken`). Set it yourself to replay one logical request.
 - Generated code: do not edit files in this package; they are replaced when it is regenerated.

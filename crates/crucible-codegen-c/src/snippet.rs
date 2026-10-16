@@ -783,14 +783,10 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let p = &options.prefix;
     let package = &options.package_name;
     let mut guide = Guide::new("C", "c");
+    guide.metadata = options.metadata.clone();
     guide.version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
-    let build = format!("{package}-build");
-    guide.install = vec![
-        format!("cmake -S {package} -B {build} -DCMAKE_BUILD_TYPE=Release"),
-        format!("cmake --build {build} --config Release"),
-        format!("cmake --install {build} --config Release --prefix \"$HOME/.local\""),
-        "# Needs yyjson 0.13, libcurl 7.68 or newer and OpenSSL 1.1.1 or newer.".to_owned(),
-    ];
+    guide.install =
+        cmake_install(&["# Needs yyjson 0.13, libcurl 7.68 or newer and OpenSSL 1.1.1 or newer."]);
     let version = guide
         .version
         .as_ref()
@@ -822,7 +818,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `config.endpoint` is the service's base URL.");
     }
     guide.pagination = format!(
-        "A paginated operation also has `<operation>_pages_new`, which takes the input and \
+        "A paginated operation also has `<operation>_pages_new` (`{{paginator}}`), which takes the input and \
          returns a `{p}_pages` iterator, and `<operation>_pages_next`, which fills one page's \
          result and sets `has_page` to false after the last one. Free each page's result with \
          `<operation>_result_free` and the iterator with `{p}_pages_free`."
@@ -863,4 +859,17 @@ pub(crate) fn doxyfile(options: &Options) -> String {
         name = options.package_name,
         version = options.package_version,
     )
+}
+
+/// The commands that build and install the CMake package, run in its
+/// directory, into a prefix `find_package` searches with
+/// `CMAKE_PREFIX_PATH="$HOME/.local"`; `notes` follow as comments.
+fn cmake_install(notes: &[&str]) -> Vec<String> {
+    let mut lines = vec![
+        "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release".to_owned(),
+        "cmake --build build --config Release".to_owned(),
+        "cmake --install build --config Release --prefix \"$HOME/.local\"".to_owned(),
+    ];
+    lines.extend(notes.iter().map(|note| (*note).to_owned()));
+    lines
 }

@@ -24,6 +24,7 @@ impl<'a> PhpSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: PhpOptions {
+                metadata: Default::default(),
                 package_name: format!(
                     "example/{}-sdk",
                     name.split('-')

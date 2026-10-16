@@ -371,6 +371,10 @@ fn unindent(text: &str) -> String {
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let module = &options.module_name;
     let mut guide = Guide::new("Ruby", "ruby");
+    guide.metadata = options.metadata.clone();
+    // Its install line names the public registry: a private or
+    // Git-released package shows its release instead.
+    guide.public_registry = true;
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
     guide.install = vec![match &version {
         Some(version) => format!("gem install {} -v {version}", options.package_name),
@@ -393,7 +397,7 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `endpoint:` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `<operation>_pages` method returning an \
-        `Enumerator` of pages (`client.list_things_pages(input).each do |page| ... end`): each \
+        `Enumerator` of pages (`client.{paginator}(input).each do |page| ... end`): each \
         page is one response, fetched as the enumerator is consumed, and it stops when the \
         response carries no next token."
         .to_owned();

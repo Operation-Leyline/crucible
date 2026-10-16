@@ -25,6 +25,7 @@ pub(crate) const COMMON_KEYS: &[&str] = &[
     "license_file",
     "authors",
     "readme",
+    "agents",
     "keywords",
     "private",
     "provenance",
@@ -77,6 +78,7 @@ struct Common {
     license: Option<(Option<String>, Option<String>)>,
     authors: Option<Vec<String>>,
     readme: Option<String>,
+    agents: Option<String>,
     keywords: Option<Vec<String>>,
     private: Option<bool>,
     provenance: Option<Provenance>,
@@ -597,6 +599,9 @@ fn common(context: &mut Context<'_>, at: &str, table: &Table) -> Common {
     common.readme = table
         .get("readme")
         .and_then(|value| path_value(context, &key("readme"), value));
+    common.agents = table
+        .get("agents")
+        .and_then(|value| path_value(context, &key("agents"), value));
     common.keywords = table
         .get("keywords")
         .and_then(|value| list(context, &key("keywords"), value));
@@ -635,6 +640,7 @@ fn merge(own: Common, defaults: Common) -> Metadata {
         license_file,
         authors: own.authors.or(defaults.authors).unwrap_or_default(),
         readme: own.readme.or(defaults.readme),
+        agents: own.agents.or(defaults.agents),
         keywords: own.keywords.or(defaults.keywords).unwrap_or_default(),
         private: own.private.or(defaults.private).unwrap_or(false),
         provenance: own

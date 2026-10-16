@@ -30,7 +30,8 @@
           }
         ],
         "method": "POST",
-        "snippet": "curl -X POST \"$WEATHER_ENDPOINT/cities\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Content-Type: application/json' \\\n  -H 'Crucible-Version: 2026-10-01' \\\n  -H 'x-amz-content-sha256: f57591f01ab139a01e0f74afc87285ba3edb200c4957b898f06be4bf1717a2b2' \\\n  -H 'X-Expected-Revision: 7' \\\n  --data-binary '{\"location\":{\"coordinates\":{\"latitude\":38.72,\"longitude\":-9.14}},\"name\":\"Lisbon\"}'\n",
+        "omitted": [],
+        "snippet": "curl -X POST \"$WEATHER_ENDPOINT\"'/cities' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Content-Type: application/json' \\\n  -H 'Crucible-Version: 2026-10-01' \\\n  -H 'x-amz-content-sha256: f57591f01ab139a01e0f74afc87285ba3edb200c4957b898f06be4bf1717a2b2' \\\n  -H 'X-Expected-Revision: 7' \\\n  --data-binary '{\"location\":{\"coordinates\":{\"latitude\":38.72,\"longitude\":-9.14}},\"name\":\"Lisbon\"}'\n",
         "uri": "/cities"
       },
       "example.weather#GetCity": {
@@ -48,7 +49,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$WEATHER_ENDPOINT/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "omitted": [],
+        "snippet": "curl \"$WEATHER_ENDPOINT\"'/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
         "uri": "/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z"
       },
       "example.weather#GetCityPhoto": {
@@ -66,7 +68,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$WEATHER_ENDPOINT/cities/c-4xzk6sz6/photo\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "omitted": [],
+        "snippet": "curl \"$WEATHER_ENDPOINT\"'/cities/c-4xzk6sz6/photo' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
         "uri": "/cities/c-4xzk6sz6/photo"
       },
       "example.weather#ListCities": {
@@ -84,7 +87,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$WEATHER_ENDPOINT/cities?maxResults=2&tag=coastal&tag=capital\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "omitted": [],
+        "snippet": "curl \"$WEATHER_ENDPOINT\"'/cities?maxResults=2&tag=coastal&tag=capital' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
         "uri": "/cities?maxResults=2&tag=coastal&tag=capital"
       },
       "example.weather#Ping": {
@@ -102,7 +106,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$WEATHER_ENDPOINT/ping\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "omitted": [],
+        "snippet": "curl \"$WEATHER_ENDPOINT\"'/ping' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
         "uri": "/ping"
       },
       "example.weather#PutCityPhoto": {
@@ -132,7 +137,8 @@
           }
         ],
         "method": "PUT",
-        "snippet": "printf '%s' 'cGhvdG8=' | base64 -d | curl -X PUT \"$WEATHER_ENDPOINT/cities/c-4xzk6sz6/photo\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Content-Type: image/jpeg' \\\n  -H 'Crucible-Version: 2026-10-01' \\\n  -H 'x-amz-content-sha256: 55c64d0fcd6f9d5f7c828093857e3fdfda68478bb4e9bd24d481ef391c7804e8' \\\n  -H 'X-Photo-Caption: caption' \\\n  --data-binary @-\n",
+        "omitted": [],
+        "snippet": "printf '%s' 'cGhvdG8=' | base64 -d | curl -X PUT \"$WEATHER_ENDPOINT\"'/cities/c-4xzk6sz6/photo' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Content-Type: image/jpeg' \\\n  -H 'Crucible-Version: 2026-10-01' \\\n  -H 'x-amz-content-sha256: 55c64d0fcd6f9d5f7c828093857e3fdfda68478bb4e9bd24d481ef391c7804e8' \\\n  -H 'X-Photo-Caption: caption' \\\n  --data-binary @-\n",
         "uri": "/cities/c-4xzk6sz6/photo"
       },
       "example.weather#Status": {
@@ -150,7 +156,8 @@
           }
         ],
         "method": "GET",
-        "snippet": "curl \"$WEATHER_ENDPOINT/status\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "omitted": [],
+        "snippet": "curl \"$WEATHER_ENDPOINT\"'/status' \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
         "uri": "/status"
       }
     },

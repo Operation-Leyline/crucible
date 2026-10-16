@@ -425,24 +425,46 @@ fn unindent(text: &str) -> String {
 /// The language's facts for the package's README and `AGENTS.md`.
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let mut guide = Guide::new("Swift", "swift");
+    guide.metadata = options.metadata.clone();
     let version = Some(options.package_version.clone()).filter(|v| !v.is_empty());
     let package = &options.package_name;
     // SwiftPM installs from the Git repository the package is published
     // to, which generation does not know: a repository named for the
     // package gives the `package:` identity below.
-    guide.manifest = Some((
-        "swift".to_owned(),
-        format!(
-            ".package(url: \"https://github.com/OWNER/{package}.git\", {requirement}), // the repository the package is published to\n\
-             .product(name: {module}, package: {identity}), // in the dependencies of the target that calls the API\n",
-            requirement = match &version {
-                Some(version) => format!("from: {}", literal(version)),
-                None => "branch: \"main\"".to_owned(),
-            },
-            module = literal(&options.module_name),
-            identity = literal(package),
-        ),
-    ));
+    // SwiftPM installs from the Git repository the package is released
+    // to: the channel's, else the configured repository. Without either
+    // the README names no URL rather than a made-up one.
+    let repository = options
+        .metadata
+        .git
+        .as_ref()
+        .map(|git| git.url.clone())
+        .or_else(|| options.metadata.repository.clone());
+    match repository {
+        Some(url) => {
+            guide.manifest = Some((
+                "swift".to_owned(),
+                format!(
+                    ".package(url: {url}, {requirement}),\n\
+                     .product(name: {module}, package: {identity}), // in the dependencies of the target that calls the API\n",
+                    url = literal(&url),
+                    requirement = match &version {
+                        Some(version) => format!("from: {}", literal(version)),
+                        None => "branch: \"main\"".to_owned(),
+                    },
+                    module = literal(&options.module_name),
+                    identity = literal(package),
+                ),
+            ));
+        }
+        None => {
+            guide.install_note = Some(format!(
+                "Add the package with SwiftPM's `.package(url:from:)` from the Git repository it \
+                 is released to, and its `{}` product to the target that calls the API.",
+                options.module_name
+            ));
+        }
+    }
     guide.version = version;
     guide.construct = construct(service, options);
     guide.auth = if service.auth.iter().any(|s| service.is_bearer(s)) {
@@ -463,12 +485,12 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     );
     guide.pagination = "A paginated operation also has a `<operation>Pages` method returning \
         `Pages<Output>`, an `AsyncSequence` of pages (`for try await page in try \
-        client.listThingsPages(input)`): each page is one response, each step makes one call, \
+        client.{paginator}(input)`): each page is one response, each step makes one call, \
         and it stops when the response carries no next token."
         .to_owned();
     guide.errors = format!(
         "Each modelled error is a struct conforming to `{}` and `ServiceError`: catch it with \
-         `catch let error as TheError` and read its properties and `metadata.status`. An error \
+         `catch let error as {{error}}` and read its properties and `metadata.status`. An error \
          the client does not model is `UnknownServiceError`; a failure without a response \
          throws `NetworkError`, and a call outlasting `ClientConfig.timeout` throws \
          `TimeoutError`.",

@@ -42,6 +42,7 @@ fn keywords_with_class() -> Service {
 
 fn options(namespace: &str, endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         namespace: namespace.into(),
         package_id: format!("{namespace}.Client"),
         package_version: "0.0.0-dev".into(),

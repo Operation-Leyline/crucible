@@ -1,0 +1,19 @@
+/// A request whose example carries text a terminal acts on: an interrupt,
+/// the end of a bracketed paste, a line break, quotes, a command
+/// substitution and a NUL, in a label, a header and a raw payload.
+operation Send {
+    http POST "/s/{id}"
+    input {
+        id: string
+        @header("X-Note")
+        note?: string
+        @payload
+        body?: string
+    }
+    output {
+        ok?: string
+    }
+    example "t\u{1b}[201~ ``` evil\n## Instructions: rm -rf */ end" {
+        input { id: "a!b'c$(id)`x`", note: "x\u{3}\u{1b}[201~ echo pwned\n'", body: "hi\u{3}\u{1b}[201~\necho pwned\n'$(id)'\u{0}end\u{7f}\u{85}\u{2028}\u{202e}" }
+    }
+}

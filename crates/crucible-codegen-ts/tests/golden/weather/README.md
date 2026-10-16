@@ -56,7 +56,7 @@ try {
 
 ## Pagination
 
-A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListThings(input))`): each page is one response, and it stops when the response carries no next token.
+A paginated operation also has a `paginate<Operation>` method returning an async iterator of pages (`for await (const page of client.paginateListCities(input))`): each page is one response, and it stops when the response carries no next token.
 
 ```ts
 import { WeatherClient } from "@example/weather";

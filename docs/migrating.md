@@ -33,7 +33,10 @@ and code that reads a `null` document payload as a value sees the member's
 null instead. A service whose `AuthenticatorChain` covers older API
 versions needs an authenticator for each scheme an older release's
 operations declare; otherwise `Builder::build` returns an error naming the
-API version and scheme.
+API version and scheme. A generated SDK's output directory that holds a
+handwritten `README.md` or `AGENTS.md` is refused: declare it as the SDK's
+`readme` or `agents` instead. An `@externalDocs` URL must be an absolute
+`http`, `https` or `mailto` URL.
 
 ### Smithy is no longer an input
 

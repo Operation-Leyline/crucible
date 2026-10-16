@@ -17,6 +17,7 @@ fn load(name: &str) -> Service {
 
 fn options(endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "example/weather-client".into(),
         namespace: r"Example\Weather".into(),
         package_version: "0.0.0".into(),

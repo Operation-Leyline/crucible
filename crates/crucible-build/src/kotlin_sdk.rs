@@ -23,6 +23,7 @@ impl<'a> KotlinSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: KotlinOptions {
+                metadata: Default::default(),
                 group_id: "example".into(),
                 artifact_id: format!("{name}-sdk"),
                 package_name: "example.sdk".into(),

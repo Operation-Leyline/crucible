@@ -64,7 +64,7 @@ public class GetCityExample {
 
 ## Pagination
 
-A paginated operation also has a `<operation>Pages` method returning a lazy `java.util.Iterator` of pages (`client.listThingsPages(input)`), and `<operation>PagesAsync` returning a `Flow.Publisher`: each page is one response, and it stops when the response carries no next token. Each operation also has an `<operation>Async` method returning a `CompletableFuture`, and an overload taking a `Consumer` of the input's builder.
+A paginated operation also has a `<operation>Pages` method returning a lazy `java.util.Iterator` of pages (`client.listCitiesPages(input)`), and `<operation>PagesAsync` returning a `Flow.Publisher`: each page is one response, and it stops when the response carries no next token. Each operation also has an `<operation>Async` method returning a `CompletableFuture`, and an overload taking a `Consumer` of the input's builder.
 
 ```java
 import example.weather.ClientConfig;

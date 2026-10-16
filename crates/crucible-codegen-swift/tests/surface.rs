@@ -42,6 +42,7 @@ fn keywords_with_class() -> Service {
 
 fn options(module: &str, endpoint: Option<&str>) -> Options {
     Options {
+        metadata: Default::default(),
         package_name: format!("{module}SDK"),
         module_name: module.into(),
         package_version: "0.0.0-dev".into(),

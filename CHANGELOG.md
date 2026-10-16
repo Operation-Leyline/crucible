@@ -108,26 +108,19 @@ version's section when it is prepared.
   method, URI, every header (`Content-Type`, `Authorization`,
   `Crucible-Version`, and `x-amz-content-sha256` with the body's real
   digest where an SDK's default middleware adds it), the body and a
-  `curl` command. `crucible_codegen_common::snippet` holds the shared,
-  typed reading of the value
+  `curl` command. A body with an unprintable character is sent through
+  `base64 -d`, and a header value no request may carry is left out of the
+  command and listed in `omitted`, so a pasted command cannot be
+  interrupted or end a bracketed paste. `crucible_codegen_common::snippet`
+  holds the shared, typed reading of the value
   ([docs/docs.md](docs/docs.md#snippets)).
-- Every generated SDK package, in all 14 languages, carries a generated
-  `README.md` (install line with the exact package and version, client
-  construction, a complete call, pagination, errors, retries and
-  idempotency, links) and an `AGENTS.md` for coding agents with the same
-  facts as exact rules; Rust and TypeScript keep a configured `readme` in
-  place of the generated README. Packages also carry their documentation
-  tool's configuration where they lacked it: `typedoc.json` (TypeScript),
-  `[package.metadata.docs.rs]` (Rust), a `Doxyfile` (C, C++),
-  `dartdoc_options.yaml` (Dart) and a DocC catalog (Swift)
-  ([docs/clients.md](docs/clients.md#generated-package-documentation)).
-  Generation owns both files, so an output directory that already holds a
-  handwritten `README.md` or `AGENTS.md` is refused, as for any file it
-  does not own: move the README into the SDK's `readme` (Rust,
-  TypeScript) or out of the directory. The NuGet package shows its README
-  (`PackageReadmeFile`), the Python wheel uses it as its long description,
-  and the Swift runtime's `Pages.Iterator` is now `Sendable`, so a
-  paginator can be iterated from top-level code.
+- SDK files: `agents = "<path>"`, beside `readme`, replaces a package's
+  generated `AGENTS.md` (`crucible generate rust|ts --agents <path>`, and
+  `.agents(path)` on the Rust and TypeScript build helpers). Every
+  language now takes `readme`, `agents`, `repository`, `homepage`,
+  `documentation`, `private` and the channel for its README and
+  `AGENTS.md`; only `description`, `license`, `authors` and `keywords`
+  still wait for the other languages' manifests.
 
 - `describe.json` (`crucible.describe/1`, additive): each operation has a
   `sample` and each error's metadata a `sample`, generated from the model
@@ -669,6 +662,29 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- Every generated SDK package, in all 14 languages, now carries a
+  generated `README.md` (install line with the exact package and
+  version, client construction, a complete call, pagination, errors,
+  retries and idempotency, links) and an `AGENTS.md` for coding agents
+  with the same facts as exact rules. A configured `readme` or `agents`
+  replaces the generated file. The install line follows the package's
+  release: a private or Git-released package names its Git tag or says it
+  is private instead of a public-registry install, and a scoped npm
+  package on another registry configures its scope first. Model text
+  (title, `@externalDocs`, versions) is escaped so it cannot add a
+  heading, link or HTML to either file. Packages also carry their
+  documentation tool's configuration where they lacked it:
+  `typedoc.json` (TypeScript), `[package.metadata.docs.rs]` (Rust), a
+  `Doxyfile` (C, C++), `dartdoc_options.yaml` (Dart) and a DocC catalog
+  (Swift) ([docs/clients.md](docs/clients.md#generated-package-documentation)).
+  The NuGet package shows its README (`PackageReadmeFile`), the Python
+  wheel uses it as its long description, and the Swift runtime's
+  `Pages.Iterator` is now `Sendable`. Generation owns both files: see
+  *Migration*.
+- `.cru`: an `@externalDocs` URL is an `http`, `https` or `mailto` URL
+  without white space or control characters; another is an error at the
+  URL (`tests/models/external-docs-refusals`).
 
 - `crucible check`, `generate` and `compile` load the chain of older
   releases a package serves, as a build does, through one
@@ -1510,6 +1526,22 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **Generated SDK packages own `README.md` and `AGENTS.md`.** A package
+  directory that already holds a handwritten one, which generation did not
+  write, is refused when it is regenerated:
+  `<out>/README.md holds a file crucible did not write; refusing to replace it`
+  (or `AGENTS.md`). Keep your text by declaring it: `readme =
+  "path/to/README.md"` or `agents = "path/to/AGENTS.md"` in the SDK's
+  table of `crucible-sdk.toml` (or `--readme` / `--agents`, and the build
+  helpers' `.readme()` / `.agents()`), then delete the file from the
+  output directory and regenerate. To take the generated file, delete
+  yours and regenerate.
+- **An `@externalDocs` URL must be a web or mail address.** A model whose
+  `@externalDocs` names a relative path, another scheme, or a URL with a
+  space or control character no longer compiles; the error points at the
+  URL. Write it as an absolute `https://` (or `mailto:`) URL, with spaces
+  percent-encoded.
 
 - **The CLI loads a package's older releases, as a build does.**
   `crucible check`, `generate` and `compile` used to read only the current

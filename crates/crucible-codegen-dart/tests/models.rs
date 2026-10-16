@@ -37,6 +37,7 @@ fn weather_renamed(shape: &str, name: &str) -> Service {
 }
 fn options() -> Options {
     Options {
+        metadata: Default::default(),
         package_name: "weather_client".into(),
         package_version: "0.0.0-dev".into(),
         endpoint: Some("https://weather.example".into()),

@@ -25,6 +25,7 @@ impl<'a> SwiftSdk<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             options: SwiftOptions {
+                metadata: Default::default(),
                 package_name: module.clone(),
                 module_name: module,
                 package_version: std::env::var("CARGO_PKG_VERSION")

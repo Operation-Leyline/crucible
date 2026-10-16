@@ -223,6 +223,7 @@ fn other_languages_are_not_stamped_yet() {
     #[cfg(feature = "python")]
     {
         let files = Client::Python(crucible_codegen::PythonOptions {
+            metadata: Default::default(),
             package_name: "weather".into(),
             module_name: "weather".into(),
             package_version: "1.0.0".into(),

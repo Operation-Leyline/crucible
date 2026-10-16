@@ -687,7 +687,20 @@ pub(crate) fn snippets(
 pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
     let alias = crate::surface::snippet_alias(&options.package_name);
     let mut guide = Guide::new("Go", "go");
-    guide.install = vec![format!("go get {}", options.module_path)];
+    guide.metadata = options.metadata.clone();
+    // A Git release's tag is the module version Go resolves.
+    guide.install = vec![match options.metadata.git.as_ref().map(|git| &git.tag) {
+        Some(tag) if tag.starts_with('v') => format!("go get {}@{tag}", options.module_path),
+        _ => format!("go get {}", options.module_path),
+    }];
+    if options.metadata.private {
+        guide.install_note = Some(format!(
+            "The module is private: set `GOPRIVATE={}` so Go fetches it from its repository \
+             rather than the public module proxy.",
+            options.module_path
+        ));
+    }
+    guide.refers_to = Some(alias.clone());
     guide.construct = construct(service, options, &alias, "");
     guide.auth = if service.auth.iter().any(|s| service.is_bearer(s)) {
         "`Config.Token` returns the bearer token; it is called for every attempt with the \
@@ -702,14 +715,14 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
             .push_str(" `Config.Endpoint` is the service's base URL.");
     }
     guide.pagination = format!(
-        "A paginated operation also has a `<Operation>Pages` method (`client.ListThingsPages(input)`) \
+        "A paginated operation also has a `<Operation>Pages` method (`client.{{paginator}}(input)`) \
          returning a paginator: call `NextPage(ctx)` while `HasMorePages()` is true. Each page is \
          one response; a repeated token stops it with an error. A paginator is for one goroutine \
          at a time. Every method takes a `context.Context` first; an operation without input \
          takes `{alias}.Unit{{}}`."
     );
     guide.errors = format!(
-        "Each modelled error is a struct such as `*{alias}.NotFoundError`, matched with \
+        "Each modelled error is a struct such as `*{alias}.{{error}}`, matched with \
          `errors.As(err, &target)`; its `Metadata` (`*{alias}.ServiceError`) carries the HTTP \
          status, request ID and headers. Every service error satisfies `{alias}.{exception}`; an \
          unmodelled one is a `*{alias}.ServiceError`, a transport failure a \
