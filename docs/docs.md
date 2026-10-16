@@ -452,14 +452,11 @@ Every operation, shape, member and enum value object has `history`:
 An element is identified by its id (`Shape`, `Shape$member`, `Enum$VALUE`,
 an operation's id); a member or enum value renamed in a migration is the
 same element under its older name before it. `added` says when the
-element came into the API, not which releases can use it. Once older
-releases are served as projections of the current model (phase 5b, PR 6
-of [api-versions-clients.md](api-versions-clients.md#order)), an addition
-reaches every supported release except the ones `missing` lists. Until
-then a server serves each older release from its frozen model, so an
-addition reaches none of them: `history` describes the projections to
-come, not what an older client is served today. A renderer shows `added`
-and falls back to `notes.since` when it is `null`.
+element came into the API, not which releases can use it. Older releases
+are served as projections of the current model (phase 5b of
+[api-versions-clients.md](api-versions-clients.md#order)), so an addition
+reaches every supported release except the ones `missing` lists. A
+renderer shows `added` and falls back to `notes.since` when it is `null`.
 
 The root's `versions` is always present: `null` for a service without an
 `api_version`, an object for every `.cru` service, its keys sorted as

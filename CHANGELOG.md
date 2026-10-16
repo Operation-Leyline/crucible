@@ -733,9 +733,37 @@ version's section when it is prepared.
   older migration's step resolves its newer side against the newer
   release's projection.
 - `ApiVersion::release` holds an older release's frozen model, beside
-  `service`, the model it is served from, which is still the frozen
-  release. Undo, the release history, the audience view of older releases
+  `service`, the model it is served from, which is now its projection
+  (below). Undo, the release history, the audience view of older releases
   and `describe.json`'s older definitions read `release`.
+- **Older releases are served as the current model sees them** (API
+  versions phase 5b; decisions 51, 73-75 and 82 in
+  [docs/idl/decisions.md](docs/idl/decisions.md)). The compiler sets
+  `ApiVersion::service` to the release's projection; `release` stays
+  frozen. The Rust server generator builds each older release's module,
+  its hooks' and legacy handlers' types, and the conversions between
+  consecutive releases from the projections, so an operation, member or
+  enum value added since reaches every supported release: a request at
+  release 1 can call an operation added in release 3, its response
+  converted down through every migration, and responses carry members
+  added since. What a `reshape` or `remove operation` restores, and a
+  member added beside a release's payload, stay as the release had them
+  (decision 74). An operation a release had is authenticated at it by
+  that release's schemes; one added since by the current ones (decision
+  73). The generated `versions::<release>` modules gain the operations,
+  types and members added since, and their structures that outputs reach
+  still read members they do not define. A hook is one method per step,
+  shape and direction, whatever operations reach it (decision 82): each
+  `Migration` method's documentation now names the operations that need
+  it ("Needed by ..."), and an operation added since that reaches a hooked
+  shape in a direction the migration already converts reuses that method.
+  The generator still maps a legacy handler's requirements from the frozen
+  release, and reports an operation a release had that its projection
+  leaves out without being retired (only an edited IR has one).
+  Empty conversions cost nothing measurable and are kept. Leyline's and
+  Pigeon's generated servers (no migrations) are unchanged. The e2e
+  fixture is four releases (`e2e/weather-service/versioned`; see
+  [docs/api-versions.md](docs/api-versions.md#testing)).
 
 - Every generated SDK package, in all 14 languages, now carries a
   generated `README.md` (install line with the exact package and
@@ -1709,6 +1737,27 @@ version's section when it is prepared.
   editor do, and lists the problems of both before a build fails. Code
   that builds an `ir::ApiVersion` sets `release`, the frozen model, as
   well as `service`.
+- **Older releases serve what was added since.** For a service with
+  migrations, a request at an older release now reaches every operation
+  added since, where it was answered as an unknown route, and responses at
+  older releases carry the members added since. Handlers need no change:
+  they see the current input, as before. No `Migration` method is renamed
+  and none changes its parameter or return type, so no shim is needed;
+  their types are the projections now, so in hand-written hooks and legacy
+  handlers:
+  - a type of an older release (`versions::<release>::..`) has the members
+    added since that reach it; code that builds one with a struct literal
+    names them, as a handler does for the current types;
+  - code that read `ApiVersion::service` as the frozen release reads
+    `ApiVersion::release`.
+- **An operation added since can need a hook its migration lacked.** When
+  it sends a hooked shape in a direction no released operation did (a
+  `reshape`d structure or `retype`d member only outputs reached, now in
+  its input), that migration's `Migration` trait gains the method for it,
+  `upgrade_<shape>` or `upgrade_<shape>_<member>`, documented with the
+  operation that needs it; the service does not compile until it is
+  written (decision 75, kept by decision 82). An addition that reaches the
+  shape in a direction the trait has already adds no method.
 
 - **Generated SDK packages own `README.md` and `AGENTS.md`.** A package
   directory that already holds a handwritten one, which generation did not

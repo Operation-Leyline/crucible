@@ -14,12 +14,41 @@ use crate::names::{function, literal};
 
 const RT: &str = "::crucible_server_runtime_rust::__generated";
 
-/// One hook a migration's `Migration` trait declares.
+/// One hook a migration's `Migration` trait declares. A hook is one step's
+/// conversion of one shape in one direction, whatever operations reach it
+/// (decision 82): an operation added since that reaches it adds its name to
+/// the documentation, never a method.
 struct HookMethod {
-    /// The method, as the trait declares it.
-    decl: String,
+    /// What the method converts: its documentation's first line.
+    doc: String,
+    /// The method's signature, as the trait declares it.
+    signature: String,
+    /// The operations whose values reach the hook, by name.
+    operations: BTreeSet<String>,
     /// Its registration with the framework, in the `versions` module.
     register: String,
+}
+
+impl HookMethod {
+    /// The method, as the trait declares it.
+    fn decl(&self) -> String {
+        let mut out = format!("    /// {}\n", self.doc);
+        let names: Vec<String> = self
+            .operations
+            .iter()
+            .map(|name| format!("`{name}`"))
+            .collect();
+        if let Some((last, rest)) = names.split_last() {
+            let names = if rest.is_empty() {
+                last.clone()
+            } else {
+                format!("{} and {last}", rest.join(", "))
+            };
+            out.push_str(&format!("    ///\n    /// Needed by {names}.\n"));
+        }
+        out.push_str(&self.signature);
+        out
+    }
 }
 
 /// The hooks of each migration, by its older version's index, then by
@@ -95,6 +124,43 @@ pub(crate) fn emit(
     for (index, version) in service.versions.iter().enumerate() {
         let module = version_module(&version.name);
         let constant = version_constant(&version.name);
+        // An operation the release had that its projection leaves out was
+        // dropped since under an exception, which the migration that
+        // dropped it records as retired. Any other drop the compiler
+        // refuses: only an edited IR gets here, and nothing would serve
+        // the operation.
+        for released in &version.release.operations {
+            if operation(models[index], &released.id).is_some() {
+                continue;
+            }
+            let frozen = |at: usize| {
+                let model = if at == current {
+                    service
+                } else {
+                    service.versions[at].release.as_ref()
+                };
+                operation(model, &released.id).is_some()
+            };
+            let mut last = index;
+            while last < current && frozen(last + 1) {
+                last += 1;
+            }
+            if last == current
+                || service.versions[last].retired.contains(&released.id)
+                || !gone.insert((released.id.clone(), last))
+            {
+                continue;
+            }
+            diagnostics.push(
+                &released.id,
+                format!(
+                    "{op} is not in API version {next}, and the migration from {from} neither removes it with `remove operation {op}` nor retires it; nothing serves it at {from} or before",
+                    op = released.name(),
+                    next = names[last + 1],
+                    from = names[last],
+                ),
+            );
+        }
         for old_op in &version.service.operations {
             // The last version that has the operation serves it.
             let mut last = index;
@@ -219,7 +285,7 @@ pub(crate) fn emit(
         if !methods[index].is_empty() {
             let decls: String = methods[index]
                 .values()
-                .map(|method| method.decl.as_str())
+                .map(HookMethod::decl)
                 .collect::<Vec<_>>()
                 .join("\n");
             body.push_str(&format!(
@@ -272,6 +338,11 @@ pub(crate) fn emit(
 /// keeps its own requirements and `CHECKS`, naming the current
 /// `permissions` statics. Returns whether the module then reads them, as
 /// `super::super::permissions`: the service module's, two levels up.
+///
+/// The projection has mapped a restored operation's requirements to the
+/// current permissions already, and the compiler refuses one it cannot map;
+/// the frozen release's are mapped again here, so an edited IR is reported
+/// rather than served with a requirement nothing checks.
 fn older_requirements(
     current: &Service,
     module: &mut Service,
@@ -289,7 +360,9 @@ fn older_requirements(
             _ => None,
         })
         .collect();
-    let old = std::mem::take(&mut module.permissions);
+    let frozen: &Service = &version.release;
+    let old = &frozen.permissions;
+    module.permissions = Default::default();
     module.permission_types = None;
     let mut kept = false;
     for operation in &mut module.operations {
@@ -297,12 +370,15 @@ fn older_requirements(
             operation.requirements = Default::default();
             continue;
         }
+        if let Some(released) = frozen.operations.iter().find(|op| op.id == operation.id) {
+            operation.requirements = released.requirements.clone();
+        }
         let (id, name) = (operation.id.clone(), operation.name().to_owned());
         if let crucible_ir::ir::Requirements::List(clauses)
         | crucible_ir::ir::Requirements::Partial(clauses) = &mut operation.requirements
         {
             for clause in clauses.iter_mut() {
-                match current_permission(current, &old, clause) {
+                match current_permission(current, old, clause) {
                     Ok((resource, symbol)) => {
                         clause.resource = resource;
                         clause.permission = symbol;
@@ -434,7 +510,8 @@ fn hook_key(current: &Service, step: usize, method: &str) -> String {
 }
 
 /// Records hook `method` of the migration from version `step`, converting
-/// `input` (a value of version `from`) into `output` (of version `to`).
+/// `input` (a value of version `from`) into `output` (of version `to`), for
+/// `operation`, whose values reach it.
 #[allow(clippy::too_many_arguments)]
 fn hook_method(
     models: &[&Service],
@@ -446,6 +523,7 @@ fn hook_method(
     input: (usize, &ShapeId),
     output: (usize, &ShapeId),
     is_async: bool,
+    operation: &ShapeId,
     diagnostics: &mut Diagnostics,
 ) -> String {
     let key = hook_key(current, step, method);
@@ -459,11 +537,12 @@ fn hook_method(
     } else {
         (format!("{RT}::Result<{output_inner}>"), "")
     };
-    let decl =
-        format!("    /// {doc}\n    fn {method}(&self, value: {input_inner}) -> {returns};\n");
-    if let Some(existing) = methods[step].get(method) {
-        if existing.decl != decl {
+    let signature = format!("    fn {method}(&self, value: {input_inner}) -> {returns};\n");
+    if let Some(existing) = methods[step].get_mut(method) {
+        if existing.doc != doc || existing.signature != signature {
             collision(current, step, method, input.1, diagnostics);
+        } else {
+            existing.operations.insert(operation.name().to_owned());
         }
         return key;
     }
@@ -471,7 +550,15 @@ fn hook_method(
         "\n            .hook({key}, ::std::sync::Arc::new({{\n                let implementation = implementation.clone();\n                move |value| {{\n                    let implementation = implementation.clone();\n                    ::std::boxed::Box::pin(async move {{\n                        let value: {input_outer} = {RT}::versioning::hook_input({key}, value)?;\n                        let value = implementation.{method}(value){wait}?;\n                        {RT}::versioning::hook_output({key}, value)\n                    }})\n                }}\n            }}))",
         key = literal(&key),
     );
-    methods[step].insert(method.to_owned(), HookMethod { decl, register });
+    methods[step].insert(
+        method.to_owned(),
+        HookMethod {
+            doc: doc.to_owned(),
+            signature,
+            operations: BTreeSet::from([operation.name().to_owned()]),
+            register,
+        },
+    );
     key
 }
 
@@ -516,16 +603,27 @@ fn legacy(
             format!("|implementation, _| async move {{ implementation.{method}().await }}"),
         ),
     };
-    let decl = format!(
-        "    /// Serves `{}`, which the next version removed, for this version and older.\n    fn {method}(&self{param}) -> impl ::std::future::Future<Output = {RT}::Result<{output}>> + Send;\n",
+    let doc = format!(
+        "Serves `{}`, which the next version removed, for this version and older.",
         operation.name()
+    );
+    let signature = format!(
+        "    fn {method}(&self{param}) -> impl ::std::future::Future<Output = {RT}::Result<{output}>> + Send;\n"
     );
     let register = format!(
         "\n            .add_legacy::<{module}::{name}, S, _>({constant}, &{module}::SERVICE, implementation.clone(), {call})",
         name = operation.name(),
         constant = version_constant(&current.versions[last].name),
     );
-    methods[last].insert(method, HookMethod { decl, register });
+    methods[last].insert(
+        method,
+        HookMethod {
+            doc,
+            signature,
+            operations: BTreeSet::new(),
+            register,
+        },
+    );
     key
 }
 
@@ -1056,6 +1154,7 @@ fn conversion(
                             (step, old_shape),
                             (step + 1, new_shape),
                             *is_async,
+                            operation,
                             diagnostics,
                         );
                         for at in ups {
@@ -1093,6 +1192,7 @@ fn conversion(
                             (step + 1, new_shape),
                             (step, old_shape),
                             *is_async,
+                            operation,
                             diagnostics,
                         );
                         for at in downs {
@@ -1191,6 +1291,7 @@ fn conversion(
                             (step, &old_member.target),
                             (step + 1, &new_member.target),
                             *is_async,
+                            operation,
                             diagnostics,
                         );
                         for mut at in ups {
@@ -1228,6 +1329,7 @@ fn conversion(
                             (step + 1, &new_member.target),
                             (step, &old_member.target),
                             *is_async,
+                            operation,
                             diagnostics,
                         );
                         for mut at in downs {
@@ -1301,6 +1403,7 @@ fn conversion(
                             (step, old_shape),
                             (step + 1, &new_member.target),
                             *is_async,
+                            operation,
                             diagnostics,
                         );
                         for at in ups {

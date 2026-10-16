@@ -133,9 +133,9 @@ pub struct ApiVersion {
     /// The release's `version`, such as `2026-09-04`.
     pub name: String,
     /// The model this version is served from: its routes, shapes and
-    /// errors. The frozen release for now; the projection of the current
-    /// model once the server serves projections (docs/api-versions-clients.md,
-    /// 5b).
+    /// errors, the current model projected back to the release
+    /// ([`crate::versions::undo`]; docs/api-versions-clients.md, 5b), so
+    /// what was added since reaches it (decision 51).
     pub service: Box<Service>,
     /// The release's frozen model, as `releases/<version>.json` holds it:
     /// what undo takes older definitions from, what a projection is checked

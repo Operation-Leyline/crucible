@@ -1112,3 +1112,89 @@ fn additions_do_not_reach_a_payload_bound_message() {
     crucible_ir::validate::service(v1, &mut problems);
     assert!(problems.is_empty(), "{problems}");
 }
+
+/// What a server serves an older release from is its projection: the
+/// compiler sets `ApiVersion::service` to what `projections` computes, and
+/// keeps the frozen model as `ApiVersion::release`.
+#[test]
+fn each_release_is_served_from_its_projection() {
+    for package in PACKAGES {
+        let (service, _) = load(package);
+        for (version, projection) in service.versions.iter().zip(projected(&service)) {
+            let what = format!("{package} at {}", version.name);
+            assert_eq!(
+                json(version.service.as_ref()),
+                json(&projection.service),
+                "{what}"
+            );
+            assert_eq!(version.release.version, version.name, "{what}");
+        }
+    }
+}
+
+/// The guard's comparison (decision 68) reads neither an operation's fixed
+/// protocol headers nor the feature uses lowering derived, so a projection
+/// that got them wrong would pass it. Each projection keeps its release's:
+/// an operation the release had sends the release's fixed headers, unless
+/// what was added since gave it a body it had not (or a payload), and every
+/// feature use is the release's, or names something added since.
+#[test]
+fn projections_keep_their_releases_headers_and_feature_uses() {
+    let carries = |bindings: &crucible_ir::ir::Bindings| {
+        (
+            bindings.body.is_empty(),
+            bindings
+                .payload
+                .as_ref()
+                .map(|payload| payload.media_type.clone()),
+        )
+    };
+    let mut uses = 0;
+    for package in PACKAGES {
+        let (service, _) = load(package);
+        for (version, projection) in service.versions.iter().zip(projected(&service)) {
+            let (frozen, model) = (version.release.as_ref(), &projection.service);
+            let what = format!("{package} at {}", version.name);
+            let mut compared = 0;
+            for released in &frozen.operations {
+                let Some(served) = model.operations.iter().find(|op| op.id == released.id) else {
+                    continue;
+                };
+                if carries(&served.request) == carries(&released.request) {
+                    assert_eq!(
+                        served.protocol_headers, released.protocol_headers,
+                        "{what}: {}'s request",
+                        released.id
+                    );
+                    compared += 1;
+                }
+                if carries(&served.response) == carries(&released.response) {
+                    assert_eq!(
+                        served.response_protocol_headers, released.response_protocol_headers,
+                        "{what}: {}'s response",
+                        released.id
+                    );
+                    compared += 1;
+                }
+            }
+            assert!(compared > 0, "{what}: no operation compared");
+            let feature = |usage: &crucible_ir::FeatureUse| (usage.feature, usage.shape.clone());
+            let released: BTreeSet<_> = frozen.requirements.iter().map(feature).collect();
+            let served: BTreeSet<_> = model.requirements.iter().map(feature).collect();
+            for usage in &frozen.requirements {
+                if crucible_ir::versions::has(model, &usage.shape) {
+                    assert!(served.contains(&feature(usage)), "{what}: lost {usage:?}");
+                    uses += 1;
+                }
+            }
+            for usage in &model.requirements {
+                assert!(
+                    released.contains(&feature(usage))
+                        || !crucible_ir::versions::has(frozen, &usage.shape),
+                    "{what}: gained {usage:?}, which the release had no use of"
+                );
+            }
+        }
+    }
+    assert!(uses > 0, "no release had a feature use to keep");
+}

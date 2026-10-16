@@ -698,6 +698,7 @@ fn a_step_its_release_does_not_have_is_reported_not_skipped() {
             &[
                 "example.shop#Kind$SMALL: `rename GetItemOutput.name -> SMALL`, in the migration from API version v1, names a structure member in API version v1 and an enum value in API version v2; GetItem is not converted across it",
                 "example.shop#Kind$SMALL: `rename GetItemOutput.name -> SMALL`, in the migration from API version v1, names a structure member in API version v1 and an enum value in API version v2; ListItems is not converted across it",
+                "example.shop#Kind$SMALL: `rename GetItemOutput.name -> SMALL`, in the migration from API version v1, names a structure member in API version v1 and an enum value in API version v2; ListLabels is not converted across it",
             ],
         ),
         (
@@ -727,6 +728,7 @@ fn a_step_its_release_does_not_have_is_reported_not_skipped() {
             &[
                 "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; GetItem is not converted across it",
                 "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; ListItems is not converted across it",
+                "example.shop#Kind$GONE: `add Kind.HUGE downgrade GONE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v2 does not have; ListLabels is not converted across it",
             ],
         ),
         (
@@ -742,6 +744,7 @@ fn a_step_its_release_does_not_have_is_reported_not_skipped() {
             &[
                 "example.shop#Kind$GONE: `add Kind.GONE downgrade LARGE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v3 does not have; GetItem is not converted across it",
                 "example.shop#Kind$GONE: `add Kind.GONE downgrade LARGE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v3 does not have; ListItems is not converted across it",
+                "example.shop#Kind$GONE: `add Kind.GONE downgrade LARGE`, in the migration from API version v2, names example.shop#Kind$GONE, which API version v3 does not have; ListLabels is not converted across it",
             ],
         ),
         (
@@ -995,5 +998,151 @@ enum Kind { SMALL, LARGE }
         reported.iter().any(|line| line
             == "example.shop#Kind: a renamed enum value inside error example.shop#Missing is not converted for API version v1 yet"),
         "{reported:#?}"
+    );
+}
+
+/// A shelf, release v1: one operation answers it, so the migration that
+/// retypes its width converts it down only.
+const SHELF_V1: &str = r#"service Shop {
+    version "v1"
+    protocol json
+    operations [GetShelf]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetShelf {
+    http GET "/shelf"
+    output { shelf: Shelf }
+}
+
+structure Shelf {
+    name: string
+    width?: integer
+}
+"#;
+
+/// The shelf at v2, its width retyped by hook, with `additions` appended to
+/// the source and `shelf` the members `Shelf` has.
+fn shelf_package(name: &str, operations: &str, shelf: &str, additions: &str) -> PathBuf {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("versions-hooks-{name}"));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, SHELF_V1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = SHELF_V1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace(
+            "operations [GetShelf]",
+            &format!("operations [{operations}]"),
+        )
+        .replace(
+            "    name: string\n    width?: integer\n",
+            &format!("    name: string\n    width?: string\n{shelf}"),
+        );
+    fs::write(
+        dir.join("shop.cru"),
+        format!(
+            "{current}{additions}\nmigration \"v2\" from \"v1\" {{\n    retype Shelf.width -> string by hook\n}}\n"
+        ),
+    )
+    .unwrap();
+    dir
+}
+
+/// Every `Migration` trait in `code`, oldest first, documentation left out:
+/// what a service's hand-written hooks implement.
+fn hook_traits(code: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut lines = code.lines();
+    while let Some(line) = lines.next() {
+        if !line.trim_start().starts_with("pub trait Migration:") {
+            continue;
+        }
+        let indent = line.len() - line.trim_start().len();
+        let mut decl = vec![line.trim().to_owned()];
+        for line in lines.by_ref() {
+            if !line.trim_start().starts_with("///") {
+                decl.push(line.trim().to_owned());
+            }
+            if line.len() - line.trim_start().len() == indent && line.trim() == "}" {
+                break;
+            }
+        }
+        out.push(decl.join("\n"));
+    }
+    out
+}
+
+/// Decision 82: a hook converts one shape in one direction, whatever
+/// operations reach it. An operation added since whose values reach a
+/// hooked shape in a direction the migration converts already, and a member
+/// appended to that shape, leave the trait as the service implemented it:
+/// only the documentation of the method they reuse names the new operation.
+#[test]
+fn an_addition_reaching_a_hooked_shape_leaves_its_trait_unchanged() {
+    let before = generate(
+        &lower(&shelf_package("before", "GetShelf", "", "")),
+        &Options::default(),
+    )
+    .unwrap();
+    let after = generate(
+        &lower(&shelf_package(
+            "additive",
+            "GetShelf, ListShelves",
+            "    depth?: integer\n",
+            "\nreadonly operation ListShelves {\n    http GET \"/shelves\"\n    output { shelves: Shelves }\n}\n\nlist Shelves: Shelf\n",
+        )),
+        &Options::default(),
+    )
+    .unwrap();
+    let traits = hook_traits(&before);
+    assert_eq!(
+        traits,
+        [
+            "pub trait Migration: Send + Sync + 'static {\nfn downgrade_shelf_width(&self, value: ::std::string::String) -> ::crucible_server_runtime_rust::__generated::Result<i32>;\n}"
+        ]
+    );
+    assert_eq!(hook_traits(&after), traits);
+    assert!(before.contains("/// Needed by `GetShelf`.\n"), "{before}");
+    assert!(
+        after.contains("/// Needed by `GetShelf` and `ListShelves`.\n"),
+        "{after}"
+    );
+    // The addition reaches v1, through the hook it reuses.
+    assert!(
+        after.contains(r#"static LIST_SHELVES_0: Conversion = Conversion { upgrade: &[], downgrade: &[Transform::Hook { at: &[Seg::Field("shelves"), Seg::Items, Seg::Field("width")], hook: "versions::v1::Migration::downgrade_shelf_width" }]"#),
+        "{after}"
+    );
+}
+
+/// Decision 75, revisited by 82: an operation added since that sends a
+/// hooked shape the other way needs a conversion nobody has written. The
+/// trait gains that one method, named for the shape and direction and
+/// documented with the operation that needs it, and keeps every other.
+#[test]
+fn an_addition_needing_a_new_direction_adds_that_method_alone() {
+    let code = generate(
+        &lower(&shelf_package(
+            "direction",
+            "GetShelf, PutShelf",
+            "",
+            "\nidempotent operation PutShelf {\n    http PUT \"/shelf\"\n    input { shelf: Shelf }\n}\n",
+        )),
+        &Options::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        hook_traits(&code),
+        [
+            "pub trait Migration: Send + Sync + 'static {\nfn downgrade_shelf_width(&self, value: ::std::string::String) -> ::crucible_server_runtime_rust::__generated::Result<i32>;\n\nfn upgrade_shelf_width(&self, value: i32) -> ::crucible_server_runtime_rust::__generated::Result<::std::string::String>;\n}"
+        ]
+    );
+    assert!(
+        code.contains("/// `retype Shelf.width`: an older request's value, as the next version reads it.\n                ///\n                /// Needed by `PutShelf`.\n"),
+        "{code}"
     );
 }
