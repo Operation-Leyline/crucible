@@ -19,18 +19,30 @@ enum Builtin {
     Idempotent,
 }
 
-/// The facts `when_trait` once named by their retired `smithy.api` ids,
-/// warned about once per call, at construction rather than per request.
-fn deprecated_builtin_trait(id: &str) -> Option<Builtin> {
-    let (builtin, instead) = match id {
-        "smithy.api#readonly" => (Builtin::Readonly, ".when(|op| op.readonly)"),
-        "smithy.api#idempotent" => (Builtin::Idempotent, ".when(|op| op.idempotent)"),
-        _ => return None,
+/// What `when_trait` makes of an id in the built-in namespaces, which no
+/// operation carries as a trait: the retired `smithy.api` ids and their
+/// `crucible.api` spellings select the fact they name, deprecated, and any
+/// other built-in id selects nothing. Warned about at construction, not per
+/// request. `None` for a model's own trait.
+fn builtin_trait(id: &str) -> Option<Option<Builtin>> {
+    let (namespace, name) = id.split_once('#')?;
+    if namespace != "smithy.api" && namespace != "crucible.api" {
+        return None;
+    }
+    let (builtin, instead) = match name {
+        "readonly" => (Builtin::Readonly, ".when(|op| op.readonly)"),
+        "idempotent" => (Builtin::Idempotent, ".when(|op| op.idempotent)"),
+        _ => {
+            tracing::warn!(
+                "`when_trait(\"{id}\")` selects no operation: `{id}` is built-in vocabulary, not a trait an operation carries; scope with `.when(|op| ..)`"
+            );
+            return Some(None);
+        }
     };
     tracing::warn!(
         "`when_trait(\"{id}\")` is deprecated and goes in the next minor release: use `{instead}`"
     );
-    Some(builtin)
+    Some(Some(builtin))
 }
 
 macro_rules! scope_extension {
@@ -50,13 +62,16 @@ macro_rules! scope_extension {
             /// `.when(|op| op.idempotent)`.
             ///
             /// The ids `smithy.api#readonly` and `smithy.api#idempotent`
-            /// still select those operations, with a deprecation warning,
-            /// until the next minor release: they name no trait since the
-            /// prelude became `crucible.api` (CHANGELOG, *Deprecated*).
+            /// (and their `crucible.api` spellings) still select those
+            /// operations, with a deprecation warning, until the next minor
+            /// release: built-in vocabulary is not a trait an operation
+            /// carries (CHANGELOG, *Deprecated*). Any other built-in id
+            /// selects nothing, with a warning.
             fn when_trait(self, id: &'static str) -> Scoped<Self> {
-                match deprecated_builtin_trait(id) {
-                    Some(Builtin::Readonly) => self.when(|op| op.readonly),
-                    Some(Builtin::Idempotent) => self.when(|op| op.idempotent),
+                match builtin_trait(id) {
+                    Some(Some(Builtin::Readonly)) => self.when(|op| op.readonly),
+                    Some(Some(Builtin::Idempotent)) => self.when(|op| op.idempotent),
+                    Some(None) => self.when(|_| false),
                     None => self.when(move |op| op.has_trait(id)),
                 }
             }
@@ -184,20 +199,22 @@ impl<T: Protocol> Protocol for Scoped<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Builtin, deprecated_builtin_trait};
+    use super::{Builtin, builtin_trait};
 
     #[test]
-    fn retired_builtin_trait_ids_still_select_their_facts() {
+    fn built_in_ids_select_their_facts_or_nothing() {
+        for id in ["smithy.api#readonly", "crucible.api#readonly"] {
+            assert!(matches!(builtin_trait(id), Some(Some(Builtin::Readonly))));
+        }
+        for id in ["smithy.api#idempotent", "crucible.api#idempotent"] {
+            assert!(matches!(builtin_trait(id), Some(Some(Builtin::Idempotent))));
+        }
         assert!(matches!(
-            deprecated_builtin_trait("smithy.api#readonly"),
-            Some(Builtin::Readonly)
+            builtin_trait("crucible.api#paginated"),
+            Some(None)
         ));
-        assert!(matches!(
-            deprecated_builtin_trait("smithy.api#idempotent"),
-            Some(Builtin::Idempotent)
-        ));
-        // A model's own trait, and the prelude's namespace, name no fact.
-        assert!(deprecated_builtin_trait("acme#operationClass").is_none());
-        assert!(deprecated_builtin_trait("crucible.api#readonly").is_none());
+        // A model's own trait is matched against the operation's traits.
+        assert!(builtin_trait("acme#operationClass").is_none());
+        assert!(builtin_trait("acme.api#readonly").is_none());
     }
 }

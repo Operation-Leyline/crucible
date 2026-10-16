@@ -4292,7 +4292,6 @@ impl<'a> Lowerer<'a> {
             required,
             wire_default: default.clone(),
             default,
-            // Decision 20: a required member is required in generated clients too.
             idempotency_token: annotations.token,
             mutability,
             constraints,

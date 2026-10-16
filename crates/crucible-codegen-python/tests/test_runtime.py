@@ -150,7 +150,7 @@ class RuntimeTests(unittest.TestCase):
                     self.assertEqual(str(delta.days * 86400 + delta.seconds), instant["seconds"])
                     self.assertEqual(delta.microseconds * 1000, instant["nanoseconds"])
 
-    def test_ir_nullability_preserves_client_optional_and_document_null(self):
+    def test_ir_nullability_preserves_document_null(self):
         codec = _Codec(m._SCHEMA, m._CLASSES)
         self.assertIs(codec.convert("example.weather#ListCitiesInput", {}, decode=True).max_results, UNSET)
         self.assertEqual(codec.convert("example.weather#CreateCityInput", m.CreateCityInput(name="n", location=None)), {"name": "n", "location": None})

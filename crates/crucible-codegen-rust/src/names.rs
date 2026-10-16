@@ -64,7 +64,7 @@ pub(crate) fn check_distinct<'a>(
 /// Diagnoses model types Rust cannot declare under their model names: a
 /// keyword (`type`, `match`) or `Self`. A valid model, but a raw `r#type`
 /// would not survive the names built from it (`typeBuilder`), so the model
-/// renames the shape instead (a service `rename`).
+/// renames the shape instead.
 pub(crate) fn check_type_names(service: &Service, diagnostics: &mut Diagnostics) {
     for id in service.shapes.keys() {
         let name = service.name_of(id);

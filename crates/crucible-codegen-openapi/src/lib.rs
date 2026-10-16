@@ -80,10 +80,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
             diagnostics.push(&op.id, format!("OpenAPI cannot represent multiple operations on {} {path}, including routes distinguished by literal queries", op.method));
         }
         if !names.insert(service.name_of(&op.id)) {
-            diagnostics.push(
-                &op.id,
-                "duplicate OpenAPI operationId after service renames",
-            );
+            diagnostics.push(&op.id, "duplicate OpenAPI operationId");
         }
         let mut parameters = BTreeSet::new();
         for (name, _) in &op.uri.query {

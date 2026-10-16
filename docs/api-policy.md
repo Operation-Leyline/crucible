@@ -335,7 +335,7 @@ warning: reported, never refused, because it is how holes get closed. The
 that change, not a `compatibility.error` or `compatibility.sdk` finding.
 
 `sdk_source` checks model-level public types, operations, members, enums,
-service-local renames, collection representations, service/client identity,
+collection representations, service/client identity,
 and permission constants: one removed, or moved to `internal`, is a
 `compatibility.sdk` finding.
 A new optional member (not required, no default) added after a structure's

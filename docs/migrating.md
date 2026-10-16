@@ -82,8 +82,8 @@ What changes is Rust code and SDK build settings that named them:
 - **Generators and SDK builds.** Delete `content_sha256(..)` and
   `--content-sha256`; they do nothing now. TypeScript keeps `middleware(..)`
   and `--middleware content-sha256`.
-- **Frozen releases.** Snapshots are format 4. Older ones still read; one
-  that used a removed feature is refused with a message naming it.
+- **Frozen releases.** Older snapshots still read; one that used a removed
+  feature is refused with a message naming it.
 
 ### The built-in vocabulary is `crucible.api`
 
@@ -96,7 +96,10 @@ generated output and the code that reads it:
 
 - **Frozen releases.** Snapshots are format 5. Older ones still read: their
   `smithy.api#..` ids read as `crucible.api#..`, so the compatibility guard
-  compares them with the current model as before. Committed release files
+  compares a `.cru`-frozen release with the current model as before. A
+  release frozen from a Smithy model reads its `@input` and
+  `@clientOptional` members with the server's optionality, so guard and
+  `crucible diff` findings against it can change for those members. Committed release files
   and their `crucible.lock` digests stay as they are; never rewrite them.
 - **Generated output.** Every id that names a built-in changes spelling:
   `target`s and JSON Schema `$defs` in `describe.json` (`crucible.api.Long`),
@@ -104,6 +107,12 @@ generated output and the code that reads it:
   (`crucible.api.httpBearerAuth`), MCP tool schemas, and the runtime schemas
   bundled in native SDKs. A tool that recognised a built-in by the
   `smithy.api#` prefix matches `crucible.api#` instead.
+- **Infrastructure bindings.** A CDK provider `context` entry's `target`
+  names a built-in as `crucible.api#String` (and so on); `smithy.api#..` is
+  refused as not a scalar model type.
+- **`describe.json`** stays `crucible.describe/1`: its fields mean what they
+  meant, and only the spelling of built-in ids and extension names in its
+  values changed.
 - **OpenAPI and JSON Schema extensions** are `x-crucible-*`: replace the
   `x-smithy-` prefix (`x-smithy-traits`, `x-smithy-errors`,
   `x-smithy-pagination`, ...) in anything that reads them.
@@ -113,12 +122,15 @@ generated output and the code that reads it:
 - **Rust server.** `when_trait("smithy.api#readonly")` and
   `when_trait("smithy.api#idempotent")` still scope an extension, with a
   deprecation warning, until the next minor; use `.when(|op| op.readonly)`
-  and `.when(|op| op.idempotent)`. `when_trait` with a model's own trait id
-  is unchanged.
+  and `.when(|op| op.idempotent)`. Replacing `smithy.api` with
+  `crucible.api` there is not the fix: those ids are deprecated the same
+  way, since built-in vocabulary is not a trait an operation carries.
+  `when_trait` with a model's own trait id is unchanged.
 - **IR.** `ir::Service::renames`, `ir::Member::client_optional` and
   `Member::{client_default, client_wire_default}` are gone; read `default`
-  and `wire_default`. The namespace `crucible.api` is reserved for the
-  prelude.
+  and `wire_default`.
+- **Namespaces.** A package can no longer be in `crucible.api`, which is
+  reserved for the prelude; `smithy.api` is no longer reserved.
 
 ### Only Crucible JSON remains
 

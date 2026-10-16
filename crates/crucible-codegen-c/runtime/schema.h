@@ -36,7 +36,7 @@ typedef struct {
 } crucible_generated_member;
 struct crucible_generated_shape {
     crucible_generated_string id;
-    /** Public model name after service renames, used in diagnostics. */
+    /** Public model name, used in diagnostics. */
     crucible_generated_string name;
     crucible_generated_shape_kind kind;
     size_t size;

@@ -1314,14 +1314,18 @@ these are working choices, changed freely as implementation teaches.
     reserved namespace and `smithy.api` is not. Release snapshots move to
     format 5: reading an older one maps each `smithy.api#..` id (a string or
     a map key that parses as an id, so prose is untouched) to its
-    `crucible.api` id in memory and drops `client_optional`; the file, and
+    `crucible.api` id in memory and drops `client_optional` (a Smithy-era
+    release reads its client-optional members with the server's
+    optionality); the file, and
     so its lock digest, is never rewritten, and the compatibility guard
     compares the mapped release with the current model. OpenAPI and JSON
     Schema extensions are `x-crucible-*`, and `describe.json` keeps
     `clientOptional`, always `false`, for `crucible.describe/1`'s readers.
     The server runtime's `when_trait("smithy.api#readonly")` and
-    `"smithy.api#idempotent"` keep working for one minor, deprecated in
-    favour of `.when(|op| op.readonly)` and `.when(|op| op.idempotent)`.
+    `"smithy.api#idempotent"` (and their `crucible.api` spellings) keep
+    working for one minor, deprecated in favour of `.when(|op| op.readonly)`
+    and `.when(|op| op.idempotent)`; any other built-in id selects nothing,
+    with a warning.
     *Why:* `.cru` is the only modelling language since the Smithy front end
     was removed, and its own vocabulary should not name another IDL. The
     lowering still keeps standard facts as raw `crucible.api` traits while it

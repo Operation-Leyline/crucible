@@ -636,7 +636,11 @@ version's section when it is prepared.
   digests change with them). Release snapshots are format 5: an older one
   still reads, its `smithy.api#..` ids read as `crucible.api#..` in memory,
   so committed releases and their `crucible.lock` digests stay valid and the
-  compatibility guard compares them with the current model unchanged. The
+  compatibility guard compares a `.cru`-frozen release with the current
+  model as before (Leyline's and Pigeon's report the same findings). A
+  release frozen from a Smithy model loses the client-only optionality of
+  its `@input` and `@clientOptional` members, which read as the server
+  sees them, so a comparison with it changes for those members. The
   prelude namespace reserved for packages is `crucible.api`; `smithy.api`
   is no longer reserved. See [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
 
@@ -730,11 +734,12 @@ version's section when it is prepared.
 
 - `OperationMiddlewareExt`, `InterceptorExt` and `ProtocolExt::when_trait`
   with `"smithy.api#readonly"` or `"smithy.api#idempotent"`: those ids name
-  no trait now that the prelude is `crucible.api`. They still select the
-  readonly or idempotent operations, logging a deprecation warning when the
-  scope is built, until the next minor release. Use
-  `.when(|op| op.readonly)` and `.when(|op| op.idempotent)`; `when_trait`
-  with a model's own trait id is unchanged.
+  no trait now that the prelude is `crucible.api`. They, and their
+  `crucible.api` spellings, still select the readonly or idempotent
+  operations, logging a deprecation warning when the scope is built, until
+  the next minor release. Use `.when(|op| op.readonly)` and
+  `.when(|op| op.idempotent)`. Any other built-in id selects no operation,
+  with a warning; `when_trait` with a model's own trait id is unchanged.
 
 ### Removed
 
@@ -868,7 +873,9 @@ version's section when it is prepared.
   `Service::project_metadata_only`, `crucible check`'s custom trait count and
   the traits the Rust generator records for `when_trait` treated them as
   standard, as only a Smithy model needed. An external audience view keeps a
-  custom trait unless its definition is `@internal`, whatever its namespace.
+  project's trait in any namespace but the prelude and `crucible.protocols`
+  (it dropped one in a `crucible.*`, `aws.*` or `smithy.*` namespace) unless
+  its definition is `@internal`.
 
 - `crucible check` without `--target` accepts every capability some generator
   supports. It checked against an empty set, so a model using a gated feature
@@ -1400,8 +1407,12 @@ version's section when it is prepared.
   replaces `when_trait("smithy.api#readonly")` and
   `when_trait("smithy.api#idempotent")` with `.when(|op| op.readonly)` and
   `.when(|op| op.idempotent)` before the next minor release; until then the
-  old ids work with a warning. Committed release snapshots need nothing:
-  they read as before. See
+  old ids work with a warning. Infrastructure bindings files spell a
+  provider context `target` `crucible.api#String`, not `smithy.api#String`.
+  A package in the namespace `crucible.api`, now reserved for the prelude,
+  moves to another. `describe.json` stays format 1: only the spelling of
+  built-in ids and extension names in its values changed. Committed release
+  snapshots need nothing: they read as before. See
   [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
 
 - **A `null` document payload reads as the member's null.** In 0.7.0 a

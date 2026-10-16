@@ -506,6 +506,10 @@ impl Service {
             }
         }
         let new = ShapeId::new(id.namespace(), name);
+        assert!(
+            !self.shapes.contains_key(&new),
+            "{new} exists; renaming {id} to it would merge two shapes"
+        );
         let mut value = serde_json::to_value(&*self).expect("the IR serializes");
         walk(&mut value, &id.to_string(), &new.to_string());
         *self = serde_json::from_value(value).expect("the renamed IR reads back");

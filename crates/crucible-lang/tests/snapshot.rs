@@ -133,14 +133,28 @@ fn a_format_4_snapshot_reads_with_the_prelude_mapped() {
         .unwrap_or_else(|error| panic!("{error}"));
     assert!(!service.auth.is_empty() && service.auth.iter().all(|id| id.is_prelude()));
     let mut value = format_4(&service);
-    // Prose that mentions an old id is not an id, and is left alone.
-    value["service"]["docs"] = serde_json::json!("smithy.api#String is a string.");
+    // The model's own text is not an id, even when it spells one.
+    value["service"]["docs"] = serde_json::json!("smithy.api#String");
     let read = snapshot::read(&value.to_string()).unwrap();
-    assert_eq!(read.docs.as_deref(), Some("smithy.api#String is a string."));
+    assert_eq!(read.docs.as_deref(), Some("smithy.api#String"));
     let mut expected = service.clone();
     expected.docs = read.docs.clone();
     assert_eq!(format!("{read:#?}"), format!("{expected:#?}"));
     assert!(read.auth.iter().all(|id| id.is_prelude()));
+}
+
+#[test]
+fn a_snapshot_with_both_spellings_of_an_id_is_refused() {
+    let mut value = format_4(&weather());
+    let shapes = value["service"]["shapes"].as_object_mut().unwrap();
+    let (id, shape) = shapes
+        .iter()
+        .find(|(id, _)| id.starts_with("smithy.api#"))
+        .map(|(id, shape)| (id.replace("smithy.api#", "crucible.api#"), shape.clone()))
+        .unwrap();
+    shapes.insert(id, shape);
+    let error = snapshot::read(&value.to_string()).unwrap_err();
+    assert!(error.contains("both"), "{error}");
 }
 
 #[test]

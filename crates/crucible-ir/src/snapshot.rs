@@ -34,7 +34,10 @@ use crate::ir::Service;
 /// each member's `client_optional`, which a `.cru` model never sets.
 /// [`read`] maps every `smithy.api#..` id of an older snapshot to its
 /// `crucible.api` id, drops `client_optional` and an empty `renames`, and
-/// refuses a snapshot that renamed a shape. The file
+/// refuses a snapshot that renamed a shape. A `.cru` release never set
+/// `client_optional`; one frozen from a Smithy model (`@input`,
+/// `@clientOptional`) reads with the server's optionality, so a comparison
+/// with it sees those members as the `.cru` model does. The file
 /// itself is never rewritten: a release's lock digest is over its text as
 /// written.
 pub const FORMAT: u32 = 5;
@@ -425,7 +428,7 @@ fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
     let Some(service) = value.get_mut("service") else {
         return Ok(());
     };
-    map_prelude_ids(service);
+    map_prelude_ids(service)?;
     let Some(service) = service.as_object_mut() else {
         return Ok(());
     };
@@ -450,10 +453,17 @@ fn migrate_format_4(value: &mut serde_json::Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Fields whose values are the model's data or prose, not ids: a default,
+/// an example, documentation, and an enum value. A raw trait's value is the
+/// author's too; only its key is an id.
+const DATA_FIELDS: &[&str] = &["default", "wire_default", "examples", "docs"];
+
 /// Rewrites, in place, every string and object key of `value` that is an
-/// id in the old prelude namespace. Prose that happens to mention one is
-/// not an id (it does not parse as one) and is left alone.
-fn map_prelude_ids(value: &mut serde_json::Value) {
+/// id in the old prelude namespace, outside the model's own data
+/// ([`DATA_FIELDS`], trait values, enum values). Prose that happens to
+/// mention one is not an id (it does not parse as one) and is left alone.
+/// A map holding both spellings of one id is refused rather than merged.
+fn map_prelude_ids(value: &mut serde_json::Value) -> Result<(), String> {
     use serde_json::Value;
     fn mapped(text: &str) -> Option<String> {
         let rest = text.strip_prefix(OLD_PRELUDE)?.strip_prefix('#')?;
@@ -467,16 +477,46 @@ fn map_prelude_ids(value: &mut serde_json::Value) {
                 *text = new;
             }
         }
-        Value::Array(items) => items.iter_mut().for_each(map_prelude_ids),
+        Value::Array(items) => {
+            for item in items {
+                map_prelude_ids(item)?;
+            }
+        }
         Value::Object(fields) => {
-            let old = std::mem::take(fields);
-            for (key, mut field) in old {
-                map_prelude_ids(&mut field);
-                fields.insert(mapped(&key).unwrap_or(key), field);
+            for (key, mut field) in std::mem::take(fields) {
+                let data =
+                    DATA_FIELDS.contains(&key.as_str()) || (key == "value" && field.is_string());
+                if key == "traits" {
+                    // Keys are trait ids; values are the author's.
+                    if let Value::Object(traits) = &mut field {
+                        for (id, application) in std::mem::take(traits) {
+                            insert(traits, mapped(&id).unwrap_or(id), application)?;
+                        }
+                    }
+                } else if !data {
+                    map_prelude_ids(&mut field)?;
+                }
+                insert(fields, mapped(&key).unwrap_or(key), field)?;
             }
         }
         _ => {}
     }
+    Ok(())
+}
+
+fn insert(
+    fields: &mut serde_json::Map<String, serde_json::Value>,
+    key: String,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    if fields.contains_key(&key) {
+        return Err(format!(
+            "the release snapshot names `{key}` in both the `{OLD_PRELUDE}` and the `{}` spelling",
+            crate::PRELUDE
+        ));
+    }
+    fields.insert(key, value);
+    Ok(())
 }
 
 /// The members of a serialized shape: a structure's or union's, a list's
