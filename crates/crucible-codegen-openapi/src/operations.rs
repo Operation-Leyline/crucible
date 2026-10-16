@@ -12,8 +12,8 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         "operationId": service.name_of(&op.id),
         "responses": responses(service, op, &keys),
         "security": security(op),
-        "x-smithy-shape": op.id.to_string(),
-        "x-smithy-traits": raw_traits,
+        "x-crucible-shape": op.id.to_string(),
+        "x-crucible-traits": raw_traits,
     });
     // What the caller must hold (docs/permissions.md §6.3, decision 10): a
     // sentence in the description and the clauses as `x-crucible-requires`.
@@ -32,16 +32,16 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         value["tags"] = json!([service.name_of(resource)]);
     }
     if op.readonly {
-        value["x-smithy-readonly"] = json!(true);
+        value["x-crucible-readonly"] = json!(true);
     }
     if op.idempotent {
-        value["x-smithy-idempotent"] = json!(true);
+        value["x-crucible-idempotent"] = json!(true);
     }
     if let Some(token) = &op.idempotency_token {
-        value["x-smithy-idempotency-token"] = json!(token);
+        value["x-crucible-idempotency-token"] = json!(token);
     }
     if let Some(pagination) = &op.paginated {
-        value["x-smithy-pagination"] = json!({"inputToken": pagination.input_token, "outputToken": pagination.output_token, "items": pagination.items, "pageSize": pagination.page_size});
+        value["x-crucible-pagination"] = json!({"inputToken": pagination.input_token, "outputToken": pagination.output_token, "items": pagination.items, "pageSize": pagination.page_size});
     }
     let mut parameters = Vec::new();
     let inputs = examples::inputs(op, &keys);
@@ -181,7 +181,7 @@ fn content(service: &Service, structure: &Structure, bindings: &Bindings) -> Val
             PayloadKind::Blob => {
                 let mut schema = json!({"type": "string", "format": "binary"});
                 if let Some(bounds) = &member.constraints.length {
-                    schema["x-smithy-length"] =
+                    schema["x-crucible-length"] =
                         json!({"unit": "bytes", "min": bounds.min, "max": bounds.max});
                 }
                 schema
@@ -298,9 +298,9 @@ fn responses(service: &Service, op: &Operation, keys: &[String]) -> Value {
             "X-Crucible-Error".into(),
             json!({"schema": {"type": "string", "const": error.wire_code}}),
         );
-        let mut response = json!({"description": service.name_of(id), "content": content, "headers": response_headers, "x-smithy-errors": [id.to_string()]});
+        let mut response = json!({"description": service.name_of(id), "content": content, "headers": response_headers, "x-crucible-errors": [id.to_string()]});
         if let Some(retryable) = &error.retryable {
-            response["x-smithy-retryable"] = json!({"throttling": retryable.throttling});
+            response["x-crucible-retryable"] = json!({"throttling": retryable.throttling});
         }
         grouped.entry(error.status).or_default().push(response);
     }
@@ -344,12 +344,12 @@ fn merge(mut variants: Vec<Value>) -> Value {
                 group.1.push(header["schema"].clone());
             }
         }
-        if let Some(ids) = variant["x-smithy-errors"].as_array() {
+        if let Some(ids) = variant["x-crucible-errors"].as_array() {
             errors.extend(ids.iter().cloned());
         }
     }
     let mut response =
-        json!({"description": descriptions.join(" or "), "x-smithy-response-variants": variants});
+        json!({"description": descriptions.join(" or "), "x-crucible-response-variants": variants});
     if !content.is_empty() {
         response["content"] = Value::Object(
             content
@@ -373,7 +373,7 @@ fn merge(mut variants: Vec<Value>) -> Value {
         );
     }
     if !errors.is_empty() {
-        response["x-smithy-errors"] = json!(errors);
+        response["x-crucible-errors"] = json!(errors);
     }
     response
 }

@@ -2,7 +2,7 @@
 package example.weather.model;
 
     /**
-     * <p>Build one with {@link #builder()}; the public fields are also writable. Smithy shape <code>example.weather#PutCityPhotoInput</code>.</p>
+     * <p>Build one with {@link #builder()}; the public fields are also writable. Model shape <code>example.weather#PutCityPhotoInput</code>.</p>
      */
     public final class PutCityPhotoInput {
         /**

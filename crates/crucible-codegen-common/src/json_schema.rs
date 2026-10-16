@@ -6,7 +6,7 @@ use serde_json::{Map, Value, json};
 use crucible_ir::ir::DocNotes;
 
 /// Where a documentation note lands. OpenAPI spells `deprecated` and
-/// `externalDocs` only on some objects; elsewhere only the `x-smithy-*`
+/// `externalDocs` only on some objects; elsewhere only the `x-crucible-*`
 /// extensions can carry them.
 #[derive(Clone, Copy)]
 pub enum Slot {
@@ -20,11 +20,11 @@ pub enum Slot {
 
 /// Project `@deprecated`, `@since`, `@unstable` and `@externalDocumentation`.
 /// The first external link (by name) is `externalDocs`; the others stay in
-/// `x-smithy-external-docs` so nothing the model said is dropped.
+/// `x-crucible-external-docs` so nothing the model said is dropped.
 pub fn annotate(value: &mut Value, notes: &DocNotes, slot: Slot) {
     if let Some(deprecated) = &notes.deprecated {
         if matches!(slot, Slot::Root) {
-            value["x-smithy-deprecated"] = json!(true);
+            value["x-crucible-deprecated"] = json!(true);
         } else {
             value["deprecated"] = json!(true);
         }
@@ -36,14 +36,14 @@ pub fn annotate(value: &mut Value, notes: &DocNotes, slot: Slot) {
             detail.insert("since".into(), json!(since));
         }
         if !detail.is_empty() {
-            value["x-smithy-deprecation"] = Value::Object(detail);
+            value["x-crucible-deprecation"] = Value::Object(detail);
         }
     }
     if let Some(since) = &notes.since {
-        value["x-smithy-since"] = json!(since);
+        value["x-crucible-since"] = json!(since);
     }
     if notes.unstable {
-        value["x-smithy-unstable"] = json!(true);
+        value["x-crucible-unstable"] = json!(true);
     }
     let mut links = notes.external_docs.iter();
     if matches!(slot, Slot::Native | Slot::Root)
@@ -55,7 +55,7 @@ pub fn annotate(value: &mut Value, notes: &DocNotes, slot: Slot) {
         .map(|(name, url)| (name.clone(), json!(url)))
         .collect();
     if !rest.is_empty() {
-        value["x-smithy-external-docs"] = Value::Object(rest);
+        value["x-crucible-external-docs"] = Value::Object(rest);
     }
 }
 
@@ -154,7 +154,7 @@ fn base(service: &Service, shape: &Shape) -> Value {
         annotate(&mut value, notes, Slot::Native);
     }
     if !annotations.is_empty() {
-        value["x-smithy-traits"] = traits(annotations);
+        value["x-crucible-traits"] = traits(annotations);
     }
     value
 }
@@ -191,7 +191,7 @@ pub fn member(
         _ => reference(&member.target),
     };
     if encoding.is_some() && matches!(shape, Shape::Simple(_) | Shape::Enum(_)) {
-        value["x-smithy-decoded-schema"] = self::member(service, member, false, format, None);
+        value["x-crucible-decoded-schema"] = self::member(service, member, false, format, None);
     } else {
         constraints(&mut value, &member.constraints, shape);
     }
@@ -211,7 +211,7 @@ pub fn member(
     }
     annotate(&mut value, &member.notes, Slot::Native);
     if !member.traits.is_empty() {
-        value["x-smithy-traits"] = traits(&member.traits);
+        value["x-crucible-traits"] = traits(&member.traits);
     }
     let default = if format.is_some() {
         member.wire_default.as_ref().cloned()
@@ -222,7 +222,7 @@ pub fn member(
         value["default"] = default;
     }
     if let Some(default) = &member.default {
-        value["x-smithy-default"] = default.clone();
+        value["x-crucible-default"] = default.clone();
     }
     value
 }
@@ -264,10 +264,10 @@ fn timestamp(format: TimestampFormat) -> Value {
     match format {
         TimestampFormat::DateTime => json!({"type": "string", "format": "date-time"}),
         TimestampFormat::HttpDate => {
-            json!({"type": "string", "x-smithy-timestamp-format": "http-date"})
+            json!({"type": "string", "x-crucible-timestamp-format": "http-date"})
         }
         TimestampFormat::EpochSeconds => {
-            json!({"type": "number", "x-smithy-timestamp-format": "epoch-seconds"})
+            json!({"type": "number", "x-crucible-timestamp-format": "epoch-seconds"})
         }
     }
 }
@@ -293,7 +293,7 @@ fn constraints(value: &mut Value, constraints: &Constraints, shape: &Shape) {
             Shape::Map(_) => Some(("minProperties", "maxProperties")),
             Shape::Simple(simple) if simple.kind == SimpleKind::Blob => {
                 // Smithy measures decoded bytes, not base64 characters.
-                value["x-smithy-length"] =
+                value["x-crucible-length"] =
                     json!({"unit": "bytes", "min": bounds.min, "max": bounds.max});
                 None
             }

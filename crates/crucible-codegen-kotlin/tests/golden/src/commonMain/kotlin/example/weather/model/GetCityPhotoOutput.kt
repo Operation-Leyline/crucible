@@ -3,7 +3,7 @@
 package example.weather.model
 
 /**
- * Build one with `GetCityPhotoOutput { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#GetCityPhotoOutput`.
+ * Build one with `GetCityPhotoOutput { ... }` or `copy { ... }`; it is immutable. Model shape `example.weather#GetCityPhotoOutput`.
  */
 class `GetCityPhotoOutput` internal constructor(
     internal val __crucibleField0: example.weather.OptionalValue<kotlin.String>,

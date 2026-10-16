@@ -642,7 +642,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "A union: exactly one variant is set. A variant this client does not know is kept in UnknownVariant.".to_string()
                 } else {
                     format!(
-                        "Construct it with an object initializer. Smithy shape {}.",
+                        "Construct it with an object initializer. Model shape {}.",
                         id
                     )
                 };

@@ -135,7 +135,7 @@ class OpenTelemetryHook(TelemetryHook):
     def operation_started(self, event: OperationStarted) -> None:
         """Observe a logical call starting. Hook failures are isolated from the call."""
         span = self._tracer.start_span(f"{event.service.rsplit('#', 1)[-1]}.{event.operation}", attributes={
-            "rpc.system": "smithy", "rpc.service": event.service, "rpc.method": event.operation,
+            "rpc.system": "crucible", "rpc.service": event.service, "rpc.method": event.operation,
         })
         self._spans[event.invocation_id] = span
 

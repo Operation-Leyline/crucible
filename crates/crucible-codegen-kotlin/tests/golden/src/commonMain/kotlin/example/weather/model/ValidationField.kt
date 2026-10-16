@@ -3,7 +3,7 @@
 package example.weather.model
 
 /**
- * Build one with `ValidationField { ... }` or `copy { ... }`; it is immutable. Smithy shape `example.weather#ValidationField`.
+ * Build one with `ValidationField { ... }` or `copy { ... }`; it is immutable. Model shape `example.weather#ValidationField`.
  */
 class `ValidationField` internal constructor(
     /**

@@ -19,7 +19,7 @@
           "example.samples.Archive": {
             "contentEncoding": "base64",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": null,
               "min": 2000,
               "unit": "bytes"
@@ -53,7 +53,7 @@
                   {
                     "contentEncoding": "base64",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": null,
                       "min": 2000,
                       "unit": "bytes"
@@ -269,7 +269,7 @@
               {
                 "contentEncoding": "base64",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": null,
                   "min": 2000,
                   "unit": "bytes"
@@ -973,7 +973,7 @@
                   {
                     "contentEncoding": "base64",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": 16,
                       "min": 4,
                       "unit": "bytes"
@@ -990,7 +990,7 @@
           "example.samples.Thumbnail": {
             "contentEncoding": "base64",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 16,
               "min": 4,
               "unit": "bytes"
@@ -1003,7 +1003,7 @@
               {
                 "contentEncoding": "base64",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 16,
                   "min": 4,
                   "unit": "bytes"
@@ -1133,7 +1133,7 @@
           },
           "example.samples.EpochTime": {
             "type": "number",
-            "x-smithy-timestamp-format": "epoch-seconds"
+            "x-crucible-timestamp-format": "epoch-seconds"
           },
           "example.samples.GraphId": {
             "description": "A graph id: a type prefix and 26 Crockford base-32 characters.",
@@ -1213,13 +1213,13 @@
               "count": {
                 "$ref": "#/$defs/crucible.api.Long",
                 "default": 42,
-                "x-smithy-default": 42
+                "x-crucible-default": 42
               },
               "created": {
                 "anyOf": [
                   {
                     "type": "number",
-                    "x-smithy-timestamp-format": "epoch-seconds"
+                    "x-crucible-timestamp-format": "epoch-seconds"
                   },
                   {
                     "type": "null"
@@ -1422,7 +1422,7 @@
                   {
                     "contentEncoding": "base64",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": 16,
                       "min": 4,
                       "unit": "bytes"
@@ -1436,7 +1436,7 @@
               "tier": {
                 "$ref": "#/$defs/example.samples.Tier",
                 "default": "small",
-                "x-smithy-default": "small"
+                "x-crucible-default": "small"
               },
               "updated": {
                 "anyOf": [
@@ -1522,7 +1522,7 @@
           "example.samples.Thumbnail": {
             "contentEncoding": "base64",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 16,
               "min": 4,
               "unit": "bytes"
@@ -1551,13 +1551,13 @@
           "count": {
             "$ref": "#/$defs/crucible.api.Long",
             "default": 42,
-            "x-smithy-default": 42
+            "x-crucible-default": 42
           },
           "created": {
             "anyOf": [
               {
                 "type": "number",
-                "x-smithy-timestamp-format": "epoch-seconds"
+                "x-crucible-timestamp-format": "epoch-seconds"
               },
               {
                 "type": "null"
@@ -1760,7 +1760,7 @@
               {
                 "contentEncoding": "base64",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 16,
                   "min": 4,
                   "unit": "bytes"
@@ -1774,7 +1774,7 @@
           "tier": {
             "$ref": "#/$defs/example.samples.Tier",
             "default": "small",
-            "x-smithy-default": "small"
+            "x-crucible-default": "small"
           },
           "updated": {
             "anyOf": [

@@ -819,7 +819,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 } else if is_union {
                     notes.push("A union: exactly one variant is set. A variant this client does not know is kept in {@code unknownVariant}.".to_string());
                 } else {
-                    notes.push(format!("Build one with {{@link #builder()}}; the public fields are also writable. Smithy shape {}.", code(&id.to_string())));
+                    notes.push(format!("Build one with {{@link #builder()}}; the public fields are also writable. Model shape {}.", code(&id.to_string())));
                 }
                 models.push_str(&javadoc_linked(
                     links,

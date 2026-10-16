@@ -85,7 +85,7 @@
                 "maximum": 100,
                 "minimum": 1,
                 "type": "integer",
-                "x-smithy-default": 10
+                "x-crucible-default": 10
               }
             },
             "type": "object"
@@ -108,7 +108,7 @@
             "maximum": 100,
             "minimum": 1,
             "type": "integer",
-            "x-smithy-default": 10
+            "x-crucible-default": 10
           }
         },
         "type": "object"
@@ -156,12 +156,12 @@
                     "maxLength": 100,
                     "minLength": 1,
                     "type": "string",
-                    "x-smithy-deprecation": {
+                    "x-crucible-deprecation": {
                       "message": "Use the next revision.",
                       "since": "2026-09"
                     },
-                    "x-smithy-since": "2026-01",
-                    "x-smithy-unstable": true
+                    "x-crucible-since": "2026-01",
+                    "x-crucible-unstable": true
                   }
                 },
                 "required": [
@@ -194,12 +194,12 @@
                 "type": "object"
               }
             ],
-            "x-smithy-deprecation": {
+            "x-crucible-deprecation": {
               "message": "Use the next revision.",
               "since": "2026-09"
             },
-            "x-smithy-since": "2026-01",
-            "x-smithy-unstable": true
+            "x-crucible-since": "2026-01",
+            "x-crucible-unstable": true
           },
           "example.docs.Items": {
             "items": {
@@ -473,12 +473,12 @@
                     "maxLength": 100,
                     "minLength": 1,
                     "type": "string",
-                    "x-smithy-deprecation": {
+                    "x-crucible-deprecation": {
                       "message": "Use the next revision.",
                       "since": "2026-09"
                     },
-                    "x-smithy-since": "2026-01",
-                    "x-smithy-unstable": true
+                    "x-crucible-since": "2026-01",
+                    "x-crucible-unstable": true
                   }
                 },
                 "required": [
@@ -511,12 +511,12 @@
                 "type": "object"
               }
             ],
-            "x-smithy-deprecation": {
+            "x-crucible-deprecation": {
               "message": "Use the next revision.",
               "since": "2026-09"
             },
-            "x-smithy-since": "2026-01",
-            "x-smithy-unstable": true
+            "x-crucible-since": "2026-01",
+            "x-crucible-unstable": true
           },
           "example.docs.WriteItemInput": {
             "properties": {
@@ -622,7 +622,7 @@
               "total": {
                 "$ref": "#/$defs/crucible.api.BigInteger",
                 "default": 1234567890123456789,
-                "x-smithy-default": 1234567890123456789
+                "x-crucible-default": 1234567890123456789
               }
             },
             "type": "object"
@@ -653,7 +653,7 @@
           "total": {
             "$ref": "#/$defs/crucible.api.BigInteger",
             "default": 1234567890123456789,
-            "x-smithy-default": 1234567890123456789
+            "x-crucible-default": 1234567890123456789
           }
         },
         "type": "object"

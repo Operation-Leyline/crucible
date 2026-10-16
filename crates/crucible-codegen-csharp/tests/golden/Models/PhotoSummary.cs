@@ -4,7 +4,7 @@
 namespace Example.Weather.Models;
 
 /// <summary>
-/// Construct it with an object initializer. Smithy shape example.weather#PhotoSummary.
+/// Construct it with an object initializer. Model shape example.weather#PhotoSummary.
 /// </summary>
 /// <remarks>
 /// <para>Unstable.</para>

@@ -117,7 +117,7 @@ fn recursion(service: &Service, diagnostics: &mut Diagnostics) {
             for id in &group.shapes {
                 diagnostics.push(
                     id,
-                    "recursive collections must pass through a structure or union; a collection-only cycle is invalid Smithy",
+                    "recursive collections must pass through a structure or union; a collection-only cycle is invalid",
                 );
             }
         }

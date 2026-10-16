@@ -185,7 +185,7 @@
               "name": {
                 "maxLength": 40,
                 "type": "string",
-                "x-smithy-traits": {
+                "x-crucible-traits": {
                   "example.weather#audited": {}
                 }
               }
@@ -260,7 +260,7 @@
           "name": {
             "maxLength": 40,
             "type": "string",
-            "x-smithy-traits": {
+            "x-crucible-traits": {
               "example.weather#audited": {}
             }
           }
@@ -310,14 +310,14 @@
                 "anyOf": [
                   {
                     "type": "number",
-                    "x-smithy-timestamp-format": "epoch-seconds"
+                    "x-crucible-timestamp-format": "epoch-seconds"
                   },
                   {
                     "type": "null"
                   }
                 ],
                 "deprecated": true,
-                "x-smithy-deprecation": {
+                "x-crucible-deprecation": {
                   "message": "Use updatedAt.",
                   "since": "2026-08"
                 }
@@ -334,7 +334,7 @@
               "population": {
                 "$ref": "#/$defs/crucible.api.Long",
                 "default": 0,
-                "x-smithy-default": 0
+                "x-crucible-default": 0
               },
               "secret": {
                 "anyOf": [
@@ -691,14 +691,14 @@
                 "anyOf": [
                   {
                     "type": "number",
-                    "x-smithy-timestamp-format": "epoch-seconds"
+                    "x-crucible-timestamp-format": "epoch-seconds"
                   },
                   {
                     "type": "null"
                   }
                 ],
                 "deprecated": true,
-                "x-smithy-deprecation": {
+                "x-crucible-deprecation": {
                   "message": "Use updatedAt.",
                   "since": "2026-08"
                 }
@@ -715,7 +715,7 @@
               "population": {
                 "$ref": "#/$defs/crucible.api.Long",
                 "default": 0,
-                "x-smithy-default": 0
+                "x-crucible-default": 0
               },
               "secret": {
                 "anyOf": [
@@ -1005,7 +1005,7 @@
                     "contentEncoding": "base64",
                     "description": "A photo, carried unparsed.",
                     "type": "string",
-                    "x-smithy-length": {
+                    "x-crucible-length": {
                       "max": 4096,
                       "min": 1,
                       "unit": "bytes"
@@ -1023,7 +1023,7 @@
             "contentEncoding": "base64",
             "description": "A photo, carried unparsed.",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 4096,
               "min": 1,
               "unit": "bytes"
@@ -1047,7 +1047,7 @@
                 "contentEncoding": "base64",
                 "description": "A photo, carried unparsed.",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 4096,
                   "min": 1,
                   "unit": "bytes"
@@ -1364,14 +1364,14 @@
                 "anyOf": [
                   {
                     "type": "number",
-                    "x-smithy-timestamp-format": "epoch-seconds"
+                    "x-crucible-timestamp-format": "epoch-seconds"
                   },
                   {
                     "type": "null"
                   }
                 ],
                 "deprecated": true,
-                "x-smithy-deprecation": {
+                "x-crucible-deprecation": {
                   "message": "Use updatedAt.",
                   "since": "2026-08"
                 }
@@ -1388,7 +1388,7 @@
               "population": {
                 "$ref": "#/$defs/crucible.api.Long",
                 "default": 0,
-                "x-smithy-default": 0
+                "x-crucible-default": 0
               },
               "secret": {
                 "anyOf": [
@@ -1698,7 +1698,7 @@
             "contentEncoding": "base64",
             "description": "A photo, carried unparsed.",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 4096,
               "min": 1,
               "unit": "bytes"
@@ -1724,7 +1724,7 @@
                 "contentEncoding": "base64",
                 "description": "A photo, carried unparsed.",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 4096,
                   "min": 1,
                   "unit": "bytes"
@@ -1757,7 +1757,7 @@
             "contentEncoding": "base64",
             "description": "A photo, carried unparsed.",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 4096,
               "min": 1,
               "unit": "bytes"
@@ -1814,7 +1814,7 @@
                 "contentEncoding": "base64",
                 "description": "The photo's first bytes: base64 in JSON.",
                 "type": "string",
-                "x-smithy-length": {
+                "x-crucible-length": {
                   "max": 8,
                   "min": null,
                   "unit": "bytes"
@@ -1826,11 +1826,11 @@
               "thumbnail"
             ],
             "type": "object",
-            "x-smithy-external-docs": {
+            "x-crucible-external-docs": {
               "Reference": "https://weather.example/docs/photos/reference"
             },
-            "x-smithy-since": "2026-10",
-            "x-smithy-unstable": true
+            "x-crucible-since": "2026-10",
+            "x-crucible-unstable": true
           },
           "example.weather.PutCityPhotoOutput": {
             "properties": {
@@ -1847,7 +1847,7 @@
             "contentEncoding": "base64",
             "description": "The photo's first bytes: base64 in JSON.",
             "type": "string",
-            "x-smithy-length": {
+            "x-crucible-length": {
               "max": 8,
               "min": null,
               "unit": "bytes"

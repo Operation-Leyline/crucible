@@ -152,7 +152,7 @@ pub fn emit(links: &Links<'_>) -> (Vec<(String, String)>, String) {
                 if let Some(error) = &s.error {
                     class_notes.push(format!("A modeled error: HTTP {}, a {} fault. It is thrown by operations that list it and extends `{exception}`.", error.status, if matches!(error.fault, crucible_ir::ir::Fault::Client) { "client" } else { "server" }));
                 } else {
-                    class_notes.push(format!("Build one with `{name} {{ ... }}` or `copy {{ ... }}`; it is immutable. Smithy shape {}.", code(&id.to_string())));
+                    class_notes.push(format!("Build one with `{name} {{ ... }}` or `copy {{ ... }}`; it is immutable. Model shape {}.", code(&id.to_string())));
                 }
                 models.push_str(&kdoc_linked(
                     links,
