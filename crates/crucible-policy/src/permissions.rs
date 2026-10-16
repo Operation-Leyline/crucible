@@ -6,7 +6,8 @@
 
 use std::collections::BTreeMap;
 
-use crucible_ir::ir::{Requirement, Requirements, ResourcePermissions, Tier};
+use crucible_ir::ir::permissions::Binding;
+use crucible_ir::ir::{Operation, Requirement, Requirements, ResourcePermissions, Tier};
 
 use crate::Severity;
 use crate::checker::Checker;
@@ -182,34 +183,35 @@ impl Checker<'_> {
             // requirement this audience cannot name. A clause that left the
             // view instead became internal: its visibility changed, not
             // what a caller must hold.
-            let (added, hidden): (Vec<&Requirement>, bool) =
-                match (&old_op.requirements, &new_op.requirements) {
-                    (
-                        Requirements::List(old) | Requirements::Partial(old),
-                        Requirements::List(new) | Requirements::Partial(new),
-                    ) => (
-                        new.iter()
-                            .filter(|clause| {
-                                !old.iter().any(|before| self.same_clause(before, clause))
-                            })
-                            .collect(),
-                        matches!(new_op.requirements, Requirements::Partial(_))
-                            && !matches!(old_op.requirements, Requirements::Partial(_))
-                            && old.iter().all(|before| {
-                                new.iter().any(|clause| self.same_clause(before, clause))
-                            }),
-                    ),
-                    (_, Requirements::List(new)) => (new.iter().collect(), false),
-                    (old, Requirements::Partial(new)) => {
-                        (new.iter().collect(), !matches!(old, Requirements::Internal))
-                    }
-                    (
-                        Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal,
-                        Requirements::Internal,
-                    ) => (Vec::new(), false),
-                    (_, Requirements::Internal) => (Vec::new(), true),
-                    _ => (Vec::new(), false),
-                };
+            // A clause that reads a member the migration renamed reads it
+            // by its new name now: the same clause, compared as such.
+            let renamed = self.renamed_clauses(old_op);
+            let (added, hidden): (Vec<&Requirement>, bool) = match (&renamed, &new_op.requirements)
+            {
+                (
+                    Requirements::List(old) | Requirements::Partial(old),
+                    Requirements::List(new) | Requirements::Partial(new),
+                ) => (
+                    new.iter()
+                        .filter(|clause| !old.iter().any(|before| self.same_clause(before, clause)))
+                        .collect(),
+                    matches!(new_op.requirements, Requirements::Partial(_))
+                        && !matches!(old_op.requirements, Requirements::Partial(_))
+                        && old.iter().all(|before| {
+                            new.iter().any(|clause| self.same_clause(before, clause))
+                        }),
+                ),
+                (_, Requirements::List(new)) => (new.iter().collect(), false),
+                (old, Requirements::Partial(new)) => {
+                    (new.iter().collect(), !matches!(old, Requirements::Internal))
+                }
+                (
+                    Requirements::List(_) | Requirements::Partial(_) | Requirements::Internal,
+                    Requirements::Internal,
+                ) => (Vec::new(), false),
+                (_, Requirements::Internal) => (Vec::new(), true),
+                _ => (Vec::new(), false),
+            };
             if added.is_empty() && !hidden {
                 continue;
             }
@@ -246,6 +248,45 @@ impl Checker<'_> {
 }
 
 impl Checker<'_> {
+    /// `operation`'s requirements with every member binding and `when`
+    /// path through a member the migration renamed spelled as the new
+    /// model names it, walked from its input in the old model.
+    fn renamed_clauses(&self, operation: &Operation) -> Requirements {
+        let mut requirements = operation.requirements.clone();
+        if self.renames.is_empty() {
+            return requirements;
+        }
+        let (Requirements::List(clauses) | Requirements::Partial(clauses)) = &mut requirements
+        else {
+            return requirements;
+        };
+        let rename = |path: &mut Vec<String>| {
+            crucible_ir::versions::rename_path(
+                &self.old.shapes,
+                operation.input.as_ref(),
+                path,
+                |shape, member| {
+                    self.renames
+                        .get(&(shape.clone(), member.to_owned()))
+                        .map(|(_, to)| to.clone())
+                },
+            );
+        };
+        for clause in clauses {
+            for binding in &mut clause.bindings {
+                if let Binding::Member(path) = binding {
+                    rename(path);
+                }
+            }
+            if let Some(when) = &mut clause.when {
+                for path in when.paths_mut() {
+                    rename(path);
+                }
+            }
+        }
+        requirements
+    }
+
     /// The same requirement: what a check compares is the stored pair
     /// (authorization name, value), not the symbols naming it. Naming the
     /// primary the old value became an alias of is no change: grants under

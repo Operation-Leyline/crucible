@@ -13,7 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod projection;
-pub use projection::{Projection, current_permission, projections, undo};
+pub use projection::{Projection, current_permission, projections, rename_path, undo};
 
 use crate::ShapeId;
 use crate::ir::{ApiVersion, Hook, Service, Shape, VersionStep};

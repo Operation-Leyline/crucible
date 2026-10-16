@@ -1993,3 +1993,20 @@ fn the_guard_and_versions_share_the_releases_they_load() {
     let error = releases.load(&path).unwrap_err();
     assert!(error.contains("changed after it was frozen"), "{error}");
 }
+
+/// #346: a rename follows into the permission clauses that read the member,
+/// a `when` condition here, so the guard sees the same clause and reports no
+/// authorization change.
+#[test]
+fn a_rename_follows_into_permission_conditions() {
+    let dir = model("version-projection-conditions");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, own, &policy(&dir))
+        .unwrap()
+        .unwrap();
+    assert_eq!(rules(&checked), Vec::<String>::new());
+    assert_eq!(problems(&checked), Vec::<String>::new());
+}
