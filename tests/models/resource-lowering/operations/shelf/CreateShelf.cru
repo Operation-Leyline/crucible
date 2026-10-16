@@ -1,0 +1,9 @@
+operation CreateShelf creates Shelf {
+    http POST "/shelves" -> 201
+    input {
+        $label
+    }
+    output {
+        shelf: ShelfData
+    }
+}

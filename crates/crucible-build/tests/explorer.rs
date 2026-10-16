@@ -8,7 +8,6 @@ fn fixture() -> std::path::PathBuf {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn explorer_is_opt_in_and_audience_selection_is_order_independent() {
     let source = fixture();
     assert!(
@@ -47,7 +46,6 @@ fn explorer_is_opt_in_and_audience_selection_is_order_independent() {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn explorer_generated_bindings_are_valid_rust() {
     let code = model(fixture()).server().explorer().render().unwrap();
     let dir = tempfile::tempdir().unwrap();
@@ -65,7 +63,6 @@ fn explorer_generated_bindings_are_valid_rust() {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn explorer_preserves_normal_server_bindings_and_resource_documentation() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("weather");
@@ -74,7 +71,7 @@ fn explorer_preserves_normal_server_bindings_and_resource_documentation() {
     let text = std::fs::read_to_string(&city).unwrap();
     let text = text.replace(
         "    id cityId: CityId\n",
-        "    id cityId: CityId\n    id tracking: ResourceOnlyId\n",
+        "    id cityId: CityId\n    readonly property tracking?: ResourceOnlyId\n",
     );
     std::fs::write(&city, format!("{text}\nstring ResourceOnlyId\n")).unwrap();
     let plain = model(&path).server().render().unwrap();

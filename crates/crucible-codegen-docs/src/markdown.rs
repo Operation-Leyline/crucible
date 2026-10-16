@@ -140,20 +140,25 @@ pub(super) fn render(d: &Description) -> Vec<File> {
             notes(resource),
             docs(resource)
         ));
-        index.push_str("| Lifecycle | Operation |\n|---|---|\n");
-        for slot in ["create", "put", "read", "update", "delete", "list"] {
-            if let Some(op) = resource["lifecycle"][slot]
-                .as_str()
-                .and_then(|id| d.operations.get(id))
-            {
+        let lifecycle: Vec<_> = ["create", "put", "read", "update", "delete", "list"]
+            .into_iter()
+            .filter_map(|slot| {
+                let id = resource["lifecycle"][slot].as_str()?;
+                Some((slot, d.operations.get(id)?))
+            })
+            .collect();
+        // A resource with custom actions only has no lifecycle to tabulate.
+        if !lifecycle.is_empty() {
+            index.push_str("| Lifecycle | Operation |\n|---|---|\n");
+            for (slot, op) in lifecycle {
                 index.push_str(&format!(
                     "| {slot} | {}{} |\n",
                     link(string(&op["name"]), &operation_path(op)),
                     badge(op)
                 ));
             }
+            index.push('\n');
         }
-        index.push('\n');
         summary.push_str(&format!("- {}\n", escaped(name)));
         for id in list(&resource["operations"]) {
             if let Some(op) = d.operations.get(string(id)) {

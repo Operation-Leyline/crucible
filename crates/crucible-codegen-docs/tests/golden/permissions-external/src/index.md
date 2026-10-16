@@ -23,15 +23,30 @@ Operations name what the caller must hold on which resource; [Permissions](permi
 
 ## Operations
 
-### Service operations
+### Graph
+
+<p>A graph database.</p>
 
 - [ArchiveGraph](operations/API_ArchiveGraph.md)
 - [CreateGraph](operations/API_CreateGraph.md)
 - [ExecuteQuery](operations/API_ExecuteQuery.md)
 - [GetGraph](operations/API_GetGraph.md)
+- [ListGraphs](operations/API_ListGraphs.md)
+- [RewriteGraph](operations/API_RewriteGraph.md)
+
+### History
+
+<p>A graph's saved state.</p>
+
+- [RestoreBackup](operations/API_RestoreBackup.md)
+
+### Organization
+
+<p>A tenant.</p>
+
 - [GetOrganization](operations/API_GetOrganization.md)
+
+### Service operations
+
 - [GetUser](operations/API_GetUser.md)
 - [Health](operations/API_Health.md)
-- [ListGraphs](operations/API_ListGraphs.md)
-- [RestoreBackup](operations/API_RestoreBackup.md)
-- [RewriteGraph](operations/API_RewriteGraph.md)

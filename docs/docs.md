@@ -13,11 +13,6 @@ description data.
 
 ## Generating a reference
 
-> The reference describes resources, which only a `.cru` package with resource
-> lowering can supply (decision 63 in [idl/decisions.md](idl/decisions.md)).
-> Until that lands, `generate docs` refuses a `.cru` package and the
-> resource-dependent generator tests are ignored.
-
 From a checkout, generate the Weather reference from a package directory:
 
 ```sh
@@ -141,7 +136,7 @@ All supported lowered shape kinds can be described.
 | Diagnostic | Meaning | Regression coverage |
 |---|---|---|
 | `describe.target` | Supplied IR has an unresolved shape target | A modified Weather IR; same collection test |
-| `describe.resources` | Resource metadata is missing from supplied IR | Operation-only Weather lowering; docs `documentation_requires_the_resource_projection_and_detects_filename_collisions` |
+| `describe.resources` | An operation names a resource the supplied IR does not describe | Weather with its resources cleared; docs `documentation_requires_resource_metadata_and_detects_filename_collisions` |
 | `docs.filename` | Page names collide on a case-insensitive filesystem | A modified Weather IR; docs resource-projection/filename test |
 | `audience.example_reference` | External projection removes an example's selected union arm or enum value | a `.cru` package with an example naming a removed arm; `examples_using_removed_union_or_enum_values_are_diagnosed` |
 
@@ -206,8 +201,12 @@ with nullable `message` and `since` strings; `since` is a nullable string;
 | Protocol metadata | `protocol`: protocol string |
 | Authentication | `auth`: effective default scheme-ID array; `authSchemes`: scheme ID to lowered authentication configuration |
 | Service references | `errors`: service-declared error-ID array; `resourceRoots`: direct resource-ID array |
-| Each resource | `id`, `name`: strings; `internal`, `documentation`, `notes`; `identifiers`, `properties`: member-name to target-ID maps; `resources`: child-ID array; `operations`: sorted unique operation-ID array |
+| Each resource | `id`, `name`: strings; `internal`, `documentation`, `notes`; `identifiers`, `properties`: entry-name to target-ID maps, sorted by name; `resources`: child-ID array; `operations`: sorted unique operation-ID array |
 | Resource `lifecycle` | `create`, `put`, `read`, `update`, `delete`, `list`: nullable operation IDs |
+
+An identifier's or property's target ID may name a shape that is not in
+`shapes`: a type only the resource names, which no operation reaches, is not
+part of the contract (decision 67 in [idl/decisions.md](idl/decisions.md)).
 
 The resource graph is lowered for documentation separately from infrastructure.
 It includes lifecycle, identifiers, and property target shapes without requiring

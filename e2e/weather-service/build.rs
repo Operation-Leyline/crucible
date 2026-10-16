@@ -138,10 +138,9 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
-    // No `.explorer()` yet: the weather description lists the City resource,
-    // and the language does not lower resources (decision 63).
     crucible_build::model("weather_model")
         .server()
+        .explorer()
         .mcp()
         .generate();
 }

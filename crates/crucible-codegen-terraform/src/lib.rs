@@ -104,8 +104,14 @@ fn descriptor(service: &Service, resource: &Resource, errors: &mut Diagnostics) 
         return None;
     }
     let (identifier, target) = model.identifiers.first_key_value().expect("one identifier");
-    if !matches!(service.shape(target), Some(Shape::Simple(s)) if s.kind == SimpleKind::String) {
-        errors.push(&resource.id, "Terraform identifier must be a string");
+    match service.shape(target) {
+        Some(Shape::Simple(s)) if s.kind == SimpleKind::String => {}
+        // A type only the resource names is not among the shapes (decision 67).
+        None => errors.push(
+            &resource.id,
+            format!("Terraform identifier `{identifier}` has type {target}, which no operation reaches; bind it in an operation input"),
+        ),
+        Some(_) => errors.push(&resource.id, "Terraform identifier must be a string"),
     }
     if service.shape(target).is_some_and(Shape::sensitive) {
         errors.push(

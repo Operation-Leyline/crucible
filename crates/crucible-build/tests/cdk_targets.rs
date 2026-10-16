@@ -122,7 +122,6 @@ fn target_probe() {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn cdk_language_targets_accumulate_override_and_preserve_native_packages() {
     let root = tempfile::tempdir().unwrap();
     common::install_shared(root.path(), "cdk-model");

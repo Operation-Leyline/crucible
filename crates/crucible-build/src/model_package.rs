@@ -41,21 +41,6 @@ impl ModelPackage {
         Ok(package)
     }
 
-    // The language does not lower resources yet (decision 63), so the
-    // infrastructure and documentation lowerings have nothing to read.
-    #[cfg(any(feature = "cdk", feature = "terraform"))]
-    pub(crate) fn infrastructure(&self) -> Result<&Service, String> {
-        Err(crate::cru::unsupported(
-            "Infrastructure output",
-            &self.model,
-        ))
-    }
-
-    #[cfg(feature = "docs")]
-    pub(crate) fn documentation(&self) -> Result<&Service, String> {
-        Err(crate::cru::unsupported("Documentation output", &self.model))
-    }
-
     /// Publish the package through this package's Cargo `links` metadata.
     pub fn publish(&self) {
         crate::publish_path(&self.model);

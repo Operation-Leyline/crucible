@@ -67,7 +67,8 @@ protocol    = "protocol" ident "{" { clause } "}" ;
 clause      = ident ( "(" args ")" | "{" { clause } "}" | value ) ;
 
 resource    = "resource" ident [ "in" ident ] "{" { resource_entry } "}" ;
-                 (* annotation on a resource: @authorizationName("name") *)
+                 (* annotations on a resource: @authorizationName("name") and the
+                    documentation notes @deprecated, @since, @unstable, @externalDocs *)
 resource_entry = [ doc ] { annotation } { entry_modifier } ( "id" | "property" )
                  ident [ "?" ] ":" type_ref [ "as" ident ]
                | permission_entry ;

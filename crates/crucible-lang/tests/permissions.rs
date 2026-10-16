@@ -1135,10 +1135,10 @@ fn authorization_names_are_lower_camel_and_unique() {
         "@authorizationName(shop)\nresource Store {",
     ));
     expect(&found, "`@authorizationName` takes the name as a string");
-    let found = check_source(&BASE.replace("resource Store {", "@deprecated\nresource Store {"));
+    let found = check_source(&BASE.replace("resource Store {", "@query\nresource Store {"));
     expect(
         &found,
-        "annotations on a resource are not supported by the compiler yet, apart from `@authorizationName`",
+        "annotations on a resource are not supported by the compiler yet, apart from `@authorizationName` and the documentation notes",
     );
 }
 

@@ -95,10 +95,6 @@ def qualify_cli(terraform, consumer, env):
 def main():
     env = dict(os.environ, CRUCIBLE_TERRAFORM_OUT=str(OUT))
     run("cargo", "test", "--locked", "-p", "crucible-codegen-terraform", "--test", "generate", env=env)
-    if not (OUT / "go.mod").is_file():
-        # The generate tests are ignored until the .cru front end lowers resources, so nothing was emitted.
-        print("Terraform qualification skipped: needs .cru resource lowering (decision 63)", flush=True)
-        return
     shutil.copyfile(ROOT / "crates/crucible-codegen-terraform/tests/terraform_test.go", OUT / "internal/provider/terraform_test.go")
     run(GO, "mod", "tidy", cwd=OUT)
     run(GO, "fmt", "./...", cwd=OUT)

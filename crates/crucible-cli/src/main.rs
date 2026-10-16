@@ -765,15 +765,6 @@ fn lower_for_audience(
     Ok(projected)
 }
 
-/// The language does not lower resources yet (decision 63), so documentation
-/// and infrastructure have nothing to read from a package.
-fn lower_resources(source: &Source) -> Result<Service, String> {
-    Err(format!(
-        "documentation and infrastructure from a .cru package ({}) are not supported yet: the language does not lower resources for them",
-        source.model.display()
-    ))
-}
-
 /// Whether `path` is a Crucible language package.
 fn is_cru_package(path: &Path) -> bool {
     path.is_dir() && crucible_lang::is_package(path)
@@ -994,7 +985,9 @@ fn package_at(package: &Path, reference: &str) -> Result<tempfile::TempDir, Stri
 fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
         Target::Docs { source, out } => {
-            let full = lower_resources(&source)?;
+            // As in a build: documentation and infrastructure check no
+            // client capabilities, only what their generators support.
+            let full = lower_cru(&source, true)?;
             let service = crucible_ir::project(&full, audience).map_err(|e| e.to_string())?;
             let files = crucible_codegen_docs::generate(&service).map_err(|e| e.to_string())?;
             let files = files
@@ -1031,7 +1024,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             config,
             out,
         } => {
-            let service = crucible_ir::project(&lower_resources(&source)?, audience)
+            let service = crucible_ir::project(&lower_cru(&source, true)?, audience)
                 .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let options = read_config(&config)?;
@@ -1055,7 +1048,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             provider_address,
             out,
         } => {
-            let service = crucible_ir::project(&lower_resources(&source)?, audience)
+            let service = crucible_ir::project(&lower_cru(&source, true)?, audience)
                 .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)

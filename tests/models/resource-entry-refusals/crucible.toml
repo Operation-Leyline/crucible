@@ -1,0 +1,13 @@
+schema_version = 1
+
+# Resource entries the compiler refuses (decision 67): an identifier that
+# is no string, and an entry of an internal type.
+[model]
+namespace = "example.refusals"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

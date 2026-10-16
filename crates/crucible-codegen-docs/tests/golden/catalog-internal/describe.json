@@ -281,7 +281,9 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.docs#Item"
+      ],
       "response": {
         "body": [
           "items",
@@ -630,7 +632,9 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.docs#Item"
+      ],
       "response": {
         "body": [
           "state",
@@ -651,7 +655,46 @@
       "uri": "/WriteItem"
     }
   },
-  "resources": {},
+  "resources": {
+    "example.docs#Item": {
+      "documentation": {
+        "html": "<p>Catalog items.</p>\n",
+        "markdown": "Catalog items.",
+        "text": "Catalog items."
+      },
+      "id": "example.docs#Item",
+      "identifiers": {
+        "itemId": "smithy.api#String"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": "example.docs#ListItems",
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Item",
+      "notes": {
+        "deprecated": {
+          "message": "Use the next revision.",
+          "since": "2026-09"
+        },
+        "externalDocs": {
+          "Guide": "https://example.com/guide"
+        },
+        "since": "2026-01",
+        "unstable": true
+      },
+      "operations": [
+        "example.docs#ListItems",
+        "example.docs#WriteItem"
+      ],
+      "properties": {},
+      "resources": []
+    }
+  },
   "service": {
     "auth": [],
     "authSchemes": {},
@@ -678,7 +721,9 @@
       "unstable": true
     },
     "protocol": "crucibleJson",
-    "resourceRoots": [],
+    "resourceRoots": [
+      "example.docs#Item"
+    ],
     "title": "Catalog API",
     "version": "2026-10"
   },

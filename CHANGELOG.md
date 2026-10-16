@@ -17,6 +17,27 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: the compiler lowers resources. `ir::Service::resources` holds every
+  resource the service reaches, with its identifiers (its ancestors' and its
+  own, keyed by name), properties, children, the lifecycle slots its operations' roles fill
+  (`creates` to `create`, ..., `on` to `operations`, `on .. collection` to
+  `collection_operations`) and, per attached operation, the member paths that
+  carry its identifiers and properties: `$name` elisions under their lowered
+  names, members typed by a `for` view, and lists and maps of one as
+  `collections`. `resource_roots` is the service's `resources [..]`. A type
+  only a resource names does not join `Service::shapes`, so the generated
+  SDK and server code is unchanged; the `crucible-model.json` a package
+  carries (outside its content digest) now includes the resources. An entry
+  several members carry binds at the first public one, with a warning about
+  the others. With them, documentation (`crucible generate docs`,
+  `Output` `Generator::Docs`), the in-service Explorer (`.explorer()`), and
+  CDK and Terraform output (`generate cdk`, `generate terraform`) work from a
+  `.cru` package again; they refused one since the Smithy front end was
+  removed. A resource takes the documentation notes `@deprecated`, `@since`,
+  `@unstable` and `@externalDocs`. Release snapshots now carry the resources;
+  older ones still read. See decision 67 in
+  [docs/idl/decisions.md](docs/idl/decisions.md).
+
 - `crucible-seshat`, an opt-in crate: `SeshatLog` (a `LogSink`) and
   `SeshatMetrics` (a `Recorder`) write request records and per-request
   counters as Seshat log-contract lines (`crucible.request`, `seshat.metric`).
@@ -484,6 +505,30 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- `.cru`: a resource identifier or property whose type is `internal` is a
+  compile error: a resource is part of the external contract, which would
+  name a type it leaves out (decision 67).
+
+- External audience projection refuses an internal `creates`, `puts`,
+  `reads`, `updates`, `deletes` or `lists` operation of a resource
+  (`audience.resource_lifecycle`), now that `.cru` resources reach the IR: a
+  public resource's lifecycle cannot lose an operation. Make such an
+  operation an `on` action, or keep it public. An internal `on` action is
+  removed with its resource bindings, and a binding whose path ran through a
+  removed internal member is dropped.
+
+- `describe.json` (`crucible.describe/1`): a resource's identifier and
+  property targets may name a shape absent from `shapes`, a type only the
+  resource names. Readers that look such a target up must allow for it.
+
+- `crucible freeze` can no longer restore the deleted file of a release
+  frozen before resources were lowered: the snapshot it writes now carries
+  the resources, so it differs from the digest the lock records. Restore the
+  file from version control instead.
+
+- The API reference lists a resource's lifecycle table only when one of its
+  lifecycle slots is filled; a resource with custom actions only lists them.
 
 - The `crucible-smithy` crate is renamed `crucible-ir` (library `crucible_ir`): it holds the
   IR, snapshots and the helpers every generator shares, and no longer reads

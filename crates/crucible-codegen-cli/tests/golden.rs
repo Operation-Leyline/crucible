@@ -358,10 +358,25 @@ fn mcp_command_is_reserved_with_a_shape_diagnostic() {
 
 #[test]
 fn tools_reuse_shared_emission_and_selected_audience() {
+    // A custom action, not a lifecycle operation: an internal one leaves the
+    // external contract, where an internal `reads` is refused
+    // (`audience.resource_lifecycle`).
     let service = edited(&[(
-        "operation GetCity reads City",
-        "internal operation GetCity reads City",
+        "readonly operation GetCityPhoto on City",
+        "internal readonly operation GetCityPhoto on City",
     )]);
+    assert!(
+        crucible_ir::project(
+            &edited(&[(
+                "operation GetCity reads City",
+                "internal operation GetCity reads City",
+            )]),
+            crucible_ir::Audience::External,
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("audience.resource_lifecycle")
+    );
     for audience in [
         crucible_ir::Audience::External,
         crucible_ir::Audience::Internal,
@@ -381,7 +396,7 @@ fn tools_reuse_shared_emission_and_selected_audience() {
         );
         assert_eq!(tools, &shared);
         assert_eq!(
-            tools.contains("name: \"GetCity\""),
+            tools.contains("name: \"GetCityPhoto\""),
             audience == crucible_ir::Audience::Internal
         );
     }

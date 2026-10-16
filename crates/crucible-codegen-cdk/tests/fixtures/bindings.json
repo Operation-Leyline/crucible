@@ -3,13 +3,13 @@
     "example#City": {
       "name": "City",
       "properties": {
-        "Name": {"source":{"shape":"example#CreateInput","path":["name"]},"required":true,"immutable":true},
-        "Settings": {"source":{"shape":"example#CreateInput","path":["settings"]}},
-        "Tags": {"source":{"shape":"example#CreateInput","path":["tags"]}},
-        "Mode": {"source":{"shape":"example#CreateInput","path":["mode"]}},
-        "Labels": {"source":{"shape":"example#CreateInput","path":["labels"]}}
+        "Name": {"source":{"shape":"example#CreateCityInput","path":["name"]},"required":true,"immutable":true},
+        "Settings": {"source":{"shape":"example#CreateCityInput","path":["settings"]}},
+        "Tags": {"source":{"shape":"example#CreateCityInput","path":["tags"]}},
+        "Mode": {"source":{"shape":"example#CreateCityInput","path":["mode"]}},
+        "Labels": {"source":{"shape":"example#CreateCityInput","path":["labels"]}}
       },
-      "attributes": {"Id":{"source":{"shape":"example#Output","path":["id"]}}},
+      "attributes": {"Id":{"source":{"shape":"example#CreateCityOutput","path":["id"]}}},
       "cdk": {"resource_type":"Custom::WeatherCity","context":{"SecretArn":{"target":"smithy.api#String","required":true}}}
     }
   }

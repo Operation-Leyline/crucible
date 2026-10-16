@@ -79,16 +79,9 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         .chain(&result.errors)
         .cloned()
         .collect();
-    for resource in result.resources.values() {
-        for target in resource
-            .identifiers
-            .values()
-            .chain(resource.properties.values())
-        {
-            check_target(service, &resource.id, target, &mut diagnostics);
-            pending.push(target.clone());
-        }
-    }
+    // A resource names its entries' types without reaching them: the
+    // audience's shapes are what its operations reach, and the compiler
+    // refuses an entry of an internal type (decision 67).
     for op in &result.operations {
         for target in op.input.iter().chain(&op.output) {
             check_target(service, &op.id, target, &mut diagnostics);
@@ -154,6 +147,21 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         }
     }
     project_permissions(&mut result);
+    // A binding whose path ran through a removed internal member goes with it.
+    let roots: BTreeMap<ShapeId, (Option<ShapeId>, Option<ShapeId>)> = result
+        .operations
+        .iter()
+        .map(|op| (op.id.clone(), (op.input.clone(), op.output.clone())))
+        .collect();
+    for resource in result.resources.values_mut() {
+        for (id, bindings) in &mut resource.bindings {
+            let Some((input, output)) = roots.get(id) else {
+                continue;
+            };
+            retain_resource_bindings(&result.shapes, input.as_ref(), &mut bindings.input);
+            retain_resource_bindings(&result.shapes, output.as_ref(), &mut bindings.output);
+        }
+    }
     for op in &mut result.operations {
         retain_bindings(&result.shapes, op.input.as_ref(), &mut op.request);
         retain_bindings(&result.shapes, op.output.as_ref(), &mut op.response);
@@ -407,6 +415,58 @@ fn check_target(
             format!("audience.internal_target: external contract targets internal shape {target}"),
         );
     }
+}
+
+/// Keeps the resource bindings whose paths still resolve from `root`, and
+/// the collections whose members do, each relative to its elements.
+fn retain_resource_bindings(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    root: Option<&ShapeId>,
+    bindings: &mut crate::ir::ResourceMemberBindings,
+) {
+    let resolves = |path: &[String]| {
+        let mut target = root.cloned();
+        for name in path {
+            let next = target
+                .as_ref()
+                .and_then(|id| shapes.get(id))
+                .and_then(|shape| {
+                    shape
+                        .members()
+                        .into_iter()
+                        .find(|m| &m.name == name)
+                        .map(|m| m.target.clone())
+                });
+            let Some(next) = next else {
+                return false;
+            };
+            target = Some(next);
+        }
+        true
+    };
+    bindings.identifiers.retain(|_, path| resolves(path));
+    bindings.properties.retain(|_, path| resolves(path));
+    bindings.collections.retain(|name, inner| {
+        let element = root
+            .and_then(|id| shapes.get(id))
+            .and_then(|shape| {
+                shape
+                    .members()
+                    .into_iter()
+                    .find(|m| &m.name == name)
+                    .map(|m| m.target.clone())
+            })
+            .and_then(|target| match shapes.get(&target) {
+                Some(Shape::List(list)) => Some(list.member.target.clone()),
+                Some(Shape::Map(map)) => Some(map.value.target.clone()),
+                _ => None,
+            });
+        let Some(element) = element else {
+            return false;
+        };
+        retain_resource_bindings(shapes, Some(&element), inner);
+        !(inner.identifiers.is_empty() && inner.properties.is_empty())
+    });
 }
 
 fn member_exists(shapes: &BTreeMap<ShapeId, Shape>, id: Option<&ShapeId>, name: &str) -> bool {

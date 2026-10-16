@@ -11,7 +11,9 @@
 //! and a line that starts with `@` is a tag to JSDoc, PHPDoc, YARD, Doxygen
 //! and roxygen.
 
-use crucible_codegen::{Client, File, Generator, Server};
+#[cfg(feature = "all-outputs")]
+use crucible_codegen::Generator;
+use crucible_codegen::{Client, File, Server};
 use crucible_ir::ir::Service;
 #[cfg(feature = "all-outputs")]
 use serde_json::Value;
@@ -400,7 +402,6 @@ fn rust_keyword_type_names_are_diagnosed() {
 /// the hostile enum as a property's type.
 #[cfg(feature = "all-outputs")]
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn hostile_model_text_never_reaches_infrastructure_or_cli_source_raw() {
     let hostile = service();
     let hostile_doc = hostile.docs.clone();

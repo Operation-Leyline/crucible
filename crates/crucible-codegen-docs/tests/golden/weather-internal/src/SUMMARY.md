@@ -1,13 +1,14 @@
 # Summary
 
 - [Service overview](index.md)
-- Service operations
+- City
   - [CreateCity](operations/API_CreateCity.md)
   - [GetCity](operations/API_GetCity.md)
   - [GetCityPhoto](operations/API_GetCityPhoto.md)
   - [ListCities](operations/API_ListCities.md)
-  - [Ping](operations/API_Ping.md)
   - [PutCityPhoto](operations/API_PutCityPhoto.md)
+- Service operations
+  - [Ping](operations/API_Ping.md)
   - [Status](operations/API_Status.md) **Internal**
 - Data types
   - [CityId](shapes/CityId.md)

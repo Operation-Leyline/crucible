@@ -1,0 +1,7 @@
+operation ReturnBook on Book {
+    http POST "/shelves/{shelfId}/books/{bookId}/return"
+    input {
+        $shelfId
+        $bookId
+    }
+}

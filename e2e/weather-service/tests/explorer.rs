@@ -1,8 +1,3 @@
-//! Disabled until the language lowers resources (decision 63): the weather
-//! description lists the City resource, which a `.cru` package does not yet
-//! carry into the Explorer's description.
-#![cfg(any())]
-
 use std::net::SocketAddr;
 use std::sync::{
     Arc,

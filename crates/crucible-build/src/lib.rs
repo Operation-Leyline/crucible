@@ -603,15 +603,11 @@ impl ServerOutput {
     pub fn render(&self) -> Result<String, String> {
         let service = self.lower()?;
         let generated = match self.side {
-            Side::Server => {
-                // The describe check refuses a service whose operations belong
-                // to a resource, which the language does not lower yet.
-                crucible_codegen_rust::generate_with_explorer_model(
-                    &service,
-                    &self.options,
-                    &service,
-                )
-            }
+            Side::Server => crucible_codegen_rust::generate_with_explorer_model(
+                &service,
+                &self.options,
+                &service,
+            ),
             Side::Client => crucible_codegen_rust::generate_client(&service),
         };
         generated.map_err(|diagnostics| {

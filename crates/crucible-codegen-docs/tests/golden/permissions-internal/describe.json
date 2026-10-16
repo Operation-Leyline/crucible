@@ -188,7 +188,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Graph"
+      ],
       "response": {
         "body": [
           "archived"
@@ -356,7 +358,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Graph"
+      ],
       "response": {
         "body": [
           "created"
@@ -646,7 +650,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Graph"
+      ],
       "response": {
         "body": [
           "rows"
@@ -811,7 +817,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Graph"
+      ],
       "response": {
         "body": [
           "name"
@@ -957,7 +965,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Organization"
+      ],
       "response": {
         "body": [
           "name"
@@ -1307,7 +1317,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Graph"
+      ],
       "response": {
         "body": [
           "names"
@@ -1461,7 +1473,9 @@
         "kind": "pending",
         "reason": "guard::allow in the handler until the history module moves."
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#History"
+      ],
       "response": {
         "body": [
           "restored"
@@ -1684,7 +1698,9 @@
         ],
         "kind": "list"
       },
-      "resources": [],
+      "resources": [
+        "example.leyline#Graph"
+      ],
       "response": {
         "body": [
           "rewritten"
@@ -1703,7 +1719,116 @@
       "uri": "/orgs/{organizationId}/graphs/{graphId}/rewrite"
     }
   },
-  "resources": {},
+  "resources": {
+    "example.leyline#Graph": {
+      "documentation": {
+        "html": "<p>A graph database.</p>\n",
+        "markdown": "A graph database.",
+        "text": "A graph database."
+      },
+      "id": "example.leyline#Graph",
+      "identifiers": {
+        "graphId": "example.leyline#GraphId",
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Graph",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#ArchiveGraph",
+        "example.leyline#CreateGraph",
+        "example.leyline#ExecuteQuery",
+        "example.leyline#GetGraph",
+        "example.leyline#ListGraphs",
+        "example.leyline#RewriteGraph"
+      ],
+      "properties": {},
+      "resources": [
+        "example.leyline#History"
+      ]
+    },
+    "example.leyline#History": {
+      "documentation": {
+        "html": "<p>A graph's saved state.</p>\n",
+        "markdown": "A graph's saved state.",
+        "text": "A graph's saved state."
+      },
+      "id": "example.leyline#History",
+      "identifiers": {
+        "graphId": "example.leyline#GraphId",
+        "historyId": "example.leyline#HistoryId",
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "History",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#RestoreBackup"
+      ],
+      "properties": {},
+      "resources": []
+    },
+    "example.leyline#Organization": {
+      "documentation": {
+        "html": "<p>A tenant.</p>\n",
+        "markdown": "A tenant.",
+        "text": "A tenant."
+      },
+      "id": "example.leyline#Organization",
+      "identifiers": {
+        "organizationId": "example.leyline#OrganizationId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": null,
+        "update": null
+      },
+      "name": "Organization",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.leyline#GetOrganization"
+      ],
+      "properties": {},
+      "resources": [
+        "example.leyline#Graph"
+      ]
+    }
+  },
   "service": {
     "auth": [
       "smithy.api#httpBearerAuth"
@@ -1826,7 +1951,9 @@
       }
     ],
     "protocol": "crucibleJson",
-    "resourceRoots": [],
+    "resourceRoots": [
+      "example.leyline#Organization"
+    ],
     "title": "Leyline",
     "version": "2026-10-01"
   },

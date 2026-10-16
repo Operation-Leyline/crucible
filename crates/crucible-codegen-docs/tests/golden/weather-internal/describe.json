@@ -411,7 +411,9 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.weather#City"
+      ],
       "response": {
         "body": [
           "city"
@@ -786,7 +788,9 @@
         ],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.weather#City"
+      ],
       "response": {
         "body": [
           "city",
@@ -963,7 +967,9 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.weather#City"
+      ],
       "response": {
         "body": [],
         "headerEncodings": {},
@@ -1336,7 +1342,9 @@
         ],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.weather#City"
+      ],
       "response": {
         "body": [
           "cities",
@@ -1647,7 +1655,9 @@
         "query": [],
         "timestampFormats": {}
       },
-      "resources": [],
+      "resources": [
+        "example.weather#City"
+      ],
       "response": {
         "body": [
           "photo"
@@ -1741,7 +1751,44 @@
       "uri": "/status"
     }
   },
-  "resources": {},
+  "resources": {
+    "example.weather#City": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.weather#City",
+      "identifiers": {
+        "cityId": "example.weather#CityId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": "example.weather#CreateCity",
+        "delete": null,
+        "list": "example.weather#ListCities",
+        "put": null,
+        "read": "example.weather#GetCity",
+        "update": null
+      },
+      "name": "City",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.weather#CreateCity",
+        "example.weather#GetCity",
+        "example.weather#GetCityPhoto",
+        "example.weather#ListCities",
+        "example.weather#PutCityPhoto"
+      ],
+      "properties": {},
+      "resources": []
+    }
+  },
   "service": {
     "auth": [
       "smithy.api#httpBearerAuth"
@@ -1772,7 +1819,9 @@
       "unstable": false
     },
     "protocol": "crucibleJson",
-    "resourceRoots": [],
+    "resourceRoots": [
+      "example.weather#City"
+    ],
     "title": "Weather",
     "version": "2026-10-01"
   },

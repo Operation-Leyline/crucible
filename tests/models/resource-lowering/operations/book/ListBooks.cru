@@ -1,0 +1,9 @@
+operation ListBooks lists Book {
+    http GET "/shelves/{shelfId}/books"
+    input {
+        $shelfId
+    }
+    output {
+        books: BookMap
+    }
+}

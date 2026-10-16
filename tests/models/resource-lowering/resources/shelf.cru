@@ -1,0 +1,14 @@
+string ShelfId
+string Title { length 1..100 }
+
+/// A shelf of books.
+resource Shelf {
+    id shelfId: ShelfId as id
+    property label: Title
+}
+
+structure ShelfData for Shelf {
+    $*
+}
+
+list ShelfList: ShelfData
