@@ -17,6 +17,7 @@ Type: <code>structure</code>.
 | <code>early</code> | <code>early</code> | [EpochTime](../shapes/EpochTime.md) | No | — | — |  |
 | <code>offset</code> | <code>offset</code> | <code>timestamp</code> | No | — | — |  |
 | <code>first</code> | <code>first</code> | <code>timestamp</code> | No | — | — |  |
+| <code>ancient</code> | <code>ancient</code> | [EpochTime](../shapes/EpochTime.md) | No | — | — |  |
 | <code>last</code> | <code>last</code> | <code>timestamp</code> | No | — | — |  |
 | <code>tree</code> | <code>tree</code> | [Tree](../shapes/Tree.md) | No | — | — |  |
 | <code>names</code> | <code>names</code> | [SparseLabels](../shapes/SparseLabels.md) | No | — | — |  |

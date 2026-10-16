@@ -243,25 +243,56 @@ fn timestamp(service: &Service, member: &Member, value: &Value) -> Option<Timest
     let rfc3339 = service.wire_example(member, value, Some(TimestampFormat::DateTime));
     let epoch = service.wire_example(member, value, Some(TimestampFormat::EpochSeconds));
     let rfc3339 = rfc3339.as_str()?.to_owned();
-    let text = match &epoch {
-        Value::Number(number) => number.to_string(),
-        _ => return None,
+    let Value::Number(number) = &epoch else {
+        return None;
     };
-    let (whole, fraction) = text.split_once('.').unwrap_or((&text, ""));
-    let whole: i64 = whole.parse().ok()?;
-    let digits = format!("{:0<9}", &fraction[..fraction.len().min(9)]);
-    let mut nanos: u32 = digits.parse().ok()?;
-    let mut seconds = whole;
-    // `-0.25` is a quarter second before the epoch: -1 s plus 0.75 s.
-    if text.starts_with('-') && nanos > 0 {
-        seconds -= 1;
-        nanos = 1_000_000_000 - nanos;
-    }
+    let nanos = epoch_nanos(&number.to_string())?;
     Some(Timestamp {
         rfc3339,
-        seconds,
-        nanos,
+        seconds: i64::try_from(nanos.div_euclid(1_000_000_000)).ok()?,
+        nanos: u32::try_from(nanos.rem_euclid(1_000_000_000)).ok()?,
     })
+}
+
+/// Epoch seconds written as a JSON number (`1768469400`, `-0.25`,
+/// `1e-10`, `1.7e9`) as whole nanoseconds, exactly: no floating point, and
+/// a fraction finer than a nanosecond truncated toward zero, as the IR's
+/// own reading of a timestamp (which gives the RFC 3339 form) does.
+fn epoch_nanos(text: &str) -> Option<i128> {
+    let (mantissa, exponent) = match text.split_once(['e', 'E']) {
+        Some((mantissa, exponent)) => (mantissa, exponent.parse::<i32>().ok()?),
+        None => (text, 0),
+    };
+    let (sign, mantissa) = match mantissa.strip_prefix('-') {
+        Some(rest) => (-1, rest),
+        None => (1, mantissa.strip_prefix('+').unwrap_or(mantissa)),
+    };
+    let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
+    if whole.is_empty() && fraction.is_empty() {
+        return None;
+    }
+    let digits: String = format!("{whole}{fraction}");
+    if !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let digits = digits.trim_start_matches('0');
+    // The value is `digits * 10^scale` nanoseconds.
+    let scale = i64::from(exponent) - fraction.len() as i64 + 9;
+    let magnitude: i128 = if digits.is_empty() {
+        0
+    } else if scale >= 0 {
+        let factor = 10i128.checked_pow(u32::try_from(scale).ok()?)?;
+        digits.parse::<i128>().ok()?.checked_mul(factor)?
+    } else {
+        // Keep only the digits at or above a nanosecond.
+        let cut = usize::try_from(-scale).ok()?;
+        if cut >= digits.len() {
+            0
+        } else {
+            digits[..digits.len() - cut].parse::<i128>().ok()?
+        }
+    };
+    Some(if sign < 0 { -magnitude } else { magnitude })
 }
 
 /// The bytes standard padded base64 `text` (a model or wire blob) holds,
@@ -552,6 +583,21 @@ fn sentence(headers: Vec<String>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::Timestamp;
+
+    #[test]
+    fn epoch_numbers_are_read_exactly() {
+        use super::epoch_nanos;
+        assert_eq!(epoch_nanos("1768469400"), Some(1_768_469_400_000_000_000));
+        assert_eq!(epoch_nanos("-0.25"), Some(-250_000_000));
+        assert_eq!(epoch_nanos("1e-10"), Some(0));
+        assert_eq!(epoch_nanos("1e-9"), Some(1));
+        assert_eq!(epoch_nanos("-1e-10"), Some(0));
+        assert_eq!(epoch_nanos("-1.5e-9"), Some(-1));
+        assert_eq!(epoch_nanos("1.7684694e9"), Some(1_768_469_400_000_000_000));
+        assert_eq!(epoch_nanos("2.5E+3"), Some(2_500_000_000_000));
+        assert_eq!(epoch_nanos("0.123456789"), Some(123_456_789));
+        assert_eq!(epoch_nanos("x"), None);
+    }
 
     #[test]
     fn epoch_text_keeps_the_fraction() {

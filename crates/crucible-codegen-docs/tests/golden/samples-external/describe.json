@@ -919,9 +919,9 @@
     "example.samples#Edges": {
       "auth": [],
       "documentation": {
-        "html": "<p>Values at the edges of what each language represents, in an example:\nboth ends of <code>long</code>, <code>bigInteger</code> and <code>bigDecimal</code> past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset and at both\nends of the calendar, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client.</p>\n",
-        "markdown": "Values at the edges of what each language represents, in an example:\nboth ends of `long`, `bigInteger` and `bigDecimal` past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset and at both\nends of the calendar, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client.",
-        "text": "Values at the edges of what each language represents, in an example:\nboth ends of long, bigInteger and bigDecimal past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset and at both\nends of the calendar, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client."
+        "html": "<p>Values at the edges of what each language represents, in an example:\nboth ends of <code>long</code>, <code>bigInteger</code> and <code>bigDecimal</code> past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset, at both\nends of the calendar and before its first year, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client.</p>\n",
+        "markdown": "Values at the edges of what each language represents, in an example:\nboth ends of `long`, `bigInteger` and `bigDecimal` past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset, at both\nends of the calendar and before its first year, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client.",
+        "text": "Values at the edges of what each language represents, in an example:\nboth ends of long, bigInteger and bigDecimal past 64 bits,\ninstants with nanoseconds, before the epoch, with an offset, at both\nends of the calendar and before its first year, a null in a sparse recursive map and list, a\nmember left to its default, and an idempotency token the snippets leave\nto the client."
       },
       "errors": [],
       "examples": [
@@ -935,6 +935,7 @@
           "error": null,
           "input": {
             "body": {
+              "ancient": -62135596801,
               "early": -1.5,
               "first": "0001-01-01T00:00:00Z",
               "huge": 123456789012345678901234567890,
@@ -1026,6 +1027,17 @@
           },
           "example.samples.EdgesInput": {
             "properties": {
+              "ancient": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "x-crucible-timestamp-format": "epoch-seconds"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "early": {
                 "anyOf": [
                   {
@@ -1217,6 +1229,17 @@
           }
         },
         "properties": {
+          "ancient": {
+            "anyOf": [
+              {
+                "type": "number",
+                "x-crucible-timestamp-format": "epoch-seconds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "early": {
             "anyOf": [
               {
@@ -1404,6 +1427,7 @@
           "early",
           "offset",
           "first",
+          "ancient",
           "last",
           "tree",
           "names",
@@ -1433,6 +1457,7 @@
         "generated": true,
         "input": {
           "body": {
+            "ancient": 1768469400,
             "early": 1768469400,
             "first": "2026-01-15T09:30:00Z",
             "huge": 1,
@@ -4496,6 +4521,43 @@
           "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "first"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "ancient",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.samples#EpochTime",
+          "targetName": "EpochTime",
+          "targetType": "timestamp",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "ancient"
         },
         {
           "clientOptional": false,

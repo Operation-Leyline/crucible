@@ -2,8 +2,8 @@
 
 <p>Values at the edges of what each language represents, in an example:
 both ends of <code>long</code>, <code>bigInteger</code> and <code>bigDecimal</code> past 64 bits,
-instants with nanoseconds, before the epoch, with an offset and at both
-ends of the calendar, a null in a sparse recursive map and list, a
+instants with nanoseconds, before the epoch, with an offset, at both
+ends of the calendar and before its first year, a null in a sparse recursive map and list, a
 member left to its default, and an idempotency token the snippets leave
 to the client.</p>
 
@@ -37,6 +37,7 @@ Crucible-Version: 1
   "early": "<timestamp>",
   "offset": "<timestamp>",
   "first": "<timestamp>",
+  "ancient": "<timestamp>",
   "last": "<timestamp>",
   "tree": "<map>",
   "names": "<list>",
@@ -57,6 +58,7 @@ Crucible-Version: 1
 | <code>early</code> | <code>body: early</code> | [EpochTime](../shapes/EpochTime.md) | No | — | — |  |
 | <code>offset</code> | <code>body: offset</code> | <code>timestamp</code> | No | — | — |  |
 | <code>first</code> | <code>body: first</code> | <code>timestamp</code> | No | — | — |  |
+| <code>ancient</code> | <code>body: ancient</code> | [EpochTime](../shapes/EpochTime.md) | No | — | — |  |
 | <code>last</code> | <code>body: last</code> | <code>timestamp</code> | No | — | — |  |
 | <code>tree</code> | <code>body: tree</code> | [Tree](../shapes/Tree.md) | No | — | — |  |
 | <code>names</code> | <code>body: names</code> | [SparseLabels](../shapes/SparseLabels.md) | No | — | — |  |
@@ -93,6 +95,7 @@ POST /edges HTTP/1.1
 Content-Type: application/json
 
 {
+  "ancient": -62135596801,
   "early": -1.5,
   "first": "0001-01-01T00:00:00Z",
   "huge": 123456789012345678901234567890,

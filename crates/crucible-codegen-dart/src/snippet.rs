@@ -64,7 +64,11 @@ fn expr(service: &Service, node: &Node<'_>, indent: &str, needs: &mut Needs) -> 
         Kind::Timestamp(instant) if instant.calendar() => {
             format!("Timestamp.parse({})", literal(&instant.rfc3339))
         }
-        Kind::Timestamp(instant) => format!("Timestamp({}, {})", instant.seconds, instant.nanos),
+        // The runtime's seconds are a `BigInt`.
+        Kind::Timestamp(instant) => format!(
+            "Timestamp(BigInt.from({}), {})",
+            instant.seconds, instant.nanos
+        ),
         Kind::Blob(bytes) => match std::str::from_utf8(bytes) {
             Ok(text) if !text.chars().any(char::is_control) => {
                 needs.convert = true;

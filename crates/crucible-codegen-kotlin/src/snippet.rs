@@ -70,12 +70,22 @@ impl Literal<'_> {
                 _ => literal(text),
             },
             Kind::Number { kind, text } => self.number(node, *kind, text),
-            Kind::Timestamp(instant) => {
+            Kind::Timestamp(instant) if instant.calendar() => {
                 self.time = true;
                 format!(
                     "{}.parse({})",
                     self.platform("kotlin.time.Instant"),
                     literal(&instant.rfc3339)
+                )
+            }
+            // Outside years 0001 to 9999, from its epoch seconds.
+            Kind::Timestamp(instant) => {
+                self.time = true;
+                format!(
+                    "{}.fromEpochSeconds({}L, {})",
+                    self.platform("kotlin.time.Instant"),
+                    instant.seconds,
+                    instant.nanos
                 )
             }
             Kind::Blob(bytes) => match std::str::from_utf8(bytes) {

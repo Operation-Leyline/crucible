@@ -95,10 +95,17 @@ impl Literal<'_> {
                 _ => literal(text),
             },
             Kind::Number { kind, text } => self.number(node, *kind, text),
-            Kind::Timestamp(instant) => format!(
+            Kind::Timestamp(instant) if instant.calendar() => format!(
                 "{}.parse({})",
                 self.imports.name("java.time.Instant"),
                 literal(&instant.rfc3339)
+            ),
+            // Outside years 0001 to 9999, from its epoch seconds.
+            Kind::Timestamp(instant) => format!(
+                "{}.ofEpochSecond({}L, {}L)",
+                self.imports.name("java.time.Instant"),
+                instant.seconds,
+                instant.nanos
             ),
             Kind::Blob(bytes) => match std::str::from_utf8(bytes) {
                 Ok(text) if !text.chars().any(char::is_control) => format!(

@@ -112,6 +112,16 @@ fn without_token(operation: &Operation, message: &Value) -> Value {
         body.remove(token);
     }
     let request = &operation.request;
+    // A token bound as the whole payload goes with its body and the body's
+    // media type: the request is then sent without one, as a caller who
+    // leaves the token to the service does.
+    if request.payload.as_ref().is_some_and(|p| &p.member == token) {
+        message["payload"] = Value::Null;
+        message["body"] = Value::Null;
+        if let Some(headers) = message["headers"].as_object_mut() {
+            headers.retain(|name, _| !name.eq_ignore_ascii_case("content-type"));
+        }
+    }
     if let Some(binding) = request.headers.iter().find(|b| &b.member == token)
         && let Some(headers) = message["headers"].as_object_mut()
     {

@@ -1,0 +1,19 @@
+service Tokens {
+    version "1"
+    protocol json
+    operations [Redeem]
+}
+
+/// Redeems an offer once per token.
+operation Redeem {
+    http POST "/offers/{offerId}/redemptions"
+    input {
+        offerId: string
+        @token
+        @payload
+        token?: string
+    }
+    example "Redeem an offer" {
+        input { offerId: "spring", token: "fixed-token-the-command-leaves-out" }
+    }
+}

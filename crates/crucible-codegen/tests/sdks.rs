@@ -491,7 +491,9 @@ fn instants_outside_the_calendar_are_built_from_seconds() {
             "rust" => "runtime::time::Timestamp::from_timestamp(-62167219200, 0)",
             "ruby" => "Runtime::Timestamp.new(-62167219200, 0)",
             "php" => r"Runtime\Timestamp(-62167219200, 0)",
-            "dart" => "Timestamp(-62167219200, 0)",
+            "dart" => "Timestamp(BigInt.from(-62167219200), 0)",
+            "java" => "Instant.ofEpochSecond(-62167219200L, 0L)",
+            "kotlin" => "Instant.fromEpochSeconds(-62167219200L, 0)",
             _ => continue,
         };
         let surface = client.surface(&service, Audience::External).unwrap();
@@ -551,5 +553,73 @@ fn sender_operations_have_no_snippet_request_or_guide() {
                 );
             }
         }
+    }
+}
+
+/// An idempotency token bound as the whole payload, which an example sets,
+/// is left out of the raw request with its body, so a repeated command is
+/// a new write rather than a replay; the SDK snippets leave it to the
+/// client (`payload-token`).
+#[test]
+fn a_payload_token_never_reaches_a_copied_command() {
+    let text = "schema_version = 1\nmodel = \"model\"\n\n[sdk.ts]\npackage = \"@example/tokens\"\nmiddleware = [\"content-sha256\"]\nout = \"generated/ts\"\n\n[sdk.rust]\npackage = \"tokens-sdk\"\nout = \"generated/rust\"\n";
+    let (_directory, path) = repository("payload-token", text);
+    let text = describe(&path, "payload-token", Audience::External).unwrap();
+    assert!(
+        !text.contains("fixed-token-the-command-leaves-out"),
+        "{text}"
+    );
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let redeem = &document["http"]["operations"]["example.tokens#Redeem"];
+    assert_eq!(redeem["example"], "Redeem an offer");
+    assert!(redeem["body"].is_null(), "{redeem}");
+    // An empty POST's digest is of zero bytes.
+    assert!(
+        redeem["snippet"]
+            .as_str()
+            .unwrap()
+            .contains("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        "{redeem}"
+    );
+}
+
+/// An epoch-seconds example in scientific notation (`1e-10`, `1.7684694e9`)
+/// is a timestamp in every language's snippet, never a number.
+#[cfg(feature = "all-clients")]
+#[test]
+fn epoch_examples_in_scientific_notation_are_timestamps() {
+    let service = common::load_with("samples", |package| {
+        for file in &mut package.files {
+            file.text = file
+                .text
+                .replace("early: -1.5", "early: 1.7684694e9")
+                .replace("ancient: -62135596801", "ancient: 1e-10");
+        }
+    });
+    let edges = service
+        .operations
+        .iter()
+        .find(|op| op.name() == "Edges")
+        .unwrap();
+    let call = crucible_codegen_common::snippet::call(&service, edges);
+    let Some(crucible_codegen_common::snippet::Node {
+        kind: crucible_codegen_common::snippet::Kind::Structure(members),
+        ..
+    }) = &call.input
+    else {
+        panic!("a structure input")
+    };
+    for name in ["early", "ancient"] {
+        let (_, node) = members.iter().find(|(m, _)| m.name == name).unwrap();
+        let crucible_codegen_common::snippet::Kind::Timestamp(instant) = &node.kind else {
+            panic!("{name} is not a timestamp: {:?}", node.kind)
+        };
+        let expected = if name == "early" { 1_768_469_400 } else { 0 };
+        assert_eq!((instant.seconds, instant.nanos), (expected, 0), "{name}");
+    }
+    for (language, client) in clients::clients() {
+        let surface = client.surface(&service, Audience::External).unwrap();
+        let snippet = &surface.operations["example.samples#Edges"].snippet;
+        assert!(!snippet.contains("1e-10"), "{language}: {snippet}");
     }
 }

@@ -115,7 +115,10 @@ version's section when it is prepared.
   `@sender` operations, which a third party calls. A structure or document payload
   is the body, as JSON. Neither a snippet nor the raw request carries an
   example's idempotency token, and a defaulted member an example leaves
-  out is written with its default. `crucible_codegen_common::snippet`
+  out is written with its default. A token bound as the whole payload is
+  left out with its body. Instants outside years 0001-9999 are built from
+  their epoch seconds where a language parses calendar text, and epoch
+  examples in scientific notation (`1e-10`) are read exactly. `crucible_codegen_common::snippet`
   holds the shared, typed reading of the value
   ([docs/docs.md](docs/docs.md#snippets)).
 - SDK files: `middleware = ["content-sha256"]` on a Rust SDK makes its
