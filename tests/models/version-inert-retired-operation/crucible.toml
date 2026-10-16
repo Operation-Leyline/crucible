@@ -1,0 +1,30 @@
+# A step whose operation was retired since under an exception, its release's
+# side excepted too: inert, with a warning (decisions 70 and 71). v2 renames
+# GetItem's `name`; v3 drops GetItem under the exceptions below, so v2 and v1
+# no longer serve it and the rename converts nothing. v1 and v2 are frozen
+# under releases/; v3 is current.
+[model]
+namespace = "example.retired"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.operation"
+shape = "example.retired#GetItem"
+reason = "GetItem is retired"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.retired#GetItem"
+reason = "GetItem is retired"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.retired#GetItemInput"
+reason = "GetItem is retired"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.retired#GetItemOutput"
+reason = "GetItem is retired"

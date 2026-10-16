@@ -78,7 +78,7 @@ pub fn projections(service: &Service) -> Result<Vec<Projection>, Diagnostics> {
 }
 
 /// The release `version` as `newer` sees it: `newer` with the steps of the
-/// migration from `version` to it undone, taking from `version.service`, the
+/// migration from `version` to it undone, taking from `version.release`, the
 /// frozen release, only what each step says the release had. `newer` is the
 /// projection of the release after `version`, or the current model.
 ///
@@ -102,7 +102,7 @@ pub fn undo(
     errors: &mut Diagnostics,
     warnings: &mut Diagnostics,
 ) -> Service {
-    let frozen: &Service = &version.service;
+    let frozen: &Service = &version.release;
     let mut undo = Undo {
         frozen,
         frozen_operations: frozen
@@ -1775,6 +1775,23 @@ fn rename_segments(
     to: &str,
     from: &str,
 ) {
+    rename_path(shapes, root, segments, |id, segment| {
+        (id == shape && segment == to).then(|| from.to_owned())
+    });
+}
+
+/// `segments`, a member path from `root` through `shapes`, with each
+/// segment `rename` gives another name for renamed: `rename` is asked for
+/// the structure that holds the member and the member's name in `shapes`.
+/// Each segment is resolved before it is renamed, so one pass renames a
+/// path through several renamed members. A path may cross a list to its
+/// element; it stops where a segment does not resolve.
+pub fn rename_path(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    root: Option<&ShapeId>,
+    segments: &mut [String],
+    rename: impl Fn(&ShapeId, &str) -> Option<String>,
+) {
     let mut current = root.cloned();
     for segment in segments.iter_mut() {
         let Some(mut id) = current.take() else {
@@ -1790,8 +1807,8 @@ fn rename_segments(
             return;
         };
         current = Some(member.target.clone());
-        if &id == shape && segment == to {
-            *segment = from.to_owned();
+        if let Some(name) = rename(&id, segment) {
+            *segment = name;
         }
     }
 }

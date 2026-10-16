@@ -13,7 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 mod projection;
-pub use projection::{Projection, current_permission, projections, undo};
+pub use projection::{Projection, current_permission, projections, rename_path, undo};
 
 use crate::ShapeId;
 use crate::ir::{ApiVersion, Hook, Service, Shape, VersionStep};
@@ -71,7 +71,7 @@ pub fn history(service: &Service) -> Histories {
     let versions = visible(service);
     let mut chain: Vec<(&str, &Service)> = versions
         .iter()
-        .map(|version| (version.name.as_str(), &*version.service))
+        .map(|version| (version.name.as_str(), &*version.release))
         .collect();
     chain.push((current_name(service), service));
     let steps: Vec<&[VersionStep]> = versions
@@ -92,7 +92,7 @@ pub fn history_at(service: &Service, release: usize) -> Histories {
     };
     let chain: Vec<(&str, &Service)> = versions
         .iter()
-        .map(|version| (version.name.as_str(), &*version.service))
+        .map(|version| (version.name.as_str(), &*version.release))
         .collect();
     let steps: Vec<&[VersionStep]> = versions[..release]
         .iter()
@@ -359,7 +359,9 @@ pub fn older_member(step: &VersionStep) -> Option<ShapeId> {
 /// only when that audience sees every id it [`named`] on each side, a
 /// reshape's replaced members and an error's member mapping kept to those
 /// it sees; and a retired operation only when it sees it. Documentation is
-/// kept as written. As lowered, the versions are returned as they are.
+/// kept as written. Each projected version's `service` is its release's
+/// view too: the reference reads the release, and nothing serves an
+/// external view. As lowered, the versions are returned as they are.
 pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
     let versions = &service.versions;
     if !versions.iter().any(|version| version.external) {
@@ -367,7 +369,7 @@ pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
     }
     let models: Vec<Service> = versions
         .iter()
-        .map(|version| crate::audience::lenient_external(&version.service))
+        .map(|version| crate::audience::lenient_external(&version.release))
         .collect();
     let mut out = Vec::with_capacity(versions.len());
     for (index, (version, model)) in versions.iter().zip(&models).enumerate() {
@@ -388,9 +390,12 @@ pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
             .filter(|id| has(model, id))
             .cloned()
             .collect();
+        // The reference reads the release; an external view serves nothing,
+        // so the release's view stands for both, projected once.
         out.push(ApiVersion {
             name: version.name.clone(),
             service: Box::new(model.clone()),
+            release: Box::new(model.clone()),
             steps,
             sunset: version.sunset.clone(),
             sunset_docs: version.sunset_docs.clone(),

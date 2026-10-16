@@ -132,8 +132,17 @@ pub struct PolicyException {
 pub struct ApiVersion {
     /// The release's `version`, such as `2026-09-04`.
     pub name: String,
-    /// That release's lowered model: its routes, shapes and errors.
+    /// The model this version is served from: its routes, shapes and
+    /// errors. The frozen release for now; the projection of the current
+    /// model once the server serves projections (docs/api-versions-clients.md,
+    /// 5b).
     pub service: Box<Service>,
+    /// The release's frozen model, as `releases/<version>.json` holds it:
+    /// what undo takes older definitions from, what a projection is checked
+    /// against (decision 68), and what the reference dates and documents
+    /// older definitions by. Like `service` it has no natural empty value,
+    /// so it takes no `#[serde(default)]`; versions never reach a snapshot.
+    pub release: Box<Service>,
     /// The migration from this version to the next, in declaration order.
     pub steps: Vec<VersionStep>,
     /// After this date the version may be refused (`YYYY-MM-DD`).

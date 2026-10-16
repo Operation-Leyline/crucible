@@ -1,0 +1,9 @@
+# Refused: a retype into a required `@payload` (#348). The step declares the
+# member's move from the body to the payload, but not that it became required,
+# which old callers that omit it would break on. v1 is frozen under releases/;
+# v2 is current.
+[model]
+namespace = "example.required"
+
+[model.baseline]
+path = "releases/v1.json"

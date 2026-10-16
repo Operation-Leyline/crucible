@@ -1,0 +1,34 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, CountItems]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        title: string
+        kind: Kind
+        /// A nickname, new in v3.
+        name?: string
+    }
+}
+
+enum Kind { SMALL, HUGE }
+
+/// Counts the items again, at another route.
+readonly operation CountItems {
+    http GET "/items/count"
+    output { total: integer }
+}
+
+migration "v1" from "v0" {}
+
+migration "v2" from "v1" {
+    rename GetItem.output.name -> title
+    remove operation CountItems
+    add Kind.HUGE downgrade LARGE
+}
+
+migration "v3" from "v2" {}

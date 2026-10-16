@@ -86,7 +86,8 @@ every release in the chain and records, on the current `ir::Service`:
 ```rust
 pub struct ApiVersion {
     pub name: String,            // "2026-09-04"
-    pub service: Service,        // that release's IR: its shapes, routes, errors
+    pub service: Service,        // what the version is served from: its frozen release, for now
+    pub release: Service,        // that release's frozen IR: its shapes, routes, errors
     pub steps: Vec<VersionStep>, // the migration from it to the next version
     pub sunset: Option<String>,
     pub docs: Option<String>,    // the migration's `///`
@@ -107,6 +108,20 @@ documentation's do; one may also name what the release the migration comes
 from had, which renders as its text. `snapshot::write` clears `versions`, so none of
 it reaches a release. Generators that do not serve versions ignore
 `versions`; the semantics are settled once, here.
+
+The compiler also projects the current model back to every release
+(`crucible_ir::versions::undo`) and checks each projection against its
+frozen release with the guard's comparison, both families at error, with
+the manifest's exceptions ([api-versions-clients.md](api-versions-clients.md#the-check),
+decisions 68-71). It refuses a name an older release still uses when the
+current model reuses it (an older member name, a removed member added
+again, a removed operation's name, a moved or removed operation's route, a
+restored shape's id), a step whose older side is gone since (a downgrade
+value removed), a shape renamed since a step named it, and a step whose
+newer side was removed under an exception while its older side is not
+excepted too. Every problem is reported at its place, in `crucible check`,
+the build and the editor; an example a release cannot hold is left out of
+it with a warning at the example.
 
 ## Generated code
 

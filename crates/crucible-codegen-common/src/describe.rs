@@ -829,11 +829,12 @@ fn change(
     histories: &crucible_ir::versions::Histories,
 ) -> Value {
     use crucible_ir::ir::{Hook, RetypeBy, VersionStep};
-    let older: &Service = &service.versions[from].service;
+    // The releases as they were frozen (decision 78).
+    let older: &Service = &service.versions[from].release;
     let newer: &Service = service
         .versions
         .get(from + 1)
-        .map_or(service, |version| &version.service);
+        .map_or(service, |version| &version.release);
     let empty = || json!({});
     let mut value = match step {
         VersionStep::Rename { new, from, to, .. } => json!({"kind":"rename",

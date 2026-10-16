@@ -27,9 +27,32 @@ fn lower(dir: &Path) -> Service {
         let guard = guard.unwrap();
         assert!(!guard.has_errors(), "{}", guard.render(&compiled));
     }
-    let versions = crucible_lang::versions(&package, &compiled, own, &config).unwrap();
+    let versions = crucible_lang::versions(&package, &compiled, own, &config)
+        .into_result(&compiled)
+        .unwrap()
+        .0;
     let mut service = compiled.service.expect("the package compiles");
     service.versions = versions;
+    service
+}
+
+/// [`lower`] for a package the compiler refuses while it projects an older
+/// release, with a problem containing `message`: the versions as built,
+/// for the generator's own check, which stays as a backstop for an edited
+/// IR.
+fn lower_refused(dir: &Path, message: &str) -> Service {
+    let package = crucible_lang::load_package(dir).unwrap();
+    let own = package.files.len();
+    let compiled = crucible_lang::compile(&package, None);
+    let config = crucible_policy::Config::load(&dir.join("crucible.toml")).unwrap();
+    let versions = crucible_lang::versions(&package, &compiled, own, &config);
+    let rendered = versions.render(&compiled);
+    assert!(
+        versions.has_errors() && rendered.contains(message),
+        "{rendered}"
+    );
+    let mut service = compiled.service.expect("the package compiles");
+    service.versions = versions.versions;
     service
 }
 
@@ -72,6 +95,10 @@ const MANIFEST: &str = "[model]\nnamespace = \"example.shop\"\nimports = [\"cruc
 /// identifier shapes and permissions, a break of the SDK's source they do
 /// not exercise: the guard judges only the wire.
 const SDK_OFF: &str = "\n[compatibility]\nsdk_source = false\n";
+
+/// The SDK break a shape rename makes, which the setting above hides from
+/// the guard but not from the projection check (decision 68).
+const SHELF_COUNT: &str = "\n[[exceptions]]\nrule = \"compatibility.sdk\"\nshape = \"example.shop#Shelf$count\"\nreason = \"Shelf is Bookshelf now\"\n";
 
 /// Freezes `source`, a release of the shop, into `dir/releases`, as
 /// `crucible freeze` does: compiled once, then a snapshot.
@@ -271,13 +298,10 @@ readonly operation ReadNote reads Note {
         format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
     )
     .unwrap();
-    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
-    assert!(
-        diagnostics
-            .to_string()
-            .contains("whose identifiers have changed since (`(shelfId, noteId)` then, `(folderId, noteId)` now)"),
-        "{diagnostics}"
-    );
+    let message =
+        "whose identifiers have changed since (`(shelfId, noteId)` then, `(folderId, noteId)` now)";
+    let diagnostics = generate(&lower_refused(&dir, message), &Options::default()).unwrap_err();
+    assert!(diagnostics.to_string().contains(message), "{diagnostics}");
 }
 
 /// The same move to a parent whose identifier has the same name keeps the
@@ -338,13 +362,9 @@ readonly operation ReadNote reads Note {
         format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
     )
     .unwrap();
-    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
-    assert!(
-        diagnostics
-            .to_string()
-            .contains("whose parent resources have changed since (`(shelf)` then, `(folder)` now)"),
-        "{diagnostics}"
-    );
+    let message = "whose parent resources have changed since (`(shelf)` then, `(folder)` now)";
+    let diagnostics = generate(&lower_refused(&dir, message), &Options::default()).unwrap_err();
+    assert!(diagnostics.to_string().contains(message), "{diagnostics}");
 }
 
 /// A root resource moved under a parent with no identifier keeps its
@@ -395,13 +415,9 @@ readonly operation ReadNote reads Note {
         format!("{current}\nmigration \"v2\" from \"v1\" {{\n    remove operation ReadNote\n}}\n"),
     )
     .unwrap();
-    let diagnostics = generate(&lower(&dir), &Options::default()).unwrap_err();
-    assert!(
-        diagnostics
-            .to_string()
-            .contains("whose parent resources have changed since (`()` then, `(Folder)` now)"),
-        "{diagnostics}"
-    );
+    let message = "whose parent resources have changed since (`()` then, `(Folder)` now)";
+    let diagnostics = generate(&lower_refused(&dir, message), &Options::default()).unwrap_err();
+    assert!(diagnostics.to_string().contains(message), "{diagnostics}");
 }
 
 /// Parents are recorded by authorization name, which grants store and a
@@ -445,7 +461,9 @@ readonly operation ReadNote reads Note {
     freeze(&dir, v1);
     fs::write(
         dir.join("crucible.toml"),
-        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n{SDK_OFF}"),
+        format!(
+            "{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n{SDK_OFF}{SHELF_COUNT}"
+        ),
     )
     .unwrap();
     let current = v1

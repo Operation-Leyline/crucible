@@ -1,0 +1,10 @@
+# Refused: a shape id a restored definition reaches, declared again as a
+# different shape (decision 69). v2 removes ListTags, the one operation that
+# reached Tag; v3 declares a new Tag, so v1's restored ListTags and the new
+# operation would share the id. v1 and v2 are frozen under releases/; v3 is
+# current.
+[model]
+namespace = "example.shape"
+
+[model.baseline]
+path = "releases/v2.json"

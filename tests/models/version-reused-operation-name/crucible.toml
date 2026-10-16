@@ -1,0 +1,9 @@
+# Refused: an operation named as one a migration removes (decision 69). v2
+# removes CountItems, which v1 still serves through its handler; v3 declares a
+# new CountItems, so v1's projection would hold two. v1 and v2 are frozen
+# under releases/; v3 is current.
+[model]
+namespace = "example.reop"
+
+[model.baseline]
+path = "releases/v2.json"

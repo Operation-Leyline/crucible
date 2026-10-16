@@ -117,7 +117,7 @@ fn dropping_the_oldest_release_dates_its_elements_before_every_release() {
 #[test]
 fn an_element_added_again_is_dated_by_the_latest_addition() {
     let mut service = service();
-    let v2 = &mut service.versions[1].service;
+    let v2 = &mut service.versions[1].release;
     let Some(crucible_ir::ir::Shape::Structure(output)) = v2.shapes.get_mut(&id("GetItemOutput"))
     else {
         panic!("GetItemOutput");
@@ -150,7 +150,7 @@ fn the_external_view_leaves_out_every_step_naming_internal_api() {
             let named = named(step);
             for id in &named.older {
                 assert!(
-                    crucible_ir::versions::has(&version.service, id),
+                    crucible_ir::versions::has(&version.release, id),
                     "{id} in {step:?}"
                 );
             }
@@ -243,7 +243,7 @@ fn an_older_release_the_projection_would_refuse_fails_no_output() {
     let external = project(&service, Audience::External).unwrap();
     let token: ShapeId = "example.required#GetItemOutput$token".parse().unwrap();
     let seen = visible(&external);
-    assert!(!crucible_ir::versions::has(&seen[0].service, &token));
+    assert!(!crucible_ir::versions::has(&seen[0].release, &token));
     assert!(crucible_ir::versions::has(&external, &token));
     assert_eq!(history(&external).get(&token).added.as_deref(), Some("v2"));
     assert_eq!(history(&service).get(&token).added, None);

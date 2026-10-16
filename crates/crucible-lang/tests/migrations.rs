@@ -241,6 +241,7 @@ fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
         );
         let error =
             crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+                .into_result(&compiled)
                 .unwrap_err();
         assert!(error.contains(expected), "{name}: {error}");
     }
@@ -419,7 +420,9 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
         );
         let versions =
             crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
-                .unwrap();
+                .into_result(&compiled)
+                .unwrap()
+                .0;
         assert!(
             matches!(
                 &versions[0].steps[..],
@@ -486,7 +489,9 @@ fn timestamp_requirement_defaults_use_the_destination_wire_format() {
         assert!(!checked.has_errors(), "{name}: {:?}", problems(&checked));
         let versions =
             crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
-                .unwrap();
+                .into_result(&compiled)
+                .unwrap()
+                .0;
         assert!(
             matches!(
                 &versions[0].steps[..],
@@ -515,7 +520,9 @@ fn integer_enum_requirement_defaults_accept_symbols_and_emit_numbers() {
     assert!(!checked.has_errors(), "{:?}", problems(&checked));
     let versions =
         crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
-            .unwrap();
+            .into_result(&compiled)
+            .unwrap()
+            .0;
     assert!(matches!(
         &versions[0].steps[..],
         [crucible_ir::ir::VersionStep::Require { default, .. }] if default == &serde_json::json!(1)
@@ -546,6 +553,7 @@ fn historical_requirement_defaults_cannot_bypass_validation() {
         .unwrap();
     assert!(!latest.has_errors(), "{:?}", problems(&latest));
     let error = crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .into_result(&compiled)
         .unwrap_err();
     assert!(error.contains("the migration to \"v2\""), "{error}");
     assert!(error.contains("must be a integer"), "{error}");
@@ -858,11 +866,14 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
         problems(&guard)
     );
 
-    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap()
+        .0;
     let names: Vec<&str> = versions.iter().map(|v| v.name.as_str()).collect();
     assert_eq!(names, ["v1", "v2"]);
     assert_eq!(versions[0].sunset.as_deref(), Some("2027-01-01"));
-    assert_eq!(versions[0].service.version, "v1");
+    assert_eq!(versions[0].release.version, "v1");
     assert!(matches!(
         &versions[0].steps[..],
         [VersionStep::Rename { from, to, .. }] if from == "name" && to == "title"
@@ -899,7 +910,9 @@ fn a_release_is_read_only_under_the_name_it_was_frozen_as() {
     let own = loaded.files.len();
     let compiled = compile(&loaded, None);
     assert!(compiled.service.is_some(), "{}", compiled.render());
-    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap_err();
+    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap_err();
     assert!(error.contains("not recorded in crucible.lock"), "{error}");
 }
 
@@ -992,7 +1005,10 @@ fn a_hooked_requirement_named_by_its_shape_reaches_its_operations() {
     let own = loaded.files.len();
     let compiled = compile(&loaded, None);
     assert!(compiled.service.is_some(), "{}", compiled.render());
-    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap()
+        .0;
     assert!(
         matches!(
             &versions[0].steps[..],
@@ -1301,7 +1317,10 @@ fn a_renamed_member_lowers_its_other_steps_under_both_names() {
         rules(&checked),
         problems(&checked)
     );
-    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap()
+        .0;
     let steps = &versions[0].steps;
     assert!(steps.iter().any(|step| matches!(
         step,
@@ -1394,7 +1413,10 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
         rules(&checked),
         problems(&checked)
     );
-    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap()
+        .0;
     let [v1] = &versions[..] else {
         panic!("one older release: {versions:?}");
     };
@@ -1624,7 +1646,9 @@ fn a_hooked_requirement_on_a_retyped_member_is_refused_at_the_requirement() {
     let lines = crucible_lang::span::LineIndex::new(&file.text);
     assert_eq!(lines.line_col(&file.text, span.start), (21, 13));
     // The server's versions are refused too, before any generator sees them.
-    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap_err();
+    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap_err();
     assert!(
         error.contains("both required by hook and retyped"),
         "{error}"
@@ -1725,10 +1749,20 @@ fn an_operation_dropped_without_remove_operation_is_refused_at_the_migration() {
     assert_eq!(&file.text[span.start as usize..span.end as usize], "\"v2\"");
     let lines = crucible_lang::span::LineIndex::new(&file.text);
     assert_eq!(lines.line_col(&file.text, span.start), (16, 21));
-    let error = crucible_lang::versions(&loaded, &compiled, own, &config).unwrap_err();
+    // The versions refuse it too, at the same place: what the guard
+    // reports already is left out of what they add.
+    let mut versions = crucible_lang::versions(&loaded, &compiled, own, &config);
+    assert!(versions.has_errors());
     assert!(
-        error.starts_with("the migration to \"v3\": CountItems is not in \"v3\""),
-        "{error}"
+        versions.diagnostics().contains(problem),
+        "{}",
+        versions.render(&compiled)
+    );
+    versions.without(&checked);
+    assert!(
+        versions.diagnostics().is_empty(),
+        "{}",
+        versions.render(&compiled)
     );
 }
 
@@ -1747,7 +1781,10 @@ fn an_operation_dropped_under_an_exception_is_retired_with_a_warning() {
             "CountItems is not in \"v3\" and this migration has no `remove operation CountItems`; under the exception for `compatibility.operation`, \"v2\" and the releases before it no longer serve it"
         ]
     );
-    let versions = crucible_lang::versions(&loaded, &compiled, own, &config).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &config)
+        .into_result(&compiled)
+        .unwrap()
+        .0;
     let retired: Vec<String> = versions
         .iter()
         .map(|version| {
@@ -1762,7 +1799,9 @@ fn an_operation_dropped_under_an_exception_is_retired_with_a_warning() {
     );
     // The exception is what accepts the drop; a setting that turns the
     // finding off does not (decision 68).
-    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap_err();
+    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
+        .into_result(&compiled)
+        .unwrap_err();
     assert!(error.contains("so nothing would serve it"), "{error}");
 }
 
@@ -1968,7 +2007,10 @@ fn the_guard_and_versions_share_the_releases_they_load() {
     assert!(!checked.has_errors(), "{:?}", problems(&checked));
     assert_eq!(releases.len(), 1, "the guard read v1 once");
     let versions =
-        crucible_lang::versions_in(&loaded, &compiled, own, &Config::default(), &releases).unwrap();
+        crucible_lang::versions_in(&loaded, &compiled, own, &Config::default(), &releases)
+            .into_result(&compiled)
+            .unwrap()
+            .0;
     assert_eq!(versions.len(), 1);
     assert_eq!(releases.len(), 1, "versions read nothing again");
     let path = dir.join("releases/v1.json");
@@ -1992,4 +2034,39 @@ fn the_guard_and_versions_share_the_releases_they_load() {
     std::fs::write(&path, format!("{text} ")).unwrap();
     let error = releases.load(&path).unwrap_err();
     assert!(error.contains("changed after it was frozen"), "{error}");
+}
+
+/// #346: a rename follows into the permission clauses that read the member,
+/// a `when` condition here, so the guard sees the same clause and reports no
+/// authorization change.
+#[test]
+fn a_rename_follows_into_permission_conditions() {
+    let dir = model("version-projection-conditions");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, own, &policy(&dir))
+        .unwrap()
+        .unwrap();
+    assert_eq!(rules(&checked), Vec::<String>::new());
+    assert_eq!(problems(&checked), Vec::<String>::new());
+}
+
+/// #348: a `retype` declares the binding change it causes, a payload's kind
+/// and media type or a member moving between the body and the payload, so
+/// the package needs no exception for it.
+#[test]
+fn a_retype_declares_the_rebinding_it_causes() {
+    let dir = model("version-projection-payload");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let config = policy(&dir);
+    assert!(config.exceptions.is_empty());
+    let checked = guard(&loaded, &compiled, own, &config).unwrap().unwrap();
+    assert_eq!(rules(&checked), Vec::<String>::new());
+    assert_eq!(problems(&checked), Vec::<String>::new());
+    assert!(checked.declared > 0);
 }

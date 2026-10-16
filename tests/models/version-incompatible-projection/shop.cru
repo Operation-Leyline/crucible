@@ -1,0 +1,17 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [GetItem]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        name: string
+        /// How many there are.
+        count: integer = 0
+    }
+}
+
+migration "v2" from "v1" {}

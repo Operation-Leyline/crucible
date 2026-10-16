@@ -1,0 +1,17 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { size: integer }
+}
+
+migration "v2" from "v1" {
+    rename GetItem.output.name -> title
+}
+
+migration "v3" from "v2" {}

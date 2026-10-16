@@ -28,7 +28,7 @@ pub use compile::{
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};
-pub use guard::{Guard, guard, guard_in, versions, versions_in};
+pub use guard::{Checked, Guard, Versions, check_in, guard, guard_in, versions, versions_in};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
 pub use release::Releases;
@@ -49,8 +49,8 @@ pub fn load_service(dir: &std::path::Path) -> Result<crucible_ir::ir::Service, S
 /// [`load_service`], with the older releases the service still serves in
 /// its `versions`, as a build lowers it: the chain of migrations back from
 /// its `version`, under the policy its `crucible.toml` declares beside
-/// `[model]`, after its compatibility guard. For tools and tests that want
-/// what the reference documents.
+/// `[model]`, after its compatibility guard, each release projected and
+/// checked. For tools and tests that want what the reference documents.
 pub fn load_versioned_service(dir: &std::path::Path) -> Result<crucible_ir::ir::Service, String> {
     let package = load_package(dir)?;
     let compiled = compile(&package, None);
@@ -67,19 +67,11 @@ pub fn load_versioned_service(dir: &std::path::Path) -> Result<crucible_ir::ir::
     // The guard first, as a build runs it: a break no migration declares is
     // refused, not documented. One `Releases` serves it and the versions.
     let releases = Releases::default();
-    let own = package.files.len();
-    if let Some(guard) = guard_in(&package, &compiled, own, &config, &releases) {
-        let guard = guard?;
-        if guard.has_errors() {
-            return Err(format!(
-                "{} breaks compatibility with its baseline {}:\n{}",
-                dir.display(),
-                guard.version,
-                guard.render(&compiled)
-            ));
-        }
+    let checked = check_in(&package, &compiled, package.files.len(), &config, &releases);
+    if let Some(failure) = checked.failure(dir, &compiled) {
+        return Err(failure);
     }
-    service.versions = versions_in(&package, &compiled, own, &config, &releases)?;
+    service.versions = checked.versions.versions;
     Ok(service)
 }
 

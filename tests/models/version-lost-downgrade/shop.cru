@@ -1,0 +1,19 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem]
+}
+
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { kind: Kind }
+}
+
+enum Kind { SMALL, HUGE }
+
+migration "v2" from "v1" {
+    add Kind.HUGE downgrade LARGE
+}
+
+migration "v3" from "v2" {}

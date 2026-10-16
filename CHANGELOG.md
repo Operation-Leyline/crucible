@@ -700,6 +700,43 @@ version's section when it is prepared.
 
 ### Changed
 
+- `.cru`: the compiler projects the current model back to every older
+  release it serves and checks the projection against the frozen release
+  (decisions 68-71 in [docs/idl/decisions.md](docs/idl/decisions.md);
+  [docs/api-versions-clients.md](docs/api-versions-clients.md#the-check)),
+  in the build, `crucible check`, `generate`, `compile` and the editor.
+  The check is the guard's comparison with both families at error,
+  whatever `[compatibility]` says, and the manifest's `[[exceptions]]`; a
+  finding is reported once, at the step that names it or at the
+  migration's `from`, naming the release and the migration that should
+  have declared it. New refusals, each at the new declaration or the
+  step: a member named as an older name of a renamed one, a member
+  removed under an exception and added again, an operation named as a
+  removed one, a route a moved or removed operation had, a shape id a
+  restored definition reaches declared again as a different shape, a
+  value a step downgrades to removed since, a shape renamed since a step
+  named it, and a step whose newer side was removed under an exception
+  while its older side is not excepted too (excepted too, the step is
+  inert, with a warning). An example a release cannot hold is left out of
+  it with a warning at the example. Packages: `tests/models/version-*`
+  (see *Migration*).
+- `crucible_lang::versions` and `versions_in` return `Versions`: the
+  versions and every diagnostic with its file and span, across every
+  migration and projection, instead of the first problem as a string
+  (`diagnostics`, `has_errors`, `render`, `into_result`, and
+  `without(&Guard)`, which leaves out what the guard reports already).
+  `crucible_lang::check_in` runs the guard and the versions on one read of
+  the releases and returns both (`Checked`); the build, `crucible check`,
+  `generate`, `compile` and the editor use it, so a guard error no longer
+  hides what the versions find. The editor reuses the last check while
+  the sources, the policy and the releases directory are unchanged. An
+  older migration's step resolves its newer side against the newer
+  release's projection.
+- `ApiVersion::release` holds an older release's frozen model, beside
+  `service`, the model it is served from, which is still the frozen
+  release. Undo, the release history, the audience view of older releases
+  and `describe.json`'s older definitions read `release`.
+
 - Every generated SDK package, in all 14 languages, now carries a
   generated `README.md` (install line with the exact package and
   version, client construction, a complete call, pagination, errors,
@@ -1050,6 +1087,21 @@ version's section when it is prepared.
   feature is refused with a message naming it.
 
 ### Fixed
+
+- The compatibility guard follows a migration's renames into permission
+  requirements: a `requires .. when` condition or a binding that reads a
+  renamed input member is the same clause by its new name, not a new
+  requirement, so no spurious `compatibility.authorization` warning
+  (#346). The walk is the projection's, now
+  `crucible_ir::versions::rename_path`.
+- A `retype` declares the binding change it causes: a payload's kind and
+  media type following its target, and a member moved between the JSON
+  body and the payload (`compatibility.bindings`, and for a move
+  `compatibility.member` and `compatibility.required` on the member),
+  when the members the migration retypes explain the operation's whole
+  binding change. A requiredness or default that changes with the move is
+  not declared by it. `tests/models/version-projection-payload` needs no
+  exception for it any more (#348).
 
 - Examples and defaults are checked against `range` the way the generated
   server checks a request (#337). A `bigDecimal`, a `bigInteger` and every
@@ -1592,6 +1644,71 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **Older releases are checked as the current model sees them.** Once a
+  package declares any migration, every finding against an older release
+  fails the build, including those `[compatibility]` makes a warning or
+  turns off against the baseline (`severity`, `wire`, `sdk_source`). The
+  one exception is `compatibility.authorization`, which stays a warning.
+  The settings now tune only the guard's view of the change being made.
+  An older line receives every change in a minor release, so a break that
+  reaches it must be stated as an exception.
+- **Exceptions written against an older baseline stay while that release
+  is supported.** Frozen releases do not record the manifest's
+  `[[exceptions]]`, and an exception matches a rule and an id, so the one
+  written when a break was made also covers that break in every older
+  projection. Removing it once the baseline has moved on fails the build
+  while a release from before the break is still served. Leyline's 64
+  `nextToken` pattern exceptions are of this kind; so are the
+  `compatibility.sdk` exceptions for a renamed or removed type.
+- **No step declares an addition.** `add` takes a `downgrade` and covers
+  only an enum value or an error, and `require` makes an existing member
+  required. A member, operation or type added since that the check
+  reports (a required or defaulted member, an optional one before an
+  existing one, an addition with `sdk_source` relaxed) is accepted only
+  by an exception. The messages now say so: the check says "no step
+  declares an addition: except ..." for an id its release lacks, and
+  `require` on a member the baseline lacks says "give it a default, or
+  except its finding".
+- A versioned `.cru` package that builds today can also be refused, at the
+  place each diagnostic names:
+  - a name an older release still uses, reused by the current model (a
+    renamed member's older name, a member removed under an exception, a
+    removed operation's name, a moved or removed operation's route, a
+    removed definition's shape id): give the new declaration another name
+    or route while that release is supported, or drop the release (its
+    migration and frozen file);
+  - a value an `add .. downgrade` step downgrades to, or an error or
+    member a step maps, removed since: keep it, `@deprecated`, until the
+    release is dropped;
+  - a shape renamed since a step named it: keep its name while the
+    release is supported;
+  - a `remove operation` whose operation's requirements no longer name a
+    current permission (its resource's identifiers or parents changed
+    since), which the Rust server generator used to report: the compiler
+    now refuses it at the step, as the projection of that release cannot
+    be built;
+  - a step whose newer side was removed under an exception: except the
+    older side's findings too (the step is then inert, with a warning), or
+    keep the member. A step on an operation retired since, or on a
+    structure removed since, with both sides excepted is inert in the same
+    way. So is a step the newer model has undone, such as a `require` on a
+    member made optional again: it is a warning, not the error it was;
+  - a `retype` whose member also became required or lost its default
+    while it moved to or from the `@payload`: the step declares the move,
+    not the requiredness (`tests/models/version-retype-required-payload`);
+  - a projection that is not its frozen release: except the finding in
+    `[[exceptions]]` (`rule` and `shape` as the message names them), or,
+    when a step converts that change, declare it.
+- **`crucible_lang::versions` returns `Versions`, not a `Result`.** Read
+  `versions.versions` after checking `has_errors()`, read the problems
+  with `diagnostics()` or `render(&compiled)`, or call
+  `into_result(&compiled)` for the versions and their warnings, or every
+  problem rendered. `crucible_lang::check_in` runs the guard and the
+  versions on one read of the releases, as the build, the CLI and the
+  editor do, and lists the problems of both before a build fails. Code
+  that builds an `ir::ApiVersion` sets `release`, the frozen model, as
+  well as `service`.
 
 - **Generated SDK packages own `README.md` and `AGENTS.md`.** A package
   directory that already holds a handwritten one, which generation did not

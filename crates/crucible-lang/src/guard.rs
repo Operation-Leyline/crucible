@@ -4,14 +4,13 @@
 //! release declares it, and each declared step must match a change that
 //! happened, so the migration and the model cannot drift apart.
 
-use std::path::Path;
+mod versions;
+pub use versions::{Checked, Versions, check_in, versions, versions_in};
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use crucible_ir::ShapeId;
-use crucible_ir::ir::{
-    ApiVersion, Hook, Operation, Paginated, RetypeBy, Service, Shape, VersionStep,
-};
+use crucible_ir::ir::{Hook, Operation, Paginated, RetypeBy, Service, Shape, VersionStep};
 use crucible_policy::{Config, Finding, Renames, Severity};
 use serde_json::Value as Json;
 
@@ -63,19 +62,33 @@ impl Guard {
                 self.version
             ));
         }
-        for item in &self.problems {
-            match item.file.and_then(|index| compiled.files.get(index)) {
-                Some(file) => out.push_str(&item.diagnostic.render(
-                    &file.path,
-                    &file.text,
-                    &crate::span::LineIndex::new(&file.text),
-                )),
-                // A problem with the package, not with a line of it.
-                None => out.push_str(&format!("error: {}\n", item.diagnostic.message)),
-            }
-        }
+        out.push_str(&render(&self.problems, compiled));
         out
     }
+}
+
+/// Each diagnostic as a build log shows it, at its line of its file.
+fn render(items: &[FileDiagnostic], compiled: &Compiled) -> String {
+    let mut out = String::new();
+    for item in items {
+        match item.file.and_then(|index| compiled.files.get(index)) {
+            Some(file) => out.push_str(&item.diagnostic.render(
+                &file.path,
+                &file.text,
+                &crate::span::LineIndex::new(&file.text),
+            )),
+            // A problem with the package, not with a line of it.
+            None => {
+                let severity = if item.diagnostic.is_error() {
+                    "error"
+                } else {
+                    "warning"
+                };
+                out.push_str(&format!("{severity}: {}\n", item.diagnostic.message));
+            }
+        }
+    }
+    out
 }
 
 /// The guard for `compiled`, a package that compiled, when its manifest
@@ -91,6 +104,7 @@ pub fn guard(
 
 /// [`guard`], reading frozen releases through `releases`, which a build
 /// shares with [`versions_in`] and an editor keeps across compiles.
+/// [`check_in`] runs both on one chain of releases.
 pub fn guard_in(
     package: &Package,
     compiled: &Compiled,
@@ -98,18 +112,37 @@ pub fn guard_in(
     config: &Config,
     releases: &crate::Releases,
 ) -> Option<Result<Guard, String>> {
+    let links = chain(package, compiled, own, releases);
+    guard_with(package, compiled, own, config, releases, &links)
+}
+
+/// The guard, given the chain [`chain`] loaded, whose first link starts at
+/// the baseline: it is not read again.
+fn guard_with(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+    links: &Result<Vec<Link<'_>>, String>,
+) -> Option<Result<Guard, String>> {
     let service = compiled.service.as_ref()?;
-    let old = match releases.load(package.baseline.as_deref()?) {
+    let baseline = package.baseline.as_deref()?;
+    // `releases/<version>.json`: the release's name is its file's stem.
+    let version = baseline
+        .file_stem()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let loaded = links.as_ref().ok().and_then(|links| {
+        links
+            .first()
+            .filter(|link| link.migration.from.value == version)
+            .map(|link| std::sync::Arc::clone(&link.old))
+    });
+    let old = match loaded.map_or_else(|| releases.load(baseline), Ok) {
         Ok(old) => old,
         Err(problem) => return Some(Err(problem)),
     };
-    // `releases/<version>.json`: the release's name is its file's stem.
-    let version = package
-        .baseline
-        .as_deref()
-        .and_then(Path::file_stem)
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
     let mut problems = Vec::new();
     // A release is named by its service's version, so migrations can name it.
     if old.version != version {
@@ -145,8 +178,8 @@ pub fn guard_in(
     // accepts the drop, in every migration of the chain: the diff below
     // sees only the newest. A chain that does not load is `versions`' to
     // report.
-    if let Ok(links) = chain(package, compiled, own, releases) {
-        for link in &links {
+    if let Ok(links) = links {
+        for link in links {
             for drop in dropped(link, service, config) {
                 // The refusal at the migration says what the undeclared
                 // finding would.
@@ -305,6 +338,14 @@ const ENUM_VALUE: &[&str] = &["compatibility.enum", "compatibility.sdk"];
 const PAGINATION: &[&str] = &["compatibility.pagination"];
 const ERROR: &[&str] = &["compatibility.error", "compatibility.sdk"];
 const ROUTE: &[&str] = &["compatibility.http"];
+/// A retype's change of where its member travels: an operation's payload
+/// or header encoding, and the member moving between the body and the
+/// payload, which the checker sees as one member gone and one added.
+const REBINDING: &[&str] = &["compatibility.bindings"];
+const MOVED: &[&str] = &["compatibility.member", "compatibility.required"];
+/// A move whose member's requiredness or default changed with it: the
+/// added member's `compatibility.required` stays undeclared.
+const MOVED_ONLY: &[&str] = &["compatibility.member"];
 const RETYPE: &[&str] = &[
     "compatibility.type",
     "compatibility.constraints",
@@ -340,6 +381,11 @@ struct Context<'a> {
     namespace: &'a str,
     old: &'a Service,
     new: &'a Service,
+    /// How messages name `old` and `new`: the baseline and the current
+    /// model, as the guard compares them, or the releases of an older
+    /// migration, frozen or as the current model sees them.
+    older: String,
+    newer: String,
     /// The migration's renames that name a member of both releases.
     renames: Renames,
     /// The members the migration retypes, as the current model names them.
@@ -383,6 +429,8 @@ impl<'a> Context<'a> {
             namespace,
             old,
             new,
+            older: "the baseline".to_owned(),
+            newer: "the current model".to_owned(),
             renames: Renames::new(),
             retyped: BTreeSet::new(),
             enum_problems: Vec::new(),
@@ -410,6 +458,14 @@ impl<'a> Context<'a> {
         }
         context.enum_changes(migration);
         context
+    }
+
+    /// The context with `old` and `new` named `older` and `newer` in its
+    /// messages.
+    fn labels(mut self, older: String, newer: String) -> Self {
+        self.older = older;
+        self.newer = newer;
+        self
     }
 
     /// The wire value of each value of enum `shape` in `service`, by name.
@@ -761,8 +817,9 @@ impl<'a> Context<'a> {
                     return Err(error(
                         path.span,
                         format!(
-                            "`{from}` is not a member of {} in the baseline",
-                            old.shape.name()
+                            "`{from}` is not a member of {} in {}",
+                            old.shape.name(),
+                            self.older
                         ),
                     ));
                 }
@@ -770,8 +827,9 @@ impl<'a> Context<'a> {
                     return Err(error(
                         path.span,
                         format!(
-                            "`{from}` is still a member of {}; nothing was renamed",
-                            new.shape.name()
+                            "`{from}` is still a member of {} in {}; nothing was renamed",
+                            new.shape.name(),
+                            self.newer
                         ),
                     ));
                 }
@@ -800,8 +858,9 @@ impl<'a> Context<'a> {
                     return Err(error(
                         path.span,
                         format!(
-                            "{} is {before} in the baseline and {after} now, so its values change JSON type; a `rename` cannot convert that",
-                            new.shape.name()
+                            "{} is {before} in {} and {after} now, so its values change JSON type; a `rename` cannot convert that",
+                            new.shape.name(),
+                            self.older
                         ),
                     ));
                 }
@@ -911,13 +970,20 @@ impl<'a> Context<'a> {
                     (None, _) => Err(error(
                         path.span,
                         format!(
-                            "the baseline has no member `{member}` here; a new required member is `add`ed"
+                            "{} has no member `{member}` here; a member added since needs no step: give it a default, or except its finding in the manifest",
+                            capitalized(&self.older)
                         ),
                     )),
-                    (_, None) => Err(error(path.span, format!("`{member}` is not a member here"))),
+                    (_, None) => Err(error(
+                        path.span,
+                        format!("`{member}` is not a member here in {}", self.newer),
+                    )),
                     _ => Err(error(
                         path.span,
-                        format!("`{member}` did not become required"),
+                        format!(
+                            "`{member}` did not become required between {} and {}",
+                            self.older, self.newer
+                        ),
                     )),
                 }
             }
@@ -944,14 +1010,20 @@ impl<'a> Context<'a> {
                     if errors(old_op) || !errors(new_op) {
                         return Err(error(
                             error_name.span,
-                            format!("{} was not added to {op_name}'s errors", error_name.name),
+                            format!(
+                                "{} was not added to {op_name}'s errors between {} and {}",
+                                error_name.name, self.older, self.newer
+                            ),
                         ));
                     }
                     let Some(older) = old_op.errors.iter().find(|e| e.name() == downgrade.name)
                     else {
                         return Err(error(
                             downgrade.span,
-                            format!("{op_name} had no error {} in the baseline", downgrade.name),
+                            format!(
+                                "{op_name} had no error {} in {}",
+                                downgrade.name, self.older
+                            ),
                         ));
                     };
                     // Older clients get the downgrade error built from the
@@ -1032,9 +1104,10 @@ impl<'a> Context<'a> {
                         return Err(error(
                             downgrade.span,
                             format!(
-                                "{} had no value {} in the baseline",
+                                "{} had no value {} in {}",
                                 old.shape.name(),
-                                downgrade.name
+                                downgrade.name,
+                                self.older
                             ),
                         ));
                     }
@@ -1068,8 +1141,8 @@ impl<'a> Context<'a> {
                     return Err(error(
                         uri.span,
                         format!(
-                            "{} was `{} \"{}\"` in the baseline",
-                            name.name, old_op.method, old_op.uri
+                            "{} was `{} \"{}\"` in {}",
+                            name.name, old_op.method, old_op.uri, self.older
                         ),
                     ));
                 }
@@ -1096,9 +1169,10 @@ impl<'a> Context<'a> {
                         return Err(error(
                             member.span,
                             format!(
-                                "`{}` is not a member of {} in the baseline",
+                                "`{}` is not a member of {} in {}",
                                 member.name,
-                                old.shape.name()
+                                old.shape.name(),
+                                self.older
                             ),
                         ));
                     }
@@ -1118,13 +1192,17 @@ impl<'a> Context<'a> {
                 let Some(old_op) = operation(self.old, &name.name) else {
                     return Err(error(
                         name.span,
-                        format!("the baseline has no operation `{}`", name.name),
+                        format!(
+                            "{} has no operation `{}`",
+                            capitalized(&self.older),
+                            name.name
+                        ),
                     ));
                 };
                 if operation(self.new, &name.name).is_some() {
                     return Err(error(
                         name.span,
-                        format!("`{}` is still an operation", name.name),
+                        format!("`{}` is still an operation in {}", name.name, self.newer),
                     ));
                 }
                 let mut covers = vec![Cover::exact(old_op.id.clone(), ANY)];
@@ -1182,19 +1260,23 @@ impl<'a> Context<'a> {
                     target(self.old, &old.shape, was),
                     target(self.new, &new.shape, member),
                 ) {
-                    (Some(left), Some(now)) if named(&now) && left != now => Ok(vec![
-                        Cover::exact(old.shape.with_member(was), RETYPE),
-                        Cover::exact(new.shape.with_member(member), RETYPE),
-                        // The checker reports the change on the type it left.
-                        Cover::exact(left, RETYPE),
-                    ]),
+                    (Some(left), Some(now)) if named(&now) && left != now => {
+                        let mut covers = vec![
+                            Cover::exact(old.shape.with_member(was), RETYPE),
+                            Cover::exact(new.shape.with_member(member), RETYPE),
+                            // The checker reports the change on the type it left.
+                            Cover::exact(left, RETYPE),
+                        ];
+                        covers.extend(self.rebinding_covers(&old.shape, &new.shape, member, was));
+                        Ok(covers)
+                    }
                     (Some(_), Some(now)) if !named(&now) => Err(error(
                         to.span,
                         format!("`{member}` is a {} now, not a {}", now.name(), to.name),
                     )),
                     (Some(_), Some(_)) => Err(error(
                         path.span,
-                        format!("`{member}` already had this type"),
+                        format!("`{member}` already had this type in {}", self.older),
                     )),
                     _ => Err(error(
                         path.span,
@@ -1218,6 +1300,109 @@ impl<'a> Context<'a> {
                 }
                 Ok(Vec::new())
             }
+        }
+    }
+
+    /// What a retype changes in where its member travels: a payload's kind
+    /// and media type follow its target, and a member retyped between a
+    /// body member and the payload moves. The projection restores the
+    /// release's binding for a retyped member (decision 72), so the step
+    /// declares an operation's binding finding when the members this
+    /// migration retypes explain its whole change, and the member's move.
+    fn rebinding_covers(
+        &self,
+        old: &ShapeId,
+        new: &ShapeId,
+        member: &str,
+        was: &str,
+    ) -> Vec<Cover> {
+        // Every member of the structure this migration retypes, by its
+        // name in each release: one operation's change may be several's.
+        let retyped: Vec<(&str, &str)> = self
+            .retyped
+            .iter()
+            .filter(|(shape, _)| shape == new)
+            .map(|(_, name)| (self.old_name(new, name), name.as_str()))
+            .collect();
+        // A message's payload and header encodings, without what the
+        // retyped members bring to them.
+        let rest = |bindings: &crucible_ir::ir::Bindings, names: &[&str]| {
+            let payload = bindings
+                .payload
+                .as_ref()
+                .filter(|payload| !names.contains(&payload.member.as_str()))
+                .cloned();
+            let encodings: BTreeMap<String, _> = bindings
+                .header_encodings
+                .iter()
+                .filter(|(name, _)| !names.contains(&name.as_str()))
+                .map(|(name, encoding)| (name.clone(), *encoding))
+                .collect();
+            (payload, encodings)
+        };
+        let older: Vec<&str> = retyped.iter().map(|(older, _)| *older).collect();
+        let newer: Vec<&str> = retyped.iter().map(|(_, newer)| *newer).collect();
+        let is_payload = |bindings: &crucible_ir::ir::Bindings, name: &str| {
+            bindings
+                .payload
+                .as_ref()
+                .is_some_and(|payload| payload.member == name)
+        };
+        let mut covers = Vec::new();
+        for old_op in &self.old.operations {
+            let Some(new_op) = self.new.operations.iter().find(|op| op.id == old_op.id) else {
+                continue;
+            };
+            for (then, now, bindings) in [
+                (
+                    &old_op.input,
+                    &new_op.input,
+                    (&old_op.request, &new_op.request),
+                ),
+                (
+                    &old_op.output,
+                    &new_op.output,
+                    (&old_op.response, &new_op.response),
+                ),
+            ] {
+                if then.as_ref() != Some(old) || now.as_ref() != Some(new) {
+                    continue;
+                }
+                let (before, after) = bindings;
+                let changed = before.payload != after.payload
+                    || before.header_encodings != after.header_encodings;
+                if changed && rest(before, &older) == rest(after, &newer) {
+                    covers.push(Cover::exact(old_op.id.clone(), REBINDING));
+                }
+                if is_payload(before, was) != is_payload(after, member) {
+                    // The checker sees one member gone and one added: the
+                    // move declares that, but not a requiredness or default
+                    // that changed with it, which the added one's finding
+                    // carries.
+                    let kept = self.same_requiredness(old, was, new, member);
+                    let rules = if kept { MOVED } else { MOVED_ONLY };
+                    covers.push(Cover::exact(old.with_member(was), rules));
+                    covers.push(Cover::exact(new.with_member(member), rules));
+                }
+            }
+        }
+        covers
+    }
+
+    /// Whether `old.was` in the baseline and `new.member` now are optional
+    /// alike, with the same default.
+    fn same_requiredness(&self, old: &ShapeId, was: &str, new: &ShapeId, member: &str) -> bool {
+        let find =
+            |service: &'a Service, shape: &ShapeId, name: &str| match service.shapes.get(shape) {
+                Some(Shape::Structure(s) | Shape::Union(s)) => s.member(name),
+                _ => None,
+            };
+        match (find(self.old, old, was), find(self.new, new, member)) {
+            (Some(before), Some(after)) => {
+                before.optional_on_server() == after.optional_on_server()
+                    && before.default == after.default
+            }
+            _ => false,
         }
     }
 
@@ -1267,17 +1452,28 @@ impl<'a> Context<'a> {
 
     /// A path resolved in both releases.
     fn both(&self, path: &Dotted) -> Result<(Target, Target), Diagnostic> {
-        let old = self
-            .resolve(self.old, path)
-            .ok_or_else(|| error(path.span, format!("the baseline has no `{}`", dotted(path))))?;
+        let old = self.resolve(self.old, path).ok_or_else(|| {
+            error(
+                path.span,
+                format!("{} has no `{}`", capitalized(&self.older), dotted(path)),
+            )
+        })?;
         let new = self.resolve(self.new, path).ok_or_else(|| {
             error(
                 path.span,
-                format!("the current model has no `{}`", dotted(path)),
+                format!("{} has no `{}`", capitalized(&self.newer), dotted(path)),
             )
         })?;
         Ok((old, new))
     }
+}
+
+/// `text` with its first letter capitalized, to start a message.
+fn capitalized(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 fn dotted(path: &Dotted) -> String {
@@ -1470,81 +1666,6 @@ fn dropped(link: &Link, current: &Service, config: &Config) -> Vec<Dropped> {
         .collect()
 }
 
-/// The older versions `compiled` still serves, oldest first: the chain of
-/// migrations back from the service's version. `guard` has checked the
-/// newest migration's steps; an older one's were checked when it was the
-/// newest. `config` is the manifest's policy, whose exceptions accept an
-/// operation dropped without `remove operation` ([`dropped`]).
-pub fn versions(
-    package: &Package,
-    compiled: &Compiled,
-    own: usize,
-    config: &Config,
-) -> Result<Vec<ApiVersion>, String> {
-    versions_in(package, compiled, own, config, &crate::Releases::default())
-}
-
-/// [`versions`], reading frozen releases through `releases`: the build
-/// passes the ones its guard loaded.
-pub fn versions_in(
-    package: &Package,
-    compiled: &Compiled,
-    own: usize,
-    config: &Config,
-    releases: &crate::Releases,
-) -> Result<Vec<ApiVersion>, String> {
-    let Some(service) = compiled.service.as_ref() else {
-        return Ok(Vec::new());
-    };
-    let mut out = Vec::new();
-    for link in chain(package, compiled, own, releases)? {
-        let to = &link.migration.version.value;
-        let mut retired = Vec::new();
-        for drop in dropped(&link, service, config) {
-            if !drop.excepted {
-                return Err(format!(
-                    "the migration to \"{to}\": {}",
-                    drop.diagnostic.message
-                ));
-            }
-            retired.push(drop.operation);
-        }
-        let context = Context::new(
-            &compiled.namespace,
-            &link.old,
-            link.newer(service),
-            link.migration,
-        );
-        let mut steps = Vec::new();
-        let mut sunset = None;
-        let mut sunset_docs = None;
-        for step in &link.migration.steps {
-            // A sunset is the release's, not a conversion: it and its
-            // documentation go on the version.
-            if let StepKind::Sunset(date) = &step.kind {
-                sunset = Some(date.value.clone());
-                sunset_docs = doc_text(step.doc.as_ref());
-                continue;
-            }
-            steps.push(context.lower(step).map_err(|diagnostic| {
-                format!("the migration to \"{to}\": {}", diagnostic.message)
-            })?);
-        }
-        out.push(ApiVersion {
-            name: link.migration.from.value.clone(),
-            service: Box::new((*link.old).clone()),
-            steps,
-            sunset,
-            sunset_docs,
-            docs: doc_text(link.doc),
-            retired,
-            external: false,
-        });
-    }
-    out.reverse();
-    Ok(out)
-}
-
 /// A `///` comment's text, as the IR keeps documentation.
 fn doc_text(doc: Option<&Doc>) -> Option<String> {
     doc.map(|doc| doc.text.clone())
@@ -1610,21 +1731,12 @@ fn operations_reaching(service: &Service, shape: &ShapeId) -> Vec<ShapeId> {
 }
 
 impl Context<'_> {
-    /// A checked step, lowered with its paths resolved, both its sides and
-    /// its documentation.
-    fn lower(&self, step: &Step) -> Result<VersionStep, Diagnostic> {
+    /// A step, checked, then lowered with its paths resolved, both its
+    /// sides and its documentation; or every problem the check found.
+    fn lower(&self, step: &Step) -> Result<VersionStep, Vec<Diagnostic>> {
         let docs = doc_text(step.doc.as_ref());
         let step = &step.kind;
-        self.checked_step(step).map_err(|diagnostics| {
-            error(
-                diagnostics[0].span,
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.message)
-                    .collect::<Vec<_>>()
-                    .join("\n"),
-            )
-        })?;
+        self.checked_step(step)?;
         let first = |path: &Dotted| {
             path.parts
                 .first()
@@ -1635,7 +1747,7 @@ impl Context<'_> {
             |name: &str, service: &Service| operation(service, name).map(|op| op.id.clone());
         Ok(match step {
             StepKind::Rename { path, to } => {
-                let (old, new) = self.both(path)?;
+                let (old, new) = self.both(path).map_err(|problem| vec![problem])?;
                 VersionStep::Rename {
                     old: old.shape,
                     new: new.shape,
@@ -1645,7 +1757,7 @@ impl Context<'_> {
                 }
             }
             StepKind::Require { path, how } => {
-                let (old, new) = self.both(path)?;
+                let (old, new) = self.both(path).map_err(|problem| vec![problem])?;
                 let member = new.member.clone().unwrap_or_default();
                 // Empty when the member kept its name.
                 let from = match self.old_name(&new.shape, &member) {
@@ -1714,7 +1826,7 @@ impl Context<'_> {
                 downgrade,
                 ..
             } => {
-                let (old, new) = self.both(path)?;
+                let (old, new) = self.both(path).map_err(|problem| vec![problem])?;
                 VersionStep::AddEnumValue {
                     old: old.shape,
                     new: new.shape,
@@ -1740,7 +1852,7 @@ impl Context<'_> {
                 into,
                 hook,
             } => {
-                let (old, new) = self.both(path)?;
+                let (old, new) = self.both(path).map_err(|problem| vec![problem])?;
                 VersionStep::Hooked {
                     kind: "reshape".into(),
                     operations: operations_reaching(self.new, &new.shape),
@@ -1755,7 +1867,7 @@ impl Context<'_> {
                 }
             }
             StepKind::Retype { path, hook, .. } => {
-                let (old, new) = self.both(path)?;
+                let (old, new) = self.both(path).map_err(|problem| vec![problem])?;
                 let member = new.member.clone().unwrap_or_default();
                 // Empty when the member kept its name.
                 let from = match self.old_name(&new.shape, &member) {

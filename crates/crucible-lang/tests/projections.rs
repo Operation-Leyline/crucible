@@ -147,7 +147,7 @@ fn findings(service: &Service, config: &Config) -> Vec<String> {
     };
     let mut out = Vec::new();
     for (version, projection) in service.versions.iter().zip(projected(service)) {
-        let report = crucible_policy::diff(&version.service, &projection.service, &config);
+        let report = crucible_policy::diff(&version.release, &projection.service, &config);
         for finding in report.findings {
             if finding.exception.is_none() {
                 out.push(format!(
@@ -231,7 +231,7 @@ fn the_comparison_finds_what_undo_removes() {
         exceptions: config.exceptions,
         ..Config::default()
     };
-    let report = crucible_policy::diff(&service.versions[0].service, &service, &config);
+    let report = crucible_policy::diff(&service.versions[0].release, &service, &config);
     let rules: BTreeSet<&str> = report.findings.iter().map(|f| f.rule.as_str()).collect();
     for rule in [
         "compatibility.operation",
@@ -368,7 +368,7 @@ fn an_unchanged_release_projects_to_its_frozen_self() {
         for (version, projection) in service.versions.iter().zip(projected(&service)) {
             assert_eq!(
                 without_docs(&projection.service),
-                without_docs(&version.service),
+                without_docs(&version.release),
                 "{package} at {}",
                 version.name
             );
@@ -401,7 +401,7 @@ fn every_step_is_needed() {
                 let mut errors = Diagnostics::default();
                 let mut warnings = Diagnostics::default();
                 let projected = undo(newer, &without, &mut errors, &mut warnings);
-                let report = crucible_policy::diff(&version.service, &projected, &config);
+                let report = crucible_policy::diff(&version.release, &projected, &config);
                 let found = report.findings.iter().any(|f| f.exception.is_none());
                 assert!(
                     found,
@@ -438,7 +438,7 @@ fn a_renamed_enum_value_is_its_older_self() {
     let (service, _) = load("tests/models/version-renamed-enum-value");
     let projections = projected(&service);
     let v1 = at(&projections, "v1");
-    let frozen = &service.versions[0].service;
+    let frozen = &service.versions[0].release;
     let kind = v1
         .shapes
         .keys()
@@ -480,7 +480,7 @@ fn renamed_pagination_members_page_as_the_release_did() {
     let projections = projected(&service);
     let v1 = at(&projections, "v1");
     let list = operation(v1, "ListItems");
-    let frozen = operation(&service.versions[0].service, "ListItems");
+    let frozen = operation(&service.versions[0].release, "ListItems");
     assert_eq!(list.paginated, frozen.paginated);
     let paginated = list.paginated.as_ref().unwrap();
     assert_eq!(
@@ -602,7 +602,7 @@ fn a_removed_operation_is_restored() {
         members(v1, &id(SHOP, "CountUnavailable")),
         ["message: String"]
     );
-    let frozen = &service.versions[0].service;
+    let frozen = &service.versions[0].release;
     assert_eq!(count.docs, operation(frozen, "CountItems").docs);
     let features: Vec<String> = v1
         .requirements
@@ -637,7 +637,7 @@ fn examples_are_the_releases_or_hold_at_it() {
     for (index, name) in [(0, "v1"), (1, "v2")] {
         let release = at(&projections, name);
         let get = operation(release, "GetItem");
-        let frozen = operation(&service.versions[index].service, "GetItem");
+        let frozen = operation(&service.versions[index].release, "GetItem");
         assert_eq!(get.examples, frozen.examples, "{name}");
         assert_ne!(get.examples, operation(&service, "GetItem").examples);
         assert_eq!(
@@ -825,7 +825,7 @@ fn fixed_headers_follow_the_restored_bindings() {
     assert_eq!(response(&service, "ReadHeader"), json_type());
     assert_eq!(response(v1, "ReadBody"), json_type());
     assert_eq!(response(&service, "ReadBody"), none());
-    let frozen = &service.versions[0].service;
+    let frozen = &service.versions[0].release;
     for name in ["PutQuery", "PutBody", "ReadHeader", "ReadBody"] {
         assert_eq!(request(v1, name), request(frozen, name), "{name}");
         assert_eq!(response(v1, name), response(frozen, name), "{name}");
@@ -841,7 +841,7 @@ fn a_frozen_example_that_no_longer_holds_is_left_out() {
     let v1 = at(&projections, "v1");
     assert_eq!(examples(operation(v1, "GetItem")), Vec::<&str>::new());
     assert_eq!(
-        examples(operation(&service.versions[0].service, "GetItem")),
+        examples(operation(&service.versions[0].release, "GetItem")),
         ["Read an item"]
     );
     let warnings: Vec<String> = projections[0]
@@ -905,7 +905,7 @@ fn a_doc_link_to_what_undo_removed_is_the_releases() {
     service
         .doc_links
         .insert(label.clone(), id(SHOP, "Size$area"));
-    let frozen = &mut service.versions[0].service;
+    let frozen = &mut service.versions[0].release;
     frozen
         .doc_links
         .insert(label.clone(), id(SHOP, "Size$width"));
@@ -926,7 +926,7 @@ fn a_doc_link_to_what_undo_removed_is_the_releases() {
 fn a_rename_the_release_cannot_have_made_is_an_error() {
     let (mut service, _) = load("tests/models/version-steps");
     let output = id("example.steps", "GetItemOutput");
-    if let Some(Shape::Structure(s)) = service.versions[0].service.shapes.get_mut(&output) {
+    if let Some(Shape::Structure(s)) = service.versions[0].release.shapes.get_mut(&output) {
         s.members.retain(|m| m.name != "name");
     }
     let errors = projections(&service).unwrap_err().to_string();
@@ -952,7 +952,7 @@ fn a_restored_operation_rejoins_its_resource_in_place() {
     service.resources.get_mut(&shelf).unwrap().operations = vec![get.clone()];
     let mut older = service.resources[&shelf].clone();
     let count = service.versions[0]
-        .service
+        .release
         .operations
         .iter()
         .find(|op| op.name() == "CountNotes")
@@ -961,7 +961,7 @@ fn a_restored_operation_rejoins_its_resource_in_place() {
         .clone();
     older.operations = vec![count.clone(), get.clone()];
     service.versions[0]
-        .service
+        .release
         .resources
         .insert(shelf.clone(), older);
     let projections = projected(&service);
@@ -979,7 +979,7 @@ fn a_retyped_payload_binds_as_the_release_did() {
     let (service, _) = load("tests/models/version-projection-payload");
     let projections = projected(&service);
     let v1 = at(&projections, "v1");
-    let frozen = &service.versions[0].service;
+    let frozen = &service.versions[0].release;
     let payload = |model: &Service, name: &str, request: bool| {
         let op = operation(model, name);
         let bindings = if request { &op.request } else { &op.response };
@@ -1080,7 +1080,7 @@ fn a_member_retyped_into_a_payload_is_the_releases_body_member() {
         now.request.payload.as_ref().map(|p| p.media_type.as_str()),
         Some("application/vnd.ms-excel")
     );
-    let frozen = operation(&service.versions[0].service, "PutReport");
+    let frozen = operation(&service.versions[0].release, "PutReport");
     assert_eq!(json(&report.request), json(&frozen.request));
 }
 
@@ -1106,7 +1106,7 @@ fn additions_do_not_reach_a_payload_bound_message() {
         members(&service, &input),
         ["id: String", "body: String", "title?: String"]
     );
-    let frozen = operation(&service.versions[0].service, "PutNote");
+    let frozen = operation(&service.versions[0].release, "PutNote");
     assert_eq!(json(&note.request), json(&frozen.request));
     let mut problems = Diagnostics::default();
     crucible_ir::validate::service(v1, &mut problems);
