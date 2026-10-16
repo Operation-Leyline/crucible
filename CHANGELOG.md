@@ -760,8 +760,15 @@ version's section when it is prepared.
   The generator still maps a legacy handler's requirements from the frozen
   release, and reports an operation a release had that its projection
   leaves out without being retired (only an edited IR has one).
-  Empty conversions cost nothing measurable and are kept. Leyline's and
-  Pigeon's generated servers (no migrations) are unchanged. The e2e
+  Empty conversions cost nothing measurable and are kept. A structure the
+  release's own outputs or errors reached stays lenient, as before; output
+  reachability is read from the frozen release, so a strict structure only
+  its inputs reached stays strict at it, even where an operation added
+  since sends it in an output. Each `versions` module gains a module for
+  the current release re-exporting the service's types, which the newest
+  migration's hooks name, so their signatures survive the release being
+  frozen. Leyline's and Pigeon's generated servers (no migrations) are
+  unchanged. The e2e
   fixture is four releases (`e2e/weather-service/versioned`; see
   [docs/api-versions.md](docs/api-versions.md#testing)).
 
@@ -1748,8 +1755,23 @@ version's section when it is prepared.
   - a type of an older release (`versions::<release>::..`) has the members
     added since that reach it; code that builds one with a struct literal
     names them, as a handler does for the current types;
+  - an enum of an older release has the values added since that reach it
+    without a downgrade (one only inputs reach, for instance); an
+    exhaustive `match` on it needs their arms;
+  - the newest migration's hooks name the current release's types by
+    `versions::<current>::..` (new, a re-export of the service's own
+    types), which becomes that release's own module once a later release
+    freezes it. A hook that names them so compiles unchanged across the
+    freeze; one that names the service module's types (`shop::Label`)
+    still compiles today, but must switch to `versions::<release>::..`
+    when the release is frozen;
   - code that read `ApiVersion::service` as the frozen release reads
     `ApiVersion::release`.
+- **Operations paginated since page at older releases.** An operation
+  that gained pagination after a release now answers that release's
+  requests with a page and its token, as the current release does, where
+  the release was answered with the first page alone. A client of the
+  release that does not read the token still gets the first page.
 - **An operation added since can need a hook its migration lacked.** When
   it sends a hooked shape in a direction no released operation did (a
   `reshape`d structure or `retype`d member only outputs reached, now in

@@ -484,11 +484,17 @@ the conversions between consecutive models; it reads projections instead
   computed on the newer projection), and the generator does not read
   them: an operation added since that reaches a hooked shape in a
   direction the trait has already reuses that method, and adds its name to
-  the method's documentation ("Needed by ..."). Hand-written hooks
-  compile unchanged on such an addition;
+  the method's documentation ("Needed by ..."). The trait's methods and
+  signatures are unchanged by such an addition;
   `crucible-codegen-rust/tests/versions.rs` compares the traits before and
   after one, and `e2e/weather-service/tests/api_versions_additive.rs`
-  compiles the e2e service's hooks against the model with one.
+  compiles the e2e service's hooks against the model with one. Hooks name
+  the current release's types by `versions::<current>`, which re-exports
+  them and becomes that release's module once a later one freezes it, so
+  a signature survives the freeze too
+  (`e2e/weather-service/tests/api_versions_freeze.rs`). A hook's body can
+  still break as a handler's does: a struct literal of a type an addition
+  reached, or an exhaustive `match` on an enum that gained a value.
 - **A new operation can need a new hook direction.** A hook is generated
   only for the directions the model uses: a structure only in outputs has
   no upgrade hook. An operation added since that takes such a structure in
@@ -510,9 +516,12 @@ the conversions between consecutive models; it reads projections instead
   are therefore kept, not skipped.
 - **The last-version loop stays an id match** (`versions.rs:93-114`): it
   is right once reused names are refused.
-- **Strictness** follows the projection: an older release's responses now
-  carry members added since, so the lenient-output rule in
-  [api-versions.md](api-versions.md#limits) stays. The *Limits* entry
+- **Strictness** is the release's: a structure the frozen release's
+  outputs or errors reached stays lenient, as the lenient-output rule in
+  [api-versions.md](api-versions.md#limits) has it, and reachability is
+  read from the frozen release by id, not from the projection, so an
+  operation added since that sends an input-only strict structure in an
+  output does not make it lenient at older releases. The *Limits* entry
   "older versions are their frozen releases" goes away; "auth is the
   release's" holds for every operation the release had.
 
@@ -880,7 +889,16 @@ is built, and so are PRs 1 to 6.
    (`tests/support/versioned_hooks.rs`) against it;
    `tests/auth_versions.rs` serves `tests/models/version-projection-auth`
    generated. Empty conversions are kept: measured, they cost nothing (see
-   *Generated code*). Leyline's and Pigeon's generated servers, which have
+   *Generated code*). Review follow-ups: output reachability for the
+   lenient rule is read from the frozen release (it was the projection's,
+   which relaxed input-only strict structures an operation added since
+   outputs; `an_operation_added_since_leaves_an_input_only_strict_structure_strict`);
+   `versions::<current>` re-exports the current types so hook signatures
+   survive a freeze (`tests/api_versions_freeze.rs`, two committed
+   packages under `versioned_freeze/`); a projection that lost an
+   operation the current model has is reported. Older modules still
+   duplicate types a projection leaves unchanged rather than re-export
+   them. Leyline's and Pigeon's generated servers, which have
    no migrations, are byte-identical before and after.
 7. **One SDK line per release (5c),** after PR 5 (it needs projections,
    not the server). `ModelPackage::api_version`, `--api-version`, the SDK

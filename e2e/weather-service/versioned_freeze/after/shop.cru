@@ -1,0 +1,31 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetShelf, ListShelves]
+    errors [ValidationException, InternalServerException]
+}
+
+readonly operation GetShelf {
+    http GET "/shelf"
+    output { shelf: Shelf }
+}
+
+structure Shelf {
+    name: string
+    width?: integer
+}
+
+// v2 groups the shelf's name and width.
+migration "v2" from "v1" {
+    reshape GetShelf.output { name, width } -> shelf by hook
+}
+
+readonly operation ListShelves {
+    http GET "/shelves"
+    output { shelves: Shelves }
+}
+
+list Shelves: Shelf
+
+// v3 adds ListShelves and breaks nothing.
+migration "v3" from "v2" {}

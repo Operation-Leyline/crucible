@@ -1752,11 +1752,23 @@ references are to the code as of the design.
     operation added since that reaches a hooked shape in a direction the
     trait has already reuses that method: it adds its name to the
     method's documentation ("Needed by ..."), and the trait's methods,
-    their names, parameter and return types are unchanged, so hand-written
-    hooks compile unchanged on an additive change. The types themselves are
-    projected and grow as the current types do (decision 75): a hook that
-    builds a type an addition reached with a struct literal names the new
-    member, as a handler does.
+    their names, parameter and return types are unchanged.
+    Hooks name every release's types by that release's module, the current
+    one's too: `versions::<current>` re-exports the service's own types, and
+    once a later release freezes it, it is that release's projected module
+    under the same name. So a hook signature that names `v2::Shelf` while
+    v2 is current names v2's own `Shelf` after the freeze, and an
+    additive release does not change it either.
+    What this guarantees is the trait's shape: its methods and the paths
+    of their types, so the signatures of hand-written hooks compile
+    unchanged on an additive change and across a freeze. A hook's body can
+    still break the way a handler's does, because the types themselves are
+    projected and grow as the current types do (decision 75): a struct
+    literal of a type an addition reached must name the new member, an
+    exhaustive `match` on an enum that gained a value (one older releases
+    receive without a downgrade, such as one only inputs reach) needs its
+    arm, and a value passed between a release's type and the current one's
+    meets two types once the release is frozen.
     Decision 75 is revisited for the one addition that does add a method:
     an operation added since that sends a hooked shape in a direction no
     released operation did (a structure only outputs reached, now taken as
@@ -1772,7 +1784,11 @@ references are to the code as of the design.
     model from growing for a conversion the service can write. A missing
     method is a compile error that names the shape, the direction and the
     operation, and it is the one conversion nobody has written yet; every
-    method already written keeps its meaning.
+    method already written keeps its meaning. A current-release module
+    that re-exports, rather than nothing, is what lets a signature written
+    before a freeze survive it: without it the newer side of the newest
+    migration's hooks is the service module's own types, and freezing that
+    release renames them.
 
 ## Settled in the syntax pass
 

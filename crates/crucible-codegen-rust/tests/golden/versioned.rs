@@ -1191,6 +1191,7 @@ pub mod shop {
                 /// too, so there it reads what it does not know.
                 #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
                 #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+                #[serde(deny_unknown_fields)]
                 pub struct Label {
                     #[serde(rename = "title")]
                     pub title: ::std::string::String,
@@ -2298,6 +2299,7 @@ pub mod shop {
                 /// too, so there it reads what it does not know.
                 #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
                 #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+                #[serde(deny_unknown_fields)]
                 pub struct Label {
                     #[serde(rename = "title")]
                     pub title: ::std::string::String,
@@ -4292,6 +4294,15 @@ pub mod shop {
                 /// Needed by `PutLabel`.
                 fn upgrade_label_size(&self, value: i32) -> ::crucible_server_runtime_rust::__generated::Result<::std::string::String>;
             }
+        }
+
+        /// Release `v4`, the current one: the service's own types, by the
+        /// name they keep once a later release freezes this one. Hooks name
+        /// them so, and compile unchanged then.
+        pub mod v4 {
+            #[doc(no_inline)]
+            #[allow(unused_imports, deprecated)]
+            pub use super::super::{DeleteItemInput, DeleteItemOutput, GetItemInput, GetItemOutput, GetLabelInput, GetLabelOutput, InternalServerException, ItemGoneException, ItemNotFoundException, Kind, Kinds, Label, Labels, ListItemsInput, ListItemsOutput, ListLabelsOutput, Names, PutLabelInput, PutLabelOutput, RecordPaymentInput, RecordPaymentOutput, ValidationException, ValidationExceptionField, ValidationExceptionFieldList, ValidationExceptionReason};
         }
 
         #[allow(unused_imports)]

@@ -107,6 +107,18 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // One release, then the same release frozen behind an additive one:
+    // tests/api_versions_freeze.rs compiles the same hooks against both.
+    for (stage, dir) in [
+        ("before", "versioned_freeze/before"),
+        ("after", "versioned_freeze/after"),
+    ] {
+        std::fs::write(
+            out.join(format!("versioned_freeze_{stage}.rs")),
+            crucible_build::model(dir).server().render().unwrap(),
+        )
+        .unwrap();
+    }
     // Authentication per release (decision 73): an operation a release had
     // keeps its release's, one added since takes the current model's
     // (tests/auth_versions.rs).

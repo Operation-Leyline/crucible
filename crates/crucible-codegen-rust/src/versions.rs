@@ -145,8 +145,22 @@ pub(crate) fn emit(
             while last < current && frozen(last + 1) {
                 last += 1;
             }
-            if last == current
-                || service.versions[last].retired.contains(&released.id)
+            if last == current {
+                // The current model has it, so every projection should:
+                // only a projection that lost it gets here.
+                if gone.insert((released.id.clone(), index)) {
+                    diagnostics.push(
+                        &released.id,
+                        format!(
+                            "{op} is in the current model but not in API version {release} as it sees it; nothing serves it at {release}",
+                            op = released.name(),
+                            release = names[index],
+                        ),
+                    );
+                }
+                continue;
+            }
+            if service.versions[last].retired.contains(&released.id)
                 || !gone.insert((released.id.clone(), last))
             {
                 continue;
@@ -269,7 +283,18 @@ pub(crate) fn emit(
         let mut module = old.clone();
         module.api_version = None;
         let parent = older_requirements(service, &mut module, version, diagnostics);
-        let mut body = crate::body_with(&module, &old_options, &module, false, parent, diagnostics);
+        // Output reachability is the frozen release's, by the ids every
+        // release shares (decision 71): an operation added since does not
+        // make a strict structure only the release's inputs reached lenient.
+        let lenient = crate::models::output_reachable(&version.release);
+        let mut body = crate::body_with(
+            &module,
+            &old_options,
+            &module,
+            &lenient,
+            parent,
+            diagnostics,
+        );
         if !methods[index].is_empty()
             && (old.shapes.keys().any(|id| id.name() == "Migration")
                 || old.operations.iter().any(|op| op.name() == "Migration"))
@@ -303,6 +328,22 @@ pub(crate) fn emit(
         ));
     }
 
+    // The current release's module: the service's own types, under the
+    // name they keep when a later release freezes this one.
+    let names = crate::server_api::type_names(service);
+    let exports = if names.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "        #[doc(no_inline)]\n        #[allow(unused_imports, deprecated)]\n        pub use super::super::{{{}}};\n",
+            names.join(", ")
+        )
+    };
+    out.push_str(&format!(
+        "\n    /// Release `{name}`, the current one: the service's own types, by the\n    /// name they keep once a later release freezes this one. Hooks name\n    /// them so, and compile unchanged then.\n    pub mod {module} {{\n{exports}    }}\n",
+        name = service.version,
+        module = version_module(&service.version),
+    ));
     out.push_str(&format!(
         "\n    #[allow(unused_imports)]\n    mod __conversions {{\n        use {RT}::versioning::Conversion;\n        pub(super) mod steps {{\n            use {RT}::versioning::{{Conversion, ErrorDowngrade, Seg, Transform, downgrade_to}};\n{steps}        }}\n        pub(super) mod chains {{\n            use {RT}::versioning::Conversion;\n{chains}        }}\n    }}\n"
     ));
@@ -477,10 +518,13 @@ fn registration(service: &Service, methods: &Methods, diagnostics: &mut Diagnost
     out
 }
 
-/// Where version `index`'s types are, seen from the `versions` module.
+/// Where version `index`'s types are, seen from the `versions` module. The
+/// current version's are its module's re-exports of the service's own
+/// types: hooks name them by the module they keep once a later release
+/// freezes this one, so a hook written now compiles unchanged then.
 fn module_path(models: &[&Service], current: &Service, index: usize) -> String {
     if index + 1 == models.len() {
-        "super::".to_owned()
+        format!("{}::", version_module(&current.version))
     } else {
         format!("{}::", version_module(&current.versions[index].name))
     }

@@ -1146,3 +1146,94 @@ fn an_addition_needing_a_new_direction_adds_that_method_alone() {
         "{code}"
     );
 }
+
+/// A strict structure only the release's inputs reached stays strict at
+/// that release, though an operation added since sends it in an output: the
+/// release's output reachability decides, not the projection's. One the
+/// release's own outputs reached keeps reading what it does not define.
+#[test]
+fn an_operation_added_since_leaves_an_input_only_strict_structure_strict() {
+    let v1 = r#"service Notes {
+    version "v1"
+    protocol json
+    operations [PutNote, GetDraft]
+    errors [ValidationException, InternalServerException]
+}
+
+idempotent operation PutNote {
+    http PUT "/notes/{id}"
+    input { id: string, note: Note }
+    output { ok: boolean }
+}
+
+strict structure Note {
+    text: string
+}
+
+idempotent operation PutDraft {
+    http PUT "/drafts/{id}"
+    input { id: string, draft: Draft }
+    output { draft: Draft }
+}
+
+readonly operation GetDraft {
+    http GET "/drafts/{id}"
+    input { id: string }
+    output { draft: Draft }
+}
+
+strict structure Draft {
+    text: string
+}
+"#
+    .replace(
+        "operations [PutNote, GetDraft]",
+        "operations [PutNote, PutDraft, GetDraft]",
+    );
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("versions-strict-release");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).unwrap();
+    freeze(&dir, &v1);
+    fs::write(
+        dir.join("crucible.toml"),
+        format!("{MANIFEST}\n[model.baseline]\npath = \"releases/v1.json\"\n"),
+    )
+    .unwrap();
+    let current = v1
+        .replace("version \"v1\"", "version \"v2\"")
+        .replace("PutDraft, GetDraft]", "PutDraft, GetDraft, GetNote]")
+        + "\nreadonly operation GetNote {\n    http GET \"/notes/{id}\"\n    input { id: string }\n    output { note: Note }\n}\n\nmigration \"v2\" from \"v1\" {}\n";
+    fs::write(dir.join("shop.cru"), current).unwrap();
+    let code = generate(&lower(&dir), &Options::default()).unwrap();
+    let v1 = &code[code.find("pub mod v1 {").expect("a v1 module")..];
+    let strict = |name: &str| {
+        let at = v1
+            .find(&format!("pub struct {name} {{"))
+            .unwrap_or_else(|| panic!("v1 has {name}"));
+        v1[..at]
+            .trim_end()
+            .ends_with("#[serde(deny_unknown_fields)]")
+    };
+    // GetNote, added since, sends Note at v1 too; v1 decoded it strictly.
+    assert!(strict("Note"), "{v1}");
+    // GetDraft's output reached Draft in v1 already.
+    assert!(!strict("Draft"), "{v1}");
+}
+
+/// An operation the current model has is in every projection; one a
+/// projection lost, which only an edited IR or a projection bug makes, is
+/// reported rather than left unserved at that release.
+#[test]
+fn an_operation_a_projection_lost_is_reported() {
+    let mut service = lower(&model("version-retired-operation"));
+    service.versions[0]
+        .service
+        .operations
+        .retain(|op| op.name() != "GetItem");
+    assert_eq!(
+        reported(&service),
+        [
+            "example.gone#GetItem: GetItem is in the current model but not in API version v1 as it sees it; nothing serves it at v1"
+        ]
+    );
+}

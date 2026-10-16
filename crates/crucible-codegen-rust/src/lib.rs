@@ -48,6 +48,8 @@ pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
 pub use surface::surface;
 
+use std::collections::BTreeSet;
+
 use crucible_ir::ir::{Service, Shape};
 use crucible_ir::{Diagnostics, ShapeId};
 
@@ -166,13 +168,24 @@ pub(crate) fn body(
     explorer_service: &Service,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    body_with(service, options, explorer_service, true, false, diagnostics)
+    body_with(
+        service,
+        options,
+        explorer_service,
+        &BTreeSet::new(),
+        false,
+        diagnostics,
+    )
 }
 
-/// [`body`], with `strict` false for an older release. Its output types read
-/// the current version's values converted down, which may carry members
-/// added since, so a structure an output or error reaches never refuses an
-/// unknown member; one only inputs reach decodes as strictly as before.
+/// [`body`], for an older release with `lenient` the shapes that never
+/// refuse an unknown member: those the release's own outputs or errors
+/// reached, which read the current version's values converted down. The
+/// projection gives them the members added since, but what the release
+/// restores (decision 74) keeps its own definition, so they stay as lenient
+/// as they were. A strict structure only the release's inputs reached
+/// decodes as strictly as the release did, even where an operation added
+/// since now sends it in an output.
 ///
 /// `parent_permissions`: the module states requirements against the
 /// service module's `permissions`, two levels up (an older release's
@@ -181,16 +194,12 @@ pub(crate) fn body_with(
     service: &Service,
     options: &Options,
     explorer_service: &Service,
-    strict: bool,
+    lenient: &BTreeSet<ShapeId>,
     parent_permissions: bool,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    let mut strict_shapes = models::strict_shapes(service, options.strict_inputs);
-    if !strict {
-        let outputs = models::output_reachable(service);
-        strict_shapes.retain(|id| !outputs.contains(id));
-    }
-    let strict = strict_shapes;
+    let mut strict = models::strict_shapes(service, options.strict_inputs);
+    strict.retain(|id| !lenient.contains(id));
     let model = models::emit(service, &strict, false, diagnostics);
     let errors = errors::emit(service, false, diagnostics);
     check_patterns(service, diagnostics);

@@ -139,6 +139,12 @@ pub mod versions {
     pub const V2026_11_01: ApiVersion = ..;
     pub const CURRENT: ApiVersion = V2026_11_01;
 
+    // The current release: the service's own types, by the name they keep
+    // once a later release freezes this one.
+    pub mod v2026_11_01 {
+        pub use super::super::{GetGraphInput, ..};
+    }
+
     pub mod v2026_09_04 {
         pub struct GetGraphInput { .. }  // the old types, with serde and Validate
         pub struct GetGraph;             // the old OperationInfo: route, members, errors
@@ -241,11 +247,20 @@ impl versions::v1::Migration for Shop {
 - **One method per shape and direction** (decision 82), whatever
   operations reach it; its documentation names them. An operation added
   since that reaches a hooked shape in a direction the migration already
-  converts reuses the method, so hand-written hooks compile unchanged on
-  an additive change. One that sends the shape the other way (a structure
-  only outputs reached, now taken as an input) needs the other direction:
-  the trait gains that method, documented with the operation, and the
-  service does not compile until it is written (decision 75).
+  converts reuses the method, so the trait's methods and signatures are
+  unchanged by an additive change. One that sends the shape the other way
+  (a structure only outputs reached, now taken as an input) needs the
+  other direction: the trait gains that method, documented with the
+  operation, and the service does not compile until it is written
+  (decision 75).
+- **Named by release.** A hook names each release's types by its module,
+  the current release's included: `versions::<current>` re-exports the
+  service's types, and is that release's own module once a later release
+  freezes it, so a signature written against `v2::Shelf` compiles
+  unchanged across the freeze. A hook's body can still break as a
+  handler's does: the types grow with the model, so a struct literal of
+  a type an addition reached, or an exhaustive `match` on an enum that
+  gained a value, needs the new member or arm.
 - **`by hook` or `by async hook`.** A plain hook is a function; an async
   one returns a future, for a conversion that reads other state, such as
   the account's saved preference. A legacy handler is always async.
@@ -285,12 +300,13 @@ examples against the server at its version as generated tests
 
 ## Limits
 
-- **Strictness at older versions.** A structure an older release's
-  outputs or errors also reach does not refuse unknown members when an
-  older request carries one: it reads the current output converted down,
-  which can carry what the release's definition lacks (a member added
-  since beside a payload, decision 74). One only inputs reach stays as
-  strict as the release was.
+- **Strictness at older versions.** A structure the release's own
+  outputs or errors reached does not refuse unknown members when an older
+  request carries one, as before projections: it reads the current output
+  converted down. Reachability is the frozen release's, by id (decision
+  71), so a strict structure only the release's inputs reached stays as
+  strict as the release was, even where an operation added since sends
+  it in an output, and so does one added since.
 - **Additions stop at a reshape, a removal and a payload.** What a
   `reshape` or `remove operation` restores is its release's definition,
   and a member added since that would travel in the body of a message the

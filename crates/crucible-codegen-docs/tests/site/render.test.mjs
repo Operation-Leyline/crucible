@@ -713,9 +713,12 @@ test("releases are routes, a sidebar group and searchable", () => {
 
 test("the e2e versioned service's reference renders its releases", () => {
   const m = x.index(VERSIONED);
-  assert.deepEqual(m.releases.map((r) => r.name), ["v1", "v2", "v3"]);
+  assert.deepEqual(m.releases.map((r) => r.name), ["v1", "v2", "v3", "v4"]);
   const v3 = textOf(x.releaseView(m, "v3"));
   assert.ok(v3.includes("Reshaped ") && v3.includes("Removed ") && v3.includes("CountItems"), v3);
+  // v4 retyped a label's size: v3 clients read the number it was.
+  const v4 = textOf(x.releaseView(m, "v4"));
+  assert.ok(v4.includes("Retyped ") && v4.includes("Label.size") && v4.includes("integer"), v4);
   assert.ok(textOf(x.releaseView(m, "v1")).includes("2027-01-01"));
 });
 

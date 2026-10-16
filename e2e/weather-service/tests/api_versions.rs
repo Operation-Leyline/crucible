@@ -636,33 +636,31 @@ async fn an_operation_added_since_converts_its_input_up() {
 }
 
 /// `Label` is strict: the current release refuses a member it does not
-/// define. At an older release outputs reach it too, and they carry what
-/// was added since, so there it reads what it does not know (the lenient
-/// output rule, docs/api-versions.md#limits).
+/// define. Release v3's own outputs reached it, so at v3 it reads what it
+/// does not know (the lenient output rule, docs/api-versions.md#limits).
+/// v1 never had it: only operations added since reach it there, so v1
+/// refuses an unknown member as the current release does.
 #[tokio::test]
-async fn a_strict_structure_older_outputs_reach_reads_what_it_does_not_know() {
+async fn a_strict_structure_its_releases_outputs_reached_reads_what_it_does_not_know() {
     let service = service(Unversioned::Oldest);
     let label = |size: Value| json!({ "label": { "title": "new", "size": size, "shelf": "top" } });
-    let (status, _, body) = send(
-        &service,
-        "PUT",
-        "/labels/a",
-        Some("v4"),
-        Some(label(json!("3"))),
-    )
-    .await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    for version in ["v1", "v3"] {
-        let (status, _, body) = send(
+    for (version, size, status) in [
+        ("v4", json!("3"), StatusCode::BAD_REQUEST),
+        ("v1", json!(3), StatusCode::BAD_REQUEST),
+        ("v3", json!(3), StatusCode::OK),
+    ] {
+        let (got, _, body) = send(
             &service,
             "PUT",
             "/labels/a",
             Some(version),
-            Some(label(json!(3))),
+            Some(label(size)),
         )
         .await;
-        assert_eq!(status, StatusCode::OK, "{version}: {body}");
-        assert_eq!(body["label"]["title"], "new");
-        assert!(body["label"].get("shelf").is_none(), "{body}");
+        assert_eq!(got, status, "{version}: {body}");
+        if status == StatusCode::OK {
+            assert_eq!(body["label"]["title"], "new");
+            assert!(body["label"].get("shelf").is_none(), "{body}");
+        }
     }
 }
