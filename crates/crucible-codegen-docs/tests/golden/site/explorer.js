@@ -46,13 +46,14 @@
   // escaped as attribute text; an anchor whose id this description does not
   // have (an internal one in an external reference never reaches it) stays
   // without an address.
-  const DOC_LINK = /<a data-crucible-ref="([^"]*)">/g;
+  const DOC_LINK = /<a data-crucible-ref="([^"]*)"( data-crucible-operation="([^"]*)")?>/g;
   const UNESCAPES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' };
+  const unescape = (raw) => raw.replace(/&(amp|lt|gt|quot);/g, (e) => UNESCAPES[e]);
 
   function linkRefs(m, html) {
-    return html.replace(DOC_LINK, (anchor, raw) => {
-      const target = refHref(m, raw.replace(/&(amp|lt|gt|quot);/g, (e) => UNESCAPES[e]));
-      return target ? `<a href="${escapeText(target)}" data-crucible-ref="${raw}">` : anchor;
+    return html.replace(DOC_LINK, (anchor, raw, rest, operation) => {
+      const target = refHref(m, unescape(raw), operation == null ? null : unescape(operation));
+      return target ? `<a href="${escapeText(target)}" data-crucible-ref="${raw}"${rest || ""}>` : anchor;
     });
   }
 
@@ -165,13 +166,18 @@
   // resource or data type, a member or enum value on its type's page, and an
   // operation input's or output's member in that operation's request or
   // response. `null` when the description has none.
-  function refHref(m, id) {
+  // `operation`, from `data-crucible-operation`, is the operation an
+  // `[Operation.member]` link names, exact where operations share a shape.
+  function refHref(m, id, operation) {
     if (id === m.service.id) return href("overview");
     if (m.operations[id]) return href("op", id);
     if (m.resources[id]) return href("resource", id);
     const at = id.indexOf("$");
     if (at < 0) return m.shapes[id] && !isBuiltin(id) ? href("shape", id) : null;
     const shape = id.slice(0, at);
+    const named = operation && m.operations[operation];
+    if (named && named.input === shape) return href("op", operation, "request");
+    if (named && named.output === shape) return href("op", operation, "response");
     for (const opId of names(m.operations)) {
       const op = m.operations[opId];
       if (op.input === shape) return href("op", opId, "request");

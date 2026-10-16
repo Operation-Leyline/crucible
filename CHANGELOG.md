@@ -38,10 +38,12 @@ version's section when it is prepared.
   `ir::Service::doc_links` (label to id; omitted from a snapshot when empty,
   so older snapshots read unchanged), with `crucible_ir::doc_links` to find
   them and `Service::doc_link` to look one up. `[Op.member]` names the
-  operation's input member, else its output's. `describe.json`
+  operation's input member, else its output's, and keeps the operation in
+  `Service::doc_link_operations`. `describe.json`
   (`crucible.describe/1`, additive) renders each in `html` as
   `<a data-crucible-ref="<id>">Name</a>`, an anchor with no address for the
-  reader to map, and as its text in `text`; `markdown` is unchanged. The
+  reader to map (with `data-crucible-operation="<id>"` for an operation's
+  member), and as its text in `text`; `markdown` is unchanged. The
   static reference and the Explorer link the anchor to the target's page,
   the mdBook pages to the target's page, and
   native SDK doc comments use their language's link to the generated
@@ -49,7 +51,8 @@ version's section when it is prepared.
   OpenAPI, JSON Schema and MCP tool descriptions show a doc link as its text.
   External output renders a link to internal API as plain text, with no id.
   The language server goes to the definition of, finds references through,
-  and renames doc link labels. See decision 80 in
+  and renames doc link labels, and refuses a lowercase new name for a
+  declaration doc links name. See decision 80 in
   [docs/idl/decisions.md](docs/idl/decisions.md).
 
 - `.cru`: the compiler lowers resources. `ir::Service::resources` holds every

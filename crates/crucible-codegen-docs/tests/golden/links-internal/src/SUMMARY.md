@@ -8,6 +8,8 @@
   - [GetWidget](operations/API_GetWidget.md)
   - [Reveal](operations/API_Reveal.md) **Internal**
 - Data types
+  - [Choice](shapes/Choice.md)
+  - [Code](shapes/Code.md)
   - [Color](shapes/Color.md)
   - [CreateWidgetInput](shapes/CreateWidgetInput.md)
   - [CreateWidgetOutput](shapes/CreateWidgetOutput.md)
@@ -15,7 +17,10 @@
   - [GetGadgetOutput](shapes/GetGadgetOutput.md)
   - [GetWidgetInput](shapes/GetWidgetInput.md)
   - [GetWidgetOutput](shapes/GetWidgetOutput.md)
+  - [Label](shapes/Label.md)
   - [RevealOutput](shapes/RevealOutput.md)
   - [Secret](shapes/Secret.md) **Internal**
   - [Widget](shapes/Widget.md)
   - [WidgetError](shapes/WidgetError.md)
+  - [Widgets](shapes/Widgets.md)
+  - [WidgetsByName](shapes/WidgetsByName.md)

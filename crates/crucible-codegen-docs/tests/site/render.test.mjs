@@ -518,6 +518,7 @@ test("doc links become hash routes to the page for their id", () => {
   const m = x.index(LINKS_EXTERNAL);
   const overview = htmlOf(x.overviewView(m));
   const anchor = (route, id, label) => `<a href="${route}" data-crucible-ref="${id}">${label}</a>`;
+  const opAnchor = (route, id, label) => `<a href="${route}" data-crucible-ref="${id}" data-crucible-operation="example.links#GetWidget">${label}</a>`;
   assert.ok(overview.includes(anchor("#/op/example.links%23GetWidget", "example.links#GetWidget", "the read call")), overview);
   assert.ok(overview.includes(anchor("#/shape/example.links%23Widget", "example.links#Widget", "Widget")), overview);
   // A member or enum value opens its type's page.
@@ -529,8 +530,8 @@ test("doc links become hash routes to the page for their id", () => {
   assert.ok(overview.includes("Internal: Reveal and Secret."), overview);
   // An operation's input and output members open its request and response.
   const get = htmlOf(x.operationView(m, "example.links#GetWidget", null));
-  assert.ok(get.includes(anchor("#/op/example.links%23GetWidget/request", "example.links#GetWidgetInput$widgetId", "GetWidget.widgetId")), get);
-  assert.ok(get.includes(anchor("#/op/example.links%23GetWidget/response", "example.links#GetWidgetOutput$widget", "GetWidget.widget")), get);
+  assert.ok(get.includes(opAnchor("#/op/example.links%23GetWidget/request", "example.links#GetWidgetInput$widgetId", "GetWidget.widgetId")), get);
+  assert.ok(get.includes(opAnchor("#/op/example.links%23GetWidget/response", "example.links#GetWidgetOutput$widget", "GetWidget.widget")), get);
   assert.equal(x.parseRoute("#/op/example.links%23GetWidget/request").section, "request");
   // Member docs and enum value docs link too.
   assert.ok(htmlOf(x.shapeView(m, "example.links#Color")).includes(anchor("#/shape/example.links%23Color", "example.links#Color$BLUE", "Color.BLUE")));
@@ -550,4 +551,15 @@ test("a doc link to an id the description lacks keeps no address", () => {
   // The route is built from the encoded id, never raw markup.
   const hostile = x.rich('<a data-crucible-ref="example.links#Widget&quot;&gt;&lt;script&gt;">W</a>', m);
   assert.ok(!hostile.html.includes("<script>") && !hostile.html.includes('href="#'), hostile.html);
+});
+
+test("an operation member link opens the operation it names, though operations share the structure", () => {
+  const description = structuredClone(LINKS_EXTERNAL);
+  // A second operation with GetWidget's input: the link's operation decides.
+  description.operations["example.links#AnotherGet"] = { ...description.operations["example.links#GetWidget"], id: "example.links#AnotherGet", name: "AnotherGet" };
+  const m = x.index(description);
+  assert.equal(x.refHref(m, "example.links#GetWidgetInput$widgetId", "example.links#GetWidget"), "#/op/example.links%23GetWidget/request");
+  assert.equal(x.refHref(m, "example.links#GetWidgetInput$widgetId", "example.links#AnotherGet"), "#/op/example.links%23AnotherGet/request");
+  const html = x.rich('<a data-crucible-ref="example.links#GetWidgetInput$widgetId" data-crucible-operation="example.links#GetWidget">w</a>', m).html;
+  assert.equal(html, '<a href="#/op/example.links%23GetWidget/request" data-crucible-ref="example.links#GetWidgetInput$widgetId" data-crucible-operation="example.links#GetWidget">w</a>');
 });
