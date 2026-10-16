@@ -1,0 +1,17 @@
+/// Paginated, with the page token in the query and no example: the
+/// sample's token is none the service issued, so no snippet or request
+/// sends it.
+readonly operation ListGraphs {
+    http GET "/graphs"
+    paginated(inputToken: nextToken, outputToken: nextToken, items: graphIds, pageSize: maxResults)
+    input {
+        @query
+        nextToken?: string
+        @query
+        maxResults?: integer { range 1..100 }
+    }
+    output {
+        graphIds: GraphIds
+        nextToken?: string
+    }
+}

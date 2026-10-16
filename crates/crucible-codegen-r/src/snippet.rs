@@ -451,15 +451,8 @@ pub(crate) fn snippets(
     body.push_str("\nclient$close()\n");
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
-        let node = call.input.as_ref().map(|node| {
-            let mut node = node.clone();
-            if let Kind::Structure(members) = &mut node.kind {
-                members.retain(|(m, _)| m.name != pages.paginated.input_token);
-            }
-            node
-        });
         let mut out = opening.clone();
-        let (assign, argument_name) = input(service, call, node.as_ref());
+        let (assign, argument_name) = input(service, call, call.input.as_ref());
         out.push_str(&assign);
         out.push_str(&format!(
             "# Each page is one response; the paginator sends `{}` for the next.\n",

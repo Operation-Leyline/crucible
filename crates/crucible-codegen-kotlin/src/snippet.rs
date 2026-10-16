@@ -322,25 +322,15 @@ fn provenance(call: &Call<'_>) -> String {
     }
 }
 
-/// Declares `input` in `body`, without the member named `drop` (the page
-/// token a paginator sends), and returns the call's argument.
-fn input(
-    values: &mut Literal<'_>,
-    call: &Call<'_>,
-    drop: Option<&str>,
-    body: &mut String,
-) -> String {
+/// Declares `input` in `body` and returns the call's argument.
+fn input(values: &mut Literal<'_>, call: &Call<'_>, body: &mut String) -> String {
     let Some(node) = &call.input else {
         return String::new();
     };
-    let mut node = node.clone();
-    if let (Kind::Structure(members), Some(drop)) = (&mut node.kind, drop) {
-        members.retain(|(m, _)| m.name != drop);
-    }
     body.push_str(&provenance(call));
     body.push_str(&format!(
         "{INDENT}val input = {}\n\n",
-        values.expr(&node, INDENT)
+        values.expr(node, INDENT)
     ));
     "input".to_owned()
 }
@@ -399,7 +389,7 @@ pub(crate) fn snippets(
 
     let mut values = fresh();
     let mut body = start.clone();
-    let argument = input(&mut values, call, None, &mut body);
+    let argument = input(&mut values, call, &mut body);
     let reads: Vec<String> = call
         .output
         .map(|output| {
@@ -450,7 +440,7 @@ pub(crate) fn snippets(
         .map(|(pages, walker)| {
             let mut values = fresh();
             let mut body = start.clone();
-            let argument = input(&mut values, call, Some(&pages.paginated.input_token), &mut body);
+            let argument = input(&mut values, call, &mut body);
             body.push_str(&format!(
                 "{INDENT}// Each page is one response; the flow sends `{}` for the next.\n",
                 pages.paginated.input_token

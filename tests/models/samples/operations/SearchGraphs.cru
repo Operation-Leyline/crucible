@@ -1,0 +1,14 @@
+/// Paginated, with the page token in the body beside the query, and no
+/// example: the first page sends no token.
+readonly operation SearchGraphs {
+    http POST "/graphs/search"
+    paginated(inputToken: pageToken, outputToken: pageToken, items: graphIds)
+    input {
+        query: GraphName
+        pageToken?: string
+    }
+    output {
+        graphIds: GraphIds
+        pageToken?: string
+    }
+}

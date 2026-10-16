@@ -1103,6 +1103,16 @@ version's section when it is prepared.
   not declared by it. `tests/models/version-projection-payload` needs no
   exception for it any more (#348).
 
+- Call snippets no longer send a paginated operation's input token. The
+  plain `snippet` in `crucible.sdks/1`, every language's, and the `http`
+  request (query, header or body) set it to its sample value, such as
+  `nextToken: "nextToken"`, which a service refuses as a token it never
+  issued; they now leave it out, as `paginatedSnippet` did and as the
+  idempotency token already was, so the call asks for the first page. An
+  example's input token is left out as well. The generated README's and
+  AGENTS.md's showcase call follows the snippet. Samples gains the
+  paginated `ListGraphs` and `SearchGraphs` that test it.
+
 - Examples and defaults are checked against `range` the way the generated
   server checks a request (#337). A `bigDecimal`, a `bigInteger` and every
   integer kind compare exactly, through the new `crucible_ir::decimal`

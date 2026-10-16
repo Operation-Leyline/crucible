@@ -461,6 +461,70 @@ fn edge_values_reach_every_language_without_the_token() {
     }
 }
 
+/// A paginated call's first page sends no page token: Samples'
+/// `ListGraphs` (token in the query) and `SearchGraphs` (token in the
+/// body) have no example, so their input is the sample, whose token
+/// (`"nextToken"`, `"pageToken"`) is none the service issued and would be
+/// refused. Every language's plain snippet leaves it out, as its paginated
+/// one does, and keeps the rest of the input.
+#[cfg(feature = "all-clients")]
+#[test]
+fn a_snippet_sends_no_page_token_in_any_language() {
+    let service = common::load("samples");
+    for (language, client) in clients::clients() {
+        let surface = client.surface(&service, Audience::External).unwrap();
+        for (operation, token) in [("ListGraphs", "nextToken"), ("SearchGraphs", "pageToken")] {
+            let described = &surface.operations[&format!("example.samples#{operation}")];
+            let pages = described.paginated_snippet.as_deref().unwrap();
+            for snippet in [described.snippet.as_str(), pages] {
+                for quoted in [format!("\"{token}\""), format!("'{token}'")] {
+                    assert!(
+                        !snippet.contains(&quoted),
+                        "{language} {operation}: {snippet}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The raw request for a paginated operation is its first page: no page
+/// token in the query (`ListGraphs`) or the body (`SearchGraphs`).
+#[test]
+fn a_raw_request_sends_no_page_token() {
+    let text = "schema_version = 1
+model = \"model\"
+
+[sdk.ts]
+package = \"@example/samples\"
+middleware = [\"content-sha256\"]
+out = \"generated/ts\"
+";
+    let (_directory, path) = repository("samples", text);
+    let text = describe(&path, "samples", Audience::External).unwrap();
+    let document: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let operations = &document["http"]["operations"];
+    let list = &operations["example.samples#ListGraphs"];
+    assert!(list["example"].is_null(), "{list}");
+    let uri = list["uri"].as_str().unwrap();
+    assert!(uri.starts_with("/graphs?"), "{uri}");
+    assert!(uri.contains("maxResults="), "{uri}");
+    assert!(!uri.contains("nextToken"), "{uri}");
+    assert!(
+        !list["snippet"].as_str().unwrap().contains("nextToken"),
+        "{list}"
+    );
+    let search = &operations["example.samples#SearchGraphs"];
+    let body = search["body"].as_str().unwrap();
+    let body: serde_json::Value = serde_json::from_str(body).unwrap();
+    assert!(body.get("query").is_some(), "{body}");
+    assert!(body.get("pageToken").is_none(), "{body}");
+    assert!(
+        !search["snippet"].as_str().unwrap().contains("pageToken"),
+        "{search}"
+    );
+}
+
 /// A service whose operations are not all authenticated says which send
 /// the token: `hardening` has a public operation beside bearer ones.
 #[test]

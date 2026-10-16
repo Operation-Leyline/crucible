@@ -258,13 +258,7 @@ pub(crate) fn snippets(
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
         let mut decimal = false;
-        let input = call.input.as_ref().map(|node| {
-            let mut node = node.clone();
-            if let Kind::Structure(members) = &mut node.kind {
-                members.retain(|(m, _)| m.name != pages.paginated.input_token);
-            }
-            expr(&node, "", &mut decimal)
-        });
+        let input = call.input.as_ref().map(|node| expr(node, "", &mut decimal));
         let mut values = vec![client.clone()];
         if decimal {
             values.push("Decimal".to_owned());

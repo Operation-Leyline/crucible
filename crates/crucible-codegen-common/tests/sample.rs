@@ -496,3 +496,32 @@ fn a_big_integer_snippet_is_written_in_digits() {
         assert_eq!(text, digits, "{}", &written[..written.len().min(20)]);
     }
 }
+
+/// A paginated call's input leaves out the page token, whether a sample
+/// sets it (Samples' `ListGraphs`, `SearchGraphs`) or an example might:
+/// the first page sends none, and a sample's is no token the service
+/// issued. The rest of the input stays.
+#[test]
+fn a_snippet_input_has_no_page_token() {
+    use crucible_codegen_common::snippet::{self, Kind};
+    let service = load("samples");
+    for (name, token, kept) in [
+        ("ListGraphs", "nextToken", "maxResults"),
+        ("SearchGraphs", "pageToken", "query"),
+    ] {
+        let operation = service
+            .operations
+            .iter()
+            .find(|op| op.id.name() == name)
+            .unwrap();
+        assert_eq!(operation.paginated.as_ref().unwrap().input_token, token);
+        let call = snippet::call(&service, operation);
+        assert!(call.example.is_none(), "{name}: the sample's input");
+        let Some(Kind::Structure(members)) = call.input.map(|node| node.kind) else {
+            panic!("{name}: a structure input")
+        };
+        let names: Vec<&str> = members.iter().map(|(m, _)| m.name.as_str()).collect();
+        assert!(!names.contains(&token), "{name}: {names:?}");
+        assert!(names.contains(&kept), "{name}: {names:?}");
+    }
+}

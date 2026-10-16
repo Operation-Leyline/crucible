@@ -27,5 +27,7 @@ No modeled errors.
 - [Check](operations/API_Check.md)
 - [Edges](operations/API_Edges.md)
 - [GetGraph](operations/API_GetGraph.md)
+- [ListGraphs](operations/API_ListGraphs.md)
 - [PutGraph](operations/API_PutGraph.md)
+- [SearchGraphs](operations/API_SearchGraphs.md)
 - [Walk](operations/API_Walk.md)

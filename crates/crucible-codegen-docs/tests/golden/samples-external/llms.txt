@@ -14,7 +14,9 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [Check](src/operations/API_Check.md): `POST /check`. A pattern the generator cannot follow\.
 - [Edges](src/operations/API_Edges.md): `POST /edges`. Values at the edges of what each language represents\, in an example\: both ends of long\, bigInteger and bigDecimal past 64 bits\, instants with nanoseconds\, before the epoch\, with an offset\, at both ends of the calendar and before its first year\, a null in a sparse recursive map and list\, a member left to its default\, and an idempotency token the snippets leave to the client\.
 - [GetGraph](src/operations/API_GetGraph.md): `GET /graphs/{graphId}`.
+- [ListGraphs](src/operations/API_ListGraphs.md): `GET /graphs`. Paginated\, with the page token in the query and no example\: the sample\'s token is none the service issued\, so no snippet or request sends it\.
 - [PutGraph](src/operations/API_PutGraph.md): `PUT /graphs/{graphId}`. Every scalar\, collection and default in one request\.
+- [SearchGraphs](src/operations/API_SearchGraphs.md): `POST /graphs/search`. Paginated\, with the page token in the body beside the query\, and no example\: the first page sends no token\.
 - [Walk](src/operations/API_Walk.md): `POST /walk`. Recursive input and output\.
 
 ## Data types
@@ -35,11 +37,14 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [GetGraphInput](src/shapes/GetGraphInput.md): structure.
 - [GetGraphOutput](src/shapes/GetGraphOutput.md): structure.
 - [GraphId](src/shapes/GraphId.md): string. A graph id\: a type prefix and 26 Crockford base\-32 characters\.
+- [GraphIds](src/shapes/GraphIds.md): list.
 - [GraphName](src/shapes/GraphName.md): string. A DNS\-style name\.
 - [GraphNotFound](src/shapes/GraphNotFound.md): error, HTTP 404.
 - [Huge](src/shapes/Huge.md): bigInteger. Above every 64\-bit integer\.
 - [Label](src/shapes/Label.md): string.
 - [Limits](src/shapes/Limits.md): map.
+- [ListGraphsInput](src/shapes/ListGraphsInput.md): structure.
+- [ListGraphsOutput](src/shapes/ListGraphsOutput.md): structure.
 - [ManyLabels](src/shapes/ManyLabels.md): list. More labels than a sample shows\.
 - [ManyLimits](src/shapes/ManyLimits.md): map. More entries than a sample shows\.
 - [Negative](src/shapes/Negative.md): integer.
@@ -54,6 +59,8 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [Ratio](src/shapes/Ratio.md): double.
 - [Region](src/shapes/Region.md): string.
 - [Regions](src/shapes/Regions.md): list.
+- [SearchGraphsInput](src/shapes/SearchGraphsInput.md): structure.
+- [SearchGraphsOutput](src/shapes/SearchGraphsOutput.md): structure.
 - [Sha](src/shapes/Sha.md): string.
 - [Source](src/shapes/Source.md): union.
 - [SparseLabels](src/shapes/SparseLabels.md): list.

@@ -629,14 +629,10 @@ pub(crate) fn snippets(
         let mut body = start.clone();
         let argument = match &call.input {
             Some(node) => {
-                let mut node = node.clone();
-                if let Kind::Structure(members) = &mut node.kind {
-                    members.retain(|(m, _)| m.name != pages.paginated.input_token);
-                }
                 body.push_str(&provenance(call));
                 body.push_str(&format!(
                     "\tinput := {}\n\n",
-                    values.expr(&node, "\t", false)
+                    values.expr(node, "\t", false)
                 ));
                 "input".to_owned()
             }
