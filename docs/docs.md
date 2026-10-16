@@ -220,10 +220,19 @@ carrying the target's absolute ID for the reader to map to its own URL:
 ```
 
 The ID names an operation, resource, shape or the service, or a member or enum
-value as `shape$member`; an operation's input or output member is its
-structure's (`com.example#GetCityInput$cityId`). The attribute is the only
-markup the generator adds, its value escaped as attribute text, and the
-anchor's content is the link's own rendered text. In `text` a doc link is its
+value as `shape$member`. An operation's input or output member is its
+structure's, and the anchor also names the operation, since operations can
+share a structure:
+
+```html
+<a data-crucible-ref="com.example#GetCityInput$cityId" data-crucible-operation="com.example#GetCity">GetCity.cityId</a>
+```
+
+These attributes are the only markup the generator adds, their values escaped
+as attribute text, and the anchor's content is the link's own rendered text.
+Only a doc link the comment does not define becomes such an anchor: a link
+destination or definition in model text, character references included, stays
+an ordinary link. In `text` a doc link is its
 text without brackets. A link whose target this audience does not have (internal
 API in an external description, or a prelude type) is its text in both, so no
 internal ID appears.

@@ -171,11 +171,11 @@ impl Links<'_> {
             (!matches!(shape, Shape::Simple(_) | Shape::Unit { .. }))
                 .then(|| self.service.name_of(id).to_owned())
         };
-        let client = format!("{}Client", self.service.id.name());
+        let client = client_name(self.service);
         let (label, reference) = match target {
             DocTarget::Service => (client.clone(), format!("{package}.{client}")),
             DocTarget::Operation(op) => {
-                let name = method(op.name());
+                let name = method_name(op);
                 (name.clone(), format!("{package}.{client}.{name}"))
             }
             DocTarget::Resource(_) => return None,
@@ -212,13 +212,25 @@ impl Links<'_> {
                 )
             }
         };
-        // Only identifiers reach a link; anything else stays plain text.
-        let simple = |text: &str| {
-            text.split('.').all(|part| {
-                part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !keyword(part)
-            })
+        // Only identifiers reach a link; anything else stays plain text. A
+        // keyword is declared in backticks (`` `when` ``), and KDoc names it
+        // the same way.
+        let quoted = |text: &str| -> Option<String> {
+            let parts: Option<Vec<String>> = text
+                .split('.')
+                .map(|part| {
+                    identifier(part).then(|| {
+                        if keyword(part) {
+                            format!("`{part}`")
+                        } else {
+                            part.to_owned()
+                        }
+                    })
+                })
+                .collect();
+            parts.map(|parts| parts.join("."))
         };
-        (simple(&label) && simple(&reference)).then(|| format!("[{label}][{reference}]"))
+        Some(format!("[{}][{}]", quoted(&label)?, quoted(&reference)?))
     }
 
     /// Model Markdown as KDoc blocks, its doc links as KDoc links.

@@ -97,13 +97,26 @@ impl Client {
     }
 
     fn request(&mut self, method: &str, params: Value) -> Value {
+        self.respond(method, params)["result"].clone()
+    }
+
+    /// The error message a request is refused with.
+    fn request_error(&mut self, method: &str, params: Value) -> String {
+        let reply = self.respond(method, params);
+        reply["error"]["message"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{method} succeeded: {reply}"))
+            .to_owned()
+    }
+
+    fn respond(&mut self, method: &str, params: Value) -> Value {
         self.next_id += 1;
         let id = self.next_id;
         self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
         loop {
             let message = self.receive();
             if message["id"] == id {
-                return message["result"].clone();
+                return message;
             }
         }
     }
@@ -1431,5 +1444,22 @@ fn doc_links_navigate_find_references_and_rename() {
         renamed,
         "/// An item; [GetItem] returns it.\nstructure Thing {\n    name: string\n}\n"
     );
+    // The displayed text of `[the item][Item]` navigates like its label.
+    let definition = client.request("textDocument/definition", at("[the item][Item]", 0, 3));
+    assert_eq!(definition["uri"], types, "{definition}");
+    let mut params = at("[the item][Item]", 0, 3);
+    params["context"] = json!({ "includeDeclaration": false });
+    let from_text = client.request("textDocument/references", params);
+    assert_eq!(
+        from_text.as_array().unwrap().len(),
+        want.len(),
+        "{from_text}"
+    );
+    // A doc link names a capitalised declaration, so a lowercase new name
+    // for a linked one is refused rather than turning its links into prose.
+    let mut params = at("[Item][]", 0, 1);
+    params["newName"] = json!("item");
+    let refused = client.request_error("textDocument/rename", params);
+    assert!(refused.contains("would be prose"), "{refused}");
     client.stop();
 }

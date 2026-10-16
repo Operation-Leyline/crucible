@@ -98,7 +98,7 @@ fn caller_type(ty: &str, ns: &str) -> String {
 }
 
 /// `name` as C# source writes it: `@`-escaped only when it is a keyword.
-fn identifier(name: &str) -> String {
+pub(crate) fn identifier(name: &str) -> String {
     if KEYWORDS.contains(&name) {
         format!("@{name}")
     } else {

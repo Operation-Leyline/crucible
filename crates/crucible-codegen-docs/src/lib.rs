@@ -39,7 +39,7 @@ pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let mut files = markdown::render(&description);
+    let mut files = markdown::render(service, &description);
     let json = description.to_json();
     files.extend(site(&json));
     files.push(File {

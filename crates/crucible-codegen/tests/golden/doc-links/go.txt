@@ -1,0 +1,23 @@
+client.go: // Widgets, linked. Make one with [LinksClient.CreateWidget] and read it back with
+client.go: // the read call; a [Widget] has a [Widget.Name] and a
+client.go: // [Color], such as [ColorRED]. Gadget is a resource, [LinksClient] is this
+client.go: // service and String a prelude type. Internal: Reveal and Secret.
+client.go: // [NotALink] in code, and an ordinary link (https://example.com).
+client.go: // Makes a [Widget]; read it with [LinksClient.GetWidget].
+client.go: // Reads a Gadget.
+client.go: // Reads the [Widget] that [LinksClient.CreateWidget] made, by [GetWidgetInput.WidgetId],
+client.go: // and returns it as [GetWidgetOutput.Widget]. Fails with [WidgetError].
+models.go: // A colour. [ColorRED] is the first.
+models.go: // Red, unlike [ColorBLUE].
+models.go: // What [Widget.Name] becomes.
+models.go: // A [Choice]: [Choice.Widget] or [Choice.Label], one of two.
+models.go: // A [Label], plain text where a language has no type for it.
+models.go: // A [Code], such as [CodeONE].
+models.go: // [Widgets], a list.
+models.go: // [WidgetsByName], a map.
+models.go: // Why a call failed, as [WidgetError.Message] says.
+models.go: // A widget; [LinksClient.CreateWidget] makes one.
+models.go: // The name [CreateWidgetInput.Name] chose.
+models.go: // One of [Color]; [ColorBLUE] by default.
+models.go: // What it is made of: [Widget.Object] is a keyword in some languages.
+models.go: // Raised by [LinksClient.GetWidget] when [GetWidgetInput.WidgetId] names nothing.

@@ -87,6 +87,7 @@ fn typed_contract(service: &mut Service) {
     }
     service.docs = None;
     service.doc_links.clear();
+    service.doc_link_operations.clear();
     service.internal_traits.clear();
     strip(&mut service.traits);
     for resource in service.resources.values_mut() {

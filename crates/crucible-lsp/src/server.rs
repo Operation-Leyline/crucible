@@ -1549,6 +1549,13 @@ impl Server {
         if new_name != name && unit.index.declarations.contains_key(new_name) {
             return Err(failed(format!("`{new_name}` is already declared")));
         }
+        // A doc link's label starts with an uppercase letter (decision 80):
+        // under a lowercase name, every `[Old]` would silently become prose.
+        if !new_name.starts_with(|c: char| c.is_ascii_uppercase()) && self.doc_linked(unit, &name) {
+            return Err(failed(format!(
+                "doc links name `{name}`, and a doc link names a declaration that starts with an uppercase letter: `[{new_name}]` would be prose"
+            )));
+        }
         let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
         for (uri, range, _) in self.occurrences(unit, &name, uri) {
             changes.entry(uri).or_default().push(TextEdit {
@@ -1560,6 +1567,15 @@ impl Server {
             changes: Some(changes),
             ..Default::default()
         }))
+    }
+
+    /// Whether a doc comment in the package links `name`.
+    fn doc_linked(&self, unit: &Unit, name: &str) -> bool {
+        (0..unit.own).any(|file| {
+            analysis::doc_links(&unit.compiled.parsed[file], &unit.compiled.files[file].text)
+                .iter()
+                .any(|link| link.name == name)
+        })
     }
 
     fn highlights(&self, uri: &Url, position: Position) -> Option<Vec<DocumentHighlight>> {

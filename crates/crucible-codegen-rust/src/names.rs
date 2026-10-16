@@ -239,7 +239,7 @@ impl<'a> Links<'a> {
         use crucible_ir::doc_links::DocTarget;
         use crucible_ir::ir::Shape;
         let service = self.service;
-        let client = format!("{}Client", variant(service.id.name()));
+        let client = crate::client::client_name(service);
         let label = match target {
             DocTarget::Service if self.client => client,
             DocTarget::Service | DocTarget::Resource(_) => return None,

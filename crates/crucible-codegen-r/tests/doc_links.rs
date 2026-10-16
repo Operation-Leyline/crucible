@@ -37,7 +37,7 @@ fn rd_pages_link_help_topics() {
     }
     let color = file(&files, "man/Color.Rd");
     assert!(
-        color.contains(r#"A colour. \code{\link[=Color]{Color("RED")}} is the first."#),
+        color.contains(r"A colour. \code{\link{Color}}.RED is the first."),
         "{color}"
     );
     let widget = file(&files, "man/Widget.Rd");
@@ -59,7 +59,7 @@ fn roxygen_comments_link_help_topics() {
     for expected in [
         "#' Widgets, linked. Make one with [client$create_widget()][operations] and read it back with",
         "#' the read call; a [Widget] has a [Widget$name][Widget] and a",
-        "#' [Color], such as [Color(\"RED\")][Color]. Gadget is a resource, [LinksClient()][LinksClient] is this",
+        "#' [Color], such as [Color].RED. Gadget is a resource, [LinksClient()][LinksClient] is this",
         "#' service and String a prelude type. Internal: Reveal and Secret.",
         "#' `[NotALink]` in code",
     ] {

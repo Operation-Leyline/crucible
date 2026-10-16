@@ -5,17 +5,17 @@
 //! `{@see \Ns\LinksClient::getWidget()}`, each named as this generator names
 //! the symbol. A target with no PHP class (a resource, a list, map or
 //! scalar, which are PHP arrays and scalars) is plain text.
-use crate::names::{constant, field, method, variant};
+use crate::names::{constant, field, variant};
 use crucible_codegen_common::{doc_links, docs};
 use crucible_ir::doc_links::DocTarget;
 use crucible_ir::ir::{DocNotes, Service, Shape};
 
 fn link(service: &Service, namespace: &str, target: DocTarget<'_>) -> Option<String> {
     let class = |name: &str| format!("\\{namespace}\\{name}");
-    let client = class(&format!("{}Client", service.id.name()));
+    let client = class(&crate::client_name(service));
     let reference = match target {
         DocTarget::Service => client,
-        DocTarget::Operation(op) => format!("{client}::{}()", method(op.name())),
+        DocTarget::Operation(op) => format!("{client}::{}()", crate::operation_method(op)),
         DocTarget::Resource(_) => return None,
         DocTarget::Shape(id, shape) => match shape {
             Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_) => {

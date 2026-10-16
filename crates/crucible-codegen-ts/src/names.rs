@@ -156,25 +156,61 @@ pub(crate) struct Links<'a> {
     /// How this file names a model type: `m.` where `models.ts` is a
     /// namespace import, else nothing.
     pub(crate) models: &'a str,
+    /// How it names the client class and the error classes: nothing in
+    /// the file that declares them, else a type-only namespace import of
+    /// that file, which [`doc_imports`] adds where a link uses it.
+    pub(crate) client_scope: &'a str,
+    pub(crate) errors: &'a str,
+}
+
+/// The namespace a file imports `client.ts` under for its doc links.
+pub(crate) const CLIENT_SCOPE: &str = "__client.";
+/// The namespace a file imports `errors.ts` under for its doc links.
+pub(crate) const ERRORS_SCOPE: &str = "__errors.";
+
+/// The type-only imports `out`'s doc links need: a link names a symbol of
+/// another file through a namespace, so every reference resolves in the
+/// file that holds it, for the language service and TypeDoc alike.
+pub(crate) fn doc_imports(out: &str, models: bool) -> String {
+    let mut imports = String::new();
+    if models && out.contains("{@link m.") {
+        imports.push_str("import type * as m from \"./models.js\";\n");
+    }
+    if out.contains(&format!("{{@link {CLIENT_SCOPE}")) {
+        imports.push_str("import type * as __client from \"./client.js\";\n");
+    }
+    if out.contains(&format!("{{@link {ERRORS_SCOPE}")) {
+        imports.push_str("import type * as __errors from \"./errors.js\";\n");
+    }
+    imports
 }
 
 impl Links<'_> {
-    /// The same links, for a file that names model types with `models`.
-    pub(crate) fn naming<'b>(&'b self, models: &'b str) -> Links<'b> {
+    /// The same links, for a file that names model types with `models`,
+    /// the client with `client_scope` and error classes with `errors`.
+    pub(crate) fn naming<'b>(
+        &'b self,
+        models: &'b str,
+        client_scope: &'b str,
+        errors: &'b str,
+    ) -> Links<'b> {
         Links {
             service: self.service,
             client: self.client,
             methods: self.methods,
             models,
+            client_scope,
+            errors,
         }
     }
 
     /// The `{@link}` to a doc link's target, or `None` for one with no
     /// TypeScript declaration (a resource, a union arm, a quoted property).
     fn link(&self, target: DocTarget<'_>) -> Option<String> {
+        let client = format!("{}{}", self.client_scope, self.client);
         let reference = match target {
-            DocTarget::Service => self.client.to_owned(),
-            DocTarget::Operation(op) => format!("{}.{}", self.client, self.methods.get(&op.id)?),
+            DocTarget::Service => client,
+            DocTarget::Operation(op) => format!("{client}.{}", self.methods.get(&op.id)?),
             DocTarget::Resource(_) => return None,
             DocTarget::Shape(id, shape) => self.type_name(id, shape)?,
             DocTarget::Member {
@@ -196,7 +232,15 @@ impl Links<'_> {
             }
             DocTarget::EnumValue { .. } => return None,
         };
-        Some(format!("{{@link {reference}}}"))
+        // A namespace-qualified reference shows the name a reader knows.
+        let shown = [self.models, self.client_scope, self.errors]
+            .into_iter()
+            .filter(|scope| !scope.is_empty())
+            .find_map(|scope| reference.strip_prefix(scope));
+        Some(match shown {
+            Some(shown) => format!("{{@link {reference} | {shown}}}"),
+            None => format!("{{@link {reference}}}"),
+        })
     }
 
     /// A model type as this file names it; an error is a class of
@@ -205,7 +249,7 @@ impl Links<'_> {
         let name = self.service.name_of(id);
         match shape {
             Shape::Unit { .. } => None,
-            Shape::Structure(s) if s.error.is_some() => Some(name.to_owned()),
+            Shape::Structure(s) if s.error.is_some() => Some(format!("{}{name}", self.errors)),
             _ => Some(format!("{}{name}", self.models)),
         }
     }

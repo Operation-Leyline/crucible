@@ -77,7 +77,7 @@ fn doc_links_are_anchors_in_html_and_text_in_text() {
     );
     assert_eq!(
         get["html"],
-        "<p>Reads the <a data-crucible-ref=\"example.links#Widget\">Widget</a> that <a data-crucible-ref=\"example.links#CreateWidget\">CreateWidget</a> made, by <a data-crucible-ref=\"example.links#GetWidgetInput$widgetId\">GetWidget.widgetId</a>,\nand returns it as <a data-crucible-ref=\"example.links#GetWidgetOutput$widget\">GetWidget.widget</a>. Fails with <a data-crucible-ref=\"example.links#WidgetError\">WidgetError</a>.</p>\n"
+        "<p>Reads the <a data-crucible-ref=\"example.links#Widget\">Widget</a> that <a data-crucible-ref=\"example.links#CreateWidget\">CreateWidget</a> made, by <a data-crucible-ref=\"example.links#GetWidgetInput$widgetId\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widgetId</a>,\nand returns it as <a data-crucible-ref=\"example.links#GetWidgetOutput$widget\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widget</a>. Fails with <a data-crucible-ref=\"example.links#WidgetError\">WidgetError</a>.</p>\n"
     );
     assert_eq!(
         get["text"],
@@ -134,8 +134,7 @@ fn doc_links_are_anchors_in_html_and_text_in_text() {
 fn a_doc_link_cannot_be_forged_or_break_out_of_its_attribute() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/doc-links");
     let service = crucible_lang::load_service(&dir).unwrap();
-    // The destination marker in model text is dropped, so an inline link
-    // cannot pose as a doc link.
+    // Raw HTML is text, and an inline link is never a doc link.
     let html = documentation::html_linked(
         &service,
         "[x](\u{fdd0}\"><script>) and <a data-crucible-ref=\"x\">",
@@ -145,4 +144,17 @@ fn a_doc_link_cannot_be_forged_or_break_out_of_its_attribute() {
         "{html}"
     );
     assert!(html.contains("&lt;a data-crucible-ref"), "{html}");
+    // Character references decode in a destination: neither an inline link
+    // nor a definition the comment writes becomes a doc link, so an
+    // external reference cannot be made to name an internal id.
+    let external = project(&service, Audience::External).unwrap();
+    for markdown in [
+        "[here](&#xFDD0;com.evil#Forged)",
+        "[Secret] and [x][Secret]\n\n[Secret]: &#xFDD0;example.links#Secret",
+        "[ref]\n\n[ref]: &#xFDD0;example.links#Secret",
+    ] {
+        let html = documentation::html_linked(&external, markdown);
+        // What remains is the author's own link, never a doc link anchor.
+        assert!(!html.contains("data-crucible-ref"), "{markdown}: {html}");
+    }
 }

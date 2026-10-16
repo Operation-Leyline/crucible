@@ -7,7 +7,7 @@ use crucible_ir::ir::{Service, Shape, SimpleKind, Structure};
 use crate::names::{Links, documented_linked, literal, optional, property, ts_type};
 
 pub(crate) fn emit(service: &Service, links: &Links<'_>) -> String {
-    let links = &links.naming("");
+    let links = &links.naming("", crate::names::CLIENT_SCOPE, crate::names::ERRORS_SCOPE);
     let mut out = String::new();
     for (id, shape) in model_shapes(service) {
         out.push('\n');
@@ -126,6 +126,7 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>) -> String {
     }
     let mut header = String::from(crate::HEADER);
     header.push_str(&crate::names::runtime_types(&out, &[]));
+    header.push_str(&crate::names::doc_imports(&out, false));
     header + &out
 }
 

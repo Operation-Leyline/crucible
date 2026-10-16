@@ -1,0 +1,41 @@
+R/client.R: #' Widgets, linked. Make one with [client$create_widget()][operations] and read it back with
+R/client.R: #' the read call; a [Widget] has a [Widget$name][Widget] and a
+R/client.R: #' [Color], such as [Color].RED. Gadget is a resource, [LinksClient()][LinksClient] is this
+R/client.R: #' service and String a prelude type. Internal: Reveal and Secret.
+R/client.R: #' `[NotALink]` in code, and [an ordinary link](https://example.com).
+R/client.R: #' Makes a [Widget]; read it with [client$get_widget()][operations].
+R/client.R: #' Reads a Gadget.
+R/client.R: #' Reads the [Widget] that [client$create_widget()][operations] made, by [GetWidgetInput$widget_id][GetWidgetInput],
+R/client.R: #' and returns it as [GetWidgetOutput$widget][GetWidgetOutput]. Fails with [WidgetError].
+R/model-Color.R: #' A colour. [Color].RED is the first.
+R/model-Color.R: #' RED = RED: Red, unlike [Color].BLUE.
+R/model-CreateWidgetInput.R: #' @param name What [Widget$name][Widget] becomes.
+R/model-CreateWidgetInput.R: #' @param choice A [Choice]: [Choice$widget][Choice] or [Choice$label][Choice], one of two.
+R/model-CreateWidgetInput.R: #' @param label A Label, plain text where a language has no type for it.
+R/model-CreateWidgetInput.R: #' @param code A [Code], such as [Code].ONE.
+R/model-CreateWidgetInput.R: #' @param widgets Widgets, a list.
+R/model-CreateWidgetInput.R: #' @param by_name WidgetsByName, a map.
+R/model-CreateWidgetInput.R: #' @param note Why a call failed, as [WidgetError$message][WidgetError] says.
+R/model-Widget.R: #' A widget; [client$create_widget()][operations] makes one.
+R/model-Widget.R: #' @param name The name [CreateWidgetInput$name][CreateWidgetInput] chose.
+R/model-Widget.R: #' @param color One of [Color]; [Color].BLUE by default.
+R/model-Widget.R: #' @param object What it is made of: [Widget$object][Widget] is a keyword in some languages.
+R/model-WidgetError.R: #' Raised by [client$get_widget()][operations] when [GetWidgetInput$widget_id][GetWidgetInput] names nothing.
+man/Color.Rd: \description{A colour. \code{\link{Color}}.RED is the first.
+man/Color.Rd: \details{RED = RED: Red, unlike \code{\link{Color}}.BLUE.
+man/CreateWidgetInput.Rd: \details{name: What \code{\link[=Widget]{Widget$name}} becomes.
+man/CreateWidgetInput.Rd: choice: A \code{\link{Choice}}: \code{\link[=Choice]{Choice$widget}} or \code{\link[=Choice]{Choice$label}}, one of two.
+man/CreateWidgetInput.Rd: label: A Label, plain text where a language has no type for it.
+man/CreateWidgetInput.Rd: code: A \code{\link{Code}}, such as \code{\link{Code}}.ONE.
+man/CreateWidgetInput.Rd: widgets: Widgets, a list.
+man/CreateWidgetInput.Rd: by_name: WidgetsByName, a map.
+man/CreateWidgetInput.Rd: note: Why a call failed, as \code{\link[=WidgetError]{WidgetError$message}} says.
+man/Widget.Rd: \description{A widget; \code{\link[=operations]{client$create_widget()}} makes one.
+man/Widget.Rd: \details{name: The name \code{\link[=CreateWidgetInput]{CreateWidgetInput$name}} chose.
+man/Widget.Rd: color: One of \code{\link{Color}}; \code{\link{Color}}.BLUE by default.
+man/Widget.Rd: object: What it is made of: \code{\link[=Widget]{Widget$object}} is a keyword in some languages.
+man/WidgetError.Rd: \description{Raised by \code{\link[=operations]{client$get_widget()}} when \code{\link[=GetWidgetInput]{GetWidgetInput$widget_id}} names nothing.
+man/operations.Rd: Makes a \code{\link{Widget}}; read it with \code{\link[=operations]{client$get_widget()}}.
+man/operations.Rd: Reads a Gadget.
+man/operations.Rd: Reads the \code{\link{Widget}} that \code{\link[=operations]{client$create_widget()}} made, by \code{\link[=GetWidgetInput]{GetWidgetInput$widget_id}},
+man/operations.Rd: and returns it as \code{\link[=GetWidgetOutput]{GetWidgetOutput$widget}}. Fails with \code{\link{WidgetError}}.

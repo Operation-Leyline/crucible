@@ -19,6 +19,8 @@ structure Widget {
     name: string
     /// One of [Color]; [Color.BLUE] by default.
     color?: Color
+    /// What it is made of: [Widget.object] is a keyword in some languages.
+    object?: string
 }
 
 /// A colour. [Color.RED] is the first.
@@ -27,6 +29,27 @@ enum Color {
     RED
     BLUE
 }
+
+/// One of two things.
+union Choice {
+    widget: Widget
+    label: string
+}
+
+/// A short label.
+string Label { length 1..10 }
+
+/// A numbered code.
+enum Code: integer {
+    ONE = 1
+    TWO = 2
+}
+
+/// Several widgets.
+list Widgets: Widget
+
+/// Widgets by name.
+map WidgetsByName: string -> Widget
 
 /// Not part of the external contract; [Reveal] returns it.
 internal structure Secret {

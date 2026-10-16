@@ -1,5 +1,6 @@
 use crucible_codegen_common::describe::Description;
 use crucible_codegen_common::documentation;
+use crucible_ir::ir::Service;
 use serde_json::Value;
 
 use crate::File;
@@ -105,7 +106,7 @@ fn link(label: &str, path: &str) -> String {
     format!("[{}]({path})", escaped(label))
 }
 
-pub(super) fn render(d: &Description) -> Vec<File> {
+pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
     let mut summary = "# Summary\n\n- [Service overview](index.md)\n".to_owned();
     let mut index = format!(
         "# {}\n\n{}{}Service version: {}.\n\n## Protocol\n\nWire protocol: {}.\n\n",
@@ -196,7 +197,7 @@ pub(super) fn render(d: &Description) -> Vec<File> {
         index.push('\n');
     }
     let mut files = Vec::new();
-    if let Some(page) = permissions_page(d) {
+    if let Some(page) = permissions_page(service, d) {
         summary.push_str("- [Permissions](permissions.md)\n");
         files.push(File {
             path: "src/permissions.md".into(),
@@ -261,15 +262,25 @@ fn doc_links(d: &Description, contents: &str, prefix: &str) -> String {
             out.push_str(&rest[start..]);
             return out;
         };
-        let id = after[..quote]
-            .replace("&quot;", "\"")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&amp;", "&");
-        let body = &after[quote + 2..];
+        let unescape = |text: &str| {
+            text.replace("&quot;", "\"")
+                .replace("&lt;", "<")
+                .replace("&gt;", ">")
+                .replace("&amp;", "&")
+        };
+        // `<a data-crucible-ref="ID">`, or with ` data-crucible-operation="OP"`.
+        let id = unescape(&after[..quote]);
+        let marker = "\" data-crucible-operation=\"";
+        let (operation, body) = match after[quote..].strip_prefix(marker) {
+            Some(rest) => match rest.find("\">") {
+                Some(end) => (Some(unescape(&rest[..end])), &rest[end + 2..]),
+                None => (None, &after[quote + 2..]),
+            },
+            None => (None, &after[quote + 2..]),
+        };
         // Links do not nest, so the next `</a>` closes this one.
         let end = body.find("</a>").unwrap_or(body.len());
-        match page(d, &id) {
+        match page(d, &id, operation.as_deref()) {
             Some(page) => out.push_str(&format!(
                 "<a href=\"{prefix}{}\">{}</a>",
                 escaped(&page),
@@ -284,7 +295,8 @@ fn doc_links(d: &Description, contents: &str, prefix: &str) -> String {
 }
 
 /// The page, relative to `src/`, a doc link's id names.
-fn page(d: &Description, id: &str) -> Option<String> {
+/// `operation` is the operation an `[Operation.member]` link names.
+fn page(d: &Description, id: &str, operation: Option<&str>) -> Option<String> {
     if Some(id) == d.service["id"].as_str() {
         return Some("index.md".into());
     }
@@ -299,10 +311,13 @@ fn page(d: &Description, id: &str) -> Option<String> {
         None => (id, false),
     };
     if member {
-        let owner = d
-            .operations
-            .values()
-            .find(|op| op["input"].as_str() == Some(shape) || op["output"].as_str() == Some(shape));
+        let carries = |op: &&Value| {
+            op["input"].as_str() == Some(shape) || op["output"].as_str() == Some(shape)
+        };
+        let owner = operation
+            .and_then(|id| d.operations.get(id))
+            .filter(carries)
+            .or_else(|| d.operations.values().find(carries));
         if let Some(op) = owner {
             return Some(operation_path(op));
         }
@@ -680,13 +695,15 @@ fn operation(d: &Description, op: &Value) -> String {
     }
     out
 }
-/// Markdown generated from the model (a requirement sentence, a
-/// permission's description) as one table cell.
-fn cell(markdown: &str) -> String {
-    documentation::html(markdown)
-        .trim()
-        .replace('|', "&#124;")
-        .replace('\n', " ")
+/// Markdown from the model (a permission's description) as one table
+/// cell, its doc links resolved as the description's documentation is.
+fn cell(service: &Service, markdown: &str) -> String {
+    table_cell(&documentation::html_linked(service, markdown))
+}
+
+/// Documentation HTML as one table cell.
+fn table_cell(html: &str) -> String {
+    html.trim().replace('|', "&#124;").replace('\n', " ")
 }
 
 /// What the caller must hold (docs/permissions.md §6.3), or nothing for an
@@ -727,9 +744,9 @@ fn authorization(op: &Value) -> String {
                 // `When` is the condition alone; a clause's own documentation
                 // (what a handler checks, and when) is a note beside it.
                 let when = clause["when"].as_str().map(code).unwrap_or_default();
-                let notes = clause["documentation"]
+                let notes = clause["renderedDocumentation"]["html"]
                     .as_str()
-                    .map(cell)
+                    .map(table_cell)
                     .unwrap_or_default();
                 out.push_str(&format!(
                     "| {} | {} | {} | {} | {} | {} |\n",
@@ -750,7 +767,7 @@ fn authorization(op: &Value) -> String {
 /// `permissions.md`: the registry by resource type, a table per tier
 /// (docs/permissions.md §6.3). Internal entries exist only in a
 /// server-audience description.
-fn permissions_page(d: &Description) -> Option<String> {
+fn permissions_page(service: &Service, d: &Description) -> Option<String> {
     let registry = list(&d.service["permissions"]);
     if registry.is_empty() {
         return None;
@@ -793,7 +810,7 @@ fn permissions_page(d: &Description) -> Option<String> {
                 "### {title}\n\n{intro}| Permission | Description |\n|---|---|\n"
             ));
             for p in rows {
-                let mut description = cell(string(&p["description"]));
+                let mut description = cell(service, string(&p["description"]));
                 if let Some(primary) = p["aliasOf"].as_str() {
                     description.push_str(&format!(
                         " <strong>Deprecated</strong> alias of {}.",

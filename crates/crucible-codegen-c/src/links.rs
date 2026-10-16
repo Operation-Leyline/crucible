@@ -22,7 +22,7 @@ pub fn text(service: &Service, docs: &str, prefix: &str) -> String {
 fn link(service: &Service, target: DocTarget<'_>, prefix: &str) -> Option<String> {
     Some(match target {
         DocTarget::Service => format!("{prefix}_client_new()"),
-        DocTarget::Operation(op) => format!("{prefix}_operations_{}()", names::field(op.name())),
+        DocTarget::Operation(op) => format!("{}()", crate::client::function(op, prefix)),
         DocTarget::Shape(id, shape) => {
             if !models::complex(shape) && !matches!(shape, Shape::Enum(_) | Shape::IntEnum(_)) {
                 return None;

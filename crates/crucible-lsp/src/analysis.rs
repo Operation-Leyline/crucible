@@ -710,6 +710,10 @@ pub struct DocLinkSite {
     pub member: Option<(String, u32, u32)>,
     pub start: u32,
     pub end: u32,
+    /// The whole link: for `[text][Name]` its text too, which navigates
+    /// like the label; edits only ever touch the label.
+    pub link_start: u32,
+    pub link_end: u32,
 }
 
 impl DocLinkSite {
@@ -750,11 +754,14 @@ pub fn doc_links(parsed: &Parsed, text: &str) -> Vec<DocLinkSite> {
                 let start = span.start + name.len() as u32 + 1;
                 (member.to_owned(), start, span.end)
             });
+            let whole = doc.source_span(link.span);
             out.push(DocLinkSite {
                 name: name.to_owned(),
                 member,
                 start: span.start,
                 end: span.end,
+                link_start: whole.start,
+                link_end: whole.end,
             });
         }
     }
@@ -783,7 +790,7 @@ pub fn doc_link_at(parsed: &Parsed, text: &str, offset: usize) -> Option<DocLink
     let offset = offset as u32;
     doc_links(parsed, text)
         .into_iter()
-        .find(|link| link.start <= offset && offset <= link.end)
+        .find(|link| link.link_start <= offset && offset <= link.link_end)
 }
 
 /// Where the member `member` of the declaration `name` is written, as a

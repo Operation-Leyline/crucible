@@ -153,11 +153,11 @@ impl Links<'_> {
     fn link(&self, target: crucible_ir::doc_links::DocTarget<'_>) -> Option<String> {
         use crucible_ir::doc_links::DocTarget;
         let ns = self.ns;
-        let client = format!("global::{ns}.{}Client", pascal(self.service.id.name()));
+        let client = format!("global::{ns}.{}", client_name(self.service));
         let cref = match target {
             DocTarget::Service => client,
             // The asynchronous form: every operation has exactly one.
-            DocTarget::Operation(op) => format!("{client}.{}Async", pascal(op.name())),
+            DocTarget::Operation(op) => format!("{client}.{}", async_method_name(op)),
             DocTarget::Resource(_) => return None,
             DocTarget::Shape(id, shape) => self.model(id, shape)?,
             DocTarget::Member {
@@ -171,7 +171,14 @@ impl Links<'_> {
                 value,
             } => format!("{}.{}", self.model(shape, owner)?, pascal(value)),
         };
-        Some(format!("<see cref=\"{}\"/>", cref.replace('@', "")))
+        // Each name as C# writes it: `@` only before a keyword, which a
+        // cref needs as source does (`Models.@event`).
+        let cref = cref
+            .split('.')
+            .map(|part| crate::surface::identifier(part.trim_start_matches('@')))
+            .collect::<Vec<_>>()
+            .join(".");
+        Some(format!("<see cref=\"{cref}\"/>"))
     }
 
     /// Model Markdown as XML documentation blocks, its doc links as `<see>`.

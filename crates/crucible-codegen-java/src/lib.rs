@@ -237,7 +237,7 @@ impl Links<'_> {
     /// declaration for (a resource, a scalar, a plain collection).
     fn link(&self, target: crucible_ir::doc_links::DocTarget<'_>) -> Option<String> {
         use crucible_ir::doc_links::DocTarget;
-        let client = format!("{}Client", self.service.id.name());
+        let client = client_name(self.service);
         let (reference, label) = match target {
             DocTarget::Service => (format!("{}.{client}", self.package), client),
             DocTarget::Operation(op) => {

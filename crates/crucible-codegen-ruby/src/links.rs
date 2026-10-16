@@ -11,10 +11,10 @@ use crucible_ir::doc_links::DocTarget;
 use crucible_ir::ir::{DocNotes, Service, Shape};
 
 fn link(service: &Service, target: DocTarget<'_>) -> Option<String> {
-    let client = format!("{}Client", service.id.name());
+    let client = crate::client_name(service);
     let reference = match target {
         DocTarget::Service => client,
-        DocTarget::Operation(op) => format!("{client}#{}", field(op.name())),
+        DocTarget::Operation(op) => format!("{client}#{}", crate::operation_method(op)),
         DocTarget::Resource(_) => return None,
         DocTarget::Shape(id, shape) => match shape {
             Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_) => {

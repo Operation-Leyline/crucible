@@ -102,6 +102,11 @@ pub struct Service {
     /// audience projection removed, is plain text.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub doc_links: BTreeMap<String, ShapeId>,
+    /// For each `[Operation.member]` label in [`Service::doc_links`], the
+    /// operation it names: its target is a member of the operation's input
+    /// or output structure, which another operation may share.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub doc_link_operations: BTreeMap<String, ShapeId>,
 }
 
 /// One `except Rule for Target because ".."` the compiler accepted: the rule

@@ -20,10 +20,10 @@ pub(crate) enum Package {
 }
 
 fn link(service: &Service, target: DocTarget<'_>) -> Option<String> {
-    let client = format!("{}Client", exported(service.id.name()));
+    let client = crate::client_name(service);
     let reference = match target {
         DocTarget::Service => client,
-        DocTarget::Operation(op) => format!("{client}.{}", exported(op.name())),
+        DocTarget::Operation(op) => format!("{client}.{}", crate::method_name(op.name())),
         DocTarget::Resource(_) => return None,
         DocTarget::Shape(id, _) => exported(service.name_of(id)),
         DocTarget::Member { shape, member, .. } => format!(

@@ -5,7 +5,7 @@
 //! client). A target with no Dart symbol in scope (a resource, a scalar,
 //! the client from the models library, which does not import it) is plain
 //! text.
-use super::{enum_constant, field, method};
+use super::{enum_constant, field};
 use crucible_codegen_common::{doc_links, docs};
 use crucible_ir::doc_links::DocTarget;
 use crucible_ir::ir::{DocNotes, Service, Shape};
@@ -27,11 +27,11 @@ fn link(service: &Service, library: Library, target: DocTarget<'_>) -> Option<St
         Library::Client => "models.",
         Library::Permissions => return None,
     };
-    let client = format!("{}Client", service.id.name());
+    let client = super::client_name(service);
     let reference = match target {
         DocTarget::Service if library == Library::Client => client,
         DocTarget::Operation(op) if library == Library::Client => {
-            format!("{client}.{}", field(&method(op.name())))
+            format!("{client}.{}", super::operation_method(op))
         }
         DocTarget::Service | DocTarget::Operation(_) | DocTarget::Resource(_) => return None,
         DocTarget::Shape(id, shape) => {

@@ -12,7 +12,7 @@ use crucible_ir::ir::{DocNotes, Service, Shape};
 fn link(service: &Service, target: DocTarget<'_>) -> Option<String> {
     let path = match target {
         DocTarget::Service => client(service),
-        DocTarget::Operation(op) => format!("{}/{}(_:)", client(service), method(op.name())),
+        DocTarget::Operation(op) => format!("{}/{}(_:)", client(service), super::method_name(op)),
         DocTarget::Resource(_) => return None,
         DocTarget::Shape(id, shape) => {
             if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
@@ -44,7 +44,7 @@ fn link(service: &Service, target: DocTarget<'_>) -> Option<String> {
 }
 
 fn client(service: &Service) -> String {
-    format!("{}Client", service.id.name())
+    super::client_name(service)
 }
 
 /// Model documentation through [`docs::escape`], its doc links as DocC links.

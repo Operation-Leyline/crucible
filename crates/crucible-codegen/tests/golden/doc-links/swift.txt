@@ -1,0 +1,25 @@
+Sources/Hostile/ClientConfig.swift: /// An error response that this client model does not describe, such as one
+Sources/Hostile/LinksClient.swift: /// Widgets, linked. Make one with ``LinksClient/createWidget(_:)`` and read it back with
+Sources/Hostile/LinksClient.swift: /// the read call; a ``Widget`` has a ``Widget/name`` and a
+Sources/Hostile/LinksClient.swift: /// ``Color``, such as ``Color/red``. Gadget is a resource, ``LinksClient`` is this
+Sources/Hostile/LinksClient.swift: /// service and String a prelude type. Internal: Reveal and Secret.
+Sources/Hostile/LinksClient.swift: /// `[NotALink]` in code, and [an ordinary link](https://example.com).
+Sources/Hostile/LinksClient.swift: /// Makes a ``Widget``; read it with ``LinksClient/getWidget(_:)``.
+Sources/Hostile/LinksClient.swift: /// Reads a Gadget.
+Sources/Hostile/LinksClient.swift: /// Reads the ``Widget`` that ``LinksClient/createWidget(_:)`` made, by ``GetWidgetInput/widgetId``,
+Sources/Hostile/LinksClient.swift: /// and returns it as ``GetWidgetOutput/widget``. Fails with ``WidgetError``.
+Sources/Hostile/Models.swift: /// A colour. ``Color/red`` is the first.
+Sources/Hostile/Models.swift: /// Red, unlike ``Color/blue``.
+Sources/Hostile/Models.swift: /// What ``Widget/name`` becomes.
+Sources/Hostile/Models.swift: /// A ``Choice``: ``Choice/widget(_:)`` or ``Choice/label(_:)``, one of two.
+Sources/Hostile/Models.swift: /// A Label, plain text where a language has no type for it.
+Sources/Hostile/Models.swift: /// A ``Code``, such as ``Code/one``.
+Sources/Hostile/Models.swift: /// ``Widgets``, a list.
+Sources/Hostile/Models.swift: /// ``WidgetsByName``, a map.
+Sources/Hostile/Models.swift: /// Why a call failed, as ``WidgetError/message`` says.
+Sources/Hostile/Models.swift: /// A widget; ``LinksClient/createWidget(_:)`` makes one.
+Sources/Hostile/Models.swift: /// The name ``CreateWidgetInput/name`` chose.
+Sources/Hostile/Models.swift: /// One of ``Color``; ``Color/blue`` by default.
+Sources/Hostile/Models.swift: /// What it is made of: ``Widget/object`` is a keyword in some languages.
+Sources/Hostile/Models.swift: /// Raised by ``LinksClient/getWidget(_:)`` when ``GetWidgetInput/widgetId`` names nothing.
+Sources/Hostile/WireCodec.swift: /// The member has a value.

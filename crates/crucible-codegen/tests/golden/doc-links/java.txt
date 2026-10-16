@@ -1,0 +1,29 @@
+src/main/java/hostile/LinksClient.java: * <p>Widgets, linked. Make one with {@link hostile.LinksClient#createWidget createWidget} and read it back with the read call; a {@link hostile.model.Widget Widget} has a {@link hostile.model.Widget#name Widget.name} and a {@link hostile.model.Color Color}, such as {@link hostile.model.Color#RED Color.RED}. Gadget is a resource, {@link hostile.LinksClient LinksClient} is this service and String a prelude type. Internal: Reveal and Secret.</p>
+src/main/java/hostile/LinksClient.java: * <p><code>[NotALink]</code> in code, and <a href="https://example.com">an ordinary link</a>.</p>
+src/main/java/hostile/LinksClient.java: * <p>The configuration is copied on construction. Every operation has a blocking form and an {@code Async} form returning a {@link java.util.concurrent.CompletableFuture}; the client opens no resources of its own, so there is nothing to close. A caller-supplied {@link java.net.http.HttpClient} stays owned by the caller.</p>
+src/main/java/hostile/LinksClient.java: * <p>Makes a {@link hostile.model.Widget Widget}; read it with {@link hostile.LinksClient#getWidget getWidget}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Makes a {@link hostile.model.Widget Widget}; read it with {@link hostile.LinksClient#getWidget getWidget}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Makes a {@link hostile.model.Widget Widget}; read it with {@link hostile.LinksClient#getWidget getWidget}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Makes a {@link hostile.model.Widget Widget}; read it with {@link hostile.LinksClient#getWidget getWidget}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads a Gadget.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads a Gadget.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads a Gadget.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads a Gadget.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads the {@link hostile.model.Widget Widget} that {@link hostile.LinksClient#createWidget createWidget} made, by {@link hostile.model.GetWidgetInput#widgetId GetWidgetInput.widgetId}, and returns it as {@link hostile.model.GetWidgetOutput#widget GetWidgetOutput.widget}. Fails with {@link hostile.model.WidgetError WidgetError}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads the {@link hostile.model.Widget Widget} that {@link hostile.LinksClient#createWidget createWidget} made, by {@link hostile.model.GetWidgetInput#widgetId GetWidgetInput.widgetId}, and returns it as {@link hostile.model.GetWidgetOutput#widget GetWidgetOutput.widget}. Fails with {@link hostile.model.WidgetError WidgetError}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads the {@link hostile.model.Widget Widget} that {@link hostile.LinksClient#createWidget createWidget} made, by {@link hostile.model.GetWidgetInput#widgetId GetWidgetInput.widgetId}, and returns it as {@link hostile.model.GetWidgetOutput#widget GetWidgetOutput.widget}. Fails with {@link hostile.model.WidgetError WidgetError}.</p>
+src/main/java/hostile/LinksClient.java: * <p>Reads the {@link hostile.model.Widget Widget} that {@link hostile.LinksClient#createWidget createWidget} made, by {@link hostile.model.GetWidgetInput#widgetId GetWidgetInput.widgetId}, and returns it as {@link hostile.model.GetWidgetOutput#widget GetWidgetOutput.widget}. Fails with {@link hostile.model.WidgetError WidgetError}.</p>
+src/main/java/hostile/model/Color.java: * <p>A colour. {@link hostile.model.Color#RED Color.RED} is the first.</p>
+src/main/java/hostile/model/Color.java: * <p>Red, unlike {@link hostile.model.Color#BLUE Color.BLUE}.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>What {@link hostile.model.Widget#name Widget.name} becomes.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>A {@link hostile.model.Choice Choice}: {@link hostile.model.Choice#widget Choice.widget} or {@link hostile.model.Choice#label Choice.label}, one of two.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>A Label, plain text where a language has no type for it.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>A {@link hostile.model.Code Code}, such as {@link hostile.model.Code#ONE Code.ONE}.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>Widgets, a list.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>WidgetsByName, a map.</p>
+src/main/java/hostile/model/CreateWidgetInput.java: * <p>Why a call failed, as {@link hostile.model.WidgetError#message WidgetError.message} says.</p>
+src/main/java/hostile/model/Widget.java: * <p>A widget; {@link hostile.LinksClient#createWidget createWidget} makes one.</p>
+src/main/java/hostile/model/Widget.java: * <p>The name {@link hostile.model.CreateWidgetInput#name CreateWidgetInput.name} chose.</p>
+src/main/java/hostile/model/Widget.java: * <p>One of {@link hostile.model.Color Color}; {@link hostile.model.Color#BLUE Color.BLUE} by default.</p>
+src/main/java/hostile/model/Widget.java: * <p>What it is made of: {@link hostile.model.Widget#object Widget.object} is a keyword in some languages.</p>
+src/main/java/hostile/model/WidgetError.java: * <p>Raised by {@link hostile.LinksClient#getWidget getWidget} when {@link hostile.model.GetWidgetInput#widgetId GetWidgetInput.widgetId} names nothing.</p>

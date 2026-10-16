@@ -135,7 +135,7 @@ pub(crate) fn emit(
     links: &crate::names::Links<'_>,
     diagnostics: &mut Diagnostics,
 ) -> String {
-    let links = &links.naming("");
+    let links = &links.naming("m.", crate::names::CLIENT_SCOPE, crate::names::ERRORS_SCOPE);
     let mut out = String::from(HEADER);
     let mut registry = Vec::new();
     let mut aliases = Vec::new();
@@ -254,6 +254,11 @@ pub(crate) fn emit(
         ));
     }
     out.push_str("    default:\n      return value;\n  }\n}\n");
+    // The doc links' imports go after the header comment.
+    let imports = crate::names::doc_imports(&out, true);
+    if !imports.is_empty() {
+        out.insert_str(HEADER.len(), &imports);
+    }
     out
 }
 

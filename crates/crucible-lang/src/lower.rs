@@ -91,6 +91,7 @@ pub(crate) fn lower(
         carried: BTreeMap::new(),
         resource_notes: BTreeMap::new(),
         doc_link_sites: BTreeSet::new(),
+        rule_names: BTreeSet::new(),
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
@@ -502,6 +503,9 @@ struct Lowerer<'a> {
     /// Every `[Name]` doc link the lowered documentation holds: its label,
     /// file and the label's span, resolved once every shape is lowered.
     doc_link_sites: BTreeSet<(String, usize, u32, u32)>,
+    /// The package's and its imports' policy rules, which a doc link may
+    /// name without linking anywhere.
+    rule_names: BTreeSet<String>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -576,32 +580,40 @@ impl<'a> Lowerer<'a> {
     /// prelude type, and a declaration that is not an operation, type,
     /// resource or service (a template, metadata, rule), is accepted with no
     /// entry, so it renders as plain text.
+    ///
+    /// Returns the table, and for each `[Operation.member]` label the
+    /// operation it names. `service` is `None` when no service is lowered:
+    /// the links are still checked, so every package reports its own.
     fn resolve_doc_links(
         &mut self,
-        service: &ShapeId,
+        service: Option<&ShapeId>,
         operations: &[&IrOperation],
         shapes: &BTreeMap<ShapeId, Shape>,
-    ) -> BTreeMap<String, ShapeId> {
+    ) -> (BTreeMap<String, ShapeId>, BTreeMap<String, ShapeId>) {
         let mut links = BTreeMap::new();
+        let mut owners = BTreeMap::new();
         for (label, file, start, end) in std::mem::take(&mut self.doc_link_sites) {
             match self.doc_link(&label, service, operations, shapes) {
-                Ok(Some(id)) => {
+                Ok(Some((id, owner))) => {
+                    if let Some(owner) = owner {
+                        owners.insert(label.clone(), owner);
+                    }
                     links.insert(label, id);
                 }
                 Ok(None) => {}
                 Err(message) => self.error(file, Span { start, end }, message),
             }
         }
-        links
+        (links, owners)
     }
 
     fn doc_link(
         &self,
         label: &str,
-        service: &ShapeId,
+        service: Option<&ShapeId>,
         operations: &[&IrOperation],
         shapes: &BTreeMap<ShapeId, Shape>,
-    ) -> Result<Option<ShapeId>, String> {
+    ) -> Result<Option<(ShapeId, Option<ShapeId>)>, String> {
         let (name, member) = crucible_ir::doc_links::split(label);
         let Some(decl) = self.decl(name) else {
             if prelude_kind(name).is_some() {
@@ -612,18 +624,27 @@ impl<'a> Lowerer<'a> {
                     )),
                 };
             }
+            if self.rule_names.contains(name) {
+                return match member {
+                    None => Ok(None),
+                    Some(_) => Err(format!(
+                        "the doc link `[{label}]` names nothing: `{name}` is a rule, with no members"
+                    )),
+                };
+            }
             return Err(format!(
-                "the doc link `[{label}]` names nothing in this package or its imports"
+                "the doc link `[{label}]` names nothing in this package or its imports; write `\\[{label}]` or a code span if it is not a link"
             ));
         };
         let id = self.ref_id(name);
         let Some(member) = member else {
             return Ok(match &decl.item.decl {
-                Decl::Service(_) => Some(service.clone()).filter(|s| s.name() == name),
+                Decl::Service(_) => service.filter(|s| s.name() == name).cloned(),
                 Decl::Operation(_) | Decl::Resource(_) => Some(id),
                 decl if is_type(decl) => Some(id),
                 _ => None,
-            });
+            }
+            .map(|id| (id, None)));
         };
         let no_member = |why: String| Err(format!("the doc link `[{label}]` names nothing: {why}"));
         match &decl.item.decl {
@@ -639,7 +660,7 @@ impl<'a> Lowerer<'a> {
                         .get(side)
                         .is_some_and(|s| s.members().iter().any(|m| m.name == member))
                     {
-                        return Ok(Some(side.with_member(member)));
+                        return Ok(Some((side.with_member(member), Some(id))));
                     }
                 }
                 no_member(format!(
@@ -656,7 +677,7 @@ impl<'a> Lowerer<'a> {
                     _ => (false, "member"),
                 };
                 if found {
-                    Ok(Some(id.with_member(member)))
+                    Ok(Some((id.with_member(member), None)))
                 } else {
                     no_member(format!("`{name}` has no {what} `{member}`"))
                 }
@@ -705,7 +726,11 @@ impl<'a> Lowerer<'a> {
                     // Migrations are checked against the baseline by `guard`.
                     Decl::Migration(_) => continue,
                     // Checked and run apart from the model (`crate::rules`).
-                    Decl::Rule(_) | Decl::Except(_) => continue,
+                    Decl::Rule(rule) => {
+                        self.rule_names.insert(rule.name.name.clone());
+                        continue;
+                    }
+                    Decl::Except(_) => continue,
                     // Applied to the operations of its role (`crate::templates`).
                     Decl::Template(_) => continue,
                     Decl::Protocol(_) | Decl::Conversion(_) => {
@@ -5019,9 +5044,11 @@ impl<'a> Lowerer<'a> {
         };
         let Some(decl) = chosen else {
             // Still check every declaration, so one run lists every problem.
-            self.check_unreached(&BTreeSet::new(), &[], &JsonMap::new(), &[]);
+            let lowered = self.check_unreached(&BTreeSet::new(), &[], &JsonMap::new(), &[]);
             self.report_unplaced();
-            self.shapes.clear();
+            let shapes = std::mem::take(&mut self.shapes);
+            let operations: Vec<&IrOperation> = lowered.iter().collect();
+            self.resolve_doc_links(None, &operations, &shapes);
             return None;
         };
         let file = decl.file;
@@ -5318,6 +5345,7 @@ impl<'a> Lowerer<'a> {
             not_found: self.not_found.clone(),
             exceptions: Vec::new(),
             doc_links: BTreeMap::new(),
+            doc_link_operations: BTreeMap::new(),
         };
         // A `.cru` service's version is a release its clients name in the
         // `Crucible-Version` header, when it can travel in one.
@@ -5366,8 +5394,10 @@ impl<'a> Lowerer<'a> {
         // in the table and render as plain text, having no target in it.
         let operations: Vec<&IrOperation> =
             service.operations.iter().chain(&probe.operations).collect();
-        let doc_links = self.resolve_doc_links(&service.id, &operations, &probe.shapes);
+        let (doc_links, owners) =
+            self.resolve_doc_links(Some(&service.id), &operations, &probe.shapes);
         service.doc_links = doc_links;
+        service.doc_link_operations = owners;
         service.project_metadata_only();
         Some(service)
     }

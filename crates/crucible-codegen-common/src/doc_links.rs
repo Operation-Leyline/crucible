@@ -13,10 +13,7 @@ use crucible_ir::doc_links::{DocLink, DocTarget, links};
 use crucible_ir::ir::Service;
 
 /// Opens and closes a placeholder: Unicode noncharacters, which no doc
-/// dialect gives a meaning and [`crate::docs::comment_text`] keeps. Not
-/// U+FDD0, which [`crate::documentation`] reserves for the doc link
-/// destinations it parses with and removes from model text: an escaper
-/// built on it, such as [`crate::documentation::text`], keeps these.
+/// dialect gives a meaning and [`crate::docs::comment_text`] keeps.
 const OPEN: char = '\u{fdd2}';
 const CLOSE: char = '\u{fdd3}';
 
@@ -26,13 +23,19 @@ const CLOSE: char = '\u{fdd3}';
 /// Markdown, which the rest of the text goes through unchanged; `link`
 /// returns the dialect's link to a target, already escaped as it needs, or
 /// `None` for plain text (a target the language has no symbol for).
+///
+/// Model text may spell a placeholder, literally or, through an escaper
+/// that parses Markdown, as character references (`&#xFDD2;0&#xFDD3;`).
+/// The literal characters are removed first; and unless the escaped text
+/// holds each placeholder exactly once and in order, the links are all
+/// rendered as plain text instead, so model text can neither repeat a link
+/// nor place one.
 pub fn render(
     service: &Service,
     markdown: &str,
-    escape: impl FnOnce(&str) -> String,
+    escape: impl Fn(&str) -> String,
     mut link: impl FnMut(DocTarget<'_>) -> Option<String>,
 ) -> String {
-    // Model text cannot forge a placeholder.
     let markdown: String = markdown
         .chars()
         .filter(|c| !matches!(*c, OPEN | CLOSE))
@@ -43,12 +46,15 @@ pub fn render(
     }
     let mut rendered = Vec::new();
     let mut text = String::with_capacity(markdown.len());
+    let mut fallback = String::with_capacity(markdown.len());
     let mut at = 0;
     for doc_link in &found {
         if doc_link.span.start < at {
             continue;
         }
         text.push_str(&markdown[at..doc_link.span.start]);
+        fallback.push_str(&markdown[at..doc_link.span.start]);
+        fallback.push_str(plain(&markdown, doc_link));
         let target = (!doc_link.full)
             .then(|| service.doc_link(&doc_link.label))
             .flatten();
@@ -64,7 +70,8 @@ pub fn render(
         at = doc_link.span.end;
     }
     text.push_str(&markdown[at..]);
-    restore(&escape(&text), &rendered)
+    fallback.push_str(&markdown[at..]);
+    restore(&escape(&text), &rendered).unwrap_or_else(|| strip(escape(&fallback)))
 }
 
 /// What a doc link shows as plain text: its label, or its own text.
@@ -77,28 +84,35 @@ pub fn plain<'a>(markdown: &'a str, link: &DocLink) -> &'a str {
     }
 }
 
-fn restore(escaped: &str, rendered: &[String]) -> String {
+/// `escaped` with its placeholders replaced by the links they stand for,
+/// or `None` unless it holds each placeholder exactly once, in order, and
+/// nothing else that looks like one.
+fn restore(escaped: &str, rendered: &[String]) -> Option<String> {
     let mut out = String::with_capacity(escaped.len());
     let mut rest = escaped;
-    while let Some(open) = rest.find(OPEN) {
+    let mut next = 0;
+    while let Some(open) = rest.find([OPEN, CLOSE]) {
+        if !rest[open..].starts_with(OPEN) {
+            return None;
+        }
         out.push_str(&rest[..open]);
         let after = &rest[open + OPEN.len_utf8()..];
-        let Some(close) = after.find(CLOSE) else {
-            rest = after;
-            continue;
-        };
-        if let Some(link) = after[..close]
-            .parse::<usize>()
-            .ok()
-            .and_then(|i| rendered.get(i))
-        {
-            out.push_str(link);
+        let close = after.find(CLOSE)?;
+        if after[..close] != next.to_string() {
+            return None;
         }
+        out.push_str(rendered.get(next)?);
+        next += 1;
         rest = &after[close + CLOSE.len_utf8()..];
     }
     out.push_str(rest);
-    out.retain(|c| !matches!(c, OPEN | CLOSE));
-    out
+    (next == rendered.len()).then_some(out)
+}
+
+/// Placeholder characters the escaper decoded from model text, gone.
+fn strip(mut text: String) -> String {
+    text.retain(|c| !matches!(c, OPEN | CLOSE));
+    text
 }
 
 #[cfg(test)]
@@ -139,6 +153,26 @@ mod tests {
             |_| Some("LINK".into()),
         );
         assert_eq!(out, "0 and LINK");
+    }
+
+    #[test]
+    fn a_placeholder_spelled_as_character_references_renders_every_link_as_text() {
+        let service = service();
+        for markdown in [
+            "[GetWidget] and &#xFDD2;0&#xFDD3; again",
+            "&#xFDD2;0&#xFDD3; before [GetWidget]",
+            "[GetWidget] then &#xFDD3;",
+        ] {
+            let out = render(&service, markdown, crate::documentation::text, |_| {
+                Some("LINK".into())
+            });
+            assert!(!out.contains("LINK"), "{markdown}: {out}");
+            assert!(out.contains("GetWidget"), "{markdown}: {out}");
+            assert!(
+                !out.contains(['\u{fdd2}', '\u{fdd3}']),
+                "{markdown}: {out:?}"
+            );
+        }
     }
 
     #[test]

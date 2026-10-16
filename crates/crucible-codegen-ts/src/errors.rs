@@ -33,7 +33,7 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
 
 pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagnostics) -> String {
     let exception = crucible_codegen_common::service_exception_name(service);
-    let links = &links.naming("m.");
+    let links = &links.naming("m.", crate::names::CLIENT_SCOPE, "");
     let mut out = String::new();
     for (id, structure) in error_shapes(service) {
         let name = service.name_of(id);
@@ -106,6 +106,7 @@ pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagn
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
+    header.push_str(&crate::names::doc_imports(&out, false));
     let mut shapes = crucible_codegen_common::schema(service, str::to_owned)["shapes"].clone();
     // Only error classes need formatting metadata, including their nested targets.
     let mut pending: Vec<_> = error_shapes(service)

@@ -4,6 +4,7 @@
 /// ```
 /// @throws fenced
 /// ```
+/// Links: [Kind], [Kind.QUOTE], [Kind.INTERP], [Kind.BACKSLASH], [Kind.COMMENT], [Do], [Do.text] and [Do.weird].
 service Hostile {
     version "1"
     protocol json

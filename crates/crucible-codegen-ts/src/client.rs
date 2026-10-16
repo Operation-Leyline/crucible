@@ -11,7 +11,7 @@ use crate::{Middleware, Options};
 
 pub(crate) fn emit(service: &Service, options: &Options, links: &Links<'_>) -> String {
     let client = links.client;
-    let links = links.naming("m.");
+    let links = links.naming("m.", "", crate::names::ERRORS_SCOPE);
     let mut out = String::new();
     documented_linked(
         &mut out,
@@ -83,6 +83,7 @@ pub(crate) fn emit(service: &Service, options: &Options, links: &Links<'_>) -> S
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
+    header.push_str(&crate::names::doc_imports(&out, false));
     header.push_str("import * as spec from \"./schemas.js\";\n\n");
     header + &out
 }

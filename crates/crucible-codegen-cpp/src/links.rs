@@ -18,10 +18,10 @@ pub fn text(service: &Service, docs: &str) -> String {
 }
 
 fn link(service: &Service, target: DocTarget<'_>) -> Option<String> {
-    let client = format!("{}Client", service.id.name());
+    let client = crate::client::client_name(service);
     Some(match target {
         DocTarget::Service => client,
-        DocTarget::Operation(op) => format!("{client}::{}()", names::field(op.name())),
+        DocTarget::Operation(op) => format!("{client}::{}()", crate::client::method(op)),
         // Structures, unions and enums are classes in `models`; other
         // shapes are aliases of standard types.
         DocTarget::Shape(id, shape) => match shape {

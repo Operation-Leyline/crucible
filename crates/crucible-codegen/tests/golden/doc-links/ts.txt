@@ -1,0 +1,24 @@
+src/client.ts: * Widgets, linked. Make one with {@link LinksClient.createWidget} and read it back with
+src/client.ts: * the read call; a {@link m.Widget | Widget} has a {@link m.Widget.name | Widget.name} and a
+src/client.ts: * {@link m.Color | Color}, such as {@link m.Color.RED | Color.RED}. Gadget is a resource, {@link LinksClient} is this
+src/client.ts: * service and String a prelude type. Internal: Reveal and Secret.
+src/client.ts: * `[NotALink]` in code, and [an ordinary link](https://example.com).
+src/client.ts: * Makes a {@link m.Widget | Widget}; read it with {@link LinksClient.getWidget}.
+src/client.ts: * Reads a Gadget.
+src/client.ts: * Reads the {@link m.Widget | Widget} that {@link LinksClient.createWidget} made, by {@link m.GetWidgetInput.widgetId | GetWidgetInput.widgetId},
+src/client.ts: * and returns it as {@link m.GetWidgetOutput.widget | GetWidgetOutput.widget}. Fails with {@link __errors.WidgetError | WidgetError}.
+src/errors.ts: * Raised by {@link __client.LinksClient.getWidget | LinksClient.getWidget} when {@link m.GetWidgetInput.widgetId | GetWidgetInput.widgetId} names nothing.
+src/models.ts: * A colour. {@link Color.RED} is the first.
+src/models.ts: * Red, unlike {@link Color.BLUE}.
+src/models.ts: * A colour. {@link Color.RED} is the first.
+src/models.ts: * What {@link Widget.name} becomes.
+src/models.ts: * A {@link Choice}: Choice.widget or Choice.label, one of two.
+src/models.ts: * A {@link Label}, plain text where a language has no type for it.
+src/models.ts: * A {@link Code}, such as {@link Code.ONE}.
+src/models.ts: * {@link Widgets}, a list.
+src/models.ts: * {@link WidgetsByName}, a map.
+src/models.ts: * Why a call failed, as {@link __errors.WidgetError.message | WidgetError.message} says.
+src/models.ts: * A widget; {@link __client.LinksClient.createWidget | LinksClient.createWidget} makes one.
+src/models.ts: * The name {@link CreateWidgetInput.name} chose.
+src/models.ts: * One of {@link Color}; {@link Color.BLUE} by default.
+src/models.ts: * What it is made of: {@link Widget.object} is a keyword in some languages.

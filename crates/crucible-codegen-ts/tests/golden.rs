@@ -842,7 +842,7 @@ fn doc_links_are_tsdoc_link_tags() {
     // A type, a client method, a member and an enum value, as each file
     // names them: `client.ts` imports the models as `m`.
     assert!(
-        models.contains(" * A widget; {@link LinksClient.createWidget} makes one."),
+        models.contains(" * A widget; {@link __client.LinksClient.createWidget | LinksClient.createWidget} makes one."),
         "{models}"
     );
     assert!(
@@ -853,24 +853,43 @@ fn doc_links_are_tsdoc_link_tags() {
         models.contains(" * One of {@link Color}; {@link Color.BLUE} by default."),
         "{models}"
     );
-    assert!(client.contains("Reads the {@link m.Widget} that {@link LinksClient.createWidget} made, by {@link m.GetWidgetInput.widgetId},"), "{client}");
+    assert!(client.contains("Reads the {@link m.Widget | Widget} that {@link LinksClient.createWidget} made, by {@link m.GetWidgetInput.widgetId | GetWidgetInput.widgetId},"), "{client}");
     assert!(
         client.contains(
-            "and returns it as {@link m.GetWidgetOutput.widget}. Fails with {@link WidgetError}."
+            "and returns it as {@link m.GetWidgetOutput.widget | GetWidgetOutput.widget}. Fails with {@link __errors.WidgetError | WidgetError}."
         ),
         "{client}"
     );
-    assert!(errors.contains("Raised by {@link LinksClient.getWidget} when {@link m.GetWidgetInput.widgetId} names nothing."), "{errors}");
+    assert!(errors.contains("Raised by {@link __client.LinksClient.getWidget | LinksClient.getWidget} when {@link m.GetWidgetInput.widgetId | GetWidgetInput.widgetId} names nothing."), "{errors}");
     // The service is the client; a resource, a prelude type, `[text][Name]`
     // and internal API are plain text, and code stays code.
-    let overview = "the read call; a {@link m.Widget} has a {@link m.Widget.name} and a";
+    let overview = "the read call; a {@link m.Widget | Widget} has a {@link m.Widget.name | Widget.name} and a";
     assert!(client.contains(overview), "{client}");
-    assert!(client.contains("{@link m.Color}, such as {@link m.Color.RED}. Gadget is a resource, {@link LinksClient} is this"), "{client}");
+    assert!(client.contains("{@link m.Color | Color}, such as {@link m.Color.RED | Color.RED}. Gadget is a resource, {@link LinksClient} is this"), "{client}");
     assert!(
         client.contains("service and String a prelude type. Internal: Reveal and Secret."),
         "{client}"
     );
     assert!(client.contains("`[NotALink]` in code"), "{client}");
+    // A link to another file's symbol goes through a type-only namespace
+    // import of that file, so it resolves where it is written.
+    assert!(
+        models.contains("import type * as __client from \"./client.js\";"),
+        "{models}"
+    );
+    assert!(
+        models.contains("import type * as __errors from \"./errors.js\";"),
+        "{models}"
+    );
+    assert!(
+        client.contains("import type * as __errors from \"./errors.js\";"),
+        "{client}"
+    );
+    assert!(
+        errors.contains("import type * as __client from \"./client.js\";"),
+        "{errors}"
+    );
+    assert!(!client.contains("import type * as __client"), "{client}");
     for file in [&models, &client, &errors] {
         assert!(
             !file.contains("Secret}") && !file.contains("Reveal}") && !file.contains("{@link the")

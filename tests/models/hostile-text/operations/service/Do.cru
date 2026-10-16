@@ -4,6 +4,7 @@
 /// ```
 /// @throws fenced
 /// ```
+/// Links: [Kind], [Kind.QUOTE], [Kind.INTERP], [Kind.BACKSLASH], [Kind.COMMENT], [Do], [Do.text] and [Do.weird].
 @deprecated(message: "dep cr\rlf\r\n nel ls ps  bom﻿ ctl\u{1}\u{7f} end*/ q\" bs\\ d$x ${x} #{x} `t` \"\"\" ?> <!-- --> =end %> @param bidi‮rtl⁦iso⁩ mark‏\n@returns injected\n```\n@throws fenced\n```")
 operation Do {
     http POST "/do"

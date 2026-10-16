@@ -4,7 +4,7 @@
 //! raw HTML included, is escaped so it can neither break the markup nor close
 //! the surrounding comment. One CommonMark parser serves all of them.
 use crucible_ir::ir::{DocNotes, Operation, Service, Shape};
-use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{BrokenLink, CowStr, Event, LinkType, Options, Parser, Tag, TagEnd};
 
 /// Build-time HTML rendering for API references. Raw HTML remains text, just as
 /// in the native doc dialects; active URL schemes never become links or images.
@@ -20,18 +20,10 @@ pub fn html_linked(service: &Service, markdown: &str) -> String {
     render_html(markdown, Some(service))
 }
 
-/// The destination a doc link is parsed with: a noncharacter, which
-/// [`unforgeable`] removes from model text, then the target's id, or
-/// nothing for a link that renders as plain text.
-const DOC_LINK: char = '\u{fdd0}';
-
-/// Model Markdown without the character doc link destinations start with.
-fn unforgeable(markdown: &str) -> String {
-    markdown.chars().filter(|c| *c != DOC_LINK).collect()
-}
-
 /// A parser that resolves the service's doc links, or, without a service,
-/// leaves them literal.
+/// leaves them literal. A doc link comes out as a link whose destination is
+/// its target's id, empty for one that renders as plain text, and whose
+/// title is the operation an `[Operation.member]` names.
 fn parser<'a>(
     markdown: &'a str,
     service: Option<&'a Service>,
@@ -43,22 +35,32 @@ fn parser<'a>(
             .doc_link(&doc.label)
             .map(|target| target.id(service).to_string())
             .unwrap_or_default();
-        Some((format!("{DOC_LINK}{id}").into(), "".into()))
+        let operation = service
+            .doc_link_operation(&doc.label)
+            .filter(|_| !id.is_empty())
+            .map(|op| op.id.to_string())
+            .unwrap_or_default();
+        Some((id.into(), operation.into()))
     };
     Parser::new_with_broken_link_callback(markdown, Options::empty(), Some(callback))
 }
 
 /// The id a doc link was parsed with, empty for one that is plain text;
-/// `None` for an ordinary link.
-fn doc_link_id(dest: &str) -> Option<&str> {
-    dest.strip_prefix(DOC_LINK)
+/// `None` for an ordinary link. Only the broken-link callback makes a link
+/// of an unknown type: a destination the model wrote, whatever its text or
+/// character references, is an ordinary link and can never pose as one.
+fn doc_link_id(link_type: LinkType, dest: &str) -> Option<&str> {
+    matches!(
+        link_type,
+        LinkType::ShortcutUnknown | LinkType::CollapsedUnknown | LinkType::ReferenceUnknown
+    )
+    .then_some(dest)
 }
 
 fn render_html(markdown: &str, service: Option<&Service>) -> String {
-    let markdown = unforgeable(markdown);
     // Whether each open link is a doc link, and one rendered as an anchor.
     let mut open: Vec<Option<bool>> = Vec::new();
-    let events = parser(&markdown, service).filter_map(|event| {
+    let events = parser(markdown, service).filter_map(|event| {
         Some(match event {
             Event::Html(value) | Event::InlineHtml(value) => Event::Text(value),
             Event::Start(Tag::Link {
@@ -66,15 +68,21 @@ fn render_html(markdown: &str, service: Option<&Service>) -> String {
                 dest_url,
                 title,
                 id,
-            }) => match doc_link_id(&dest_url) {
+            }) => match doc_link_id(link_type, &dest_url) {
                 Some("") => {
                     open.push(Some(false));
                     return None;
                 }
                 Some(target) => {
                     open.push(Some(true));
+                    let operation = if title.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" data-crucible-operation=\"{}\"", attribute(&title))
+                    };
                     Event::InlineHtml(
-                        format!("<a data-crucible-ref=\"{}\">", attribute(target)).into(),
+                        format!("<a data-crucible-ref=\"{}\"{operation}>", attribute(target))
+                            .into(),
                     )
                 }
                 None => {
@@ -238,7 +246,7 @@ pub fn text_linked(service: &Service, markdown: &str) -> String {
 }
 
 fn render_text(markdown: &str, service: Option<&Service>) -> String {
-    let markdown = &unforgeable(&crate::docs::comment_text(markdown));
+    let markdown = &crate::docs::comment_text(markdown);
     let mut out = String::new();
     let mut links = Vec::new();
     let mut code = false;
@@ -258,9 +266,13 @@ fn render_text(markdown: &str, service: Option<&Service>) -> String {
                     out.push_str(&value);
                 }
             }
-            Event::Start(Tag::Link { dest_url, .. }) => links.push(
+            Event::Start(Tag::Link {
+                link_type,
+                dest_url,
+                ..
+            }) => links.push(
                 // A doc link is its text alone.
-                (doc_link_id(&dest_url).is_none()).then(|| dest_url.into_string()),
+                (doc_link_id(link_type, &dest_url).is_none()).then(|| dest_url.into_string()),
             ),
             Event::End(TagEnd::Link) => {
                 if let Some(Some(link)) = links.pop() {

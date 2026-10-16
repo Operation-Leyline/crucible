@@ -271,6 +271,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         client: &client,
         methods: &methods,
         models: "",
+        client_scope: "",
+        errors: "",
     };
     let errors = errors::emit(service, &links, &mut diagnostics);
     let permissions =

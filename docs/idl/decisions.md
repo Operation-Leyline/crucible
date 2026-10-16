@@ -1586,10 +1586,15 @@ references are to the code as of the design.
     is an error at its label, every one collected; Leyline and Pigeon had
     none. Lowering records `Service::doc_links`, each label to the id it
     names (an operation, shape, member, enum value, resource or the
-    service; a template, metadata or rule name is accepted with no entry),
-    and leaves `docs` as written. The field is `serde(default)` and omitted
-    when empty, so a snapshot without links is unchanged and every older one
-    reads; `crucible-model.json` drops it with the documentation.
+    service; a metadata or rule name is accepted with no entry), and for an
+    `[Operation.member]` label the operation in `doc_link_operations`, since
+    operations can share the structure that holds the member; and it leaves
+    `docs` as written. Both fields are `serde(default)` and omitted when
+    empty, so a snapshot without links is unchanged and every older one
+    reads; `crucible-model.json` drops them with the documentation. Links
+    are checked in a package with no service, or several, as well. Only the
+    broken-link callback makes a doc link, never a destination or definition
+    the model wrote, so model text cannot pose as one.
     `crucible_ir::doc_links::links` is the one finder (pulldown-cmark's
     broken-link callback): lowering, every renderer and the language server
     use it, so they agree on what a link is, and `Service::doc_link` says

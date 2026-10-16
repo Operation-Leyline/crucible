@@ -210,6 +210,25 @@ impl Service {
         for label in labels {
             self.doc_links.remove(&label);
         }
+        let owners: Vec<String> = self
+            .doc_link_operations
+            .keys()
+            .filter(|label| {
+                !self.doc_links.contains_key(*label) || self.doc_link_operation(label).is_none()
+            })
+            .cloned()
+            .collect();
+        for label in owners {
+            self.doc_link_operations.remove(&label);
+        }
+    }
+
+    /// The operation an `[Operation.member]` label names, whose input or
+    /// output holds the member [`Service::doc_link`] returns: exact where
+    /// several operations share that structure.
+    pub fn doc_link_operation(&self, label: &str) -> Option<&Operation> {
+        let id = self.doc_link_operations.get(label)?;
+        self.operations.iter().find(|op| op.id == *id)
     }
 }
 

@@ -9,10 +9,10 @@ use crucible_ir::doc_links::DocTarget;
 use crucible_ir::ir::{Service, Shape};
 
 fn name(service: &Service, target: DocTarget<'_>) -> Option<String> {
-    let client = format!("{}Client", service.id.name());
+    let client = crate::client_name(service);
     Some(match target {
         DocTarget::Service => client,
-        DocTarget::Operation(op) => format!("{client}.{}", field(op.name())),
+        DocTarget::Operation(op) => format!("{client}.{}", crate::method_name(op.name())),
         DocTarget::Resource(_) | DocTarget::Shape(_, Shape::Unit { .. }) => return None,
         DocTarget::Shape(id, _) => service.name_of(id).to_owned(),
         DocTarget::Member { shape, member, .. } => {

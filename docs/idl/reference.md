@@ -33,8 +33,12 @@ its rules apply to them (see Policy rules).
   identifier with an optional `.member`; other bracketed text (`[1]`,
   `[optional]`) is prose, brackets in code are code, and a `[Name]: url`
   definition in the same comment makes `[Name]` an ordinary link. A doc
-  link that names nothing is an error at its label (decision 80). A
-  prelude type (`[String]`) is accepted and renders as its name.
+  link that names nothing is an error at its label (decision 80); to
+  write brackets that are not a link, escape them (`\[TODO]`) or use a code
+  span. A prelude type (`[String]`) and a rule are accepted and render as
+  their names. A declaration whose name starts with a lowercase letter
+  cannot be linked, since `[lowercase]` is prose; the language server
+  refuses a rename to such a name while doc links name the declaration.
 - **Identifiers.** A letter or `_`, then letters, digits, `_`, or `-`
   between two letters or digits (`date-time`). The name of a declaration,
   member or URI label cannot contain `-`. Keywords are contextual:
