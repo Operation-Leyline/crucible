@@ -3,8 +3,8 @@ use crate::check::{self, Check};
 use serde::Deserialize;
 
 /// What a reference needs beyond the types: an `example` on each operation,
-/// and documentation on each error an operation can return. A warning by
-/// default, since a model without them is valid, only harder to call.
+/// and one showing each error the operation declares. A warning by default,
+/// since a model without them is valid, only harder to call.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Examples {
@@ -12,8 +12,8 @@ pub struct Examples {
     /// Each operation declares at least one `example`.
     #[serde(deserialize_with = "check::enabled")]
     pub operations: Check<bool>,
-    /// Each modelled error an operation returns, its own or the service's,
-    /// is documented.
+    /// Each error an operation declares (not the service's shared ones)
+    /// appears in one of its examples.
     #[serde(deserialize_with = "check::enabled")]
     pub errors: Check<bool>,
 }

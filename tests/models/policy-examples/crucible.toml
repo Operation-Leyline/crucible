@@ -1,7 +1,8 @@
 schema_version = 1
 
 # `[rules.examples]` (docs/api-policy.md): an operation without an
-# `example`, and an error without documentation, are warnings by default.
+# `example`, and an error of its own no example shows, are warnings by
+# default.
 [model]
 namespace = "example.coverage"
 language = 1

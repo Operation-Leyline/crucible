@@ -519,6 +519,15 @@ fn example_coverage_warns_by_default_and_honours_exceptions() {
     assert_eq!(
         findings(&report),
         [
+            // GetNote shows NoteNotFound in an example, not NoteLocked.
+            // The service's Throttled is shared by every operation, and
+            // not asked of each.
+            (
+                "examples.errors".to_owned(),
+                "example.coverage#GetNote".to_owned(),
+                Severity::Warning,
+                false
+            ),
             (
                 "examples.operations".to_owned(),
                 "example.coverage#ListNotes".to_owned(),
@@ -531,16 +540,26 @@ fn example_coverage_warns_by_default_and_honours_exceptions() {
                 Severity::Warning,
                 true
             ),
-            // A service error counts: every operation can return it. The
-            // documented NoteNotFound passes.
-            (
-                "examples.errors".to_owned(),
-                "example.coverage#Throttled".to_owned(),
-                Severity::Warning,
-                false
-            ),
         ]
     );
+    let errors: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.rule == "examples.errors")
+        .map(|f| f.message.as_str())
+        .collect();
+    assert_eq!(
+        errors,
+        ["no `example` shows the error `NoteLocked`: add one with `error NoteLocked { .. }`"]
+    );
+}
+
+#[test]
+fn example_coverage_checks_only_the_selected_namespaces() {
+    let (service, _) = coverage();
+    let config =
+        Config::parse("[rules]\nnamespaces = [\"example.other\"]\n[rules.examples]\n").unwrap();
+    assert!(check(&service, &config).findings.is_empty());
 }
 
 #[test]
@@ -556,7 +575,7 @@ fn example_coverage_checks_take_their_own_severity_or_turn_off() {
         findings(&report),
         [(
             "examples.errors".to_owned(),
-            "example.coverage#Throttled".to_owned(),
+            "example.coverage#GetNote".to_owned(),
             Severity::Error,
             false
         )]

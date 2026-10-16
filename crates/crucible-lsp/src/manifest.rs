@@ -272,7 +272,7 @@ const TABLES: &[Table] = &[
             Key {
                 name: "errors",
                 kind: Kind::Enabled,
-                doc: "Each error an operation returns, its own or the service's, is documented with `///`.",
+                doc: "Each error an operation declares appears in one of its examples (`error Name { .. }`); the service's shared errors are not asked of each operation.",
                 sample: "{ enabled = true, severity = \"error\" }",
             },
         ],

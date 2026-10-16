@@ -1,5 +1,4 @@
-/// Operations with and without examples, errors with and without
-/// documentation.
+/// Operations with and without examples, and errors with and without one.
 service Coverage {
     version "1"
     protocol json
@@ -10,6 +9,12 @@ service Coverage {
 /// No note has that id.
 error NoteNotFound {
     status 404
+    message: string
+}
+
+/// Someone else is editing the note.
+error NoteLocked {
+    status 409
     message: string
 }
 
