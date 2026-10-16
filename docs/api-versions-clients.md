@@ -740,7 +740,8 @@ is built, and so are PRs 1 to 4.
    headers after a body was added or removed in requests and responses, a
    frozen example left out, a default on a removed value);
    `version-projection-conditions` (a `when` condition through a renamed
-   member); the e2e `versioned_permissions` fixture (a restored
+   member); `version-projection-payload` (a payload retyped between a blob
+   and a string, bound with the release's kind and media type); the e2e `versioned_permissions` fixture (a restored
    operation's requirements); whole-IR equality with the frozen release,
    documentation aside, where nothing added since reaches it; for every
    step, that undoing its migration without it leaves a finding; and

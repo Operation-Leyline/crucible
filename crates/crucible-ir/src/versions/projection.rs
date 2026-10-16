@@ -117,6 +117,7 @@ pub fn undo(
         changed: BTreeSet::new(),
         changed_operations: BTreeSet::new(),
         operations: BTreeSet::new(),
+        reshaped: BTreeSet::new(),
         errors,
     };
     let steps = &version.steps;
@@ -263,6 +264,8 @@ struct Undo<'a> {
     changed_operations: BTreeSet<ShapeId>,
     /// The operations `remove operation` restored.
     operations: BTreeSet<ShapeId>,
+    /// The newer ids of definitions a reshape restored under another id.
+    reshaped: BTreeSet<ShapeId>,
     errors: &'a mut Diagnostics,
 }
 
@@ -277,9 +280,11 @@ impl Undo<'_> {
         );
     }
 
-    /// Whether a step on `shape` is part of a definition restored whole.
+    /// Whether a step on `shape` is part of a definition restored whole:
+    /// one restored under `shape`, or a reshape's under its older id, which
+    /// the newer model's steps name by its newer one.
     fn whole(&self, shape: &ShapeId) -> bool {
-        self.restored.contains(shape)
+        self.restored.contains(shape) || self.reshaped.contains(shape)
     }
 
     /// `remove operation Op`: the release's operation, with its own input
@@ -378,6 +383,7 @@ impl Undo<'_> {
         }
         if old != new {
             self.redirect(new, old);
+            self.reshaped.insert(new.clone());
         }
         self.copy_shape(old);
     }
@@ -597,32 +603,60 @@ impl Undo<'_> {
         self.changed.insert(new.clone());
         self.restored_members.insert(new.with_member(member));
         self.resolve(&target);
-        // Where the member travels is the release's too.
+        // Where the member travels is the release's too, a payload's kind
+        // and media type included.
         let frozen_service = self.frozen;
         let frozen_operations = &self.frozen_operations;
+        let shapes = &self.out.shapes;
         for operation in &mut self.out.operations {
             let older_operation = frozen_operations.get(&operation.id).copied();
             if operation.input.as_ref() == Some(new) {
-                restore_encodings(
-                    &mut operation.request,
-                    older_operation.map(|op| &op.request),
+                let then = older_operation.map(|op| &op.request);
+                restore_encodings(&mut operation.request, then, member, older);
+                restore_payload(
+                    &mut operation.request.payload,
+                    then.and_then(|b| b.payload.as_ref()),
+                    shapes,
+                    &target,
                     member,
                     older,
                 );
             }
             if operation.output.as_ref() == Some(new) {
-                restore_encodings(
-                    &mut operation.response,
-                    older_operation.map(|op| &op.response),
+                let then = older_operation.map(|op| &op.response);
+                restore_encodings(&mut operation.response, then, member, older);
+                restore_payload(
+                    &mut operation.response.payload,
+                    then.and_then(|b| b.payload.as_ref()),
+                    shapes,
+                    &target,
                     member,
                     older,
                 );
             }
         }
         let older_error = error_info(frozen_service, old);
+        // An error's payload, read before the error is borrowed to change.
+        let mut error_payload = match self.out.shapes.get(new) {
+            Some(Shape::Structure(s)) => s.error.as_ref().map(|e| e.payload.clone()),
+            _ => None,
+        };
+        if let Some(payload) = &mut error_payload {
+            restore_payload(
+                payload,
+                older_error.and_then(|e| e.payload.as_ref()),
+                &self.out.shapes,
+                &target,
+                member,
+                older,
+            );
+        }
         if let Some(Shape::Structure(s)) = self.out.shapes.get_mut(new)
             && let Some(error) = &mut s.error
         {
+            if let Some(payload) = error_payload {
+                error.payload = payload;
+            }
             restore_entry(
                 &mut error.timestamp_formats,
                 older_error.map(|e| &e.timestamp_formats),
@@ -1359,6 +1393,52 @@ fn restore_entry<T: Clone>(
     map.remove(name);
     if let Some(value) = then.and_then(|then| then.get(older)) {
         map.insert(name.to_owned(), value.clone());
+    }
+}
+
+/// A retyped member's payload binding, when it is the payload: the
+/// release's, under the member's current name. Where the release has none
+/// to take, its kind follows the restored target, keeping the newer media
+/// type only for a kind it already had; the IR keeps no `@mediaType` of its
+/// own to read one from.
+fn restore_payload(
+    payload: &mut Option<crate::ir::Payload>,
+    then: Option<&crate::ir::Payload>,
+    shapes: &BTreeMap<ShapeId, Shape>,
+    target: &ShapeId,
+    member: &str,
+    older: &str,
+) {
+    let Some(now) = payload.as_mut().filter(|p| p.member == member) else {
+        return;
+    };
+    if let Some(then) = then.filter(|p| p.member == older) {
+        *now = crate::ir::Payload {
+            member: member.to_owned(),
+            ..then.clone()
+        };
+        return;
+    }
+    use crate::ir::{PayloadKind, SimpleKind};
+    let kind = match shapes.get(target) {
+        Some(Shape::Simple(s)) => match s.kind {
+            SimpleKind::Blob => PayloadKind::Blob,
+            SimpleKind::String => PayloadKind::String,
+            SimpleKind::Document => PayloadKind::Document,
+            _ => return,
+        },
+        Some(Shape::Enum(_)) => PayloadKind::String,
+        Some(Shape::Structure(_) | Shape::Union(_)) => PayloadKind::Document,
+        _ => return,
+    };
+    if kind != now.kind {
+        now.media_type = match kind {
+            PayloadKind::Blob => "application/octet-stream",
+            PayloadKind::String => "text/plain",
+            PayloadKind::Document => "application/json",
+        }
+        .to_owned();
+        now.kind = kind;
     }
 }
 

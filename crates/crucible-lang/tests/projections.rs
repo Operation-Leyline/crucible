@@ -170,6 +170,7 @@ const PACKAGES: &[&str] = &[
     "tests/models/version-projection-retype",
     "tests/models/version-projection-derived",
     "tests/models/version-projection-conditions",
+    "tests/models/version-projection-payload",
     "e2e/weather-service/versioned",
     "e2e/weather-service/versioned_pages",
     "e2e/weather-service/versioned_permissions",
@@ -182,6 +183,7 @@ const UNCHANGED: &[&str] = &[
     "tests/models/version-renamed-enum-value",
     "tests/models/version-projection-retype",
     "tests/models/version-projection-conditions",
+    "tests/models/version-projection-payload",
 ];
 
 /// The IR as JSON without its documentation and doc links: a projection
@@ -967,4 +969,92 @@ fn a_restored_operation_rejoins_its_resource_in_place() {
         at(&projections, "v1").resources[&shelf].operations,
         [count, get]
     );
+}
+
+/// A retyped payload member binds as the release bound it: its kind and
+/// media type, and the `Content-Type` that follows, in a request and a
+/// response.
+#[test]
+fn a_retyped_payload_binds_as_the_release_did() {
+    let (service, _) = load("tests/models/version-projection-payload");
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    let frozen = &service.versions[0].service;
+    let payload = |model: &Service, name: &str, request: bool| {
+        let op = operation(model, name);
+        let bindings = if request { &op.request } else { &op.response };
+        let payload = bindings.payload.as_ref().unwrap();
+        (
+            format!("{:?}", payload.kind),
+            payload.member.clone(),
+            payload.media_type.clone(),
+        )
+    };
+    assert_eq!(
+        payload(v1, "PutFile", true),
+        ("Blob".to_owned(), "body".to_owned(), "image/png".to_owned())
+    );
+    assert_eq!(payload(&service, "PutFile", true).0, "String");
+    assert_eq!(
+        payload(v1, "GetFile", false),
+        (
+            "String".to_owned(),
+            "data".to_owned(),
+            "text/plain".to_owned()
+        )
+    );
+    assert_eq!(payload(&service, "GetFile", false).2, "application/pdf");
+    for (name, request) in [("PutFile", true), ("GetFile", false)] {
+        assert_eq!(payload(v1, name, request), payload(frozen, name, request));
+    }
+    assert_eq!(
+        operation(v1, "PutFile")
+            .protocol_headers
+            .get("Content-Type"),
+        Some(&"image/png".to_owned())
+    );
+    assert_eq!(
+        operation(v1, "GetFile")
+            .response_protocol_headers
+            .get("Content-Type"),
+        Some(&"text/plain".to_owned())
+    );
+    assert_eq!(without_docs(v1), without_docs(frozen));
+}
+
+/// A step on a structure a reshape restored whole is part of that
+/// definition, whichever id the newer model gives the structure: here the
+/// newer model calls version-steps' `Size` `Area`, and a requirement names
+/// a member only the newer definition has.
+#[test]
+fn a_step_inside_a_reshape_under_a_new_id_is_skipped() {
+    let (mut service, _) = load("tests/models/version-steps");
+    let size = id("example.steps", "Size");
+    let area = id("example.steps", "Area");
+    // Only the current model renames it: the release keeps `Size`.
+    let versions = std::mem::take(&mut service.versions);
+    service.rename_shape(&size, "Area");
+    service.versions = versions;
+    let steps = &mut service.versions[0].steps;
+    for step in steps.iter_mut() {
+        if let VersionStep::Hooked {
+            hook: crucible_ir::ir::Hook::Reshape { new, .. },
+            ..
+        } = step
+        {
+            *new = area.clone();
+        }
+    }
+    steps.push(VersionStep::Require {
+        old: size.clone(),
+        new: area.clone(),
+        member: "area".into(),
+        from: String::new(),
+        default: serde_json::Value::from(0),
+        docs: None,
+    });
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    assert_eq!(members(v1, &size), ["width: Integer", "height: Integer"]);
+    assert!(!v1.shapes.contains_key(&area));
 }

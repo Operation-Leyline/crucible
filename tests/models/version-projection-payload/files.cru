@@ -1,0 +1,37 @@
+/// Files, sent and read raw.
+service Files {
+    version "v2"
+    protocol json
+    operations [PutFile, GetFile]
+}
+
+/// Stores a file, as text now.
+idempotent operation PutFile {
+    http PUT "/files/{id}"
+    input {
+        id: string
+        @payload
+        body: string
+    }
+    output { ok: boolean }
+}
+
+/// A file's bytes.
+blob Bytes { mediaType "application/pdf" }
+
+/// Reads a file's bytes now.
+readonly operation GetFile {
+    http GET "/files/{id}"
+    input { id: string }
+    output {
+        @payload
+        data: Bytes
+    }
+}
+
+migration "v2" from "v1" {
+    /// The body is text: a PNG then, plain text now.
+    retype PutFile.input.body -> string by hook
+    /// The file is read as bytes: text then, a PDF now.
+    retype GetFile.output.data -> Bytes by hook
+}

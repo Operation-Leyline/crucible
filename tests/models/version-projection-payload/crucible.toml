@@ -1,0 +1,22 @@
+# A retyped payload (decision 72): v2 retypes a request payload from a PNG
+# blob to a string, and a response payload from a string to a PDF blob, so
+# the projection of v1 binds each as v1 did, its kind and media type, and
+# sends the Content-Type that follows. v1 is frozen under releases/; v2 is
+# current.
+[model]
+namespace = "example.payload"
+
+[model.baseline]
+path = "releases/v1.json"
+
+# The payload's encoding changes with its type, which a `retype` does not
+# declare.
+[[exceptions]]
+rule = "compatibility.bindings"
+shape = "example.payload#PutFile"
+reason = "The body is text now; the v1 handler takes bytes"
+
+[[exceptions]]
+rule = "compatibility.bindings"
+shape = "example.payload#GetFile"
+reason = "The file is read as bytes now; v1 clients read text"
