@@ -140,24 +140,27 @@ pub fn compatibility(
 
 /// What building and checking the older releases found, at its place:
 /// a step, a reused name, an example a release leaves out. A problem with
-/// no place in a model file shows on the manifest.
-pub fn versions(versions: crucible_lang::Versions) -> (Vec<Finding>, Vec<(bool, String)>) {
+/// no place in the package's own model files shows on the manifest.
+pub fn versions(
+    versions: &crucible_lang::Versions,
+    own: usize,
+) -> (Vec<Finding>, Vec<(bool, String)>) {
     let mut placed = Vec::new();
     let mut unplaced = Vec::new();
-    for item in versions.diagnostics {
-        let Some(file) = item.file else {
-            unplaced.push((item.diagnostic.is_error(), item.diagnostic.message));
-            continue;
-        };
-        placed.push(Finding {
-            file,
-            start: item.diagnostic.span.start,
-            end: item.diagnostic.span.end,
-            error: item.diagnostic.is_error(),
-            rule: "versions".into(),
-            message: item.diagnostic.message,
-            rename: None,
-        });
+    for item in versions.diagnostics() {
+        let diagnostic = &item.diagnostic;
+        match item.file {
+            Some(file) if file < own => placed.push(Finding {
+                file,
+                start: diagnostic.span.start,
+                end: diagnostic.span.end,
+                error: diagnostic.is_error(),
+                rule: "versions".into(),
+                message: diagnostic.message.clone(),
+                rename: None,
+            }),
+            _ => unplaced.push((diagnostic.is_error(), diagnostic.message.clone())),
+        }
     }
     (placed, unplaced)
 }

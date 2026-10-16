@@ -1,8 +1,9 @@
 # Refused, three times over: one package with several problems, each
-# reported (decision 68, AGENTS.md). v2 renames GetItem's `name` to `title`,
-# removes CountItems and adds Kind.HUGE downgrading to LARGE; v3 adds a new
-# `name`, declares CountItems again and removes LARGE. v1 and v2 are frozen
-# under releases/; v3 is current.
+# reported once (decision 68, AGENTS.md). v2 renames GetItem's `name` to
+# `title`, removes CountItems and adds Kind.HUGE downgrading to LARGE; v3 adds
+# a new `name`, declares CountItems again and removes LARGE. v0 is older
+# still: what the three problems explain at v1 is not reported again at v0.
+# v0, v1 and v2 are frozen under releases/; v3 is current.
 [model]
 namespace = "example.many"
 

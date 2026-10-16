@@ -1,0 +1,20 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [PutReport]
+}
+
+string Report { length 1..10 }
+
+idempotent operation PutReport {
+    http PUT "/reports/{id}"
+    input {
+        id: string
+        report: Report
+    }
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {
+    retype PutReport.input.report -> Report by hook
+}

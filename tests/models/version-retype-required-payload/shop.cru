@@ -1,0 +1,21 @@
+service Shop {
+    version "v2"
+    protocol json
+    operations [PutReport]
+}
+
+blob Report { mediaType "application/vnd.ms-excel" }
+
+idempotent operation PutReport {
+    http PUT "/reports/{id}"
+    input {
+        id: string
+        @payload
+        report: Report
+    }
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {
+    retype PutReport.input.report -> Report by hook
+}

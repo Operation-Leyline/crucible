@@ -7,7 +7,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crucible_lang::{LineIndex, compile, guard_in, load_package, versions_in};
+use crucible_lang::{LineIndex, check_in, compile, load_package};
 use crucible_policy::Config;
 
 fn model(name: &str) -> PathBuf {
@@ -43,9 +43,8 @@ fn check(name: &str) -> (Vec<String>, Vec<Found>) {
     assert!(compiled.service.is_some(), "{name}: {}", compiled.render());
     let config = policy(&dir);
     let releases = crucible_lang::Releases::default();
-    let guard = guard_in(&loaded, &compiled, own, &config, &releases)
-        .unwrap()
-        .unwrap();
+    let checked = check_in(&loaded, &compiled, own, &config, &releases);
+    let guard = checked.guard.clone().unwrap().unwrap();
     let mut guarded: Vec<String> = guard
         .undeclared
         .iter()
@@ -59,10 +58,9 @@ fn check(name: &str) -> (Vec<String>, Vec<Found>) {
             .filter(|item| item.diagnostic.is_error())
             .map(|item| item.diagnostic.message.clone()),
     );
-    let mut versions = versions_in(&loaded, &compiled, own, &config, &releases);
-    versions.without(&guard);
+    let versions = checked.versions;
     let found = versions
-        .diagnostics
+        .diagnostics()
         .iter()
         .map(|item| {
             let file = &compiled.files[item.file.expect("every problem has a place")];
@@ -164,7 +162,7 @@ fn a_downgrade_value_must_survive() {
 fn a_shape_renamed_since_a_step_named_it_is_refused_at_the_step() {
     refused(
         "version-renamed-shape",
-        "shop.cru:18:12",
+        "shop.cru:20:12",
         "`rename Item.name -> title` names example.renamed#Item, which release \"v2\" as the current model sees it does not have",
     );
 }
@@ -215,7 +213,7 @@ fn a_projection_is_checked_at_error_whatever_the_settings() {
     assert_eq!(only.at, "shop.cru:17:21");
     assert_eq!(
         only.message,
-        "Release \"v1\" as the current model sees it is not its frozen release: [compatibility.sdk] example.incompatible#GetItemOutput$count: new public member can change construction or exhaustive matching APIs; declare the change in the migration to \"v2\", or except `compatibility.sdk` for example.incompatible#GetItemOutput$count in the manifest"
+        "Release \"v1\" as the current model sees it is not its frozen release: [compatibility.sdk] example.incompatible#GetItemOutput$count: new public member can change construction or exhaustive matching APIs; no step declares an addition: except `compatibility.sdk` for example.incompatible#GetItemOutput$count in the manifest while release \"v1\" is supported"
     );
 }
 
@@ -244,7 +242,7 @@ fn every_problem_is_reported() {
                 "CountItems names an operation release \"v".to_owned()
             ),
             (
-                "shop.cru:29:29".to_owned(),
+                "shop.cru:31:29".to_owned(),
                 "Kind had no value LARGE in release \"v1\" ".to_owned()
             ),
         ]
@@ -293,4 +291,127 @@ fn an_example_left_out_of_a_release_is_a_warning_at_the_example() {
         "{}",
         only.message
     );
+}
+
+/// The package's one diagnostic: a warning at `at` whose message starts
+/// with `message`, and the step it names left out of what is converted.
+fn inert(name: &str, at: &str, message: &str) {
+    let (guarded, found) = check(name);
+    assert_eq!(guarded, Vec::<String>::new(), "{name}");
+    let warnings: Vec<&Found> = found.iter().filter(|f| f.at == at).collect();
+    for f in &found {
+        assert!(!f.error, "{name}: {}: {}", f.at, f.message);
+    }
+    let [only] = &warnings[..] else {
+        panic!(
+            "{name}: one warning at {at}, not {:?}",
+            found
+                .iter()
+                .map(|f| (&f.at, &f.message))
+                .collect::<Vec<_>>()
+        );
+    };
+    assert!(
+        only.message.starts_with(message),
+        "{name}: {}",
+        only.message
+    );
+    let service = crucible_lang::load_versioned_service(&model(name)).unwrap();
+    assert!(
+        service
+            .versions
+            .iter()
+            .all(|version| version.steps.is_empty()),
+        "{name}: {:?}",
+        service.versions
+    );
+}
+
+/// Decisions 70 and 71 together: an operation retired since takes its
+/// output shape along, and with the release's side excepted too the
+/// rename on it is inert, not a shape renamed since.
+#[test]
+fn a_step_on_an_operation_retired_since_is_inert() {
+    inert(
+        "version-inert-retired-operation",
+        "shop.cru:13:12",
+        "`rename GetItem.output.name -> title` is inert: release \"v2\" as the current model sees it no longer has example.retired#GetItemOutput$title",
+    );
+}
+
+/// A reshaped structure removed since, both sides excepted: inert.
+#[test]
+fn a_reshape_of_a_structure_removed_since_is_inert() {
+    inert(
+        "version-inert-reshape",
+        "shop.cru:14:13",
+        "`reshape Size { width, height } -> area by hook` is inert: release \"v2\" as the current model sees it no longer has example.reshaped#Size",
+    );
+}
+
+/// A requirement the newer model undid is a no-op at the release: inert.
+#[test]
+fn a_step_the_newer_model_undid_is_inert() {
+    inert(
+        "version-inert-require",
+        "shop.cru:19:13",
+        "`require ListItems.input.limit default 20` is inert: `ListItemsInput.limit` is optional again in release \"v2\" as the current model sees it",
+    );
+}
+
+/// #348's cover declares a retype's move, never a requiredness that
+/// changed with it: the guard still refuses that.
+#[test]
+fn a_retype_does_not_declare_the_requiredness_it_changes() {
+    for (name, finding) in [
+        (
+            "version-retype-required-payload",
+            "compatibility.required example.required#PutReportInput$report",
+        ),
+        (
+            "version-retype-required",
+            "compatibility.nullability example.required#PutReportInput$report",
+        ),
+    ] {
+        let (guarded, _) = check(name);
+        assert_eq!(guarded, [finding], "{name}");
+    }
+}
+
+/// A guard error does not hide what the versions find: the build lists
+/// both before it fails.
+#[test]
+fn the_guard_and_the_versions_are_reported_together() {
+    let from = model("version-many-problems");
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("version-checks-both");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("releases")).unwrap();
+    for file in [
+        "crucible.toml",
+        "releases/v0.json",
+        "releases/v1.json",
+        "releases/v2.json",
+        "releases/crucible.lock",
+    ] {
+        std::fs::copy(from.join(file), dir.join(file)).unwrap();
+    }
+    let source = std::fs::read_to_string(from.join("shop.cru")).unwrap();
+    std::fs::write(
+        dir.join("shop.cru"),
+        source.replacen("title: string", "title: integer", 1),
+    )
+    .unwrap();
+    let error = crucible_lang::load_versioned_service(&dir).unwrap_err();
+    assert!(
+        error.contains("breaks compatibility with its baseline v2"),
+        "{error}"
+    );
+    assert!(error.contains("error[compatibility.type]"), "{error}");
+    for problem in [
+        "is the older name of `GetItemOutput.title`",
+        "CountItems names an operation release \"v1\" still serves as removed",
+        "Kind had no value LARGE",
+    ] {
+        assert!(error.contains(problem), "{problem}: {error}");
+    }
 }

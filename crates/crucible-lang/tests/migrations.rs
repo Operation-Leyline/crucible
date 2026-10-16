@@ -421,7 +421,8 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
         let versions =
             crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
                 .into_result(&compiled)
-                .unwrap();
+                .unwrap()
+                .0;
         assert!(
             matches!(
                 &versions[0].steps[..],
@@ -489,7 +490,8 @@ fn timestamp_requirement_defaults_use_the_destination_wire_format() {
         let versions =
             crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
                 .into_result(&compiled)
-                .unwrap();
+                .unwrap()
+                .0;
         assert!(
             matches!(
                 &versions[0].steps[..],
@@ -519,7 +521,8 @@ fn integer_enum_requirement_defaults_accept_symbols_and_emit_numbers() {
     let versions =
         crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
             .into_result(&compiled)
-            .unwrap();
+            .unwrap()
+            .0;
     assert!(matches!(
         &versions[0].steps[..],
         [crucible_ir::ir::VersionStep::Require { default, .. }] if default == &serde_json::json!(1)
@@ -865,7 +868,8 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
 
     let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
         .into_result(&compiled)
-        .unwrap();
+        .unwrap()
+        .0;
     let names: Vec<&str> = versions.iter().map(|v| v.name.as_str()).collect();
     assert_eq!(names, ["v1", "v2"]);
     assert_eq!(versions[0].sunset.as_deref(), Some("2027-01-01"));
@@ -1003,7 +1007,8 @@ fn a_hooked_requirement_named_by_its_shape_reaches_its_operations() {
     assert!(compiled.service.is_some(), "{}", compiled.render());
     let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
         .into_result(&compiled)
-        .unwrap();
+        .unwrap()
+        .0;
     assert!(
         matches!(
             &versions[0].steps[..],
@@ -1314,7 +1319,8 @@ fn a_renamed_member_lowers_its_other_steps_under_both_names() {
     );
     let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
         .into_result(&compiled)
-        .unwrap();
+        .unwrap()
+        .0;
     let steps = &versions[0].steps;
     assert!(steps.iter().any(|step| matches!(
         step,
@@ -1409,7 +1415,8 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
     );
     let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default())
         .into_result(&compiled)
-        .unwrap();
+        .unwrap()
+        .0;
     let [v1] = &versions[..] else {
         panic!("one older release: {versions:?}");
     };
@@ -1747,13 +1754,13 @@ fn an_operation_dropped_without_remove_operation_is_refused_at_the_migration() {
     let mut versions = crucible_lang::versions(&loaded, &compiled, own, &config);
     assert!(versions.has_errors());
     assert!(
-        versions.diagnostics.contains(problem),
+        versions.diagnostics().contains(problem),
         "{}",
         versions.render(&compiled)
     );
     versions.without(&checked);
     assert!(
-        versions.diagnostics.is_empty(),
+        versions.diagnostics().is_empty(),
         "{}",
         versions.render(&compiled)
     );
@@ -1776,7 +1783,8 @@ fn an_operation_dropped_under_an_exception_is_retired_with_a_warning() {
     );
     let versions = crucible_lang::versions(&loaded, &compiled, own, &config)
         .into_result(&compiled)
-        .unwrap();
+        .unwrap()
+        .0;
     let retired: Vec<String> = versions
         .iter()
         .map(|version| {
@@ -2001,7 +2009,8 @@ fn the_guard_and_versions_share_the_releases_they_load() {
     let versions =
         crucible_lang::versions_in(&loaded, &compiled, own, &Config::default(), &releases)
             .into_result(&compiled)
-            .unwrap();
+            .unwrap()
+            .0;
     assert_eq!(versions.len(), 1);
     assert_eq!(releases.len(), 1, "versions read nothing again");
     let path = dir.join("releases/v1.json");

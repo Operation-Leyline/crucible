@@ -359,7 +359,9 @@ pub fn older_member(step: &VersionStep) -> Option<ShapeId> {
 /// only when that audience sees every id it [`named`] on each side, a
 /// reshape's replaced members and an error's member mapping kept to those
 /// it sees; and a retired operation only when it sees it. Documentation is
-/// kept as written. As lowered, the versions are returned as they are.
+/// kept as written. Each projected version's `service` is its release's
+/// view too: the reference reads the release, and nothing serves an
+/// external view. As lowered, the versions are returned as they are.
 pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
     let versions = &service.versions;
     if !versions.iter().any(|version| version.external) {
@@ -388,9 +390,11 @@ pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
             .filter(|id| has(model, id))
             .cloned()
             .collect();
+        // The reference reads the release; an external view serves nothing,
+        // so the release's view stands for both, projected once.
         out.push(ApiVersion {
             name: version.name.clone(),
-            service: Box::new(crate::audience::lenient_external(&version.service)),
+            service: Box::new(model.clone()),
             release: Box::new(model.clone()),
             steps,
             sunset: version.sunset.clone(),

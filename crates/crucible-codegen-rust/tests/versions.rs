@@ -29,7 +29,8 @@ fn lower(dir: &Path) -> Service {
     }
     let versions = crucible_lang::versions(&package, &compiled, own, &config)
         .into_result(&compiled)
-        .unwrap();
+        .unwrap()
+        .0;
     let mut service = compiled.service.expect("the package compiles");
     service.versions = versions;
     service

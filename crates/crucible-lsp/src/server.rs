@@ -254,6 +254,8 @@ pub struct Server {
     /// edit to a `.cru` file reloads none, and a release is read again only
     /// when its file changes.
     releases: crucible_lang::Releases,
+    /// Each unit's last guard and versions, by a digest of what they read.
+    checks: std::cell::RefCell<HashMap<PathBuf, (u64, crucible_lang::Checked)>>,
 }
 
 impl Server {
@@ -297,6 +299,7 @@ impl Server {
             documents: HashMap::new(),
             units: HashMap::new(),
             releases: crucible_lang::Releases::default(),
+            checks: std::cell::RefCell::default(),
         }
     }
 
@@ -845,19 +848,17 @@ impl Server {
         // them. Both read the frozen releases this server keeps.
         let mut baseline_notes = Vec::new();
         let config = config.unwrap_or_default();
-        let mut versions =
-            crucible_lang::versions_in(&package, &compiled, own, &config, &self.releases);
-        match crucible_lang::guard_in(&package, &compiled, own, &config, &self.releases) {
+        let checked = self.checked(key, &package, &compiled, own, &config);
+        match checked.guard {
             None => {}
             Some(Err(problem)) => baseline_notes.push((true, problem)),
             Some(Ok(guard)) => {
-                versions.without(&guard);
                 let (placed, unplaced) = policy::compatibility(&compiled, own, guard);
                 policy.extend(placed);
                 baseline_notes.extend(unplaced);
             }
         }
-        let (placed, unplaced) = policy::versions(versions);
+        let (placed, unplaced) = policy::versions(&checked.versions, own);
         policy.extend(placed);
         // A release that does not load stops the guard and the chain alike.
         for note in unplaced {
@@ -875,6 +876,55 @@ impl Server {
             policy,
             baseline_notes,
         }
+    }
+
+    /// The guard and the older releases for a unit, as the build checks
+    /// them, from the last check when nothing it reads changed: the
+    /// compiled sources, the policy, and the files of the releases
+    /// directory, by size and time. The projections are an IR transform and
+    /// a diff per release, which an edit elsewhere need not repeat.
+    fn checked(
+        &self,
+        key: &Path,
+        package: &crucible_lang::Package,
+        compiled: &crucible_lang::Compiled,
+        own: usize,
+        config: &crucible_policy::Config,
+    ) -> crucible_lang::Checked {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for file in &compiled.files {
+            file.path.hash(&mut hasher);
+            file.text.hash(&mut hasher);
+        }
+        compiled.service.is_some().hash(&mut hasher);
+        format!("{config:?}").hash(&mut hasher);
+        package.baseline.hash(&mut hasher);
+        if let Some(dir) = package.baseline.as_deref().and_then(Path::parent) {
+            let mut entries: Vec<(PathBuf, u64, Option<std::time::SystemTime>)> =
+                std::fs::read_dir(dir)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter_map(|entry| {
+                        let meta = entry.metadata().ok()?;
+                        Some((entry.path(), meta.len(), meta.modified().ok()))
+                    })
+                    .collect();
+            entries.sort();
+            entries.hash(&mut hasher);
+        }
+        let digest = hasher.finish();
+        if let Some((known, checked)) = self.checks.borrow().get(key)
+            && *known == digest
+        {
+            return checked.clone();
+        }
+        let checked = crucible_lang::check_in(package, compiled, own, config, &self.releases);
+        self.checks
+            .borrow_mut()
+            .insert(key.to_path_buf(), (digest, checked.clone()));
+        checked
     }
 
     /// The file index of an open document within its unit's compilation.

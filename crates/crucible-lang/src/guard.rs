@@ -4,10 +4,8 @@
 //! release declares it, and each declared step must match a change that
 //! happened, so the migration and the model cannot drift apart.
 
-use std::path::Path;
-
 mod versions;
-pub use versions::{Versions, versions, versions_in};
+pub use versions::{Checked, Versions, check_in, versions, versions_in};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -106,6 +104,7 @@ pub fn guard(
 
 /// [`guard`], reading frozen releases through `releases`, which a build
 /// shares with [`versions_in`] and an editor keeps across compiles.
+/// [`check_in`] runs both on one chain of releases.
 pub fn guard_in(
     package: &Package,
     compiled: &Compiled,
@@ -113,18 +112,37 @@ pub fn guard_in(
     config: &Config,
     releases: &crate::Releases,
 ) -> Option<Result<Guard, String>> {
+    let links = chain(package, compiled, own, releases);
+    guard_with(package, compiled, own, config, releases, &links)
+}
+
+/// The guard, given the chain [`chain`] loaded, whose first link starts at
+/// the baseline: it is not read again.
+fn guard_with(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+    links: &Result<Vec<Link<'_>>, String>,
+) -> Option<Result<Guard, String>> {
     let service = compiled.service.as_ref()?;
-    let old = match releases.load(package.baseline.as_deref()?) {
+    let baseline = package.baseline.as_deref()?;
+    // `releases/<version>.json`: the release's name is its file's stem.
+    let version = baseline
+        .file_stem()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let loaded = links.as_ref().ok().and_then(|links| {
+        links
+            .first()
+            .filter(|link| link.migration.from.value == version)
+            .map(|link| std::sync::Arc::clone(&link.old))
+    });
+    let old = match loaded.map_or_else(|| releases.load(baseline), Ok) {
         Ok(old) => old,
         Err(problem) => return Some(Err(problem)),
     };
-    // `releases/<version>.json`: the release's name is its file's stem.
-    let version = package
-        .baseline
-        .as_deref()
-        .and_then(Path::file_stem)
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
     let mut problems = Vec::new();
     // A release is named by its service's version, so migrations can name it.
     if old.version != version {
@@ -160,8 +178,8 @@ pub fn guard_in(
     // accepts the drop, in every migration of the chain: the diff below
     // sees only the newest. A chain that does not load is `versions`' to
     // report.
-    if let Ok(links) = chain(package, compiled, own, releases) {
-        for link in &links {
+    if let Ok(links) = links {
+        for link in links {
             for drop in dropped(link, service, config) {
                 // The refusal at the migration says what the undeclared
                 // finding would.
@@ -325,6 +343,9 @@ const ROUTE: &[&str] = &["compatibility.http"];
 /// payload, which the checker sees as one member gone and one added.
 const REBINDING: &[&str] = &["compatibility.bindings"];
 const MOVED: &[&str] = &["compatibility.member", "compatibility.required"];
+/// A move whose member's requiredness or default changed with it: the
+/// added member's `compatibility.required` stays undeclared.
+const MOVED_ONLY: &[&str] = &["compatibility.member"];
 const RETYPE: &[&str] = &[
     "compatibility.type",
     "compatibility.constraints",
@@ -806,8 +827,9 @@ impl<'a> Context<'a> {
                     return Err(error(
                         path.span,
                         format!(
-                            "`{from}` is still a member of {}; nothing was renamed",
-                            new.shape.name()
+                            "`{from}` is still a member of {} in {}; nothing was renamed",
+                            new.shape.name(),
+                            self.newer
                         ),
                     ));
                 }
@@ -948,14 +970,20 @@ impl<'a> Context<'a> {
                     (None, _) => Err(error(
                         path.span,
                         format!(
-                            "{} has no member `{member}` here; a new required member is `add`ed",
+                            "{} has no member `{member}` here; a member added since needs no step: give it a default, or except its finding in the manifest",
                             capitalized(&self.older)
                         ),
                     )),
-                    (_, None) => Err(error(path.span, format!("`{member}` is not a member here"))),
+                    (_, None) => Err(error(
+                        path.span,
+                        format!("`{member}` is not a member here in {}", self.newer),
+                    )),
                     _ => Err(error(
                         path.span,
-                        format!("`{member}` did not become required"),
+                        format!(
+                            "`{member}` did not become required between {} and {}",
+                            self.older, self.newer
+                        ),
                     )),
                 }
             }
@@ -982,7 +1010,10 @@ impl<'a> Context<'a> {
                     if errors(old_op) || !errors(new_op) {
                         return Err(error(
                             error_name.span,
-                            format!("{} was not added to {op_name}'s errors", error_name.name),
+                            format!(
+                                "{} was not added to {op_name}'s errors between {} and {}",
+                                error_name.name, self.older, self.newer
+                            ),
                         ));
                     }
                     let Some(older) = old_op.errors.iter().find(|e| e.name() == downgrade.name)
@@ -1171,7 +1202,7 @@ impl<'a> Context<'a> {
                 if operation(self.new, &name.name).is_some() {
                     return Err(error(
                         name.span,
-                        format!("`{}` is still an operation", name.name),
+                        format!("`{}` is still an operation in {}", name.name, self.newer),
                     ));
                 }
                 let mut covers = vec![Cover::exact(old_op.id.clone(), ANY)];
@@ -1245,7 +1276,7 @@ impl<'a> Context<'a> {
                     )),
                     (Some(_), Some(_)) => Err(error(
                         path.span,
-                        format!("`{member}` already had this type"),
+                        format!("`{member}` already had this type in {}", self.older),
                     )),
                     _ => Err(error(
                         path.span,
@@ -1344,12 +1375,35 @@ impl<'a> Context<'a> {
                     covers.push(Cover::exact(old_op.id.clone(), REBINDING));
                 }
                 if is_payload(before, was) != is_payload(after, member) {
-                    covers.push(Cover::exact(old.with_member(was), MOVED));
-                    covers.push(Cover::exact(new.with_member(member), MOVED));
+                    // The checker sees one member gone and one added: the
+                    // move declares that, but not a requiredness or default
+                    // that changed with it, which the added one's finding
+                    // carries.
+                    let kept = self.same_requiredness(old, was, new, member);
+                    let rules = if kept { MOVED } else { MOVED_ONLY };
+                    covers.push(Cover::exact(old.with_member(was), rules));
+                    covers.push(Cover::exact(new.with_member(member), rules));
                 }
             }
         }
         covers
+    }
+
+    /// Whether `old.was` in the baseline and `new.member` now are optional
+    /// alike, with the same default.
+    fn same_requiredness(&self, old: &ShapeId, was: &str, new: &ShapeId, member: &str) -> bool {
+        let find =
+            |service: &'a Service, shape: &ShapeId, name: &str| match service.shapes.get(shape) {
+                Some(Shape::Structure(s) | Shape::Union(s)) => s.member(name),
+                _ => None,
+            };
+        match (find(self.old, old, was), find(self.new, new, member)) {
+            (Some(before), Some(after)) => {
+                before.optional_on_server() == after.optional_on_server()
+                    && before.default == after.default
+            }
+            _ => false,
+        }
     }
 
     /// Renames that account for a paginated operation's whole pagination

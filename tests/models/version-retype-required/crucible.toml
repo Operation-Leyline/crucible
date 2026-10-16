@@ -1,0 +1,7 @@
+# Refused: a retype that also makes its member required. The step declares
+# the type, not the requiredness. v1 is frozen under releases/; v2 is current.
+[model]
+namespace = "example.required"
+
+[model.baseline]
+path = "releases/v1.json"

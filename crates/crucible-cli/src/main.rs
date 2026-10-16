@@ -871,40 +871,19 @@ fn lower_cru(source: &Source, guarded: bool) -> Result<Service, String> {
         .transpose()?
         .unwrap_or_default();
     // The frozen releases, read once for the guard and the versions.
-    let releases = crucible_lang::Releases::default();
-    let own = package.files.len();
-    let guard = match crucible_lang::guard_in(&package, &compiled, own, &config, &releases) {
-        Some(guard) => Some(guard?),
-        None => None,
-    };
-    if let Some(guard) = &guard {
-        let rendered = guard.render(&compiled);
-        if guard.has_errors() {
-            return Err(format!(
-                "{} breaks compatibility with its baseline {}:\n{rendered}",
-                path.display(),
-                guard.version
-            ));
-        }
-        eprint!("{rendered}");
-    }
     // The older releases the service still serves, as a build lowers them,
     // each projected and checked: the reference documents them, and a
-    // server generated here serves them.
-    let mut versions = crucible_lang::versions_in(&package, &compiled, own, &config, &releases);
-    if let Some(guard) = &guard {
-        versions.without(guard);
+    // server generated here serves them. Every problem the guard and the
+    // versions find is listed before the command fails.
+    let releases = crucible_lang::Releases::default();
+    let own = package.files.len();
+    let checked = crucible_lang::check_in(&package, &compiled, own, &config, &releases);
+    if let Some(failure) = checked.failure(path, &compiled) {
+        return Err(failure);
     }
-    let rendered = versions.render(&compiled);
-    if versions.has_errors() {
-        return Err(format!(
-            "{} does not serve its older releases:\n{rendered}",
-            path.display()
-        ));
-    }
-    eprint!("{rendered}");
+    eprint!("{}", checked.render(&compiled));
     let mut service = service;
-    service.versions = versions.versions;
+    service.versions = checked.versions.versions;
     Ok(service)
 }
 

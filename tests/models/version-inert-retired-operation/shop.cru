@@ -1,0 +1,16 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [Ping]
+}
+
+readonly operation Ping {
+    http GET "/ping"
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {
+    rename GetItem.output.name -> title
+}
+
+migration "v3" from "v2" {}

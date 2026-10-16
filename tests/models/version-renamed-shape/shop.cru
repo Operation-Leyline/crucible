@@ -14,6 +14,8 @@ structure Thing {
     title: string
 }
 
+migration "v1" from "v0" {}
+
 migration "v2" from "v1" {
     rename Item.name -> title
 }

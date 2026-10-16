@@ -28,7 +28,7 @@ pub use compile::{
 };
 pub use diagnostic::{Diagnostic, Severity};
 pub use format::{FormatOptions, format, format_lines};
-pub use guard::{Guard, Versions, guard, guard_in, versions, versions_in};
+pub use guard::{Checked, Guard, Versions, check_in, guard, guard_in, versions, versions_in};
 pub use lexer::{Token, TokenKind};
 pub use package::{check_manifest, is_package, load_package, load_package_with_manifest};
 pub use release::Releases;
@@ -67,33 +67,11 @@ pub fn load_versioned_service(dir: &std::path::Path) -> Result<crucible_ir::ir::
     // The guard first, as a build runs it: a break no migration declares is
     // refused, not documented. One `Releases` serves it and the versions.
     let releases = Releases::default();
-    let own = package.files.len();
-    let guard = match guard_in(&package, &compiled, own, &config, &releases) {
-        Some(guard) => Some(guard?),
-        None => None,
-    };
-    if let Some(guard) = &guard
-        && guard.has_errors()
-    {
-        return Err(format!(
-            "{} breaks compatibility with its baseline {}:\n{}",
-            dir.display(),
-            guard.version,
-            guard.render(&compiled)
-        ));
+    let checked = check_in(&package, &compiled, package.files.len(), &config, &releases);
+    if let Some(failure) = checked.failure(dir, &compiled) {
+        return Err(failure);
     }
-    let mut versions = versions_in(&package, &compiled, own, &config, &releases);
-    if let Some(guard) = &guard {
-        versions.without(guard);
-    }
-    if versions.has_errors() {
-        return Err(format!(
-            "{} does not serve its older releases:\n{}",
-            dir.display(),
-            versions.render(&compiled)
-        ));
-    }
-    service.versions = versions.versions;
+    service.versions = checked.versions.versions;
     Ok(service)
 }
 

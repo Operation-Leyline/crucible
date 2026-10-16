@@ -66,29 +66,9 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
         Some(manifest) => crucible_policy::Config::load(&manifest)?,
         None => crucible_policy::Config::default(),
     };
-    // The frozen releases, read once for the guard and the versions.
-    let releases = crucible_lang::Releases::default();
-    let guard = check_baseline(path, &package, &compiled, &config, &releases)?;
-    // The older versions the service still serves, for generators that
-    // serve them (docs/api-versions.md), each the current model projected
-    // back to its release and checked against it.
-    let mut versions =
-        crucible_lang::versions_in(&package, &compiled, package.files.len(), &config, &releases);
-    if let Some(guard) = &guard {
-        versions.without(guard);
-    }
-    if versions.has_errors() {
-        return Err(format!(
-            "{} does not serve its older releases:\n{}",
-            path.display(),
-            versions.render(&compiled)
-        ));
-    }
-    for line in versions.render(&compiled).lines() {
-        println!("cargo::warning={line}");
-    }
+    let versions = check_baseline(path, &package, &compiled, &config)?;
     let mut service = compiled.service.expect("checked above");
-    service.versions = versions.versions;
+    service.versions = versions;
     Ok(service)
 }
 
@@ -134,23 +114,20 @@ pub(crate) fn export(path: &Path, service: Option<&ShapeId>, out: &Path) -> Resu
         .map_err(|error| format!("cannot date the export {}: {error}", out.display()))
 }
 
-/// The compatibility guard (decision 47d): the package against its frozen
-/// baseline, with the `[compatibility]` settings of its manifest. A breaking
-/// change no migration declares fails the build, as does a migration step
-/// that does not match what changed; a finding the policy makes a warning
-/// is shown. The guard, when the package has a baseline.
+/// The compatibility guard (decision 47d) and the older releases the
+/// package serves (docs/api-versions.md), on one read of its frozen
+/// releases: the package against its baseline, with the `[compatibility]`
+/// settings of its manifest, then each older release projected from the
+/// current model and checked against itself. A breaking change no
+/// migration declares fails the build, as does a migration step that does
+/// not match what changed or a projection that is not its release; every
+/// problem is listed, and a finding the policy makes a warning is shown.
 fn check_baseline(
     path: &Path,
     package: &crucible_lang::Package,
     compiled: &crucible_lang::Compiled,
     config: &crucible_policy::Config,
-    releases: &crucible_lang::Releases,
-) -> Result<Option<crucible_lang::Guard>, String> {
-    let Some(guard) =
-        crucible_lang::guard_in(package, compiled, package.files.len(), config, releases)
-    else {
-        return Ok(None);
-    };
+) -> Result<Vec<crucible_ir::ir::ApiVersion>, String> {
     // The releases directory: the baseline, older releases and their lock.
     if let Some(releases) = package
         .baseline
@@ -159,17 +136,14 @@ fn check_baseline(
     {
         println!("cargo::rerun-if-changed={}", releases.display());
     }
-    let guard = guard?;
-    if guard.has_errors() {
-        return Err(format!(
-            "{} breaks compatibility with its baseline {}:\n{}",
-            path.display(),
-            guard.version,
-            guard.render(compiled)
-        ));
+    let releases = crucible_lang::Releases::default();
+    let checked =
+        crucible_lang::check_in(package, compiled, package.files.len(), config, &releases);
+    if let Some(failure) = checked.failure(path, compiled) {
+        return Err(failure);
     }
-    for line in guard.render(compiled).lines() {
+    for line in checked.render(compiled).lines() {
         println!("cargo::warning={line}");
     }
-    Ok(Some(guard))
+    Ok(checked.versions.versions)
 }

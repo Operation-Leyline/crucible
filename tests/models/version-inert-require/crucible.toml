@@ -1,0 +1,14 @@
+# A step the newer model has undone: inert, with a warning (decision 70). v2
+# requires ListItems' `limit`; v3 makes it optional again, which is
+# wire-compatible, so v1, as the current model sees it, needs no default.
+# v1 and v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.undone"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.undone#ListItemsInput$limit"
+reason = "The limit is optional again"

@@ -1509,9 +1509,11 @@ references are to the code as of the design.
     conversion cannot invent the mapping. A step whose newer side was
     removed since under an exception is an error at the older name, naming
     that exception; excepting the older name too leaves the step inert,
-    with a warning, and out of the steps the server converts. A step that
-    no longer resolves for another reason a later change made is reported
-    as the newer projection refuses it.
+    with a warning, and out of the steps the server converts. A step on an
+    operation retired since, or a structure removed since, is judged the
+    same way; one the newer model has undone (a member optional again) is
+    inert. A step that no longer resolves for another reason a later
+    change made is reported as the newer projection refuses it.
 
 71. **A shape's identity is its id, in every release.** Steps resolve
     against projections: the new side in the newer projection, the old

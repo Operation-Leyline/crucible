@@ -18,7 +18,7 @@ use crucible_ir::ir::{ApiVersion, Hook, Service, Shape, VersionStep};
 use crucible_ir::versions::{has, named, subjects};
 use crucible_policy::{Config, Exception, Finding, Severity as PolicySeverity};
 
-use super::{Context, Guard, Link, capitalized, chain, doc_text, dropped, render};
+use super::{Context, Guard, Link, capitalized, chain, doc_text, dropped, guard_with, render};
 use crate::ast::{Decl, Migration, OpEntry, Step, StepKind};
 use crate::compile::{Compiled, FileDiagnostic, Package};
 use crate::diagnostic::Diagnostic;
@@ -33,7 +33,7 @@ pub struct Versions {
     /// frozen model.
     pub versions: Vec<ApiVersion>,
     /// Every problem, each at its place: an error fails the build.
-    pub diagnostics: Vec<FileDiagnostic>,
+    diagnostics: Vec<FileDiagnostic>,
     /// The rule and id of each finding of the projection check among
     /// `diagnostics`, by index, so [`Versions::without`] can leave out what
     /// the guard reports already.
@@ -41,6 +41,11 @@ pub struct Versions {
 }
 
 impl Versions {
+    /// Every problem found, errors and warnings, each at its place.
+    pub fn diagnostics(&self) -> &[FileDiagnostic] {
+        &self.diagnostics
+    }
+
     /// Whether the versions fail the build.
     pub fn has_errors(&self) -> bool {
         self.diagnostics
@@ -53,13 +58,16 @@ impl Versions {
         render(&self.diagnostics, compiled)
     }
 
-    /// The versions, or every problem rendered when one is an error: for a
-    /// tool that wants the versions or a message.
-    pub fn into_result(self, compiled: &Compiled) -> Result<Vec<ApiVersion>, String> {
+    /// The versions and the warnings, or every problem rendered when one
+    /// is an error: for a tool that wants the versions or a message.
+    pub fn into_result(
+        self,
+        compiled: &Compiled,
+    ) -> Result<(Vec<ApiVersion>, Vec<FileDiagnostic>), String> {
         if self.has_errors() {
             Err(self.render(compiled))
         } else {
-            Ok(self.versions)
+            Ok((self.versions, self.diagnostics))
         }
     }
 
@@ -76,6 +84,15 @@ impl Versions {
             .filter(|finding| finding.severity == PolicySeverity::Error)
             .map(|finding| (finding.rule.as_str(), finding.shape.as_str()))
             .collect();
+        self.retain(|item, finding| {
+            !guard.problems.contains(item)
+                && !finding
+                    .is_some_and(|(rule, id)| undeclared.contains(&(rule.as_str(), id.as_str())))
+        });
+    }
+
+    /// Keeps the diagnostics `keep` accepts, given each one's finding.
+    fn retain(&mut self, mut keep: impl FnMut(&FileDiagnostic, Option<&(String, String)>) -> bool) {
         let mut kept = Vec::with_capacity(self.diagnostics.len());
         let mut findings = BTreeMap::new();
         for (index, item) in std::mem::take(&mut self.diagnostics)
@@ -83,12 +100,7 @@ impl Versions {
             .enumerate()
         {
             let finding = self.findings.remove(&index);
-            if guard.problems.contains(&item) {
-                continue;
-            }
-            if let Some((rule, id)) = &finding
-                && undeclared.contains(&(rule.as_str(), id.as_str()))
-            {
+            if !keep(&item, finding.as_ref()) {
                 continue;
             }
             if let Some(finding) = finding {
@@ -100,13 +112,92 @@ impl Versions {
         self.findings = findings;
     }
 
-    fn push(&mut self, file: Option<usize>, diagnostic: Diagnostic) {
+    /// Whether `item` is new: one problem found two ways is shown once.
+    fn push(&mut self, file: Option<usize>, diagnostic: Diagnostic) -> bool {
         let item = FileDiagnostic { file, diagnostic };
-        // One problem found two ways is shown once.
-        if !self.diagnostics.contains(&item) {
-            self.diagnostics.push(item);
+        if self.diagnostics.contains(&item) {
+            return false;
+        }
+        self.diagnostics.push(item);
+        true
+    }
+}
+
+/// What a build checks against a package's frozen releases: the guard
+/// against the baseline and the older releases it serves, read once.
+#[derive(Debug, Clone)]
+pub struct Checked {
+    /// The guard, when the manifest names a baseline; `Err` when the
+    /// baseline does not load.
+    pub guard: Option<Result<Guard, String>>,
+    /// The versions, without what the guard reports already.
+    pub versions: Versions,
+}
+
+impl Checked {
+    /// Whether anything fails the build.
+    pub fn has_errors(&self) -> bool {
+        match &self.guard {
+            Some(Err(_)) => true,
+            Some(Ok(guard)) if guard.has_errors() => true,
+            _ => self.versions.has_errors(),
         }
     }
+
+    /// Every finding and problem, the guard's first, for a build log.
+    pub fn render(&self, compiled: &Compiled) -> String {
+        let mut out = match &self.guard {
+            Some(Err(problem)) => format!("error: {problem}\n"),
+            Some(Ok(guard)) => guard.render(compiled),
+            None => String::new(),
+        };
+        out.push_str(&self.versions.render(compiled));
+        out
+    }
+
+    /// The build's error for the package at `dir`, when it fails: every
+    /// problem the guard and the versions found, so one run lists all.
+    pub fn failure(&self, dir: &std::path::Path, compiled: &Compiled) -> Option<String> {
+        if !self.has_errors() {
+            return None;
+        }
+        let what = match &self.guard {
+            Some(Ok(guard)) if guard.has_errors() => {
+                format!("breaks compatibility with its baseline {}", guard.version)
+            }
+            Some(Err(_)) => "cannot load its baseline".to_owned(),
+            _ => "does not serve its older releases".to_owned(),
+        };
+        Some(format!(
+            "{} {what}:\n{}",
+            dir.display(),
+            self.render(compiled)
+        ))
+    }
+}
+
+/// The guard and the versions for `compiled`, on one chain of releases
+/// read through `releases`, as every build, `crucible check` and the
+/// editor run them.
+pub fn check_in(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    releases: &crate::Releases,
+) -> Checked {
+    let links = chain(package, compiled, own, releases);
+    let guard = guard_with(package, compiled, own, config, releases, &links);
+    let mut versions = versions_with(compiled, own, config, &links);
+    match &guard {
+        Some(Ok(guard)) => versions.without(guard),
+        // A baseline that does not load stops the chain too.
+        Some(Err(problem)) => {
+            versions.retain(|item, _| item.file.is_some() || item.diagnostic.message != *problem)
+        }
+        None => {}
+    }
+    Checked { guard, versions }
 }
 
 /// The older versions `compiled` still serves, oldest first: the chain of
@@ -120,7 +211,7 @@ pub fn versions(package: &Package, compiled: &Compiled, own: usize, config: &Con
 
 /// [`versions`], reading frozen releases through `releases`: the build
 /// passes the ones its guard loaded, and an editor keeps them across
-/// compiles.
+/// compiles. [`check_in`] runs the guard and the versions on one chain.
 pub fn versions_in(
     package: &Package,
     compiled: &Compiled,
@@ -128,14 +219,24 @@ pub fn versions_in(
     config: &Config,
     releases: &crate::Releases,
 ) -> Versions {
+    let links = chain(package, compiled, own, releases);
+    versions_with(compiled, own, config, &links)
+}
+
+fn versions_with(
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+    links: &Result<Vec<Link<'_>>, String>,
+) -> Versions {
     let mut out = Versions::default();
     let Some(service) = compiled.service.as_ref() else {
         return out;
     };
-    let links = match chain(package, compiled, own, releases) {
+    let links = match links {
         Ok(links) => links,
         Err(problem) => {
-            out.push(None, Diagnostic::new(Span::default(), problem));
+            out.push(None, Diagnostic::new(Span::default(), problem.clone()));
             return out;
         }
     };
@@ -145,20 +246,20 @@ pub fn versions_in(
         ..Config::default()
     };
     let mut shown = BTreeSet::new();
-    let mut refused = BTreeSet::new();
+    let mut explained = BTreeSet::new();
     let mut projected: Option<Service> = None;
-    for link in &links {
+    for link in links {
         let newer = projected.as_ref().unwrap_or(service);
         let mut release = Release {
             compiled,
+            own,
             link,
             current: service,
             newer,
             config,
             strict: &strict,
             shown: &mut shown,
-            refused: &mut refused,
-            explained: BTreeSet::new(),
+            explained: &mut explained,
             out: &mut out,
         };
         let (version, projection) = release.build();
@@ -173,6 +274,8 @@ pub fn versions_in(
 /// is built and checked.
 struct Release<'a, 'c> {
     compiled: &'c Compiled,
+    /// How many of `compiled.files` are the package's own.
+    own: usize,
     link: &'a Link<'c>,
     current: &'c Service,
     /// The projection of `r_i+1`, or the current model.
@@ -181,13 +284,12 @@ struct Release<'a, 'c> {
     strict: &'a Config,
     /// The findings shown so far, by rule and id, newest release first.
     shown: &'a mut BTreeSet<(String, String)>,
-    /// The operations dropped without `remove operation` or an exception,
-    /// and their own shapes, which that refusal explains at this release
-    /// and every older one.
-    refused: &'a mut BTreeSet<ShapeId>,
-    /// The shapes a step that no longer resolves names, which its
-    /// diagnostic explains at this release.
-    explained: BTreeSet<ShapeId>,
+    /// The shapes and operations whose differences a diagnostic already
+    /// explains, at its release and every older one, which a projection
+    /// starts from: an operation dropped without `remove operation`, what a
+    /// colliding step would restore, what a step that no longer resolves
+    /// names.
+    explained: &'a mut BTreeSet<ShapeId>,
     out: &'a mut Versions,
 }
 
@@ -205,6 +307,22 @@ struct Lost<'c> {
     lowered: VersionStep,
     gone: Vec<ShapeId>,
     exceptions: Vec<Exception>,
+    /// A shape the step names that is gone since, renamed or removed
+    /// (decision 71): its findings are the step's, whatever member.
+    missing: Option<ShapeId>,
+}
+
+impl Lost<'_> {
+    /// Whether a finding at `id` is about what the step names on its older
+    /// side.
+    fn owns(&self, id: &ShapeId) -> bool {
+        let older = named(&self.lowered).older;
+        older.iter().any(|named| named == id || named.root() == *id)
+            || self.missing.as_ref().is_some_and(|missing| {
+                let root = id.root();
+                root == *missing || older.iter().any(|named| named.root() == root)
+            })
+    }
 }
 
 impl<'c> Release<'_, 'c> {
@@ -242,9 +360,32 @@ impl<'c> Release<'_, 'c> {
         }
     }
 
-    fn error(&mut self, span: Span, message: String) {
+    fn error(&mut self, span: Span, message: String) -> bool {
         self.out
-            .push(Some(self.link.file), Diagnostic::new(span, message));
+            .push(Some(self.link.file), Diagnostic::new(span, message))
+    }
+
+    fn warning(&mut self, span: Span, message: String) {
+        self.out
+            .push(Some(self.link.file), Diagnostic::warning(span, message));
+    }
+
+    /// `message` at the current model's declaration of `id`, else at the
+    /// step, else at the migration.
+    fn at_declaration(&mut self, id: &ShapeId, step: Option<&Step>, message: String) {
+        match self.declared(id) {
+            Some((file, span)) => {
+                self.out.push(Some(file), Diagnostic::new(span, message));
+            }
+            None => {
+                let span = step.map_or(self.link.migration.from.span, step_span);
+                self.error(span, message);
+            }
+        }
+    }
+
+    fn explained(&self, id: &ShapeId) -> bool {
+        self.explained.contains(&id.root())
     }
 
     /// The release's version and its projection.
@@ -267,8 +408,8 @@ impl<'c> Release<'_, 'c> {
                 .iter()
                 .find(|op| op.id == drop.operation)
             {
-                self.refused.insert(op.id.clone());
-                self.refused
+                self.explained.insert(op.id.clone());
+                self.explained
                     .extend(op.input.iter().chain(&op.output).cloned());
             }
             self.out.push(Some(link.file), drop.diagnostic);
@@ -298,7 +439,8 @@ impl<'c> Release<'_, 'c> {
                 Err(problems) => {
                     let problems = match written.as_ref().map(|written| written.lower(step)) {
                         // It held when it was written: a name it restores
-                        // is taken since, or something it names is gone.
+                        // is taken since, or something it names is gone or
+                        // undone since.
                         Some(Ok(lowered)) => {
                             let lowered = Lowered { step, lowered };
                             if !self.collisions(&lowered).0.is_empty() {
@@ -321,7 +463,7 @@ impl<'c> Release<'_, 'c> {
 
         // Names the release still uses, reused since (decision 69), at the
         // new declaration. What the projection check finds where the step
-        // would restore is the collision's.
+        // would restore is the collision's, here and at older releases.
         let mut collided = BTreeSet::new();
         for (index, step) in steps.iter().enumerate() {
             let (found, roots) = self.collisions(step);
@@ -331,10 +473,7 @@ impl<'c> Release<'_, 'c> {
             collided.insert(index);
             self.explained.extend(roots);
             for (id, message) in found {
-                match self.declared(&id) {
-                    Some((file, span)) => self.out.push(Some(file), Diagnostic::new(span, message)),
-                    None => self.error(step_span(step.step), message),
-                }
+                self.at_declaration(&id, Some(step.step), message);
             }
         }
 
@@ -373,21 +512,23 @@ impl<'c> Release<'_, 'c> {
                     let span = step_span(steps[index].step);
                     self.error(span, problem.message.clone());
                 }
-                None => self.error(link.migration.from.span, problem.message.clone()),
+                None => {
+                    self.error(link.migration.from.span, problem.message.clone());
+                }
             }
         }
         // The IR's own checks: a collision without a message of its own
-        // still fails.
-        if collided.is_empty() {
-            let mut problems = crucible_ir::Diagnostics::default();
-            crucible_ir::validate::service(&projection, &mut problems);
-            for problem in problems.iter() {
-                let message = format!("{}: {}", self.projection_label(), problem.message);
-                match self.declared(&problem.shape) {
-                    Some((file, span)) => self.out.push(Some(file), Diagnostic::new(span, message)),
-                    None => self.error(link.migration.from.span, message),
-                }
+        // still fails. A colliding step is left out of the undo, so what
+        // remains is the projection's own; what a diagnostic above explains
+        // is not reported twice.
+        let mut problems = crucible_ir::Diagnostics::default();
+        crucible_ir::validate::service(&projection, &mut problems);
+        for problem in problems.iter() {
+            if self.explained(&problem.shape) {
+                continue;
             }
+            let message = format!("{}: {}", self.projection_label(), problem.message);
+            self.at_declaration(&problem.shape, None, message);
         }
         self.readded(&steps, &lost, &projection);
         self.examples(&projection, &warnings);
@@ -411,13 +552,15 @@ impl<'c> Release<'_, 'c> {
             }
         }
 
-        self.check(&steps, &collided, &lost, &projection);
+        self.check(&steps, &lost, &projection);
         (version, projection)
     }
 
-    /// A step that held against the release it was written for, whose
-    /// newer side the newer projection lacks; `None` once it is reported.
-    /// A step that fails for another reason since reports `problems`.
+    /// A step that held against the release it was written for and does
+    /// not against the newer projection: its newer side is gone since, or
+    /// the newer projection has undone what it changed (a no-op, inert with
+    /// a warning). `None` once it is reported; a step that fails for
+    /// another reason since reports `problems`.
     fn lost(&mut self, step: Lowered<'c>, problems: Vec<Diagnostic>) -> Option<Lost<'c>> {
         let Lowered { step, lowered } = step;
         let gone: Vec<ShapeId> = named(&lowered)
@@ -426,8 +569,18 @@ impl<'c> Release<'_, 'c> {
             .filter(|id| !has(self.newer, id))
             .collect();
         if gone.is_empty() {
-            for problem in problems {
-                self.out.push(Some(self.link.file), problem);
+            if let Some(why) = self.undone(&lowered) {
+                let message = format!(
+                    "`{}` is inert: {why} in {}, so the step converts nothing at release \"{}\"",
+                    self.text(step),
+                    self.newer_label(),
+                    self.name()
+                );
+                self.warning(step_span(step), message);
+            } else {
+                for problem in problems {
+                    self.out.push(Some(self.link.file), problem);
+                }
             }
             return None;
         }
@@ -446,31 +599,81 @@ impl<'c> Release<'_, 'c> {
         // is recorded nowhere, so nothing can name its new id for the step.
         // An operation gone since was retired, which the check judges.
         let next = self.link.newer(self.current);
-        if let Some(missing) = gone
+        let missing = gone
             .iter()
             .map(ShapeId::root)
-            .find(|root| !has(self.newer, root) && next.shapes.contains_key(root))
-        {
-            let message = format!(
-                "`{}` names {missing}, which {} does not have: a shape renamed or removed since a step named it is not the shape the step converts, and nothing records its new id; keep {} while release \"{}\" is supported, or drop that release",
-                self.text(step),
-                self.newer_label(),
-                missing.name(),
-                self.name()
-            );
-            self.error(step_span(step), message);
-            // What the projection check finds there is this.
-            self.explained.insert(missing.clone());
-            self.explained
-                .extend(named(&lowered).older.iter().map(ShapeId::root));
-            return None;
-        }
+            .find(|root| !has(self.newer, root) && next.shapes.contains_key(root));
         Some(Lost {
             step,
             lowered,
             gone,
             exceptions,
+            missing,
         })
+    }
+
+    /// Why a step the newer projection rejects changes nothing at its
+    /// release: what it declared changed back since, so the newer side is
+    /// the release's again (a member made optional again, a type or route
+    /// restored). `None` for any other failure.
+    fn undone(&self, step: &VersionStep) -> Option<String> {
+        let frozen: &Service = &self.link.old;
+        let member =
+            |service: &Service, shape: &ShapeId, name: &str| match service.shapes.get(shape) {
+                Some(Shape::Structure(s) | Shape::Union(s)) => s.member(name).cloned(),
+                _ => None,
+            };
+        match step {
+            VersionStep::Require {
+                old,
+                new,
+                member: name,
+                from,
+                ..
+            }
+            | VersionStep::Hooked {
+                hook:
+                    Hook::Require {
+                        old,
+                        new,
+                        member: name,
+                        from,
+                    },
+                ..
+            } => {
+                let was = if from.is_empty() { name } else { from };
+                let (then, now) = (member(frozen, old, was)?, member(self.newer, new, name)?);
+                (now.optional_on_server() && then.optional_on_server())
+                    .then(|| format!("`{}.{name}` is optional again", new.name()))
+            }
+            VersionStep::Hooked {
+                hook:
+                    Hook::Retype {
+                        old,
+                        new,
+                        member: name,
+                        from,
+                        ..
+                    },
+                ..
+            } => {
+                let was = if from.is_empty() { name } else { from };
+                let (then, now) = (member(frozen, old, was)?, member(self.newer, new, name)?);
+                (then.target == now.target)
+                    .then(|| format!("`{}.{name}` has its older type again", new.name()))
+            }
+            VersionStep::Move { operation, .. } => {
+                let then = frozen.operations.iter().find(|op| &op.id == operation)?;
+                let now = self
+                    .newer
+                    .operations
+                    .iter()
+                    .find(|op| &op.id == operation)?;
+                (then.method == now.method && then.uri == now.uri)
+                    .then(|| format!("{} has its older route again", operation.name()))
+            }
+            _ => None,
+        }
     }
 
     /// Decision 69: each name the release still uses that the newer model
@@ -482,6 +685,9 @@ impl<'c> Release<'_, 'c> {
         let text = self.text(step.step);
         let to = self.to().to_owned();
         let mut found = Vec::new();
+        // An operation named as the removed one brings its own input and
+        // output names with it: that collision says it for them.
+        let mut own_shapes = BTreeSet::new();
         match &step.lowered {
             VersionStep::Rename {
                 new, from, to: now, ..
@@ -491,7 +697,7 @@ impl<'c> Release<'_, 'c> {
                     found.push((
                         older.clone(),
                         format!(
-                            "`{}.{from}` is the older name of `{}.{now}`, which release \"{name}\" still uses (`{text}` in the migration to \"{to}\"): a request of that release would mean both; give the new member another name while \"{name}\" is supported",
+                            "`{}.{from}` is the older name of `{}.{now}`, which release \"{name}\" still uses (`{text}` in the migration to \"{to}\"): `{from}` in that release's messages would name both; give the new member another name while \"{name}\" is supported",
                             new.name(),
                             new.name()
                         ),
@@ -503,6 +709,15 @@ impl<'c> Release<'_, 'c> {
                 ..
             } => {
                 if self.newer.operations.iter().any(|op| &op.id == operation) {
+                    if let Some(older) = self
+                        .link
+                        .old
+                        .operations
+                        .iter()
+                        .find(|op| &op.id == operation)
+                    {
+                        own_shapes.extend(older.input.iter().chain(&older.output).cloned());
+                    }
                     found.push((
                         operation.clone(),
                         format!(
@@ -531,7 +746,11 @@ impl<'c> Release<'_, 'c> {
             _ => {}
         }
         let (restored, copied) = self.restored_ids(&step.lowered, &text);
-        found.extend(restored);
+        found.extend(
+            restored
+                .into_iter()
+                .filter(|(id, _)| !own_shapes.contains(id)),
+        );
         let named = named(&step.lowered);
         let mut roots: BTreeSet<ShapeId> = named
             .older
@@ -573,12 +792,12 @@ impl<'c> Release<'_, 'c> {
             .collect()
     }
 
-    /// The ids a definition `step` restores reaches, which the newer model
-    /// declared again as a different shape since the release after this
-    /// one dropped them: the restored definition and the new one would
-    /// share an id. Only those ids: one that never left is the current
-    /// shape at every release.
-    /// Also every shape it copies from the release.
+    /// The ids a definition `step` restores, or reaches from what it
+    /// restores, which the newer model declared again as a different shape
+    /// since the release after this one dropped them: the restored
+    /// definition and the new one would share an id. Only those ids: one
+    /// that never left is the current shape at every release. Also every
+    /// shape the step copies from the release.
     fn restored_ids(
         &self,
         step: &VersionStep,
@@ -586,7 +805,8 @@ impl<'c> Release<'_, 'c> {
     ) -> (Vec<(ShapeId, String)>, BTreeSet<ShapeId>) {
         let frozen: &Service = &self.link.old;
         let next = self.link.newer(self.current);
-        // What undo copies from the release whole, as `undo` does.
+        // What undo copies from the release whole, as `undo` does: each one
+        // is a candidate as much as what it reaches.
         let mut copied: Vec<ShapeId> = Vec::new();
         let mut reached: Vec<ShapeId> = Vec::new();
         match step {
@@ -623,6 +843,7 @@ impl<'c> Release<'_, 'c> {
             }
             _ => {}
         }
+        reached.extend(copied.iter().cloned());
         let mut seen = BTreeSet::new();
         while let Some(id) = copied.pop() {
             if !seen.insert(id.clone()) {
@@ -729,10 +950,8 @@ impl<'c> Release<'_, 'c> {
                 id.root().name(),
                 self.to()
             );
-            match self.declared(&id) {
-                Some((file, span)) => self.out.push(Some(file), Diagnostic::new(span, message)),
-                None => self.error(self.link.migration.from.span, message),
-            }
+            self.at_declaration(&id, None, message);
+            self.explained.insert(id.root());
         }
     }
 
@@ -760,11 +979,15 @@ impl<'c> Release<'_, 'c> {
                 .or_else(|| self.declared(&warning.shape));
             let diagnostic = |span| Diagnostic::warning(span, warning.message.clone());
             match at {
-                Some((file, span)) => self.out.push(Some(file), diagnostic(span)),
-                None => self.out.push(
-                    Some(self.link.file),
-                    diagnostic(self.link.migration.from.span),
-                ),
+                Some((file, span)) => {
+                    self.out.push(Some(file), diagnostic(span));
+                }
+                None => {
+                    self.out.push(
+                        Some(self.link.file),
+                        diagnostic(self.link.migration.from.span),
+                    );
+                }
             }
         }
     }
@@ -773,14 +996,9 @@ impl<'c> Release<'_, 'c> {
     /// families at error, with the manifest's exceptions. A finding is an
     /// undo gap or a break the package neither declared nor excepted, at
     /// the step that names what it is about, else at the migration.
-    fn check(
-        &mut self,
-        steps: &[Lowered<'c>],
-        collided: &BTreeSet<usize>,
-        lost: &[Lost<'c>],
-        projection: &Service,
-    ) {
-        let report = crucible_policy::diff(&self.link.old, projection, self.strict);
+    fn check(&mut self, steps: &[Lowered<'c>], lost: &[Lost<'c>], projection: &Service) {
+        let frozen: &Service = &self.link.old;
+        let report = crucible_policy::diff(frozen, projection, self.strict);
         // A lost step's older side, and the findings there, open or excepted.
         let mut open: BTreeMap<usize, Vec<Finding>> = BTreeMap::new();
         let mut excepted: BTreeMap<usize, Vec<Finding>> = BTreeMap::new();
@@ -792,15 +1010,12 @@ impl<'c> Release<'_, 'c> {
                 continue;
             }
             let id = finding.shape.parse::<ShapeId>().ok();
-            if id.as_ref().is_some_and(|id| {
-                self.refused.contains(&id.root()) || self.explained.contains(&id.root())
-            }) {
+            if id.as_ref().is_some_and(|id| self.explained(id)) {
                 continue;
             }
-            let owner = id.as_ref().and_then(|id| {
-                lost.iter()
-                    .position(|lost| named(&lost.lowered).older.contains(id))
-            });
+            let owner = id
+                .as_ref()
+                .and_then(|id| lost.iter().position(|lost| lost.owns(id)));
             match (owner, finding.exception.is_some()) {
                 (Some(index), true) => excepted.entry(index).or_default().push(finding),
                 (Some(index), false) => open.entry(index).or_default().push(finding),
@@ -821,31 +1036,45 @@ impl<'c> Release<'_, 'c> {
                 continue;
             }
             let step = id.as_ref().and_then(|id| self.step_naming(steps, id));
-            if step.is_some_and(|index| collided.contains(&index)) {
-                continue;
-            }
             let span = step.map_or(self.link.migration.from.span, |index| {
                 step_span(steps[index].step)
             });
+            // An addition is no step's to declare: it is excepted, or not
+            // made (decision 68).
+            let addition = id.as_ref().is_some_and(|id| !has(frozen, id));
+            let remedy = if addition {
+                format!(
+                    "no step declares an addition: except `{}` for {} in the manifest while release \"{}\" is supported",
+                    finding.rule,
+                    finding.shape,
+                    self.name()
+                )
+            } else {
+                format!(
+                    "declare it with a step in the migration to \"{}\" if one converts this change, or except `{}` for {} in the manifest",
+                    self.to(),
+                    finding.rule,
+                    finding.shape
+                )
+            };
             let message = format!(
-                "{} is not its frozen release: [{}] {}: {}; declare the change in the migration to \"{}\", or except `{}` for {} in the manifest",
+                "{} is not its frozen release: [{}] {}: {}; {remedy}",
                 capitalized(&self.projection_label()),
                 finding.rule,
                 finding.shape,
                 finding.message,
-                self.to(),
-                finding.rule,
-                finding.shape
             );
-            self.error(span, message);
-            let at = self.out.diagnostics.len() - 1;
-            self.out.findings.insert(at, key);
+            if self.error(span, message) {
+                let at = self.out.diagnostics.len() - 1;
+                self.out.findings.insert(at, key);
+            }
         }
     }
 
-    /// Decision 70: a step whose newer side is gone since. Its older side
-    /// is still the release's, so the release would lose it unseen, unless
-    /// the manifest excepts that too: then the step is inert.
+    /// Decisions 70 and 71: a step whose newer side is gone since. Its
+    /// older side is still the release's, so the release would lose it
+    /// unseen, unless the manifest excepts that too: then the step is
+    /// inert. A shape renamed since is named as such.
     fn inert(&mut self, lost: &Lost<'c>, open: Vec<Finding>, excepted: bool) {
         let gone = lost
             .gone
@@ -877,59 +1106,60 @@ impl<'c> Release<'_, 'c> {
                 "`{text}` is inert: {} no longer has {gone}, {removed}{older}, so the step converts nothing at release \"{name}\"",
                 self.newer_label()
             );
-            self.out
-                .push(Some(self.link.file), Diagnostic::warning(span, message));
+            self.warning(span, message);
             return;
         }
         for finding in &open {
             self.shown
                 .insert((finding.rule.clone(), finding.shape.clone()));
         }
+        // What the step names is explained at the older releases too.
+        let named = named(&lost.lowered);
+        self.explained
+            .extend(named.older.iter().chain(&lost.gone).map(ShapeId::root));
         let older: BTreeSet<&str> = open.iter().map(|finding| finding.shape.as_str()).collect();
+        let older = older.into_iter().collect::<Vec<_>>().join(", ");
         let rules: BTreeSet<&str> = open.iter().map(|finding| finding.rule.as_str()).collect();
-        let message = format!(
-            "`{text}`: {} no longer has {gone}, {removed}, but release \"{name}\" still has {}, which its clients would lose unseen; except {} for {} too, which leaves the step inert, or keep {gone} while release \"{name}\" is supported",
-            self.newer_label(),
-            older.into_iter().collect::<Vec<_>>().join(", "),
-            rules
-                .into_iter()
-                .map(|rule| format!("`{rule}`"))
-                .collect::<Vec<_>>()
-                .join(", "),
-            open.iter()
-                .map(|finding| finding.shape.as_str())
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect::<Vec<_>>()
-                .join(", ")
-        );
+        let rules = rules
+            .into_iter()
+            .map(|rule| format!("`{rule}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let message = match &lost.missing {
+            Some(missing) => format!(
+                "`{text}` names {missing}, which {} does not have: a shape renamed or removed since a step named it is not the shape the step converts, and nothing records its new id, so release \"{name}\" would lose {older} unseen; keep {} while release \"{name}\" is supported, or except {rules} for {older} too, which leaves the step inert",
+                self.newer_label(),
+                missing.name(),
+            ),
+            None => format!(
+                "`{text}`: {} no longer has {gone}, {removed}, but release \"{name}\" still has {older}, which its clients would lose unseen; except {rules} for {older} too, which leaves the step inert, or keep {gone} while release \"{name}\" is supported",
+                self.newer_label(),
+            ),
+        };
         self.error(span, message);
     }
 
-    /// The step whose subjects or named ids are `id`, or hold it.
+    /// The step whose subjects or named ids are `id`: a finding no step
+    /// names exactly is the migration's.
     fn step_naming(&self, steps: &[Lowered<'c>], id: &ShapeId) -> Option<usize> {
-        let ids = |step: &VersionStep| {
-            let named = named(step);
-            let mut ids = subjects(step);
-            ids.extend(named.older);
-            ids.extend(named.newer);
-            ids
-        };
-        steps
-            .iter()
-            .position(|step| ids(&step.lowered).contains(id))
-            .or_else(|| {
-                let root = id.root();
-                steps
-                    .iter()
-                    .position(|step| ids(&step.lowered).iter().any(|named| named.root() == root))
-            })
+        steps.iter().position(|step| {
+            let named = named(&step.lowered);
+            subjects(&step.lowered)
+                .iter()
+                .chain(&named.older)
+                .chain(&named.newer)
+                .any(|named| named == id)
+        })
     }
 
-    /// Where the current model declares `id`: its name, in the file that
-    /// declares it.
+    /// Where the package's own files declare `id`: its name, in the file
+    /// that declares it. `None` for a dependency's declaration, which the
+    /// package cannot change and an editor does not show.
     fn declared(&self, id: &ShapeId) -> Option<(usize, Span)> {
         let location = self.compiled.source_map.get(id)?;
+        if location.file >= self.own {
+            return None;
+        }
         let file = self.compiled.files.get(location.file)?;
         let name = id.member().unwrap_or(id.name());
         let span = self.compiled.parsed[location.file]
@@ -945,9 +1175,10 @@ impl<'c> Release<'_, 'c> {
         Some((location.file, span))
     }
 
-    /// Where operation `operation` declares its example `title`.
+    /// Where operation `operation` declares its example `title`, in the
+    /// package's own files.
     fn example(&self, operation: &ShapeId, title: &str) -> Option<(usize, Span)> {
-        for (file, parsed) in self.compiled.parsed.iter().enumerate() {
+        for (file, parsed) in self.compiled.parsed.iter().enumerate().take(self.own) {
             for item in &parsed.file.items {
                 let Decl::Operation(op) = &item.decl else {
                     continue;
@@ -992,13 +1223,16 @@ fn step_span(step: &Step) -> Span {
     }
 }
 
-/// A shape as JSON, its documentation left out: two definitions that
-/// differ only there are the same shape.
+/// A shape as its wire and SDK contract has it: documentation, notes and
+/// raw traits left out, and whether lowering met it as an input, so two
+/// definitions that differ only there are the same shape.
 fn structure(shape: &Shape) -> serde_json::Value {
     fn strip(value: &mut serde_json::Value) {
         match value {
             serde_json::Value::Object(map) => {
-                map.remove("docs");
+                for key in ["docs", "notes", "traits"] {
+                    map.remove(key);
+                }
                 map.values_mut().for_each(strip);
             }
             serde_json::Value::Array(items) => items.iter_mut().for_each(strip),
@@ -1007,5 +1241,13 @@ fn structure(shape: &Shape) -> serde_json::Value {
     }
     let mut value = serde_json::to_value(shape).unwrap_or_default();
     strip(&mut value);
+    // A structure's `input` flag says where lowering met it, not what it is.
+    if let Some(definition) = value
+        .as_object_mut()
+        .and_then(|map| map.values_mut().next())
+        && let Some(map) = definition.as_object_mut()
+    {
+        map.remove("input");
+    }
     value
 }

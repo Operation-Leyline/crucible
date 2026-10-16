@@ -442,7 +442,13 @@ recomputed on the projection (decision 73):
   side removed since (decision 70), an error at the step naming the
   exceptions that removed it and the older ids still open, or, when the
   check finds nothing open at the older side, an inert step left out of
-  `ApiVersion::steps` with a warning. What a collision, a refused drop or
+  `ApiVersion::steps` with a warning. A shape gone since goes the same
+  way: a renamed shape leaves its findings open, an error with decision
+  71's wording, while an operation retired or a structure removed since,
+  both sides excepted, leaves the step inert. A step the newer projection
+  has undone (a member optional again, a type or route restored) is inert
+  too. What a collision, a refused drop, a re-added member or a lost step
+  explains is not reported again at that release or any older one. What a collision, a refused drop or
   a gone shape explains is not reported again by the check. A colliding
   step is left out of the undo, so `validate::service` runs on each
   projection with no targeted collision. Every older migration's steps are
@@ -818,7 +824,16 @@ is built, and so are PRs 1 to 5.
    came with it: a rename follows into permission bindings and `when`
    paths (#346), and a `retype` declares the binding change it causes
    (#348). See *What PR 5 settled*, below.
-6. **Serving projections.** `ApiVersion::service` becomes the projection;
+6. **Serving projections.** *Risk carried from PR 5:* a hooked step's
+   `operations` are now computed on the newer projection (`guard.rs`,
+   `operations_reaching` in `Context::lower`), so they include operations
+   added since. If this PR generates one hook method per listed
+   operation, a purely additive change adds a method to an older
+   release's `Migration` trait, which breaks the service's hand-written
+   hooks at the source level. Generate per step, or give methods for
+   operations added since a default that forwards to the step's own hook,
+   and test that adding an operation leaves an older trait unchanged.
+   `ApiVersion::service` becomes the projection;
    version modules, hooks and legacy handlers use projected types; hook
    methods name the operations that need them; empty conversions are
    skipped, measured first. *Crates:* crucible-codegen-rust,

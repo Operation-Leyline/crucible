@@ -1,8 +1,9 @@
 # Refused: a shape renamed since a supported step named it (decision 71). v2
 # renames Item.name to `title`; v3 renames the shape Item to Thing under the
 # exceptions below, and nothing records that, so the step names a shape v2, as
-# the current model sees it, does not have. v1 and v2 are frozen under
-# releases/; v3 is current.
+# the current model sees it, does not have. v0 is older still, and is not
+# refused again for it. v0, v1 and v2 are frozen under releases/; v3 is
+# current.
 [model]
 namespace = "example.renamed"
 

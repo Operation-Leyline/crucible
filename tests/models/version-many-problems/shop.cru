@@ -23,6 +23,8 @@ readonly operation CountItems {
     output { total: integer }
 }
 
+migration "v1" from "v0" {}
+
 migration "v2" from "v1" {
     rename GetItem.output.name -> title
     remove operation CountItems

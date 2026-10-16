@@ -1,0 +1,22 @@
+service Shop {
+    version "v3"
+    protocol json
+    operations [ListItems]
+}
+
+readonly operation ListItems {
+    http GET "/items"
+    input {
+        @query
+        limit?: integer
+    }
+    output { names: Names }
+}
+
+list Names: string
+
+migration "v2" from "v1" {
+    require ListItems.input.limit default 20
+}
+
+migration "v3" from "v2" {}

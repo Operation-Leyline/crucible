@@ -1,0 +1,24 @@
+# A reshape whose structure is gone since, both sides excepted: inert, with a
+# warning (decision 70). v2 reshapes Size; v3 removes the optional member that
+# held it under the exceptions below. v1 and v2 are frozen under releases/; v3
+# is current.
+[model]
+namespace = "example.reshaped"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.reshaped#GetItemOutput$size"
+reason = "Items have no size any more"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.reshaped#GetItemOutput$size"
+reason = "Items have no size any more"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.reshaped#Size"
+reason = "Items have no size any more"
