@@ -1,5 +1,6 @@
 //! Native Swift models and async clients emitted from lowered Smithy semantics.
 mod client;
+mod links;
 mod models;
 mod permissions;
 mod surface;

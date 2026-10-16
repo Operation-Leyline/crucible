@@ -149,19 +149,121 @@ fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
         _ => format!("{package}.model.`{}`", service.name_of(id)),
     }
 }
+/// What a doc comment's `[Name]` links (decision 80) become: KDoc links,
+/// `[label][fully.qualified.Name]`, so they resolve from any file, labelled
+/// with the generated simple name.
+pub(crate) struct Links<'a> {
+    pub(crate) service: &'a Service,
+    pub(crate) package: &'a str,
+}
+
+/// Separates the KDoc blocks of one rendered text, which is split again
+/// after its doc links are restored: a noncharacter model text never keeps.
+const BLOCK: char = '\u{fdd5}';
+
+impl Links<'_> {
+    /// The KDoc link to a doc link's target, or `None` for one Kotlin has no
+    /// declaration for (a resource, a scalar).
+    fn link(&self, target: crucible_ir::doc_links::DocTarget<'_>) -> Option<String> {
+        use crucible_ir::doc_links::DocTarget;
+        let package = self.package;
+        let model = |id: &ShapeId, shape: &Shape| {
+            (!matches!(shape, Shape::Simple(_) | Shape::Unit { .. }))
+                .then(|| self.service.name_of(id).to_owned())
+        };
+        let client = format!("{}Client", self.service.id.name());
+        let (label, reference) = match target {
+            DocTarget::Service => (client.clone(), format!("{package}.{client}")),
+            DocTarget::Operation(op) => {
+                let name = method(op.name());
+                (name.clone(), format!("{package}.{client}.{name}"))
+            }
+            DocTarget::Resource(_) => return None,
+            DocTarget::Shape(id, shape) => {
+                let name = model(id, shape)?;
+                (name.clone(), format!("{package}.model.{name}"))
+            }
+            DocTarget::Member {
+                shape,
+                owner,
+                member,
+            } => {
+                let owner_name = model(shape, owner)?;
+                // A union's member is its variant class.
+                let name = match owner {
+                    Shape::Union(_) => models::variant(&member.name),
+                    _ => field(&member.name),
+                };
+                (
+                    format!("{owner_name}.{name}"),
+                    format!("{package}.model.{owner_name}.{name}"),
+                )
+            }
+            DocTarget::EnumValue {
+                shape,
+                owner,
+                value,
+            } => {
+                let owner_name = model(shape, owner)?;
+                let name = value.to_uppercase();
+                (
+                    format!("{owner_name}.{name}"),
+                    format!("{package}.model.{owner_name}.{name}"),
+                )
+            }
+        };
+        // Only identifiers reach a link; anything else stays plain text.
+        let simple = |text: &str| {
+            text.split('.').all(|part| {
+                part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') && !keyword(part)
+            })
+        };
+        (simple(&label) && simple(&reference)).then(|| format!("[{label}][{reference}]"))
+    }
+
+    /// Model Markdown as KDoc blocks, its doc links as KDoc links.
+    fn blocks(&self, markdown: &str) -> Vec<String> {
+        let markdown: String = markdown.chars().filter(|c| *c != BLOCK).collect();
+        crucible_codegen_common::doc_links::render(
+            self.service,
+            &markdown,
+            |text| docs::kdoc(text).join(&BLOCK.to_string()),
+            |target| self.link(target),
+        )
+        .split(BLOCK)
+        .filter(|block| !block.is_empty())
+        .map(str::to_owned)
+        .collect()
+    }
+}
+
 /// One KDoc comment: the model's documentation, then Crucible's notes (already
 /// Markdown), then block tags. Model prose is escaped by `docs`; notes and tags
 /// interpolate model strings through [`code`], and a final guard keeps any of
 /// them from closing the comment or opening a nested one.
 pub(crate) fn kdoc(indent: &str, model: Option<&str>, notes: &[String], tags: &[String]) -> String {
-    kdoc_for(indent, model, notes, tags, &DocNotes::default(), "")
+    kdoc_with(None, indent, model, notes, tags, &DocNotes::default(), "")
+}
+
+/// [`kdoc_with`] for model documentation: its doc links become KDoc links.
+pub(crate) fn kdoc_linked(
+    links: &Links<'_>,
+    indent: &str,
+    model: Option<&str>,
+    notes: &[String],
+    tags: &[String],
+    meta: &DocNotes,
+    site: &str,
+) -> String {
+    kdoc_with(Some(links), indent, model, notes, tags, meta, site)
 }
 
 /// The same, plus the model's "Unstable."/"Since X." lines, a "Deprecated"
 /// sentence (KDoc has no deprecation tag) and the `@Deprecated` annotation.
 /// `site` is a use-site target such as `property:`, for a primary-constructor
 /// parameter, which `@Deprecated` cannot annotate directly.
-pub(crate) fn kdoc_for(
+fn kdoc_with(
+    links: Option<&Links<'_>>,
     indent: &str,
     model: Option<&str>,
     notes: &[String],
@@ -178,7 +280,10 @@ pub(crate) fn kdoc_for(
         notes.push(escape(&deprecated.sentence()));
     }
     let notes = &notes[..];
-    let mut blocks = model.map(docs::kdoc).unwrap_or_default();
+    let mut blocks = match (model, links) {
+        (Some(model), Some(links)) => links.blocks(model),
+        (model, _) => model.map(docs::kdoc).unwrap_or_default(),
+    };
     blocks.extend(notes.iter().map(|note| docs::kdoc_guard(note)));
     // A comment that only tags a value still needs a summary line.
     if blocks.is_empty()
@@ -218,14 +323,14 @@ pub(crate) fn code(text: &str) -> String {
 }
 
 fn operation_kdoc(
-    service: &Service,
+    links: &Links<'_>,
     op: &Operation,
-    package: &str,
     variant: &str,
     params: &[(&str, &str)],
     returns: &str,
     throws: bool,
 ) -> String {
+    let (service, package) = (links.service, links.package);
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
     let mut notes: Vec<String> =
@@ -275,7 +380,15 @@ fn operation_kdoc(
             "@throws {package}.NetworkError if the transport fails"
         ));
     }
-    kdoc_for("    ", op.docs.as_deref(), &notes, &tags, &op.notes, "")
+    kdoc_linked(
+        links,
+        "    ",
+        op.docs.as_deref(),
+        &notes,
+        &tags,
+        &op.notes,
+        "",
+    )
 }
 
 const PAGES_NOTE: &str = "Lazily fetches each page, following the continuation token until the service stops returning one; collecting the flow drives the requests.";
@@ -492,7 +605,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let resource = format!("src/commonMain/resources/{}", package.replace('.', "/"));
     let schema = serde_json::to_string(&crucible_codegen_common::schema(service, field))
         .expect("schema serializes");
-    let (models, codecs) = models::emit(service, package);
+    let links = &Links { service, package };
+    let (models, codecs) = models::emit(links);
     let service_summary = service
         .docs
         .clone()
@@ -500,10 +614,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .unwrap_or_else(|| format!("Client for the {} service.", code(service.id.name())));
     let mut client = format!(
         "{}class {client_name}(config: ClientConfig) : AutoCloseable {{\n    private val runtime = ClientRuntime(config, {})\n{}    override fun close() = runtime.close()\n    /** This client's retry quota, shared by all of its calls: null in `RetryMode.LEGACY`. */\n    val retryQuota: RetryQuota? get() = runtime.retryQuota\n",
-        kdoc("", Some(&service_summary), &[
+        kdoc_linked(links, "", Some(&service_summary), &[
             format!("Create one with `{client_name}(config)`, share it freely and call `close()` when finished: the client is safe to use from many coroutines at once, and `close()` releases the default HTTP engine and background work. A caller-supplied Ktor `HttpClient` stays owned by the caller and is not closed."),
             "Every operation is a `suspend` function. Failures surface as modeled errors, the service exception for any other error response, or a `NetworkError` when no response arrived.".to_string(),
-        ], &["@param config endpoint, credentials, retry and timeout settings; copied on construction".to_string()]),
+        ], &["@param config endpoint, credentials, retry and timeout settings; copied on construction".to_string()], &DocNotes::default(), ""),
         literal(options.endpoint.as_deref().unwrap_or("")),
         kdoc("    ", None, &["Releases the client's own HTTP engine and timers; calls started afterwards fail.".to_string()], &[])
     );
@@ -524,9 +638,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             &[]
         };
         client.push_str(&operation_kdoc(
-            service,
+            links,
             op,
-            package,
             "Suspends until the response has been decoded.",
             in_doc,
             "the response",
@@ -534,16 +647,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ));
         client.push_str(&format!("    suspend fun `{name}`({parameter}): {output} = runtime.call({}, {argument}) as {output}\n",literal(op.name())));
         if let Some(input) = &input {
-            client.push_str(&operation_kdoc(service, op, package, "Builds the request with a lambda; omit it to send an empty request when every member is optional.", &[("block", "fills the request builder")], "the response", true));
+            client.push_str(&operation_kdoc(links, op, "Builds the request with a lambda; omit it to send an empty request when every member is optional.", &[("block", "fills the request builder")], "the response", true));
             client.push_str(&format!("    suspend fun `{name}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): {output} = `{name}`({input}(block))\n"));
         }
 
         if let Some(pages) = pages_method_name(op) {
             if let Some(input) = &input {
                 client.push_str(&operation_kdoc(
-                    service,
+                    links,
                     op,
-                    package,
                     PAGES_NOTE,
                     &[("block", "fills the request builder")],
                     "a cold flow of pages",
@@ -552,9 +664,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 client.push_str(&format!("    fun `{pages}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): kotlinx.coroutines.flow.Flow<{output}> = `{pages}`({input}(block))\n"));
             }
             client.push_str(&operation_kdoc(
-                service,
+                links,
                 op,
-                package,
                 PAGES_NOTE,
                 in_doc,
                 "a cold flow of pages",

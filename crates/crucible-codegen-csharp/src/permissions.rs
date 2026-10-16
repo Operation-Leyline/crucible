@@ -16,7 +16,7 @@ use crucible_codegen_common::permissions::{
 use crucible_ir::Diagnostics;
 use crucible_ir::ir::{DocNotes, Service};
 
-use super::{File, identifier, literal, param, pascal, returns, xmldoc, xmldoc_with};
+use super::{File, Links, identifier, literal, param, pascal, returns, xmldoc, xmldoc_with};
 
 /// A permission's member: the open-enum convention's (`pascal`), so `read`
 /// is `Read`.
@@ -110,7 +110,7 @@ pub(crate) fn files(service: &Service, ns: &str) -> Vec<File> {
     let mut files = Vec::new();
     let mut registry = Vec::new();
     for (name, client) in &resources {
-        files.push(file(name, record(service, name, client)));
+        files.push(file(name, record(&Links { service, ns }, name, client)));
         registry.push(entry(client));
     }
     files.push(file(
@@ -143,7 +143,8 @@ pub(crate) fn files(service: &Service, ns: &str) -> Vec<File> {
 }
 
 /// One resource's open permission record, `GraphPermission`.
-fn record(service: &Service, name: &str, client: &ClientResource<'_>) -> String {
+fn record(links: &Links<'_>, name: &str, client: &ClientResource<'_>) -> String {
+    let service = links.service;
     let shape = service.name_of(client.id);
     let resource = client.resource;
     let mut out = xmldoc(
@@ -174,6 +175,7 @@ fn record(service: &Service, name: &str, client: &ClientResource<'_>) -> String 
         }
         out.push('\n');
         out.push_str(&xmldoc_with(
+            Some(links),
             "    ",
             permission.docs.as_deref(),
             &rendered,
@@ -189,6 +191,7 @@ fn record(service: &Service, name: &str, client: &ClientResource<'_>) -> String 
     }
     out.push('\n');
     out.push_str(&xmldoc_with(
+        None,
         "    ",
         None,
         &[],

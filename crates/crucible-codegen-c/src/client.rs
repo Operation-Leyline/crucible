@@ -41,7 +41,11 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
     );
     let constructor = format!("{p}_status {client}_new");
     let docs = crucible_codegen_common::doxygen(
-        service.docs.as_deref().unwrap_or("HTTP service client."),
+        &crate::links::text(
+            service,
+            service.docs.as_deref().unwrap_or("HTTP service client."),
+            p,
+        ),
         "",
     ) + &crucible_codegen_common::doxygen(
         "Construct with client_defaults; free after calls and iterators finish. Concurrent calls require thread-safe callbacks and borrowed user data.",
@@ -73,8 +77,10 @@ pub fn emit(service: &Service, options: &Options, schema: &str) -> Vec<File> {
             .unwrap_or_default();
         let input_value = if op.input.is_some() { "input" } else { "NULL" };
         let docs = crucible_codegen_common::doxygen_for(
-            Some(&crucible_codegen_common::documentation::operation(
-                service, op,
+            Some(&crate::links::text(
+                service,
+                &crucible_codegen_common::documentation::operation(service, op),
+                p,
             )),
             &op.notes,
             "",

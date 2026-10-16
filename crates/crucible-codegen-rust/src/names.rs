@@ -172,10 +172,104 @@ pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
 /// warned.
 ///
 /// `docs` is model text, so it is escaped: rustdoc reads it as Markdown, and
-/// a bare `[name]` in it would be an intra-doc link that cannot resolve.
-pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, notes: &DocNotes) {
-    let docs = docs.map(crucible_codegen_common::docs::escape);
+/// a bare `[name]` in it would be an intra-doc link that cannot resolve. Its
+/// doc links (decision 80) become intra-doc links that do ([`Links`]).
+pub(crate) fn documented(
+    out: &mut String,
+    links: Links<'_>,
+    indent: &str,
+    docs: Option<&str>,
+    notes: &DocNotes,
+) {
+    let docs = docs.map(|docs| links.escape(docs));
     documented_text(out, indent, docs.as_deref(), notes);
+}
+
+/// Where generated documentation sits, which decides how its doc links
+/// (decision 80) are spelled as intra-doc links. Every generated file has
+/// the same shape: `mod model` and `mod errors`, whose types the file (or
+/// the server's service module) re-exports, beside the operation markers
+/// and the client. A link from inside `model` or `errors` goes through
+/// `super::`, one from beside them names the re-export, so it resolves
+/// wherever the file is included.
+#[derive(Clone, Copy)]
+pub(crate) struct Links<'a> {
+    pub(crate) service: &'a Service,
+    /// Whether this is the client, whose operations are its methods; on the
+    /// server an operation links to its marker type.
+    client: bool,
+    /// `super::` inside `mod model` and `mod errors`, else nothing.
+    prefix: &'static str,
+}
+
+impl<'a> Links<'a> {
+    /// Documentation beside the re-exports: operation markers, the client.
+    pub(crate) fn top(service: &'a Service, client: bool) -> Self {
+        Self {
+            service,
+            client,
+            prefix: "",
+        }
+    }
+
+    /// Documentation inside `mod model` or `mod errors`.
+    pub(crate) fn child(service: &'a Service, client: bool) -> Self {
+        Self {
+            service,
+            client,
+            prefix: "super::",
+        }
+    }
+
+    /// Model Markdown escaped as [`crucible_codegen_common::docs::escape`]
+    /// escapes it, with its doc links as intra-doc links.
+    pub(crate) fn escape(&self, docs: &str) -> String {
+        crucible_codegen_common::doc_links::render(
+            self.service,
+            docs,
+            crucible_codegen_common::docs::escape,
+            |target| self.link(target),
+        )
+    }
+
+    /// An intra-doc link, `[Widget]` or `[Widget](super::Widget)`, or
+    /// `None` where no generated item is certain to answer to it: a
+    /// resource, the server's service, a name that needs a raw identifier.
+    fn link(&self, target: crucible_ir::doc_links::DocTarget<'_>) -> Option<String> {
+        use crucible_ir::doc_links::DocTarget;
+        use crucible_ir::ir::Shape;
+        let service = self.service;
+        let client = format!("{}Client", variant(service.id.name()));
+        let label = match target {
+            DocTarget::Service if self.client => client,
+            DocTarget::Service | DocTarget::Resource(_) => return None,
+            DocTarget::Operation(op) if self.client => format!("{client}::{}", function(op.name())),
+            DocTarget::Operation(op) => op.name().to_owned(),
+            DocTarget::Shape(_, Shape::Unit { .. }) => return None,
+            DocTarget::Shape(id, _) => service.name_of(id).to_owned(),
+            DocTarget::Member {
+                shape,
+                owner,
+                member,
+            } => {
+                let name = match owner {
+                    Shape::Union(_) => variant(&member.name),
+                    _ => field(&member.name),
+                };
+                format!("{}::{name}", service.name_of(shape))
+            }
+            DocTarget::EnumValue { shape, value, .. } => {
+                format!("{}::{}", service.name_of(shape), variant(value))
+            }
+        };
+        if label.contains("r#") {
+            return None;
+        }
+        Some(match self.prefix {
+            "" => format!("[{label}]"),
+            prefix => format!("[{label}]({prefix}{label})"),
+        })
+    }
 }
 
 /// [`documented`] for text Crucible composed, whose model parts are already

@@ -17,7 +17,7 @@ use crucible_codegen_common::permissions::{
 use crucible_ir::Diagnostics;
 use crucible_ir::ir::{DocNotes, Service};
 
-use crate::models::doc;
+use crate::models::doc_in;
 use crate::{enum_constant, identifier, literal};
 
 /// The library a console imports: `package:<name>/permissions.dart`.
@@ -116,7 +116,9 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
         let shape = service.name_of(client.id);
         let resource = client.resource;
         out.push('\n');
-        out.push_str(&doc(
+        out.push_str(&doc_in(
+            service,
+            crate::links::Library::Permissions,
             Some(&format!(
                 "The permissions `{shape}` accepts (`{}`), by the values grants store.",
                 resource.name
@@ -138,7 +140,9 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
                     code_span(&primary(resource, permission).value)
                 ));
             }
-            out.push_str(&doc(
+            out.push_str(&doc_in(
+                service,
+                crate::links::Library::Permissions,
                 Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
                 &notes(permission),
                 "  ",

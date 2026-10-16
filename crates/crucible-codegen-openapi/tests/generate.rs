@@ -659,3 +659,32 @@ fn ignored_and_duplicate_headers_are_diagnostics_instead_of_lost_contracts() {
     assert!(errors.contains("example.weather#CreateCity"));
     assert!(errors.contains("example.weather#GetCity"));
 }
+
+#[test]
+fn doc_links_are_their_text_in_descriptions() {
+    let service =
+        crucible_ir::project(&load("doc-links"), crucible_ir::Audience::External).unwrap();
+    let document = document(&service);
+    let get = &document["paths"]["/widgets/{widgetId}"]["get"];
+    assert_eq!(
+        get["description"],
+        "Reads the Widget that CreateWidget made, by GetWidget.widgetId,\nand returns it as GetWidget.widget. Fails with WidgetError."
+    );
+    let info = document["info"]["description"].as_str().unwrap();
+    assert!(
+        info.contains("read it back with\nthe read call; a Widget has a Widget.name"),
+        "{info}"
+    );
+    assert!(info.contains("Internal: Reveal and Secret."), "{info}");
+    assert!(
+        info.contains("`[NotALink]` in code, and [an ordinary link](https://example.com)."),
+        "{info}"
+    );
+    let schemas = document["components"]["schemas"].as_object().unwrap();
+    assert!(
+        schemas
+            .values()
+            .any(|schema| schema["description"] == "A colour. Color.RED is the first."),
+        "{schemas:#?}"
+    );
+}

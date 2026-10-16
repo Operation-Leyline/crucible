@@ -16,7 +16,7 @@ use crucible_codegen_common::permissions::{
 use crucible_ir::Diagnostics;
 use crucible_ir::ir::Service;
 
-use super::{File, code, identifier, kdoc, kdoc_for, literal};
+use super::{File, Links, code, identifier, kdoc, kdoc_linked, literal};
 
 /// A permission's constant: Kotlin's upper snake case (`upper_snake`), so
 /// `read` is `READ` and `mailSend` is `MAIL_SEND`, as TypeScript spells
@@ -118,7 +118,10 @@ pub(crate) fn files(service: &Service, package: &str, source: &str) -> Vec<File>
     let mut files = Vec::new();
     let mut registry = Vec::new();
     for (name, client) in &resources {
-        files.push(file(name, enumeration(service, name, client)));
+        files.push(file(
+            name,
+            enumeration(&Links { service, package }, name, client),
+        ));
         registry.push(entry(client));
     }
     files.push(file(
@@ -148,7 +151,8 @@ pub(crate) fn files(service: &Service, package: &str, source: &str) -> Vec<File>
 }
 
 /// One resource's open permission type, `GraphPermission`.
-fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> String {
+fn enumeration(links: &Links<'_>, name: &str, client: &ClientResource<'_>) -> String {
+    let service = links.service;
     let shape = service.name_of(client.id);
     let resource = client.resource;
     let mut out = kdoc(
@@ -203,7 +207,8 @@ fn enumeration(service: &Service, name: &str, client: &ClientResource<'_>) -> St
         if index > 0 {
             out.push('\n');
         }
-        out.push_str(&kdoc_for(
+        out.push_str(&kdoc_linked(
+            links,
             "        ",
             permission.docs.as_deref(),
             &notes,

@@ -1,4 +1,5 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
+mod links;
 mod permissions;
 mod surface;
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
@@ -347,6 +348,7 @@ fn emit_package(
         let name = type_name(service, id);
         go_doc_for(
             &mut models,
+            (service, links::Package::Client),
             "",
             &name,
             shape_docs(shape).as_deref(),
@@ -360,6 +362,7 @@ fn emit_package(
                 for v in &e.values {
                     go_doc_for(
                         &mut models,
+                        (service, links::Package::Client),
                         "    ",
                         &format!("{name}{}", exported(&v.name)),
                         v.docs.as_deref(),
@@ -393,6 +396,7 @@ fn emit_package(
                 for v in &e.values {
                     go_doc_for(
                         &mut models,
+                        (service, links::Package::Client),
                         "    ",
                         &format!("{name}{}", exported(&v.name)),
                         v.docs.as_deref(),
@@ -411,6 +415,7 @@ fn emit_package(
                 for m in &s.members {
                     go_doc_for(
                         &mut models,
+                        (service, links::Package::Client),
                         "    ",
                         &exported(&m.name),
                         m.docs.as_deref(),
@@ -459,6 +464,7 @@ fn emit_package(
                         }
                         go_doc(
                             &mut models,
+                            (service, links::Package::Client),
                             "",
                             &method,
                             Some(match action {
@@ -527,6 +533,7 @@ fn emit_package(
     ));
     go_doc(
         &mut client,
+        (service, links::Package::Client),
         "",
         &client_name,
         Some(&format!(
@@ -561,6 +568,7 @@ fn emit_package(
             .map_or(String::new(), ToString::to_string);
         go_doc_for(
             &mut client,
+            (service, links::Package::Client),
             "",
             &name,
             Some(&operation_docs(service, op)),
@@ -662,14 +670,27 @@ fn wire_path(service: &Service, root: &crucible_ir::ShapeId, path: &str) -> Stri
     result.join(".")
 }
 
-fn go_doc(out: &mut String, indent: &str, name: &str, docs: Option<&str>) {
-    go_doc_for(out, indent, name, docs, &DocNotes::default());
+fn go_doc(
+    out: &mut String,
+    package: (&Service, links::Package),
+    indent: &str,
+    name: &str,
+    docs: Option<&str>,
+) {
+    go_doc_for(out, package, indent, name, docs, &DocNotes::default());
 }
 
 /// The same, plus "Unstable."/"Since X." lines and, last, a `Deprecated:`
 /// paragraph: the form `go doc`, gopls and staticcheck recognise.
-fn go_doc_for(out: &mut String, indent: &str, name: &str, docs: Option<&str>, notes: &DocNotes) {
-    let mut docs = docs.map(crucible_codegen_common::documentation::text);
+fn go_doc_for(
+    out: &mut String,
+    (service, package): (&Service, links::Package),
+    indent: &str,
+    name: &str,
+    docs: Option<&str>,
+    notes: &DocNotes,
+) {
+    let mut docs = docs.map(|docs| links::text(service, package, docs));
     for line in notes.lines() {
         let text = docs.get_or_insert_with(String::new);
         if !text.is_empty() {

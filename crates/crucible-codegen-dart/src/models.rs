@@ -4,8 +4,20 @@ use crucible_ir::ir::{DocNotes, Member, Service, Shape, SimpleKind};
 
 /// Doc comment with the model's notes, then the native deprecation attribute
 /// so the compiler flags use sites.
-pub(crate) fn doc(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
-    let mut out = docs::annotated(text, notes)
+pub(crate) fn doc(service: &Service, text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+    doc_in(service, super::links::Library::Models, text, notes, indent)
+}
+
+/// [`doc`] for a comment in `library`, whose imports decide what a doc link
+/// can name.
+pub(crate) fn doc_in(
+    service: &Service,
+    library: super::links::Library,
+    text: Option<&str>,
+    notes: &DocNotes,
+    indent: &str,
+) -> String {
+    let mut out = super::links::annotated(service, library, text, notes)
         .map(|text| docs::line_comment(indent, "///", &text))
         .unwrap_or_default();
     if let Some(deprecated) = &notes.deprecated {
@@ -92,10 +104,10 @@ pub fn emit(service: &Service) -> String {
         let target = literal(&id.to_string());
         match shape {
             Shape::IntEnum(enumeration) => {
-                out.push_str(&doc(enumeration.docs.as_deref(), &enumeration.notes, ""));
+                out.push_str(&doc(service, enumeration.docs.as_deref(), &enumeration.notes, ""));
                 out.push_str(&format!("final class {name} implements wire.WireModel {{\n  /// The integer sent on the wire.\n  final core.int value;\n  const {name}(this.value);\n"));
                 for value in &enumeration.values {
-                    out.push_str(&doc(value.docs.as_deref(), &value.notes, "  "));
+                    out.push_str(&doc(service, value.docs.as_deref(), &value.notes, "  "));
                     out.push_str(&format!("  static const {} = {name}({});\n", enum_constant(&value.name), value.value));
                 }
                 out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) {{ final number = json.JsonNumber(value.toString()); context.codec.intEnumValue(number); return number; }}\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n  @core.override\n  core.String toString() => '{name}($value)';\n}}\n"));
@@ -106,7 +118,7 @@ pub fn emit(service: &Service) -> String {
             Shape::List(list) => {
                 let item = format!("{}{}", ty(service, &list.member.target), if list.sparse { "?" } else { "" });
                 let decode_item = if list.sparse { "item == null ? null : " } else { "" };
-                out.push_str(&doc(list.docs.as_deref(), &list.notes, ""));
+                out.push_str(&doc(service, list.docs.as_deref(), &list.notes, ""));
                 out.push_str(&format!("typedef {name} = core.List<{item}>;\n"));
                 decode.push_str(&format!("    case {target}: return context.codec.collection(value, context.shape).map((item) => {decode_item}context.codec.decode(item, context.child(context.shape['member'])) as {item}).toList();\n"));
             },
@@ -114,15 +126,15 @@ pub fn emit(service: &Service) -> String {
                 let key = ty(service, &map.key.target);
                 let item = format!("{}{}", ty(service, &map.value.target), if map.sparse { "?" } else { "" });
                 let decode_item = if map.sparse { "item == null ? null : " } else { "" };
-                out.push_str(&doc(map.docs.as_deref(), &map.notes, ""));
+                out.push_str(&doc(service, map.docs.as_deref(), &map.notes, ""));
                 out.push_str(&format!("typedef {name} = core.Map<{key}, {item}>;\n"));
                 decode.push_str(&format!("    case {target}: return context.codec.mapping(value, context.shape).map((key, item) => core.MapEntry(context.codec.decode(key, context.child(context.shape['key'])) as {key}, {decode_item}context.codec.decode(item, context.child(context.shape['value'])) as {item}));\n"));
             },
             Shape::Enum(enumeration) => {
-                out.push_str(&doc(enumeration.docs.as_deref(), &enumeration.notes, ""));
+                out.push_str(&doc(service, enumeration.docs.as_deref(), &enumeration.notes, ""));
                 out.push_str(&format!("final class {name} implements wire.WireModel {{\n  /// The string sent on the wire; a value this client does not list is kept as is.\n  final core.String value;\n  const {name}(this.value);\n"));
                 for value in &enumeration.values {
-                    out.push_str(&doc(value.docs.as_deref(), &value.notes, "  "));
+                    out.push_str(&doc(service, value.docs.as_deref(), &value.notes, "  "));
                     out.push_str(&format!("  static const {} = {name}({});\n", enum_constant(&value.name), literal(&value.value)));
                 }
                 out.push_str(&format!("  @core.override\n  core.Object toWire(wire.WireContext context) => value;\n  @core.override\n  core.bool operator ==(core.Object other) => other is {name} && value == other.value;\n  @core.override\n  core.int get hashCode => value.hashCode;\n  @core.override\n  core.String toString() => '{name}($value)';\n}}\n"));
@@ -131,14 +143,14 @@ pub fn emit(service: &Service) -> String {
             Shape::Structure(structure) => {
                 let error = structure.error.is_some();
                 let base = if error { format!(" extends errors.{exception}") } else { String::new() };
-                out.push_str(&doc(structure.docs.as_deref(), &structure.notes, ""));
+                out.push_str(&doc(service, structure.docs.as_deref(), &structure.notes, ""));
                 out.push_str(&format!("final class {name}{base} implements wire.WireModel {{\n"));
                 let mut params = Vec::new();
                 let mut initializers = Vec::new();
                 for member in &structure.members {
                     let field = field(&member.name);
                     let value = ty(service, &member.target);
-                    let member_docs = doc(member.docs.as_deref(), &member.notes, "  ");
+                    let member_docs = doc(service, member.docs.as_deref(), &member.notes, "  ");
                     if member.optional_on_client() {
                         out.push_str(&format!("  final {value}? _{field};\n  final wire.Field<{value}>? _{field}Presence;\n{member_docs}  {value}? get {field} => _{field}Presence != null ? _{field}Presence.value : _{field};\n  /// Whether `{field}` was omitted, set to null, or given a value.\n  wire.Field<{value}> get {field}Presence => _{field}Presence ?? (_{field} == null ? const wire.Field.unset() : wire.Field.value(_{field}));\n"));
                         params.push(format!("{value}? {field}"));
@@ -171,7 +183,7 @@ pub fn emit(service: &Service) -> String {
                 if error {errors.push_str(&format!("    case {target}: return {name}.fromWire(value, context, metadata: metadata);\n"));}
             },
             Shape::Union(union) => {
-                out.push_str(&doc(union.docs.as_deref(), &union.notes, ""));
+                out.push_str(&doc(service, union.docs.as_deref(), &union.notes, ""));
                 out.push_str(&format!("sealed class {name} implements wire.WireModel {{\n  const {name}();\n  factory {name}.fromWire(core.Object? value, wire.WireContext context) {{\n    final object = wire.wireObject(value);\n    if (object.length != 1) {{ throw const core.FormatException('Union requires one member'); }}\n    final entry = object.entries.single;\n    switch (entry.key) {{\n"));
                 for member in &union.members {
                     out.push_str(&format!("      case {}: return {name}{}(entry.value == null ? null : context.codec.decode(entry.value, context.member(entry.key)) as {});\n", literal(&member.name), variant(&member.name), ty(service, &member.target)));
@@ -180,7 +192,7 @@ pub fn emit(service: &Service) -> String {
                 for member in &union.members {
                     let variant = variant(&member.name);
                     let wire_name = literal(&member.name);
-                    out.push_str(&doc(member.docs.as_deref(), &member.notes, ""));
+                    out.push_str(&doc(service, member.docs.as_deref(), &member.notes, ""));
                     let shown = if docs::is_redacted(service, union.sensitive(), member) { "describe.redact(value)" } else { "value" };
                     out.push_str(&format!("final class {name}{variant} extends {name} {{\n  /// The member's value; null when the union carries an explicit null.\n  final {}? value;\n  const {name}{variant}(this.value);\n  @core.override\n  core.Object toWire(wire.WireContext context) => <core.String, core.Object?>{{{wire_name}: value == null ? null : context.codec.encode(value, context.member({wire_name}))}};\n  @core.override\n  core.String toString() => describe.describe('{name}', <core.String, core.Object?>{{{wire_name}: {shown}}});\n}}\n", ty(service, &member.target)));
                 }

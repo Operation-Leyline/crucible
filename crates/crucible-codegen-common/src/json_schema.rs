@@ -149,7 +149,7 @@ fn base(service: &Service, shape: &Shape) -> Value {
             )
         }
     };
-    description(&mut value, docs.as_deref());
+    description(service, &mut value, docs.as_deref());
     if let Some(notes) = shape.notes() {
         annotate(&mut value, notes, Slot::Native);
     }
@@ -205,9 +205,9 @@ pub fn member(
             || crate::docs::IDEMPOTENCY_TOKEN_NOTE.to_owned(),
             |docs| format!("{docs}\n\n{}", crate::docs::IDEMPOTENCY_TOKEN_NOTE),
         );
-        description(&mut value, Some(&docs));
+        description(service, &mut value, Some(&docs));
     } else {
-        description(&mut value, member.docs.as_deref());
+        description(service, &mut value, member.docs.as_deref());
     }
     annotate(&mut value, &member.notes, Slot::Native);
     if !member.traits.is_empty() {
@@ -317,7 +317,11 @@ pub fn key(id: &ShapeId) -> String {
 fn reference(id: &ShapeId) -> Value {
     json!({"$ref": format!("#/components/schemas/{}", key(id))})
 }
-fn description(value: &mut Value, docs: Option<&str>) {
+/// A schema's description: the author's Markdown, its doc links (decision
+/// 80) as their text, since a schema has nothing to link them to.
+fn description(service: &Service, value: &mut Value, docs: Option<&str>) {
+    let docs = docs.map(|docs| crate::doc_links::render(service, docs, str::to_owned, |_| None));
+    let docs = docs.as_deref();
     if let Some(docs) = docs {
         value["description"] = json!(docs);
     }

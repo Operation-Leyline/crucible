@@ -4,8 +4,8 @@ use crucible_ir::ir::{DocNotes, Member, Service, Shape};
 
 /// Doc comment with the model's notes, then the native deprecation attribute
 /// so the compiler flags use sites.
-pub(crate) fn doc(text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
-    let mut out = docs::annotated(text, notes)
+pub(crate) fn doc(service: &Service, text: Option<&str>, notes: &DocNotes, indent: &str) -> String {
+    let mut out = super::links::annotated(service, text, notes)
         .map(|text| docs::line_comment(indent, "///", &text))
         .unwrap_or_default();
     if let Some(deprecated) = &notes.deprecated {
@@ -63,26 +63,32 @@ pub fn emit(service: &Service, module: &str) -> String {
         match shape {
             Shape::List(list) => out.push_str(&format!(
                 "{}    public typealias `{name}` = Swift.Array<{}{}>\n",
-                doc(list.docs.as_deref(), &list.notes, "    "),
+                doc(service, list.docs.as_deref(), &list.notes, "    "),
                 ty(service, &list.member.target, module),
                 if list.sparse { "?" } else { "" }
             )),
             Shape::Map(map) => out.push_str(&format!(
                 "{}    public typealias `{name}` = Swift.Dictionary<{}, {}{}>\n",
-                doc(map.docs.as_deref(), &map.notes, "    "),
+                doc(service, map.docs.as_deref(), &map.notes, "    "),
                 ty(service, &map.key.target, module),
                 ty(service, &map.value.target, module),
                 if map.sparse { "?" } else { "" }
             )),
             Shape::IntEnum(enumeration) => {
                 out.push_str(&doc(
+                    service,
                     enumeration.docs.as_deref(),
                     &enumeration.notes,
                     "    ",
                 ));
                 out.push_str(&format!("    public struct `{name}`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WireCodable, ModelDescription {{\n        /// The integer sent on the wire.\n        public let rawValue: Swift.Int32\n        public init(rawValue: Swift.Int32) {{ self.rawValue = rawValue }}\n"));
                 for value in &enumeration.values {
-                    out.push_str(&doc(value.docs.as_deref(), &value.notes, "        "));
+                    out.push_str(&doc(
+                        service,
+                        value.docs.as_deref(),
+                        &value.notes,
+                        "        ",
+                    ));
                     out.push_str(&format!(
                         "        public static let `{}` = Self(rawValue: {})\n",
                         enum_constant(&value.name),
@@ -96,13 +102,19 @@ pub fn emit(service: &Service, module: &str) -> String {
             }
             Shape::Enum(enumeration) => {
                 out.push_str(&doc(
+                    service,
                     enumeration.docs.as_deref(),
                     &enumeration.notes,
                     "    ",
                 ));
                 out.push_str(&format!("    public struct `{name}`: Swift.RawRepresentable, Swift.Hashable, Swift.Sendable, WireCodable, ModelDescription {{\n        /// The string sent on the wire; a value this client does not list is kept as is.\n        public let rawValue: Swift.String\n        public init(rawValue: Swift.String) {{ self.rawValue = rawValue }}\n"));
                 for value in &enumeration.values {
-                    out.push_str(&doc(value.docs.as_deref(), &value.notes, "        "));
+                    out.push_str(&doc(
+                        service,
+                        value.docs.as_deref(),
+                        &value.notes,
+                        "        ",
+                    ));
                     out.push_str(&format!(
                         "        public static let `{}` = Self(rawValue: {})\n",
                         enum_constant(&value.name),
@@ -120,7 +132,12 @@ pub fn emit(service: &Service, module: &str) -> String {
                 } else {
                     String::new()
                 };
-                out.push_str(&doc(structure.docs.as_deref(), &structure.notes, "    "));
+                out.push_str(&doc(
+                    service,
+                    structure.docs.as_deref(),
+                    &structure.notes,
+                    "    ",
+                ));
                 out.push_str(&format!(
                     "    public struct `{name}`: Swift.Sendable, WireCodable, ModelDescription{error} {{\n"
                 ));
@@ -128,7 +145,8 @@ pub fn emit(service: &Service, module: &str) -> String {
                 for member in &structure.members {
                     let field = field(&member.name);
                     let value_type = ty(service, &member.target, module);
-                    let member_docs = doc(member.docs.as_deref(), &member.notes, "        ");
+                    let member_docs =
+                        doc(service, member.docs.as_deref(), &member.notes, "        ");
                     if presence(member) {
                         out.push_str(&format!("        /// Whether `{field}` was omitted, set to null, or given a value.\n        public var `{field}Presence`: OptionalValue<{value_type}>\n{member_docs}        public var `{field}`: {value_type}? {{\n            get {{ `{field}Presence`.value }}\n            set {{ `{field}Presence` = newValue.map {{ .value($0) }} ?? .null }}\n        }}\n"));
                         parameters.push(format!("`{field}`: {value_type}? = nil"));
@@ -204,12 +222,17 @@ pub fn emit(service: &Service, module: &str) -> String {
                 }
             }
             Shape::Union(union) => {
-                out.push_str(&doc(union.docs.as_deref(), &union.notes, "    "));
+                out.push_str(&doc(service, union.docs.as_deref(), &union.notes, "    "));
                 out.push_str(&format!(
                     "    public indirect enum `{name}`: Swift.Sendable, WireCodable, ModelDescription {{\n"
                 ));
                 for member in &union.members {
-                    out.push_str(&doc(member.docs.as_deref(), &member.notes, "        "));
+                    out.push_str(&doc(
+                        service,
+                        member.docs.as_deref(),
+                        &member.notes,
+                        "        ",
+                    ));
                     out.push_str(&format!(
                         "        case `{}`({}?)\n",
                         method(&member.name),

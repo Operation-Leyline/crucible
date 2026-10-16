@@ -49,7 +49,13 @@ pub fn emit(
             })
             .collect::<Vec<_>>()
             .join(", ");
-        let mut description = op.notes.prose(op.docs.as_deref()).unwrap_or_default();
+        // An agent reads the tool description as text: doc links (decision
+        // 80) are their names.
+        let mut description = op
+            .notes
+            .prose(op.docs.as_deref())
+            .map(|docs| crate::doc_links::render(service, &docs, str::to_owned, |_| None))
+            .unwrap_or_default();
         // What the caller must hold, so an agent knows before it calls
         // (docs/permissions.md §6.3); the External projection names no
         // internal permission.

@@ -47,7 +47,7 @@ module Vault
   #
   # Stores secrets.
   #
-  # See [the guide](https://example.com/guide) and \[Secret] for `*/` details. @since 1
+  # See [the guide](https://example.com/guide) and {Secret} for `*/` details. @since 1
   #
   # Create one `VaultClient` and share it: it is safe to call from many threads at once, and it keeps its HTTP connection open between calls. Call {#close} when finished. Every operation blocks until it completes and reports failure as a `VaultException` for a service response, a {Runtime::NetworkError} when no response arrives, a {Runtime::DeadlineError} when the call outlasts {Runtime::ClientConfig#timeout}, or a {Runtime::CancelledError}.
   class VaultClient

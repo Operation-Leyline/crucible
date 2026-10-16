@@ -124,6 +124,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
         let resource = client.resource;
         out.push('\n');
         out.push_str(&doc(
+            service,
             Some(&format!(
                 "The permissions `{shape}` accepts (`{}`), by the values grants store.",
                 resource.name
@@ -146,6 +147,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
                 ));
             }
             out.push_str(&doc(
+                service,
                 Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
                 &notes(permission),
                 "        ",

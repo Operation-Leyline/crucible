@@ -122,6 +122,74 @@ fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
         _ => format!("global::{ns}.Models.@{}", service.name_of(id)),
     }
 }
+/// What a doc comment's `[Name]` links (decision 80) become: `<see
+/// cref="..."/>` with a fully qualified reference, as `<exception cref>`
+/// spells one, so it resolves from any file.
+pub(crate) struct Links<'a> {
+    pub(crate) service: &'a Service,
+    pub(crate) ns: &'a str,
+}
+
+/// Separates the XML documentation blocks of one rendered text, which is
+/// split again after its doc links are restored: a noncharacter model text
+/// never keeps.
+const BLOCK: char = '\u{fdd5}';
+
+impl Links<'_> {
+    /// The type a shape is generated as, if it is one of the service's.
+    fn model(&self, id: &ShapeId, shape: &Shape) -> Option<String> {
+        let generated = match shape {
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_) => true,
+            Shape::List(_) | Shape::Map(_) => {
+                collection_cycle(self.service, id, &mut BTreeSet::new())
+            }
+            Shape::Simple(_) | Shape::Unit { .. } => false,
+        };
+        generated.then(|| ty(self.service, id, self.ns))
+    }
+
+    /// The `<see>` to a doc link's target, or `None` for one C# has no
+    /// declaration for (a resource, a scalar, a plain collection).
+    fn link(&self, target: crucible_ir::doc_links::DocTarget<'_>) -> Option<String> {
+        use crucible_ir::doc_links::DocTarget;
+        let ns = self.ns;
+        let client = format!("global::{ns}.{}Client", pascal(self.service.id.name()));
+        let cref = match target {
+            DocTarget::Service => client,
+            // The asynchronous form: every operation has exactly one.
+            DocTarget::Operation(op) => format!("{client}.{}Async", pascal(op.name())),
+            DocTarget::Resource(_) => return None,
+            DocTarget::Shape(id, shape) => self.model(id, shape)?,
+            DocTarget::Member {
+                shape,
+                owner,
+                member,
+            } => format!("{}.{}", self.model(shape, owner)?, field(&member.name)),
+            DocTarget::EnumValue {
+                shape,
+                owner,
+                value,
+            } => format!("{}.{}", self.model(shape, owner)?, pascal(value)),
+        };
+        Some(format!("<see cref=\"{}\"/>", cref.replace('@', "")))
+    }
+
+    /// Model Markdown as XML documentation blocks, its doc links as `<see>`.
+    fn blocks(&self, markdown: &str) -> Vec<String> {
+        let markdown: String = markdown.chars().filter(|c| *c != BLOCK).collect();
+        crucible_codegen_common::doc_links::render(
+            self.service,
+            &markdown,
+            |text| docs::xmldoc(text).join(&BLOCK.to_string()),
+            |target| self.link(target),
+        )
+        .split(BLOCK)
+        .filter(|block| !block.is_empty())
+        .map(str::to_owned)
+        .collect()
+    }
+}
+
 /// C# XML documentation. The first paragraph becomes `<summary>`, the rest
 /// `<remarks>`; the model's own text is converted by `docs`, Crucible's notes
 /// are escaped plain prose, and `tags` are complete elements.
@@ -139,13 +207,26 @@ fn xmldoc_for(
     tags: &[String],
     meta: &DocNotes,
 ) -> String {
-    xmldoc_with(indent, model, &[], notes, tags, meta)
+    xmldoc_with(None, indent, model, &[], notes, tags, meta)
+}
+
+/// [`xmldoc_for`] for model documentation, whose doc links become `<see>`.
+fn xmldoc_linked(
+    links: &Links<'_>,
+    indent: &str,
+    model: Option<&str>,
+    notes: &[String],
+    tags: &[String],
+    meta: &DocNotes,
+) -> String {
+    xmldoc_with(Some(links), indent, model, &[], notes, tags, meta)
 }
 
 /// [`xmldoc_for`] with `rendered`: XML documentation blocks already rendered
 /// from Markdown, after `notes` and before the model's own notes
 /// ("Unstable.", "Deprecated.").
 fn xmldoc_with(
+    links: Option<&Links<'_>>,
     indent: &str,
     model: Option<&str>,
     rendered: &[String],
@@ -158,7 +239,10 @@ fn xmldoc_with(
         meta_notes.push(deprecated.sentence());
     }
     let para = |note: &String| format!("<para>{}</para>", docs::xmldoc_text(note));
-    let mut blocks = model.map(docs::xmldoc).unwrap_or_default();
+    let mut blocks = match (model, links) {
+        (Some(model), Some(links)) => links.blocks(model),
+        (model, _) => model.map(docs::xmldoc).unwrap_or_default(),
+    };
     blocks.extend(notes.iter().map(para));
     blocks.extend(rendered.iter().cloned());
     blocks.extend(meta_notes.iter().map(para));
@@ -215,14 +299,14 @@ fn code(text: &str) -> String {
 
 #[allow(clippy::too_many_arguments)]
 fn operation_xmldoc(
-    service: &Service,
+    links: &Links<'_>,
     op: &Operation,
-    ns: &str,
     variant: &str,
     params: &[(&str, &str)],
     result: &str,
     throws: bool,
 ) -> String {
+    let (service, ns) = (links.service, links.ns);
     let mut notes = vec![];
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
@@ -276,6 +360,7 @@ fn operation_xmldoc(
         ));
     }
     xmldoc_with(
+        Some(links),
         "    ",
         op.docs.as_deref(),
         &requirements,
@@ -442,6 +527,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         return Err(diagnostics);
     }
     let ns = &options.namespace;
+    let links = Links { service, ns };
     let header = format!(
         "// Generated by Crucible. DO NOT EDIT.\n#nullable enable\n#pragma warning disable CS0618\nnamespace {ns};\n\n"
     );
@@ -466,10 +552,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         );
         match shape {
             Shape::IntEnum(e) => {
-                model.push_str(&xmldoc_for("", e.docs.as_deref(), &["An open integer enum: a value this client does not know is kept as is, so compare with the constants or Value.".to_string()], &[param("Value", "The wire value.")], &e.notes));
+                model.push_str(&xmldoc_linked(&links, "", e.docs.as_deref(), &["An open integer enum: a value this client does not know is kept as is, so compare with the constants or Value.".to_string()], &[param("Value", "The wire value.")], &e.notes));
                 model.push_str(&format!("public sealed record @{name}(int Value) {{\n    /// <inheritdoc/>\n    public override string ToString() => Value.ToString(global::System.Globalization.CultureInfo.InvariantCulture);\n"));
                 for v in &e.values {
-                    model.push_str(&xmldoc_for(
+                    model.push_str(&xmldoc_linked(
+                        &links,
                         "    ",
                         v.docs.as_deref(),
                         &[format!("The {} value.", v.value)],
@@ -488,7 +575,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 if !collection_cycle(service, id, &mut BTreeSet::new()) {
                     continue;
                 }
-                model.push_str(&xmldoc_for(
+                model.push_str(&xmldoc_linked(
+                    &links,
                     "",
                     list.docs.as_deref(),
                     &["A recursive list; a nominal type breaks the cycle.".to_string()],
@@ -501,7 +589,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 if !collection_cycle(service, id, &mut BTreeSet::new()) {
                     continue;
                 }
-                model.push_str(&xmldoc_for(
+                model.push_str(&xmldoc_linked(
+                    &links,
                     "",
                     map.docs.as_deref(),
                     &["A recursive map; a nominal type breaks the cycle.".to_string()],
@@ -511,10 +600,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 model.push_str(&format!("public sealed class @{name} : global::System.Collections.Generic.Dictionary<{}, {}> {{}}\n", ty(service, &map.key.target, ns), ty(service, &map.value.target, ns)));
             }
             Shape::Enum(e) => {
-                model.push_str(&xmldoc_for("", e.docs.as_deref(), &["An open enum: a value this client does not know is kept as is, so compare with the constants or Value.".to_string()], &[param("Value", "The wire value.")], &e.notes));
+                model.push_str(&xmldoc_linked(&links, "", e.docs.as_deref(), &["An open enum: a value this client does not know is kept as is, so compare with the constants or Value.".to_string()], &[param("Value", "The wire value.")], &e.notes));
                 model.push_str(&format!("public sealed record @{name}(string Value) {{\n    /// <inheritdoc/>\n    public override string ToString() => Value;\n"));
                 for v in &e.values {
-                    model.push_str(&xmldoc_for(
+                    model.push_str(&xmldoc_linked(
+                        &links,
                         "    ",
                         v.docs.as_deref(),
                         &[format!("The {} value.", v.value)],
@@ -549,7 +639,14 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         id
                     )
                 };
-                model.push_str(&xmldoc_for("", s.docs.as_deref(), &[note], &[], &s.notes));
+                model.push_str(&xmldoc_linked(
+                    &links,
+                    "",
+                    s.docs.as_deref(),
+                    &[note],
+                    &[],
+                    &s.notes,
+                ));
                 let mut pairs = String::new();
                 model.push_str(&format!(
                     "public sealed class @{name}{} {{\n",
@@ -574,7 +671,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                             .as_deref()
                             .map(str::to_string)
                             .unwrap_or_else(|| format!("The `{}` member.", m.name));
-                        let member_doc = xmldoc_for(
+                        let member_doc = xmldoc_linked(
+                            &links,
                             "    ",
                             Some(&member_summary),
                             &[format!(
@@ -607,7 +705,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                             .as_deref()
                             .map(str::to_string)
                             .unwrap_or_else(|| format!("The `{}` member.", m.name));
-                        model.push_str(&xmldoc_for(
+                        model.push_str(&xmldoc_linked(
+                            &links,
                             "    ",
                             Some(&member_summary),
                             &[if m.client_default().is_some() {
@@ -667,10 +766,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .unwrap_or_else(|| format!("Client for the `{}` service.", service.id.name()));
     let mut client = format!(
         "{header}{}public sealed class {client_name} : global::System.IDisposable {{\n    private readonly ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{ runtime = new(config, {}); }}\n{}    public void Dispose() => runtime.Dispose();\n",
-        xmldoc("", Some(&service_summary), &[
+        xmldoc_linked(&links, "", Some(&service_summary), &[
             format!("Create one with new {client_name}(config), share it freely and dispose it when finished: the client is thread-safe, and Dispose releases only the HttpClient it created itself, never one supplied in the configuration."),
             "Every operation has an asynchronous form returning a Task and a blocking form that runs it on the thread pool. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived.".to_string(),
-        ], &[]),
+        ], &[], &DocNotes::default()),
         xmldoc("    ", None, &["Creates a client from the configuration, which is read once.".to_string()], &[param("config", "Endpoint, credentials, retry and timeout settings."), exception_tag("global::System.ArgumentException", "The endpoint or a retry setting is invalid.")]),
         literal(options.endpoint.as_deref().unwrap_or("")),
         xmldoc("    ", None, &["Releases the HttpClient this client created; a supplied one stays caller-owned.".to_string()], &[])
@@ -695,18 +794,16 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         let mut call_params: Vec<(&str, &str)> = in_doc.to_vec();
         call_params.push(("cancellationToken", "Cancels the call."));
         let call_async_doc = operation_xmldoc(
-            service,
+            &links,
             op,
-            ns,
             "Asynchronous form.",
             &call_params,
             "The decoded response.",
             true,
         );
         let call_sync_doc = operation_xmldoc(
-            service,
+            &links,
             op,
-            ns,
             "Blocking form, run on the thread pool.",
             &call_params,
             "The decoded response.",
@@ -714,7 +811,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         );
         client.push_str(&format!("{call_async_doc}    public global::System.Threading.Tasks.Task<{output}> @{async_name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<{output}>({}, {arg}, cancellationToken);\n{call_sync_doc}    public {output} @{name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @{async_name}({}cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),if input.is_some(){"input, "}else{""}));
         if let Some(pages_name) = pages_method_name(op) {
-            client.push_str(&operation_xmldoc(service, op, ns, "Lazily fetches each page, following the continuation token until the service stops returning one; enumerating drives the requests.", &call_params, "An asynchronous sequence of pages.", true));
+            client.push_str(&operation_xmldoc(&links, op, "Lazily fetches each page, following the continuation token until the service stops returning one; enumerating drives the requests.", &call_params, "An asynchronous sequence of pages.", true));
             client.push_str(&format!("    public global::System.Collections.Generic.IAsyncEnumerable<{output}> @{pages_name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.PagesAsync<{output}>({}, {arg}, cancellationToken);\n",literal(op.name())));
         }
     }

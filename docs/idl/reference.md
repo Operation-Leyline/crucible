@@ -24,6 +24,17 @@ its rules apply to them (see Policy rules).
 - **Comments.** `//` runs to the end of the line and is ignored. `///` is
   documentation: consecutive `///` lines are Markdown attached to the next
   declaration, member, enum value, rule, step or example.
+- **Doc links.** In documentation, `[Name]` links to a declaration of the
+  package or its imports, and `[Name.member]` to a member of a structure,
+  union or error, a value of an enum, or a member of an operation's input
+  (else its output): `[CreateApiKey]`, `[City.name]`, `[Color.RED]`,
+  `[GetCity.cityId]`. The collapsed `[Name][]` and the full
+  `[the city call][GetCity]` link the same way. A label is a capitalised
+  identifier with an optional `.member`; other bracketed text (`[1]`,
+  `[optional]`) is prose, brackets in code are code, and a `[Name]: url`
+  definition in the same comment makes `[Name]` an ordinary link. A doc
+  link that names nothing is an error at its label (decision 80). A
+  prelude type (`[String]`) is accepted and renders as its name.
 - **Identifiers.** A letter or `_`, then letters, digits, `_`, or `-`
   between two letters or digits (`date-time`). The name of a declaration,
   member or URI label cannot contain `-`. Keywords are contextual:
@@ -305,9 +316,9 @@ resource with `reads`, `lists` or `creates` operations whose outputs show
 none of its properties, a structure without `for` that restates a
 resource's identifier and a property (decision 34h), an operation attached
 to a resource the service does not reach, a member constraint that loosens its type's (it replaces
-it, so `length ..40` on a `1..100` type drops the minimum), a `[Name]`
-doc link that names nothing (decision 41), and a `///` comment that
-documents nothing.
+it, so `length ..40` on a `1..100` type drops the minimum), and a `///`
+comment that documents nothing. A `[Name]` doc link that names nothing is
+an error, not a warning (decision 80).
 
 ## Permissions
 

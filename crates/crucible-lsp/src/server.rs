@@ -1279,8 +1279,14 @@ impl Server {
         let (document, parsed, unit) = self.model(uri)?;
         let unit = unit?;
         let lines = Lines::new(&document.text);
+        let offset = lines.offset(position);
+        // A doc link's name (`[Name]`, the `Name` of `[Name.member]`) refers
+        // to the declaration as a reference does (decision 80).
         let (start, end, name) =
-            analysis::ident_at(&parsed, &document.text, lines.offset(position))?;
+            analysis::ident_at(&parsed, &document.text, offset).or_else(|| {
+                let link = analysis::doc_link_at(&parsed, &document.text, offset)?;
+                (offset as u32 <= link.name_end()).then(|| (link.start, link.name_end(), link.name))
+            })?;
         let declaration = unit.index.declarations.get(&name)?;
         // Only a name used as a reference or declaration counts: `id` the
         // keyword does not refer to a type that happens to be called `id`.
@@ -1291,9 +1297,40 @@ impl Server {
     }
 
     fn definition(&self, uri: &Url, position: Position) -> Option<GotoDefinitionResponse> {
+        if let Some(location) = self.doc_link_member(uri, position) {
+            return Some(GotoDefinitionResponse::Scalar(location));
+        }
         let (unit, _, declaration, _) = self.declaration_at(uri, position)?;
         self.location_of(unit, declaration, uri)
             .map(GotoDefinitionResponse::Scalar)
+    }
+
+    /// From the member of a `[Name.member]` doc link, the member or enum
+    /// value it names; the declaration when the member is not written in a
+    /// file the editor can open, or not found (the compiler reports that).
+    fn doc_link_member(&self, uri: &Url, position: Position) -> Option<Location> {
+        let (document, parsed, unit) = self.model(uri)?;
+        let unit = unit?;
+        let offset = Lines::new(&document.text).offset(position) as u32;
+        let link = analysis::doc_link_at(&parsed, &document.text, offset as usize)?;
+        let (member, start, _) = link.member.as_ref()?;
+        if offset < *start {
+            return None;
+        }
+        let declaration = unit.index.declarations.get(&link.name)?;
+        let found = analysis::member_location(&unit.compiled.parsed, &link.name, member)
+            .filter(|(file, _, _)| *file < unit.own);
+        match found {
+            Some((file, start, end)) => {
+                let target = self.uri_of(unit, file, uri)?;
+                let lines = Lines::new(&unit.compiled.files[file].text);
+                Some(Location {
+                    uri: target,
+                    range: lines.range(start, end),
+                })
+            }
+            None => self.location_of(unit, declaration, uri),
+        }
     }
 
     /// Where a declaration's name is, if it is in a file the editor can open.

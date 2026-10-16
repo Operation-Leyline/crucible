@@ -309,3 +309,54 @@ fn hyphenated_permission_symbols_spell_words() {
         "no file spells `mail-send` as {expected}"
     );
 }
+
+#[test]
+fn doc_links_are_see_cref_elements() {
+    let service = crucible_lang::load_service(&model_dir("doc-links")).unwrap();
+    let service = crucible_ir::project(&service, crucible_ir::Audience::External).unwrap();
+    let options = Options {
+        namespace: "Example.Links".into(),
+        package_id: "Example.Links".into(),
+        package_version: "0.0.0".into(),
+        endpoint: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let all: String = files.iter().map(|f| f.contents.as_str()).collect();
+    let client = &files
+        .iter()
+        .find(|f| f.path == "LinksClient.cs")
+        .unwrap()
+        .contents;
+    // Fully qualified, as `<exception cref>` spells them.
+    assert!(all.contains("A widget; <see cref=\"global::Example.Links.LinksClient.CreateWidgetAsync\"/> makes one."), "{all}");
+    assert!(
+        all.contains(
+            "The name <see cref=\"global::Example.Links.Models.CreateWidgetInput.Name\"/> chose."
+        ),
+        "{all}"
+    );
+    assert!(all.contains("One of <see cref=\"global::Example.Links.Models.Color\"/>; <see cref=\"global::Example.Links.Models.Color.BLUE\"/> by default."), "{all}");
+    assert!(client.contains("Reads the <see cref=\"global::Example.Links.Models.Widget\"/> that <see cref=\"global::Example.Links.LinksClient.CreateWidgetAsync\"/> made, by <see cref=\"global::Example.Links.Models.GetWidgetInput.WidgetId\"/>,"), "{client}");
+    assert!(
+        client.contains("Fails with <see cref=\"global::Example.Links.Models.WidgetError\"/>."),
+        "{client}"
+    );
+    // The service is the client; a resource, a prelude type, `[text][Name]`
+    // and internal API are plain text, and code stays code.
+    assert!(
+        client.contains("read it back with the read call;"),
+        "{client}"
+    );
+    assert!(
+        client.contains(
+            "Gadget is a resource, <see cref=\"global::Example.Links.LinksClient\"/> is this"
+        ),
+        "{client}"
+    );
+    assert!(
+        client.contains("String a prelude type. Internal: Reveal and Secret."),
+        "{client}"
+    );
+    assert!(client.contains("<c>[NotALink]</c> in code"), "{client}");
+    assert!(!all.contains("Models.Secret\"") && !all.contains("RevealAsync\""));
+}

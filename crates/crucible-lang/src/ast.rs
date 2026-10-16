@@ -467,6 +467,9 @@ pub struct ErrorDecl {
     pub entries: Vec<ErrorEntry>,
 }
 
+// Members are the usual entry, so boxing them would allocate for nearly
+// every entry to save space on the rare `status` and `retryable`.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum ErrorEntry {
     Status(NumLit),

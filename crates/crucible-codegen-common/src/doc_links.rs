@@ -13,9 +13,12 @@ use crucible_ir::doc_links::{DocLink, DocTarget, links};
 use crucible_ir::ir::Service;
 
 /// Opens and closes a placeholder: Unicode noncharacters, which no doc
-/// dialect gives a meaning and [`crate::docs::comment_text`] keeps.
-const OPEN: char = '\u{fdd0}';
-const CLOSE: char = '\u{fdd1}';
+/// dialect gives a meaning and [`crate::docs::comment_text`] keeps. Not
+/// U+FDD0, which [`crate::documentation`] reserves for the doc link
+/// destinations it parses with and removes from model text: an escaper
+/// built on it, such as [`crate::documentation::text`], keeps these.
+const OPEN: char = '\u{fdd2}';
+const CLOSE: char = '\u{fdd3}';
 
 /// `markdown` with every doc link the service has a target for rendered by
 /// `link`, and every other one as plain text: its label, or for
@@ -131,10 +134,22 @@ mod tests {
         let service = service();
         let out = render(
             &service,
-            "\u{fdd0}0\u{fdd1} and [GetWidget]",
+            "\u{fdd2}0\u{fdd3} and [GetWidget]",
             str::to_owned,
             |_| Some("LINK".into()),
         );
         assert_eq!(out, "0 and LINK");
+    }
+
+    #[test]
+    fn the_shared_text_renderer_keeps_placeholders() {
+        let service = service();
+        let out = render(
+            &service,
+            "**See** [GetWidget].",
+            crate::documentation::text,
+            |_| Some("get_widget".into()),
+        );
+        assert_eq!(out, "See get_widget.");
     }
 }

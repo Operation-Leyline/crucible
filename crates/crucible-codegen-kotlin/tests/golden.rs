@@ -414,3 +414,56 @@ fn hyphenated_permission_symbols_spell_words() {
         "no file spells `mail-send` as {expected}"
     );
 }
+
+#[test]
+fn doc_links_are_kdoc_links() {
+    let service =
+        crucible_ir::project(&load("doc-links"), crucible_ir::Audience::External).unwrap();
+    let options = Options {
+        group_id: "example".into(),
+        artifact_id: "links-client".into(),
+        package_name: "example.links".into(),
+        package_version: "0.0.0".into(),
+        endpoint: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let all: String = files.iter().map(|f| f.contents.as_str()).collect();
+    let client = &files
+        .iter()
+        .find(|f| f.path.ends_with("/LinksClient.kt"))
+        .unwrap()
+        .contents;
+    // Fully qualified references, labelled with the generated names.
+    assert!(
+        all.contains("A widget; [createWidget][example.links.LinksClient.createWidget] makes one."),
+        "{all}"
+    );
+    assert!(
+        all.contains(
+            "The name [CreateWidgetInput.name][example.links.model.CreateWidgetInput.name] chose."
+        ),
+        "{all}"
+    );
+    assert!(all.contains("One of [Color][example.links.model.Color]; [Color.BLUE][example.links.model.Color.BLUE] by default."), "{all}");
+    assert!(client.contains("Reads the [Widget][example.links.model.Widget] that [createWidget][example.links.LinksClient.createWidget] made, by [GetWidgetInput.widgetId][example.links.model.GetWidgetInput.widgetId],"), "{client}");
+    assert!(
+        client.contains("Fails with [WidgetError][example.links.model.WidgetError]."),
+        "{client}"
+    );
+    // The service is the client; a resource, a prelude type, `[text][Name]`
+    // and internal API are plain text, and code stays code.
+    assert!(
+        client.contains("read it back with the read call;"),
+        "{client}"
+    );
+    assert!(
+        client.contains("Gadget is a resource, [LinksClient][example.links.LinksClient] is this"),
+        "{client}"
+    );
+    assert!(
+        client.contains("String a prelude type. Internal: Reveal and Secret."),
+        "{client}"
+    );
+    assert!(client.contains("`[NotALink]` in code"), "{client}");
+    assert!(!all.contains(".Secret]") && !all.contains(".Reveal]") && !all.contains(".reveal]"));
+}

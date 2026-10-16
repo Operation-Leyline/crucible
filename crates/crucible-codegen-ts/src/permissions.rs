@@ -14,7 +14,7 @@ use crucible_ir::Diagnostics;
 use crucible_ir::ir::Service;
 
 use crate::HEADER;
-use crate::names::{doc, documented, literal};
+use crate::names::{doc, documented_linked, literal};
 
 /// `mailSend`, `READ` and `api-key` are `MAIL_SEND`, `READ` and `API_KEY`:
 /// the upper-snake rule Java and Kotlin share.
@@ -130,7 +130,12 @@ pub(crate) fn check_names(service: &Service, diagnostics: &mut Diagnostics) {
     }
 }
 
-pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
+pub(crate) fn emit(
+    service: &Service,
+    links: &crate::names::Links<'_>,
+    diagnostics: &mut Diagnostics,
+) -> String {
+    let links = &links.naming("");
     let mut out = String::from(HEADER);
     let mut registry = Vec::new();
     let mut aliases = Vec::new();
@@ -170,8 +175,9 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 let primary = &primary(resource, permission).value;
                 docs.push_str(&format!("An alias of {}.", code_span(primary)));
             }
-            documented(
+            documented_linked(
                 &mut out,
+                links,
                 "  ",
                 Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
                 &notes(permission),

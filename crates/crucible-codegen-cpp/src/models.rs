@@ -178,7 +178,11 @@ impl<'a> Layout<'a> {
             let qualified = format!("::{ns}::models::{name}");
             let shape = self.service.shape(&id).expect("shape");
             header.push_str(&crucible_codegen_common::doxygen_for(
-                crucible_codegen_common::documentation::shape(shape),
+                crate::links::render(
+                    self.service,
+                    crucible_codegen_common::documentation::shape(shape),
+                )
+                .as_deref(),
                 shape.notes().unwrap_or(&Default::default()),
                 "",
             ));
@@ -201,7 +205,7 @@ impl<'a> Layout<'a> {
                             native
                         };
                         header.push_str(&crucible_codegen_common::doxygen_for(
-                            member.docs.as_deref(),
+                            crate::links::render(self.service, member.docs.as_deref()).as_deref(),
                             &member.notes,
                             "    ",
                         ));
@@ -300,7 +304,7 @@ impl<'a> Layout<'a> {
                     header.push_str(&format!("\nstruct {name} {{\n    std::int32_t value;\n    explicit {name}(std::int32_t value = 0) : value(value) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
                     for item in &enumeration.values {
                         header.push_str(&crucible_codegen_common::doxygen_for(
-                            item.docs.as_deref(),
+                            crate::links::render(self.service, item.docs.as_deref()).as_deref(),
                             &item.notes,
                             "    ",
                         ));
@@ -317,7 +321,7 @@ impl<'a> Layout<'a> {
                     header.push_str(&format!("\nstruct {name} {{\n    std::string value;\n    explicit {name}(std::string value = {{}}) : value(std::move(value)) {{}}\n    auto operator<=>(const {name}&) const = default;\n"));
                     for item in &enumeration.values {
                         header.push_str(&crucible_codegen_common::doxygen_for(
-                            item.docs.as_deref(),
+                            crate::links::render(self.service, item.docs.as_deref()).as_deref(),
                             &item.notes,
                             "    ",
                         ));
@@ -335,7 +339,7 @@ impl<'a> Layout<'a> {
                     for m in &union.members {
                         let variant = variant(name, &m.name);
                         header.push_str(&crucible_codegen_common::doxygen_for(
-                            m.docs.as_deref(),
+                            crate::links::render(self.service, m.docs.as_deref()).as_deref(),
                             &m.notes,
                             "",
                         ));

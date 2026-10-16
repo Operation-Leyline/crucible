@@ -561,7 +561,7 @@ namespace VaultSdk;
  *
  * Stores secrets.
  *
- * See [the guide](https://example.com/guide) and \[Secret] for `*\/` details. @since 1
+ * See [the guide](https://example.com/guide) and {@see \VaultSdk\Secret} for `*\/` details. @since 1
  *
  * Create one `VaultClient` per configuration and reuse it: it keeps its HTTP connections open between calls. A client is not safe to share across threads or fibers that run calls at the same time; give each its own. Call `close()` when finished. Every operation blocks until it completes and reports failure as a ServiceException for a service response, a NetworkException when no response arrives, a TimeoutException when the call outlasts `ClientConfig::$timeout`, or a CancelledException.
  */

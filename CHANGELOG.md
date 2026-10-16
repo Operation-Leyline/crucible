@@ -32,6 +32,25 @@ version's section when it is prepared.
   (`examples.operations`) and errors an operation declares that none of
   its examples shows (`examples.errors`). Its checks are warnings unless
   configured otherwise ([docs/api-policy.md](docs/api-policy.md#example-coverage)).
+- Doc links: `[Name]`, `[Name.member]`, `[Name][]` and `[text][Name]` in a
+  `.cru` doc comment resolve to the operation, type, member, enum value,
+  resource or service they name, recorded in the new
+  `ir::Service::doc_links` (label to id; omitted from a snapshot when empty,
+  so older snapshots read unchanged), with `crucible_ir::doc_links` to find
+  them and `Service::doc_link` to look one up. `[Op.member]` names the
+  operation's input member, else its output's. `describe.json`
+  (`crucible.describe/1`, additive) renders each in `html` as
+  `<a data-crucible-ref="<id>">Name</a>`, an anchor with no address for the
+  reader to map, and as its text in `text`; `markdown` is unchanged. The
+  static reference and the Explorer link the anchor to the target's page,
+  the mdBook pages to the target's page, and
+  native SDK doc comments use their language's link to the generated
+  symbol, in place of the escaped `\[Name]` or literal `[Name]` they printed.
+  OpenAPI, JSON Schema and MCP tool descriptions show a doc link as its text.
+  External output renders a link to internal API as plain text, with no id.
+  The language server goes to the definition of, finds references through,
+  and renames doc link labels. See decision 80 in
+  [docs/idl/decisions.md](docs/idl/decisions.md).
 
 - `.cru`: the compiler lowers resources. `ir::Service::resources` holds every
   resource the service reaches, with its identifiers (its ancestors' and its
@@ -535,6 +554,12 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- `.cru`: a `[Name]` doc link that names nothing is a compile error, reported
+  at its label (decision 80); it was a warning (decision 41). So is
+  `[Name.member]` naming a member, value or operation input or output member
+  that does not exist. Fix the name, or write the text without brackets or in
+  a code span.
 
 - `.cru`: a resource identifier or property whose type is `internal` is a
   compile error: a resource is part of the external contract, which would

@@ -262,9 +262,19 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         diagnostics.push(&service.id, format!("npm package metadata: {problem}"));
     }
     permissions::check_names(service, &mut diagnostics);
-    let errors = errors::emit(service, &mut diagnostics);
+    let methods = client::method_names(service)
+        .into_iter()
+        .map(|(id, (method, _))| (id, method))
+        .collect();
+    let links = names::Links {
+        service,
+        client: &client,
+        methods: &methods,
+        models: "",
+    };
+    let errors = errors::emit(service, &links, &mut diagnostics);
     let permissions =
-        permissions::present(service).then(|| permissions::emit(service, &mut diagnostics));
+        permissions::present(service).then(|| permissions::emit(service, &links, &mut diagnostics));
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
@@ -278,10 +288,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             crucible_codegen_common::service_exception_runtime(service, RUNTIME)
                 .replace("\r\n", "\n"),
         ),
-        file("src/models.ts", models::emit(service)),
+        file("src/models.ts", models::emit(service, &links)),
         file("src/errors.ts", errors),
         file("src/schemas.ts", schemas::emit(service)),
-        file("src/client.ts", client::emit(service, options, &client)),
+        file("src/client.ts", client::emit(service, options, &links)),
         file(
             "src/index.ts",
             index(&client, &permissions::index_exports(service)),

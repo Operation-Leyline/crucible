@@ -5,7 +5,7 @@ use crate::{
 use crucible_codegen_common::docs;
 use crucible_ir::ir::{Operation, Service};
 
-fn client_docs(service: &Service, client_name: &str) -> String {
+fn client_docs(service: &Service, namespace: &str, client_name: &str) -> String {
     let mut text = format!(
         "Client for the {} service.\n\n",
         service
@@ -14,7 +14,11 @@ fn client_docs(service: &Service, client_name: &str) -> String {
             .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
-        text.push_str(&docs::escape_block(service_docs));
+        text.push_str(&crate::links::escape_block(
+            service,
+            namespace,
+            service_docs,
+        ));
         text.push_str("\n\n");
     }
     text.push_str(&format!(
@@ -34,7 +38,7 @@ fn operation_docs(
     let token = op.idempotency_token.as_deref().map(names::field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
-        text.push_str(&docs::escape_block(summary));
+        text.push_str(&crate::links::escape_block(service, namespace, summary));
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
@@ -82,7 +86,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
     let endpoint = literal(options.endpoint.as_deref().unwrap_or(""));
     let mut out = format!(
         "<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\n{}final class {client_name}\n{{\n    private readonly Runtime\\ClientRuntime $runtime;\n{}    public function __construct(Runtime\\ClientConfig $config = new Runtime\\ClientConfig())\n    {{\n        $this->runtime = new Runtime\\ClientRuntime($config, Schema::codec(), Decoder::error(...), {endpoint});\n    }}\n    /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */\n    public function close(): void {{ $this->runtime->close(); }}\n",
-        client_docs(service, &client_name),
+        client_docs(service, namespace, &client_name),
         docs::block_comment("    ", "Creates a client. Without a `$config`, the generated endpoint is used and no credentials are sent; see ClientConfig for credentials, retries, timeouts and the transport.", &["@throws \\InvalidArgumentException when the endpoint or another setting is invalid".to_string()]),
     );
     for op in &service.operations {

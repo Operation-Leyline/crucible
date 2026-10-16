@@ -3,6 +3,7 @@
 //! Exact value codecs are shared by the native and JavaScript Dart backends.
 
 mod client;
+mod links;
 mod models;
 mod permissions;
 mod surface;

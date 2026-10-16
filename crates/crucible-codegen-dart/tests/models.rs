@@ -382,8 +382,8 @@ fn model_documentation_reaches_models_and_client() {
     ] {
         assert!(client.contains(text), "{text}");
     }
-    // A bare `[Secret]` would be an unresolvable dartdoc reference.
-    assert!(client.contains(r"\[Secret]"));
+    // A doc link is a dartdoc reference, through the models prefix.
+    assert!(client.contains("and [models.Secret] for"));
     golden("models.dart", models);
     golden("client.dart", client);
 }
@@ -405,4 +405,48 @@ fn sensitive_members_are_redacted_in_string_representations() {
             "{member}"
         );
     }
+}
+
+#[test]
+fn doc_links_are_dartdoc_references() {
+    let service = crucible_ir::project(
+        &crucible_lang::load_service(&model_dir("doc-links")).unwrap(),
+        crucible_ir::Audience::External,
+    )
+    .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let file = |path: &str| {
+        files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let (models, client) = (file("lib/src/models.dart"), file("lib/src/client.dart"));
+    for text in [
+        // Operation, type, member, enum value, the service, through the
+        // client library's `models` prefix.
+        "/// Widgets, linked. Make one with [LinksClient.createWidget] and read it back with",
+        "/// the read call; a [models.Widget] has a [models.Widget.name] and a",
+        "/// [models.Color], such as [models.Color.red]. Gadget is a resource, [LinksClient] is this",
+        // A prelude type and internal API are plain text, without brackets.
+        "/// service and String a prelude type. Internal: Reveal and Secret.",
+        "/// `[NotALink]` in code, and [an ordinary link](https://example.com).",
+        "[models.GetWidgetInput.widgetId]",
+        "[models.GetWidgetOutput.widget]",
+        "Fails with [models.WidgetError].",
+    ] {
+        assert!(client.contains(text), "{text}");
+    }
+    for text in [
+        // The models library does not import the client: plain text.
+        "/// A widget; CreateWidget makes one.",
+        "/// One of [Color]; [Color.blue] by default.",
+        "/// The name [CreateWidgetInput.name] chose.",
+    ] {
+        assert!(models.contains(text), "{text}");
+    }
+    let all = format!("{models}{client}");
+    assert!(!all.contains("Secret]") && !all.contains("reveal"));
 }

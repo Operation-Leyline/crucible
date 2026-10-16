@@ -116,6 +116,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
         let resource = client.resource;
         go_doc(
             &mut out,
+            (service, crate::links::Package::Permissions),
             "",
             name,
             Some(&format!(
@@ -142,6 +143,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
             let mut comment = String::new();
             go_doc_for(
                 &mut comment,
+                (service, crate::links::Package::Permissions),
                 "\t",
                 &constant,
                 Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
@@ -169,6 +171,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
         out.push_str(")\n\n");
         go_doc_for(
             &mut out,
+            (service, crate::links::Package::Permissions),
             "",
             "Canonical",
             Some(
@@ -216,6 +219,7 @@ pub(crate) fn emit(service: &Service) -> Option<String> {
     }
     go_doc(
         &mut out,
+        (service, crate::links::Package::Permissions),
         "",
         "Permissions",
         Some(

@@ -123,6 +123,7 @@ pub(crate) fn emit(service: &Service, module: &str) -> String {
             }
             // Escaped and deprecated as the model's enum values are.
             out.push_str(&yard(
+                service,
                 Some(text.as_str()).filter(|t| !t.trim().is_empty()),
                 &notes(permission),
                 "      ",

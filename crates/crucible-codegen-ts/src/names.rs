@@ -1,6 +1,9 @@
 //! Spelling model things in TypeScript.
 
+use std::collections::BTreeMap;
+
 use crucible_ir::ShapeId;
+use crucible_ir::doc_links::DocTarget;
 use crucible_ir::ir::DocNotes;
 use crucible_ir::ir::{Member, Service, Shape, SimpleKind, Structure};
 
@@ -141,16 +144,111 @@ pub(crate) fn doc(out: &mut String, indent: &str, docs: Option<&str>) {
     documented(out, indent, docs, &DocNotes::default());
 }
 
+/// What a doc comment's `[Name]` links (decision 80) become in one file:
+/// TSDoc `{@link X}` declaration references, spelled as that file names
+/// them.
+pub(crate) struct Links<'a> {
+    pub(crate) service: &'a Service,
+    /// The client class, whose methods operations link to.
+    pub(crate) client: &'a str,
+    /// Each operation's client method.
+    pub(crate) methods: &'a BTreeMap<ShapeId, String>,
+    /// How this file names a model type: `m.` where `models.ts` is a
+    /// namespace import, else nothing.
+    pub(crate) models: &'a str,
+}
+
+impl Links<'_> {
+    /// The same links, for a file that names model types with `models`.
+    pub(crate) fn naming<'b>(&'b self, models: &'b str) -> Links<'b> {
+        Links {
+            service: self.service,
+            client: self.client,
+            methods: self.methods,
+            models,
+        }
+    }
+
+    /// The `{@link}` to a doc link's target, or `None` for one with no
+    /// TypeScript declaration (a resource, a union arm, a quoted property).
+    fn link(&self, target: DocTarget<'_>) -> Option<String> {
+        let reference = match target {
+            DocTarget::Service => self.client.to_owned(),
+            DocTarget::Operation(op) => format!("{}.{}", self.client, self.methods.get(&op.id)?),
+            DocTarget::Resource(_) => return None,
+            DocTarget::Shape(id, shape) => self.type_name(id, shape)?,
+            DocTarget::Member {
+                shape,
+                owner,
+                member,
+            } => match owner {
+                Shape::Structure(_) if property(&member.name) == member.name => {
+                    format!("{}.{}", self.type_name(shape, owner)?, member.name)
+                }
+                _ => return None,
+            },
+            DocTarget::EnumValue {
+                shape,
+                owner,
+                value,
+            } if property(value) == value => {
+                format!("{}.{value}", self.type_name(shape, owner)?)
+            }
+            DocTarget::EnumValue { .. } => return None,
+        };
+        Some(format!("{{@link {reference}}}"))
+    }
+
+    /// A model type as this file names it; an error is a class of
+    /// `errors.ts`, named bare.
+    fn type_name(&self, id: &ShapeId, shape: &Shape) -> Option<String> {
+        let name = self.service.name_of(id);
+        match shape {
+            Shape::Unit { .. } => None,
+            Shape::Structure(s) if s.error.is_some() => Some(name.to_owned()),
+            _ => Some(format!("{}{name}", self.models)),
+        }
+    }
+}
+
 /// A JSDoc block with the model's "Unstable."/"Since X." notes and a
 /// `@deprecated` tag, which editors strike through at the use site.
 pub(crate) fn documented(out: &mut String, indent: &str, docs: Option<&str>, notes: &DocNotes) {
     // Model text is escaped, so a line of it that starts with `@` stays
     // prose rather than becoming a JSDoc tag: the `@deprecated` written here
     // is the only tag.
-    let mut text = docs
+    let text = docs
         .map(str::trim)
         .map(crucible_codegen_common::docs::escape_block)
         .unwrap_or_default();
+    block(out, indent, text, notes);
+}
+
+/// [`documented`] for model documentation, whose `[Name]` links become
+/// `{@link}` references: the only tag-like syntax that is not escaped, and
+/// built from declaration names, never model text.
+pub(crate) fn documented_linked(
+    out: &mut String,
+    links: &Links<'_>,
+    indent: &str,
+    docs: Option<&str>,
+    notes: &DocNotes,
+) {
+    let text = docs
+        .map(str::trim)
+        .map(|docs| {
+            crucible_codegen_common::doc_links::render(
+                links.service,
+                docs,
+                crucible_codegen_common::docs::escape_block,
+                |target| links.link(target),
+            )
+        })
+        .unwrap_or_default();
+    block(out, indent, text, notes);
+}
+
+fn block(out: &mut String, indent: &str, mut text: String, notes: &DocNotes) {
     for line in notes.lines() {
         if !text.is_empty() {
             text.push_str("\n\n");

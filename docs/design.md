@@ -90,6 +90,12 @@ reach, keyed by shape id. Lowering settles, once:
   already emits doc notes (OpenAPI: `externalDocs`, `x-smithy-since`,
   `x-smithy-unstable`, extension names kept for compatibility). Generated code that uses a deprecated item itself opts
   out of the warning.
+- **Doc links**: each `[Name]` or `[Name.member]` in documentation resolves to
+  the id it names in `Service::doc_links`, and one that names nothing is an
+  error; `docs` keep the author's Markdown. Audience projection drops the
+  links whose target it removes, and every renderer finds links with the same
+  `crucible_ir::doc_links::links` and renders them in its own form (decision
+  80 in [idl/decisions.md](idl/decisions.md)).
 - **Sensitivity**: member and target annotations resolve through the IR; generated
   static metadata supports recursive logging redaction.
 - **HTTP bindings**: label, query, header, body or payload for each input

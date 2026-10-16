@@ -232,7 +232,85 @@ pub(super) fn render(d: &Description) -> Vec<File> {
         path: "src/index.md".into(),
         contents: index,
     });
+    for file in &mut files {
+        let depth = file.path.matches('/').count() - 1;
+        file.contents = doc_links(d, &file.contents, &"../".repeat(depth));
+    }
     files
+}
+
+/// The pages' doc links (decision 80): each `<a data-crucible-ref="<id>">`
+/// the description's documentation HTML carries becomes a link to the page
+/// for the id, relative to the page at `prefix`, which mdBook rewrites to
+/// its `.html` like any other: an operation's, a data type's, the overview
+/// (for the service and a resource, which has a section there), and for a
+/// member or enum value its type's page, or the operation's for a member of
+/// its input or output. An id with no page loses the anchor, keeping its
+/// text.
+fn doc_links(d: &Description, contents: &str, prefix: &str) -> String {
+    const OPEN: &str = "<a data-crucible-ref=\"";
+    if !contents.contains(OPEN) {
+        return contents.to_owned();
+    }
+    let mut out = String::with_capacity(contents.len());
+    let mut rest = contents;
+    while let Some(start) = rest.find(OPEN) {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + OPEN.len()..];
+        let Some(quote) = after.find("\">") else {
+            out.push_str(&rest[start..]);
+            return out;
+        };
+        let id = after[..quote]
+            .replace("&quot;", "\"")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&amp;", "&");
+        let body = &after[quote + 2..];
+        // Links do not nest, so the next `</a>` closes this one.
+        let end = body.find("</a>").unwrap_or(body.len());
+        match page(d, &id) {
+            Some(page) => out.push_str(&format!(
+                "<a href=\"{prefix}{}\">{}</a>",
+                escaped(&page),
+                &body[..end]
+            )),
+            None => out.push_str(&body[..end]),
+        }
+        rest = body.get(end + 4..).unwrap_or_default();
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The page, relative to `src/`, a doc link's id names.
+fn page(d: &Description, id: &str) -> Option<String> {
+    if Some(id) == d.service["id"].as_str() {
+        return Some("index.md".into());
+    }
+    if let Some(op) = d.operations.get(id) {
+        return Some(operation_path(op));
+    }
+    if d.resources.contains_key(id) {
+        return Some("index.md".into());
+    }
+    let (shape, member) = match id.split_once('$') {
+        Some((shape, _)) => (shape, true),
+        None => (id, false),
+    };
+    if member {
+        let owner = d
+            .operations
+            .values()
+            .find(|op| op["input"].as_str() == Some(shape) || op["output"].as_str() == Some(shape));
+        if let Some(op) = owner {
+            return Some(operation_path(op));
+        }
+    }
+    d.shapes
+        .get(shape)
+        .filter(|_| !shape.starts_with("smithy.api#"))
+        .map(shape_path)
 }
 
 fn errors(d: &Description, ids: &Value, prefix: &str) -> String {

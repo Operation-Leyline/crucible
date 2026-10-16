@@ -135,7 +135,12 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
     for (id, shape) in &service.shapes {
         let native = native_name(service, id, p);
         header.push_str(&crucible_codegen_common::doxygen_for(
-            crucible_codegen_common::documentation::shape(shape),
+            crate::links::render(
+                service,
+                crucible_codegen_common::documentation::shape(shape),
+                p,
+            )
+            .as_deref(),
             shape.notes().unwrap_or(&Default::default()),
             "",
         ));
@@ -163,7 +168,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 }
                 for m in &structure.members {
                     header.push_str(&crucible_codegen_common::doxygen_for(
-                        m.docs.as_deref(),
+                        crate::links::render(service, m.docs.as_deref(), p).as_deref(),
                         &m.notes,
                         "    ",
                     ));
@@ -202,7 +207,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             Shape::IntEnum(enumeration) => {
                 for value in &enumeration.values {
                     header.push_str(&crucible_codegen_common::doxygen_for(
-                        value.docs.as_deref(),
+                        crate::links::render(service, value.docs.as_deref(), p).as_deref(),
                         &value.notes,
                         "",
                     ));
@@ -216,7 +221,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
             Shape::Enum(enumeration) => {
                 for value in &enumeration.values {
                     header.push_str(&crucible_codegen_common::doxygen_for(
-                        value.docs.as_deref(),
+                        crate::links::render(service, value.docs.as_deref(), p).as_deref(),
                         &value.notes,
                         "",
                     ));
@@ -238,7 +243,7 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 }
                 for m in &union.members {
                     header.push_str(&crucible_codegen_common::doxygen_for(
-                        m.docs.as_deref(),
+                        crate::links::render(service, m.docs.as_deref(), p).as_deref(),
                         &m.notes,
                         "        ",
                     ));

@@ -1,4 +1,5 @@
 //! Ruby gem generation from the shared, lowered Smithy IR.
+mod links;
 mod models;
 mod names;
 mod permissions;
@@ -20,7 +21,7 @@ fn client_docs(service: &Service, client_name: &str) -> String {
             .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
-        text.push_str(&docs::escape_block(service_docs));
+        text.push_str(&links::escape_block(service, service_docs));
         text.push_str("\n\n");
     }
     text.push_str(&format!(
@@ -46,7 +47,7 @@ fn operation_docs(
     let token = op.idempotency_token.as_deref().map(field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
-        text.push_str(&docs::escape_block(summary));
+        text.push_str(&links::escape_block(service, summary));
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));

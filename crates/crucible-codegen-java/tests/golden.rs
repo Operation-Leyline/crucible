@@ -389,3 +389,72 @@ fn hyphenated_permission_symbols_spell_words() {
         "no file spells `mail-send` as {expected}"
     );
 }
+
+#[test]
+fn doc_links_are_javadoc_link_tags() {
+    let service =
+        crucible_ir::project(&load("doc-links"), crucible_ir::Audience::External).unwrap();
+    let options = Options {
+        group_id: "example".into(),
+        artifact_id: "links-client".into(),
+        package_name: "example.links".into(),
+        package_version: "0.0.0".into(),
+        endpoint: None,
+    };
+    let files = emit(&service, &options).unwrap();
+    let source = |name: &str| {
+        files
+            .iter()
+            .find(|f| f.path.ends_with(name))
+            .unwrap()
+            .contents
+            .clone()
+    };
+    let (widget, color, client) = (
+        source("/model/Widget.java"),
+        source("/model/Color.java"),
+        source("/LinksClient.java"),
+    );
+    // Fully qualified references, labelled with the generated names.
+    assert!(
+        widget.contains(
+            "A widget; {@link example.links.LinksClient#createWidget createWidget} makes one."
+        ),
+        "{widget}"
+    );
+    assert!(widget.contains("The name {@link example.links.model.CreateWidgetInput#name CreateWidgetInput.name} chose."), "{widget}");
+    assert!(widget.contains("One of {@link example.links.model.Color Color}; {@link example.links.model.Color#BLUE Color.BLUE} by default."), "{widget}");
+    assert!(
+        color.contains("Red, unlike {@link example.links.model.Color#BLUE Color.BLUE}."),
+        "{color}"
+    );
+    assert!(client.contains("Reads the {@link example.links.model.Widget Widget} that {@link example.links.LinksClient#createWidget createWidget} made, by {@link example.links.model.GetWidgetInput#widgetId GetWidgetInput.widgetId},"), "{client}");
+    assert!(
+        client.contains("Fails with {@link example.links.model.WidgetError WidgetError}."),
+        "{client}"
+    );
+    // The service is the client; a resource, a prelude type, `[text][Name]`
+    // and internal API are plain text, and code stays code.
+    assert!(
+        client.contains("read it back with the read call;"),
+        "{client}"
+    );
+    assert!(
+        client.contains(
+            "Gadget is a resource, {@link example.links.LinksClient LinksClient} is this service"
+        ),
+        "{client}"
+    );
+    assert!(
+        client.contains(" and String a prelude type. Internal: Reveal and Secret.</p>"),
+        "{client}"
+    );
+    assert!(client.contains("<code>[NotALink]</code>"), "{client}");
+    for file in &files {
+        assert!(
+            !file.contents.contains("#Secret") && !file.contents.contains("Reveal}"),
+            "{}",
+            file.path
+        );
+    }
+}
