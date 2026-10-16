@@ -10,6 +10,7 @@
 - Data types
   - [AuditInput](shapes/AuditInput.md)
   - [AuditOutput](shapes/AuditOutput.md)
+  - [Conflict](shapes/Conflict.md) **Internal**
   - [DeleteItemInput](shapes/DeleteItemInput.md)
   - [GetItemInput](shapes/GetItemInput.md)
   - [GetItemOutput](shapes/GetItemOutput.md)

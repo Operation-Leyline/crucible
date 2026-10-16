@@ -49,7 +49,8 @@ pub fn load_service(dir: &std::path::Path) -> Result<crucible_ir::ir::Service, S
 /// [`load_service`], with the older releases the service still serves in
 /// its `versions`, as a build lowers it: the chain of migrations back from
 /// its `version`, under the policy its `crucible.toml` declares beside
-/// `[model]`. For tools and tests that want what the reference documents.
+/// `[model]`, after its compatibility guard. For tools and tests that want
+/// what the reference documents.
 pub fn load_versioned_service(dir: &std::path::Path) -> Result<crucible_ir::ir::Service, String> {
     let package = load_package(dir)?;
     let compiled = compile(&package, None);
@@ -63,7 +64,22 @@ pub fn load_versioned_service(dir: &std::path::Path) -> Result<crucible_ir::ir::
         }
         _ => crucible_policy::Config::default(),
     };
-    service.versions = versions(&package, &compiled, package.files.len(), &config)?;
+    // The guard first, as a build runs it: a break no migration declares is
+    // refused, not documented. One `Releases` serves it and the versions.
+    let releases = Releases::default();
+    let own = package.files.len();
+    if let Some(guard) = guard_in(&package, &compiled, own, &config, &releases) {
+        let guard = guard?;
+        if guard.has_errors() {
+            return Err(format!(
+                "{} breaks compatibility with its baseline {}:\n{}",
+                dir.display(),
+                guard.version,
+                guard.render(&compiled)
+            ));
+        }
+    }
+    service.versions = versions_in(&package, &compiled, own, &config, &releases)?;
     Ok(service)
 }
 

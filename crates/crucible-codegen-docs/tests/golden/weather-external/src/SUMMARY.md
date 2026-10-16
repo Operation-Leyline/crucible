@@ -40,5 +40,3 @@
   - [ValidationField](shapes/ValidationField.md)
   - [ValidationFieldList](shapes/ValidationFieldList.md)
   - [ValidationReason](shapes/ValidationReason.md)
-- [Releases](releases.md)
-  - [2026-10-01](releases/2026-10-01.md)

@@ -20,7 +20,7 @@ DELETE /items/{id} HTTP/1.1
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>id</code> | <code>path: id</code> | <code>string</code> | Yes | — | — |  Added in <code>v3</code>. |
+| <code>id</code> | <code>path: id</code> | <code>string</code> | Yes | — | — |  Added in [v3](../releases/v3.md). |
 
 ## Response syntax
 

@@ -39,7 +39,7 @@ Content-Type: application/json
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>label</code> | <code>body: label</code> | [Label](../shapes/Label.md) | Yes | — | — |  Added in <code>v3</code>. Clients of <code>v1</code>, <code>v2</code> do not see it. |
+| <code>label</code> | <code>body: label</code> | [Label](../shapes/Label.md) | Yes | — | — |  Added in [v3](../releases/v3.md). Clients of [v1](../releases/v1.md), [v2](../releases/v2.md) do not see it. |
 | <code>kind</code> | <code>body: kind</code> | [Kind](../shapes/Kind.md) | Yes | — | — |  |
 
 ## Errors
@@ -47,7 +47,7 @@ Content-Type: application/json
 | Error | HTTP status | Fault | Retryable | Description |
 |---|---|---|---|---|
 | [ItemNotFoundException](../shapes/ItemNotFoundException.md) | 404 | client | No |  |
-| [ItemGoneException](../shapes/ItemGoneException.md) | 410 | client | No |  Added in <code>v3</code>. |
+| [ItemGoneException](../shapes/ItemGoneException.md) | 410 | client | No |  Added in [v3](../releases/v3.md). |
 | [ValidationException](../shapes/ValidationException.md) | 400 | client | No | <p>A request cannot be parsed or does not satisfy the service's input model.</p>  |
 | [InternalServerException](../shapes/InternalServerException.md) | 500 | server | Yes | <p>An unexpected server failure. Its message never exposes the underlying cause.</p>  |
 

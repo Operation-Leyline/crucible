@@ -13,5 +13,3 @@
   - [Unavailable](shapes/Unavailable.md)
   - [WriteItemInput](shapes/WriteItemInput.md)
   - [WriteItemOutput](shapes/WriteItemOutput.md)
-- [Releases](releases.md)
-  - [2026-10](releases/2026-10.md)

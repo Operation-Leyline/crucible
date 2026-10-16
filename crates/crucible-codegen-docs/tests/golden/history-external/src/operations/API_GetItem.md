@@ -35,22 +35,24 @@ Content-Type: application/json
 {
   "title": "<string>",
   "kind": "<enum>",
-  "size": "<structure>"
+  "size": "<structure>",
+  "note": "<string>"
 }
 ```
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>title</code> | <code>body: title</code> | <code>string</code> | Yes | — | — | <p>The item's title.</p>  Changed in <code>v2</code>. |
+| <code>title</code> | <code>body: title</code> | <code>string</code> | Yes | — | — | <p>The item's title.</p>  Changed in [v2](../releases/v2.md). |
 | <code>kind</code> | <code>body: kind</code> | [Kind](../shapes/Kind.md) | Yes | — | — |  |
 | <code>size</code> | <code>body: size</code> | [Size](../shapes/Size.md) | Yes | — | — |  |
+| <code>note</code> | <code>body: note</code> | <code>string</code> | No | — | — | <p>A note about the item.</p>  Added in [v2](../releases/v2.md). |
 
 ## Errors
 
 | Error | HTTP status | Fault | Retryable | Description |
 |---|---|---|---|---|
 | [ItemNotFound](../shapes/ItemNotFound.md) | 404 | client | No | <p>No item has that id.</p>  |
-| [ItemGone](../shapes/ItemGone.md) | 410 | client | No | <p>The item was deleted.</p>  Added in <code>v3</code>. |
+| [ItemGone](../shapes/ItemGone.md) | 410 | client | No | <p>The item was deleted.</p>  Added in [v3](../releases/v3.md). |
 
 ## Idempotency and retries
 
@@ -74,6 +76,7 @@ Content-Type: application/json
 
 {
   "kind": "SMALL",
+  "note": "note",
   "size": {
     "area": 1,
     "unit": "unit"

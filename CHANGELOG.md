@@ -34,14 +34,20 @@ version's section when it is prepared.
   The reference writes the same block to `changes.json`
   (`crucible.changes/1`) beside `describe.json`, for a changelog or a feed.
   The mdBook pages and the static reference date each element ("Added in",
-  "Changed in", linked to the release) and have a page per release; `@since`
-  is shown only for what predates every supported release.
+  "Changed in", linked to the release) and, for a chain of more than one
+  release, have a page per release, its file named by the escaped release
+  name; `@since` is shown only for what predates every supported release.
   `crucible_ir::versions` derives it all (`history`, `history_at`,
-  `subjects`), and an external projection projects each older release's
-  model as well and leaves out the steps on internal API, so no external
-  output names it. See [docs/docs.md](docs/docs.md#release-history).
+  `subjects`, `named`, `older_member`). An external projection marks the
+  older releases (`ApiVersion::external`) instead of projecting them, and
+  `versions::visible` projects them where the reference reads them, best
+  effort and never refused, keeping a step only when the audience sees
+  every id it names on each side, so no external output names internal
+  API and no older release fails an output. See
+  [docs/docs.md](docs/docs.md#release-history).
 - `crucible_lang::load_versioned_service`: a package's service with the
-  older releases it serves, as a build lowers it.
+  older releases it serves, as a build lowers it, after its compatibility
+  guard.
 
 - `describe.json` (`crucible.describe/1`, additive): each operation has a
   `sample` and each error's metadata a `sample`, generated from the model
@@ -1424,6 +1430,21 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **The CLI loads a package's older releases, as a build does.**
+  `crucible check`, `generate` and `compile` used to read only the current
+  model. Now:
+  - `crucible generate rust` (a server) for a package with migrations
+    serves its older releases. The service implements the generated
+    `versions::Migrations` trait (each migration's hooks), as a build's
+    server already does.
+  - A `retype` without `by hook` names a declared `conversion`, which the
+    Rust server generator does not generate yet, so `generate rust` refuses
+    it: add `by hook` to the step for a server.
+  - A chain the build refuses fails `check` and every `generate`: a
+    migration whose `from` release is not frozen under `releases/`, or an
+    operation dropped without `remove operation`. Freeze the release
+    (`crucible freeze --from <git ref>`) or declare the step.
 
 - **An operation dropped without `remove operation` no longer builds.**
   Before, a migration that left out the step built, and the server served

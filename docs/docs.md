@@ -85,7 +85,7 @@ src/
   index.md
   operations/API_GetCity.md
   shapes/CitySummary.md
-  releases.md       (a service with an api_version)
+  releases.md       (a chain of more than one release)
   releases/v2.md
 ```
 
@@ -94,13 +94,18 @@ operations. An operation bound to several resources appears in each group and
 has one page. The overview lists protocol identity, authentication, service
 errors, resource lifecycle slots, and operations. Data-type pages include
 structures, unions, enums, constrained scalars, and collections. A service
-with releases (every `.cru` service) also has `releases.md`, its supported
-releases, and a changelog page per release under `releases/`: its
+whose chain has more than its current release also has `releases.md`, its
+supported releases, and a changelog page per release under `releases/`: its
 migration's documentation, its sunset, the operations it retired, and each
 change with what a client of the release before it sees instead. Operation
 and data-type pages say "Added in" and "Changed in", linked to those pages,
 and member, value and error tables carry the same dates
-([Release history](#release-history)).
+([Release history](#release-history)). A release name may be any visible
+ASCII, so its page's file escapes it: letters, digits, `.`, `-` and `+`
+stay, any other byte is `_` and two hex digits (`v/2` is `v_2F2.md`), and
+a leading or trailing `.` or a Windows device name (`con`) has its first
+character escaped too. Two release pages that would share a file where
+case folds are refused (`docs.filename`) before any file is written.
 
 With mdBook installed, `mdbook build generated/weather-docs` renders the
 Markdown. Crucible does not launch mdBook or serve the HTML reference.
@@ -326,9 +331,18 @@ hand-written `@since` (decisions 77 and 78 in
 [idl/decisions.md](idl/decisions.md);
 [api-versions-clients.md](api-versions-clients.md#api-documentation-across-releases)).
 `crucible_ir::versions` derives it, once, from the audience-projected
-model: an external projection projects each older release's model as it
-does the current one and leaves out a step whose subjects are all internal,
-so external output never names internal API, not even in history.
+model. An external projection marks the older releases rather than
+projecting them, since only the reference reads them;
+`crucible_ir::versions::visible` projects them where they are read, best
+effort: each older model without its internal API, never refused (a frozen
+release with a required internal member, public since, still documents
+the current one). It keeps a step only when the audience sees every id the
+step names on each side (`crucible_ir::versions::named`: the member's
+older name, an added value or error and its downgrade, a reshape's new
+member, a removed operation), and lists only the replaced members of a
+reshape and the error members it sees. So external output never names
+internal API, not even in history: a change only internal API saw dates
+nothing.
 
 Every operation, shape, member and enum value object has `history`:
 
@@ -338,16 +352,21 @@ Every operation, shape, member and enum value object has `history`:
 
 | Field | Type | Value |
 |---|---|---|
-| `added` | string or `null` | The first release, oldest first through the frozen releases and then the current model, that has the element, following `rename` steps; `null` when the oldest supported release has it, which stays true when an old release is dropped. An element not frozen yet is added in the current release |
+| `added` | string or `null` | The release since which every release has the element, following `rename` steps: walking back from the current model through the frozen releases, the oldest one that still has it, so an element dropped and added again is dated by its latest addition. `null` when the oldest supported release has it, which stays true when an old release is dropped. An element not frozen yet is added in the current release |
 | `changed` | string array, oldest first, unique | Each release whose migration has a step naming the element among its `subjects` |
 | `missing` | string array, oldest first | The supported releases that see an older definition without the element, because it is a member of a structure a later `reshape` restores, or of a removed operation's own input or output (decision 74). Empty for nearly everything |
 
 An element is identified by its id (`Shape`, `Shape$member`, `Enum$VALUE`,
 an operation's id); a member or enum value renamed in a migration is the
 same element under its older name before it. `added` says when the
-element came into the API, not which releases can use it: an addition
-reaches every supported release except the ones `missing` lists. A
-renderer shows `added` and falls back to `notes.since` when it is `null`.
+element came into the API, not which releases can use it. Once older
+releases are served as projections of the current model (phase 5b, PR 6
+of [api-versions-clients.md](api-versions-clients.md#order)), an addition
+reaches every supported release except the ones `missing` lists. Until
+then a server serves each older release from its frozen model, so an
+addition reaches none of them: `history` describes the projections to
+come, not what an older client is served today. A renderer shows `added`
+and falls back to `notes.since` when it is `null`.
 
 The root's `versions` is always present: `null` for a service without an
 `api_version`, an object for every `.cru` service, its keys sorted as
@@ -393,7 +412,10 @@ everywhere in the document:
 Documentation is rendered as everywhere in the document: a doc link in a
 migration's or step's documentation to something the current model has is
 an anchor, and one to what only an older release had (a removed operation,
-a member's older name) is its text.
+a member's older name) is its text. So is one to internal API in an
+external description: the projection drops the link's target, and a
+migration's documentation is kept as written, so write it for the
+audience that reads it.
 
 Every change has `kind`; `subjects`, the ids the step names on its newer
 side, which `history.changed` reads (for `removeOperation`, the older
@@ -407,9 +429,9 @@ own fields name the newer side:
 | `require` | `shape`, `member` | the member | `{required: false, filled, default, shapes}`: `filled` is `"default"`, with `default` the wire value an omitted member gets, or `"service"` (`require .. by hook`), with `default` `null` |
 | `addEnumValue` | `shape`, `value`: the new value's name | the enum | `{value, shapes}`: the value older clients receive instead |
 | `addError` | `operation`, `error` | the operation | `{error, members: [{member, from}], shapes}`: the error older clients receive, and which of the new error's members (`from`) fill which of its members |
-| `move` | `operation`, `method`, `uri`: the current route | the operation | `{method, uri, shapes}`: the older route |
+| `move` | `operation`; `method`, `uri`: the current route, strings or `null` | the operation | `{method, uri, shapes}`: the older route |
 | `reshape` | `shape`, `members`: the older members it replaced, `into`: the member they became | the structure | `{shape, shapes}`: the older definition's id, its entry in `shapes` |
-| `retype` | `shape`, `member`, `target`: the new target's id, `by`: `"hook"` or `"conversion"` | the member | `{member, shapes}`: the older member, as a member object (target, constraints, default, and its `history`), or `null` |
+| `retype` | `shape`, `member`; `target`: the new target's id, a string or `null`; `by`: `"hook"` or `"conversion"` | the member | `{member, shapes}`: the older member, as a member object (target, constraints, default, and its `history`), or `null` |
 | `removeOperation` | `operation` | the older operation | `{operation, shapes}`: the older operation, as an `operations` entry with its `history` |
 | `behavior` | `operation`, `name` | the operation | `null`: the documentation says what changed |
 

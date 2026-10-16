@@ -190,6 +190,17 @@
               "kind": {
                 "$ref": "#/$defs/example.history.Kind"
               },
+              "note": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A note about the item."
+              },
               "size": {
                 "$ref": "#/$defs/example.history.Size"
               },
@@ -251,6 +262,17 @@
           "kind": {
             "$ref": "#/$defs/example.history.Kind"
           },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note about the item."
+          },
           "size": {
             "$ref": "#/$defs/example.history.Size"
           },
@@ -286,7 +308,8 @@
         "body": [
           "title",
           "kind",
-          "size"
+          "size",
+          "note"
         ],
         "headerEncodings": {},
         "headers": [],
@@ -326,6 +349,7 @@
         "output": {
           "body": {
             "kind": "SMALL",
+            "note": "note",
             "size": {
               "area": 1,
               "unit": "unit"
@@ -575,6 +599,17 @@
               },
               "id": {
                 "$ref": "#/$defs/smithy.api.String"
+              },
+              "priority": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "How soon to store it."
               }
             },
             "required": [
@@ -599,6 +634,17 @@
           },
           "id": {
             "$ref": "#/$defs/smithy.api.String"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How soon to store it."
           }
         },
         "required": [
@@ -651,7 +697,8 @@
       "readonly": false,
       "request": {
         "body": [
-          "count"
+          "count",
+          "priority"
         ],
         "headerEncodings": {},
         "headers": [],
@@ -682,7 +729,8 @@
         "generated": true,
         "input": {
           "body": {
-            "count": "count"
+            "count": "count",
+            "priority": "priority"
           },
           "headers": {
             "Content-Type": "application/json"
@@ -1003,6 +1051,43 @@
           "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "size"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>A note about the item.</p>\n",
+            "markdown": "A note about the item.",
+            "text": "A note about the item."
+          },
+          "history": {
+            "added": "v2",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "note",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "note"
         }
       ],
       "name": "GetItemOutput",
@@ -1637,6 +1722,43 @@
           "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "count"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>How soon to store it.</p>\n",
+            "markdown": "How soon to store it.",
+            "text": "How soon to store it."
+          },
+          "history": {
+            "added": "v2",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "priority",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "priority"
         }
       ],
       "name": "PutItemInput",

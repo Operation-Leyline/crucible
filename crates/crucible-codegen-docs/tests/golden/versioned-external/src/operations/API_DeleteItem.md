@@ -18,7 +18,7 @@ DELETE /items/{id}?force={force} HTTP/1.1
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
 | <code>id</code> | <code>path: id</code> | <code>string</code> | Yes | — | — |  |
-| <code>force</code> | <code>query: force</code> | <code>string</code> | No | — | — |  Changed in <code>v3</code>. |
+| <code>force</code> | <code>query: force</code> | <code>string</code> | No | — | — |  Changed in [v3](../releases/v3.md). |
 
 ## Response syntax
 
@@ -37,7 +37,7 @@ Content-Type: application/json
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>deleted</code> | <code>body: deleted</code> | <code>string</code> | Yes | — | — |  Changed in <code>v3</code>. |
+| <code>deleted</code> | <code>body: deleted</code> | <code>string</code> | Yes | — | — |  Changed in [v3](../releases/v3.md). |
 
 ## Errors
 

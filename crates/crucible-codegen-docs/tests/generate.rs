@@ -221,15 +221,29 @@ fn release_history_leaves_internal_steps_out_of_the_external_reference() {
             vec!["move", "addError", "require", "retype", "removeOperation"],
         ]
     );
-    assert_eq!(kinds(&internal)[1].len(), 8);
-    assert_eq!(kinds(&internal)[2].len(), 6);
-    let text = external.to_string();
-    assert!(
-        !text.contains("Audit") && !text.contains("secret"),
-        "{text}"
-    );
-    // changes.json holds describe.json's `versions`.
+    assert_eq!(kinds(&internal)[1].len(), 10);
+    assert_eq!(kinds(&internal)[2].len(), 8);
+    // No external file names internal API: not the internal operation, the
+    // internal value or error a step added, the internal member a reshape
+    // replaced, nor the members internal in v1 that a rename and a retype
+    // made public (externally they arrived in v2).
     let files = versioned_files(&dir, Audience::External);
+    for file in &files {
+        let text = file.contents.to_lowercase();
+        for internal in [
+            "audit",
+            "secret",
+            "conflict",
+            "depth",
+            "hint",
+            "priority</code></a> to",
+        ] {
+            assert!(!text.contains(internal), "{internal} in {}", file.path);
+        }
+    }
+    let internal_files = versioned_files(&dir, Audience::Internal);
+    assert!(internal_files.iter().any(|f| f.contents.contains("SECRET")));
+    // changes.json holds describe.json's `versions`.
     let describe: Value = serde_json::from_str(
         &files
             .iter()
@@ -239,6 +253,80 @@ fn release_history_leaves_internal_steps_out_of_the_external_reference() {
     )
     .unwrap();
     assert_eq!(describe["versions"], external["versions"]);
+}
+
+/// A release name is any visible ASCII; its page's file is escaped so it
+/// is one file name everywhere and a link carries it unchanged.
+#[test]
+fn release_names_become_safe_file_names() {
+    let dir = package_dir("version-history");
+    let mut service = crucible_lang::load_versioned_service(&dir).unwrap();
+    let hostile = "2026<img/src=x>?#q:*|\"_";
+    service.version = hostile.into();
+    service.api_version = Some(hostile.into());
+    service.versions[0].name = "con".into();
+    let files = generate(&project(&service, Audience::External).unwrap()).unwrap();
+    let pages: Vec<&str> = files
+        .iter()
+        .map(|f| f.path.as_str())
+        .filter(|p| p.starts_with("src/releases/"))
+        .collect();
+    assert_eq!(
+        pages,
+        [
+            "src/releases/2026_3Cimg_2Fsrc_3Dx_3E_3F_23q_3A_2A_7C_22_5F.md",
+            "src/releases/_63on.md",
+            "src/releases/v2.md",
+        ]
+    );
+    for file in &files {
+        assert!(
+            file.path
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"._-+/".contains(&b)),
+            "{}",
+            file.path
+        );
+    }
+    let summary = &files
+        .iter()
+        .find(|f| f.path == "src/SUMMARY.md")
+        .unwrap()
+        .contents;
+    assert!(summary.contains("(releases/_63on.md)"), "{summary}");
+    assert!(!summary.contains("<img"), "{summary}");
+}
+
+#[test]
+fn release_pages_that_share_a_file_where_case_folds_are_refused() {
+    let dir = package_dir("version-history");
+    let mut service = crucible_lang::load_versioned_service(&dir).unwrap();
+    service.versions[0].name = "V3".into();
+    let error = generate(&project(&service, Audience::External).unwrap()).unwrap_err();
+    assert!(
+        error.to_string().contains("docs.filename: release \"v3\""),
+        "{error}"
+    );
+}
+
+/// One release has no changelog to show: no release pages, but the JSON
+/// still carries `versions`.
+#[test]
+fn a_single_release_has_no_release_pages() {
+    let files = files(WEATHER, Audience::External);
+    assert!(!files.iter().any(|f| f.path.contains("releases")));
+    let describe: Value = serde_json::from_str(
+        &files
+            .iter()
+            .find(|f| f.path == "describe.json")
+            .unwrap()
+            .contents,
+    )
+    .unwrap();
+    assert_eq!(
+        describe["versions"]["releases"].as_array().unwrap().len(),
+        1
+    );
 }
 
 #[test]

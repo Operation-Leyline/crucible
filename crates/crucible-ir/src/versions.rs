@@ -13,7 +13,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ShapeId;
-use crate::ir::{Hook, Service, Shape, VersionStep};
+use crate::ir::{ApiVersion, Hook, Service, Shape, VersionStep};
 
 /// The header a client names its release in: the one carrier until a
 /// protocol declares another (decision 57).
@@ -65,14 +65,13 @@ impl Histories {
 /// its [`Service::versions`]. A service without versions dates nothing: its
 /// one release is the oldest supported.
 pub fn history(service: &Service) -> Histories {
-    let mut chain: Vec<(&str, &Service)> = service
-        .versions
+    let versions = visible(service);
+    let mut chain: Vec<(&str, &Service)> = versions
         .iter()
         .map(|version| (version.name.as_str(), &*version.service))
         .collect();
     chain.push((current_name(service), service));
-    let steps: Vec<&[VersionStep]> = service
-        .versions
+    let steps: Vec<&[VersionStep]> = versions
         .iter()
         .map(|version| version.steps.as_slice())
         .collect();
@@ -84,7 +83,8 @@ pub fn history(service: &Service) -> Histories {
 /// restored from that release, such as an older side the reference shows,
 /// is dated by. Empty past the end of the chain.
 pub fn history_at(service: &Service, release: usize) -> Histories {
-    let Some(versions) = service.versions.get(..=release) else {
+    let visible = visible(service);
+    let Some(versions) = visible.get(..=release) else {
         return Histories::default();
     };
     let chain: Vec<(&str, &Service)> = versions
@@ -125,18 +125,6 @@ pub fn subjects(step: &VersionStep) -> Vec<ShapeId> {
             Hook::RemoveOperation { operation } => vec![operation.clone()],
         },
     }
-}
-
-/// Whether a step's subjects are on its older side, in the release the
-/// migration comes from, rather than in the release it serves.
-pub fn subjects_are_older(step: &VersionStep) -> bool {
-    matches!(
-        step,
-        VersionStep::Hooked {
-            hook: Hook::RemoveOperation { .. },
-            ..
-        }
-    )
 }
 
 /// Whether `service` has the element `id`: an operation, a shape, a member
@@ -279,49 +267,124 @@ fn dated(chain: &[(&str, &Service)], steps: &[&[VersionStep]]) -> Histories {
     Histories { elements: dated }
 }
 
-/// `versions` as the external audience sees them (decision 78): each older
-/// release's model projected as the current one was, `current` here, a
-/// step whose subjects that audience does not see left out, and a retired
-/// operation only when the release, so projected, has it. The steps and
-/// their documentation are otherwise kept as written.
-pub(crate) fn project_external(
-    versions: &[crate::ir::ApiVersion],
-    current: &Service,
-) -> Result<Vec<crate::ir::ApiVersion>, crate::Diagnostics> {
-    let mut diagnostics = crate::Diagnostics::default();
-    let mut models = Vec::with_capacity(versions.len());
-    for version in versions {
-        match crate::project(&version.service, crate::Audience::External) {
-            Ok(model) => models.push(model),
-            Err(errors) => {
-                for error in errors.iter() {
-                    diagnostics.push(
-                        &error.shape,
-                        format!("release \"{}\": {}", version.name, error.message),
-                    );
-                }
-                models.push((*version.service).clone());
-            }
+/// What a step names on each side: on its older side, ids in the release
+/// the migration comes from; on its newer side, ids in the release it
+/// serves. An external reference keeps a step only when its audience sees
+/// every one of them ([`visible`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Named {
+    pub older: Vec<ShapeId>,
+    pub newer: Vec<ShapeId>,
+}
+
+/// Every id `step` names, on each side: its [`subjects`], the member's older
+/// name, an enum value and its downgrade, an error, its downgrade and the
+/// members they map, a reshape's new member, a removed operation. A
+/// reshape's replaced members are left out: [`visible`] keeps those the
+/// audience sees.
+pub fn named(step: &VersionStep) -> Named {
+    let mut older = Vec::new();
+    let mut newer = subjects(step);
+    match step {
+        VersionStep::AddEnumValue {
+            old,
+            new,
+            value,
+            downgrade,
+            ..
+        } => {
+            older.push(old.with_member(downgrade));
+            newer.push(new.with_member(value));
         }
+        VersionStep::AddError {
+            error,
+            downgrade,
+            members,
+            ..
+        } => {
+            older.push(downgrade.clone());
+            older.extend(
+                members
+                    .iter()
+                    .map(|(member, _)| downgrade.with_member(member)),
+            );
+            newer.push(error.clone());
+            newer.extend(members.iter().map(|(_, from)| error.with_member(from)));
+        }
+        VersionStep::Move { operation, .. } => older.push(operation.clone()),
+        VersionStep::Hooked {
+            hook: Hook::Reshape { old, new, into, .. },
+            ..
+        } => {
+            older.push(old.clone());
+            newer.push(new.with_member(into));
+        }
+        VersionStep::Hooked {
+            hook: Hook::RemoveOperation { operation },
+            ..
+        } => {
+            older.push(operation.clone());
+            newer.clear();
+        }
+        _ => {}
     }
-    if !diagnostics.is_empty() {
-        return Err(diagnostics);
+    older.extend(older_member(step));
+    Named { older, newer }
+}
+
+/// The member a `rename`, `require` or `retype` names, as the release the
+/// migration comes from has it: under its older name when the same
+/// migration renamed it.
+pub fn older_member(step: &VersionStep) -> Option<ShapeId> {
+    let (old, name) = match step {
+        VersionStep::Rename { old, from, .. } => (old, from),
+        VersionStep::Require {
+            old, member, from, ..
+        }
+        | VersionStep::Hooked {
+            hook:
+                Hook::Retype {
+                    old, member, from, ..
+                }
+                | Hook::Require {
+                    old, member, from, ..
+                },
+            ..
+        } => (old, if from.is_empty() { member } else { from }),
+        _ => return None,
+    };
+    Some(old.with_member(name))
+}
+
+/// `service.versions` as its audience sees them. An external projection
+/// marks the older releases ([`crate::ir::ApiVersion::external`]) and this
+/// projects them, best effort and never refused: each older model without
+/// its internal API, whatever the strict projection would refuse; a step
+/// only when that audience sees every id it [`named`] on each side, a
+/// reshape's replaced members and an error's member mapping kept to those
+/// it sees; and a retired operation only when it sees it. Documentation is
+/// kept as written. As lowered, the versions are returned as they are.
+pub fn visible(service: &Service) -> std::borrow::Cow<'_, [ApiVersion]> {
+    let versions = &service.versions;
+    if !versions.iter().any(|version| version.external) {
+        return std::borrow::Cow::Borrowed(versions);
     }
+    let models: Vec<Service> = versions
+        .iter()
+        .map(|version| crate::audience::lenient_external(&version.service))
+        .collect();
     let mut out = Vec::with_capacity(versions.len());
     for (index, (version, model)) in versions.iter().zip(&models).enumerate() {
-        let newer = models.get(index + 1).unwrap_or(current);
+        let newer = models.get(index + 1).unwrap_or(service);
         let steps = version
             .steps
             .iter()
             .filter(|step| {
-                let side = if subjects_are_older(step) {
-                    model
-                } else {
-                    newer
-                };
-                subjects(step).iter().any(|id| has(side, id))
+                let named = named(step);
+                named.older.iter().all(|id| has(model, id))
+                    && named.newer.iter().all(|id| has(newer, id))
             })
-            .cloned()
+            .map(|step| visible_parts(step, model, newer))
             .collect();
         let retired = version
             .retired
@@ -329,7 +392,7 @@ pub(crate) fn project_external(
             .filter(|id| has(model, id))
             .cloned()
             .collect();
-        out.push(crate::ir::ApiVersion {
+        out.push(ApiVersion {
             name: version.name.clone(),
             service: Box::new(model.clone()),
             steps,
@@ -337,7 +400,30 @@ pub(crate) fn project_external(
             sunset_docs: version.sunset_docs.clone(),
             docs: version.docs.clone(),
             retired,
+            external: false,
         });
     }
-    Ok(out)
+    std::borrow::Cow::Owned(out)
+}
+
+/// A step with the lists it carries kept to what the audience sees: a
+/// reshape's replaced members, an error's member mapping.
+fn visible_parts(step: &VersionStep, older: &Service, newer: &Service) -> VersionStep {
+    let mut step = step.clone();
+    match &mut step {
+        VersionStep::Hooked {
+            hook: Hook::Reshape { old, members, .. },
+            ..
+        } => members.retain(|member| has(older, &old.with_member(member))),
+        VersionStep::AddError {
+            error,
+            downgrade,
+            members,
+            ..
+        } => members.retain(|(member, from)| {
+            has(older, &downgrade.with_member(member)) && has(newer, &error.with_member(from))
+        }),
+        _ => {}
+    }
+    step
 }

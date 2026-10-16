@@ -204,7 +204,8 @@
             "name",
             "kind",
             "size",
-            "secretCode"
+            "secretCode",
+            "hint"
           ],
           "payload": null
         },
@@ -382,7 +383,8 @@
           "query": [],
           "headers": [],
           "body": [
-            "count"
+            "count",
+            "priority"
           ],
           "payload": null
         },
@@ -703,6 +705,34 @@
               "timestamp_format": null,
               "wire_timestamp_format": "date-time",
               "docs": "A code only the service reads.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": true,
+              "sensitive": false,
+              "name": "hint",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "A hint only the service gave.",
               "notes": {
                 "deprecated": null,
                 "since": null,
@@ -1106,6 +1136,34 @@
                 "external_docs": {}
               },
               "traits": {}
+            },
+            {
+              "internal": true,
+              "sensitive": false,
+              "name": "priority",
+              "target": "smithy.api#Integer",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
             }
           ],
           "error": null,
@@ -1207,6 +1265,34 @@
               "name": "height",
               "target": "smithy.api#Integer",
               "required": true,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": true,
+              "sensitive": false,
+              "name": "depth",
+              "target": "smithy.api#Integer",
+              "required": false,
               "default": null,
               "wire_default": null,
               "client_optional": false,

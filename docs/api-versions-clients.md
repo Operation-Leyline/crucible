@@ -496,7 +496,7 @@ gains `history`, an additive field of `crucible.describe/1`:
 
 | Field | Type | Value |
 |---|---|---|
-| `added` | string or `null` | the release the element first appeared in: the first of the frozen releases, oldest first, then the current model, that has it, following renames; `null` when the oldest supported release has it |
+| `added` | string or `null` | the release since which every release has the element, following renames (its latest addition, if it was dropped and added again); `null` when the oldest supported release has it |
 | `changed` | string array, oldest first, unique | each release whose migration has a step naming the element among its `subjects` (below) |
 | `missing` | string array, oldest first | the supported releases at which a client cannot see the element although it appeared before them or since: those before a `reshape` or `remove operation` it sits inside (decision 74). Empty for nearly everything |
 
@@ -735,8 +735,9 @@ is built, and so are PRs 1, 2 and 3.
    types); an unknown release; SDK file resolution;
    `tools/test_api_version_clients.py`; once PR 6 lands,
    `tools/test-e2e.sh` builds the Rust client at `v1` and calls the server.
-8. **A reference per release.** History for projections (`missing`
-   filled), and the renderer's release banner. *Crates:* crucible-ir,
+8. **A reference per release.** History for projections (an element
+   restored from frozen `r` dated within the chain that ends at `r`;
+   `missing` is computed since PR 3), and the renderer's release banner. *Crates:* crucible-ir,
    crucible-codegen-common, crucible-codegen-docs. *Tests:* a `describe()`
    golden of `v1`.
 9. **Upgrade guides (5d).** *Crate:* crucible-cli. *Tests:* the guide

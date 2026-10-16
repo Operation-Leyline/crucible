@@ -25,13 +25,15 @@ Content-Type: application/json
 
 ```json
 {
-  "count": "<string>"
+  "count": "<string>",
+  "priority": "<string>"
 }
 ```
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>count</code> | <code>body: count</code> | <code>string</code> | No | — | — |  Changed in <code>v2</code>. |
+| <code>count</code> | <code>body: count</code> | <code>string</code> | No | — | — |  Changed in [v2](../releases/v2.md). |
+| <code>priority</code> | <code>body: priority</code> | <code>string</code> | No | — | — | <p>How soon to store it.</p>  Added in [v2](../releases/v2.md). |
 
 ## Response syntax
 
@@ -50,7 +52,7 @@ Content-Type: application/json
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>total</code> | <code>body: total</code> | <code>string</code> | Yes | — | — |  Changed in <code>v3</code>. |
+| <code>total</code> | <code>body: total</code> | <code>string</code> | Yes | — | — |  Changed in [v3](../releases/v3.md). |
 
 ## Errors
 
@@ -71,7 +73,8 @@ PUT /items/id HTTP/1.1
 Content-Type: application/json
 
 {
-  "count": "count"
+  "count": "count",
+  "priority": "priority"
 }
 ```
 

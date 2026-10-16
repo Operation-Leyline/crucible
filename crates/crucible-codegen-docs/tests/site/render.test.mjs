@@ -153,9 +153,10 @@ test("internal, deprecated and unstable badges follow the description", () => {
 
 // ---- navigation, search, routes -------------------------------------------
 
-test("navigation groups operations by resource, then service operations, data types and releases", () => {
+test("navigation groups operations by resource, then service operations, then data types", () => {
   const groups = x.navigation(x.index(WEATHER));
-  assert.deepEqual(groups.map((g) => g.label), ["City", "Service operations", "Data types", "Releases"]);
+  // One release, the current one: no changelog to list.
+  assert.deepEqual(groups.map((g) => g.label), ["City", "Service operations", "Data types"]);
   assert.deepEqual(groups[0].entries.map((e) => e.item.name), ["CreateCity", "GetCity", "GetCityPhoto", "ListCities", "PutCityPhoto"]);
   assert.ok(!groups[2].entries.some((e) => e.id.startsWith("crucible.api#")));
 });

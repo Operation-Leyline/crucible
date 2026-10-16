@@ -20,8 +20,8 @@ GET /items?limit={limit}&sort={sort} HTTP/1.1
 
 | Member | Wire location | Type | Required | Default | Constraints | Description |
 |---|---|---|---|---|---|---|
-| <code>limit</code> | <code>query: limit</code> | <code>integer</code> | Yes | — | — |  Changed in <code>v2</code>. |
-| <code>sort</code> | <code>query: sort</code> | <code>string</code> | Yes | — | — |  Changed in <code>v3</code>. |
+| <code>limit</code> | <code>query: limit</code> | <code>integer</code> | Yes | — | — |  Changed in [v2](../releases/v2.md). |
+| <code>sort</code> | <code>query: sort</code> | <code>string</code> | Yes | — | — |  Changed in [v3](../releases/v3.md). |
 
 ## Response syntax
 

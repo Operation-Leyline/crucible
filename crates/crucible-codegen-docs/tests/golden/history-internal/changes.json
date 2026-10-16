@@ -110,7 +110,8 @@
             "kind": "reshape",
             "members": [
               "width",
-              "height"
+              "height",
+              "depth"
             ],
             "older": {
               "shape": "example.history#Size",
@@ -204,6 +205,43 @@
                       "timestampFormat": "date-time",
                       "wireDefault": null,
                       "wireName": "height"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": true,
+                      "name": "depth",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "smithy.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "depth"
                     }
                   ],
                   "name": "Size",
@@ -278,6 +316,61 @@
             "target": "smithy.api#String"
           },
           {
+            "by": "hook",
+            "documentation": {
+              "html": "<p>The priority is a word, and public.</p>\n",
+              "markdown": "The priority is a word, and public.",
+              "text": "The priority is a word, and public."
+            },
+            "kind": "retype",
+            "member": "priority",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": true,
+                "name": "priority",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "smithy.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "priority"
+              },
+              "shapes": {}
+            },
+            "shape": "example.history#PutItemInput",
+            "subjects": [
+              "example.history#PutItemInput$priority"
+            ],
+            "target": "smithy.api#String"
+          },
+          {
             "documentation": {
               "html": "<p>ListItems sorts by name.</p>\n",
               "markdown": "ListItems sorts by name.",
@@ -306,6 +399,23 @@
             "shape": "example.history#GetItemOutput",
             "subjects": [
               "example.history#GetItemOutput$secret"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>The service's hint is a public note.</p>\n",
+              "markdown": "The service's hint is a public note.",
+              "text": "The service's hint is a public note."
+            },
+            "kind": "rename",
+            "member": "note",
+            "older": {
+              "member": "hint",
+              "shapes": {}
+            },
+            "shape": "example.history#GetItemOutput",
+            "subjects": [
+              "example.history#GetItemOutput$note"
             ]
           }
         ],
@@ -368,6 +478,46 @@
             "subjects": [
               "example.history#GetItem"
             ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a race as not found.</p>\n",
+              "markdown": "Older clients see a race as not found.",
+              "text": "Older clients see a race as not found."
+            },
+            "error": "example.history#Conflict",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see the service's own kind as large.</p>\n",
+              "markdown": "Older clients see the service's own kind as large.",
+              "text": "Older clients see the service's own kind as large."
+            },
+            "kind": "addEnumValue",
+            "older": {
+              "shapes": {},
+              "value": "LARGE"
+            },
+            "shape": "example.history#Kind",
+            "subjects": [
+              "example.history#Kind"
+            ],
+            "value": "SECRET"
           },
           {
             "documentation": {

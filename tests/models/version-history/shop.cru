@@ -9,7 +9,7 @@ service Shop {
 readonly operation GetItem {
     http GET "/things/{id}"
     input { id: string }
-    errors [ItemNotFound, ItemGone]
+    errors [ItemNotFound, ItemGone, Conflict]
     output {
         /// The item's title.
         title: string
@@ -17,11 +17,13 @@ readonly operation GetItem {
         size: Size
         /// A code only the service reads.
         internal secret?: string
+        /// A note about the item.
+        note?: string
     }
 }
 
 /// How big an item is.
-enum Kind { SMALL, LARGE, HUGE }
+enum Kind { SMALL, LARGE, HUGE, internal SECRET }
 
 /// An item's dimensions.
 structure Size {
@@ -33,12 +35,6 @@ structure Size {
 /// No item has that id.
 error ItemNotFound {
     status 404
-    message: string
-}
-
-/// The item was deleted.
-error ItemGone {
-    status 410
     message: string
 }
 
@@ -62,14 +58,10 @@ idempotent operation PutItem {
     input {
         id: string
         count?: string
+        /// How soon to store it.
+        priority?: string
     }
     output { total: string }
-}
-
-/// Deletes an item.
-idempotent operation DeleteItem {
-    http DELETE "/items/{id}"
-    input { id: string }
 }
 
 /// Records an audit entry.
@@ -77,6 +69,24 @@ internal operation Audit {
     http POST "/audit"
     input { entry: string }
     output { recorded: boolean }
+}
+
+/// The item was deleted.
+error ItemGone {
+    status 410
+    message: string
+}
+
+/// Two writers raced; only the service sees it.
+internal error Conflict {
+    status 409
+    message: string
+}
+
+/// Deletes an item.
+idempotent operation DeleteItem {
+    http DELETE "/items/{id}"
+    input { id: string }
 }
 
 /// v2 names an item's title, measures its size as an area, and pages
@@ -91,13 +101,17 @@ migration "v2" from "v1" {
     /// Older clients see a huge item as large.
     add Kind.HUGE downgrade LARGE
     /// A size is its area.
-    reshape Size { width, height } -> area by hook
+    reshape Size { width, height, depth } -> area by hook
     /// The count is a string.
     retype PutItem.input.count -> string by hook
+    /// The priority is a word, and public.
+    retype PutItem.input.priority -> string by hook
     /// ListItems sorts by name.
     behavior ListItems.ordering
     /// The service's own code is its secret.
     rename GetItem.output.secretCode -> secret
+    /// The service's hint is a public note.
+    rename GetItem.output.hint -> note
     /// v1 is served until the end of 2026.
     sunset "2027-01-01"
 }
@@ -111,6 +125,12 @@ migration "v3" from "v2" {
     add GetItem.errors ItemGone downgrade ItemNotFound {
         message <- message
     }
+    /// Older clients see a race as not found.
+    add GetItem.errors Conflict downgrade ItemNotFound {
+        message <- message
+    }
+    /// Older clients see the service's own kind as large.
+    add Kind.SECRET downgrade LARGE
     /// An older request's sort order is the account's.
     require ListItems.input.sort by hook
     /// The total is a string, by a declared conversion.

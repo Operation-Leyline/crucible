@@ -101,8 +101,9 @@
       shapes: description.shapes || {},
       resources: description.resources || {},
       versions,
-      // Oldest first, current last; empty for a service without releases.
-      releases: versions ? list(versions.releases) : [],
+      // Oldest first, current last; empty unless the chain has more than
+      // the current release, which then has no changelog to show.
+      releases: versions && list(versions.releases).length > 1 ? list(versions.releases) : [],
     };
   }
 
@@ -546,7 +547,7 @@
       out.push(h("h3", {}, group.kind === "resource" ? link("resource", group.id, group.label) : group.label, " ", group.item ? badges(group.item) : null));
       out.push(h("ul", { class: "cx-list" }, group.entries.map((e) => h("li", {}, link("op", e.id, e.item.name), " ", badges(e.item), summaryLine(e.item)))));
     }
-    if (m.versions) {
+    if (m.releases.length) {
       const carrier = m.versions.carrier || {};
       out.push(
         h("h2", {}, "Releases"),

@@ -42,6 +42,23 @@ pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
             );
         }
     }
+    // Release pages too: their files are escaped release names, distinct
+    // byte for byte, but `V1` and `v1` would share one where case folds.
+    let releases = description.versions["releases"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    if releases.len() > 1 {
+        for release in releases {
+            let name = release["name"].as_str().unwrap_or_default();
+            let file = markdown::release_file(name).to_ascii_lowercase();
+            if !paths.insert(format!("releases/{file}")) {
+                diagnostics.push(
+                    &service.id,
+                    format!("docs.filename: release {name:?}'s page collides with another release's on a case-insensitive filesystem"),
+                );
+            }
+        }
+    }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }

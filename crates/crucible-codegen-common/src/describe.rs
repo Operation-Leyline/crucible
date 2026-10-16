@@ -295,6 +295,19 @@ pub fn describe_for_explorer(service: &Service) -> Result<Description, Diagnosti
 }
 
 fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diagnostics> {
+    // The older releases as this audience sees them (decision 78): an
+    // external projection leaves them to the reader, which is this.
+    let view;
+    let service = match crucible_ir::versions::visible(service) {
+        std::borrow::Cow::Borrowed(_) => service,
+        std::borrow::Cow::Owned(versions) => {
+            view = Service {
+                versions,
+                ..service.clone()
+            };
+            &view
+        }
+    };
     let mut diagnostics = Diagnostics::default();
     for (id, shape) in &service.shapes {
         for m in shape.members() {
@@ -670,7 +683,7 @@ fn date_shape(value: &mut Value, id: &ShapeId, histories: &crucible_ir::versions
 /// without an `api_version`. `current` holds the current shape entries,
 /// before they carry their history, which an older definition is compared
 /// with.
-pub fn versions(service: &Service, current: &BTreeMap<String, Value>) -> Value {
+fn versions(service: &Service, current: &BTreeMap<String, Value>) -> Value {
     let Some(name) = &service.api_version else {
         return Value::Null;
     };
@@ -780,27 +793,29 @@ fn change(
                 "older":{"shape":old.to_string(),
                     "shapes":older_shapes(older, [old.clone()], Some(old), current, histories)}}),
             Hook::Retype {
-                old,
-                new,
-                member,
-                from,
-                by,
+                new, member, by, ..
             } => {
                 let target = newer
                     .shapes
                     .get(new)
                     .and_then(|shape| shape.members().into_iter().find(|m| &m.name == member))
                     .map(|m| m.target.to_string());
-                let name = if from.is_empty() { member } else { from };
-                let was = older
-                    .shapes
-                    .get(old)
-                    .and_then(|shape| shape.members().into_iter().find(|m| &m.name == name));
-                let member_value = was.map_or(Value::Null, |m| {
-                    let mut value = self::member(older, m);
-                    value["history"] = history(histories.get(&old.with_member(name)));
-                    value
+                let was_id = crucible_ir::versions::older_member(step);
+                let was = was_id.as_ref().and_then(|id| {
+                    let name = id.member()?;
+                    older
+                        .shapes
+                        .get(&id.root())
+                        .and_then(|shape| shape.members().into_iter().find(|m| m.name == name))
                 });
+                let member_value = match (was, &was_id) {
+                    (Some(m), Some(id)) => {
+                        let mut value = self::member(older, m);
+                        value["history"] = history(histories.get(id));
+                        value
+                    }
+                    _ => Value::Null,
+                };
                 json!({"kind":"retype","shape":new.to_string(),"member":member,"target":target,
                     "by":match by { RetypeBy::Hook => "hook", RetypeBy::Conversion => "conversion" },
                     "older":{"member":member_value,

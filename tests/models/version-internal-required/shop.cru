@@ -1,0 +1,20 @@
+/// One item, read by id.
+service Shop {
+    version "v2"
+    protocol json
+    operations [GetItem]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        name: string
+        /// What the service tracks the item by.
+        token: string
+    }
+}
+
+/// v2 publishes the token.
+migration "v2" from "v1" {}

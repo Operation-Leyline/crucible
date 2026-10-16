@@ -49,5 +49,3 @@
   - [Tight](shapes/Tight.md)
   - [WalkInput](shapes/WalkInput.md)
   - [WalkOutput](shapes/WalkOutput.md)
-- [Releases](releases.md)
-  - [1](releases/1.md)

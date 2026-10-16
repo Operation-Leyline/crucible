@@ -1,0 +1,11 @@
+# A frozen release the external projection refuses: v1 has a required
+# internal output member, which v2 made public. External outputs of v2
+# (clients, OpenAPI, the reference) still generate: none of them reads v1
+# but the reference, which projects it best effort, without the member
+# (crucible-lang/tests/history.rs). v1 is frozen under releases/; v2 is
+# current.
+[model]
+namespace = "example.required"
+
+[model.baseline]
+path = "releases/v1.json"

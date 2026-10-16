@@ -204,7 +204,8 @@
             "title",
             "kind",
             "size",
-            "secret"
+            "secret",
+            "note"
           ],
           "payload": null
         },
@@ -325,7 +326,8 @@
           "query": [],
           "headers": [],
           "body": [
-            "count"
+            "count",
+            "priority"
           ],
           "payload": null
         },
@@ -646,6 +648,34 @@
               "timestamp_format": null,
               "wire_timestamp_format": "date-time",
               "docs": "A code only the service reads.",
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "note",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "A note about the item.",
               "notes": {
                 "deprecated": null,
                 "since": null,
@@ -1008,6 +1038,34 @@
               "timestamp_format": null,
               "wire_timestamp_format": "date-time",
               "docs": null,
+              "notes": {
+                "deprecated": null,
+                "since": null,
+                "unstable": false,
+                "external_docs": {}
+              },
+              "traits": {}
+            },
+            {
+              "internal": false,
+              "sensitive": false,
+              "name": "priority",
+              "target": "smithy.api#String",
+              "required": false,
+              "default": null,
+              "wire_default": null,
+              "client_optional": false,
+              "idempotency_token": false,
+              "mutability": null,
+              "constraints": {
+                "length": null,
+                "range": null,
+                "pattern": null,
+                "unique_items": false
+              },
+              "timestamp_format": null,
+              "wire_timestamp_format": "date-time",
+              "docs": "How soon to store it.",
               "notes": {
                 "deprecated": null,
                 "since": null,

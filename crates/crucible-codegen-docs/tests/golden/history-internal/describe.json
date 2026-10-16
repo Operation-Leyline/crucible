@@ -292,7 +292,8 @@
       },
       "errors": [
         "example.history#ItemNotFound",
-        "example.history#ItemGone"
+        "example.history#ItemGone",
+        "example.history#Conflict"
       ],
       "examples": [],
       "history": {
@@ -350,6 +351,17 @@
               "kind": {
                 "$ref": "#/$defs/example.history.Kind"
               },
+              "note": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A note about the item."
+              },
               "secret": {
                 "anyOf": [
                   {
@@ -381,7 +393,8 @@
             "enum": [
               "SMALL",
               "LARGE",
-              "HUGE"
+              "HUGE",
+              "SECRET"
             ],
             "type": "string"
           },
@@ -421,6 +434,17 @@
         "properties": {
           "kind": {
             "$ref": "#/$defs/example.history.Kind"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A note about the item."
           },
           "secret": {
             "anyOf": [
@@ -469,7 +493,8 @@
           "title",
           "kind",
           "size",
-          "secret"
+          "secret",
+          "note"
         ],
         "headerEncodings": {},
         "headers": [],
@@ -509,6 +534,7 @@
         "output": {
           "body": {
             "kind": "SMALL",
+            "note": "note",
             "secret": "secret",
             "size": {
               "area": 1,
@@ -759,6 +785,17 @@
               },
               "id": {
                 "$ref": "#/$defs/smithy.api.String"
+              },
+              "priority": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "How soon to store it."
               }
             },
             "required": [
@@ -783,6 +820,17 @@
           },
           "id": {
             "$ref": "#/$defs/smithy.api.String"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How soon to store it."
           }
         },
         "required": [
@@ -835,7 +883,8 @@
       "readonly": false,
       "request": {
         "body": [
-          "count"
+          "count",
+          "priority"
         ],
         "headerEncodings": {},
         "headers": [],
@@ -866,7 +915,8 @@
         "generated": true,
         "input": {
           "body": {
-            "count": "count"
+            "count": "count",
+            "priority": "priority"
           },
           "headers": {
             "Content-Type": "application/json"
@@ -1051,6 +1101,108 @@
         }
       ],
       "name": "AuditOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.history#Conflict": {
+      "documentation": {
+        "html": "<p>Two writers raced; only the service sees it.</p>\n",
+        "markdown": "Two writers raced; only the service sees it.",
+        "text": "Two writers raced; only the service sees it."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "Conflict",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "Conflict",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "Conflict"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.history#Conflict",
+        "status": 409,
+        "wireCode": "Conflict"
+      },
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.history#Conflict",
+      "internal": true,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "Conflict",
       "notes": {
         "deprecated": null,
         "externalDocs": {},
@@ -1352,6 +1504,45 @@
           "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "secret"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>A note about the item.</p>\n",
+            "markdown": "A note about the item.",
+            "text": "A note about the item."
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "note",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "note"
         }
       ],
       "name": "GetItemOutput",
@@ -1576,7 +1767,8 @@
       "history": {
         "added": null,
         "changed": [
-          "v2"
+          "v2",
+          "v3"
         ],
         "missing": []
       },
@@ -1655,6 +1847,27 @@
             "unstable": false
           },
           "value": "HUGE"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": true,
+          "name": "SECRET",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "SECRET"
         }
       ]
     },
@@ -1986,6 +2199,45 @@
           "timestampFormat": "date-time",
           "wireDefault": null,
           "wireName": "count"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>How soon to store it.</p>\n",
+            "markdown": "How soon to store it.",
+            "text": "How soon to store it."
+          },
+          "history": {
+            "added": null,
+            "changed": [
+              "v2"
+            ],
+            "missing": []
+          },
+          "internal": false,
+          "name": "priority",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "priority"
         }
       ],
       "name": "PutItemInput",
@@ -2368,7 +2620,8 @@
             "kind": "reshape",
             "members": [
               "width",
-              "height"
+              "height",
+              "depth"
             ],
             "older": {
               "shape": "example.history#Size",
@@ -2462,6 +2715,43 @@
                       "timestampFormat": "date-time",
                       "wireDefault": null,
                       "wireName": "height"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": true,
+                      "name": "depth",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "smithy.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "depth"
                     }
                   ],
                   "name": "Size",
@@ -2536,6 +2826,61 @@
             "target": "smithy.api#String"
           },
           {
+            "by": "hook",
+            "documentation": {
+              "html": "<p>The priority is a word, and public.</p>\n",
+              "markdown": "The priority is a word, and public.",
+              "text": "The priority is a word, and public."
+            },
+            "kind": "retype",
+            "member": "priority",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": true,
+                "name": "priority",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "smithy.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "priority"
+              },
+              "shapes": {}
+            },
+            "shape": "example.history#PutItemInput",
+            "subjects": [
+              "example.history#PutItemInput$priority"
+            ],
+            "target": "smithy.api#String"
+          },
+          {
             "documentation": {
               "html": "<p>ListItems sorts by name.</p>\n",
               "markdown": "ListItems sorts by name.",
@@ -2564,6 +2909,23 @@
             "shape": "example.history#GetItemOutput",
             "subjects": [
               "example.history#GetItemOutput$secret"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>The service's hint is a public note.</p>\n",
+              "markdown": "The service's hint is a public note.",
+              "text": "The service's hint is a public note."
+            },
+            "kind": "rename",
+            "member": "note",
+            "older": {
+              "member": "hint",
+              "shapes": {}
+            },
+            "shape": "example.history#GetItemOutput",
+            "subjects": [
+              "example.history#GetItemOutput$note"
             ]
           }
         ],
@@ -2626,6 +2988,46 @@
             "subjects": [
               "example.history#GetItem"
             ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a race as not found.</p>\n",
+              "markdown": "Older clients see a race as not found.",
+              "text": "Older clients see a race as not found."
+            },
+            "error": "example.history#Conflict",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see the service's own kind as large.</p>\n",
+              "markdown": "Older clients see the service's own kind as large.",
+              "text": "Older clients see the service's own kind as large."
+            },
+            "kind": "addEnumValue",
+            "older": {
+              "shapes": {},
+              "value": "LARGE"
+            },
+            "shape": "example.history#Kind",
+            "subjects": [
+              "example.history#Kind"
+            ],
+            "value": "SECRET"
           },
           {
             "documentation": {

@@ -120,7 +120,7 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         code(string(&d.service["version"])),
         code(string(&d.service["protocol"]))
     );
-    if !d.versions.is_null() {
+    if chained(d) {
         index.push_str(&format!(
             "Clients name their release in the {} header; {} lists every supported release and what changed in each.\n\n",
             code(string(&d.versions["carrier"]["name"])),
@@ -236,7 +236,7 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
             contents: shape_page(d, shape),
         });
     }
-    if !d.versions.is_null() {
+    if chained(d) {
         summary.push_str("- [Releases](releases.md)\n");
         files.push(File {
             path: "src/releases.md".into(),
@@ -380,13 +380,14 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
             badge(shape),
             e["status"],
             string(&e["fault"]),
-            cell_docs(shape)
+            cell_docs(shape, prefix)
         ));
     }
     out.push('\n');
     out
 }
-fn cell_docs(item: &Value) -> String {
+/// An item's description cell, on a page at `prefix` from `src/`.
+fn cell_docs(item: &Value, prefix: &str) -> String {
     let mut value = string(&item["documentation"]["html"])
         .replace('|', "&#124;")
         .replace('\n', " ");
@@ -411,7 +412,7 @@ fn cell_docs(item: &Value) -> String {
     {
         value.push_str(&format!(" Since {}.", code(since)));
     }
-    value.push_str(&history_cell(&item["history"]));
+    value.push_str(&history_cell(&item["history"], prefix));
     if let Some(links) = item["notes"]["externalDocs"].as_object() {
         for (name, url) in links {
             value.push_str(&documentation::html(&format!("[{name}]({})", string(url))));
@@ -462,7 +463,7 @@ fn members(
         } else {
             code(&m["default"].to_string())
         };
-        let mut detail = cell_docs(&m);
+        let mut detail = cell_docs(&m, "../");
         if m["sensitive"] == true {
             detail.push_str(" <strong>Sensitive</strong>");
         }
@@ -892,7 +893,7 @@ fn shape_page(d: &Description, shape: &Value) -> String {
                 "| {} | {} | {} |\n",
                 code(string(&value["name"])),
                 code(&value["value"].to_string()),
-                cell_docs(value)
+                cell_docs(value, "../")
             ));
         }
         out.push('\n');
@@ -906,27 +907,84 @@ fn shape_page(d: &Description, shape: &Value) -> String {
     out
 }
 
-/// A release's changelog page, relative to `src/`.
+/// A release's changelog page, relative to `src/`: `releases/<file>.md`,
+/// with [`release_file`] naming the file.
 fn release_path(name: &str) -> String {
-    format!("releases/{name}.md")
+    format!("releases/{}.md", release_file(name))
 }
 
-/// "Added in v2. Changed in v3." under a page's title (decision 77), each
-/// release linked to its changelog from a page at `prefix`; nothing for an
-/// element older than every supported release that no migration changed.
-fn history_line(history: &Value, prefix: &str) -> String {
-    let release = |name: &Value| {
-        let name = string(name);
-        link(name, &format!("{prefix}{}", release_path(name)))
+/// A release's name as one file name every platform accepts, and a link
+/// carries unchanged: letters, digits, `.`, `-` and `+` are kept, and any
+/// other byte is `_` and its two hex digits, `_` itself included, so two
+/// names never share a file. A leading or trailing `.`, and a name Windows
+/// reserves for a device (`con`, `nul`, `com1`...), have their first
+/// character escaped too. A release name is any visible ASCII.
+pub(crate) fn release_file(name: &str) -> String {
+    const DEVICES: &[&str] = &[
+        "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8",
+        "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+    ];
+    let stem = name
+        .split('.')
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let escape_first = DEVICES.contains(&stem.as_str()) || name.starts_with('.');
+    let last = name.len().saturating_sub(1);
+    let mut out = String::with_capacity(name.len());
+    for (index, byte) in name.bytes().enumerate() {
+        let kept = byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-' | b'+');
+        let escaped = !kept || (index == 0 && escape_first) || (index == last && byte == b'.');
+        if escaped {
+            out.push_str(&format!("_{byte:02X}"));
+        } else {
+            out.push(char::from(byte));
+        }
+    }
+    out
+}
+
+/// Whether the chain has more than the current release: only then does the
+/// reference have release pages to link (the JSON's `versions` is there
+/// either way).
+fn chained(d: &Description) -> bool {
+    list(&d.versions["releases"]).len() > 1
+}
+
+/// An element's dates (decision 77), each release linked to its changelog
+/// from a page at `prefix`: "Added in v2.", "Changed in v3.", and the
+/// releases that cannot see it. Empty for an element older than every
+/// supported release that no migration changed.
+fn dates(history: &Value, prefix: &str) -> Vec<String> {
+    let releases = |key: &str| {
+        list(&history[key])
+            .iter()
+            .map(|name| {
+                let name = string(name);
+                link(name, &format!("{prefix}{}", release_path(name)))
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
     };
     let mut parts = Vec::new();
-    if !history["added"].is_null() {
-        parts.push(format!("Added in {}.", release(&history["added"])));
+    if let Some(added) = history["added"].as_str() {
+        parts.push(format!(
+            "Added in {}.",
+            link(added, &format!("{prefix}{}", release_path(added)))
+        ));
     }
-    let changed: Vec<String> = list(&history["changed"]).iter().map(release).collect();
-    if !changed.is_empty() {
-        parts.push(format!("Changed in {}.", changed.join(", ")));
+    if !list(&history["changed"]).is_empty() {
+        parts.push(format!("Changed in {}.", releases("changed")));
     }
+    if !list(&history["missing"]).is_empty() {
+        parts.push(format!("Clients of {} do not see it.", releases("missing")));
+    }
+    parts
+}
+
+/// The dates under a page's title.
+fn history_line(history: &Value, prefix: &str) -> String {
+    let parts = dates(history, prefix);
     if parts.is_empty() {
         String::new()
     } else {
@@ -934,30 +992,12 @@ fn history_line(history: &Value, prefix: &str) -> String {
     }
 }
 
-/// A member's, value's or error's history inside a table cell, and the
-/// releases that cannot see it.
-fn history_cell(history: &Value) -> String {
-    let releases = |key: &str| {
-        list(&history[key])
-            .iter()
-            .map(|name| code(string(name)))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
-    let mut out = String::new();
-    if let Some(added) = history["added"].as_str() {
-        out.push_str(&format!(" Added in {}.", code(added)));
-    }
-    if !list(&history["changed"]).is_empty() {
-        out.push_str(&format!(" Changed in {}.", releases("changed")));
-    }
-    if !list(&history["missing"]).is_empty() {
-        out.push_str(&format!(
-            " Clients of {} do not see it.",
-            releases("missing")
-        ));
-    }
-    out
+/// The same dates inside a table cell.
+fn history_cell(history: &Value, prefix: &str) -> String {
+    dates(history, prefix)
+        .iter()
+        .map(|part| format!(" {part}"))
+        .collect()
 }
 
 /// An id as the model names it: `Shape`, `Shape.member`, `Operation`.
@@ -1031,7 +1071,10 @@ fn release_page(d: &Description, release: &Value) -> String {
         facts.push("The current release.".to_owned());
     }
     match release["from"].as_str() {
-        Some(from) => facts.push(format!("Follows {}.", link(from, &format!("{from}.md")))),
+        Some(from) => facts.push(format!(
+            "Follows {}.",
+            link(from, &format!("{}.md", release_file(from)))
+        )),
         None => facts.push("The oldest supported release.".to_owned()),
     }
     if let Some(sunset) = release["sunset"].as_str() {
@@ -1168,7 +1211,11 @@ fn change_section(d: &Description, change: &Value, from: &str) -> String {
             format!("Retyped {} to {}", member(), type_of(d, &change["target"])),
             format!(
                 "{clients} use {}, converted {}.",
-                target(d, &older["member"]),
+                if older["member"].is_null() {
+                    "an older type".to_owned()
+                } else {
+                    target(d, &older["member"])
+                },
                 if change["by"] == "hook" {
                     "by the service's hook"
                 } else {

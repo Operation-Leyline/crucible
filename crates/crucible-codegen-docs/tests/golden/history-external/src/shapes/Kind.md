@@ -12,4 +12,4 @@ Type: <code>enum</code>.
 |---|---|---|
 | <code>SMALL</code> | <code>&quot;SMALL&quot;</code> |  |
 | <code>LARGE</code> | <code>&quot;LARGE&quot;</code> |  |
-| <code>HUGE</code> | <code>&quot;HUGE&quot;</code> |  Added in <code>v2</code>. |
+| <code>HUGE</code> | <code>&quot;HUGE&quot;</code> |  Added in [v2](../releases/v2.md). |

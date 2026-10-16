@@ -16,8 +16,6 @@ Service version: <code>2026-10</code>.
 
 Wire protocol: <code>crucibleJson</code>.
 
-Clients name their release in the <code>Crucible-Version</code> header; [Releases](releases.md) lists every supported release and what changed in each.
-
 ## Authentication
 
 No default authentication schemes.
