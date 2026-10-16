@@ -263,3 +263,84 @@ fn defaulted_input_members_are_omittable() {
         ]
     );
 }
+
+/// Each snippet is a program over the surface's own names: the package
+/// import, the client class, the operation's method and input dataclass,
+/// and, for a paginated operation, the paginator.
+#[test]
+fn snippets_call_the_declared_names() {
+    for model in ["weather", "samples", "client-docs", "extended-types"] {
+        let service = load(model);
+        for endpoint in [Some("https://weather.example"), None] {
+            let options = options(endpoint);
+            let surface = surface(&service, &options);
+            for (id, operation) in &surface.operations {
+                let snippet = &operation.snippet;
+                assert!(
+                    snippet
+                        .lines()
+                        .any(|line| line == format!("import {}", options.module_name)),
+                    "{id}: {snippet}"
+                );
+                assert!(
+                    snippet.contains(&format!("client = {}(", surface.client.name)),
+                    "{id}: {snippet}"
+                );
+                assert!(
+                    snippet.contains(&format!("client.{}(", operation.method)),
+                    "{id}: {snippet}"
+                );
+                assert_eq!(
+                    snippet.contains("endpoint=os.environ["),
+                    endpoint.is_none(),
+                    "{id}: {snippet}"
+                );
+                if let Some(input) = &operation.input {
+                    assert!(
+                        snippet.contains(&format!("request = {}(", input.type_name)),
+                        "{id}: {snippet}"
+                    );
+                }
+                match (&operation.paginators, &operation.paginated_snippet) {
+                    (Some(paginators), Some(paginated)) => assert!(
+                        paginated.contains(&format!("for page in client.{}(", paginators[0])),
+                        "{id}: {paginated}"
+                    ),
+                    (None, None) => {}
+                    _ => panic!("{id}: a paginated snippet exactly when there is a paginator"),
+                }
+            }
+            // Generation is deterministic.
+            let again = surface_snippets(&crucible_codegen_python::surface(&service, &options));
+            assert_eq!(surface_snippets(&surface), again);
+        }
+    }
+}
+
+fn surface_snippets(surface: &Surface) -> Vec<(String, Option<String>)> {
+    surface
+        .operations
+        .values()
+        .map(|op| (op.snippet.clone(), op.paginated_snippet.clone()))
+        .collect()
+}
+
+/// The weather `GetCity` snippet in full: the example's values, the
+/// modelled error and its status.
+#[test]
+fn weather_get_city_snippet() {
+    let surface = surface(&load("weather"), &options(Some("https://weather.example")));
+    let snippet = &surface.operations["example.weather#GetCity"].snippet;
+    assert!(snippet.starts_with(
+        "import os\nfrom datetime import datetime, timezone\n\nimport weather_client\n"
+    ));
+    assert!(
+        snippet.contains(
+            "client = weather_client.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n"
+        )
+    );
+    assert!(snippet.contains(
+        "    city_id=\"c-0a1b2c3d\",\n    at=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),\n"
+    ));
+    assert!(snippet.contains("except weather_client.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n"));
+}

@@ -46,6 +46,9 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .output
             .as_ref()
             .map(|id| structure(service, id, package, &models, "properties"));
+        let call = crucible_codegen_common::snippet::call(service, op);
+        (entry.snippet, entry.paginated_snippet) =
+            crate::snippet::snippets(service, options, &out.middleware, &call);
         out.operations.insert(op.id.to_string(), entry);
     }
     out
@@ -90,7 +93,7 @@ fn structure(
 
 /// The names the package's star-imported models take, which shadow
 /// Kotlin's default imports (`kotlin.String`) in a caller's file.
-fn model_names(service: &Service) -> BTreeSet<&str> {
+pub(crate) fn model_names(service: &Service) -> BTreeSet<&str> {
     service
         .shapes
         .keys()
@@ -101,7 +104,7 @@ fn model_names(service: &Service) -> BTreeSet<&str> {
 
 /// `name` as Kotlin source writes it: in backticks when it is a keyword or
 /// not a plain identifier, as the generated declarations always are.
-fn escape(name: &str) -> String {
+pub(crate) fn escape(name: &str) -> String {
     if keyword(name) || !identifier(name) {
         format!("`{name}`")
     } else {

@@ -4,7 +4,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import xml.etree.ElementTree as ET
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_conformance_model import qualification_model
 from sdk_cru_packages import add_operations, copy_package, rename_shapes, replace_once, write_package
 
@@ -95,6 +95,7 @@ def qualify(output):
         ET.SubElement(dependency, ns + name).text = value
     pom.write(consumer / "pom.xml", encoding="utf-8", xml_declaration=True)
     run(MAVEN, "-q", REPO, "package", "dependency:copy-dependencies", cwd=consumer)
+    check_snippets(output, package, model_path)
     jar = next((consumer / "target").glob("kotlin-consumer-*.jar"))
     classpath = os.pathsep.join([str(jar), str(consumer / "target/dependency/*")])
     java_source = consumer / "JavaEnumConsumer.java"
@@ -131,6 +132,51 @@ public final class JavaEnumConsumer {
     generated = output / "large"
     generate(large, generated, "example.large")
     run(MAVEN, "-q", REPO, "package", cwd=generated)
+
+
+def check_snippets(output, package, model_path):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") compile against
+    the packages they call: weather as installed above (from `model_path`), and
+    samples, generated and installed with the options it is described with.
+    Every snippet declares `main`, so each is compiled in a package of its own,
+    which a pasted snippet does not need."""
+    samples = output / "samples"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "kotlin",
+        "tests/models/samples", "--out", str(samples), "--group-id", "example",
+        "--artifact-id", "samples-kotlin", "--package-name", "example.samples",
+        "--package-version", "0.0.0-test")
+    run(MAVEN, "-q", REPO, "install", cwd=samples)
+    project = output / "snippets"
+    count = 0
+    for model, path, table in (
+        ("weather", model_path,
+         '[sdk.kotlin]\nout = "generated/kotlin"\npackage = "example.weather"\ngroup_id = "example"\n'
+         'artifact_id = "weather-kotlin"\n'),
+        ("samples", ROOT / "tests/models/samples",
+         '[sdk.kotlin]\nout = "generated/kotlin"\npackage = "example.samples"\ngroup_id = "example"\n'
+         'artifact_id = "samples-kotlin"\n'),
+    ):
+        for _, operation, variant, text in snippets(describe_sdk(table, path)):
+            name = f"{operation}{'Pages' if variant == 'pages' else ''}".lower()
+            source = project / "src/main/kotlin/snippets" / model / f"{name}.kt"
+            source.parent.mkdir(parents=True, exist_ok=True)
+            source.write_text(f"package snippets.{model}.{name}\n\n{text}", encoding="utf-8")
+            count += 1
+    if count == 0:
+        raise RuntimeError("no Kotlin snippets described")
+    ns = "{http://maven.apache.org/POM/4.0.0}"
+    pom = ET.parse(package / "pom.xml")
+    pom.getroot().find(ns + "artifactId").text = "kotlin-snippets"
+    configuration = pom.getroot().find(".//" + ns + "configuration")
+    configuration.find(ns + "jvmTarget").text = "17"
+    configuration.find(ns + "args").remove(configuration.find(ns + "args").find(ns + "arg"))
+    pom.getroot().find(ns + "build").find(ns + "sourceDirectory").text = "src/main/kotlin"
+    for artifact in ("weather-kotlin", "samples-kotlin"):
+        dependency = ET.SubElement(pom.getroot().find(ns + "dependencies"), ns + "dependency")
+        for name, value in [("groupId", "example"), ("artifactId", artifact), ("version", "0.0.0-test")]:
+            ET.SubElement(dependency, ns + name).text = value
+    pom.write(project / "pom.xml", encoding="utf-8", xml_declaration=True)
+    run(MAVEN, "-q", REPO, "compile", cwd=project)
 
 
 def permissions(output):

@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 import tempfile
 from sdk_cru_packages import copy_package, rename_shapes, write_package
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 
 MAVEN = os.environ.get("MAVEN", "mvn")
 
@@ -37,6 +37,7 @@ def qualify(output):
         run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), classpath]), "example.weather.ClientTest",
             str(ROOT / "tests/conformance/retry.json"), str(ROOT / "tests/conformance/header-lists.json"),
             env=dict(os.environ, WEATHER_URL=endpoint))
+    check_snippets(output, classpath)
     renamed_path = copy_package("weather", output / "renamed")
     rename_shapes(renamed_path, {"CitySummary": "String", "CitySummaries": "OptionalValue",
                                  "ConflictError": "ServiceError", "Location": "UnknownUnion"})
@@ -102,6 +103,35 @@ def qualify(output):
     run("javac", "-J-Xmx256m", "--release", "17", "-d", str(classes), "-cp", defaults_classpath,
         str(ROOT / "crates/crucible-codegen-java/tests/DefaultsTest.java"))
     run("java", "-Xmx256m", "-cp", os.pathsep.join([str(classes), defaults_classpath]), "example.defaults.DefaultsTest")
+
+
+def check_snippets(output, weather_classpath):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") compile against
+    the packages they call: weather's jar above, and samples generated with
+    the options it is described with. Each snippet is its own class."""
+    samples = output / "samples"
+    run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "java",
+        "tests/models/samples", "--out", str(samples),
+        "--group-id", "example", "--artifact-id", "samples", "--package-name", "example.samples")
+    run(MAVEN, "-q", "-Dmaven.repo.local=" + str(ROOT / "target/maven-repo"),
+        "package", "dependency:copy-dependencies", cwd=samples)
+    samples_classpath = os.pathsep.join([str(samples / "target/classes"), str(samples / "target/dependency/*")])
+    for model, table, classpath in (
+        ("weather", '[sdk.java]\nout = "generated/java"\npackage = "example.weather"\ngroup_id = "example"\n'
+         'artifact_id = "weather-client"\nendpoint = "https://weather.example"\n', weather_classpath),
+        ("samples", '[sdk.java]\nout = "generated/java"\npackage = "example.samples"\ngroup_id = "example"\n'
+         'artifact_id = "samples"\n', samples_classpath),
+    ):
+        directory = output / "snippets" / model
+        directory.mkdir(parents=True)
+        files = []
+        for _, operation, variant, text in snippets(describe_sdk(table, ROOT / "tests/models" / model)):
+            path = directory / f"{operation}{'Pages' if variant == 'pages' else ''}Example.java"
+            path.write_text(text, encoding="utf-8")
+            files.append(str(path))
+        if not files:
+            raise RuntimeError(f"no Java snippets described for {model}")
+        run("javac", "-J-Xmx256m", "--release", "17", "-d", str(directory / "classes"), "-cp", classpath, *files)
 
 
 def permissions(output, classes):

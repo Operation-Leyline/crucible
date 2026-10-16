@@ -248,7 +248,82 @@ out = "generated/r"
             sdk["operations"]["example.weather#ListCities"]["paginators"].is_array(),
             "{name}"
         );
+        // Every operation has a complete program; only the paginated one
+        // has a paginated program, which uses its paginator.
+        for (id, operation) in sdk["operations"].as_object().unwrap() {
+            let snippet = operation["snippet"].as_str().unwrap();
+            let method = operation["method"].as_str().unwrap();
+            assert!(snippet.contains(method), "{name} {id}: {snippet}");
+            let paginator = operation["paginators"][0].as_str();
+            match (paginator, operation["paginatedSnippet"].as_str()) {
+                (Some(paginator), Some(pages)) => {
+                    assert!(pages.contains(paginator), "{name} {id}: {pages}");
+                }
+                (None, None) => {}
+                (paginator, pages) => panic!("{name} {id}: {paginator:?} {pages:?}"),
+            }
+        }
+        // The example's typed id and the bearer token's variable, never a
+        // credential.
+        let get_city = sdk["operations"]["example.weather#GetCity"]["snippet"]
+            .as_str()
+            .unwrap();
+        assert!(get_city.contains("c-0a1b2c3d"), "{name}: {get_city}");
+        assert!(get_city.contains("WEATHER_TOKEN"), "{name}: {get_city}");
     }
+    // The raw request carries every header a caller without an SDK sends,
+    // the digest the TypeScript SDK's default middleware adds among them.
+    let http = &document["http"];
+    assert_eq!(http["endpointEnv"], "WEATHER_ENDPOINT");
+    assert_eq!(http["tokenEnv"], "WEATHER_TOKEN");
+    let create = &http["operations"]["example.weather#CreateCity"];
+    assert_eq!(create["method"], "POST");
+    assert_eq!(create["example"], "Create a city");
+    let header = |name: &str| {
+        create["headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|header| header["name"] == name)
+            .map(|header| header["value"].as_str().unwrap().to_owned())
+    };
+    assert_eq!(header("Content-Type").as_deref(), Some("application/json"));
+    assert_eq!(header("Crucible-Version").as_deref(), Some("2026-10-01"));
+    assert_eq!(header("Authorization").as_deref(), Some("Bearer <token>"));
+    assert_eq!(header("X-Expected-Revision").as_deref(), Some("7"));
+    let body = create["body"].as_str().unwrap();
+    let digest: String = <sha2::Sha256 as sha2::Digest>::digest(body.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(header("x-amz-content-sha256"), Some(digest));
+    let curl = create["snippet"].as_str().unwrap();
+    assert!(
+        curl.starts_with("curl -X POST \"$WEATHER_ENDPOINT/cities\""),
+        "{curl}"
+    );
+    assert!(
+        curl.contains("-H \"Authorization: Bearer $WEATHER_TOKEN\""),
+        "{curl}"
+    );
+    // A GET has no body, so no digest, and the raw payload is piped in.
+    let get = &http["operations"]["example.weather#GetCity"];
+    assert!(get["body"].is_null());
+    assert!(
+        get["headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|h| h["name"] != "x-amz-content-sha256")
+    );
+    let photo = &http["operations"]["example.weather#PutCityPhoto"];
+    assert_eq!(photo["bodyEncoding"], "base64");
+    assert!(
+        photo["snippet"]
+            .as_str()
+            .unwrap()
+            .contains("| base64 -d | curl")
+    );
     // A variable's endpoint is the deployment's: named, never read, and
     // generated in, so the client takes none.
     assert_eq!(sdks["ts"]["endpoint"], serde_json::Value::Null);

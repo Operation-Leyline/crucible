@@ -32,8 +32,12 @@ remain supported for generating directly inside an existing crate.
 common package metadata keys as flags: `--description`, `--repository`,
 `--homepage`, `--documentation`, `--license` or `--license-file <path>`,
 `--author` and `--keyword` (repeat them), `--readme <path>` (copied in as
-`README.md` and used as the crate's documentation) and `--private`
-(`publish = false`). Each package carries `crucible.json` (schema 2) and
+`README.md` in place of the generated one) and `--private`
+(`publish = false`). The README, configured or generated, is the crate's
+documentation; the package also carries a generated `AGENTS.md` for coding
+agents and `[package.metadata.docs.rs]`, and its snippets are checked by
+`tools/test-consumers.py`. See
+[generated package documentation](../clients.md#generated-package-documentation). Each package carries `crucible.json` (schema 2) and
 `crucible-model.json` at its root; see [package provenance](../sdk-releases.md#package-provenance).
 To declare the SDK once, use [`crucible-sdk.toml`](../sdk-releases.md#declare-sdks-crucible-sdktoml).
 

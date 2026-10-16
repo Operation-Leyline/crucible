@@ -4,6 +4,7 @@ mod links;
 mod models;
 mod names;
 mod permissions;
+mod snippet;
 mod surface;
 
 use crucible_ir::{
@@ -188,6 +189,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let manifest = serde_json::to_string_pretty(&serde_json::json!({
         "name":options.package_name, "version":options.package_version, "type":"library",
         "description":format!("Generated {} client", service.name_of(&service.id)),
+        "readme":crucible_codegen_common::guide::README,
         "require":require,
         "autoload":autoload
     }))
@@ -304,6 +306,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         )
         .replace("CrucibleGenerated", namespace),
     });
+    files.extend(package_docs(service, options));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+/// The package's `README.md` and `AGENTS.md`, beside `composer.json`:
+/// Composer installs the whole package directory, so both ship.
+fn package_docs(service: &Service, options: &Options) -> Vec<File> {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    vec![
+        File {
+            path: guide::README.to_owned(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: guide::AGENTS.to_owned(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+    ]
 }

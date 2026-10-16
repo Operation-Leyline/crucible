@@ -148,7 +148,10 @@ public struct Pages<Element: Sendable>: AsyncSequence, Sendable {
     public func makeAsyncIterator() -> Iterator {
         Iterator(input: input, tokenMember: tokenMember, fetch: fetch)
     }
-    public struct Iterator: AsyncIteratorProtocol {
+    /// `Sendable`, so a main-actor caller (top-level code, a view model)
+    /// can `for try await` over the pages on deployment targets whose
+    /// `for` loop calls the nonisolated `next()`.
+    public struct Iterator: AsyncIteratorProtocol, Sendable {
         private var input: JSONValue
         private let tokenMember: String
         private let fetch: @Sendable (JSONValue) async throws -> (Element, String?)

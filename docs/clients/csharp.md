@@ -22,6 +22,16 @@ Member names use PascalCase; members that collide with exception metadata or
 inherited methods receive a `Value` suffix. Unresolvable collisions produce
 diagnostics. Package output includes embedded wire schema and provenance.
 
+The package root also carries a generated `README.md`, which is the package's
+NuGet page (`PackageReadmeFile`): the `dotnet add package` line, building the
+client with its token, one complete call, pagination, errors and retries.
+`AGENTS.md` says the same tersely for coding agents; `dotnet pack` puts both at
+the package root. Their code is the `snippet` and `paginatedSnippet` of the [`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract) document: a complete program per operation, built from the operation's first example input (or generated sample values), that reads its token from `<SERVICE>_TOKEN` (and its endpoint from `<SERVICE>_ENDPOINT` when none is generated in). See [generated package documentation](../clients.md#generated-package-documentation). Each snippet is a console project's
+top-level statements: an object initializer for the input, the awaited
+`...Async` call (`await foreach` over the pages) and one modelled error caught.
+`tools/test-csharp.py` builds every Weather and Samples snippet as its own
+project against the packed packages.
+
 The public client type follows the service name: `WeatherClient` for Weather
 and `LeylineClient` for Leyline. Package and module names remain configurable.
 

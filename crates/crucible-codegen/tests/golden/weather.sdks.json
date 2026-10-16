@@ -1,5 +1,161 @@
 {
   "format": "crucible.sdks/1",
+  "http": {
+    "endpointEnv": "WEATHER_ENDPOINT",
+    "operations": {
+      "example.weather#CreateCity": {
+        "body": "{\"location\":{\"coordinates\":{\"latitude\":38.72,\"longitude\":-9.14}},\"name\":\"Lisbon\"}",
+        "bodyEncoding": "utf-8",
+        "example": "Create a city",
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          },
+          {
+            "name": "x-amz-content-sha256",
+            "value": "f57591f01ab139a01e0f74afc87285ba3edb200c4957b898f06be4bf1717a2b2"
+          },
+          {
+            "name": "X-Expected-Revision",
+            "value": "7"
+          }
+        ],
+        "method": "POST",
+        "snippet": "curl -X POST \"$WEATHER_ENDPOINT/cities\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Content-Type: application/json' \\\n  -H 'Crucible-Version: 2026-10-01' \\\n  -H 'x-amz-content-sha256: f57591f01ab139a01e0f74afc87285ba3edb200c4957b898f06be4bf1717a2b2' \\\n  -H 'X-Expected-Revision: 7' \\\n  --data-binary '{\"location\":{\"coordinates\":{\"latitude\":38.72,\"longitude\":-9.14}},\"name\":\"Lisbon\"}'\n",
+        "uri": "/cities"
+      },
+      "example.weather#GetCity": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": "Read a city",
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          }
+        ],
+        "method": "GET",
+        "snippet": "curl \"$WEATHER_ENDPOINT/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "uri": "/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z"
+      },
+      "example.weather#GetCityPhoto": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          }
+        ],
+        "method": "GET",
+        "snippet": "curl \"$WEATHER_ENDPOINT/cities/c-4xzk6sz6/photo\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "uri": "/cities/c-4xzk6sz6/photo"
+      },
+      "example.weather#ListCities": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": "List the first page",
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          }
+        ],
+        "method": "GET",
+        "snippet": "curl \"$WEATHER_ENDPOINT/cities?maxResults=2&tag=coastal&tag=capital\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "uri": "/cities?maxResults=2&tag=coastal&tag=capital"
+      },
+      "example.weather#Ping": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          }
+        ],
+        "method": "GET",
+        "snippet": "curl \"$WEATHER_ENDPOINT/ping\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "uri": "/ping"
+      },
+      "example.weather#PutCityPhoto": {
+        "body": "cGhvdG8=",
+        "bodyEncoding": "base64",
+        "example": null,
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Content-Type",
+            "value": "image/jpeg"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          },
+          {
+            "name": "x-amz-content-sha256",
+            "value": "55c64d0fcd6f9d5f7c828093857e3fdfda68478bb4e9bd24d481ef391c7804e8"
+          },
+          {
+            "name": "X-Photo-Caption",
+            "value": "caption"
+          }
+        ],
+        "method": "PUT",
+        "snippet": "printf '%s' 'cGhvdG8=' | base64 -d | curl -X PUT \"$WEATHER_ENDPOINT/cities/c-4xzk6sz6/photo\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Content-Type: image/jpeg' \\\n  -H 'Crucible-Version: 2026-10-01' \\\n  -H 'x-amz-content-sha256: 55c64d0fcd6f9d5f7c828093857e3fdfda68478bb4e9bd24d481ef391c7804e8' \\\n  -H 'X-Photo-Caption: caption' \\\n  --data-binary @-\n",
+        "uri": "/cities/c-4xzk6sz6/photo"
+      },
+      "example.weather#Status": {
+        "body": null,
+        "bodyEncoding": null,
+        "example": null,
+        "headers": [
+          {
+            "name": "Authorization",
+            "value": "Bearer <token>"
+          },
+          {
+            "name": "Crucible-Version",
+            "value": "2026-10-01"
+          }
+        ],
+        "method": "GET",
+        "snippet": "curl \"$WEATHER_ENDPOINT/status\" \\\n  -H \"Authorization: Bearer $WEATHER_TOKEN\" \\\n  -H 'Crucible-Version: 2026-10-01'\n",
+        "uri": "/status"
+      }
+    },
+    "tokenEnv": "WEATHER_TOKEN"
+  },
   "sdks": {
     "c": {
       "audience": "external",
@@ -63,7 +219,9 @@
             "style": "functions",
             "type": "weather_models_create_city_output"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"Create a city\". */\n    weather_models_coordinates input_location_coordinates = {0};\n    weather_models_coordinates_set_latitude(&input_location_coordinates, 38.72);\n    weather_models_coordinates_set_longitude(&input_location_coordinates, -9.14);\n    weather_models_location input_location = {.tag = weather_models_location_tag_coordinates, .state = weather_present, .value.coordinates = &input_location_coordinates};\n    weather_models_create_city_input input = {0};\n    weather_models_create_city_input_set_name(&input, weather_string_view(\"Lisbon\"));\n    weather_models_create_city_input_set_location(&input, &input_location);\n    weather_models_create_city_input_set_expected_revision(&input, 7);\n\n    weather_operations_create_city_result result = {0};\n    weather_status status = weather_operations_create_city(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_city_summary_debug(result.base.arena, weather_models_create_city_output_get_city(result.value), &text, &error) == weather_ok) printf(\"city: %.*s\\n\", (int)text.length, text.data);\n    } else if (weather_error_as_conflict_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_conflict_error *failure = weather_error_as_conflict_error(&result.base);\n        fprintf(stderr, \"ConflictError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_conflict_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"CreateCity failed: %s\\n\", error.message);\n    }\n    weather_operations_create_city_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -113,7 +271,9 @@
             "style": "functions",
             "type": "weather_models_get_city_output"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"Read a city\". */\n    weather_models_get_city_input input = {0};\n    weather_models_get_city_input_set_city_id(&input, weather_string_view(\"c-0a1b2c3d\"));\n    weather_models_get_city_input_set_at(&input, (weather_timestamp){1767323045, 0} /* 2026-01-02T03:04:05Z */);\n\n    weather_operations_get_city_result result = {0};\n    weather_status status = weather_operations_get_city(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_city_summary_debug(result.base.arena, weather_models_get_city_output_get_city(result.value), &text, &error) == weather_ok) printf(\"city: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_get_city_output_has_forecast(result.value) && weather_models_forecast_debug(result.base.arena, weather_models_get_city_output_get_forecast(result.value), &text, &error) == weather_ok) printf(\"forecast: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_get_city_output_has_request_id(result.value)) {\n            text = weather_models_get_city_output_get_request_id(result.value);\n            printf(\"requestId: %.*s\\n\", (int)text.length, text.data);\n        }\n    } else if (weather_error_as_not_found_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_not_found_error *failure = weather_error_as_not_found_error(&result.base);\n        fprintf(stderr, \"NotFoundError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_not_found_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"GetCity failed: %s\\n\", error.message);\n    }\n    weather_operations_get_city_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -151,7 +311,9 @@
             "style": "functions",
             "type": "weather_models_get_city_photo_output"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Sample values generated from the model's types and constraints. */\n    weather_models_get_city_photo_input input = {0};\n    weather_models_get_city_photo_input_set_city_id(&input, weather_string_view(\"c-4xzk6sz6\"));\n\n    weather_operations_get_city_photo_result result = {0};\n    weather_status status = weather_operations_get_city_photo(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_get_city_photo_output_has_caption(result.value)) {\n            text = weather_models_get_city_photo_output_get_caption(result.value);\n            printf(\"caption: %.*s\\n\", (int)text.length, text.data);\n        }\n        if (weather_models_get_city_photo_output_has_photo(result.value)) printf(\"photo: %zu bytes\\n\", weather_models_get_city_photo_output_get_photo(result.value).length);\n    } else if (weather_error_as_not_found_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_not_found_error *failure = weather_error_as_not_found_error(&result.base);\n        fprintf(stderr, \"NotFoundError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_not_found_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"GetCityPhoto failed: %s\\n\", error.message);\n    }\n    weather_operations_get_city_photo_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -201,10 +363,12 @@
             "style": "functions",
             "type": "weather_models_list_cities_output"
           },
+          "paginatedSnippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"List the first page\". */\n    weather_string const input_tags_items[] = {\n        weather_string_view(\"coastal\"),\n        weather_string_view(\"capital\"),\n    };\n    weather_models_tags input_tags = {2, input_tags_items};\n    weather_models_list_cities_input input = {0};\n    weather_models_list_cities_input_set_max_results(&input, 2);\n    weather_models_list_cities_input_set_tags(&input, &input_tags);\n\n    /* Each page is one response; the iterator sends `nextToken` for the next. */\n    weather_pages *pages = NULL;\n    weather_status status = weather_operations_list_cities_pages_new(client, &input, NULL, NULL, &pages, &error);\n    bool has_page = status == weather_ok;\n    while (has_page) {\n        weather_operations_list_cities_result page = {0};\n        status = weather_operations_list_cities_pages_next(pages, &has_page, &page, &error);\n        if (status == weather_ok && has_page) {\n            weather_string text = {0};\n            if (weather_models_city_summaries_debug(page.base.arena, weather_models_list_cities_output_get_cities(page.value), &text, &error) == weather_ok) printf(\"cities: %.*s\\n\", (int)text.length, text.data);\n        }\n        weather_operations_list_cities_result_free(&page);\n        if (status != weather_ok) break;\n    }\n    if (status != weather_ok) fprintf(stderr, \"ListCities failed: %s\\n\", error.message);\n    weather_pages_free(pages);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n",
           "paginators": [
             "weather_operations_list_cities_pages_new",
             "weather_operations_list_cities_pages_next"
-          ]
+          ],
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Values from the model's example \"List the first page\". */\n    weather_string const input_tags_items[] = {\n        weather_string_view(\"coastal\"),\n        weather_string_view(\"capital\"),\n    };\n    weather_models_tags input_tags = {2, input_tags_items};\n    weather_models_list_cities_input input = {0};\n    weather_models_list_cities_input_set_max_results(&input, 2);\n    weather_models_list_cities_input_set_tags(&input, &input_tags);\n\n    weather_operations_list_cities_result result = {0};\n    weather_status status = weather_operations_list_cities(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_city_summaries_debug(result.base.arena, weather_models_list_cities_output_get_cities(result.value), &text, &error) == weather_ok) printf(\"cities: %.*s\\n\", (int)text.length, text.data);\n        if (weather_models_list_cities_output_has_next_token(result.value)) {\n            text = weather_models_list_cities_output_get_next_token(result.value);\n            printf(\"nextToken: %.*s\\n\", (int)text.length, text.data);\n        }\n    } else if (weather_error_as_throttling_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_throttling_error *failure = weather_error_as_throttling_error(&result.base);\n        fprintf(stderr, \"ThrottlingError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_throttling_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"ListCities failed: %s\\n\", error.message);\n    }\n    weather_operations_list_cities_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -212,7 +376,9 @@
           "method": "weather_operations_ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    weather_operations_ping_result result = {0};\n    weather_status status = weather_operations_ping(client, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        puts(\"Ping succeeded\");\n    } else if (weather_error_as_throttling_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_throttling_error *failure = weather_error_as_throttling_error(&result.base);\n        fprintf(stderr, \"ThrottlingError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_throttling_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"Ping failed: %s\\n\", error.message);\n    }\n    weather_operations_ping_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -256,7 +422,9 @@
             "style": "functions",
             "type": "weather_models_put_city_photo_output"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    /* Sample values generated from the model's types and constraints. */\n    weather_models_put_city_photo_input input = {0};\n    weather_models_put_city_photo_input_set_city_id(&input, weather_string_view(\"c-4xzk6sz6\"));\n    weather_models_put_city_photo_input_set_caption(&input, weather_string_view(\"caption\"));\n    weather_models_put_city_photo_input_set_photo(&input, (weather_blob){(const unsigned char *)\"photo\", 5});\n\n    weather_operations_put_city_photo_result result = {0};\n    weather_status status = weather_operations_put_city_photo(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        weather_string text = {0};\n        if (weather_models_photo_summary_debug(result.base.arena, weather_models_put_city_photo_output_get_photo(result.value), &text, &error) == weather_ok) printf(\"photo: %.*s\\n\", (int)text.length, text.data);\n    } else if (weather_error_as_not_found_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_not_found_error *failure = weather_error_as_not_found_error(&result.base);\n        fprintf(stderr, \"NotFoundError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_not_found_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"PutCityPhoto failed: %s\\n\", error.message);\n    }\n    weather_operations_put_city_photo_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -274,7 +442,9 @@
             "style": "functions",
             "type": "weather_models_status_output"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.h\"\n\n#include <stdio.h>\n#include <stdlib.h>\n\n/* The client asks for the token on every attempt, so a refreshed one is used. */\nstatic weather_status read_token(void *user, const weather_scope *scope, weather_arena *arena,\n    bool *present, weather_string *token, weather_error *error) {\n    const char *value = getenv(\"WEATHER_TOKEN\");\n    (void)user;\n    (void)scope;\n    (void)arena;\n    (void)error;\n    *present = value != NULL;\n    *token = weather_string_view(value);\n    return weather_ok;\n}\n\nint main(void) {\n    weather_error error = {0};\n    /* The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request. */\n    weather_client_config config = weather_client_defaults();\n    config.endpoint = weather_string_view(getenv(\"WEATHER_ENDPOINT\"));\n    config.token = read_token;\n    weather_client *client = NULL;\n    if (weather_client_new(&config, &client, &error) != weather_ok) {\n        fprintf(stderr, \"weather_client_new: %s\\n\", error.message);\n        return 1;\n    }\n\n    weather_models_status_input input = {0};\n\n    weather_operations_status_result result = {0};\n    weather_status status = weather_operations_status(client, &input, NULL, NULL, &result, &error);\n    if (status == weather_ok) {\n        puts(\"Status succeeded\");\n    } else if (weather_error_as_throttling_error(&result.base) != NULL) {\n        weather_string text = {0};\n        const weather_models_throttling_error *failure = weather_error_as_throttling_error(&result.base);\n        fprintf(stderr, \"ThrottlingError (HTTP %d)\\n\", result.base.response.status);\n        text = weather_models_throttling_error_get_message(failure);\n        fprintf(stderr, \"message: %.*s\\n\", (int)text.length, text.data);\n    } else {\n        fprintf(stderr, \"Status failed: %s\\n\", error.message);\n    }\n    weather_operations_status_result_free(&result);\n    weather_client_free(client);\n    return status == weather_ok ? 0 : 1;\n}\n"
         }
       },
       "package": {
@@ -349,7 +519,9 @@
             "style": "fields",
             "type": "example::weather::models::CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"Create a city\".\n    const sdk::models::CreateCityInput input(\n        \"Lisbon\",\n        sdk::models::Location{sdk::models::LocationCoordinatesVariant{sdk::models::Coordinates(38.72, -9.14)}},\n        {},\n        7);\n\n    try {\n        const auto output = client.create_city(input);\n        std::cout << \"city: \" << sdk::runtime::debug_value(output.city) << '\\n';\n    } catch (const sdk::models::ConflictError& error) {\n        std::cerr << \"ConflictError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -399,7 +571,9 @@
             "style": "fields",
             "type": "example::weather::models::GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"Read a city\".\n    const sdk::models::GetCityInput input(\n        \"c-0a1b2c3d\",\n        sdk::runtime::Timestamp::parse(\"2026-01-02T03:04:05Z\"));\n\n    try {\n        const auto output = client.get_city(input);\n        std::cout << \"city: \" << sdk::runtime::debug_value(output.city) << '\\n';\n        std::cout << \"forecast: \" << sdk::runtime::debug_value(output.forecast) << '\\n';\n        std::cout << \"request_id: \" << sdk::runtime::debug_value(output.request_id) << '\\n';\n    } catch (const sdk::models::NotFoundError& error) {\n        std::cerr << \"NotFoundError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -437,7 +611,9 @@
             "style": "fields",
             "type": "example::weather::models::GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Sample values generated from the model's types and constraints.\n    const sdk::models::GetCityPhotoInput input(\"c-4xzk6sz6\");\n\n    try {\n        const auto output = client.get_city_photo(input);\n        std::cout << \"caption: \" << sdk::runtime::debug_value(output.caption) << '\\n';\n        std::cout << \"photo: \" << sdk::runtime::debug_value(output.photo) << '\\n';\n    } catch (const sdk::models::NotFoundError& error) {\n        std::cerr << \"NotFoundError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -487,9 +663,11 @@
             "style": "fields",
             "type": "example::weather::models::ListCitiesOutput"
           },
+          "paginatedSnippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"List the first page\".\n    const sdk::models::ListCitiesInput input(\n        {},\n        2,\n        std::vector<std::string>{\"coastal\", \"capital\"});\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    auto pages = client.list_cities_pages(input);\n    while (auto page = pages.next()) {\n        std::cout << sdk::runtime::debug_value(page->cities) << '\\n';\n    }\n    return 0;\n}\n",
           "paginators": [
             "list_cities_pages"
-          ]
+          ],
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Values from the model's example \"List the first page\".\n    const sdk::models::ListCitiesInput input(\n        {},\n        2,\n        std::vector<std::string>{\"coastal\", \"capital\"});\n\n    try {\n        const auto output = client.list_cities(input);\n        std::cout << \"cities: \" << sdk::runtime::debug_value(output.cities) << '\\n';\n        std::cout << \"next_token: \" << sdk::runtime::debug_value(output.next_token) << '\\n';\n    } catch (const sdk::models::ThrottlingError& error) {\n        std::cerr << \"ThrottlingError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -497,7 +675,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    try {\n        static_cast<void>(client.ping());\n    } catch (const sdk::models::ThrottlingError& error) {\n        std::cerr << \"ThrottlingError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -541,7 +721,9 @@
             "style": "fields",
             "type": "example::weather::models::PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    // Sample values generated from the model's types and constraints.\n    const sdk::models::PutCityPhotoInput input(\n        \"c-4xzk6sz6\",\n        sdk::runtime::Blob{std::byte{0x70}, std::byte{0x68}, std::byte{0x6f}, std::byte{0x74}, std::byte{0x6f}},\n        \"caption\");\n\n    try {\n        const auto output = client.put_city_photo(input);\n        std::cout << \"photo: \" << sdk::runtime::debug_value(output.photo) << '\\n';\n    } catch (const sdk::models::NotFoundError& error) {\n        std::cerr << \"NotFoundError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -559,7 +741,9 @@
             "style": "fields",
             "type": "example::weather::models::StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "#include \"weather/client.hpp\"\n\n#include <cstdlib>\n#include <iostream>\n#include <optional>\n#include <string>\n\nnamespace sdk = example::weather;\n\nint main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    sdk::runtime::ClientConfig config;\n    if (const char* endpoint = std::getenv(\"WEATHER_ENDPOINT\")) config.endpoint = endpoint;\n    config.token = [] {\n        const char* token = std::getenv(\"WEATHER_TOKEN\");\n        return token ? std::optional<std::string>(token) : std::nullopt;\n    };\n    sdk::WeatherClient client(config);\n\n    const sdk::models::StatusInput input{};\n\n    try {\n        static_cast<void>(client.status(input));\n    } catch (const sdk::models::ThrottlingError& error) {\n        std::cerr << \"ThrottlingError (HTTP \" << error.metadata().status << \"): \" << error.message << '\\n';\n        return 1;\n    }\n    return 0;\n}\n"
         }
       },
       "package": {
@@ -634,7 +818,9 @@
             "style": "properties",
             "type": "CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"Create a city\".\nvar input = new CreateCityInput\n{\n    Name = \"Lisbon\",\n    Location = new Location\n    {\n        Coordinates = new Coordinates\n        {\n            Latitude = 38.72,\n            Longitude = -9.14,\n        },\n    },\n    ExpectedRevision = 7,\n};\n\ntry\n{\n    var output = await client.CreateCityAsync(input);\n    Console.WriteLine(output.City);\n}\ncatch (ConflictError error)\n{\n    Console.Error.WriteLine($\"ConflictError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": "GetCityAsync",
@@ -684,7 +870,9 @@
             "style": "properties",
             "type": "GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "using System;\nusing System.Globalization;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"Read a city\".\nvar input = new GetCityInput\n{\n    CityId = \"c-0a1b2c3d\",\n    At = DateTimeOffset.Parse(\"2026-01-02T03:04:05Z\", CultureInfo.InvariantCulture),\n};\n\ntry\n{\n    var output = await client.GetCityAsync(input);\n    Console.WriteLine(output.City);\n    Console.WriteLine(output.Forecast);\n    Console.WriteLine(output.RequestIdValue);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": "GetCityPhotoAsync",
@@ -722,7 +910,9 @@
             "style": "properties",
             "type": "GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Sample values generated from the model's types and constraints.\nvar input = new GetCityPhotoInput\n{\n    CityId = \"c-4xzk6sz6\",\n};\n\ntry\n{\n    var output = await client.GetCityPhotoAsync(input);\n    Console.WriteLine(output.Caption);\n    Console.WriteLine(output.Photo);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": "ListCitiesAsync",
@@ -772,9 +962,11 @@
             "style": "properties",
             "type": "ListCitiesOutput"
           },
+          "paginatedSnippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"List the first page\".\nvar input = new ListCitiesInput\n{\n    MaxResults = 2,\n    Tags = [\"coastal\", \"capital\"],\n};\n\n// Each page is one response; the walker sends `nextToken` for the next.\nawait foreach (var page in client.ListCitiesPagesAsync(input))\n{\n    Console.WriteLine(page.Cities);\n}\n",
           "paginators": [
             "ListCitiesPagesAsync"
-          ]
+          ],
+          "snippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Values from the model's example \"List the first page\".\nvar input = new ListCitiesInput\n{\n    MaxResults = 2,\n    Tags = [\"coastal\", \"capital\"],\n};\n\ntry\n{\n    var output = await client.ListCitiesAsync(input);\n    Console.WriteLine(output.Cities);\n    Console.WriteLine(output.NextToken);\n}\ncatch (ThrottlingError error)\n{\n    Console.Error.WriteLine($\"ThrottlingError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": "PingAsync",
@@ -782,7 +974,9 @@
           "method": "Ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\ntry\n{\n    await client.PingAsync();\n}\ncatch (ThrottlingError error)\n{\n    Console.Error.WriteLine($\"ThrottlingError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": "PutCityPhotoAsync",
@@ -826,7 +1020,9 @@
             "style": "properties",
             "type": "PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "using System;\nusing System.Text;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\n// Sample values generated from the model's types and constraints.\nvar input = new PutCityPhotoInput\n{\n    CityId = \"c-4xzk6sz6\",\n    Caption = \"caption\",\n    Photo = Encoding.UTF8.GetBytes(\"photo\"),\n};\n\ntry\n{\n    var output = await client.PutCityPhotoAsync(input);\n    Console.WriteLine(output.Photo);\n}\ncatch (NotFoundError error)\n{\n    Console.Error.WriteLine($\"NotFoundError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": "StatusAsync",
@@ -844,7 +1040,9 @@
             "style": "properties",
             "type": "StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "using System;\nusing System.Threading.Tasks;\nusing Example.Weather;\nusing Example.Weather.Models;\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nusing var client = new WeatherClient(new ClientConfig\n{\n    Endpoint = Environment.GetEnvironmentVariable(\"WEATHER_ENDPOINT\"),\n    Token = _ => ValueTask.FromResult(Environment.GetEnvironmentVariable(\"WEATHER_TOKEN\")),\n});\n\nvar input = new StatusInput();\n\ntry\n{\n    await client.StatusAsync(input);\n}\ncatch (ThrottlingError error)\n{\n    Console.Error.WriteLine($\"ThrottlingError (HTTP {error.StatusCode}): {error.MessageValue}\");\n}\n"
         }
       },
       "package": {
@@ -920,7 +1118,9 @@
             "style": "properties",
             "type": "CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"Create a city\".\n  final input = CreateCityInput(\n    name: \"Lisbon\",\n    location: LocationCoordinates(Coordinates(\n      latitude: 38.72,\n      longitude: -9.14,\n    )),\n    expectedRevision: BigInt.from(7),\n  );\n  try {\n    final output = await client.createCity(input);\n    print(output.city);\n  } on ConflictError catch (error) {\n    print('ConflictError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -970,7 +1170,9 @@
             "style": "properties",
             "type": "GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"Read a city\".\n  final input = GetCityInput(\n    cityId: \"c-0a1b2c3d\",\n    at: Timestamp.parse(\"2026-01-02T03:04:05Z\"),\n  );\n  try {\n    final output = await client.getCity(input);\n    print(output.city);\n    print(output.forecast);\n    print(output.requestId);\n  } on NotFoundError catch (error) {\n    print('NotFoundError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -1008,7 +1210,9 @@
             "style": "properties",
             "type": "GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Sample values generated from the model's types and constraints.\n  final input = GetCityPhotoInput(\n    cityId: \"c-4xzk6sz6\",\n  );\n  try {\n    final output = await client.getCityPhoto(input);\n    print(output.caption);\n    print(output.photo);\n  } on NotFoundError catch (error) {\n    print('NotFoundError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -1058,9 +1262,11 @@
             "style": "properties",
             "type": "ListCitiesOutput"
           },
+          "paginatedSnippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"List the first page\".\n  final input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n      \"coastal\",\n      \"capital\",\n    ],\n  );\n  try {\n    // Each page is one response; the stream sends `nextToken` for the next.\n    await for (final page in client.listCitiesPages(input)) {\n      print(page.cities);\n    }\n  } finally {\n    client.close();\n  }\n}\n",
           "paginators": [
             "listCitiesPages"
-          ]
+          ],
+          "snippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Values from the model's example \"List the first page\".\n  final input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n      \"coastal\",\n      \"capital\",\n    ],\n  );\n  try {\n    final output = await client.listCities(input);\n    print(output.cities);\n    print(output.nextToken);\n  } on ThrottlingError catch (error) {\n    print('ThrottlingError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -1068,7 +1274,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  try {\n    await client.ping();\n  } on ThrottlingError catch (error) {\n    print('ThrottlingError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -1112,7 +1320,9 @@
             "style": "properties",
             "type": "PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import 'dart:convert';\nimport 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  // Sample values generated from the model's types and constraints.\n  final input = PutCityPhotoInput(\n    cityId: \"c-4xzk6sz6\",\n    caption: \"caption\",\n    photo: utf8.encode(\"photo\"),\n  );\n  try {\n    final output = await client.putCityPhoto(input);\n    print(output.photo);\n  } on NotFoundError catch (error) {\n    print('NotFoundError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -1130,7 +1340,9 @@
             "style": "properties",
             "type": "StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import 'dart:io' as io;\n\nimport 'package:weather/weather.dart';\n\nFuture<void> main() async {\n  // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));\n  final input = StatusInput();\n  try {\n    await client.status(input);\n  } on ThrottlingError catch (error) {\n    print('ThrottlingError (HTTP ${error.metadata.status}): ${error.message}');\n  } finally {\n    client.close();\n  }\n}\n"
         }
       },
       "package": {
@@ -1206,7 +1418,9 @@
             "style": "fields",
             "type": "weather.CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"Create a city\".\n\tinput := &weather.CreateCityInput{\n\t\tName: \"Lisbon\",\n\t\tLocation: weather.Some(&weather.Location{\n\t\t\tCoordinates: weather.Some(&weather.Coordinates{\n\t\t\t\tLatitude:  38.72,\n\t\t\t\tLongitude: -9.14,\n\t\t\t}),\n\t\t}),\n\t\tExpectedRevision: weather.Some(int64(7)),\n\t}\n\n\toutput, err := client.CreateCity(ctx, input)\n\tvar conflictError *weather.ConflictError\n\tif errors.As(err, &conflictError) {\n\t\tfmt.Printf(\"ConflictError (HTTP %d): %v\\n\", conflictError.Metadata.Metadata.Status, conflictError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.City)\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -1256,7 +1470,9 @@
             "style": "fields",
             "type": "weather.GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\t\"time\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"Read a city\".\n\tinput := &weather.GetCityInput{\n\t\tCityId: \"c-0a1b2c3d\",\n\t\tAt:     weather.Some(time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)),\n\t}\n\n\toutput, err := client.GetCity(ctx, input)\n\tvar notFoundError *weather.NotFoundError\n\tif errors.As(err, &notFoundError) {\n\t\tfmt.Printf(\"NotFoundError (HTTP %d): %v\\n\", notFoundError.Metadata.Metadata.Status, notFoundError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.City)\n\tfmt.Println(output.GetForecast())\n\tfmt.Println(output.GetRequestId())\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -1294,7 +1510,9 @@
             "style": "fields",
             "type": "weather.GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Sample values generated from the model's types and constraints.\n\tinput := &weather.GetCityPhotoInput{\n\t\tCityId: \"c-4xzk6sz6\",\n\t}\n\n\toutput, err := client.GetCityPhoto(ctx, input)\n\tvar notFoundError *weather.NotFoundError\n\tif errors.As(err, &notFoundError) {\n\t\tfmt.Printf(\"NotFoundError (HTTP %d): %v\\n\", notFoundError.Metadata.Metadata.Status, notFoundError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.GetCaption())\n\tfmt.Println(output.GetPhoto())\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -1344,9 +1562,11 @@
             "style": "fields",
             "type": "weather.ListCitiesOutput"
           },
+          "paginatedSnippet": "package main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"List the first page\".\n\tinput := &weather.ListCitiesInput{\n\t\tMaxResults: weather.Some(int32(2)),\n\t\tTags:       weather.Some(weather.Tags{\"coastal\", \"capital\"}),\n\t}\n\n\t// Each page is one response; the paginator sends `nextToken` for the next.\n\tpages, err := client.ListCitiesPages(input)\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfor pages.HasMorePages() {\n\t\tpage, err := pages.NextPage(ctx)\n\t\tif err != nil {\n\t\t\tlog.Fatal(err)\n\t\t}\n\t\tfmt.Println(page.Cities)\n\t}\n}\n",
           "paginators": [
             "ListCitiesPages"
-          ]
+          ],
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Values from the model's example \"List the first page\".\n\tinput := &weather.ListCitiesInput{\n\t\tMaxResults: weather.Some(int32(2)),\n\t\tTags:       weather.Some(weather.Tags{\"coastal\", \"capital\"}),\n\t}\n\n\toutput, err := client.ListCities(ctx, input)\n\tvar throttlingError *weather.ThrottlingError\n\tif errors.As(err, &throttlingError) {\n\t\tfmt.Printf(\"ThrottlingError (HTTP %d): %v\\n\", throttlingError.Metadata.Metadata.Status, throttlingError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.Cities)\n\tfmt.Println(output.GetNextToken())\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -1354,7 +1574,9 @@
           "method": "Ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t_, err = client.Ping(ctx, weather.Unit{})\n\tvar throttlingError *weather.ThrottlingError\n\tif errors.As(err, &throttlingError) {\n\t\tfmt.Printf(\"ThrottlingError (HTTP %d): %v\\n\", throttlingError.Metadata.Metadata.Status, throttlingError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -1398,7 +1620,9 @@
             "style": "fields",
             "type": "weather.PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\t// Sample values generated from the model's types and constraints.\n\tinput := &weather.PutCityPhotoInput{\n\t\tCityId:  \"c-4xzk6sz6\",\n\t\tCaption: weather.Some(\"caption\"),\n\t\tPhoto:   []byte(\"photo\"),\n\t}\n\n\toutput, err := client.PutCityPhoto(ctx, input)\n\tvar notFoundError *weather.NotFoundError\n\tif errors.As(err, &notFoundError) {\n\t\tfmt.Printf(\"NotFoundError (HTTP %d): %v\\n\", notFoundError.Metadata.Metadata.Status, notFoundError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\tfmt.Println(output.Photo)\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -1416,7 +1640,9 @@
             "style": "fields",
             "type": "weather.StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "package main\n\nimport (\n\t\"context\"\n\t\"errors\"\n\t\"fmt\"\n\t\"log\"\n\t\"os\"\n\n\t\"example.com/weather\"\n)\n\nfunc main() {\n\tctx := context.Background()\n\t// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n\tclient, err := weather.NewWeatherClient(weather.Config{\n\t\tEndpoint: os.Getenv(\"WEATHER_ENDPOINT\"),\n\t\tToken:    func(context.Context) (string, error) { return os.Getenv(\"WEATHER_TOKEN\"), nil },\n\t})\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n\n\tinput := &weather.StatusInput{}\n\n\t_, err = client.Status(ctx, input)\n\tvar throttlingError *weather.ThrottlingError\n\tif errors.As(err, &throttlingError) {\n\t\tfmt.Printf(\"ThrottlingError (HTTP %d): %v\\n\", throttlingError.Metadata.Metadata.Status, throttlingError.Message)\n\t\treturn\n\t}\n\tif err != nil {\n\t\tlog.Fatal(err)\n\t}\n}\n"
         }
       },
       "package": {
@@ -1491,7 +1717,9 @@
             "style": "methods",
             "type": "com.example.weather.model.CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.ConflictError;\nimport com.example.weather.model.Coordinates;\nimport com.example.weather.model.CreateCityInput;\nimport com.example.weather.model.CreateCityOutput;\nimport com.example.weather.model.Location;\n\npublic class CreateCityExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"Create a city\".\n        CreateCityInput input = CreateCityInput.builder()\n            .name(\"Lisbon\")\n            .location(Location.builder()\n                .coordinates(Coordinates.builder()\n                    .latitude(38.72)\n                    .longitude(-9.14)\n                    .build())\n                .build())\n            .expectedRevision(7L)\n            .build();\n\n        try {\n            CreateCityOutput output = client.createCity(input);\n            System.out.println(output.city());\n        } catch (ConflictError error) {\n            System.err.println(\"ConflictError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": "getCityAsync",
@@ -1541,7 +1769,9 @@
             "style": "methods",
             "type": "com.example.weather.model.GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.GetCityInput;\nimport com.example.weather.model.GetCityOutput;\nimport com.example.weather.model.NotFoundError;\nimport java.time.Instant;\n\npublic class GetCityExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"Read a city\".\n        GetCityInput input = GetCityInput.builder()\n            .cityId(\"c-0a1b2c3d\")\n            .at(Instant.parse(\"2026-01-02T03:04:05Z\"))\n            .build();\n\n        try {\n            GetCityOutput output = client.getCity(input);\n            System.out.println(output.city());\n            System.out.println(output.forecast());\n            System.out.println(output.requestId());\n        } catch (NotFoundError error) {\n            System.err.println(\"NotFoundError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": "getCityPhotoAsync",
@@ -1579,7 +1809,9 @@
             "style": "methods",
             "type": "com.example.weather.model.GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.GetCityPhotoInput;\nimport com.example.weather.model.GetCityPhotoOutput;\nimport com.example.weather.model.NotFoundError;\n\npublic class GetCityPhotoExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Sample values generated from the model's types and constraints.\n        GetCityPhotoInput input = GetCityPhotoInput.builder()\n            .cityId(\"c-4xzk6sz6\")\n            .build();\n\n        try {\n            GetCityPhotoOutput output = client.getCityPhoto(input);\n            System.out.println(output.caption());\n            System.out.println(output.photo());\n        } catch (NotFoundError error) {\n            System.err.println(\"NotFoundError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": "listCitiesAsync",
@@ -1629,10 +1861,12 @@
             "style": "methods",
             "type": "com.example.weather.model.ListCitiesOutput"
           },
+          "paginatedSnippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.ListCitiesInput;\nimport com.example.weather.model.ListCitiesOutput;\nimport java.util.Iterator;\nimport java.util.List;\n\npublic class ListCitiesPagesExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"List the first page\".\n        ListCitiesInput input = ListCitiesInput.builder()\n            .maxResults(2)\n            .tags(List.of(\"coastal\", \"capital\"))\n            .build();\n\n        // Each page is one response; the iterator sends `nextToken` for the next.\n        Iterator<ListCitiesOutput> pages = client.listCitiesPages(input);\n        while (pages.hasNext()) {\n            ListCitiesOutput page = pages.next();\n            System.out.println(page.cities());\n        }\n    }\n}\n",
           "paginators": [
             "listCitiesPages",
             "listCitiesPagesAsync"
-          ]
+          ],
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.ListCitiesInput;\nimport com.example.weather.model.ListCitiesOutput;\nimport com.example.weather.model.ThrottlingError;\nimport java.util.List;\n\npublic class ListCitiesExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Values from the model's example \"List the first page\".\n        ListCitiesInput input = ListCitiesInput.builder()\n            .maxResults(2)\n            .tags(List.of(\"coastal\", \"capital\"))\n            .build();\n\n        try {\n            ListCitiesOutput output = client.listCities(input);\n            System.out.println(output.cities());\n            System.out.println(output.nextToken());\n        } catch (ThrottlingError error) {\n            System.err.println(\"ThrottlingError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": "pingAsync",
@@ -1640,7 +1874,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.ThrottlingError;\n\npublic class PingExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        try {\n            client.ping();\n        } catch (ThrottlingError error) {\n            System.err.println(\"ThrottlingError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": "putCityPhotoAsync",
@@ -1684,7 +1920,9 @@
             "style": "methods",
             "type": "com.example.weather.model.PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.NotFoundError;\nimport com.example.weather.model.PutCityPhotoInput;\nimport com.example.weather.model.PutCityPhotoOutput;\nimport java.nio.charset.StandardCharsets;\n\npublic class PutCityPhotoExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        // Sample values generated from the model's types and constraints.\n        PutCityPhotoInput input = PutCityPhotoInput.builder()\n            .cityId(\"c-4xzk6sz6\")\n            .caption(\"caption\")\n            .photo(\"photo\".getBytes(StandardCharsets.UTF_8))\n            .build();\n\n        try {\n            PutCityPhotoOutput output = client.putCityPhoto(input);\n            System.out.println(output.photo());\n        } catch (NotFoundError error) {\n            System.err.println(\"NotFoundError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": "statusAsync",
@@ -1702,7 +1940,9 @@
             "style": "methods",
             "type": "com.example.weather.model.StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig;\nimport com.example.weather.WeatherClient;\nimport com.example.weather.model.StatusInput;\nimport com.example.weather.model.StatusOutput;\nimport com.example.weather.model.ThrottlingError;\n\npublic class StatusExample {\n    public static void main(String[] args) {\n        // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n        ClientConfig config = new ClientConfig();\n        config.endpoint = System.getenv(\"WEATHER_ENDPOINT\");\n        config.token = () -> System.getenv(\"WEATHER_TOKEN\");\n        WeatherClient client = new WeatherClient(config);\n\n        StatusInput input = StatusInput.builder().build();\n\n        try {\n            client.status(input);\n        } catch (ThrottlingError error) {\n            System.err.println(\"ThrottlingError (HTTP \" + error.status() + \"): \" + error.message());\n        }\n    }\n}\n"
         }
       },
       "package": {
@@ -1778,7 +2018,9 @@
             "style": "properties",
             "type": "CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"Create a city\".\n    val input = CreateCityInput {\n        name = \"Lisbon\"\n        location = Location.Coordinates(Coordinates {\n            latitude = 38.72\n            longitude = -9.14\n        })\n        expectedRevision = 7L\n    }\n\n    try {\n        val output = client.createCity(input)\n        println(output.city)\n    } catch (error: ConflictError) {\n        System.err.println(\"ConflictError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -1828,7 +2070,9 @@
             "style": "properties",
             "type": "GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\nimport kotlin.time.ExperimentalTime\nimport kotlin.time.Instant\n\n@OptIn(ExperimentalTime::class)\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"Read a city\".\n    val input = GetCityInput {\n        cityId = \"c-0a1b2c3d\"\n        at = Instant.parse(\"2026-01-02T03:04:05Z\")\n    }\n\n    try {\n        val output = client.getCity(input)\n        println(output.city)\n        println(output.forecast)\n        println(output.requestIdValue)\n    } catch (error: NotFoundError) {\n        System.err.println(\"NotFoundError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -1866,7 +2110,9 @@
             "style": "properties",
             "type": "GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Sample values generated from the model's types and constraints.\n    val input = GetCityPhotoInput {\n        cityId = \"c-4xzk6sz6\"\n    }\n\n    try {\n        val output = client.getCityPhoto(input)\n        println(output.caption)\n        println(output.photo)\n    } catch (error: NotFoundError) {\n        System.err.println(\"NotFoundError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -1916,9 +2162,11 @@
             "style": "properties",
             "type": "ListCitiesOutput"
           },
+          "paginatedSnippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"List the first page\".\n    val input = ListCitiesInput {\n        maxResults = 2\n        tags = listOf(\"coastal\", \"capital\")\n    }\n\n    // Each page is one response; the flow sends `nextToken` for the next.\n    client.listCitiesPages(input).collect { page ->\n        println(page.cities)\n    }\n}\n",
           "paginators": [
             "listCitiesPages"
-          ]
+          ],
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Values from the model's example \"List the first page\".\n    val input = ListCitiesInput {\n        maxResults = 2\n        tags = listOf(\"coastal\", \"capital\")\n    }\n\n    try {\n        val output = client.listCities(input)\n        println(output.cities)\n        println(output.nextToken)\n    } catch (error: ThrottlingError) {\n        System.err.println(\"ThrottlingError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -1926,7 +2174,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    try {\n        client.ping()\n    } catch (error: ThrottlingError) {\n        System.err.println(\"ThrottlingError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -1970,7 +2220,9 @@
             "style": "properties",
             "type": "PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    // Sample values generated from the model's types and constraints.\n    val input = PutCityPhotoInput {\n        cityId = \"c-4xzk6sz6\"\n        caption = \"caption\"\n        photo = \"photo\".encodeToByteArray()\n    }\n\n    try {\n        val output = client.putCityPhoto(input)\n        println(output.photo)\n    } catch (error: NotFoundError) {\n        System.err.println(\"NotFoundError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -1988,7 +2240,9 @@
             "style": "properties",
             "type": "StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import com.example.weather.ClientConfig\nimport com.example.weather.WeatherClient\nimport com.example.weather.model.*\n\nsuspend fun main() {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    val client = WeatherClient(\n        ClientConfig(\n            endpoint = System.getenv(\"WEATHER_ENDPOINT\"),\n            token = { System.getenv(\"WEATHER_TOKEN\") },\n        ),\n    )\n\n    val input = StatusInput()\n\n    try {\n        client.status(input)\n    } catch (error: ThrottlingError) {\n        System.err.println(\"ThrottlingError (HTTP ${error.status}): ${error.messageValue}\")\n    }\n}\n"
         }
       },
       "package": {
@@ -2065,7 +2319,9 @@
             "style": "properties",
             "type": "\\Example\\Weather\\CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"Create a city\".\n$input = new \\Example\\Weather\\CreateCityInput(\n    name: 'Lisbon',\n    location: new \\Example\\Weather\\LocationCoordinates(new \\Example\\Weather\\Coordinates(\n        latitude: 38.72,\n        longitude: -9.14,\n    )),\n    expectedRevision: 7,\n);\n\ntry {\n    $output = $client->createCity($input);\n    var_dump($output->city);\n} catch (\\Example\\Weather\\ConflictError $error) {\n    fwrite(STDERR, 'ConflictError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -2115,7 +2371,9 @@
             "style": "properties",
             "type": "\\Example\\Weather\\GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"Read a city\".\n$input = new \\Example\\Weather\\GetCityInput(\n    cityId: 'c-0a1b2c3d',\n    at: \\Example\\Weather\\Runtime\\Timestamp::parse('2026-01-02T03:04:05Z'),\n);\n\ntry {\n    $output = $client->getCity($input);\n    var_dump($output->city);\n    var_dump($output->forecast);\n    var_dump($output->requestId);\n} catch (\\Example\\Weather\\NotFoundError $error) {\n    fwrite(STDERR, 'NotFoundError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -2153,7 +2411,9 @@
             "style": "properties",
             "type": "\\Example\\Weather\\GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Sample values generated from the model's types and constraints.\n$input = new \\Example\\Weather\\GetCityPhotoInput(\n    cityId: 'c-4xzk6sz6',\n);\n\ntry {\n    $output = $client->getCityPhoto($input);\n    var_dump($output->caption);\n    var_dump($output->photo);\n} catch (\\Example\\Weather\\NotFoundError $error) {\n    fwrite(STDERR, 'NotFoundError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -2203,9 +2463,11 @@
             "style": "properties",
             "type": "\\Example\\Weather\\ListCitiesOutput"
           },
+          "paginatedSnippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"List the first page\".\n$input = new \\Example\\Weather\\ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        'coastal',\n        'capital',\n    ],\n);\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nforeach ($client->listCitiesPages($input) as $page) {\n    var_dump($page->cities);\n}\n",
           "paginators": [
             "listCitiesPages"
-          ]
+          ],
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Values from the model's example \"List the first page\".\n$input = new \\Example\\Weather\\ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        'coastal',\n        'capital',\n    ],\n);\n\ntry {\n    $output = $client->listCities($input);\n    var_dump($output->cities);\n    var_dump($output->nextToken);\n} catch (\\Example\\Weather\\ThrottlingError $error) {\n    fwrite(STDERR, 'ThrottlingError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -2213,7 +2475,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\ntry {\n    $client->ping();\n} catch (\\Example\\Weather\\ThrottlingError $error) {\n    fwrite(STDERR, 'ThrottlingError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -2257,7 +2521,9 @@
             "style": "properties",
             "type": "\\Example\\Weather\\PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n// Sample values generated from the model's types and constraints.\n$input = new \\Example\\Weather\\PutCityPhotoInput(\n    cityId: 'c-4xzk6sz6',\n    caption: 'caption',\n    photo: 'photo',\n);\n\ntry {\n    $output = $client->putCityPhoto($input);\n    var_dump($output->photo);\n} catch (\\Example\\Weather\\NotFoundError $error) {\n    fwrite(STDERR, 'NotFoundError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -2275,7 +2541,9 @@
             "style": "properties",
             "type": "\\Example\\Weather\\StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "<?php\ndeclare(strict_types=1);\n\nrequire __DIR__ . '/vendor/autoload.php';\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n$client = new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(\n    endpoint: getenv('WEATHER_ENDPOINT') ?: null,\n    token: fn (): ?string => getenv('WEATHER_TOKEN') ?: null,\n));\n\n$input = new \\Example\\Weather\\StatusInput();\n\ntry {\n    $client->status($input);\n} catch (\\Example\\Weather\\ThrottlingError $error) {\n    fwrite(STDERR, 'ThrottlingError (HTTP ' . $error->metadata->status . '): ' . $error->messageValue . PHP_EOL);\n}\n"
         }
       },
       "package": {
@@ -2348,7 +2616,9 @@
             "style": "properties",
             "type": "example_weather.CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"Create a city\".\nrequest = example_weather.CreateCityInput(\n    name=\"Lisbon\",\n    location=example_weather.Location(\n        coordinates=example_weather.Coordinates(\n            latitude=38.72,\n            longitude=-9.14,\n        ),\n    ),\n    expected_revision=7,\n)\n\ntry:\n    output = client.create_city(request)\n    print(output.city)\nexcept example_weather.ConflictError as error:\n    print(f\"ConflictError (HTTP {error.metadata.status}): {error.message}\")\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -2398,7 +2668,9 @@
             "style": "properties",
             "type": "example_weather.GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import os\nfrom datetime import datetime, timezone\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"Read a city\".\nrequest = example_weather.GetCityInput(\n    city_id=\"c-0a1b2c3d\",\n    at=datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc),\n)\n\ntry:\n    output = client.get_city(request)\n    print(output.city)\n    print(output.forecast)\n    print(output.request_id)\nexcept example_weather.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -2436,7 +2708,9 @@
             "style": "properties",
             "type": "example_weather.GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Sample values generated from the model's types and constraints.\nrequest = example_weather.GetCityPhotoInput(\n    city_id=\"c-4xzk6sz6\",\n)\n\ntry:\n    output = client.get_city_photo(request)\n    print(output.caption)\n    print(output.photo)\nexcept example_weather.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -2486,9 +2760,11 @@
             "style": "properties",
             "type": "example_weather.ListCitiesOutput"
           },
+          "paginatedSnippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"List the first page\".\nrequest = example_weather.ListCitiesInput(\n    max_results=2,\n    tags=[\n        \"coastal\",\n        \"capital\",\n    ],\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nfor page in client.list_cities_pages(request):\n    print(page.cities)\n",
           "paginators": [
             "list_cities_pages"
-          ]
+          ],
+          "snippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Values from the model's example \"List the first page\".\nrequest = example_weather.ListCitiesInput(\n    max_results=2,\n    tags=[\n        \"coastal\",\n        \"capital\",\n    ],\n)\n\ntry:\n    output = client.list_cities(request)\n    print(output.cities)\n    print(output.next_token)\nexcept example_weather.ThrottlingError as error:\n    print(f\"ThrottlingError (HTTP {error.metadata.status}): {error.message}\")\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -2496,7 +2772,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\ntry:\n    client.ping()\nexcept example_weather.ThrottlingError as error:\n    print(f\"ThrottlingError (HTTP {error.metadata.status}): {error.message}\")\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -2540,7 +2818,9 @@
             "style": "properties",
             "type": "example_weather.PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\n# Sample values generated from the model's types and constraints.\nrequest = example_weather.PutCityPhotoInput(\n    city_id=\"c-4xzk6sz6\",\n    caption=\"caption\",\n    photo=b\"photo\",\n)\n\ntry:\n    output = client.put_city_photo(request)\n    print(output.photo)\nexcept example_weather.NotFoundError as error:\n    print(f\"NotFoundError (HTTP {error.metadata.status}): {error.message}\")\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -2558,7 +2838,9 @@
             "style": "properties",
             "type": "example_weather.StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import os\n\nimport example_weather\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = example_weather.WeatherClient(token=os.environ[\"WEATHER_TOKEN\"])\n\nrequest = example_weather.StatusInput()\n\ntry:\n    client.status(request)\nexcept example_weather.ThrottlingError as error:\n    print(f\"ThrottlingError (HTTP {error.metadata.status}): {error.message}\")\n"
         }
       },
       "package": {
@@ -2633,7 +2915,9 @@
             "style": "elements",
             "type": "CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"Create a city\".\ninput <- CreateCityInput(\n  name = \"Lisbon\",\n  location = Location(\n    \"coordinates\",\n    Coordinates(latitude = 38.72, longitude = -9.14)\n  ),\n  expected_revision = long(\"7\")\n)\n\ntryCatch(\n  {\n    output <- client$create_city(input)\n    print(output$city)\n  },\n  ConflictError = function(error) {\n    message(\"ConflictError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -2683,7 +2967,9 @@
             "style": "elements",
             "type": "GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"Read a city\".\ninput <- GetCityInput(\n  city_id = \"c-0a1b2c3d\",\n  # 2026-01-02T03:04:05Z\n  at = timestamp(1767323045)\n)\n\ntryCatch(\n  {\n    output <- client$get_city(input)\n    print(output$city)\n    print(output$forecast)\n    print(output$request_id)\n  },\n  NotFoundError = function(error) {\n    message(\"NotFoundError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -2721,7 +3007,9 @@
             "style": "elements",
             "type": "GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Sample values generated from the model's types and constraints.\ninput <- GetCityPhotoInput(city_id = \"c-4xzk6sz6\")\n\ntryCatch(\n  {\n    output <- client$get_city_photo(input)\n    print(output$caption)\n    print(output$photo)\n  },\n  NotFoundError = function(error) {\n    message(\"NotFoundError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -2771,9 +3059,11 @@
             "style": "elements",
             "type": "ListCitiesOutput"
           },
+          "paginatedSnippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"List the first page\".\ninput <- ListCitiesInput(\n  max_results = 2,\n  tags = list(\"coastal\", \"capital\")\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nnext_page <- client$list_cities_pages(input)\nwhile (!is.null(page <- next_page())) {\n  print(page$cities)\n}\n\nclient$close()\n",
           "paginators": [
             "list_cities_pages"
-          ]
+          ],
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Values from the model's example \"List the first page\".\ninput <- ListCitiesInput(\n  max_results = 2,\n  tags = list(\"coastal\", \"capital\")\n)\n\ntryCatch(\n  {\n    output <- client$list_cities(input)\n    print(output$cities)\n    print(output$next_token)\n  },\n  ThrottlingError = function(error) {\n    message(\"ThrottlingError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -2781,7 +3071,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\ntryCatch(\n  {\n    client$ping()\n  },\n  ThrottlingError = function(error) {\n    message(\"ThrottlingError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -2825,7 +3117,9 @@
             "style": "elements",
             "type": "PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\n# Sample values generated from the model's types and constraints.\ninput <- PutCityPhotoInput(\n  city_id = \"c-4xzk6sz6\",\n  caption = \"caption\",\n  photo = charToRaw(\"photo\")\n)\n\ntryCatch(\n  {\n    output <- client$put_city_photo(input)\n    print(output$photo)\n  },\n  NotFoundError = function(error) {\n    message(\"NotFoundError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -2843,7 +3137,9 @@
             "style": "elements",
             "type": "StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "library(weather)\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient <- WeatherClient(client_config(\n  endpoint = Sys.getenv(\"WEATHER_ENDPOINT\"),\n  token = function() Sys.getenv(\"WEATHER_TOKEN\")\n))\n\ninput <- StatusInput()\n\ntryCatch(\n  {\n    client$status(input)\n  },\n  ThrottlingError = function(error) {\n    message(\"ThrottlingError (HTTP \", error$metadata$status, \"): \", conditionMessage(error))\n  }\n)\n\nclient$close()\n"
         }
       },
       "package": {
@@ -2918,7 +3214,9 @@
             "style": "properties",
             "type": "ExampleWeather::CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"Create a city\".\ninput = ExampleWeather::CreateCityInput.new(\n  name: 'Lisbon',\n  location: ExampleWeather::Location::CoordinatesVariant.new(ExampleWeather::Coordinates.new(\n    latitude: 38.72,\n    longitude: -9.14,\n  )),\n  expected_revision: 7,\n)\n\nbegin\n  output = client.create_city(input)\n  p output.city\nrescue ExampleWeather::ConflictError => error\n  warn \"ConflictError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -2968,7 +3266,9 @@
             "style": "properties",
             "type": "ExampleWeather::GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"Read a city\".\ninput = ExampleWeather::GetCityInput.new(\n  city_id: 'c-0a1b2c3d',\n  at: ExampleWeather::Runtime::Timestamp.parse('2026-01-02T03:04:05Z'),\n)\n\nbegin\n  output = client.get_city(input)\n  p output.city\n  p output.forecast\n  p output.request_id\nrescue ExampleWeather::NotFoundError => error\n  warn \"NotFoundError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -3006,7 +3306,9 @@
             "style": "properties",
             "type": "ExampleWeather::GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Sample values generated from the model's types and constraints.\ninput = ExampleWeather::GetCityPhotoInput.new(\n  city_id: 'c-4xzk6sz6',\n)\n\nbegin\n  output = client.get_city_photo(input)\n  p output.caption\n  p output.photo\nrescue ExampleWeather::NotFoundError => error\n  warn \"NotFoundError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -3056,9 +3358,11 @@
             "style": "properties",
             "type": "ExampleWeather::ListCitiesOutput"
           },
+          "paginatedSnippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"List the first page\".\ninput = ExampleWeather::ListCitiesInput.new(\n  max_results: 2,\n  tags: [\n    'coastal',\n    'capital',\n  ],\n)\n\n# Each page is one response; the paginator sends `next_token` for the next.\nclient.list_cities_pages(input).each do |page|\n  p page.cities\nend\n",
           "paginators": [
             "list_cities_pages"
-          ]
+          ],
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Values from the model's example \"List the first page\".\ninput = ExampleWeather::ListCitiesInput.new(\n  max_results: 2,\n  tags: [\n    'coastal',\n    'capital',\n  ],\n)\n\nbegin\n  output = client.list_cities(input)\n  p output.cities\n  p output.next_token\nrescue ExampleWeather::ThrottlingError => error\n  warn \"ThrottlingError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -3066,7 +3370,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\nbegin\n  client.ping\nrescue ExampleWeather::ThrottlingError => error\n  warn \"ThrottlingError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -3110,7 +3416,9 @@
             "style": "properties",
             "type": "ExampleWeather::PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\n# Sample values generated from the model's types and constraints.\ninput = ExampleWeather::PutCityPhotoInput.new(\n  city_id: 'c-4xzk6sz6',\n  caption: 'caption',\n  photo: 'photo'.b,\n)\n\nbegin\n  output = client.put_city_photo(input)\n  p output.photo\nrescue ExampleWeather::NotFoundError => error\n  warn \"NotFoundError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -3128,7 +3436,9 @@
             "style": "properties",
             "type": "ExampleWeather::StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "require 'example_weather'\n\n# The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nclient = ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: ENV.fetch('WEATHER_ENDPOINT'), token: -> { ENV.fetch('WEATHER_TOKEN') }))\n\ninput = ExampleWeather::StatusInput.new\n\nbegin\n  client.status(input)\nrescue ExampleWeather::ThrottlingError => error\n  warn \"ThrottlingError (HTTP #{error.metadata.status}): #{error.message_value}\"\nend\n"
         }
       },
       "package": {
@@ -3203,7 +3513,9 @@
             "style": "methods",
             "type": "CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"Create a city\".\n    let input = CreateCityInput::builder()\n        .name(\"Lisbon\")\n        .location(Location::Coordinates(Coordinates::builder()\n            .latitude(38.72)\n            .longitude(-9.14)\n            .build()?))\n        .expected_revision(7_i64)\n        .build()?;\n\n    match client.create_city(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.city());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: CreateCityError::ConflictError(error),\n            metadata,\n        })) => {\n            eprintln!(\"ConflictError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -3253,7 +3565,9 @@
             "style": "methods",
             "type": "GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"Read a city\".\n    let input = GetCityInput::builder()\n        .city_id(\"c-0a1b2c3d\")\n        .at(runtime::time::parse_date_time(\"2026-01-02T03:04:05Z\").ok_or(\"an RFC 3339 instant\")?)\n        .build()?;\n\n    match client.get_city(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.city());\n            println!(\"{:?}\", output.forecast());\n            println!(\"{:?}\", output.request_id());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: GetCityError::NotFoundError(error),\n            metadata,\n        })) => {\n            eprintln!(\"NotFoundError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -3291,7 +3605,9 @@
             "style": "methods",
             "type": "GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Sample values generated from the model's types and constraints.\n    let input = GetCityPhotoInput::builder()\n        .city_id(\"c-4xzk6sz6\")\n        .build()?;\n\n    match client.get_city_photo(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.caption());\n            println!(\"{:?}\", output.photo());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: GetCityPhotoError::NotFoundError(error),\n            metadata,\n        })) => {\n            eprintln!(\"NotFoundError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -3341,9 +3657,11 @@
             "style": "methods",
             "type": "ListCitiesOutput"
           },
+          "paginatedSnippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"List the first page\".\n    let input = ListCitiesInput::builder()\n        .max_results(2)\n        .tags(vec![\n            \"coastal\".to_owned(),\n            \"capital\".to_owned(),\n        ])\n        .build();\n\n    // Each page is one response; the paginator sends `nextToken` for the next.\n    let mut pages = client.list_cities_pages(input);\n    while let Some(page) = pages.next_page().await {\n        let page = page?;\n        println!(\"{:?}\", page.cities());\n    }\n    Ok(())\n}\n",
           "paginators": [
             "list_cities_pages"
-          ]
+          ],
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Values from the model's example \"List the first page\".\n    let input = ListCitiesInput::builder()\n        .max_results(2)\n        .tags(vec![\n            \"coastal\".to_owned(),\n            \"capital\".to_owned(),\n        ])\n        .build();\n\n    match client.list_cities(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.cities());\n            println!(\"{:?}\", output.next_token());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: ListCitiesError::ThrottlingError(error),\n            metadata,\n        })) => {\n            eprintln!(\"ThrottlingError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -3351,7 +3669,9 @@
           "method": "ping",
           "optionsMethod": "ping_with_options",
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    match client.ping().await {\n        Ok(_) => {}\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: PingError::ThrottlingError(error),\n            metadata,\n        })) => {\n            eprintln!(\"ThrottlingError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -3395,7 +3715,9 @@
             "style": "methods",
             "type": "PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    // Sample values generated from the model's types and constraints.\n    let input = PutCityPhotoInput::builder()\n        .city_id(\"c-4xzk6sz6\")\n        .caption(\"caption\")\n        .photo(runtime::Blob::from(\"photo\"))\n        .build()?;\n\n    match client.put_city_photo(input).await {\n        Ok(output) => {\n            println!(\"{:?}\", output.photo());\n        }\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: PutCityPhotoError::NotFoundError(error),\n            metadata,\n        })) => {\n            eprintln!(\"NotFoundError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -3413,7 +3735,9 @@
             "style": "methods",
             "type": "StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "use weather_sdk::*;\n\n#[tokio::main]\nasync fn main() -> Result<(), Box<dyn std::error::Error>> {\n    // The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\n    let client = WeatherClient::new(\n        runtime::Config::new(std::env::var(\"WEATHER_ENDPOINT\")?)\n            .token(runtime::Token::fixed(std::env::var(\"WEATHER_TOKEN\")?)),\n    );\n\n    let input = StatusInput::builder().build();\n\n    match client.status(input).await {\n        Ok(_) => {}\n        Err(runtime::Error::Service(runtime::ServiceError {\n            error: StatusError::ThrottlingError(error),\n            metadata,\n        })) => {\n            eprintln!(\"ThrottlingError (HTTP {}): {:?}\", metadata.status, error.message());\n        }\n        Err(error) => return Err(error.into()),\n    }\n    Ok(())\n}\n"
         }
       },
       "package": {
@@ -3488,7 +3812,9 @@
             "style": "properties",
             "type": "CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"Create a city\".\nlet input = CreateCityInput(\n    name: \"Lisbon\",\n    location: .coordinates(Coordinates(\n        latitude: 38.72,\n        longitude: -9.14\n    )),\n    expectedRevision: 7\n)\n\ndo {\n    let output = try await client.createCity(input)\n    print(\"city:\", output.city)\n} catch let error as ConflictError {\n    print(\"ConflictError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -3538,7 +3864,9 @@
             "style": "properties",
             "type": "GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"Read a city\".\nlet input = try GetCityInput(\n    cityId: \"c-0a1b2c3d\",\n    at: Timestamp(seconds: 1767323045 /* 2026-01-02T03:04:05Z */)\n)\n\ndo {\n    let output = try await client.getCity(input)\n    print(\"city:\", output.city)\n    if let forecast = output.forecast { print(\"forecast:\", forecast) }\n    if let requestId = output.requestId { print(\"requestId:\", requestId) }\n} catch let error as NotFoundError {\n    print(\"NotFoundError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -3576,7 +3904,9 @@
             "style": "properties",
             "type": "GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Sample values generated from the model's types and constraints.\nlet input = GetCityPhotoInput(\n    cityId: \"c-4xzk6sz6\"\n)\n\ndo {\n    let output = try await client.getCityPhoto(input)\n    if let caption = output.caption { print(\"caption:\", caption) }\n    if let photo = output.photo { print(\"photo:\", photo) }\n} catch let error as NotFoundError {\n    print(\"NotFoundError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -3626,9 +3956,11 @@
             "style": "properties",
             "type": "ListCitiesOutput"
           },
+          "paginatedSnippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"List the first page\".\nlet input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        \"coastal\",\n        \"capital\",\n    ]\n)\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor try await page in try client.listCitiesPages(input) {\n    print(page.cities)\n}\nclient.close()\n",
           "paginators": [
             "listCitiesPages"
-          ]
+          ],
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Values from the model's example \"List the first page\".\nlet input = ListCitiesInput(\n    maxResults: 2,\n    tags: [\n        \"coastal\",\n        \"capital\",\n    ]\n)\n\ndo {\n    let output = try await client.listCities(input)\n    print(\"cities:\", output.cities)\n    if let nextToken = output.nextToken { print(\"nextToken:\", nextToken) }\n} catch let error as ThrottlingError {\n    print(\"ThrottlingError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -3636,7 +3968,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\ndo {\n    _ = try await client.ping()\n} catch let error as ThrottlingError {\n    print(\"ThrottlingError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -3680,7 +4014,9 @@
             "style": "properties",
             "type": "PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\n// Sample values generated from the model's types and constraints.\nlet input = PutCityPhotoInput(\n    cityId: \"c-4xzk6sz6\",\n    caption: \"caption\",\n    photo: Data(\"photo\".utf8)\n)\n\ndo {\n    let output = try await client.putCityPhoto(input)\n    print(\"photo:\", output.photo)\n} catch let error as NotFoundError {\n    print(\"NotFoundError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -3698,7 +4034,9 @@
             "style": "properties",
             "type": "StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import Foundation\nimport Weather\n\n// The client sends Authorization: Bearer <token> and Crucible-Version: 2026-10-01 on every request.\nlet client = try WeatherClient(ClientConfig(\n    endpoint: ProcessInfo.processInfo.environment[\"WEATHER_ENDPOINT\"],\n    token: { ProcessInfo.processInfo.environment[\"WEATHER_TOKEN\"] }\n))\n\nlet input = StatusInput()\n\ndo {\n    _ = try await client.status(input)\n} catch let error as ThrottlingError {\n    print(\"ThrottlingError (HTTP \\(error.metadata.status)):\", error.message)\n}\nclient.close()\n"
         }
       },
       "package": {
@@ -3781,7 +4119,9 @@
             "style": "properties",
             "type": "models.CreateCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { ConflictError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"Create a city\".\nconst input: models.CreateCityInput = {\n  name: \"Lisbon\",\n  location: {\n    coordinates: {\n      latitude: 38.72,\n      longitude: -9.14,\n    },\n  },\n  expectedRevision: 7n,\n};\n\ntry {\n  const output = await client.createCity(input);\n  console.log(output.city);\n} catch (error) {\n  if (error instanceof ConflictError) {\n    console.error(`ConflictError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         },
         "example.weather#GetCity": {
           "asyncMethod": null,
@@ -3831,7 +4171,9 @@
             "style": "properties",
             "type": "models.GetCityOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { NotFoundError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"Read a city\".\nconst input: models.GetCityInput = {\n  cityId: \"c-0a1b2c3d\",\n  at: new Date(\"2026-01-02T03:04:05Z\"),\n};\n\ntry {\n  const output = await client.getCity(input);\n  console.log(output.city);\n  console.log(output.forecast);\n  console.log(output.requestId);\n} catch (error) {\n  if (error instanceof NotFoundError) {\n    console.error(`NotFoundError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         },
         "example.weather#GetCityPhoto": {
           "asyncMethod": null,
@@ -3869,7 +4211,9 @@
             "style": "properties",
             "type": "models.GetCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { NotFoundError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Sample values generated from the model's types and constraints.\nconst input: models.GetCityPhotoInput = {\n  cityId: \"c-4xzk6sz6\",\n};\n\ntry {\n  const output = await client.getCityPhoto(input);\n  console.log(output.caption);\n  console.log(output.photo);\n} catch (error) {\n  if (error instanceof NotFoundError) {\n    console.error(`NotFoundError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         },
         "example.weather#ListCities": {
           "asyncMethod": null,
@@ -3919,9 +4263,11 @@
             "style": "properties",
             "type": "models.ListCitiesOutput"
           },
+          "paginatedSnippet": "import { WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"List the first page\".\nconst input: models.ListCitiesInput = {\n  maxResults: 2,\n  tags: [\n    \"coastal\",\n    \"capital\",\n  ],\n};\n\n// Each page is one response; the paginator sends `nextToken` for the next.\nfor await (const page of client.paginateListCities(input)) {\n  console.log(page.cities);\n}\n",
           "paginators": [
             "paginateListCities"
-          ]
+          ],
+          "snippet": "import { ThrottlingError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Values from the model's example \"List the first page\".\nconst input: models.ListCitiesInput = {\n  maxResults: 2,\n  tags: [\n    \"coastal\",\n    \"capital\",\n  ],\n};\n\ntry {\n  const output = await client.listCities(input);\n  console.log(output.cities);\n  console.log(output.nextToken);\n} catch (error) {\n  if (error instanceof ThrottlingError) {\n    console.error(`ThrottlingError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         },
         "example.weather#Ping": {
           "asyncMethod": null,
@@ -3929,7 +4275,9 @@
           "method": "ping",
           "optionsMethod": null,
           "output": null,
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { ThrottlingError, WeatherClient } from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\ntry {\n  await client.ping();\n} catch (error) {\n  if (error instanceof ThrottlingError) {\n    console.error(`ThrottlingError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         },
         "example.weather#PutCityPhoto": {
           "asyncMethod": null,
@@ -3973,7 +4321,9 @@
             "style": "properties",
             "type": "models.PutCityPhotoOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { NotFoundError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\n// Sample values generated from the model's types and constraints.\nconst input: models.PutCityPhotoInput = {\n  cityId: \"c-4xzk6sz6\",\n  caption: \"caption\",\n  photo: new TextEncoder().encode(\"photo\"),\n};\n\ntry {\n  const output = await client.putCityPhoto(input);\n  console.log(output.photo);\n} catch (error) {\n  if (error instanceof NotFoundError) {\n    console.error(`NotFoundError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         },
         "example.weather#Status": {
           "asyncMethod": null,
@@ -3991,7 +4341,9 @@
             "style": "properties",
             "type": "models.StatusOutput"
           },
-          "paginators": null
+          "paginatedSnippet": null,
+          "paginators": null,
+          "snippet": "import { ThrottlingError, WeatherClient } from \"@example/weather\";\nimport type * as models from \"@example/weather\";\n\n// The client sends Authorization: Bearer <token>, Crucible-Version: 2026-10-01 and x-amz-content-sha256 (content-sha256) on every request.\nconst client = new WeatherClient({ token: process.env.WEATHER_TOKEN });\n\nconst input: models.StatusInput = {};\n\ntry {\n  await client.status(input);\n} catch (error) {\n  if (error instanceof ThrottlingError) {\n    console.error(`ThrottlingError (HTTP ${error.$metadata.status}):`, error.message);\n  } else {\n    throw error;\n  }\n}\n"
         }
       },
       "package": {

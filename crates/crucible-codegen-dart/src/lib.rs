@@ -6,6 +6,7 @@ mod client;
 mod links;
 mod models;
 mod permissions;
+mod snippet;
 mod surface;
 use crucible_ir::Diagnostics;
 use crucible_ir::ShapeId;
@@ -438,6 +439,30 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             contents: permissions::RUNTIME.into(),
         });
     }
+    files.extend(package_docs(service, options));
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+/// The package's generated README (which pub shows as its page and
+/// `dart doc` as its front page), its `AGENTS.md`, and dartdoc's
+/// configuration.
+fn package_docs(service: &Service, options: &Options) -> Vec<File> {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    vec![
+        File {
+            path: guide::README.to_owned(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: guide::AGENTS.to_owned(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+        File {
+            path: "dartdoc_options.yaml".to_owned(),
+            contents: snippet::DARTDOC_OPTIONS.to_owned(),
+        },
+    ]
 }

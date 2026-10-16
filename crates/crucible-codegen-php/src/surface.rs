@@ -42,6 +42,16 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .output
             .as_ref()
             .map(|id| structure(service, namespace, id, "properties"));
+        let call = crucible_codegen_common::snippet::call(service, op);
+        let paginator = entry.paginators.as_ref().and_then(|p| p.first().cloned());
+        (entry.snippet, entry.paginated_snippet) = crate::snippet::snippets(
+            service,
+            options,
+            &out.middleware,
+            &call,
+            &method,
+            paginator.as_deref(),
+        );
         out.operations.insert(op.id.to_string(), entry);
     }
     out

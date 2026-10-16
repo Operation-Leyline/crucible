@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "weather-client"
 version = "0.0.0.dev0"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["httpx>=0.28,<1"]
 
@@ -12,4 +13,4 @@ dependencies = ["httpx>=0.28,<1"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"weather_client" = ["py.typed", "crucible.json"]
+"weather_client" = ["py.typed", "crucible.json", "AGENTS.md"]

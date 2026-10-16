@@ -557,18 +557,25 @@ fn the_package_lists_provenance_it_does_not_write() {
     let package: serde_json::Value = serde_json::from_str(file(&files, "package.json")).unwrap();
     assert_eq!(
         package["files"],
-        serde_json::json!(["dist", "crucible.json", "crucible-model.json"])
+        serde_json::json!([
+            "dist",
+            "crucible.json",
+            "crucible-model.json",
+            "README.md",
+            "AGENTS.md"
+        ])
     );
     assert!(
         !files
             .iter()
             .any(|f| f.path == "crucible.json" || f.path == "crucible-model.json")
     );
-    assert!(
-        !files
-            .iter()
-            .any(|f| f.path == "README.md" || f.path == "LICENSE")
-    );
+    // Without a configured README the package carries the generated one,
+    // beside its AGENTS.md; a license only when one is configured.
+    let readme = file(&files, "README.md");
+    assert!(readme.starts_with("# weather\n"), "{readme}");
+    assert!(file(&files, "AGENTS.md").contains("npm install weather@0.0.0"));
+    assert!(!files.iter().any(|f| f.path == "LICENSE"));
 }
 
 #[test]

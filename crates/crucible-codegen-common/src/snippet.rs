@@ -251,6 +251,12 @@ fn timestamp(service: &Service, member: &Member, value: &Value) -> Option<Timest
     })
 }
 
+/// The bytes standard padded base64 `text` (a model or wire blob) holds,
+/// or `None` when it is not base64.
+pub fn base64_bytes(text: &str) -> Option<Vec<u8>> {
+    base64::engine::general_purpose::STANDARD.decode(text).ok()
+}
+
 /// The modelled error a snippet handles, and the member it reads.
 #[derive(Debug, Clone, Copy)]
 pub struct ErrorCase<'a> {
@@ -290,10 +296,13 @@ pub struct Call<'a> {
 /// The snippet for `operation` of `service` (the projected service the
 /// client is generated from).
 pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
-    let input_shape = operation.input.as_ref().and_then(|id| match service.shape(id) {
-        Some(Shape::Structure(shape)) => Some((id, shape)),
-        _ => None,
-    });
+    let input_shape = operation
+        .input
+        .as_ref()
+        .and_then(|id| match service.shape(id) {
+            Some(Shape::Structure(shape)) => Some((id, shape)),
+            _ => None,
+        });
     let example = operation
         .examples
         .iter()
@@ -307,13 +316,8 @@ pub fn call<'a>(service: &'a Service, operation: &'a Operation) -> Call<'a> {
             ),
             None => {
                 let text = text_members(operation);
-                let generated = sample::structure(
-                    service,
-                    Some(id),
-                    sample::Variant::Full,
-                    "input",
-                    &text,
-                );
+                let generated =
+                    sample::structure(service, Some(id), sample::Variant::Full, "input", &text);
                 let mut node = structure(service, id, shape, &generated.value);
                 // A fixed idempotency token in copied code would replay
                 // one logical request forever: the client fills it.

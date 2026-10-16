@@ -52,8 +52,13 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
     let package = &options.package_name;
     let qualifier = &surface.package.qualifier;
     // A snippet imports the module under its package name, unless that is
-    // a standard-library name the snippet may also import.
-    let alias = if ["time", "big"].contains(&package.as_str()) {
+    // a standard-library name or a name a snippet program declares.
+    let alias = if [
+        "big", "bigInt", "client", "context", "ctx", "err", "errors", "fmt", "input", "log",
+        "math", "os", "output", "page", "pages", "ptr", "time",
+    ]
+    .contains(&package.as_str())
+    {
         format!("{package}sdk")
     } else {
         package.clone()
@@ -111,7 +116,56 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
             operation.method,
             op.name()
         );
+        // The snippet is a program calling this method with a context, and
+        // every struct it builds is one the module declares.
+        assert!(
+            operation.snippet.starts_with(
+                "package main
+"
+            ),
+            "{id}"
+        );
+        assert!(
+            operation.snippet.contains(
+                "
+func main() {
+"
+            ),
+            "{id}"
+        );
+        assert!(
+            operation
+                .snippet
+                .contains(&format!("client.{}(ctx, ", operation.method)),
+            "{id}: {}",
+            operation.snippet
+        );
+        for snippet in std::iter::once(&operation.snippet).chain(&operation.paginated_snippet) {
+            for (at, _) in snippet.match_indices(&format!("&{qualifier}")) {
+                let rest = &snippet[at + 1 + qualifier.len()..];
+                let name = &rest[..rest.find('{').unwrap()];
+                assert!(
+                    models.contains(&format!(
+                        "type {name} struct {{
+"
+                    )),
+                    "{id}: {name}"
+                );
+            }
+        }
+        assert_eq!(
+            operation.paginated_snippet.is_some(),
+            op.paginated.is_some(),
+            "{id}"
+        );
         for pages in operation.paginators.iter().flatten() {
+            assert!(
+                operation
+                    .paginated_snippet
+                    .as_ref()
+                    .is_some_and(|snippet| snippet.contains(&format!("client.{pages}("))),
+                "{id}: {pages}"
+            );
             let paginator = block(
                 &client,
                 &format!("func (c *{name}) {pages}(input {input}) (*"),
@@ -215,6 +269,51 @@ fn the_package_name_qualifies_types() {
         "forecast.GetCityInput"
     );
     assert_declared(&service, &options, &surface);
+}
+
+/// A package named like a variable or import of the snippet program is
+/// imported under another name, so the snippet's `client` stays the client.
+#[test]
+fn a_package_named_like_a_snippet_variable_is_aliased() {
+    let service = load("weather");
+    let options = Options {
+        module_path: "example.com/client".into(),
+        package_name: "client".into(),
+        endpoint: None,
+    };
+    let surface = surface(&service, &options);
+    assert_eq!(
+        surface.package.imports[0],
+        "import clientsdk \"example.com/client\""
+    );
+    let snippet = &surface.operations["example.weather#GetCity"].snippet;
+    assert!(
+        snippet.contains(
+            "	clientsdk \"example.com/client\"
+"
+        ),
+        "{snippet}"
+    );
+    assert!(snippet.contains("client, err := clientsdk.NewWeatherClient("));
+    assert_declared(&service, &options, &surface);
+}
+
+/// The module carries a README and `AGENTS.md` naming its install line,
+/// client and a complete call.
+#[test]
+fn the_module_documents_itself() {
+    let service = load("weather");
+    let files = emit(&service, &options(Some("https://weather.example"))).unwrap();
+    let readme = source(&files, "README.md");
+    assert!(readme.contains(
+        "go get example.com/weather
+"
+    ));
+    assert!(readme.contains("client.GetCity(ctx, input)"));
+    assert!(readme.contains("client.ListCitiesPages(input)"));
+    let agents = source(&files, "AGENTS.md");
+    assert!(agents.contains("`weather.WeatherClient`"));
+    assert!(agents.contains("errors.As"));
 }
 
 #[test]

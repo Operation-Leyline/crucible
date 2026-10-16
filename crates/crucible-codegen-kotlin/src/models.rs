@@ -508,7 +508,7 @@ pub(crate) fn default_expr(
 }
 
 // Kotlin aliases cannot recurse without a nominal type breaking the cycle.
-fn recursive_collection(
+pub(crate) fn recursive_collection(
     service: &Service,
     start: &crucible_ir::ShapeId,
     current: &crucible_ir::ShapeId,

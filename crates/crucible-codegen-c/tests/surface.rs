@@ -41,6 +41,12 @@ fn block<'a>(text: &'a str, start: &str, end: &str) -> &'a str {
     &text[at..at + length]
 }
 
+/// The C identifiers in `text`.
+fn identifiers(text: &str) -> impl Iterator<Item = &str> {
+    text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|word| word.starts_with(|c: char| c.is_ascii_alphabetic() || c == '_'))
+}
+
 /// Asserts that every name the surface gives is declared in the package
 /// the generator emits for `service` with `options`, and returns it.
 fn assert_declared(service: &Service, options: &Options) -> Surface {
@@ -111,6 +117,50 @@ fn assert_declared(service: &Service, options: &Options) -> Surface {
             "{name}_config config = {name}_defaults();{set_endpoint} {name} *client = NULL; {p}_error error = {{0}}; {name}_new(&config, &client, &error);"
         )
     );
+
+    // Every prefixed name a snippet spells (functions, types, constants)
+    // is one a public header declares.
+    let declared: std::collections::BTreeSet<&str> = files
+        .iter()
+        .filter(|file| file.path.starts_with("include/"))
+        .flat_map(|file| identifiers(&file.contents))
+        .collect();
+    for (id, entry) in &surface.operations {
+        assert!(
+            entry.snippet.contains("int main(void) {"),
+            "{id}: a program"
+        );
+        assert!(
+            entry
+                .snippet
+                .contains(&format!("{}(client, ", entry.method))
+        );
+        assert_eq!(
+            entry.paginated_snippet.is_some(),
+            entry.paginators.is_some(),
+            "{id}: pages"
+        );
+        for snippet in std::iter::once(&entry.snippet).chain(&entry.paginated_snippet) {
+            for name in identifiers(snippet).filter(|name| name.starts_with(&format!("{p}_"))) {
+                assert!(declared.contains(name), "{id}: {name} is not declared");
+            }
+            // What the program creates, it frees.
+            assert!(snippet.contains(&format!("{name}_free(client);")));
+            if snippet.contains(&format!("{p}_arena_new()")) {
+                assert!(snippet.contains(&format!("{p}_arena_free(documents);")));
+            }
+        }
+        if let Some([pages_new, _]) = entry.paginators.as_deref() {
+            let pages = entry.paginated_snippet.as_ref().unwrap();
+            assert!(pages.contains(&format!("{pages_new}(client, ")));
+            assert!(pages.contains(&format!("{p}_pages_free(pages);")));
+        }
+        assert!(
+            entry
+                .snippet
+                .contains(&format!("{}_result_free(&result);", entry.method))
+        );
+    }
 
     assert_eq!(surface.operations.len(), service.operations.len());
     for operation in &service.operations {
@@ -222,6 +272,22 @@ fn weather_surface_names_the_generated_declarations() {
     );
     assert!(revision.optional);
     assert!(!create.members[0].optional, "name is required");
+}
+
+/// The samples model's snippets spell every kind of value (lists, maps,
+/// unions, documents, timestamps, blobs, big numbers, enums) through
+/// declared names; documents are parsed into an arena the program frees.
+#[test]
+fn sample_snippets_name_the_generated_declarations() {
+    let surface = assert_declared(&load("samples"), &options());
+    let put = &surface.operations["example.samples#PutGraph"].snippet;
+    assert!(put.contains("weather_json_parse(documents, "), "{put}");
+    assert!(put.contains("/* Sample values generated from the model's types and constraints. */"));
+    let weather = assert_declared(&load("weather"), &options());
+    let get = &weather.operations["example.weather#GetCity"].snippet;
+    assert!(get.contains("/* Values from the model's example \"Read a city\". */"));
+    assert!(get.contains("getenv(\"WEATHER_TOKEN\")"));
+    assert!(get.contains("weather_error_as_not_found_error(&result.base)"));
 }
 
 /// Another prefix and package, with a generated-in endpoint: every symbol

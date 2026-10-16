@@ -122,6 +122,21 @@ and other retryable modelled errors only for operations that are read-only, idem
 an idempotency token. An idempotency token the caller leaves unset is generated once per call \
 and reused on every attempt; set it yourself to replay one logical request across calls.";
 
+/// The package's imports, then the statements constructing the client:
+/// what a caller copies to get a client.
+fn construct(surface: &Surface, guide: &Guide) -> String {
+    if surface.package.imports.is_empty() {
+        // PHP's autoloader needs no import line.
+        guide.construct.clone()
+    } else {
+        format!(
+            "{}\n\n{}",
+            surface.package.imports.join("\n"),
+            guide.construct
+        )
+    }
+}
+
 /// The package's `README.md`.
 pub fn readme(service: &Service, surface: &Surface, guide: &Guide) -> String {
     let title = title(service);
@@ -154,14 +169,7 @@ pub fn readme(service: &Service, surface: &Surface, guide: &Guide) -> String {
         import = surface.package.import,
     ));
     out.push_str("## Create a client\n\n");
-    out.push_str(&code(
-        &guide.fence,
-        &format!(
-            "{}\n\n{}",
-            surface.package.imports.join("\n"),
-            guide.construct
-        ),
-    ));
+    out.push_str(&code(&guide.fence, &construct(surface, guide)));
     out.push('\n');
     out.push_str(&guide.auth);
     if let Some(sentence) = crate::snippet::added_headers_markdown(service, &surface.middleware) {
@@ -238,10 +246,12 @@ pub fn agents(service: &Service, surface: &Surface, guide: &Guide) -> String {
         .first()
         .map(|line| format!("`{line}`"))
         .or_else(|| {
-            guide
-                .manifest
-                .as_ref()
-                .map(|(_, text)| format!("`{}`", text.lines().next().unwrap_or_default()))
+            // A manifest's first entry, past any `[section]` header.
+            let (_, text) = guide.manifest.as_ref()?;
+            let entry = text
+                .lines()
+                .find(|line| !line.trim().is_empty() && !line.starts_with('['))?;
+            Some(format!("add `{}` to the project's manifest", entry.trim()))
         })
         .unwrap_or_default();
     out.push_str(&format!(
@@ -253,20 +263,25 @@ pub fn agents(service: &Service, surface: &Surface, guide: &Guide) -> String {
             .map(|v| format!(" at version `{v}`"))
             .unwrap_or_default()
     ));
-    out.push_str(&format!(
-        "- Import: {}.\n",
-        package
-            .imports
-            .iter()
-            .map(|line| format!("`{line}`"))
-            .collect::<Vec<_>>()
-            .join(" then ")
-    ));
+    if !package.imports.is_empty() {
+        out.push_str(&format!(
+            "- Import: {}.\n",
+            package
+                .imports
+                .iter()
+                .map(|line| format!("`{line}`"))
+                .collect::<Vec<_>>()
+                .join(" then ")
+        ));
+    }
     out.push_str(&format!(
         "- Client: `{}`. Construct it as below. {}\n",
         surface.client.name, guide.auth
     ));
-    out.push_str(&format!("\n{}\n", code(&guide.fence, &guide.construct)));
+    out.push_str(&format!(
+        "\n{}\n",
+        code(&guide.fence, &construct(surface, guide))
+    ));
     if let Some(sentence) = crate::snippet::added_headers_markdown(service, &surface.middleware) {
         out.push_str(&format!(
             "- Headers: {sentence} Do not set them yourself.\n"

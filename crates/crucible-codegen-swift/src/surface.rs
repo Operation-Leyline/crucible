@@ -43,6 +43,19 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .output
             .as_ref()
             .map(|id| structure(service, id, module, &models, "properties"));
+        let call = crucible_codegen_common::snippet::call(service, op);
+        (entry.snippet, entry.paginated_snippet) = crate::snippet::snippets(
+            service,
+            options,
+            &out.middleware,
+            &call,
+            &entry.method,
+            entry
+                .paginators
+                .as_ref()
+                .and_then(|names| names.first())
+                .map(String::as_str),
+        );
         out.operations.insert(op.id.to_string(), entry);
     }
     out
@@ -78,7 +91,7 @@ fn structure(
 
 /// The type names the module declares for models, which would make a
 /// caller's unqualified `String` ambiguous with `Swift.String`.
-fn model_names(service: &Service) -> BTreeSet<String> {
+pub(crate) fn model_names(service: &Service) -> BTreeSet<String> {
     service
         .shapes
         .keys()
@@ -90,7 +103,7 @@ fn model_names(service: &Service) -> BTreeSet<String> {
 /// `name` as Swift source writes it: in backticks when it is a name the
 /// generator reserves (Swift's keywords among them), as the generated
 /// declarations always are.
-fn escape(name: &str) -> String {
+pub(crate) fn escape(name: &str) -> String {
     if reserved_module(name) {
         format!("`{name}`")
     } else {
@@ -102,7 +115,7 @@ fn escape(name: &str) -> String {
 /// (or a reserved name's `` `TypeModel` ``) reads `City`, `Swift.Int64`
 /// reads `Int64` unless a model takes that name, and `Foundation.Data`
 /// stays qualified.
-fn caller_type(ty: &str, models: &BTreeSet<String>) -> String {
+pub(crate) fn caller_type(ty: &str, models: &BTreeSet<String>) -> String {
     if let Some(name) = ty.strip_prefix('`').and_then(|rest| rest.strip_suffix('`')) {
         return name.to_owned();
     }

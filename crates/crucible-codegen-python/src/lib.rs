@@ -2,6 +2,7 @@
 mod links;
 mod names;
 mod permissions;
+mod snippet;
 mod surface;
 
 use crucible_ir::ir::{Service, Shape};
@@ -495,7 +496,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     let pyproject = format!(
-        "[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = {}\nversion = {}\nrequires-python = \">=3.11\"\ndependencies = [\"httpx>=0.28,<1\"]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n\n[tool.setuptools.package-data]\n{} = [\"py.typed\", \"crucible.json\"]\n",
+        "[build-system]\nrequires = [\"setuptools>=68\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = {}\nversion = {}\nreadme = \"README.md\"\nrequires-python = \">=3.11\"\ndependencies = [\"httpx>=0.28,<1\"]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n\n[tool.setuptools.package-data]\n{} = [\"py.typed\", \"crucible.json\", \"AGENTS.md\"]\n",
         literal(&options.package_name),
         literal(&options.package_version),
         literal(module)
@@ -516,8 +517,22 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         "generatorVersion": env!("CARGO_PKG_VERSION"), "service": service.id.to_string(),
         "serviceVersion": service.version, "schemaSha256": format!("{:x}", Sha256::digest(schema.as_bytes())),
     })).expect("provenance serializes");
+    // The README is PyPI's project description; `AGENTS.md` is also package
+    // data, so an installed package carries it beside its modules.
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    let agents = crucible_codegen_common::guide::agents(service, &surface, &facts);
     let mut files = vec![
         file("pyproject.toml".into(), pyproject),
+        file(
+            crucible_codegen_common::guide::README.into(),
+            crucible_codegen_common::guide::readme(service, &surface, &facts),
+        ),
+        file(
+            crucible_codegen_common::guide::AGENTS.into(),
+            agents.clone(),
+        ),
+        file(format!("src/{module}/AGENTS.md"), agents),
         file(format!("src/{module}/models.py"), models),
         file(format!("src/{module}/client.py"), client),
     ];

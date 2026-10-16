@@ -57,6 +57,44 @@ metadata keys (description, URLs, license, authors, README, keywords,
 `crucible-model.json`. See [releasing generated SDKs](sdk-releases.md) and
 the design in [SDK packaging](sdk-packaging.md).
 
+## Generated package documentation
+
+Every generated SDK package, in all 14 languages, carries two generated
+Markdown files at its root (R's `AGENTS.md` is under `inst/`, see the
+[R guide](clients/r.md)), both owned by generation like the code beside
+them:
+
+- `README.md`, for a person adding the package: the install line with the
+  exact package name and version, constructing the client with its token
+  (and endpoint, where none is generated in), one complete call, a
+  paginated call, how modelled errors are told apart, the retry and
+  idempotency rules, and links (the model's `@externalDocs`, the package's
+  documentation, home page and repository, and the language guide). Rust
+  and TypeScript packages copy a configured `readme` instead
+  (`--readme`, `readme` in `crucible-sdk.toml`); every other language
+  always generates it. A Rust package's README is also its crate
+  documentation.
+- `AGENTS.md`, for a coding agent working in a project that depends on the
+  package: the same facts as terse rules, with the exact install line,
+  imports, client name and construction, the headers the client sends
+  itself (`Authorization`, `Crucible-Version`, default middleware such as
+  `content-sha256`'s `x-amz-content-sha256`), pagination, errors, retries,
+  which calls fill an idempotency token, and one complete call. Agents
+  read it whenever they work beside the package, so they need not guess a
+  package or method name.
+
+The calls in both are the `crucible.sdks/1` snippets
+([docs.md](docs.md#snippets)), compile-checked by each language's
+qualification script. Packages also carry their documentation tool's
+configuration: `typedoc.json` (TypeScript), `[package.metadata.docs.rs]`
+(Rust), a `Doxyfile` (C and C++), `dartdoc_options.yaml` (Dart), a DocC
+catalog (Swift), `.yardopts` (Ruby) and `man/*.Rd` (R).
+
+A directory you generate into that already holds a handwritten
+`README.md` or `AGENTS.md` is refused, as for any file generation does
+not own: move a README into the SDK's `readme` setting (Rust and
+TypeScript), or out of the output directory.
+
 ## API documentation and debug formatting
 
 The TypeScript, Python and Go clients preserve documentation on models,

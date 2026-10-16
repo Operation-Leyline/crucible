@@ -82,6 +82,20 @@ text for the client, `ClientConfig`, transports, credentials, errors and
 paginators; `dart doc` renders them without warnings. Bare `[name]` references
 in model text are escaped so dartdoc does not try to resolve them.
 
+Each package also ships a generated `README.md` (pub's package page and
+`dart doc`'s front page: install lines, constructing the client, one
+complete call, pagination, errors and retries), an `AGENTS.md` with the
+same facts for coding agents, and `dartdoc_options.yaml`, which makes an
+unresolved, ambiguous or broken doc reference a `dart doc` error. The calls
+in both are the `crucible.sdks/1` snippets ([docs](../docs.md#the-cruciblesdks1-contract)):
+per operation, a `Future<void> main() async` program that builds the client
+(reading `{SERVICE}_TOKEN`, and `{SERVICE}_ENDPOINT` when no endpoint is
+generated in, through `dart:io`), builds the input from the operation's
+first example or else a generated sample, awaits the call, prints each
+output member and catches one modelled error; a paginated operation's
+variant reads its `Pages` stream. `tools/test-dart.py` analyzes every
+Weather and Samples snippet against the package it describes.
+
 Models override `toString` and print as
 `Secret(name=db, password=*** Sensitive Data Redacted ***)`. Unset members are
 omitted, nested models and collections recurse, a blob shows its length, and

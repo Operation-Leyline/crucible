@@ -19,7 +19,10 @@ const INDENT: &str = "  ";
 fn access(target: &str, name: &str) -> String {
     let key = property(name);
     if key.starts_with('"') || key.starts_with('[') {
-        format!("{target}[{}]", key.trim_start_matches('[').trim_end_matches(']'))
+        format!(
+            "{target}[{}]",
+            key.trim_start_matches('[').trim_end_matches(']')
+        )
     } else {
         format!("{target}.{key}")
     }
@@ -84,8 +87,11 @@ fn expr(node: &Node<'_>, indent: &str, decimal: &mut bool) -> String {
             object(&entries, indent)
         }
         Kind::Structure(members) => {
+            // An optional property takes no null: an explicit null leaves
+            // the member out, which every optional member allows.
             let entries: Vec<(String, String)> = members
                 .iter()
+                .filter(|(_, value)| !matches!(value.kind, Kind::Null))
                 .map(|(member, value)| (property(&member.name), expr(value, &inner, decimal)))
                 .collect();
             object(&entries, indent)
@@ -174,7 +180,12 @@ pub(crate) fn snippets(
 ) -> (String, Option<String>) {
     let client = crate::client_name(service, options);
     let header = added_headers_sentence(service, middleware)
-        .map(|sentence| format!("// {}\n", crucible_codegen_common::docs::comment_line(&sentence)))
+        .map(|sentence| {
+            format!(
+                "// {}\n",
+                crucible_codegen_common::docs::comment_line(&sentence)
+            )
+        })
         .unwrap_or_default();
     let construct = construct(service, options, &client);
     let input_type = call
@@ -236,10 +247,7 @@ pub(crate) fn snippets(
             body.push_str(&unindent(&reads));
         }
     }
-    let snippet = format!(
-        "{}\n{body}",
-        imports(options, &values, input.is_some())
-    );
+    let snippet = format!("{}\n{body}", imports(options, &values, input.is_some()));
 
     let paginated = paginator.zip(call.pages).map(|(paginator, pages)| {
         let mut decimal = false;
@@ -309,7 +317,9 @@ pub(crate) fn guide(service: &Service, options: &Options) -> Guide {
         "The service declares no authentication.".to_owned()
     };
     if options.endpoint.is_none() {
-        guide.auth.push_str(" `endpoint` is the service's base URL.");
+        guide
+            .auth
+            .push_str(" `endpoint` is the service's base URL.");
     }
     guide.pagination = "A paginated operation also has a `paginate<Operation>` method returning \
         an async iterator of pages (`for await (const page of client.paginateListThings(input))`): \

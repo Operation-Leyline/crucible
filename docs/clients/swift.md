@@ -73,7 +73,23 @@ Every generated type, member, enum value, operation and the client carry
 DocC comments built from the model's doc comments plus Crucible's own text
 for the client, `ClientConfig`, errors and `Pages`; run
 `swift package generate-documentation` with the DocC plugin to render them.
+The module's DocC catalog, `Sources/<Module>/<Module>.docc/<Module>.md`, is
+generated too: its landing page shows how to construct the client and groups
+the client, configuration, pagination and error types.
 Bare `[name]` references and `@tag` lines in model text are escaped.
+
+The package root carries a generated `README.md` (installing, constructing
+the client, one complete call, pagination, errors, retries) and `AGENTS.md`,
+the same facts with the package's exact names for a coding agent. Their
+programs are the `snippet` and `paginatedSnippet` of the SDK's
+[`crucible.sdks/1`](../docs.md#the-cruciblesdks1-contract) entry: top-level
+code for a `main.swift` that reads the token (and, without a generated
+endpoint, the endpoint) from `<SERVICE>_TOKEN` and `<SERVICE>_ENDPOINT`,
+builds the input from the operation's first example (or a generated sample),
+and catches one modelled error. SwiftPM installs from a Git repository the
+generator does not know, so the README's `.package(url:)` line names an
+`OWNER` placeholder. `tools/test-swift.py` builds every Weather and Samples
+snippet as its own executable target.
 
 Models conform to `CustomStringConvertible` and `CustomDebugStringConvertible`
 and print as `Secret(name=db, password=*** Sensitive Data Redacted ***)`. Unset
@@ -134,6 +150,8 @@ and returns promptly even if a hook ignores cancellation. Hooks should still
 cooperate with cancellation so their own work can finish. They run on each
 attempt; generated idempotency tokens and serialized input are reused across
 attempts. Pagination is lazy, copies its input, and detects repeated tokens.
+`Pages` and its iterator are `Sendable`, so main-actor code (top-level code, a
+view model) can `for try await` over the pages on any deployment target.
 
 The default transport refuses redirects and does not retain cookies. Credentials
 require HTTPS except on loopback. Successful responses without modeled body

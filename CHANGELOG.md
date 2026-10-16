@@ -95,6 +95,39 @@ version's section when it is prepared.
 - `crucible_lang::load_versioned_service`: a package's service with the
   older releases it serves, as a build lowers it, after its compatibility
   guard.
+- `sdks.json` (`crucible.sdks/1`, additive): each SDK operation has a
+  `snippet`, a complete program in the SDK's language that imports the
+  package, constructs the client with its bearer token (and endpoint)
+  from the environment, builds the input with native literals of the
+  operation's first example (else its generated sample), calls it, reads
+  the output and handles one modelled error; a paginated operation also
+  has a `paginatedSnippet` that pages with the generated paginator. Each
+  generator writes its own, with its own names, and each language's
+  qualification script compiles them against the Weather and Samples
+  packages. A new root `http` object gives each operation's raw request:
+  method, URI, every header (`Content-Type`, `Authorization`,
+  `Crucible-Version`, and `x-amz-content-sha256` with the body's real
+  digest where an SDK's default middleware adds it), the body and a
+  `curl` command. `crucible_codegen_common::snippet` holds the shared,
+  typed reading of the value
+  ([docs/docs.md](docs/docs.md#snippets)).
+- Every generated SDK package, in all 14 languages, carries a generated
+  `README.md` (install line with the exact package and version, client
+  construction, a complete call, pagination, errors, retries and
+  idempotency, links) and an `AGENTS.md` for coding agents with the same
+  facts as exact rules; Rust and TypeScript keep a configured `readme` in
+  place of the generated README. Packages also carry their documentation
+  tool's configuration where they lacked it: `typedoc.json` (TypeScript),
+  `[package.metadata.docs.rs]` (Rust), a `Doxyfile` (C, C++),
+  `dartdoc_options.yaml` (Dart) and a DocC catalog (Swift)
+  ([docs/clients.md](docs/clients.md#generated-package-documentation)).
+  Generation owns both files, so an output directory that already holds a
+  handwritten `README.md` or `AGENTS.md` is refused, as for any file it
+  does not own: move the README into the SDK's `readme` (Rust,
+  TypeScript) or out of the directory. The NuGet package shows its README
+  (`PackageReadmeFile`), the Python wheel uses it as its long description,
+  and the Swift runtime's `Pages.Iterator` is now `Sendable`, so a
+  paginator can be iterated from top-level code.
 
 - `describe.json` (`crucible.describe/1`, additive): each operation has a
   `sample` and each error's metadata a `sample`, generated from the model

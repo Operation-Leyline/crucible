@@ -7,7 +7,7 @@ import shutil
 import subprocess
 import tempfile
 
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_conformance_model import qualification_model
 from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 from dart_http_fixture import fixture
@@ -160,6 +160,7 @@ void main() {
                 raise RuntimeError("dart doc reported problems:\n" + docs.stdout + docs.stderr)
     qualify_payload_bindings(output)
     qualify_permissions(output)
+    qualify_snippets(output)
     print("Dart fresh consumer, native and JS compilation, empty and renamed packages passed")
 
 
@@ -217,6 +218,49 @@ void main() {
     dart("analyze", "--fatal-infos", cwd=consumer)
     dart("run", "main.dart", cwd=consumer)
     dart("compile", "js", "main.dart", "-o", "consumer.js", cwd=consumer)
+
+
+def qualify_snippets(output):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") analyze as programs
+    against the package they describe: each SDK is described with the options its
+    package is generated with, so its names are the ones the package declares.
+    Weather reads its endpoint and token from the environment; Samples has its
+    endpoint generated in."""
+    for model, package, endpoint in [("weather", "weather_client", None),
+                                     ("samples", "samples_client", "https://samples.example")]:
+        sdk = f'[sdk.dart]\nout = "generated/dart"\npackage = "{package}"\n'
+        flags = []
+        if endpoint:
+            sdk += f'endpoint = "{endpoint}"\n'
+            flags = ["--endpoint", endpoint]
+        document = describe_sdk(sdk, ROOT / "tests/models" / model)
+        generated = output / f"snippet-{package}"
+        run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "dart",
+            str(ROOT / "tests/models" / model), "--out", str(generated), "--package-name", package, *flags)
+        consumer = output / f"snippets-{model}"
+        shutil.rmtree(consumer, ignore_errors=True)
+        (consumer / "bin").mkdir(parents=True)
+        (consumer / "pubspec.yaml").write_text(json.dumps({"name": f"{model}_snippets", "version": "0.0.0",
+            "publish_to": "none", "environment": {"sdk": ">=3.6.2 <4.0.0"},
+            "dependencies": {package: {"path": generated.as_posix()}}}), encoding="utf-8")
+        count = 0
+        for _, operation, variant, text in snippets(document):
+            (consumer / "bin" / f"{operation}_{variant}.dart").write_text(text, encoding="utf-8")
+            count += 1
+        if count == 0:
+            raise RuntimeError(f"no Dart snippets for {model}")
+        dart("pub", "get", cwd=consumer)
+        # Warnings fail the analysis: an unused import or an unknown name.
+        dart("analyze", cwd=consumer)
+        # The README, AGENTS.md and dartdoc configuration ship in the package.
+        for name in ["README.md", "AGENTS.md", "dartdoc_options.yaml"]:
+            if not (generated / name).is_file():
+                raise RuntimeError(f"{package} has no {name}")
+        dart("pub", "get", cwd=generated)
+        docs = subprocess.run([DART, "doc", "."], cwd=generated, check=True, capture_output=True, text=True)
+        if re.search(r"\b(warning|error)\b", docs.stdout + docs.stderr, re.I) and "no issues found" not in docs.stdout:
+            raise RuntimeError("dart doc reported problems:\n" + docs.stdout + docs.stderr)
+    print("Dart snippets analyze against Weather and Samples; dart doc builds both")
 
 
 def qualify_payload_bindings(output):

@@ -147,7 +147,20 @@ fn generate_writes_each_declared_sdk_to_its_out() {
     );
     assert_eq!(
         package["files"],
-        serde_json::json!(["dist", "crucible.json", "crucible-model.json", "README.md"])
+        serde_json::json!([
+            "dist",
+            "crucible.json",
+            "crucible-model.json",
+            "README.md",
+            "AGENTS.md"
+        ])
+    );
+    // The configured README replaces the generated one; AGENTS.md is
+    // always generated.
+    assert!(
+        fs::read_to_string(ts.join("AGENTS.md"))
+            .unwrap()
+            .contains("instructions for coding agents")
     );
     assert_eq!(
         fs::read_to_string(ts.join("README.md")).unwrap(),

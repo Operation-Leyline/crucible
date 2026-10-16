@@ -28,6 +28,16 @@ contain at least two characters, and do not end in a dot. The package owner
 must replace the generated maintainer and distribution-license placeholders
 before publishing. `inst/crucible.json` records the service and schema digest.
 
+The package ships a generated `README.md` (install, constructing the client,
+a complete call, pagination, errors and retries) and `inst/AGENTS.md`, the
+same facts tersely for coding agents, which R installs as `AGENTS.md` in the
+package's directory (`system.file("AGENTS.md", package = "weather.client")`);
+under `inst/` it is not a non-standard top-level file to `R CMD check`. Their
+examples are the `crucible.sdks/1` snippets ([docs/docs.md](../docs.md#the-cruciblesdks1-contract)):
+complete scripts built from each operation's first example, or else a
+generated sample, which `tools/test-r.py` parses and checks against the
+installed package.
+
 The exported constructor is `WeatherClient()` for service `Weather`,
 and `LeylineClient()` for `Leyline`. These capitalized factory names match the
 package's model constructors; operation methods remain snake_case. Replace

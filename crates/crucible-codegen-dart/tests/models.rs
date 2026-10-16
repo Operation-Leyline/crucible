@@ -123,7 +123,7 @@ fn package_matches_goldens_and_repeated_emission() {
         );
         snapshots += 1;
     }
-    assert_eq!(snapshots, 5);
+    assert_eq!(snapshots, 8);
 }
 
 #[test]

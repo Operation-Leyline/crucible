@@ -57,6 +57,9 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
             .output
             .as_ref()
             .map(|id| structure(service, id, &qualifier, &mut platform));
+        let call = crucible_codegen_common::snippet::call(service, operation);
+        (entry.snippet, entry.paginated_snippet) =
+            crate::snippet::snippets(service, options, &out.middleware, &call);
         out.operations.insert(operation.id.to_string(), entry);
     }
     out.package.imports = std::iter::once(format!(
@@ -102,9 +105,12 @@ fn structure(
 const PLATFORM: &[(&str, &str)] = &[("time", "import \"time\""), ("big", "import \"math/big\"")];
 
 /// The name a snippet imports the module under: its package name, unless a
-/// standard-library import the surface may add would take it.
-fn snippet_alias(package: &str) -> String {
-    if PLATFORM.iter().any(|(name, _)| *name == package) {
+/// standard-library import the surface may add, or a name a snippet
+/// program declares or imports, would take it.
+pub(crate) fn snippet_alias(package: &str) -> String {
+    if PLATFORM.iter().any(|(name, _)| *name == package)
+        || crate::snippet::SNIPPET_NAMES.contains(&package)
+    {
         format!("{package}sdk")
     } else {
         package.to_owned()

@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 import tempfile
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_cru_packages import replace_once
 from sdk_native_docs_model import qualification_model
 from sdk_http_fixture import fixture
@@ -19,6 +19,68 @@ EXACT_VALUES = """structure ExactValues {
     next?: ExactValues
 }
 """
+
+
+# Parses a snippet, then checks that every function it calls by name, every
+# condition class it handles and every client method it calls is defined
+# once the package is attached: a misspelled constructor or method would
+# otherwise surface only when a reader runs it.
+SNIPPET_CHECK = r"""
+args <- commandArgs(TRUE)
+exprs <- parse(file = args[1L], keep.source = FALSE)
+library(args[2L], character.only = TRUE, lib.loc = args[3L])
+functions <- character(); methods <- character(); assigned <- character()
+walk <- function(e) {
+  if (is.call(e)) {
+    head <- e[[1L]]
+    if (is.name(head)) {
+      name <- as.character(head)
+      functions <<- c(functions, name)
+      if (name == "<-" && is.name(e[[2L]])) assigned <<- c(assigned, as.character(e[[2L]]))
+      if (name == "tryCatch") functions <<- c(functions, setdiff(names(e)[-1L], c("", "error", "finally")))
+    } else if (is.call(head) && identical(head[[1L]], as.name("$")) && identical(head[[2L]], as.name("client"))) {
+      methods <<- c(methods, as.character(head[[3L]]))
+    }
+    # An empty argument (`x[, 1]`) is the missing symbol, which no variable can hold.
+    for (i in seq_along(e)) if (!identical(e[[i]], quote(expr = ))) walk(e[[i]])
+  }
+}
+for (e in exprs) walk(e)
+undefined <- Filter(function(name) !exists(name, mode = "function"), setdiff(unique(functions), assigned))
+if (length(undefined)) stop("undefined functions: ", paste(undefined, collapse = ", "))
+client_name <- args[4L]
+client <- get(client_name)(client_config(endpoint = "https://example.invalid"))
+absent <- Filter(function(name) !is.function(client[[name]]), unique(methods))
+client$close()
+if (length(absent)) stop("undefined client methods: ", paste(absent, collapse = ", "))
+"""
+
+
+def check_snippets(output):
+    """The `crucible.sdks/1` snippets (docs/docs.md) parse and name what the
+    package declares: each is described with the options its package is
+    generated with, here a package name and no endpoint."""
+    library = output / "snippet-library"
+    library.mkdir(exist_ok=True)
+    script = output / "snippet-check.R"
+    script.write_text(SNIPPET_CHECK, encoding="utf-8", newline="\n")
+    for model, package, client in (("weather", "weather.client", "WeatherClient"),
+                                   ("samples", "samples.client", "SamplesClient")):
+        generated = output / f"snippet-{model}"
+        generate(ROOT / "tests/models" / model, generated, package)
+        run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(generated))
+        document = describe_sdk(f'[sdk.r]\nout = "generated/r"\npackage = "{package}"\n',
+                                ROOT / "tests/models" / model)
+        directory = output / "snippets" / model
+        directory.mkdir(parents=True, exist_ok=True)
+        count = 0
+        for _, operation, variant, text in snippets(document):
+            path = directory / f"{operation}.{variant}.R"
+            path.write_text(text, encoding="utf-8", newline="\n")
+            run(RSCRIPT, str(script), str(path), package, str(library), client)
+            count += 1
+        if count == 0:
+            raise RuntimeError(f"no R snippets for {model}")
 
 
 def generate(model, output, package="weather.client", *extra):
@@ -73,7 +135,8 @@ def qualify(output):
     generate(ROOT / "tests/models/payload-bindings", output / "payload", "payload.client")
     run(R, "CMD", "INSTALL", "--no-multiarch", "-l", str(library), str(output / "payload"))
     run(RSCRIPT, str(ROOT / "crates/crucible-codegen-r/tests/payload_content_type.R"), str(library), "payload.client")
-    print("R native package build/install and consumer qualification passed")
+    check_snippets(output)
+    print("R native package build/install, consumer and snippet qualification passed")
 
 
 if __name__ == "__main__":

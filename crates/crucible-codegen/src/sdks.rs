@@ -11,6 +11,8 @@ use serde_json::{Value, json};
 
 use crate::sdk::{Endpoint, Sdk, SdkFile};
 
+mod http;
+
 /// The contract's `format`.
 pub const FORMAT: &str = "crucible.sdks/1";
 
@@ -63,10 +65,38 @@ pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<
     if !errors.is_empty() {
         return Err(errors.join("\n"));
     }
+    // The raw request beside the SDKs: at the widest audience they
+    // describe, with the headers their default middleware adds.
+    let audience = if selected
+        .iter()
+        .any(|sdk| sdk.audience == Audience::Internal)
+    {
+        Audience::Internal
+    } else {
+        Audience::External
+    };
+    let mut middleware: Vec<(String, String)> = sdks
+        .values()
+        .filter_map(|entry| entry["middleware"].as_array())
+        .flatten()
+        .flat_map(|m| {
+            let name = m["name"].as_str().unwrap_or_default().to_owned();
+            m["headers"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .map(move |header| (name.clone(), header.to_owned()))
+        })
+        .collect();
+    middleware.sort();
+    middleware.dedup();
+    let http = http::document(service, audience, &middleware)?;
     Ok(crate::sdk::canonical(&json!({
         "format": FORMAT,
         "service": service.id.to_string(),
         "sdks": sdks,
+        "http": http,
     })))
 }
 

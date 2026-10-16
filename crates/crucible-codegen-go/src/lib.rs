@@ -1,6 +1,7 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
 mod links;
 mod permissions;
+mod snippet;
 mod surface;
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
 use crucible_ir::ir::{DocNotes, Service, Shape, SimpleKind};
@@ -143,6 +144,48 @@ pub(crate) fn field_type(
     } else {
         t
     }
+}
+
+/// The accessor methods `models.go` declares per member, in this order.
+const ACCESSORS: [&str; 4] = ["Set", "Get", "Has", "IsNull"];
+
+/// Each member's [`ACCESSORS`] as `models.go` names them, in member order:
+/// `Has` and `IsNull` only for a member that may be absent, and a name a
+/// field, a runtime method or an earlier accessor holds takes the next
+/// numeric suffix. Snippets read optional output members through `Get`.
+pub(crate) fn accessors(shape: &Shape, s: &crucible_ir::ir::Structure) -> Vec<[Option<String>; 4]> {
+    let mut used: BTreeSet<String> = s.members.iter().map(|m| exported(&m.name)).collect();
+    used.extend(
+        [
+            "Error",
+            "Unwrap",
+            "Metadata",
+            "UnknownVariant",
+            "String",
+            "GoString",
+        ]
+        .map(str::to_owned),
+    );
+    s.members
+        .iter()
+        .map(|m| {
+            let native = exported(&m.name);
+            let optional = absent(shape, m);
+            ACCESSORS.map(|action| {
+                if !optional && matches!(action, "Has" | "IsNull") {
+                    return None;
+                }
+                let base = format!("{action}{native}");
+                let mut method = base.clone();
+                let mut suffix = 2;
+                while !used.insert(method.clone()) {
+                    method = format!("{base}{suffix}");
+                    suffix += 1;
+                }
+                Some(method)
+            })
+        })
+        .collect()
 }
 
 pub fn capabilities() -> crucible_ir::Capabilities {
@@ -434,34 +477,12 @@ fn emit_package(
                 models.push_str(&format!("// String describes present members and redacts sensitive values.\nfunc (m {name}) String() string {{ return formatModel(wireSchema, {}, m) }}\n// GoString applies the same redaction for Go syntax formatting.\nfunc (m {name}) GoString() string {{ return m.String() }}\n", literal(&id.to_string())));
                 // Keep tri-state storage available, while ordinary callers use
                 // native arguments and return values as in conventional Go APIs.
-                let mut used: BTreeSet<String> =
-                    s.members.iter().map(|m| exported(&m.name)).collect();
-                used.extend(
-                    [
-                        "Error",
-                        "Unwrap",
-                        "Metadata",
-                        "UnknownVariant",
-                        "String",
-                        "GoString",
-                    ]
-                    .map(str::to_owned),
-                );
-                for m in &s.members {
+                for (m, methods) in s.members.iter().zip(accessors(shape, s)) {
                     let native = exported(&m.name);
                     let t = ty(service, &m.target);
-                    let optional = m.optional_on_client() || matches!(shape, Shape::Union(_));
-                    for action in ["Set", "Get", "Has", "IsNull"] {
-                        if !optional && matches!(action, "Has" | "IsNull") {
-                            continue;
-                        }
-                        let base = format!("{action}{native}");
-                        let mut method = base.clone();
-                        let mut suffix = 2;
-                        while !used.insert(method.clone()) {
-                            method = format!("{base}{suffix}");
-                            suffix += 1;
-                        }
+                    let optional = absent(shape, m);
+                    for (action, method) in ACCESSORS.into_iter().zip(methods) {
+                        let Some(method) = method else { continue };
                         go_doc(
                             &mut models,
                             (service, links::Package::Client),
@@ -647,13 +668,35 @@ fn emit_package(
             contents: provenance,
         },
     ];
-    if let Some(contents) = permissions::emit(service).filter(|_| with_permissions) {
-        files.push(File {
-            path: permissions::PATH.into(),
-            contents,
-        });
+    if with_permissions {
+        if let Some(contents) = permissions::emit(service) {
+            files.push(File {
+                path: permissions::PATH.into(),
+                contents,
+            });
+        }
+        // A module embedded in another (the Terraform provider) is no
+        // package anyone installs, so only a published one has these.
+        files.extend(package_docs(service, options));
     }
     Ok(files)
+}
+
+/// The module's `README.md` and `AGENTS.md`.
+fn package_docs(service: &Service, options: &Options) -> [File; 2] {
+    use crucible_codegen_common::guide;
+    let surface = surface::surface(service, options);
+    let facts = snippet::guide(service, options);
+    [
+        File {
+            path: guide::README.into(),
+            contents: guide::readme(service, &surface, &facts),
+        },
+        File {
+            path: guide::AGENTS.into(),
+            contents: guide::agents(service, &surface, &facts),
+        },
+    ]
 }
 
 fn wire_path(service: &Service, root: &crucible_ir::ShapeId, path: &str) -> String {

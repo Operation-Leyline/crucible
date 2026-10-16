@@ -315,3 +315,86 @@ fn defaulted_members_are_as_optional_as_the_emitted_code_says() {
         [("name", false), ("count", false), ("note", true)]
     );
 }
+
+/// Each snippet is a whole program over the names the package declares:
+/// its import, its client, its method or paginator, its input class, and
+/// the error class it catches.
+#[test]
+fn snippets_call_what_the_package_declares() {
+    for (model, endpoint) in [
+        ("weather", None),
+        ("samples", Some("https://samples.example")),
+    ] {
+        let service = load(model);
+        let options = options(endpoint);
+        let surface = surface(&service, &options);
+        let files = emit(&service, &options).unwrap();
+        let client = file(&files, "lib/src/client.dart");
+        let models = file(&files, "lib/src/models.dart");
+        for op in &service.operations {
+            let entry = &surface.operations[&op.id.to_string()];
+            let snippet = &entry.snippet;
+            assert!(
+                snippet.contains("import 'package:weather_client/weather_client.dart';"),
+                "{snippet}"
+            );
+            assert!(snippet.contains("Future<void> main() async {"), "{snippet}");
+            assert!(snippet.contains(&format!("await client.{}(", entry.method)));
+            assert!(snippet.contains(&format!("final client = {}", surface.client.name)));
+            assert!(snippet.contains("client.close();"));
+            if let Some(input) = &entry.input {
+                assert!(snippet.contains(&format!("final input = {}(", input.type_name)));
+            }
+            let call = crucible_codegen_common::snippet::call(&service, op);
+            if let Some(error) = call.error {
+                let name = service.name_of(error.id);
+                assert!(snippet.contains(&format!("}} on {name} catch (error) {{")));
+                assert!(models.contains(&format!("final class {name} extends")));
+            }
+            assert_eq!(
+                entry.paginated_snippet.is_some(),
+                entry.paginators.is_some(),
+                "{}",
+                op.id
+            );
+            if let (Some(pages), Some(paginators)) = (&entry.paginated_snippet, &entry.paginators) {
+                assert!(pages.contains(&format!(
+                    "await for (final page in client.{}(",
+                    paginators[0]
+                )));
+                assert!(client.contains(&format!(" {}(", paginators[0])));
+            }
+        }
+        // Without a generated endpoint the client reads it, and the bearer
+        // token, from the environment.
+        let get = &surface.operations.values().next().unwrap().snippet;
+        assert_eq!(get.contains("import 'dart:io' as io;"), endpoint.is_none());
+    }
+    let service = load("weather");
+    let surface = surface(&service, &options(None));
+    let get = &surface.operations["example.weather#GetCity"].snippet;
+    for line in [
+        "  final client = WeatherClient(ClientConfig(\n    endpoint: io.Platform.environment['WEATHER_ENDPOINT'],\n    token: () => io.Platform.environment['WEATHER_TOKEN'],\n  ));",
+        "  // Values from the model's example \"Read a city\".",
+        "    at: Timestamp.parse(\"2026-01-02T03:04:05Z\"),",
+        "    print(output.requestId);",
+    ] {
+        assert!(get.contains(line), "{line}\n{get}");
+    }
+}
+
+/// The README, `AGENTS.md` and dartdoc's configuration are generated
+/// beside the pubspec, and the README shows a complete call.
+#[test]
+fn the_package_carries_its_readme_agents_and_dartdoc_options() {
+    let service = load("weather");
+    let options = options(None);
+    let files = emit(&service, &options).unwrap();
+    let readme = file(&files, "README.md");
+    assert!(readme.contains("dart pub add weather_client:0.0.0-dev"));
+    assert!(readme.contains("await client.getCity(input)"));
+    assert!(readme.contains("await for (final page in client.listCitiesPages(input))"));
+    let agents = file(&files, "AGENTS.md");
+    assert!(agents.contains("`WeatherClient`"));
+    assert!(file(&files, "dartdoc_options.yaml").contains("dartdoc:"));
+}

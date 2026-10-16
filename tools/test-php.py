@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
-from sdk_test_support import ROOT, run, weather
+from sdk_test_support import ROOT, describe_sdk, run, snippets, weather
 from sdk_conformance_model import qualification_model
 from sdk_cru_packages import copy_package, rename_shapes, replace_once, write_package
 from sdk_http_fixture import fixture
@@ -29,7 +29,32 @@ def composer(*args, **kwargs):
     command = [PHP, COMPOSER] if COMPOSER else ["composer"]
     run(*command, "--no-interaction", "--no-plugins", "--no-scripts", *args, **kwargs)
 
+def check_snippets(output):
+    """The crucible.sdks/1 snippets (docs/docs.md, "Snippets") parse as PHP.
+
+    Each SDK is described with the options its package is generated with
+    here, so the names in its snippets are the ones that package declares.
+    """
+    directory = output / "snippets"
+    directory.mkdir(exist_ok=True)
+    count = 0
+    for model, package, namespace in (("weather", "example/weather-client", "Example\\Weather"),
+                                      ("samples", "example/samples", "Example\\Samples")):
+        # A TOML literal string keeps the namespace's backslash as written.
+        document = describe_sdk(
+            f"[sdk.php]\nout = \"generated/php\"\npackage = \"{package}\"\nnamespace = '{namespace}'\n",
+            ROOT / "tests/models" / model)
+        for _, operation, variant, text in snippets(document):
+            path = directory / f"{model}-{operation}-{variant}.php"
+            path.write_text(text, encoding="utf-8", newline="\n")
+            run(PHP, "-l", str(path), stdout=subprocess.DEVNULL)
+            count += 1
+    if count == 0:
+        raise RuntimeError("no PHP snippets described")
+
+
 def qualify(output):
+    check_snippets(output)
     package = output / "sdk"
     run("cargo", "run", "--locked", "-q", "-p", "crucible-cli", "--", "generate", "php",
         str(qualification_model(output)), "--out", str(package), "--package-name", "example/weather-client",

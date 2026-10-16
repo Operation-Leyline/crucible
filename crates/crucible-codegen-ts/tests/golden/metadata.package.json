@@ -29,7 +29,8 @@
     "dist",
     "crucible.json",
     "crucible-model.json",
-    "README.md"
+    "README.md",
+    "AGENTS.md"
   ],
   "sideEffects": false,
   "scripts": {

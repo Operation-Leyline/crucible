@@ -331,3 +331,101 @@ fn only_presence_members_may_be_left_out() {
         ]
     );
 }
+
+/// Each snippet is a whole program over the names the package declares:
+/// the module import, the client, the operation's method on its own input
+/// type, each output property, and the paginator over the same input.
+#[test]
+fn snippets_call_what_the_package_declares() {
+    for (name, module) in [("weather", "Weather"), ("samples", "Samples")] {
+        let service = load(name);
+        let options = options(module, None);
+        let surface = surface(&service, &options);
+        assert_declared(&service, &options, &surface);
+        let models = emit(&service, &options)
+            .unwrap()
+            .into_iter()
+            .find(|file| file.path == format!("Sources/{module}/Models.swift"))
+            .unwrap()
+            .contents;
+        for operation in &service.operations {
+            let entry = &surface.operations[&operation.id.to_string()];
+            let snippet = &entry.snippet;
+            let id = &operation.id;
+            assert!(
+                snippet.starts_with(&format!("import Foundation\nimport {module}\n")),
+                "{id}"
+            );
+            assert!(
+                snippet.contains(&format!("let client = try {}(", surface.client.name)),
+                "{id}"
+            );
+            assert!(
+                snippet.contains(&format!("try await client.{}(", entry.method)),
+                "{id}"
+            );
+            assert!(snippet.ends_with("client.close()\n"), "{id}");
+            if let Some(input) = &entry.input {
+                assert!(
+                    snippet.contains("let input = ")
+                        && snippet.contains(&format!("{}(", input.type_name)),
+                    "{id}: {snippet}"
+                );
+                assert!(
+                    models.contains(&format!("public struct {}: ", declared(&input.type_name)))
+                );
+            }
+            for member in entry.output.iter().flat_map(|output| &output.members) {
+                assert!(
+                    snippet.contains(&format!("output.{}", member.name)),
+                    "{id}: {}",
+                    member.name
+                );
+            }
+            if let Some(caught) = snippet
+                .lines()
+                .find_map(|line| line.strip_prefix("} catch let error as "))
+            {
+                let error = caught.trim_end_matches(" {");
+                assert!(
+                    models.contains(&format!("public struct {}: ", declared(error))),
+                    "{id}: {error}"
+                );
+            }
+            match (&entry.paginators, &entry.paginated_snippet) {
+                (Some(paginators), Some(pages)) => {
+                    assert!(pages.contains(&format!(
+                        "for try await page in try client.{}(",
+                        paginators[0]
+                    )));
+                    // The paginator sends the token: the input leaves it out.
+                    let token = &operation.paginated.as_ref().unwrap().input_token;
+                    assert!(!pages.contains(&format!("    {token}: ")), "{id}");
+                }
+                (None, None) => {}
+                _ => panic!("{id}: a paginated snippet exactly for a paginated operation"),
+            }
+        }
+        // Both snippets read their credentials from the environment.
+        let get = &surface.operations.values().next().unwrap().snippet;
+        assert!(get.contains("ProcessInfo.processInfo.environment["));
+        // The same model gives the same text.
+        assert_eq!(surface, crucible_codegen_swift::surface(&service, &options));
+    }
+    let weather = surface(&load("weather"), &options("Weather", None));
+    let get = &weather.operations["example.weather#GetCity"].snippet;
+    assert!(get.contains("environment[\"WEATHER_TOKEN\"]"), "{get}");
+    assert!(get.contains("environment[\"WEATHER_ENDPOINT\"]"), "{get}");
+    assert!(get.contains("// Values from the model's example \"Read a city\"."));
+    assert!(get.contains("} catch let error as NotFoundError {"));
+    // A generated-in endpoint is not read from the environment.
+    let fixed = surface(
+        &load("weather"),
+        &options("Weather", Some("https://weather.example")),
+    );
+    assert!(
+        !fixed.operations["example.weather#GetCity"]
+            .snippet
+            .contains("WEATHER_ENDPOINT")
+    );
+}

@@ -14,7 +14,9 @@
   "files": [
     "dist",
     "crucible.json",
-    "crucible-model.json"
+    "crucible-model.json",
+    "README.md",
+    "AGENTS.md"
   ],
   "sideEffects": false,
   "scripts": {

@@ -79,7 +79,8 @@ fn weather_matches_goldens() {
             file.path
         );
     }
-    assert_eq!(snapshots, 5);
+    // The three sources, two resources, README, AGENTS.md and the DocC page.
+    assert_eq!(snapshots, 8);
 }
 
 #[test]

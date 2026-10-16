@@ -128,6 +128,48 @@ fn assert_declared(service: &Service, options: &Options, surface: &Surface) {
                 .unwrap_or_else(|| panic!("{id}: no {name}({parameters}"))
         };
         let async_method = entry.async_method.as_deref().unwrap();
+        // The snippet awaits this operation's asynchronous method, and the
+        // paginated one walks its pages; every model it builds is one the
+        // package declares.
+        let snippet_argument = if input.is_some() { "input" } else { "" };
+        assert!(
+            entry
+                .snippet
+                .contains(&format!("await client.{async_method}({snippet_argument})")),
+            "{id}: {}",
+            entry.snippet
+        );
+        assert!(entry.snippet.contains(&format!("\nusing {ns}.Models;\n")));
+        assert_eq!(
+            entry.paginated_snippet.is_some(),
+            operation.paginated.is_some(),
+            "{id}"
+        );
+        if let (Some(snippet), Some(pages)) = (&entry.paginated_snippet, &entry.paginators) {
+            assert!(
+                snippet.contains(&format!("await foreach (var page in client.{}(", pages[0])),
+                "{id}"
+            );
+        }
+        for snippet in std::iter::once(&entry.snippet).chain(&entry.paginated_snippet) {
+            for (at, _) in snippet.match_indices("new ") {
+                let rest = &snippet[at + 4..];
+                let name = &rest[..rest
+                    .find(|c: char| !(c.is_alphanumeric() || c == '_' || c == '@'))
+                    .unwrap_or(rest.len())];
+                if name.is_empty() || name == "byte" {
+                    continue;
+                }
+                let model = format!("Models/{}.cs", name.trim_start_matches('@'));
+                let root = format!("{}.cs", name.trim_start_matches('@'));
+                assert!(
+                    files
+                        .iter()
+                        .any(|file| file.path == model || file.path == root),
+                    "{id}: {name}"
+                );
+            }
+        }
         // The asynchronous form sends the operation; the blocking form
         // runs that same asynchronous method.
         assert!(line(async_method).contains(&wire), "{id}: {async_method}");
