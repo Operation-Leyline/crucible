@@ -161,7 +161,7 @@ fn emit(
     source: Option<Source>,
 ) -> Result<Vec<File>, String> {
     let client = sdk.client(file, version)?;
-    let service = crucible_ir::project(&sdk.model(full)?, sdk.audience)
+    let service = crucible_ir::project(&*sdk.model(full)?, sdk.audience)
         .map_err(|diagnostics| format!("sdk.{}:\n{diagnostics}", sdk.name))?;
     let stamp = Stamp {
         config_sha256: Some(sdk.config_sha256(file)),

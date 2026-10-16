@@ -285,7 +285,7 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
             source: None,
         };
         let files = client
-            .emit_with_provenance(&sdk.model(&full)?, sdk.audience, &stamp)
+            .emit_with_provenance(&*sdk.model(&full)?, sdk.audience, &stamp)
             .map_err(|diagnostics| format!("cannot generate sdk.{}:\n{diagnostics}", sdk.name))?;
         // Writing an earlier SDK may have created a directory this one's
         // `out` aliases (an 8.3 name, a link): checked again right before.
