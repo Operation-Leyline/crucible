@@ -99,7 +99,14 @@ fn document_cli_probe() {
         .unwrap();
     let relative_manifest = fs::read_to_string(relative.path.join("Cargo.toml")).unwrap();
     let root = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    assert!(relative_manifest.contains(&root.join("runtime").to_string_lossy().replace('\\', "/")));
+    // The generator canonicalizes the runtime path, so the expectation must
+    // too: on Windows TEMP is `C:\WINDOWS\TEMP`, whose canonical spelling is
+    // `C:\Windows\Temp`. The manifest spells it as Cargo does, with `/` and
+    // without the verbatim `\\?\` prefix.
+    let runtime = root.join("runtime").canonicalize().unwrap();
+    let runtime = runtime.to_string_lossy().replace('\\', "/");
+    let runtime = runtime.strip_prefix("//?/").unwrap_or(&runtime);
+    assert!(relative_manifest.contains(runtime), "{relative_manifest}");
     let advanced_relative = model
         .cli("advanced-relative")
         .options(CliOptions {
