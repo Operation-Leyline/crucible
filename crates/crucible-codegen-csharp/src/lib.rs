@@ -1,10 +1,13 @@
 //! Native .NET 8 models, asynchronous clients, and NuGet packaging.
 mod permissions;
+mod surface;
+
 use crucible_codegen_common::documentation as docs;
 use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+pub use surface::surface;
 
 pub struct Options {
     pub namespace: String,
@@ -63,6 +66,24 @@ fn field(text: &str) -> String {
     } else {
         name
     }
+}
+/// The client class: the service name plus `Client`.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", pascal(service.id.name()))
+}
+/// The blocking client method an operation has.
+fn method_name(op: &Operation) -> String {
+    pascal(op.name())
+}
+/// The asynchronous client method beside [`method_name`].
+fn async_method_name(op: &Operation) -> String {
+    format!("{}Async", method_name(op))
+}
+/// The page-walking method a `@paginated` operation has.
+fn pages_method_name(op: &Operation) -> Option<String> {
+    op.paginated
+        .as_ref()
+        .map(|_| format!("{}PagesAsync", method_name(op)))
 }
 fn ty(service: &Service, id: &ShapeId, ns: &str) -> String {
     if collection_cycle(service, id, &mut BTreeSet::new()) {
@@ -295,7 +316,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
-    let client_name = format!("{}Client", pascal(service.id.name()));
+    let client_name = client_name(service);
     let mut diagnostics = Diagnostics::default();
     if !options.namespace.split('.').all(identifier)
         || options
@@ -394,11 +415,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .map(str::to_string),
     );
     for op in &service.operations {
-        for suffix in ["", "Async"]
+        for method in [method_name(op), async_method_name(op)]
             .into_iter()
-            .chain(op.paginated.is_some().then_some("PagesAsync"))
+            .chain(pages_method_name(op))
         {
-            if !methods.insert(format!("{}{suffix}", pascal(op.name()))) {
+            if !methods.insert(method) {
                 diagnostics.push(&op.id, "C# client method name collision");
             }
         }
@@ -642,7 +663,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         xmldoc("    ", None, &["Releases the HttpClient this client created; a supplied one stays caller-owned.".to_string()], &[])
     );
     for op in &service.operations {
-        let name = pascal(op.name());
+        let name = method_name(op);
+        let async_name = async_method_name(op);
         let input = op.input.as_ref().map(|id| ty(service, id, ns));
         let output = op
             .output
@@ -677,10 +699,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "The decoded response.",
             true,
         );
-        client.push_str(&format!("{call_async_doc}    public global::System.Threading.Tasks.Task<{output}> @{name}Async({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<{output}>({}, {arg}, cancellationToken);\n{call_sync_doc}    public {output} @{name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @{name}Async({}cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),if input.is_some(){"input, "}else{""}));
-        if op.paginated.is_some() {
+        client.push_str(&format!("{call_async_doc}    public global::System.Threading.Tasks.Task<{output}> @{async_name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.CallAsync<{output}>({}, {arg}, cancellationToken);\n{call_sync_doc}    public {output} @{name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => global::System.Threading.Tasks.Task.Run(() => @{async_name}({}cancellationToken), cancellationToken).GetAwaiter().GetResult();\n",literal(op.name()),if input.is_some(){"input, "}else{""}));
+        if let Some(pages_name) = pages_method_name(op) {
             client.push_str(&operation_xmldoc(service, op, ns, "Lazily fetches each page, following the continuation token until the service stops returning one; enumerating drives the requests.", &call_params, "An asynchronous sequence of pages.", true));
-            client.push_str(&format!("    public global::System.Collections.Generic.IAsyncEnumerable<{output}> @{name}PagesAsync({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.PagesAsync<{output}>({}, {arg}, cancellationToken);\n",literal(op.name())));
+            client.push_str(&format!("    public global::System.Collections.Generic.IAsyncEnumerable<{output}> @{pages_name}({parameter}global::System.Threading.CancellationToken cancellationToken = default) => runtime.PagesAsync<{output}>({}, {arg}, cancellationToken);\n",literal(op.name())));
         }
     }
     client.push_str("}\n");

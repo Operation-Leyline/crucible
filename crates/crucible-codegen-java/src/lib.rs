@@ -1,10 +1,33 @@
 //! Java 17 models and synchronous/asynchronous HTTP clients packaged for Gradle and Maven.
 mod permissions;
+mod surface;
 use crucible_codegen_common::documentation as docs;
 use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+
+pub use surface::surface;
+
+/// The client class: the service name plus `Client`.
+pub(crate) fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+
+/// The asynchronous form of an operation's method.
+pub(crate) fn async_name(operation: &str) -> String {
+    format!("{}Async", method(operation))
+}
+
+/// The method iterating a `@paginated` operation's pages.
+pub(crate) fn pages_name(operation: &str) -> String {
+    format!("{}Pages", method(operation))
+}
+
+/// The method publishing a `@paginated` operation's pages.
+pub(crate) fn pages_async_name(operation: &str) -> String {
+    format!("{}PagesAsync", method(operation))
+}
 
 pub struct Options {
     pub group_id: String,
@@ -100,7 +123,7 @@ fn field(text: &str) -> String {
         text.into()
     }
 }
-fn member_field(text: &str, package: &str) -> String {
+pub(crate) fn member_field(text: &str, package: &str) -> String {
     let name = field(text);
     if name == package.split('.').next().expect("validated package") {
         format!("{name}_")
@@ -108,7 +131,7 @@ fn member_field(text: &str, package: &str) -> String {
         name
     }
 }
-fn accessor(name: &str, error: bool) -> String {
+pub(crate) fn accessor(name: &str, error: bool) -> String {
     if error
         && [
             "errorName",
@@ -126,7 +149,7 @@ fn accessor(name: &str, error: bool) -> String {
         name.to_string()
     }
 }
-fn method(text: &str) -> String {
+pub(crate) fn method(text: &str) -> String {
     let mut chars = text.chars();
     field(&format!(
         "{}{}",
@@ -134,7 +157,7 @@ fn method(text: &str) -> String {
         chars.as_str()
     ))
 }
-fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
+pub(crate) fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
         Shape::Unit { .. } => format!("{package}.model.Unit"),
         Shape::Simple(s) => match s.kind {
@@ -421,7 +444,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     let mut diagnostics = Diagnostics::default();
     if !options.package_name.split('.').all(identifier) {
         diagnostics.push(
@@ -542,13 +565,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .map(str::to_string),
     );
     for op in &service.operations {
-        let name = method(op.name());
-        for suffix in ["", "Async"]
+        let paginators = op
+            .paginated
+            .as_ref()
+            .map(|_| [pages_name(op.name()), pages_async_name(op.name())]);
+        for name in [method(op.name()), async_name(op.name())]
             .into_iter()
-            .chain(op.paginated.is_some().then_some("Pages"))
-            .chain(op.paginated.is_some().then_some("PagesAsync"))
+            .chain(paginators.into_iter().flatten())
         {
-            if !methods.insert(format!("{name}{suffix}")) {
+            if !methods.insert(name) {
                 diagnostics.push(&op.id, "Java client method name collision");
             }
         }
@@ -961,6 +986,9 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     ));
     for op in &service.operations {
         let name = method(op.name());
+        let async_name = async_name(op.name());
+        let pages_method = pages_name(op.name());
+        let pages_async = pages_async_name(op.name());
         let input = op.input.as_ref().map(|id| ty(service, id, package));
         let output = op
             .output
@@ -987,20 +1015,20 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             operation_javadoc(service, op, package, variant, params, returns, throws)
         };
         client.push_str(&od(async_note, in_doc, "a future of the response", false));
-        client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {name}Async({parameter}) {{\n        return runtime.call({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
+        client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {async_name}({parameter}) {{\n        return runtime.call({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
         client.push_str(&od(
             "Blocking form: returns when the response has been decoded.",
             in_doc,
             "the response",
             true,
         ));
-        client.push_str(&format!("    public {output} {name}({parameter}) {{\n        return ClientRuntime.await({name}Async({}));\n    }}\n",if input.is_some(){"input"}else{""}));
+        client.push_str(&format!("    public {output} {name}({parameter}) {{\n        return ClientRuntime.await({async_name}({}));\n    }}\n",if input.is_some(){"input"}else{""}));
         if let Some(input) = &input {
             if op.input.as_ref().is_some_and(|id| matches!(service.shape(id), Some(Shape::Structure(s)) if s.members.iter().all(|m| m.optional_on_client()))) {
                 client.push_str(&od("Calls the operation with an empty request, since every input member is optional.", &[], "the response", true));
                 client.push_str(&format!("    public {output} {name}() {{ return {name}({input}.builder().build()); }}\n"));
                 client.push_str(&od(async_note, &[], "a future of the response", false));
-                client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {name}Async() {{ return {name}Async({input}.builder().build()); }}\n"));
+                client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {async_name}() {{ return {async_name}({input}.builder().build()); }}\n"));
             }
             client.push_str(&od(
                 "Builds the request with a lambda: {@code client.call(b -> b.member(value))}.",
@@ -1010,25 +1038,25 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             ));
             client.push_str(&format!("    public {output} {name}(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}(builder.build());\n    }}\n"));
             client.push_str(&od(async_note, cfg_doc, "a future of the response", false));
-            client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {name}Async(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}Async(builder.build());\n    }}\n"));
+            client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {async_name}(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {async_name}(builder.build());\n    }}\n"));
         }
         if op.paginated.is_some() {
             let pages = "Lazily fetches each page, following the continuation token until the service stops returning one. A page is requested only when the previous one has been consumed.";
             if let Some(input) = &input {
                 client.push_str(&od(pages, cfg_doc, "an iterator over the pages", true));
-                client.push_str(&format!("    public java.util.Iterator<{output}> {name}Pages(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}Pages(builder.build());\n    }}\n"));
+                client.push_str(&format!("    public java.util.Iterator<{output}> {pages_method}(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {pages_method}(builder.build());\n    }}\n"));
             }
             client.push_str(&od(pages, in_doc, "an iterator over the pages", true));
-            client.push_str(&format!("    public java.util.Iterator<{output}> {name}Pages({parameter}) {{\n        return runtime.pages({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
+            client.push_str(&format!("    public java.util.Iterator<{output}> {pages_method}({parameter}) {{\n        return runtime.pages({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
             let apages = "Reactive form of the pages: each page is delivered as the subscriber requests it, and an error ends the stream.";
             client.push_str(&od(apages, in_doc, "a publisher of the pages", false));
-            client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {name}PagesAsync({parameter}) {{\n        return runtime.pagesAsync({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
+            client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {pages_async}({parameter}) {{\n        return runtime.pagesAsync({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));
             if let Some(input) = &input {
                 client.push_str(&od(apages, cfg_doc, "a publisher of the pages", false));
-                client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {name}PagesAsync(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {name}PagesAsync(builder.build());\n    }}\n"));
+                client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {pages_async}(java.util.function.Consumer<{input}.Builder> configure) {{\n        var builder = {input}.builder(); configure.accept(builder); return {pages_async}(builder.build());\n    }}\n"));
                 if op.input.as_ref().is_some_and(|id| matches!(service.shape(id), Some(Shape::Structure(s)) if s.members.iter().all(|m| m.optional_on_client()))) {
                     client.push_str(&od(apages, &[], "a publisher of the pages", false));
-                    client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {name}PagesAsync() {{ return {name}PagesAsync({input}.builder().build()); }}\n"));
+                    client.push_str(&format!("    public java.util.concurrent.Flow.Publisher<{output}> {pages_async}() {{ return {pages_async}({input}.builder().build()); }}\n"));
                 }
             }
         }

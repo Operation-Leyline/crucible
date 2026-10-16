@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use crucible_codegen::Generator;
 
 use crate::ModelPackage;
@@ -7,6 +9,7 @@ pub struct DocsOutput<'a> {
     model: &'a ModelPackage,
     name: String,
     audience: crucible_codegen::Audience,
+    sdks: Option<PathBuf>,
 }
 
 impl<'a> DocsOutput<'a> {
@@ -15,6 +18,7 @@ impl<'a> DocsOutput<'a> {
             model,
             name: name.into(),
             audience: crucible_codegen::Audience::External,
+            sdks: None,
         }
     }
 
@@ -24,9 +28,71 @@ impl<'a> DocsOutput<'a> {
         self
     }
 
-    pub(crate) fn prepare(self) -> Result<(&'a ModelPackage, String, Generator), String> {
-        Ok((self.model, self.name, Generator::Docs))
+    /// Describe the SDKs a `crucible-sdk.toml` declares in `sdks.json`
+    /// (`crucible.sdks/1`) beside `describe.json`: those this reference's
+    /// audience may see, named by their generators. A relative path is
+    /// relative to the producer's manifest directory; the file's `model`
+    /// must be this builder's model. Enable the crate feature of each SDK's
+    /// language.
+    pub fn sdks(mut self, file: impl AsRef<Path>) -> Self {
+        self.sdks = Some(crate::absolute(file.as_ref()));
+        self
     }
 
-    crate::output_builder::output_generation_methods!();
+    /// Generate and publish the named output under OUT_DIR.
+    pub fn generate(self) -> crate::Artifact {
+        self.try_generate()
+            .unwrap_or_else(|message| panic!("crucible: {message}"))
+    }
+
+    /// Generate without panicking on invalid settings or unsupported semantics.
+    pub fn try_generate(self) -> Result<crate::Artifact, String> {
+        self.output().try_generate()
+    }
+
+    /// Generate under OUT_DIR and export relative to the producer's manifest.
+    pub fn generate_into(self, output: impl AsRef<Path>) -> crate::Artifact {
+        self.try_generate_into(output)
+            .unwrap_or_else(|message| panic!("crucible: {message}"))
+    }
+
+    /// Fallible equivalent of named output generation and export.
+    pub fn try_generate_into(self, output: impl AsRef<Path>) -> Result<crate::Artifact, String> {
+        self.output().try_generate_into(output)
+    }
+
+    fn output(self) -> crate::Output<'a> {
+        let mut output = self
+            .model
+            .output(&self.name, Generator::Docs)
+            .audience(self.audience);
+        output.sdks = self.sdks;
+        output
+    }
+}
+
+/// `sdks.json` for a reference of `model` at `audience`, from the SDK file
+/// at `path`, which must declare `model`'s SDKs.
+pub(crate) fn sdks_file(
+    path: &Path,
+    model: &ModelPackage,
+    audience: crucible_codegen::Audience,
+) -> Result<crucible_codegen::File, String> {
+    println!("cargo::rerun-if-changed={}", path.display());
+    let file = crucible_codegen::sdks::load(path, |name| std::env::var(name).ok())
+        .map_err(|errors| errors.to_string())?;
+    let declared = file.join(&file.model);
+    let same = match (declared.canonicalize(), model.source.canonicalize()) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    };
+    if !same {
+        return Err(format!(
+            "{} declares SDKs for the model {}, not {}",
+            path.display(),
+            declared.display(),
+            model.source.display()
+        ));
+    }
+    crucible_codegen::sdks::file(&file, &model.service, audience)
 }

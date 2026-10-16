@@ -1,9 +1,13 @@
 //! Native R package generation from the shared lowered Smithy IR.
 mod markdown;
 mod permissions;
+mod surface;
+
+pub use surface::surface;
+
 use crucible_ir::{
-    Diagnostics,
-    ir::{Service, Shape},
+    Diagnostics, ShapeId,
+    ir::{Operation, Service, Shape, SimpleKind},
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
@@ -43,6 +47,50 @@ pub fn field(name: &str) -> String {
     }
     result
 }
+/// The client constructor: the service name plus `Client`.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+
+/// The client method that calls `op`.
+fn method(op: &Operation) -> String {
+    field(op.name())
+}
+
+/// The page function a `@paginated` operation adds, or `None`.
+fn pages(op: &Operation) -> Option<String> {
+    op.paginated
+        .as_ref()
+        .map(|_| format!("{}_pages", method(op)))
+}
+
+/// The class of the R value a member holds, as the codec (`runtime/codec.R`)
+/// decodes it and a caller passes it: a model's own S3 class, the
+/// runtime's exact-value wrappers, or a base type. A document is any
+/// parsed JSON value.
+fn r_class(service: &Service, target: &ShapeId) -> String {
+    match service.shape(target) {
+        Some(Shape::Simple(simple)) => match simple.kind {
+            SimpleKind::String => "character",
+            SimpleKind::Boolean => "logical",
+            SimpleKind::Byte
+            | SimpleKind::Short
+            | SimpleKind::Integer
+            | SimpleKind::Float
+            | SimpleKind::Double => "numeric",
+            SimpleKind::Long => "crucible_long",
+            SimpleKind::BigInteger => "crucible_big_integer",
+            SimpleKind::BigDecimal => "crucible_big_decimal",
+            SimpleKind::Timestamp => "crucible_timestamp",
+            SimpleKind::Blob => "raw",
+            SimpleKind::Document => "ANY",
+        }
+        .to_owned(),
+        Some(Shape::Unit { .. } | Shape::List(_) | Shape::Map(_)) | None => "list".to_owned(),
+        Some(_) => service.name_of(target).to_owned(),
+    }
+}
+
 fn literal(value: &str) -> String {
     crucible_codegen_common::quoted(value)
 }
@@ -95,7 +143,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     if service.version.contains('\0')
         || options
             .endpoint
@@ -459,15 +507,15 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             diagnostics.push(&op.id, "R HEAD operations cannot have a request body");
         }
         let notes = crucible_codegen_common::documentation::operation_with_notes(service, op);
-        operation_notes.push_str(&format!("{}\n{}\n\n", field(op.name()), notes));
+        operation_notes.push_str(&format!("{}\n{}\n\n", method(op), notes));
         client.push_str(&roxygen(&notes));
-        let name = field(op.name());
-        for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("_pages")) {
-            let method = format!("{name}{suffix}");
+        for (method, dispatch) in
+            std::iter::once((method(op), "call")).chain(pages(op).map(|pages| (pages, "pages")))
+        {
             if !methods.insert(method.clone()) {
                 diagnostics.push(&op.id, "R operation method collision");
             }
-            client.push_str(&format!("  client${} <- function(input{}, cancellation = NULL) client${}({}, input, cancellation)\n",function(&method),if op.input.is_none(){" = NULL"}else{""},if suffix.is_empty(){"call"}else{"pages"},literal(op.name())));
+            client.push_str(&format!("  client${} <- function(input{}, cancellation = NULL) client${}({}, input, cancellation)\n",function(&method),if op.input.is_none(){" = NULL"}else{""},dispatch,literal(op.name())));
         }
     }
     client.push_str("  client\n}\n");

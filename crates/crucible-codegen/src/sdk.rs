@@ -491,7 +491,7 @@ impl Sdk {
 
 /// `value` with every object's keys sorted, whatever order the JSON map
 /// keeps, so a digest never depends on how the file was written.
-fn canonical(value: &Value) -> Value {
+pub(crate) fn canonical(value: &Value) -> Value {
     match value {
         Value::Object(map) => {
             let mut keys: Vec<&String> = map.keys().collect();

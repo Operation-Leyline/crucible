@@ -75,6 +75,8 @@ impl ModelPackage {
             name: name.into(),
             generator,
             audience: crucible_codegen::Audience::External,
+            #[cfg(feature = "docs")]
+            sdks: None,
         }
     }
 

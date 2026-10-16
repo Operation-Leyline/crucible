@@ -38,6 +38,21 @@ version's section when it is prepared.
   older ones still read. See decision 67 in
   [docs/idl/decisions.md](docs/idl/decisions.md).
 
+- `crucible.sdks/1` (`sdks.json`): each declared SDK's public surface,
+  named by its generator, for documentation sites. Per SDK: the package
+  (ecosystem, install coordinate, import), the client class and how to
+  construct it, the endpoint or its environment variable, default
+  middleware with the headers it adds (`content-sha256` adds
+  `x-amz-content-sha256`), and per operation the method, async and options
+  variants, paginators, and input and output types with each member's
+  native name and type. Names come from the generators' own allocators, so
+  collision suffixes are included. Print it with
+  `crucible sdk describe [--sdk <name>]... [--out <file>]`, or write it
+  beside `describe.json` with `DocsOutput::sdks("crucible-sdk.toml")` or
+  `crucible generate docs --sdks crucible-sdk.toml`. Each client generator
+  gains `surface(&Service, &Options)`, and `crucible-codegen-common` the
+  `surface` module. See `docs/docs.md`, "The `crucible.sdks/1` contract".
+
 - `.cru`: `template <role> { .. }` compiles. Every operation of the role gets
   the template's `paginated` arguments, `errors`, and `input` and `output`
   members; restating one is an error. Rules read them with the `template`

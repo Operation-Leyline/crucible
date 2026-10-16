@@ -21,7 +21,7 @@ pub(crate) fn yard(text: Option<&str>, notes: &DocNotes, indent: &str) -> String
 }
 
 /// The YARD spelling of a member's Ruby type.
-fn yard_type(service: &Service, id: &ShapeId) -> String {
+pub(crate) fn yard_type(service: &Service, id: &ShapeId) -> String {
     match service.shape(id) {
         Some(Shape::Simple(s)) => match s.kind {
             SimpleKind::Boolean => "Boolean".into(),

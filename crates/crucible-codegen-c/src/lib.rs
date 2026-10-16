@@ -3,6 +3,9 @@ mod client;
 pub mod models;
 mod names;
 mod permissions;
+mod surface;
+
+pub use surface::surface;
 
 use crucible_ir::{
     Diagnostics,
@@ -89,7 +92,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                         emitted.push(format!("{native}_tag_{field}"));
                     } else {
                         for helper in ["set", "get", "has", "clear", "null"] {
-                            emitted.push(format!("{native}_{helper}_{field}"));
+                            emitted.push(models::helper(&native, helper, &field));
                         }
                     }
                 }

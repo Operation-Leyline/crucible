@@ -1,0 +1,225 @@
+{
+  "format": "crucible.sdks/1",
+  "sdks": {
+    "rust": {
+      "audience": "external",
+      "client": {
+        "construct": "SurfaceClient::new(Config::new(endpoint))",
+        "name": "SurfaceClient"
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "rust",
+      "middleware": [],
+      "name": "rust",
+      "operations": {
+        "example.surface#Constructor": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "constructor",
+          "optionsMethod": "constructor_with_options",
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#ListThings": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "type": "String"
+              },
+              {
+                "member": "build",
+                "name": "member_build",
+                "type": "String"
+              }
+            ],
+            "style": "builder",
+            "type": "ListThingsInput"
+          },
+          "method": "list_things",
+          "optionsMethod": "list_things_with_options_2",
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "type": "String"
+              },
+              {
+                "member": "info",
+                "name": "member_info",
+                "type": "String"
+              },
+              {
+                "member": "count",
+                "name": "count",
+                "type": "i64"
+              }
+            ],
+            "style": "methods",
+            "type": "ListThingsOutput"
+          },
+          "paginators": [
+            "list_things_pages_2"
+          ]
+        },
+        "example.surface#ListThingsPages": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "list_things_pages",
+          "optionsMethod": "list_things_pages_with_options",
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#ListThingsPaginator": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "list_things_paginator",
+          "optionsMethod": "list_things_paginator_with_options",
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#ListThingsWithOptions": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "list_things_with_options",
+          "optionsMethod": "list_things_with_options_with_options",
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#PaginateListThings": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "paginate_list_things",
+          "optionsMethod": "paginate_list_things_with_options",
+          "output": null,
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "cargo",
+        "import": "surface_sdk",
+        "name": "surface-sdk"
+      }
+    },
+    "ts": {
+      "audience": "external",
+      "client": {
+        "construct": "new SurfaceClient({ endpoint })",
+        "name": "SurfaceClient"
+      },
+      "endpoint": null,
+      "endpointEnv": "SURFACE_ENDPOINT",
+      "language": "ts",
+      "middleware": [
+        {
+          "headers": [
+            "x-amz-content-sha256"
+          ],
+          "name": "content-sha256"
+        }
+      ],
+      "name": "ts",
+      "operations": {
+        "example.surface#Constructor": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "constructor_2",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#ListThings": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "type": "string"
+              },
+              {
+                "member": "build",
+                "name": "build",
+                "type": "string"
+              }
+            ],
+            "style": "object",
+            "type": "ListThingsInput"
+          },
+          "method": "listThings",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "type": "string"
+              },
+              {
+                "member": "info",
+                "name": "info",
+                "type": "string"
+              },
+              {
+                "member": "count",
+                "name": "count",
+                "type": "bigint"
+              }
+            ],
+            "style": "properties",
+            "type": "ListThingsOutput"
+          },
+          "paginators": [
+            "paginateListThings_2"
+          ]
+        },
+        "example.surface#ListThingsPages": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "listThingsPages",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#ListThingsPaginator": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "listThingsPaginator",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#ListThingsWithOptions": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "listThingsWithOptions",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.surface#PaginateListThings": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "paginateListThings",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "npm",
+        "import": "@example/surface",
+        "name": "@example/surface"
+      }
+    }
+  },
+  "service": "example.surface#Surface"
+}

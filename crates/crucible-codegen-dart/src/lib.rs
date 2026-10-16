@@ -5,9 +5,10 @@
 mod client;
 mod models;
 mod permissions;
+mod surface;
 use crucible_ir::Diagnostics;
 use crucible_ir::ShapeId;
-use crucible_ir::ir::{Service, Shape, SimpleKind};
+use crucible_ir::ir::{Operation, Service, Shape, SimpleKind};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -16,6 +17,8 @@ pub const TIMESTAMP_RUNTIME: &str = include_str!("../runtime/timestamp.dart");
 pub const CODEC_RUNTIME: &str = include_str!("../runtime/codec.dart");
 pub const ERROR_RUNTIME: &str = include_str!("../runtime/errors.dart");
 pub const DESCRIBE_RUNTIME: &str = include_str!("../runtime/describe.dart");
+
+pub use surface::surface;
 
 pub struct Options {
     pub package_name: String,
@@ -27,6 +30,18 @@ pub struct File {
     pub contents: String,
 }
 
+/// The client class: the service name plus `Client`.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+/// An operation's method on the client.
+fn operation_method(op: &Operation) -> String {
+    field(&method(op.name()))
+}
+/// The method streaming every page of a paginated operation's `method`.
+fn pages_method(method: &str) -> String {
+    format!("{method}Pages")
+}
 fn literal(value: &str) -> String {
     crucible_codegen_common::quoted(value).replace('$', "\\$")
 }
@@ -235,7 +250,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             format!("service exception `{exception}` collides with a Dart runtime export"),
         );
     }
-    names.insert(format!("{}Client", service.id.name()));
+    names.insert(client_name(service));
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
         if matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
@@ -323,7 +338,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         }
     }
     let mut methods = BTreeSet::from_iter(["Client", "close"].map(str::to_string));
-    methods.insert(format!("{}Client", service.id.name()));
+    methods.insert(client_name(service));
     for op in &service.operations {
         if matches!(op.method.as_str(), "GET" | "HEAD")
             && (!op.request.body.is_empty() || op.request.payload.is_some())
@@ -333,12 +348,13 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 "Dart browser transport cannot send a GET or HEAD body",
             );
         }
-        let name = field(&method(op.name()));
+        let name = operation_method(op);
         if !identifier(&name) {
             result.push(&op.id, "invalid Dart operation name");
         }
-        for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("Pages")) {
-            if !methods.insert(format!("{name}{suffix}")) {
+        let pages = op.paginated.is_some().then(|| pages_method(&name));
+        for method in std::iter::once(name).chain(pages) {
+            if !methods.insert(method) {
                 result.push(&op.id, "Dart operation name collision");
             }
         }

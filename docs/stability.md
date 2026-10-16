@@ -25,6 +25,19 @@ names (`index.html`, `explorer.js`, `explorer.css`, `describe.js`) and the
 `CrucibleExplorer.registerOperationPanel` hook are stable as described there;
 the renderer's CSS class names and internal functions are not.
 
+`DocsOutput::sdks`, `crucible generate docs --sdks` and `crucible sdk
+describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as
+described in [the docs guide](docs.md#the-cruciblesdks1-contract) under
+`describe/1`'s rules. Its in-memory form,
+`crucible_codegen_common::surface` (`Surface`, `Package`, `Client`,
+`Middleware`, `Operation`, `Structure`, `Member`, `unqualified`), the
+`surface(&Service, &Options)` function of each client generator,
+`crucible_codegen::Client::surface`, `crucible_codegen::sdks::{FORMAT,
+FILE_NAME, load, visible_in, describe, render, file}` and
+`crucible_codegen_ts::Middleware::{name, headers}` are additive. The
+structs are non-exhaustive: start from `new` and set fields, so new
+contract fields are not breaking.
+
 `Crucible::builder` takes the operation registry produced by the generated
 service module. `Crucible::{invoke, invoke_json, invoke_json_with}` support
 direct calls, `handle` serves an HTTP request, and `into_router` integrates with

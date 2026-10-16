@@ -37,6 +37,18 @@ enum SdkCommand {
         #[arg(long)]
         json: bool,
     },
+    /// Print the crucible.sdks/1 document: each declared SDK's client,
+    /// package, methods, paginators and models as its generator names
+    /// them, with its endpoint and default middleware. An endpoint whose
+    /// environment variable is unset is named, with a null value.
+    Describe {
+        /// Only this SDK; repeat for more. Defaults to every declared SDK.
+        #[arg(long = "sdk", value_name = "NAME")]
+        sdks: Vec<String>,
+        /// Write the document to this file instead of printing it.
+        #[arg(long, value_name = "FILE")]
+        out: Option<PathBuf>,
+    },
     /// Write each declared SDK to its `out`, at the development version.
     Generate {
         /// Only this SDK; repeat for more. Defaults to every declared SDK.
@@ -95,6 +107,7 @@ pub(crate) fn run(args: SdkArgs) -> Result<(), String> {
         SdkCommand::Config { sdks, .. } | SdkCommand::Generate { sdks } => {
             sdk_file(args.file, sdks)?
         }
+        SdkCommand::Describe { sdks, .. } => described_sdk_file(args.file, sdks)?,
         SdkCommand::Plan { plan, .. } | SdkCommand::Build { plan, .. } => {
             sdk_file(args.file, &plan.sdks)?
         }
@@ -102,6 +115,7 @@ pub(crate) fn run(args: SdkArgs) -> Result<(), String> {
     match args.command {
         SdkCommand::Config { sdks, json } => config(&file, &sdks, json),
         SdkCommand::Generate { sdks } => generate(&file, &sdks),
+        SdkCommand::Describe { sdks, out } => describe(&file, &sdks, out.as_deref()),
         SdkCommand::Plan { plan, json } => release::plan(&file, &plan, json),
         SdkCommand::Build {
             plan,
@@ -115,6 +129,28 @@ pub(crate) fn run(args: SdkArgs) -> Result<(), String> {
 /// The SDK file, found and checked, at the pinned Crucible revision, with
 /// the environment read for the selected SDKs (`names`, or all) only.
 fn sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> {
+    let path = sdk_path(file)?;
+    // The whole file is checked; only the selected SDKs' environment is read.
+    let mut file = sdk::load(&path).map_err(|errors| errors.to_string())?;
+    file.select(names)?;
+    file.resolve_endpoints(names, |name| std::env::var(name).ok())
+        .map_err(|errors| errors.to_string())?;
+    Ok(file)
+}
+
+/// [`sdk_file`] for a description, which names an endpoint variable that
+/// is not set instead of requiring it.
+fn described_sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> {
+    let path = sdk_path(file)?;
+    let file = crucible_codegen::sdks::load(&path, |name| std::env::var(name).ok())
+        .map_err(|errors| errors.to_string())?;
+    file.select(names)?;
+    Ok(file)
+}
+
+/// The SDK file's path, checked to be at the Crucible revision the
+/// service pins.
+fn sdk_path(file: Option<PathBuf>) -> Result<PathBuf, String> {
     let path = match file {
         Some(path) => path,
         None => {
@@ -140,12 +176,7 @@ fn sdk_file(file: Option<PathBuf>, names: &[String]) -> Result<SdkFile, String> 
             root.display()
         );
     }
-    // The whole file is checked; only the selected SDKs' environment is read.
-    let mut file = sdk::load(&path).map_err(|errors| errors.to_string())?;
-    file.select(names)?;
-    file.resolve_endpoints(names, |name| std::env::var(name).ok())
-        .map_err(|errors| errors.to_string())?;
-    Ok(file)
+    Ok(path)
 }
 
 fn config(file: &SdkFile, names: &[String], json: bool) -> Result<(), String> {
@@ -201,8 +232,9 @@ fn config(file: &SdkFile, names: &[String], json: bool) -> Result<(), String> {
     Ok(())
 }
 
-fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
-    let selected = file.select(names)?;
+/// The file's model, lowered once with every capability; each SDK then
+/// sees its audience and checks its own language's capabilities.
+fn lower(file: &SdkFile) -> Result<crucible_ir::ir::Service, String> {
     let source = crate::Source {
         model: file.join(&file.model),
         service: file
@@ -210,10 +242,28 @@ fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
             .as_ref()
             .map(|id| id.parse().expect("the resolver checked the service ID")),
     };
-    // Lowered once with every capability; each SDK then sees its audience
-    // and checks its own language's capabilities.
     let all = crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied());
-    let full = crate::lower_with_capabilities(&source, &all)?;
+    crate::lower_with_capabilities(&source, &all)
+}
+
+fn describe(file: &SdkFile, names: &[String], out: Option<&Path>) -> Result<(), String> {
+    let selected = file.select(names)?;
+    let full = lower(file)?;
+    let document = crucible_codegen::sdks::describe(file, &full, &selected)?;
+    let text = crucible_codegen::sdks::render(&document);
+    match out {
+        Some(out) => std::fs::write(out, text)
+            .map_err(|error| format!("cannot write {}: {error}", out.display())),
+        None => {
+            print!("{text}");
+            Ok(())
+        }
+    }
+}
+
+fn generate(file: &SdkFile, names: &[String]) -> Result<(), String> {
+    let selected = file.select(names)?;
+    let full = lower(file)?;
     for sdk in selected {
         if !sdk.takes_metadata() && has_common_keys(sdk) {
             eprintln!(

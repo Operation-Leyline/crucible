@@ -9,6 +9,9 @@ pub struct Output<'a> {
     pub(crate) name: String,
     pub(crate) audience: crucible_codegen::Audience,
     pub(crate) generator: Generator,
+    /// A reference's `crucible-sdk.toml`, whose SDKs `sdks.json` describes.
+    #[cfg(feature = "docs")]
+    pub(crate) sdks: Option<std::path::PathBuf>,
 }
 
 impl Output<'_> {
@@ -94,10 +97,18 @@ impl Output<'_> {
         }
         // One lowering serves every generator: it carries the resources the
         // documentation and infrastructure generators read (decision 67).
-        let files = self
+        #[allow(unused_mut, reason = "only a reference adds a file")]
+        let mut files = self
             .generator
             .emit_for_audience(&self.model.service, self.audience)
             .map_err(|e| format!("output {}: {e}", self.name))?;
+        #[cfg(feature = "docs")]
+        if let Some(path) = &self.sdks {
+            files.push(
+                crate::docs_output::sdks_file(path, self.model, self.audience)
+                    .map_err(|e| format!("output {}: {e}", self.name))?,
+            );
+        }
         let output = self.model.output.join("outputs").join(&self.name);
         crucible_codegen::write(&output, &files)
             .map_err(|e| format!("cannot write output {}: {e}", self.name))?;

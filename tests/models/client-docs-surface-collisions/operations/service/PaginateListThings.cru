@@ -1,0 +1,3 @@
+readonly operation PaginateListThings {
+    http GET "/PaginateListThings"
+}

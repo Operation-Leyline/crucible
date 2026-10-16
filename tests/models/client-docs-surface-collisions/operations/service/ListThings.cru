@@ -1,0 +1,15 @@
+readonly operation ListThings {
+    http GET "/ListThings"
+    paginated(inputToken: nextToken, outputToken: nextToken)
+    input {
+        @query("token")
+        nextToken?: string
+        @query("build")
+        build?: string
+    }
+    output {
+        nextToken?: string
+        info?: string
+        count?: long
+    }
+}

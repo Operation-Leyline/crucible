@@ -498,3 +498,53 @@ fn generate_ts_accepts_documentation_without_a_field_for_it() {
     let text = fs::read_to_string(root.join("adhoc/docs/package.json")).unwrap();
     assert!(!text.contains("docs.weather.example"), "{text}");
 }
+
+#[test]
+fn describe_prints_each_sdks_surface_as_its_generator_names_it() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    let document: serde_json::Value =
+        serde_json::from_str(&success(crucible(root, &["sdk", "describe"]))).unwrap();
+    assert_eq!(document["format"], "crucible.sdks/1");
+    assert_eq!(document["service"], "example.weather#Weather");
+    let ts = &document["sdks"]["ts"];
+    assert_eq!(ts["package"]["name"], "@example/weather");
+    assert_eq!(ts["client"]["name"], "WeatherClient");
+    assert_eq!(ts["endpoint"], "https://api.weather.example");
+    assert_eq!(ts["endpointEnv"], "WEATHER_SDK_TEST_ENDPOINT");
+    assert_eq!(
+        ts["operations"]["example.weather#ListCities"]["paginators"][0],
+        "paginateListCities"
+    );
+    let rust = &document["sdks"]["rust"];
+    assert_eq!(
+        rust["operations"]["example.weather#GetCity"]["method"],
+        "get_city"
+    );
+
+    // An unset endpoint variable is named, not required, and --out writes
+    // only the selected SDKs.
+    let output = Command::new(env!("CARGO_BIN_EXE_crucible"))
+        .current_dir(root)
+        .env_remove("WEATHER_SDK_TEST_ENDPOINT")
+        .args(["sdk", "describe", "--sdk", "ts", "--out", "sdks.json"])
+        .output()
+        .unwrap();
+    success(output);
+    let written = json(&root.join("sdks.json"));
+    assert_eq!(
+        written["sdks"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["ts"]
+    );
+    assert_eq!(written["sdks"]["ts"]["endpoint"], serde_json::Value::Null);
+    assert_eq!(
+        written["sdks"]["ts"]["endpointEnv"],
+        "WEATHER_SDK_TEST_ENDPOINT"
+    );
+    let error = failure(crucible(root, &["sdk", "describe", "--sdk", "go"]));
+    assert!(error.contains("declares no SDK \"go\""), "{error}");
+}

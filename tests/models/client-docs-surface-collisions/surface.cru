@@ -1,0 +1,10 @@
+/// Operation and member names that collide with the methods a client
+/// generator derives from them (`*Pages`, `paginate*`, `*WithOptions`,
+/// `*Paginator`) or with names it reserves (`constructor`, a builder's
+/// `build`, a model's `info`). `crucible.sdks/1` must name what the
+/// generated client emits, suffixes included.
+service Surface {
+    version "1"
+    protocol json
+    operations [Constructor, ListThings, ListThingsPages, ListThingsPaginator, ListThingsWithOptions, PaginateListThings]
+}

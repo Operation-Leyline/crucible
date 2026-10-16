@@ -13,6 +13,11 @@ pub fn complex(shape: &Shape) -> bool {
 pub fn native_name(service: &Service, id: &ShapeId, prefix: &str) -> String {
     format!("{prefix}_models_{}", names::field(service.name_of(id)))
 }
+/// A structure member's accessor function: `set`, `get`, `has`, `clear`
+/// or `null`.
+pub fn helper(native: &str, helper: &str, field: &str) -> String {
+    format!("{native}_{helper}_{field}")
+}
 pub fn native_type(service: &Service, id: &ShapeId, prefix: &str) -> String {
     match service.shape(id).expect("shape") {
         Shape::IntEnum(_) => native_name(service, id, prefix),
@@ -172,7 +177,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 for member in &structure.members {
                     let field = names::field(&member.name);
                     let value_type = slot_type(service, &member.target, p);
-                    header.push_str(&format!("/** Sets {field} present; referenced data is borrowed. */\nstatic inline void {native}_set_{field}({native} *model, {value_type} value) {{ model->{field}.value = value; model->{field}.state = {p}_present; }}\n/** Returns the value when present, or a zero value otherwise. */\nstatic inline {value_type} {native}_get_{field}(const {native} *model) {{ {value_type} empty = {{0}}; return model->{field}.state == {p}_present ? model->{field}.value : empty; }}\n/** Tests value presence; null and absent both return false. */\nstatic inline bool {native}_has_{field}(const {native} *model) {{ return model->{field}.state == {p}_present; }}\n/** Omits this member from serialization. */\nstatic inline void {native}_clear_{field}({native} *model) {{ model->{field}.state = {p}_absent; }}\n/** Sets explicit JSON null for this member. */\nstatic inline void {native}_null_{field}({native} *model) {{ model->{field}.state = {p}_null; }}\n"));
+                    let [set, get, has, clear, null] =
+                        ["set", "get", "has", "clear", "null"].map(|h| helper(&native, h, &field));
+                    header.push_str(&format!("/** Sets {field} present; referenced data is borrowed. */\nstatic inline void {set}({native} *model, {value_type} value) {{ model->{field}.value = value; model->{field}.state = {p}_present; }}\n/** Returns the value when present, or a zero value otherwise. */\nstatic inline {value_type} {get}(const {native} *model) {{ {value_type} empty = {{0}}; return model->{field}.state == {p}_present ? model->{field}.value : empty; }}\n/** Tests value presence; null and absent both return false. */\nstatic inline bool {has}(const {native} *model) {{ return model->{field}.state == {p}_present; }}\n/** Omits this member from serialization. */\nstatic inline void {clear}({native} *model) {{ model->{field}.state = {p}_absent; }}\n/** Sets explicit JSON null for this member. */\nstatic inline void {null}({native} *model) {{ model->{field}.state = {p}_null; }}\n"));
                 }
             }
             Shape::List(list) => {

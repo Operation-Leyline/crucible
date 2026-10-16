@@ -12,8 +12,13 @@ use crate::types::simple_kind;
 
 const UNIT: &str = "::crucible_server_runtime_rust::__generated::operation::Unit";
 
+/// The client struct: the service name plus `Client`.
+pub(crate) fn client_name(service: &Service) -> String {
+    format!("{}Client", variant(service.id.name()))
+}
+
 pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
-    let client = format!("{}Client", variant(service.id.name()));
+    let client = client_name(service);
     for id in service.shapes.keys() {
         if !id.is_prelude() && service.name_of(id) == client {
             diagnostics.push(
@@ -63,17 +68,17 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
 }
 
 /// The generated methods an operation adds beside its own.
-struct Derived {
-    options: String,
+pub(crate) struct Derived {
+    pub(crate) options: String,
     /// Only a `@paginated` operation has pages.
-    pages: Option<String>,
+    pub(crate) pages: Option<String>,
 }
 
 /// Method names for every operation, in operation order. An operation's own
 /// method always keeps its name; a derived method (`*_with_options`, `*_pages`) takes a numeric suffix instead of colliding with it or
 /// with another derived method, so `ListThings` beside `ListThingsPages`
 /// stays valid.
-fn method_names(service: &Service) -> Vec<Derived> {
+pub(crate) fn method_names(service: &Service) -> Vec<Derived> {
     let mut taken: std::collections::BTreeSet<String> = service
         .operations
         .iter()

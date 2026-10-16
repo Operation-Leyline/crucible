@@ -2,10 +2,13 @@
 mod client;
 mod models;
 mod permissions;
-use crucible_ir::ir::{Service, Shape, SimpleKind};
+mod surface;
+
+use crucible_ir::ir::{Operation, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+pub use surface::surface;
 
 pub struct Options {
     pub package_name: String,
@@ -338,6 +341,20 @@ fn method(text: &str) -> String {
         chars.as_str()
     )
 }
+/// The client class: the service name plus `Client`.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+/// The client method an operation has.
+fn method_name(op: &Operation) -> String {
+    method(op.name())
+}
+/// The page-walking method a `@paginated` operation has.
+fn pages_method_name(op: &Operation) -> Option<String> {
+    op.paginated
+        .as_ref()
+        .map(|_| format!("{}Pages", method_name(op)))
+}
 fn enum_constant(text: &str) -> String {
     if !text.contains('_') && text.chars().any(|c| c.is_ascii_lowercase()) {
         return method(text);
@@ -423,7 +440,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         ]
         .map(str::to_string),
     );
-    names.insert(format!("{}Client", service.id.name()));
+    names.insert(client_name(service));
     for (id, shape) in &service.shapes {
         if id.is_prelude() || matches!(shape, Shape::Simple(_) | Shape::Unit { .. }) {
             continue;
@@ -495,11 +512,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "Swift URLSession transport cannot send a GET or HEAD body",
             );
         }
-        for suffix in [""]
-            .into_iter()
-            .chain(op.paginated.is_some().then_some("Pages"))
-        {
-            if !methods.insert(format!("{}{suffix}", method(op.name()))) {
+        for method in [method_name(op)].into_iter().chain(pages_method_name(op)) {
+            if !methods.insert(method) {
                 diagnostics.push(&op.id, "Swift operation name collision");
             }
         }
@@ -514,7 +528,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"), "service":service.id.to_string(), "serviceVersion":service.version, "packageVersion":options.package_version, "schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");
     let mut files = vec![
         File {
-            path: format!("{source}/{}Client.swift", service.id.name()),
+            path: format!("{source}/{}.swift", client_name(service)),
             contents: client::emit(service, options),
         },
         File {

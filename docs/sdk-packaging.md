@@ -425,6 +425,7 @@ compared for "unchanged", and no service script is hashed.
 
 ```sh
 crucible sdk config   [--sdk <name>]... [--json]                 # effective configuration
+crucible sdk describe [--sdk <name>]... [--out <file>]           # crucible.sdks/1, for docs sites
 crucible sdk generate [--sdk <name>]...                          # development exports, to each `out`
 crucible sdk plan     [--sdk <name>]... [--json] [--first-release <name>] [--bump <name>=<kind>]
 crucible sdk build    --out target/sdk-release [the plan's options]

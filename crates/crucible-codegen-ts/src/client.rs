@@ -85,7 +85,7 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
 
 /// Reserve natural operation names before assigning suffixes or paginator
 /// helpers, so adding a helper never hides an ordinary modeled operation.
-fn method_names(service: &Service) -> BTreeMap<ShapeId, (String, Option<String>)> {
+pub(crate) fn method_names(service: &Service) -> BTreeMap<ShapeId, (String, Option<String>)> {
     let mut operations: Vec<_> = service.operations.iter().collect();
     operations.sort_by_key(|op| &op.id);
     let mut reserved: BTreeSet<_> = operations.iter().map(|op| method_name(op.name())).collect();

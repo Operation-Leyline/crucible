@@ -1,4 +1,4 @@
-use super::{Options, field, literal, method};
+use super::{Options, client_name, field, literal, operation_method, pages_method};
 use crucible_codegen_common::docs;
 use crucible_ir::ir::{Operation, Service};
 
@@ -41,7 +41,7 @@ fn operation_docs(service: &Service, op: &Operation, pages: bool) -> String {
 }
 
 pub fn emit(service: &Service, options: &Options) -> String {
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     let async_import = if service.operations.is_empty() {
         ""
     } else {
@@ -73,7 +73,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
             .as_ref()
             .map(|id| service.name_of(id))
             .unwrap_or("Unit");
-        let name = field(&method(op.name()));
+        let name = operation_method(op);
         let params = if op.input.is_none() {
             "{CancellationToken? cancellation}".to_string()
         } else {
@@ -88,7 +88,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
         out.push_str(&format!("  Future<models.{output}> {name}({params}) => _runtime.call({}, {input_expr}, cancellation: cancellation);\n", literal(op.name())));
         if op.paginated.is_some() {
             out.push_str(&docs::line_comment("  ", "///", &format!("Streams every page of [{name}], following the pagination token until the service stops returning one. Each page is a separate call, so each can fail; cancel through [cancellation].")));
-            out.push_str(&format!("  Stream<models.{output}> {name}Pages(models.{input} input, {{CancellationToken? cancellation}}) => _runtime.pages({}, input, cancellation: cancellation);\n", literal(op.name())));
+            out.push_str(&format!("  Stream<models.{output}> {}(models.{input} input, {{CancellationToken? cancellation}}) => _runtime.pages({}, input, cancellation: cancellation);\n", pages_method(&name), literal(op.name())));
         }
     }
     out.push_str("}\n");

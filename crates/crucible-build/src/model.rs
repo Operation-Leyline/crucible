@@ -112,12 +112,7 @@ impl Model {
 
     /// Select a native client, server bindings, document, infrastructure package or CLI output.
     pub fn output(&self, name: &str, generator: Generator) -> Output<'_> {
-        Output {
-            model: self.package(),
-            name: name.into(),
-            generator,
-            audience: crucible_codegen::Audience::External,
-        }
+        self.package().output(name, generator)
     }
 
     /// Generate a native Cargo SDK package. Enable the `rust` feature.

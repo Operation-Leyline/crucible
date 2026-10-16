@@ -82,3 +82,61 @@ fn docs_share_artifact_ownership_stable_exports_and_failure_preservation() {
         String::from_utf8_lossy(&result.stderr)
     );
 }
+
+#[test]
+fn docs_sdks_probe() {
+    if std::env::var_os("CRUCIBLE_DOCS_SDKS_PROBE").is_none() {
+        return;
+    }
+    let model = crucible_build::model("service-docs-weather");
+    let reference = model.docs("reference").sdks("crucible-sdk.toml").generate();
+    let sdks: Value =
+        serde_json::from_slice(&fs::read(reference.path.join("sdks.json")).unwrap()).unwrap();
+    assert_eq!(sdks["format"], "crucible.sdks/1");
+    assert_eq!(sdks["service"], "example.weather#Weather");
+    // The internal SDK is not an external reference's to name.
+    assert_eq!(
+        sdks["sdks"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        ["rust"]
+    );
+    assert_eq!(
+        sdks["sdks"]["rust"]["operations"]["example.weather#ListCities"]["paginators"][0],
+        "list_cities_pages"
+    );
+    assert!(reference.files.iter().any(|file| file == "sdks.json"));
+    let internal = model
+        .docs("internal")
+        .audience(Audience::Internal)
+        .sdks("crucible-sdk.toml")
+        .generate();
+    let sdks: Value =
+        serde_json::from_slice(&fs::read(internal.path.join("sdks.json")).unwrap()).unwrap();
+    assert_eq!(sdks["sdks"].as_object().unwrap().len(), 2);
+}
+
+#[test]
+#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
+fn docs_write_sdks_json_beside_describe_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    common::install_shared(root, "service-docs-weather");
+    fs::write(
+        root.join("crucible-sdk.toml"),
+        "schema_version = 1\nmodel = \"service-docs-weather\"\n\n[sdk.rust]\nout = \"generated/rust\"\n\n[sdk.rust-internal]\nlanguage = \"rust\"\naudience = \"internal\"\npackage = \"weather-internal\"\nout = \"generated/rust-internal\"\n",
+    )
+    .unwrap();
+    let result = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "docs_sdks_probe", "--nocapture"])
+        .env("CRUCIBLE_DOCS_SDKS_PROBE", "1")
+        .env("CARGO_MANIFEST_DIR", root)
+        .env("OUT_DIR", root.join("out"))
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
