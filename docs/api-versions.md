@@ -273,12 +273,15 @@ examples against the server at its version as generated tests
   since, which the release never declared, takes the current schemes
   (decision 73).
 - **Not converted, and reported:** a member inside a recursive shape; a
-  renamed member, reshaped or retyped structure, or added enum value
-  inside an error; an enum that keys a map; `add .. downgrade` on a union
-  or intEnum; a member with its own wire encoding converted by a hook; a
-  `rename` of an enum value that changes its wire value; an operation an
-  older migration dropped without `remove operation`; a step naming what
-  its release does not have, which only an edited IR can hold.
+  renamed member, reshaped or retyped structure, or added or renamed enum
+  value inside an error; an enum that keys a map; `add .. downgrade` on a
+  union or intEnum; a member with its own wire encoding converted by a
+  hook; a step naming what its release does not have, which only an
+  edited IR can hold.
+- **An operation dropped without `remove operation`** is refused at the
+  migration's `from`, in any migration of the chain, unless the manifest
+  excepts `compatibility.operation` for it. Then the releases before the
+  drop no longer serve it, and the compiler warns there.
 - **The explorer** cannot yet be generated from a `.cru` package, the
   only kind with versions; when it can, its requests will need to name
   the current version.

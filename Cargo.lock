@@ -855,6 +855,7 @@ dependencies = [
  "crucible-codegen-common",
  "crucible-ir",
  "crucible-lang",
+ "crucible-policy",
  "crucible-revision",
  "regex",
  "semver",

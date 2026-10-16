@@ -25,5 +25,6 @@ workspace = true
 # Older API versions and the typed permissions fixture come from `.cru`
 # packages (docs/api-versions.md, tests/fixtures/permissions).
 crucible-lang = { path = "../crucible-lang" }
+crucible-policy = { path = "../crucible-policy" }
 tempfile = "3"
 toml = "0.8"

@@ -126,6 +126,26 @@ pub fn guard(
         }
     }
     let mut covers = Vec::new();
+    // An operation a migration drops without `remove operation` is refused
+    // at the migration, or not served at older releases when an exception
+    // accepts the drop, in every migration of the chain: the diff below
+    // sees only the newest. A chain that does not load is `versions`' to
+    // report.
+    if let Ok(links) = chain(package, compiled, own) {
+        for link in &links {
+            for drop in dropped(link, config) {
+                // The refusal at the migration says what the undeclared
+                // finding would.
+                if !drop.excepted && link.migration.from.value == version {
+                    covers.push(Cover::exact(drop.operation, &["compatibility.operation"]));
+                }
+                problems.push(FileDiagnostic {
+                    file: Some(link.file),
+                    diagnostic: drop.diagnostic,
+                });
+            }
+        }
+    }
     // A member the migration renames is compared with its new self, so the
     // rename declares its name and nothing else about it.
     let mut renames = Renames::new();
@@ -529,10 +549,49 @@ impl<'a> Context<'a> {
                         format!("{} has no member `{}`", new.shape.name(), to.name),
                     ));
                 }
-                Ok(vec![
+                let mut covers = vec![
                     Cover::exact(old.shape.with_member(from), RENAME),
                     Cover::exact(new.shape.with_member(&to.name), RENAME),
-                ])
+                ];
+                // An enum value renamed: the checker sees the enum lose one
+                // value and gain another, which the rename declares. The
+                // server maps a string enum's wire value both ways; an
+                // intEnum's number is its wire value, which is not mapped.
+                let number = |service: &Service, shape: &ShapeId, name: &str| match service
+                    .shapes
+                    .get(shape)
+                {
+                    Some(Shape::IntEnum(e)) => e
+                        .values
+                        .iter()
+                        .find(|value| value.name == name)
+                        .map(|value| value.value),
+                    _ => None,
+                };
+                if let (Some(before), Some(after)) = (
+                    number(self.old, &old.shape, from),
+                    number(self.new, &new.shape, &to.name),
+                ) && before != after
+                {
+                    return Err(error(
+                        path.span,
+                        format!(
+                            "renaming the intEnum value `{from}` to `{}` changes its number from {before} to {after}, which older clients send; keep it {before}",
+                            to.name
+                        ),
+                    ));
+                }
+                let is_enum = |service: &Service, shape: &ShapeId| {
+                    matches!(
+                        service.shapes.get(shape),
+                        Some(Shape::Enum(_) | Shape::IntEnum(_))
+                    )
+                };
+                if is_enum(self.old, &old.shape) && is_enum(self.new, &new.shape) {
+                    covers.push(Cover::exact(old.shape.clone(), ENUM_VALUE));
+                    covers.push(Cover::exact(new.shape.clone(), ENUM_VALUE));
+                }
+                Ok(covers)
             }
             StepKind::Require { path, how } => {
                 let (old, new) = self.both(path)?;
@@ -993,63 +1052,175 @@ fn is_date(text: &str) -> bool {
     (1..=days).contains(&day)
 }
 
-/// The older versions `compiled` still serves, oldest first: the chain of
-/// migrations back from the service's version, each `from` a release frozen
-/// beside the baseline (`releases/<version>.json`). `guard` has checked the
-/// newest migration; an older one was checked when it was the newest.
-pub fn versions(
+/// One migration of the chain, with the two releases it joins.
+struct Link<'c> {
+    /// The source file that declares it.
+    file: usize,
+    migration: &'c Migration,
+    doc: Option<&'c Doc>,
+    /// Its `from` release, frozen.
+    old: Service,
+    /// The release it serves: the next frozen one, or the current model.
+    newer: Service,
+}
+
+/// The chain of migrations back from the service's version, newest first,
+/// each `from` a release frozen beside the baseline
+/// (`releases/<version>.json`).
+fn chain<'c>(
     package: &Package,
-    compiled: &Compiled,
+    compiled: &'c Compiled,
     own: usize,
-) -> Result<Vec<ApiVersion>, String> {
+) -> Result<Vec<Link<'c>>, String> {
     let (Some(service), Some(baseline)) = (&compiled.service, &package.baseline) else {
         return Ok(Vec::new());
     };
     let releases = baseline.parent().unwrap_or(baseline);
-    let migrations: Vec<(&Migration, Option<&Doc>)> = compiled
+    let migrations: Vec<(usize, &Migration, Option<&Doc>)> = compiled
         .parsed
         .iter()
         .take(own)
-        .flat_map(|parsed| &parsed.file.items)
-        .filter_map(|item| match &item.decl {
-            Decl::Migration(migration) => Some((migration, item.doc.as_ref())),
+        .enumerate()
+        .flat_map(|(file, parsed)| parsed.file.items.iter().map(move |item| (file, item)))
+        .filter_map(|(file, item)| match &item.decl {
+            Decl::Migration(migration) => Some((file, migration, item.doc.as_ref())),
             _ => None,
         })
         .collect();
     let mut out = Vec::new();
     let mut newer = service.clone();
     let mut seen = BTreeSet::new();
-    while let Some(&(migration, doc)) = migrations
+    while let Some(&(file, migration, doc)) = migrations
         .iter()
-        .find(|(migration, _)| migration.version.value == newer.version)
+        .find(|(_, migration, _)| migration.version.value == newer.version)
     {
         let name = migration.from.value.clone();
         if !seen.insert(name.clone()) {
             return Err(format!("the migrations from \"{name}\" form a cycle"));
         }
-        let file = releases.join(crate::release::file_name(&name)?);
-        if !file.is_file() {
+        let path = releases.join(crate::release::file_name(&name)?);
+        if !path.is_file() {
             return Err(format!(
                 "release \"{name}\", which the migration to \"{}\" comes from, is not frozen at {}; freeze it with `crucible freeze` (`--from <git ref>` for a past release)",
                 migration.version.value,
-                file.display()
+                path.display()
             ));
         }
-        let old = crate::release::load(&file)?;
+        let old = crate::release::load(&path)?;
         // The chain follows releases by name: a release frozen under another
         // version's name would serve one version's contract as another's.
         if old.version != name {
             return Err(format!(
                 "the frozen release {} declares version \"{}\"; its file must be named for it",
-                file.display(),
+                path.display(),
                 old.version
             ));
         }
-        let context = Context::new(&compiled.namespace, &old, &newer, migration);
+        let next = old.clone();
+        out.push(Link {
+            file,
+            migration,
+            doc,
+            old,
+            newer: std::mem::replace(&mut newer, next),
+        });
+    }
+    Ok(out)
+}
+
+/// An operation a migration drops without `remove operation`.
+struct Dropped {
+    operation: ShapeId,
+    /// A `compatibility.operation` exception in the manifest accepts it.
+    excepted: bool,
+    /// At the migration's `from`: an error, or a warning when excepted.
+    diagnostic: Diagnostic,
+}
+
+/// The operations `link`'s `from` release has, which the release it serves
+/// does not, and which no `remove operation` step keeps serving. Nothing
+/// would answer them at `from` and before, so each is refused unless the
+/// manifest excepts `compatibility.operation` for it: then the older
+/// releases stop serving it, which a warning says (decision 70). The
+/// manifest's exceptions apply to every migration, as frozen releases do
+/// not record them (decision 68); its settings do not.
+fn dropped(link: &Link, config: &Config) -> Vec<Dropped> {
+    let removed: BTreeSet<&str> = link
+        .migration
+        .steps
+        .iter()
+        .filter_map(|step| match &step.kind {
+            StepKind::RemoveOperation(name) => Some(name.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    let (from, to) = (&link.migration.from, &link.migration.version.value);
+    link.old
+        .operations
+        .iter()
+        .filter(|old| !link.newer.operations.iter().any(|op| op.id == old.id))
+        .filter(|old| !removed.contains(old.name()))
+        .map(|old| {
+            let (name, id) = (old.name(), old.id.to_string());
+            let excepted = config
+                .exceptions
+                .iter()
+                .any(|exception| exception.rule == "compatibility.operation" && exception.shape == id);
+            let diagnostic = if excepted {
+                Diagnostic::warning(
+                    from.span,
+                    format!(
+                        "{name} is not in \"{to}\" and this migration has no `remove operation {name}`; under the exception for `compatibility.operation`, \"{}\" and the releases before it no longer serve it",
+                        from.value
+                    ),
+                )
+            } else {
+                Diagnostic::new(
+                    from.span,
+                    format!(
+                        "{name} is not in \"{to}\" and this migration has no `remove operation {name}`, so nothing would serve it at \"{}\"; declare `remove operation {name}` and its handler, or except `compatibility.operation` for {id} to stop serving it there and before",
+                        from.value
+                    ),
+                )
+            };
+            Dropped {
+                operation: old.id.clone(),
+                excepted,
+                diagnostic,
+            }
+        })
+        .collect()
+}
+
+/// The older versions `compiled` still serves, oldest first: the chain of
+/// migrations back from the service's version. `guard` has checked the
+/// newest migration's steps; an older one's were checked when it was the
+/// newest. `config` is the manifest's policy, whose exceptions accept an
+/// operation dropped without `remove operation` ([`dropped`]).
+pub fn versions(
+    package: &Package,
+    compiled: &Compiled,
+    own: usize,
+    config: &Config,
+) -> Result<Vec<ApiVersion>, String> {
+    let mut out = Vec::new();
+    for link in chain(package, compiled, own)? {
+        let to = &link.migration.version.value;
+        let mut retired = Vec::new();
+        for drop in dropped(&link, config) {
+            if !drop.excepted {
+                return Err(format!(
+                    "the migration to \"{to}\": {}",
+                    drop.diagnostic.message
+                ));
+            }
+            retired.push(drop.operation);
+        }
+        let context = Context::new(&compiled.namespace, &link.old, &link.newer, link.migration);
         let mut steps = Vec::new();
         let mut sunset = None;
         let mut sunset_docs = None;
-        for step in &migration.steps {
+        for step in &link.migration.steps {
             // A sunset is the release's, not a conversion: it and its
             // documentation go on the version.
             if let StepKind::Sunset(date) = &step.kind {
@@ -1058,22 +1229,18 @@ pub fn versions(
                 continue;
             }
             steps.push(context.lower(step).map_err(|diagnostic| {
-                format!(
-                    "the migration to \"{}\": {}",
-                    migration.version.value, diagnostic.message
-                )
+                format!("the migration to \"{to}\": {}", diagnostic.message)
             })?);
         }
-        let next = old.clone();
         out.push(ApiVersion {
-            name,
-            service: Box::new(old),
+            name: link.migration.from.value.clone(),
+            service: Box::new(link.old),
             steps,
             sunset,
             sunset_docs,
-            docs: doc_text(doc),
+            docs: doc_text(link.doc),
+            retired,
         });
-        newer = next;
     }
     out.reverse();
     Ok(out)

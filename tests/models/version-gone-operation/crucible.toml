@@ -1,9 +1,8 @@
-# An operation two older releases have, gone from the next one without a
-# `remove operation` step (crucible-codegen-rust/tests/versions.rs). The
-# compiler checks only the steps an older migration declares, so it accepts
-# this package; the Rust server generator reports what it cannot serve,
-# once for both releases. v1 to v3 are frozen under releases/, v4 is
-# current.
+# Refused: an operation two older releases have, gone from the next one
+# without a `remove operation` step or an exception for it
+# (crucible-lang/tests/migrations.rs). Nothing would serve it at v2 and v1,
+# so the compiler reports it at the migration's `from`. v1 to v3 are frozen
+# under releases/, v4 is current.
 [model]
 namespace = "example.gone"
 

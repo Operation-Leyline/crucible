@@ -558,18 +558,32 @@ version's section when it is prepared.
 
 ### Changed
 
+- `.cru`: a migration that drops an operation without `remove operation`
+  is an error at its `from` (`crucible check`, the build, the editor),
+  whichever migration of the chain it is: nothing would serve the
+  operation at that release and the ones before it, and the guard's
+  comparison sees only the newest migration. A `compatibility.operation`
+  exception for the operation in the manifest accepts the drop: the
+  operation is then not served at those releases, with a warning there,
+  and `ApiVersion::retired` records it. A setting that turns the finding
+  off does not accept it (decision 68). See *Migration*.
+
+- `.cru`: `rename Enum.A -> B` declares the enum's change: the guard no
+  longer reports `compatibility.sdk` (and, when the wire value changes,
+  `compatibility.enum`) on the enum. The Rust server maps a changed wire
+  value both ways, in requests and responses, except where the enum keys a
+  map or sits in an error, which are reported as for `add .. downgrade`.
+  Renaming an integer enum's value must keep its number, which older
+  clients send; the compiler refuses one that changes it, at the step.
+
 - The Rust server generator reports what it used to skip silently when it
   converts between API versions, so a release is never served wrong
-  without a word. An operation an older migration dropped without
-  `remove operation` (the guard checks only the newest migration's
-  removals) is an error naming it and the migration, once. A `rename` of
-  an enum value whose wire value changes is an error for each operation
-  that reaches the enum: nothing converts it; one that keeps the wire
-  value needs no conversion and generates as before. A step naming a shape
-  or member its release does not have, which only an edited IR can hold,
-  is an error for each operation it bears on. A service whose model has
-  either of the first two no longer generates; declare the
-  `remove operation` step, or keep the enum value's wire value.
+  without a word: a step naming a shape or member its release does not
+  have, which only an edited IR can hold, is an error for each operation
+  it bears on (once for the step when neither release has the shape), and
+  so is an operation gone without a handler or a retirement. A refused
+  conversion no longer stops the other problems of its operation being
+  collected. An enum value that only keys a map now counts as reached.
 
 - `.cru`: `require S.m by hook` on a member that a `retype` of the same
   migration also names is refused by the compiler, at the requirement
@@ -1293,6 +1307,22 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **An operation dropped without `remove operation` no longer builds.**
+  Before, a migration that left out the step built, and the server served
+  the operation at no older release without saying so; a build that did so
+  now fails at the migration's `from`. Declare `remove operation Op` and
+  write the handler the older releases are served by, or, to stop serving
+  it there, except the drop in `crucible.toml`:
+
+  ```toml
+  [[exceptions]]
+  rule = "compatibility.operation"
+  shape = "example.shop#CountItems"
+  reason = "CountItems is retired at every version"
+  ```
+
+  The exception stays while a release that had the operation is supported.
 
 - **A `null` document payload reads as the member's null.** In 0.7.0 a
   document `@httpPayload` sent as the body `null` read as a document value:

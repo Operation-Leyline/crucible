@@ -1,0 +1,25 @@
+# An operation the newest migration drops without `remove operation`,
+# under a `compatibility.operation` exception (crucible-lang/tests/migrations.rs,
+# crucible-codegen-rust/tests/versions.rs): a warning at the migration, and
+# v1 and v2 no longer serve it. v1 and v2 are frozen under releases/, v3 is
+# current.
+[model]
+namespace = "example.gone"
+
+[model.baseline]
+path = "releases/v2.json"
+
+[[exceptions]]
+rule = "compatibility.operation"
+shape = "example.gone#CountItems"
+reason = "CountItems is retired at every version"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.gone#CountItems"
+reason = "CountItems is retired at every version"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.gone#CountItemsOutput"
+reason = "CountItems is retired at every version"

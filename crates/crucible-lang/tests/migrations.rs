@@ -240,7 +240,9 @@ fn requirement_defaults_must_fit_the_destination_and_effective_constraints() {
             "{name}: {:?}",
             problems(&checked)
         );
-        let error = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap_err();
+        let error =
+            crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+                .unwrap_err();
         assert!(error.contains(expected), "{name}: {error}");
     }
 }
@@ -416,7 +418,9 @@ fn legal_requirement_defaults_are_validated_and_lowered_to_wire_values() {
             rules(&checked),
             problems(&checked)
         );
-        let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
+        let versions =
+            crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+                .unwrap();
         assert!(
             matches!(
                 &versions[0].steps[..],
@@ -481,7 +485,9 @@ fn timestamp_requirement_defaults_use_the_destination_wire_format() {
             .unwrap()
             .unwrap();
         assert!(!checked.has_errors(), "{name}: {:?}", problems(&checked));
-        let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
+        let versions =
+            crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+                .unwrap();
         assert!(
             matches!(
                 &versions[0].steps[..],
@@ -508,7 +514,9 @@ fn integer_enum_requirement_defaults_accept_symbols_and_emit_numbers() {
         .unwrap()
         .unwrap();
     assert!(!checked.has_errors(), "{:?}", problems(&checked));
-    let versions = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap();
+    let versions =
+        crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+            .unwrap();
     assert!(matches!(
         &versions[0].steps[..],
         [crucible_ir::ir::VersionStep::Require { default, .. }] if default == &serde_json::json!(1)
@@ -538,7 +546,8 @@ fn historical_requirement_defaults_cannot_bypass_validation() {
         .unwrap()
         .unwrap();
     assert!(!latest.has_errors(), "{:?}", problems(&latest));
-    let error = crucible_lang::versions(&loaded, &compiled, loaded.files.len()).unwrap_err();
+    let error = crucible_lang::versions(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap_err();
     assert!(error.contains("the migration to \"v2\""), "{error}");
     assert!(error.contains("must be a integer"), "{error}");
 }
@@ -850,7 +859,7 @@ fn the_versions_served_are_the_chain_of_frozen_releases() {
         problems(&guard)
     );
 
-    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
     let names: Vec<&str> = versions.iter().map(|v| v.name.as_str()).collect();
     assert_eq!(names, ["v1", "v2"]);
     assert_eq!(versions[0].sunset.as_deref(), Some("2027-01-01"));
@@ -891,7 +900,7 @@ fn a_release_is_read_only_under_the_name_it_was_frozen_as() {
     let own = loaded.files.len();
     let compiled = compile(&loaded, None);
     assert!(compiled.service.is_some(), "{}", compiled.render());
-    let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
+    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap_err();
     assert!(error.contains("not recorded in crucible.lock"), "{error}");
 }
 
@@ -984,7 +993,7 @@ fn a_hooked_requirement_named_by_its_shape_reaches_its_operations() {
     let own = loaded.files.len();
     let compiled = compile(&loaded, None);
     assert!(compiled.service.is_some(), "{}", compiled.render());
-    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
     assert!(
         matches!(
             &versions[0].steps[..],
@@ -1293,7 +1302,7 @@ fn a_renamed_member_lowers_its_other_steps_under_both_names() {
         rules(&checked),
         problems(&checked)
     );
-    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
     let steps = &versions[0].steps;
     assert!(steps.iter().any(|step| matches!(
         step,
@@ -1386,7 +1395,7 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
         rules(&checked),
         problems(&checked)
     );
-    let versions = crucible_lang::versions(&loaded, &compiled, own).unwrap();
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap();
     let [v1] = &versions[..] else {
         panic!("one older release: {versions:?}");
     };
@@ -1616,7 +1625,7 @@ fn a_hooked_requirement_on_a_retyped_member_is_refused_at_the_requirement() {
     let lines = crucible_lang::span::LineIndex::new(&file.text);
     assert_eq!(lines.line_col(&file.text, span.start), (21, 13));
     // The server's versions are refused too, before any generator sees them.
-    let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
+    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap_err();
     assert!(
         error.contains("both required by hook and retyped"),
         "{error}"
@@ -1679,4 +1688,153 @@ fn a_dangling_doc_link_in_a_migration_is_an_error() {
             "{name}: {rendered}"
         );
     }
+}
+
+/// The manifest policy of the shared package at `dir`, as a build reads it.
+fn policy(dir: &Path) -> Config {
+    let manifest = dir.join("crucible.toml");
+    if Config::declares_policy(&std::fs::read_to_string(&manifest).unwrap()) {
+        Config::load(&manifest).unwrap()
+    } else {
+        Config::default()
+    }
+}
+
+#[test]
+fn an_operation_dropped_without_remove_operation_is_refused_at_the_migration() {
+    let dir = model("version-gone-operation");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let config = policy(&dir);
+    // The migration that dropped it is an older one, which the diff
+    // against the baseline does not see.
+    let checked = guard(&loaded, &compiled, own, &config).unwrap().unwrap();
+    assert!(rules(&checked).is_empty(), "{:?}", rules(&checked));
+    let [problem] = &checked.problems[..] else {
+        panic!("one problem: {:?}", problems(&checked));
+    };
+    assert!(problem.diagnostic.is_error());
+    assert_eq!(
+        problem.diagnostic.message,
+        "CountItems is not in \"v3\" and this migration has no `remove operation CountItems`, so nothing would serve it at \"v2\"; declare `remove operation CountItems` and its handler, or except `compatibility.operation` for example.gone#CountItems to stop serving it there and before"
+    );
+    // At the `from` of `migration "v3" from "v2"`.
+    let file = &compiled.files[problem.file.unwrap()];
+    let span = problem.diagnostic.span;
+    assert_eq!(&file.text[span.start as usize..span.end as usize], "\"v2\"");
+    let lines = crucible_lang::span::LineIndex::new(&file.text);
+    assert_eq!(lines.line_col(&file.text, span.start), (16, 21));
+    let error = crucible_lang::versions(&loaded, &compiled, own, &config).unwrap_err();
+    assert!(
+        error.starts_with("the migration to \"v3\": CountItems is not in \"v3\""),
+        "{error}"
+    );
+}
+
+#[test]
+fn an_operation_dropped_under_an_exception_is_retired_with_a_warning() {
+    let dir = model("version-retired-operation");
+    let loaded = load_package(&dir).unwrap();
+    let own = loaded.files.len();
+    let compiled = compile(&loaded, None);
+    let config = policy(&dir);
+    let checked = guard(&loaded, &compiled, own, &config).unwrap().unwrap();
+    assert!(!checked.has_errors(), "{:?}", problems(&checked));
+    assert_eq!(
+        problems(&checked),
+        [
+            "CountItems is not in \"v3\" and this migration has no `remove operation CountItems`; under the exception for `compatibility.operation`, \"v2\" and the releases before it no longer serve it"
+        ]
+    );
+    let versions = crucible_lang::versions(&loaded, &compiled, own, &config).unwrap();
+    let retired: Vec<String> = versions
+        .iter()
+        .map(|version| {
+            let ids: Vec<String> = version.retired.iter().map(ToString::to_string).collect();
+            format!("{}: [{}]", version.name, ids.join(", "))
+        })
+        .collect();
+    assert_eq!(
+        retired,
+        ["v1: []", "v2: [example.gone#CountItems]"],
+        "{retired:?}"
+    );
+    // The exception is what accepts the drop; a setting that turns the
+    // finding off does not (decision 68).
+    let error = crucible_lang::versions(&loaded, &compiled, own, &Config::default()).unwrap_err();
+    assert!(error.contains("so nothing would serve it"), "{error}");
+}
+
+#[test]
+fn a_renamed_enum_value_declares_the_enums_change() {
+    // Its wire value kept, or changed: the server maps a changed one.
+    for (name, enumeration) in [
+        (
+            "renamed-enum-value-kept",
+            "enum Kind { TINY = \"SMALL\", LARGE }",
+        ),
+        ("renamed-enum-value-changed", "enum Kind { TINY, LARGE }"),
+    ] {
+        let guard = run(
+            name,
+            &V1.replace("enum Kind { SMALL, LARGE }", enumeration),
+            "migration \"v2\" from \"v1\" {\n    rename Kind.SMALL -> TINY\n}\n",
+        );
+        assert!(
+            !guard.has_errors(),
+            "{name}: {:?} {:?}",
+            rules(&guard),
+            problems(&guard)
+        );
+    }
+}
+
+#[test]
+fn a_renamed_int_enum_value_keeps_its_number() {
+    let baseline = V1.replace(
+        "enum Kind { SMALL, LARGE }",
+        "enum Kind: integer { SMALL = 1, LARGE = 2 }",
+    );
+    let dir = package_from(
+        "renamed-int-enum-value",
+        &baseline,
+        &baseline.replace("SMALL = 1", "TINY = 3"),
+        "migration \"v2\" from \"v1\" {\n    rename Kind.SMALL -> TINY\n}\n",
+    );
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    assert!(compiled.service.is_some(), "{}", compiled.render());
+    let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        problems(&checked).contains(
+            &"renaming the intEnum value `SMALL` to `TINY` changes its number from 1 to 3, which older clients send; keep it 1".to_owned()
+        ),
+        "{:?}",
+        problems(&checked)
+    );
+    // Its number kept, it is declared.
+    let dir = package_from(
+        "renamed-int-enum-value-kept",
+        &baseline,
+        &baseline.replace("SMALL = 1", "TINY = 1"),
+        "migration \"v2\" from \"v1\" {
+    rename Kind.SMALL -> TINY
+}
+",
+    );
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    let kept = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        !kept.has_errors(),
+        "{:?} {:?}",
+        rules(&kept),
+        problems(&kept)
+    );
 }

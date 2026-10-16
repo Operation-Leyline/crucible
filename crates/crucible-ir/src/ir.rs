@@ -149,6 +149,12 @@ pub struct ApiVersion {
     /// next: what changed, for the reference and upgrade guides.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub docs: Option<String>,
+    /// The operations this version has that the next dropped without
+    /// `remove operation`, under a `compatibility.operation` exception: not
+    /// served at this version or before (decision 70). The compiler refuses
+    /// such a drop without the exception.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub retired: Vec<ShapeId>,
 }
 
 /// One checked migration step, its paths resolved to shape ids. `old`

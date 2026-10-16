@@ -242,14 +242,20 @@ Paths resolve by name, as now.
 - **No silent skips in the generator** (built, PR 2). `conversion()`
   passed over a step whose shape or member it could not find with a bare
   `continue`, and `emit` over an operation gone without a handler. Each is
-  a diagnostic now, naming the step and the release, once per operation
-  and step, before projections land: a skipped conversion serves a
-  release wrong without a word (AGENTS.md). A step's subject is reported
-  for each operation whose values reach it, and for every operation when
-  neither release has it; an operation gone without `remove operation`
-  once per migration, however many older chains reach the gap. A `rename`
-  of an enum value is converted by nothing: it is reported when the wire
-  value changes, and needs no conversion when it does not.
+  a diagnostic now, naming the step and the release, before projections
+  land: a skipped conversion serves a release wrong without a word
+  (AGENTS.md). A step's subject is reported once for each operation whose
+  values reach it, and once for the step when neither release has it.
+- **What the compiler accepts, the generator serves.** Two of the skips
+  were reachable from accepted models, so the compiler settles them. A
+  migration that drops an operation without `remove operation` is an
+  error at its `from` in any migration of the chain, unless a manifest
+  exception for `compatibility.operation` accepts the drop: then the
+  releases before it do not serve the operation, with a warning, and
+  `ApiVersion::retired` records it (decision 70). A `rename` of an enum
+  value declares the enum's change, and the server maps a changed wire
+  value both ways; an integer enum's value keeps its number. The
+  generator's checks of both stay as backstops for an edited IR.
 
 ### Collisions
 
@@ -650,13 +656,17 @@ is built, and so are PRs 1 and 2.
    a snapshot is the same with the steps as without; generator goldens do
    not change.
 2. **No silent skips in conversions.** *Built.* The six bare `continue`s
-   become diagnostics, one per operation and step. *Crate:*
-   crucible-codegen-rust. *Tests:* `crucible-codegen-rust/tests/versions.rs`,
-   one IR edited to reach each, and the two the compiler accepts as
-   packages: `tests/models/version-gone-operation` (an older migration
-   that drops an operation without `remove operation`) and
-   `tests/models/version-renamed-enum-value` (a `rename` of an enum value
-   whose wire value changes, its breaks excepted).
+   become diagnostics, one per operation and step. The two a model the
+   compiler accepts could reach are the compiler's: an operation dropped
+   without `remove operation` is refused at the migration unless an
+   exception retires it, and an enum value's rename is converted.
+   *Crates:* crucible-codegen-rust, crucible-lang (`versions()` takes the
+   manifest policy), crucible-ir (`ApiVersion::retired`). *Tests:*
+   `crucible-codegen-rust/tests/versions.rs`, which runs the guard first,
+   one IR edited to reach each diagnostic; packages
+   `tests/models/version-gone-operation` (refused),
+   `tests/models/version-retired-operation` (excepted) and
+   `tests/models/version-renamed-enum-value` (mapped both ways).
 3. **History and versions in `describe.json`.** `crucible_ir::versions::history`
    derives history; the audience projection projects `Service::versions`
    and drops internal steps; `describe.rs` serializes both. *Crates:*

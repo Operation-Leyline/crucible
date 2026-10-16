@@ -6,7 +6,11 @@ service Shop {
 
 readonly operation GetItem {
     http GET "/items/{id}"
-    input { id: string }
+    input {
+        id: string
+        @query
+        like?: Kind
+    }
     output { kind: Kind }
 }
 

@@ -62,10 +62,14 @@ pub(crate) fn lower(path: &Path, service: Option<&ShapeId>) -> Result<Service, S
     {
         println!("cargo::warning={line}");
     }
-    check_baseline(path, &package, &compiled)?;
+    let config = match manifest_policy(path) {
+        Some(manifest) => crucible_policy::Config::load(&manifest)?,
+        None => crucible_policy::Config::default(),
+    };
+    check_baseline(path, &package, &compiled, &config)?;
     // The older versions the service still serves, for generators that
     // serve them (docs/api-versions.md).
-    let versions = crucible_lang::versions(&package, &compiled, package.files.len())?;
+    let versions = crucible_lang::versions(&package, &compiled, package.files.len(), &config)?;
     let mut service = compiled.service.expect("checked above");
     service.versions = versions;
     Ok(service)
@@ -122,12 +126,9 @@ fn check_baseline(
     path: &Path,
     package: &crucible_lang::Package,
     compiled: &crucible_lang::Compiled,
+    config: &crucible_policy::Config,
 ) -> Result<(), String> {
-    let config = match manifest_policy(path) {
-        Some(manifest) => crucible_policy::Config::load(&manifest)?,
-        None => crucible_policy::Config::default(),
-    };
-    let Some(guard) = crucible_lang::guard(package, compiled, package.files.len(), &config) else {
+    let Some(guard) = crucible_lang::guard(package, compiled, package.files.len(), config) else {
         return Ok(());
     };
     // The releases directory: the baseline, older releases and their lock.
