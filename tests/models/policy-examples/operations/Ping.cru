@@ -1,0 +1,4 @@
+/// Has no example, excepted in the manifest.
+readonly operation Ping {
+    http GET "/ping"
+}

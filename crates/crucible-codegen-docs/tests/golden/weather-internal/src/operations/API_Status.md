@@ -35,3 +35,19 @@ No modeled members.
 ## Idempotency and retries
 
 Readonly: true. Idempotent: false.
+
+## Generated sample
+
+Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist).
+
+Request:
+
+```http
+GET /status HTTP/1.1
+```
+
+Response:
+
+```http
+HTTP/1.1 200
+```

@@ -253,6 +253,31 @@ const TABLES: &[Table] = &[
         ],
     },
     Table {
+        name: "rules.examples",
+        array: false,
+        doc: "What the API reference needs beyond the types: examples, and documented errors.",
+        keys: &[
+            Key {
+                name: "severity",
+                kind: Kind::Severity,
+                doc: "The default severity of this group's checks, `warning` unless set: `error` fails the build, `off` skips them. A check written as a table can set its own.",
+                sample: "\"error\"",
+            },
+            Key {
+                name: "operations",
+                kind: Kind::Enabled,
+                doc: "Each operation declares at least one `example`; without one, the reference shows a generated sample.",
+                sample: "true",
+            },
+            Key {
+                name: "errors",
+                kind: Kind::Enabled,
+                doc: "Each error an operation declares appears in one of its examples (`error Name { .. }`); the service's shared errors are not asked of each operation.",
+                sample: "{ enabled = true, severity = \"error\" }",
+            },
+        ],
+    },
+    Table {
         name: "compatibility",
         array: false,
         doc: "What `crucible diff` protects when comparing a contract with its last release.",

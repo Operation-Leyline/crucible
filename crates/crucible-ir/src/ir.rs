@@ -674,6 +674,12 @@ impl Member {
         }
     }
 
+    /// Whether a value must carry the member: it is required and the server
+    /// has no default to fill in. An example or a request without it fails.
+    pub fn required_without_default(&self) -> bool {
+        self.required && self.default.is_none()
+    }
+
     /// Smithy 2.0 nullability as the server sees it.
     pub fn optional_on_server(&self) -> bool {
         !self.required && self.default.is_none()

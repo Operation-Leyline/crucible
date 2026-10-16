@@ -20,7 +20,8 @@ const WEATHER_EXTERNAL = golden("weather-external");
 const CATALOG = golden("catalog-internal");
 const PERMISSIONS = golden("permissions-internal");
 const PERMISSIONS_EXTERNAL = golden("permissions-external");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL };
+const SAMPLES = golden("samples-external");
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -58,7 +59,10 @@ for (const [name, description] of Object.entries(DESCRIPTIONS)) {
       assert.ok(text.includes(`HTTP/1.1 ${op.status}`), `${id} response line`);
       // One copy button per example message plus the syntax and schema blocks.
       const copies = elements(view, "button").filter((b) => b.attrs["data-copy"] != null);
-      const messages = op.examples.reduce((n, e) => n + ["input", "output", "error"].filter((k) => e[k] != null).length, 0);
+      // Without examples, the generated sample's request and response.
+      const messages = op.examples.length
+        ? op.examples.reduce((n, e) => n + ["input", "output", "error"].filter((k) => e[k] != null).length, 0)
+        : 2;
       const bodyShapes = [op.request, op.response].filter((b) => !b.payload && b.body.length).length;
       assert.equal(copies.length, 2 + bodyShapes + messages + 2, `${id} copy buttons`);
       if (op.pagination) assert.ok(text.includes(op.pagination.inputToken), `${id} pagination`);
@@ -193,6 +197,33 @@ test("anchors are built from encoded ids, never raw model text", () => {
 
 // ---- model text is never markup -------------------------------------------
 
+test("an operation without examples shows its generated sample, labelled as generated", () => {
+  const m = x.index(WEATHER);
+  const id = "example.weather#Ping";
+  const op = WEATHER.operations[id];
+  assert.equal(op.examples.length, 0);
+  const view = x.operationView(m, id, null);
+  const text = textOf(view);
+  assert.match(text, /Generated sample/);
+  assert.match(text, /not written by the API's authors/);
+  assert.match(text, /the service may still refuse a value/);
+  assert.ok(text.includes(x.exampleMessage(op.sample.input, true)), "the sample request");
+  const labels = elements(view, "button").map((b) => b.attrs["aria-label"]);
+  assert.ok(labels.includes("Copy generated sample request") && labels.includes("Copy generated sample response"));
+  // Its heading keeps the examples anchor, so a link to it still lands.
+  assert.ok(elements(view, "section").some((s) => s.attrs.id === "cx-examples"));
+  // An operation with examples shows them, and no sample.
+  const city = textOf(x.operationView(m, "example.weather#GetCity", null));
+  assert.match(city, /Examples/);
+  assert.doesNotMatch(city, /Generated sample/);
+  // A placeholder that misses its constraints is named.
+  const fallback = { ...op, sample: { ...op.sample, fallbacks: [{ path: "input.code", shape: "x#Y$code", pattern: "^x$", reason: "r" }] } };
+  const described = { ...WEATHER, operations: { ...WEATHER.operations, [id]: fallback } };
+  assert.match(textOf(x.operationView(x.index(described), id, null)), /do not meet their constraints: input\.code/);
+  // And from the generator: a pattern outside its subset.
+  assert.match(textOf(x.operationView(x.index(SAMPLES), "example.samples#Check", null)), /do not meet their constraints: input\.bounded\./);
+});
+
 const PAYLOAD = `<img src=x onerror=alert(1)>"'&<script>alert(2)</script>`;
 const SAFE_HTML = "<p>&lt;script&gt;alert(3)&lt;/script&gt; <code>&lt;img src=x onerror=alert(4)&gt;</code></p>\n";
 
@@ -208,6 +239,8 @@ function poison(value, key = "") {
     const out = {};
     for (const [k, v] of Object.entries(value)) {
       if (k === "html") out[k] = v === "" ? "" : SAFE_HTML;
+      // A sample's messages, and a fallback naming a hostile path.
+      else if (k === "sample") out[k] = { ...everyString(v), fallbacks: [{ path: `${PAYLOAD}path`, shape: "x#Y$z", pattern: PAYLOAD, reason: PAYLOAD }] };
       else if (k === "examples" || k === "headers" || k === "protocolHeaders" || k === "responseProtocolHeaders") out[k] = everyString(v);
       else if (k === "externalDocs") out[k] = { [PAYLOAD]: "javascript:alert(5)", "<b>docs</b>": "https://example.com/?a=<b>" };
       else if (k === "value" && typeof v === "string") out[k] = PAYLOAD;
@@ -264,6 +297,9 @@ test("XSS: model strings render as text, only documentation.html is markup", () 
     assert.ok(!new RegExp(`<(?!/?(?:${KNOWN_TAGS})[\\s>/])`).test(serial), "a tag outside the renderer's own set");
   }
   assert.ok(hostileTexts > 20, `hostile text should be shown, as text, on many pages (${hostileTexts})`);
+  // A fallback's path is model text too: shown, never markup.
+  const ping = x.operationView(x.index(HOSTILE), "example.weather#Ping", null);
+  assert.ok(textOf(ping).includes(`${PAYLOAD}path`), "the hostile fallback path, as text");
 });
 
 function stripHtml(node) {
@@ -468,6 +504,7 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "catalog-internal",
     "permissions-external",
     "permissions-internal",
+    "samples-external",
     "weather-external",
     "weather-internal",
   ]);

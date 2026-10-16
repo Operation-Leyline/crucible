@@ -310,7 +310,10 @@ fn raw_payload_syntax_uses_the_resolved_content_type_once() {
     for file in files(WEATHER, Audience::External) {
         if file.path.ends_with("API_GetCityPhoto.md") || file.path.ends_with("API_PutCityPhoto.md")
         {
-            assert_eq!(file.contents.matches("Content-Type: image/jpeg").count(), 1);
+            // Once in the syntax, and once in the generated sample.
+            let (syntax, sample) = file.contents.split_once("## Generated sample").unwrap();
+            assert_eq!(syntax.matches("Content-Type: image/jpeg").count(), 1);
+            assert_eq!(sample.matches("Content-Type: image/jpeg").count(), 1);
         }
     }
 }
@@ -415,5 +418,21 @@ fn file_description_preserves_arbitrary_example_keys() {
     assert_eq!(
         serde_json::from_str::<Value>(&decoded).unwrap(),
         serde_json::from_str::<Value>(json).unwrap()
+    );
+}
+
+/// Generated samples, with the placeholders a sample cannot avoid named on
+/// their page as the static reference names them: `tests/models/samples`.
+#[test]
+fn samples_match_reviewed_goldens() {
+    golden("samples-external", "samples", Audience::External);
+    let page = files("samples", Audience::External)
+        .into_iter()
+        .find(|f| f.path == "src/operations/API_Check.md")
+        .expect("the Check page");
+    assert!(
+        page.contents.contains(
+            "Placeholders that do not meet their constraints: <code>input.bounded</code>."
+        )
     );
 }

@@ -278,7 +278,66 @@ pub fn check(service: &Service, config: &Config) -> Report {
             }
         }
     }
+    if let Some(rule) = &config.rules.examples {
+        examples(&mut report, service, rule, &selected);
+    }
     report.finish(config)
+}
+
+/// `[rules.examples]`: an example on each selected operation, and an
+/// example of each error the operation itself declares.
+fn examples(
+    report: &mut Report,
+    service: &Service,
+    rule: &crate::Examples,
+    selected: &dyn Fn(&ShapeId) -> bool,
+) {
+    let operations: Vec<_> = service
+        .operations
+        .iter()
+        .filter(|operation| selected(&operation.id))
+        .collect();
+    if rule.operations.value {
+        for operation in &operations {
+            if operation.examples.is_empty() {
+                report.push(
+                    "examples.operations",
+                    &operation.id,
+                    rule.operations.severity_in(rule.severity),
+                    "operation declares no `example`: the reference shows a generated sample instead",
+                );
+            }
+        }
+    }
+    if rule.errors.value {
+        for operation in &operations {
+            // The operation's own errors: the service's (throttling,
+            // validation) are shared by every operation, and an example of
+            // each on each would bury the ones that tell operations apart.
+            for error in operation
+                .errors
+                .iter()
+                .filter(|error| !service.errors.contains(error))
+            {
+                let shown = operation
+                    .examples
+                    .iter()
+                    .any(|example| example.error.as_ref().is_some_and(|e| &e.shape == error));
+                if !shown {
+                    report.push(
+                        "examples.errors",
+                        &operation.id,
+                        rule.errors.severity_in(rule.severity),
+                        format!(
+                            "no `example` shows the error `{}`: add one with `error {} {{ .. }}`",
+                            service.name_of(error),
+                            service.name_of(error)
+                        ),
+                    );
+                }
+            }
+        }
+    }
 }
 
 fn docs(report: &mut Report, id: &ShapeId, text: Option<&str>, severity: Severity) {

@@ -75,3 +75,34 @@ Content-Type: application/json
 ## Idempotency and retries
 
 Readonly: false. Idempotent: false.
+
+## Generated sample
+
+Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist).
+
+Request:
+
+```http
+POST /orgs/org_organizationid/graphs/g_graphid/query HTTP/1.1
+Content-Type: application/json
+
+{
+  "query": "query",
+  "target": {
+    "current": {}
+  }
+}
+```
+
+Response:
+
+```http
+HTTP/1.1 200
+Content-Type: application/json
+
+{
+  "rows": [
+    "rows"
+  ]
+}
+```

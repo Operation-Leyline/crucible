@@ -1,0 +1,77 @@
+/// A graph id: a type prefix and 26 Crockford base-32 characters.
+string GraphId { pattern "^g_[0-9a-hjkmnp-tv-z]{26}(_[a-z]{3})?$" }
+
+/// A DNS-style name.
+string GraphName { length 3..63 pattern "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$" }
+
+string Region { pattern "^[a-z]{2}-[a-z]{4,9}-[0-9]$" }
+
+string Sha { pattern "^[a-f0-9]{64}$" }
+
+string Label { length 2..8 }
+
+string Printable { pattern "^[^\\x00-\\x1F\\x7F-\\x9F]+$" }
+
+/// Outside the generator's subset: a word boundary.
+string Bounded { pattern "\\bword\\b" }
+
+integer Port { range 1024..65535 }
+
+integer Negative { range ..-5 }
+
+double Ratio { range 0.25..0.75 }
+
+bigDecimal Price { range 10.5.. }
+
+timestamp EpochTime { format epoch-seconds }
+
+blob Thumbnail { length 4..16 }
+
+list Tags: Label { length 2..3 unique }
+
+list Regions: Region
+
+map Limits: GraphName -> Port { length 2.. }
+
+enum Tier {
+    SMALL = "small"
+    LARGE = "large"
+}
+
+enum Priority: integer {
+    LOW = 1
+    HIGH = 9
+}
+
+/// A tree: recursion through an optional list.
+structure Node {
+    name: Label
+    children?: Nodes
+}
+
+list Nodes: Node
+
+/// Recursion through a union whose first arm leads back.
+union Expression {
+    not: Expression
+    value: integer
+}
+
+union Source {
+    snapshot: Sha
+    empty
+}
+
+error GraphNotFound {
+    status 404
+    message: string
+    graphId?: GraphId
+}
+
+error Busy {
+    status 503
+    retryable
+    message: string
+    @header("Retry-After")
+    retryAfter?: integer
+}

@@ -602,6 +602,7 @@ dependencies = [
  "crucible-ir",
  "crucible-wire",
  "pulldown-cmark",
+ "regex",
  "serde",
  "serde_json",
  "url",

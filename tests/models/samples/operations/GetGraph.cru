@@ -1,0 +1,11 @@
+readonly operation GetGraph {
+    http GET "/graphs/{graphId}"
+    input {
+        graphId: GraphId
+    }
+    output {
+        @payload
+        thumbnail?: Thumbnail
+    }
+    errors [GraphNotFound]
+}

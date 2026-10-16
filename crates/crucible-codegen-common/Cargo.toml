@@ -12,6 +12,7 @@ serde.workspace = true
 crucible-wire.workspace = true
 base64 = "0.22"
 url = "2"
+regex = "1"
 
 [lints]
 workspace = true

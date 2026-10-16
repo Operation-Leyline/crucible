@@ -1,0 +1,7 @@
+/// Lists notes: it has no example.
+readonly operation ListNotes {
+    http GET "/notes"
+    output {
+        notes: Notes
+    }
+}

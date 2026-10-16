@@ -1,0 +1,24 @@
+/// More labels than a sample shows.
+list ManyLabels: Label { length 150.. }
+
+/// More entries than a sample shows.
+map ManyLimits: GraphName -> Port { length 150.. }
+
+/// Above every 64-bit integer.
+bigInteger Huge { range 9223372036854775808.. }
+
+/// Just below 0.3, which a double would round onto.
+bigDecimal Tight { range ..0.29999999999999999999 }
+
+/// Longer than a sample shows.
+string Essay { length 2000.. }
+
+blob Archive { length 2000.. }
+
+/// White space only: list items differ by length.
+string Blank { pattern "^\\s+$" }
+
+list Blanks: Blank { length 2..3 unique }
+
+/// A control character, valid in a body and not in a header.
+string Bell { pattern "^[\\x01]$" }

@@ -1,0 +1,11 @@
+/// Recursive input and output.
+operation Walk {
+    http POST "/walk"
+    input {
+        root: Node
+        expression?: Expression
+    }
+    output {
+        root?: Node
+    }
+}

@@ -1,0 +1,14 @@
+schema_version = 1
+
+# Generated reference samples (docs/docs.md, "Generated samples"): one shape
+# for each rule the sample generator follows, and a pattern outside its
+# subset, which it reports instead of emitting a value that fails.
+[model]
+namespace = "example.samples"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

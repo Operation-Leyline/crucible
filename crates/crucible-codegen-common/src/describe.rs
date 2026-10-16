@@ -12,7 +12,7 @@ use crucible_ir::{Diagnostics, ShapeId};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::{documentation, json_schema};
+use crate::{documentation, json_schema, sample};
 
 /// Stable serialized contract. Metadata objects are extensible; consumers should
 /// ignore unknown fields and reject unknown `format` versions. See `docs/docs.md`.
@@ -151,7 +151,92 @@ fn error(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Value {
         "protocolHeaders":info.protocol_headers,
         "fault":match info.fault { Fault::Client => "client", Fault::Server => "server" },
         "retryable":info.retryable.map(|r|json!({"throttling":r.throttling})),
-        "bindings":bindings(&error_bindings(service,id,info))})
+        "bindings":bindings(&error_bindings(service,id,info)),
+        "sample":error_sample(service,id,info)})
+}
+
+/// An error response as the wire carries it, from a model-form value: the
+/// fixed headers, and the discriminator in the body or a header.
+fn error_message(service: &Service, id: &ShapeId, info: &ErrorInfo, content: &Value) -> Value {
+    let mut message = wire_message(
+        service,
+        Some(id),
+        &error_bindings(service, id, info),
+        content,
+    );
+    if info.payload.is_none() && message["body"].is_null() {
+        message["body"] = json!({});
+    }
+    merge_headers(&mut message, &info.protocol_headers);
+    if let Some(header) = &info.discriminator_header {
+        message["headers"][header] = json!(info.wire_code);
+    }
+    if info.payload.is_none()
+        && let Some(code) = &info.body_discriminator
+    {
+        message["body"]["__type"] = json!(code);
+    }
+    message
+}
+
+/// Generated messages, labelled as such: explicit examples stay the
+/// authority, and a sample is what the model alone implies
+/// (`crate::sample`). `fallbacks` lists the values that would not pass.
+fn fallbacks<'a>(samples: impl IntoIterator<Item = &'a sample::Sample>) -> Value {
+    let all: std::collections::BTreeSet<_> =
+        samples.into_iter().flat_map(|s| &s.fallbacks).collect();
+    json!(
+        all.into_iter()
+            .map(sample::Fallback::to_json)
+            .collect::<Vec<_>>()
+    )
+}
+
+/// The members a binding sends as text (labels, query parameters,
+/// headers), whose samples must survive HTTP's handling of text.
+fn text_members(b: &Bindings) -> Vec<&str> {
+    b.labels
+        .iter()
+        .map(String::as_str)
+        .chain(b.query.iter().chain(&b.headers).map(|q| q.member.as_str()))
+        .collect()
+}
+
+fn error_sample(service: &Service, id: &ShapeId, info: &ErrorInfo) -> Value {
+    let headers: Vec<&str> = info.headers.iter().map(|h| h.member.as_str()).collect();
+    let value = sample::structure(service, Some(id), sample::Variant::Full, "error", &headers);
+    json!({"generated":true,"message":error_message(service,id,info,&value.value),
+        "fallbacks":fallbacks([&value])})
+}
+
+fn sample(service: &Service, op: &Operation) -> Value {
+    let text = text_members(&op.request);
+    let input = sample::structure(
+        service,
+        op.input.as_ref(),
+        sample::Variant::Full,
+        "input",
+        &text,
+    );
+    let minimal = sample::structure(
+        service,
+        op.input.as_ref(),
+        sample::Variant::Minimal,
+        "input",
+        &text,
+    );
+    let output = sample::structure(
+        service,
+        op.output.as_ref(),
+        sample::Variant::Full,
+        "output",
+        &text_members(&op.response),
+    );
+    let mut response = wire_message(service, op.output.as_ref(), &op.response, &output.value);
+    merge_headers(&mut response, &op.response_protocol_headers);
+    json!({"generated":true,"input":request_example(service, op, &input.value),
+        "minimalInput":request_example(service, op, &minimal.value),
+        "output":response,"fallbacks":fallbacks([&input, &minimal, &output])})
 }
 
 fn shape(service: &Service, id: &ShapeId, shape: &Shape) -> Value {
@@ -335,18 +420,10 @@ fn operation(service: &Service, op: &Operation, explorer: bool) -> Value {
         "error":e.error.as_ref().map(|e| {
                 let Shape::Structure(s)=service.shape(&e.shape).expect("example error") else { unreachable!("lowered error") };
                 let info=s.error.as_ref().expect("error info");
-                let mut message=wire_message(service,Some(&e.shape),&error_bindings(service,&e.shape,info),&e.content);
-                if info.payload.is_none() && message["body"].is_null() {message["body"]=json!({});}
-                merge_headers(&mut message,&info.protocol_headers);
-                if let Some(header)=&info.discriminator_header {
-                    message["headers"][header]=json!(info.wire_code);
-                }
-                if info.payload.is_none() && let Some(code)=&info.body_discriminator {
-                    message["body"]["__type"]=json!(code);
-                }
                 json!({"shape":e.shape.to_string(),"status":info.status,"wireCode":info.body_discriminator.as_ref().unwrap_or(&info.wire_code),
-                    "message":message})
-            })})).collect::<Vec<_>>()});
+                    "message":error_message(service,&e.shape,info,&e.content)})
+            })})).collect::<Vec<_>>(),
+        "sample":sample(service,op)});
     // What the caller must hold: the clauses as data, and the sentences
     // every generated client's documentation carries.
     if let Some(mut requirements) = crate::permissions::requirements(service, op) {

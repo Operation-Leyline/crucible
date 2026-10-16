@@ -1,0 +1,6 @@
+/// Every kind of value the reference samples.
+service Samples {
+    version "1"
+    protocol json
+    operations [PutGraph, GetGraph, Walk, Check, Bulk]
+}

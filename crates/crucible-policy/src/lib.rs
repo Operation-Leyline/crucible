@@ -8,6 +8,7 @@ mod diff;
 mod direction;
 mod documentation;
 mod documentation_target;
+mod examples;
 mod exception;
 mod finding;
 mod lint;
@@ -25,6 +26,7 @@ pub use config::{Config, ConfigError, POLICY_KEYS};
 pub use diff::{Renames, diff, diff_renamed};
 pub use documentation::Documentation;
 pub use documentation_target::DocumentationTarget;
+pub use examples::Examples;
 pub use exception::Exception;
 pub use finding::Finding;
 pub use lint::check;
@@ -44,6 +46,8 @@ pub const RULE_IDS: &[&str] = &[
     "paths.segments",
     "paths.parameters",
     "documentation.required",
+    "examples.operations",
+    "examples.errors",
     "compatibility.service",
     "compatibility.protocol",
     "compatibility.operation",

@@ -428,6 +428,62 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "clientToken": "3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b",
+            "location": {
+              "coordinates": {
+                "latitude": 1.5,
+                "longitude": 1.5
+              }
+            },
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Expected-Revision": "1"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/cities"
+        },
+        "minimalInput": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/cities"
+        },
+        "output": {
+          "body": {
+            "city": {
+              "createdAt": 1768469400,
+              "id": "c-4xzk6sz6",
+              "name": "name",
+              "population": 0,
+              "secret": "secret",
+              "updatedAt": "2026-01-15T09:30:00Z"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
       "status": 201,
       "uri": "/cities"
     },
@@ -811,6 +867,59 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "at",
+              "value": "2026-01-15T09:30:00Z"
+            }
+          ],
+          "uri": "/cities/c-4xzk6sz6?at=2026-01-15T09%3A30%3A00Z"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6"
+        },
+        "output": {
+          "body": {
+            "city": {
+              "createdAt": 1768469400,
+              "id": "c-4xzk6sz6",
+              "name": "name",
+              "population": 0,
+              "secret": "secret",
+              "updatedAt": "2026-01-15T09:30:00Z"
+            },
+            "forecast": {
+              "clear": {}
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Request-Id": "requestId"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
       "status": 200,
       "uri": "/cities/{cityId}"
     },
@@ -990,6 +1099,47 @@
       },
       "responseProtocolHeaders": {
         "Content-Type": "image/jpeg"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "output": {
+          "body": null,
+          "headers": {
+            "Content-Type": "image/jpeg",
+            "X-Photo-Caption": "caption"
+          },
+          "labels": {},
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "image/jpeg",
+            "value": "cGhvdG8="
+          },
+          "query": []
+        }
       },
       "status": 200,
       "uri": "/cities/{cityId}/photo"
@@ -1360,6 +1510,62 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "nextToken",
+              "value": "nextToken"
+            },
+            {
+              "name": "maxResults",
+              "value": "1"
+            },
+            {
+              "name": "tag",
+              "value": "tags"
+            }
+          ],
+          "uri": "/cities?nextToken=nextToken&maxResults=1&tag=tags"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities"
+        },
+        "output": {
+          "body": {
+            "cities": [
+              {
+                "createdAt": 1768469400,
+                "id": "c-4xzk6sz6",
+                "name": "name",
+                "population": 0,
+                "secret": "secret",
+                "updatedAt": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "nextToken": "nextToken"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
       "status": 200,
       "uri": "/cities"
     },
@@ -1428,6 +1634,35 @@
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/ping"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/ping"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
       "status": 200,
       "uri": "/ping"
     },
@@ -1672,6 +1907,62 @@
       "responseProtocolHeaders": {
         "Content-Type": "application/json"
       },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {
+            "Content-Type": "image/jpeg",
+            "X-Photo-Caption": "caption"
+          },
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "PUT",
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "image/jpeg",
+            "value": "cGhvdG8="
+          },
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {
+            "Content-Type": "image/jpeg"
+          },
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "PUT",
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "image/jpeg",
+            "value": "cGhvdG8="
+          },
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "output": {
+          "body": {
+            "photo": {
+              "caption": "caption",
+              "size": 1,
+              "thumbnail": "dGh1bWJuYWk="
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
       "status": 200,
       "uri": "/cities/{cityId}/photo"
     },
@@ -1747,6 +2038,35 @@
         "timestampFormats": {}
       },
       "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/status"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/status"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
       "status": 200,
       "uri": "/status"
     }
@@ -2183,6 +2503,23 @@
           "Content-Type": "application/json"
         },
         "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ConflictError",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ConflictError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "example.weather#ConflictError",
         "status": 409,
         "wireCode": "ConflictError"
@@ -3301,6 +3638,24 @@
           "Content-Type": "application/json"
         },
         "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "NotFoundError",
+              "message": "message",
+              "resourceId": "resourceId"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "NotFoundError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "example.weather#NotFoundError",
         "status": 404,
         "wireCode": "NotFoundError"
@@ -3898,6 +4253,24 @@
         "retryable": {
           "throttling": true
         },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ThrottlingError",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+              "X-Crucible-Error": "ThrottlingError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "example.weather#ThrottlingError",
         "status": 429,
         "wireCode": "ThrottlingError"
@@ -4036,6 +4409,31 @@
           "Content-Type": "application/json"
         },
         "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ValidationError",
+              "fieldList": [
+                {
+                  "message": "message",
+                  "path": "path"
+                }
+              ],
+              "message": "message",
+              "reason": "unknownOperation",
+              "requestId": "requestId"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ValidationError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
         "shape": "example.weather#ValidationError",
         "status": 400,
         "wireCode": "ValidationError"
