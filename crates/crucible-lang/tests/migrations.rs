@@ -1560,6 +1560,12 @@ fn every_step_kind_lowers_with_both_sides_and_its_documentation() {
         }
     );
 
+    // The steps read back as they were written: every field a step leaves
+    // out when empty (`from`, `by: Hook`, `docs`) has a default.
+    let written = serde_json::to_value(&v1.steps).unwrap();
+    let read: Vec<VersionStep> = serde_json::from_value(written).unwrap();
+    assert_eq!(&read, steps);
+
     // Steps never reach a release: a service's snapshot is the same with its
     // versions as without them, so carrying both sides changes no format.
     let mut service = compiled.service.clone().unwrap();
@@ -1590,14 +1596,48 @@ fn a_hooked_requirement_on_a_retyped_member_is_refused_at_the_requirement() {
     let span = problem.diagnostic.span;
     assert_eq!(
         &file.text[span.start as usize..span.end as usize],
-        "PutItem.input.note"
+        "PutItemInput.note"
     );
     let lines = crucible_lang::span::LineIndex::new(&file.text);
-    assert_eq!(lines.line_col(&file.text, span.start), (20, 13));
+    assert_eq!(lines.line_col(&file.text, span.start), (21, 13));
     // The server's versions are refused too, before any generator sees them.
     let error = crucible_lang::versions(&loaded, &compiled, own).unwrap_err();
     assert!(
         error.contains("both required by hook and retyped"),
         "{error}"
+    );
+
+    // Only a hook is refused: the same member required by a default, which
+    // runs after the retype, is accepted.
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("migrations-require-retyped-default");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("releases")).unwrap();
+    let source = model("version-require-retyped");
+    for file in [
+        "crucible.toml",
+        "releases/v1.json",
+        "releases/crucible.lock",
+    ] {
+        std::fs::copy(source.join(file), dir.join(file)).unwrap();
+    }
+    let text = std::fs::read_to_string(source.join("shop.cru")).unwrap();
+    std::fs::write(
+        dir.join("shop.cru"),
+        text.replace(
+            "require PutItemInput.note by hook",
+            "require PutItemInput.note default \"\"",
+        ),
+    )
+    .unwrap();
+    let loaded = load_package(&dir).unwrap();
+    let compiled = compile(&loaded, None);
+    let checked = guard(&loaded, &compiled, loaded.files.len(), &Config::default())
+        .unwrap()
+        .unwrap();
+    assert!(
+        !checked.has_errors(),
+        "{:?} {:?}",
+        rules(&checked),
+        problems(&checked)
     );
 }

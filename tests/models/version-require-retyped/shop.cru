@@ -14,8 +14,10 @@ idempotent operation PutItem {
 }
 
 // Refused: the hook fills `note` with v2's value before the retype
-// converts it, so the retype would convert it again.
+// converts it, so the retype would convert it again. The requirement comes
+// first and names the structure, the retype the operation's input: the
+// refusal depends on neither order nor spelling.
 migration "v2" from "v1" {
+    require PutItemInput.note by hook
     retype PutItem.input.note -> string by hook
-    require PutItem.input.note by hook
 }

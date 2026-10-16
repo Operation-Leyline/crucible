@@ -169,8 +169,9 @@ references to the code as of this design.
 
 ### Steps carry both sides
 
-Undo and the server need each step's older and newer side. The IR has
-gaps (`crucible-ir/src/ir.rs:113-205`):
+Built in PR 1 (*Order*, below); the references here are to the code
+before it. Undo and the server need each step's older and newer side. The
+IR had gaps (`crucible-ir/src/ir.rs:113-205`):
 
 - `VersionStep::Require` holds the new side only (`ir.rs:140-144`), so
   undo has nowhere to find the frozen member, and `conversion()` looks the

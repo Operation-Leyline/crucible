@@ -279,7 +279,8 @@ pub enum Hook {
         new: ShapeId,
         member: String,
         /// The member's name in the older version, when the same migration
-        /// renamed it; empty when it kept `member`.
+        /// renamed it; empty when it kept `member`. Always empty while the
+        /// compiler refuses a hooked requirement on a renamed member.
         #[serde(default, skip_serializing_if = "String::is_empty")]
         from: String,
     },
