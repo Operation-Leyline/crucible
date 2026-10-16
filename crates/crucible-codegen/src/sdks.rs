@@ -119,6 +119,8 @@ pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<
         "service": service.id.to_string(),
         "sdks": sdks,
         "http": http,
+        // The other releases' SDKs, which `file` fills for a reference.
+        "lines": {},
     })))
 }
 
@@ -130,10 +132,27 @@ pub fn render(document: &Value) -> String {
 }
 
 /// `sdks.json` for a reference at `audience` of `service`'s release: the
-/// [`document`] of the SDKs [`visible_in`] it that are [`lines_of`] it.
+/// [`document`] of the SDKs [`visible_in`] it that are [`lines_of`] it,
+/// with `lines` naming the audience's SDKs of every other release, by
+/// release, so a site that renders one release's reference knows the
+/// other lines exist.
 pub fn file(file: &SdkFile, service: &Service, audience: Audience) -> Result<crate::File, String> {
     let visible = visible_in(file, audience);
-    let document = document(file, service, &lines_of(service, &visible))?;
+    let described = lines_of(service, &visible);
+    let mut document = document(file, service, &described)?;
+    let current = crucible_ir::versions::line_current(service);
+    let current = crucible_ir::versions::current_name(current.as_ref().unwrap_or(service));
+    let mut lines: std::collections::BTreeMap<&str, Vec<&str>> = std::collections::BTreeMap::new();
+    for sdk in visible
+        .iter()
+        .filter(|sdk| !described.iter().any(|d| d.name == sdk.name))
+    {
+        lines
+            .entry(sdk.api_version.as_deref().unwrap_or(current))
+            .or_default()
+            .push(&sdk.name);
+    }
+    document["lines"] = json!(lines);
     Ok(crate::File {
         path: FILE_NAME.into(),
         contents: render(&document),

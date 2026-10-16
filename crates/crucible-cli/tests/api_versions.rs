@@ -335,10 +335,25 @@ fn a_reference_describes_the_sdks_of_its_release() {
     let directory = repository();
     let root = directory.path();
     fs::write(root.join("crucible-sdk.toml"), SDK_FILE).unwrap();
-    for (release, out, expected) in [
-        (None, "docs", vec!["ts"]),
-        (Some("v1"), "docs-v1", vec!["ts-v1"]),
-        (Some("v2"), "docs-v2", vec!["rust-v2"]),
+    for (release, out, expected, lines) in [
+        (
+            None,
+            "docs",
+            vec!["ts"],
+            serde_json::json!({ "v1": ["ts-v1"], "v2": ["rust-v2"] }),
+        ),
+        (
+            Some("v1"),
+            "docs-v1",
+            vec!["ts-v1"],
+            serde_json::json!({ "v2": ["rust-v2"], "v4": ["ts"] }),
+        ),
+        (
+            Some("v2"),
+            "docs-v2",
+            vec!["rust-v2"],
+            serde_json::json!({ "v1": ["ts-v1"], "v4": ["ts"] }),
+        ),
     ] {
         let mut args = vec![
             "generate",
@@ -356,5 +371,7 @@ fn a_reference_describes_the_sdks_of_its_release() {
         let sdks = json(&root.join(out).join("sdks.json"));
         let names: Vec<&String> = sdks["sdks"].as_object().unwrap().keys().collect();
         assert_eq!(names, expected, "{out}");
+        // The other releases' SDKs, by release, so a site knows they exist.
+        assert_eq!(sdks["lines"], lines, "{out}");
     }
 }

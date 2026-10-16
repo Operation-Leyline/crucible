@@ -675,9 +675,17 @@ neither the environment nor the SDKs' README and license files.
   "format": "crucible.sdks/1",
   "service": "example.weather#Weather",
   "sdks": { "ts": {} },
-  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {} }
+  "http": { "endpointEnv": "WEATHER_ENDPOINT", "tokenEnv": "WEATHER_TOKEN", "operations": {} },
+  "lines": { "v1": ["ts-v1"] }
 }
 ```
+
+`lines` (additive, always present) names the SDKs of the other releases
+this audience may see, by release name, each list sorted: the SDK lines a
+reference does not describe, so a site that renders only the current
+release's reference knows they exist and can link the reference
+generated for each. It is empty in a document from `crucible sdk
+describe`, which describes every SDK it selects.
 
 | Field of each SDK (keyed by its `[sdk.<name>]`) | Type and meaning |
 |---|---|

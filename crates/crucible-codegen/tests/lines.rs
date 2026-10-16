@@ -162,6 +162,11 @@ fn every_line_names_its_surface() {
         crucible_codegen::sdks::file(&file, &current, Audience::External).unwrap();
     let document: serde_json::Value = serde_json::from_str(&current_reference.contents).unwrap();
     assert!(document["sdks"].as_object().unwrap().is_empty());
+    // It names the lines it does not describe, by release.
+    let names: Vec<String> = file.sdks.keys().cloned().collect();
+    assert_eq!(document["lines"], serde_json::json!({ "v1": names }));
+    let v1_reference: serde_json::Value = serde_json::from_str(&described.contents).unwrap();
+    assert_eq!(v1_reference["lines"], serde_json::json!({}));
     // `crucible sdk describe` describes every line it is given, each from
     // its own release, whatever the model it is handed.
     let every: Vec<&sdk::Sdk> = file.sdks.values().collect();

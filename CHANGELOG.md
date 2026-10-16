@@ -47,8 +47,9 @@ version's section when it is prepared.
   TypeScript, schema 1 for the other twelve). A release's reference says
   `service.version` is the release while `versions.current` is the
   current one. A reference's `sdks.json` describes the SDKs of its own
-  release (`crucible_codegen::sdks::lines_of`, additive), and each SDK is
-  described from its own line. The default is the current release, and
+  release (`crucible_codegen::sdks::lines_of`, additive), names the other
+  releases' SDKs by release in `lines` (`crucible.sdks/1`, additive,
+  always present), and each SDK is described from its own line. The default is the current release, and
   nothing changes without the new key or option. A sunset release can be
   generated until its migration is removed; a release outside the chain
   fails naming the supported ones; a server (and `crucible scaffold`) is

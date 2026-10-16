@@ -115,6 +115,7 @@
     },
     "tokenEnv": null
   },
+  "lines": {},
   "sdks": {
     "c-v1": {
       "audience": "external",
