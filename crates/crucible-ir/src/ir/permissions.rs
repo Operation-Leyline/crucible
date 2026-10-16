@@ -51,6 +51,15 @@ impl ResourcePermissions {
     pub fn by_value(&self, value: &str) -> Option<&Permission> {
         self.permissions.iter().find(|p| p.value == value)
     }
+
+    /// The primary `permission` stands for: itself, or the one it aliases.
+    pub fn primary<'a>(&'a self, permission: &'a Permission) -> &'a Permission {
+        permission
+            .alias_of
+            .as_deref()
+            .and_then(|symbol| self.permission(symbol))
+            .unwrap_or(permission)
+    }
 }
 
 /// One permission a resource accepts.
@@ -240,6 +249,15 @@ impl Condition {
             Self::Has(p) | Self::Equals(p, _) | Self::In(p, _) => vec![p],
             Self::And(cs) | Self::Or(cs) => cs.iter().flat_map(Condition::paths).collect(),
             Self::Not(c) => c.paths(),
+        }
+    }
+
+    /// Every member path the condition reads, to rewrite.
+    pub fn paths_mut(&mut self) -> Vec<&mut Vec<String>> {
+        match self {
+            Self::Has(p) | Self::Equals(p, _) | Self::In(p, _) => vec![p],
+            Self::And(cs) | Self::Or(cs) => cs.iter_mut().flat_map(Condition::paths_mut).collect(),
+            Self::Not(c) => c.paths_mut(),
         }
     }
 }

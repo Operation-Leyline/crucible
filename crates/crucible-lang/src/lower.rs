@@ -4996,19 +4996,7 @@ impl<'a> Lowerer<'a> {
             traits.insert(builtin("idempotent"), Json::Object(JsonMap::new()));
         }
 
-        let mut protocol_headers = BTreeMap::new();
-        if let Some(payload) = &request.payload {
-            protocol_headers.insert("Content-Type".into(), payload.media_type.clone());
-        } else if !request.body.is_empty() {
-            protocol_headers.insert("Content-Type".into(), "application/json".into());
-        }
-        if request
-            .headers
-            .iter()
-            .any(|h| h.name.eq_ignore_ascii_case("Content-Type"))
-        {
-            protocol_headers.remove("Content-Type");
-        }
+        let protocol_headers = self.protocol.request_headers(&request);
 
         let mut errors = Vec::new();
         for error in own_errors {
@@ -5150,8 +5138,9 @@ impl<'a> Lowerer<'a> {
         if modifiers.contains("internal") {
             traits.insert(builtin("internal"), Json::Object(JsonMap::new()));
         }
-        let has_value =
-            output_id.is_some() && (!response.body.is_empty() || response.payload.is_some());
+        let has_value = self
+            .protocol
+            .response_has_value(output_id.as_ref(), &response);
         Some(IrOperation {
             response_protocol_headers: self.protocol.response_headers(&response, has_value),
             protocol_headers,

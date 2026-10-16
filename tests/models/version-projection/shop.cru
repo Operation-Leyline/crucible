@@ -1,0 +1,141 @@
+/// A shop's items, across three releases.
+service Shop {
+    version "v3"
+    protocol json
+    operations [GetItem, PutItem, ArchiveItem, ListItems]
+}
+
+/// Reads one item.
+readonly operation GetItem {
+    http GET "/things/{id}"
+    input { id: string }
+    errors [ItemNotFound, ItemGone]
+    output {
+        /// The item's title.
+        title: string
+        kind: Kind
+        size: Size
+        /// The item's tag, if it has one.
+        tag?: Tag
+        /// A note about the item.
+        note?: string
+    }
+    example "Read an item" {
+        input { id: "a-1" }
+        output { title: "Anvil", kind: "SMALL", size: { area: 6, unit: "m2" } }
+    }
+}
+
+/// How big an item is.
+enum Kind { SMALL, LARGE, HUGE }
+
+/// An item's dimensions.
+structure Size {
+    /// Its area.
+    area: integer
+    /// The unit of the area.
+    unit?: string
+}
+
+/// No item has that id.
+error ItemNotFound {
+    status 404
+    message: string
+}
+
+/// The item was deleted.
+error ItemGone {
+    status 410
+    message: string
+}
+
+/// Stores an item.
+idempotent operation PutItem {
+    http PUT "/items/{id}"
+    input {
+        id: string
+        /// Notes about the item.
+        notes: string
+    }
+    output { stored: boolean }
+}
+
+/// A label items share.
+structure Tag {
+    name: string
+    /// The tag's colour.
+    color?: string
+}
+
+/// Archives an item.
+idempotent operation ArchiveItem {
+    http PUT "/items/{id}/archive"
+    input {
+        id: string
+        kind?: Kind
+    }
+    output {
+        archived: boolean
+        /// What archiving it cost.
+        cost?: bigDecimal
+    }
+    example "Archive a huge item" {
+        input { id: "a-1", kind: "HUGE" }
+        output { archived: true }
+    }
+    example "Archive an item" {
+        input { id: "a-2" }
+        output { archived: true }
+    }
+}
+
+/// Lists item names, a page at a time.
+readonly operation ListItems {
+    http GET "/items"
+    paginated(inputToken: cursor, outputToken: nextCursor, items: names, pageSize: limit)
+    input {
+        @query
+        cursor?: string
+        @query
+        limit?: integer
+    }
+    output {
+        names: Names
+        nextCursor?: string
+    }
+}
+
+list Names: string
+
+/// v2 titles items, measures a size by its area, takes notes instead of a
+/// description, and drops CountItems.
+migration "v2" from "v1" {
+    /// An older request without a description has empty notes. Written
+    /// before the rename it follows: steps compose, whatever their order.
+    require PutItem.input.notes default ""
+    /// An item's description is its notes.
+    rename PutItem.input.description -> notes
+    /// An item's name is its title.
+    rename GetItem.output.name -> title
+    /// A size is its area.
+    reshape Size { width, height } -> area by hook
+    /// Counting is gone.
+    remove operation CountItems
+    /// Pages are read with a cursor.
+    rename ListItems.input.token -> cursor
+    rename ListItems.output.next -> nextCursor
+    /// The page size is a limit.
+    rename ListItems.input.max -> limit
+}
+
+/// v3 moves GetItem, reports a deleted item as gone, and has huge items.
+migration "v3" from "v2" {
+    /// Items are things now.
+    move GetItem from GET "/items/{id}"
+    /// Older clients see a deleted item as not found.
+    add GetItem.errors ItemGone downgrade ItemNotFound {
+        message <- message
+    }
+    /// Older clients see a huge item as large.
+    add Kind.HUGE downgrade LARGE
+}

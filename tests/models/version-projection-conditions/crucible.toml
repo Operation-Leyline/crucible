@@ -1,0 +1,10 @@
+# A permission condition through a renamed member (decision 73): v2 renames
+# the input member a `requires .. when` reads, so the projection of v1 reads
+# it by its older name, as v1's clients send it and the reference shows it.
+# v1 is frozen under releases/; v2 is current.
+[model]
+namespace = "example.conditions"
+imports = ["crucible.errors"]
+
+[model.baseline]
+path = "releases/v1.json"

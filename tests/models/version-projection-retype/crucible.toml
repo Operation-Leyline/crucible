@@ -1,0 +1,10 @@
+# A retype restores the release's member whole (decision 72): a constrained
+# string retyped to a boolean is the string again at v1, with its length,
+# pattern and documentation, and a timestamp header retyped to a string is a
+# timestamp again, with its header's format. v1 is frozen under releases/;
+# v2 is current.
+[model]
+namespace = "example.retype"
+
+[model.baseline]
+path = "releases/v1.json"

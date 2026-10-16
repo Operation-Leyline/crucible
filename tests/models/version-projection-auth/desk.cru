@@ -1,0 +1,36 @@
+/// A help desk, authenticated per operation.
+service Desk {
+    version "v2"
+    protocol json
+    auth bearer
+    operations [GetTicket, ListTickets, Ping, Health]
+}
+
+/// Reads a ticket.
+public readonly operation GetTicket {
+    http GET "/tickets/{id}"
+    input { id: string }
+    output { subject: string }
+}
+
+/// Lists ticket subjects.
+readonly operation ListTickets {
+    http GET "/tickets"
+    output { subjects: Subjects }
+}
+
+list Subjects: string
+
+/// Checks the caller's token.
+readonly operation Ping {
+    http GET "/ping"
+    output { ok: boolean }
+}
+
+/// Checks the service is up.
+public readonly operation Health {
+    http GET "/health"
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {}

@@ -42,31 +42,24 @@ pub fn client_view(service: &Service) -> Service {
     if removed.is_empty() {
         return service.clone();
     }
-    let reached = |operations: &mut dyn Iterator<Item = &Operation>| {
-        let mut reached = BTreeSet::new();
+    let reach = |operations: &mut dyn Iterator<Item = &Operation>| {
         // A resource's entry types stay with the resource, which the view
         // keeps.
         let entries = service
             .resources
             .values()
             .flat_map(|r| r.identifiers.values().chain(r.properties.values()));
-        let mut pending: Vec<ShapeId> = operations
-            .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
-            .chain(&service.errors)
-            .chain(entries)
-            .cloned()
-            .collect();
-        while let Some(id) = pending.pop() {
-            if let Some(shape) = service.shape(&id)
-                && reached.insert(id)
-            {
-                pending.extend(shape.members().into_iter().map(|m| m.target.clone()));
-            }
-        }
-        reached
+        reached(
+            &service.shapes,
+            operations
+                .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+                .chain(&service.errors)
+                .chain(entries)
+                .cloned(),
+        )
     };
-    let before = reached(&mut service.operations.iter());
-    let after = reached(
+    let before = reach(&mut service.operations.iter());
+    let after = reach(
         &mut service
             .operations
             .iter()
@@ -115,6 +108,24 @@ pub fn client_view(service: &Service) -> Service {
     // A doc link to a removed operation is its text.
     result.retain_doc_links();
     result
+}
+
+/// Every shape in `shapes` that `roots` reach through member targets, the
+/// roots included; an id `shapes` lacks reaches nothing.
+pub(crate) fn reached(
+    shapes: &BTreeMap<ShapeId, Shape>,
+    roots: impl IntoIterator<Item = ShapeId>,
+) -> BTreeSet<ShapeId> {
+    let mut reached = BTreeSet::new();
+    let mut pending: Vec<ShapeId> = roots.into_iter().collect();
+    while let Some(id) = pending.pop() {
+        if let Some(shape) = shapes.get(&id)
+            && reached.insert(id)
+        {
+            pending.extend(shape.members().into_iter().map(|m| m.target.clone()));
+        }
+    }
+    reached
 }
 
 /// An older release as the external audience sees it, never refused: what
@@ -531,7 +542,7 @@ fn check_target(
 
 /// Keeps the resource bindings whose paths still resolve from `root`, and
 /// the collections whose members do, each relative to its elements.
-fn retain_resource_bindings(
+pub(crate) fn retain_resource_bindings(
     shapes: &BTreeMap<ShapeId, Shape>,
     root: Option<&ShapeId>,
     bindings: &mut crate::ir::ResourceMemberBindings,

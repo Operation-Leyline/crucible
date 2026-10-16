@@ -1,0 +1,55 @@
+# A retyped payload (decision 72): v2 retypes a request payload from a PNG
+# blob to a string, a response payload from a string to a PDF blob, and a
+# JSON body member of a CSV string into a spreadsheet `@payload`, so the
+# projection of v1 binds each as v1 did (a payload's kind and media type, or
+# no payload at all) and sends the Content-Type that follows. PutNote's
+# payload becomes a JSON body member beside a member added since, which
+# does not reach v1: its request has no body to carry it (decision 74). v1 is frozen under releases/; v2 is
+# current.
+[model]
+namespace = "example.payload"
+
+[model.baseline]
+path = "releases/v1.json"
+
+# The payload's encoding changes with its type, which a `retype` does not
+# declare.
+[[exceptions]]
+rule = "compatibility.bindings"
+shape = "example.payload#PutFile"
+reason = "The body is text now; the v1 handler takes bytes"
+
+[[exceptions]]
+rule = "compatibility.bindings"
+shape = "example.payload#GetFile"
+reason = "The file is read as bytes now; v1 clients read text"
+
+[[exceptions]]
+rule = "compatibility.bindings"
+shape = "example.payload#PutReport"
+reason = "The report is the raw body now"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.payload#PutReportInput$report"
+reason = "The report moved from a body member to the raw body"
+
+[[exceptions]]
+rule = "compatibility.required"
+shape = "example.payload#PutReportInput$report"
+reason = "The report moved from a body member to the raw body"
+
+[[exceptions]]
+rule = "compatibility.bindings"
+shape = "example.payload#PutNote"
+reason = "The note is a JSON member now"
+
+[[exceptions]]
+rule = "compatibility.member"
+shape = "example.payload#PutNoteInput$body"
+reason = "The note moved from the raw body to a body member"
+
+[[exceptions]]
+rule = "compatibility.required"
+shape = "example.payload#PutNoteInput$body"
+reason = "The note moved from the raw body to a body member"

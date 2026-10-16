@@ -1,8 +1,9 @@
 # API versions and clients
 
-**Status: 5a built (clients send their release), and the reference's
-release history (PR 3); 5b and 5c settled and ready to build (decisions
-68-79); 5d designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
+**Status: 5a built (clients send their release), the reference's
+release history (PR 3), and the projections themselves as an IR function
+with no caller yet (PR 4); the rest of 5b and 5c settled and ready to
+build (decisions 68-79); 5d designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
 how clients take part, following decisions 51, 57 and 57a in
@@ -161,8 +162,15 @@ references to the code as of this design.
   of a `reshape` or a `remove operation` is the frozen definition, which a
   later addition has no place in: a member added to `S` after `reshape S`
   is not in `S` at releases before the reshape, whose hook converts the
-  whole value. This is the one exception to "additive changes reach every
-  release" (decision 51), and the reference says so (decision 74).
+  whole value. Nor does one reach a release's payload-bound message: where
+  the release sent a member of an operation's input or output, or of an
+  error, as the payload and its projection does again (a `retype` restores
+  the binding), a member added since that would travel in the body is not
+  in that release, which has no body to carry it; one bound to a label,
+  query parameter or header still reaches it. This is the one exception to
+  "additive changes reach every release" (decision 51), and the reference
+  says so (decision 74; `history.missing` does not date the payload case
+  yet, PR 8).
 - **Everything else is the current model's:** operations, members and enum
   values added since reach the older release. `version` and `api_version`
   are the older release's name.
@@ -375,7 +383,8 @@ recomputed on the projection (decision 73):
 | `version`, `api_version` | the release's name |
 
 - **Where it lives.** Undo and recomputation are an IR-to-IR function in
-  crucible-ir (`crucible_ir::versions`), beside the audience projection
+  crucible-ir (`crucible_ir::versions::projections` and `undo`, built in
+  PR 4), beside the audience projection
   (`audience.rs:17`). A frozen release is never recompiled (decision 52),
   so there is no lowering to finish, and every recomputed field is an IR
   analysis crucible-ir already has. crucible-lang's `versions()` drives
@@ -390,6 +399,28 @@ recomputed on the projection (decision 73):
   and `e2e/weather-service/tests/auth_versions.rs` tests it. A projection
   keeps that for every operation its release had; only an operation added
   since, which the release never declared, takes the current schemes.
+- **What PR 4 settled in building it.** An operation the release had
+  keeps its `public` flag with its `auth`, so a projection never pairs a
+  release's scheme with today's `public`. A scheme the release's
+  operations name is the release's definition; one only operations added
+  since name is the current one (a branch nothing can observe while
+  Bearer is the one scheme a `.cru` service declares). An example that
+  does not hold at a release is left out with a warning: one of an
+  operation added since once, at the newest release it fails at, since the
+  older projections start from that one; a frozen example of an operation
+  the release had, at each release whose own example fails (a member
+  required since, under an exception). A renamed member keeps the current
+  documentation, as everything not restored does. A restored operation's
+  permission requirements are mapped to today's permissions. A converted
+  one keeps the current model's requirements, with every binding and
+  `when` path through a renamed member renamed back, so the guard's
+  comparison and the reference read the input as the release's clients
+  send it; the server is unaffected, since an older release's module
+  states nothing for a converted operation and the current requirements
+  authorize the upgraded request. A default on a value `add .. downgrade`
+  removes becomes the downgrade. Every operation's fixed protocol headers
+  (`Protocol::request_headers`, `response_headers`) and greedy-label
+  feature use are recomputed from its projected bindings and route.
 - **Release first, audience second.** `project(projected(r), audience)`:
   undo needs the internal shapes a step may name. The audience projection
   never touches `Service::versions` (`audience.rs:17`), so an external
@@ -645,7 +676,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1, 2 and 3.
+is built, and so are PRs 1 to 4.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -692,17 +723,43 @@ is built, and so are PRs 1, 2 and 3.
    both audiences, and of `e2e/weather-service/versioned`, all with their
    versions from `crucible_lang::versions`; `tools/test-docs-site.sh`
    against them; a build's and the CLI's docs output.
-4. **Projections in the IR.** `crucible_ir::versions`: undo, derived-IR
-   recomputation, `validate::service`; no caller yet. *Crate:*
-   crucible-ir. *Tests:* `crucible-lang/tests/projections.rs`, one
-   `tests/models/` package per undo row and per recomputed field, among
-   them a member retyped from a constrained `string` to a `boolean` whose
-   projection has the frozen constraints, and per-operation auth
-   (crucible-ir cannot dev-depend on the compiler without a second copy of
-   its types).
+4. **Projections in the IR.** *Built.* `crucible_ir::versions`:
+   `projections(service)` (every older release, oldest first, each a
+   `Projection` with the examples it left out as `warnings`, or every
+   problem of every release) and `undo(newer, version, ..)` (one
+   migration); derived-IR recomputation and `validate::service` on each;
+   `current_permission`, which the Rust server generator's legacy handlers
+   now share. No caller yet; `ApiVersion::service` is still the frozen
+   release. *Crate:* crucible-ir. *Tests:*
+   `crucible-lang/tests/projections.rs` (crucible-ir cannot dev-depend on
+   the compiler without a second copy of its types): every versioned
+   package's projections compare clean with their frozen releases through
+   the guard's `diff` at error with the manifest's exceptions, and their
+   derived IR is recomputed; `tests/models/version-steps` projects to its
+   frozen release definition for definition (every undo row);
+   `tests/models/version-projection` (three releases: composition in
+   either order, additions, the reshape exception, a restored operation
+   with its own error and feature use, pagination renames, examples left
+   out with a warning); `version-projection-retype` (a constrained
+   `string` retyped to a `boolean`, a timestamp's format);
+   `version-projection-auth` (per-operation auth);
+   `version-projection-derived` (a restored route's greedy label, fixed
+   headers after a body was added or removed in requests and responses, a
+   frozen example left out, a default on a removed value);
+   `version-projection-conditions` (a `when` condition through a renamed
+   member); `version-projection-payload` (a payload retyped between a blob
+   and a string, bound with the release's kind and media type, a body
+   member retyped into a payload, and a payload retyped into a body member
+   beside a member added since, which does not reach the release); the
+   e2e `versioned_permissions` fixture (a restored operation's
+   requirements); whole-IR equality with the frozen release,
+   documentation aside, where nothing added since reaches it; for every
+   step, that undoing its migration without it leaves a finding; and
+   edited IR for what the compiler will refuse.
 5. **The compiler projects and checks.** `versions()` resolves steps
    newest first against projections, re-checks them, refuses collisions
-   and lost old sides, runs the projection check, and returns every
+   and lost old sides, runs the projection check, surfaces
+   `Projection::warnings` with spans at the examples, and returns every
    diagnostic with its span instead of the first error string.
    `ApiVersion` gains `release`, the frozen model, and every reader that
    needs the frozen model moves to it; `service` is still frozen. The

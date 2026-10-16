@@ -1,0 +1,14 @@
+# Releases as the current model sees them (crucible-lang/tests/projections.rs,
+# decisions 68-75): undo composes a `require` written before the `rename` it
+# follows; additions (an operation, members appended to structures, among
+# them one a restored operation reaches) reach every older release, except
+# inside the structure v2 reshapes (decision 74); a removed operation is
+# restored with the error only it used and its feature use; renamed
+# pagination members page as the release did; an example of an operation
+# added since that does not hold at an older release is left out of it.
+# v1 and v2 are frozen under releases/; v3 is current.
+[model]
+namespace = "example.projection"
+
+[model.baseline]
+path = "releases/v2.json"

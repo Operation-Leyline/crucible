@@ -1,0 +1,67 @@
+/// Files, sent and read raw.
+service Files {
+    version "v2"
+    protocol json
+    operations [PutFile, GetFile, PutReport, PutNote]
+}
+
+/// Stores a file, as text now.
+idempotent operation PutFile {
+    http PUT "/files/{id}"
+    input {
+        id: string
+        @payload
+        body: string
+    }
+    output { ok: boolean }
+}
+
+/// A file's bytes.
+blob Bytes { mediaType "application/pdf" }
+
+/// Reads a file's bytes now.
+readonly operation GetFile {
+    http GET "/files/{id}"
+    input { id: string }
+    output {
+        @payload
+        data: Bytes
+    }
+}
+
+/// A report's bytes.
+blob Report { mediaType "application/vnd.ms-excel" }
+
+/// Stores a report sent raw now.
+idempotent operation PutReport {
+    http PUT "/reports/{id}"
+    input {
+        id: string
+        @payload
+        report: Report
+    }
+    output { ok: boolean }
+}
+
+/// Stores a note's text, in the JSON body now, with a title.
+idempotent operation PutNote {
+    http PUT "/notes/{id}"
+    input {
+        id: string
+        body: string
+        /// What the note is called.
+        title?: string
+    }
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {
+    /// The body is text: a PNG then, plain text now.
+    retype PutFile.input.body -> string by hook
+    /// The file is read as bytes: text then, a PDF now.
+    retype GetFile.output.data -> Bytes by hook
+    /// The report is the raw body, a spreadsheet: a JSON member then.
+    retype PutReport.input.report -> Report by hook
+    /// The note is a JSON member: the raw body then.
+    retype PutNote.input.body -> string by hook
+}

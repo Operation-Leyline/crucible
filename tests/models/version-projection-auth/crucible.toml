@@ -1,0 +1,14 @@
+# Authentication in a projection (decision 73): an operation the release had
+# keeps its release's authentication, even though the current model made it
+# public; an operation added since takes the current model's, bearer or
+# public. v1 is frozen under releases/; v2 is current.
+[model]
+namespace = "example.auth"
+
+[model.baseline]
+path = "releases/v1.json"
+
+[[exceptions]]
+rule = "compatibility.auth"
+shape = "example.auth#GetTicket"
+reason = "Anyone may read a ticket now; v1 clients keep sending their token"
