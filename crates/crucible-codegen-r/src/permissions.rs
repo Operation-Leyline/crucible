@@ -98,7 +98,7 @@ pub fn emit(service: &Service) -> Vec<File> {
             "The permissions `{shape}` accepts (`{}`), by the values grants store. A permission value is a character string: a known one, or any string a newer server writes, kept as it is.",
             client.resource.name
         );
-        out.push_str(&roxygen(&summary));
+        out.push_str(&roxygen(service, &summary));
         details.push_str(&format!("{list}: {summary}\n\n"));
         let mut members = Vec::new();
         for permission in &client.permissions {
@@ -108,7 +108,7 @@ pub fn emit(service: &Service) -> Vec<File> {
                 permission.value,
                 documentation(client, permission)
             );
-            out.push_str(&roxygen_details(&line));
+            out.push_str(&roxygen_details(service, &line));
             details.push_str(&format!("{list}${line}\n\n"));
             members.push(format!(
                 "  {} = {}",
@@ -124,7 +124,7 @@ pub fn emit(service: &Service) -> Vec<File> {
         let summary = format!(
             "Returns the permission each element of `value`, a character vector, stands for on `{shape}`: a deprecated alias's primary, or the element itself, unknown values included."
         );
-        out.push_str(&roxygen(&summary));
+        out.push_str(&roxygen(service, &summary));
         details.push_str(&format!("{canonical}(value): {summary}\n\n"));
         out.push_str(&format!("{} <- function(value) {{\n  if (!is.character(value)) stop(\"a permission value is a character vector\", call. = FALSE)\n", function(&canonical)));
         let aliases = client.aliases();
@@ -165,7 +165,7 @@ pub fn emit(service: &Service) -> Vec<File> {
         ));
     }
     let summary = "Every permission this client knows, by resource type, deprecated aliases included: a list of `resource_type` and `permissions`, each permission a list of `value`, `description`, `tier` (\"public\", \"permissionOnly\" or \"notGrantable\"; a string, since a newer server may add tiers), `grantable` (FALSE for a bundle the service confers whole: never offer it in a picker), `deprecated` and `alias_of` (a deprecated alias's primary, or NULL).";
-    out.push_str(&roxygen(summary));
+    out.push_str(&roxygen(service, summary));
     details.push_str(&format!("PERMISSIONS: {summary}\n"));
     out.push_str(&format!(
         "`PERMISSIONS` <- list(\n{}\n)\n",
@@ -187,7 +187,7 @@ pub fn emit(service: &Service) -> Vec<File> {
                 markdown::render(
                     "The model's permissions, as the values grants store, and the registry a grant picker reads. Internal permissions never appear."
                 ),
-                markdown::render(&details)
+                crate::links::rd(service, &details)
             ),
         },
     ]

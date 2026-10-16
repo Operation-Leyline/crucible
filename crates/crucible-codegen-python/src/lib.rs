@@ -1,4 +1,5 @@
 //! A Python package with typed models and sync/async HTTPX clients.
+mod links;
 mod names;
 mod permissions;
 mod surface;
@@ -231,6 +232,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             Shape::IntEnum(enumeration) => {
                 models.push_str(&format!("class {name}(OpenIntEnum):\n"));
                 python_doc(
+                    service,
                     &mut models,
                     "    ",
                     &crucible_codegen_common::documentation::with_notes(
@@ -251,7 +253,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         value.docs.as_deref(),
                         &value.notes,
                     ) {
-                        python_doc(&mut models, "    ", &docs);
+                        python_doc(service, &mut models, "    ", &docs);
                     }
                 }
                 models.push('\n');
@@ -306,10 +308,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 if let Some(docs) =
                     crucible_codegen_common::documentation::with_notes(e.docs.as_deref(), &e.notes)
                 {
-                    models.push_str(&format!(
-                        "    {}\n",
-                        literal(&crucible_codegen_common::documentation::text(&docs))
-                    ));
+                    models.push_str(&format!("    {}\n", literal(&links::text(service, &docs))));
                 }
                 for v in &e.values {
                     models.push_str(&format!(
@@ -321,7 +320,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         v.docs.as_deref(),
                         &v.notes,
                     ) {
-                        python_doc(&mut models, "    ", &docs);
+                        python_doc(service, &mut models, "    ", &docs);
                     }
                 }
                 if e.values.is_empty() {
@@ -353,7 +352,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         member.docs.as_deref().unwrap_or("Modeled member.")
                     ));
                 }
-                python_doc(&mut models, "    ", &docs);
+                python_doc(service, &mut models, "    ", &docs);
                 for m in &s.members {
                     let native = field(&m.name);
                     let t = ty(service, &m.target, "");
@@ -387,7 +386,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                         m.docs.as_deref(),
                         &m.notes,
                     ) {
-                        python_doc(&mut models, "    ", &docs);
+                        python_doc(service, &mut models, "    ", &docs);
                     }
                 }
                 if matches!(shape, Shape::Union(_)) {
@@ -401,7 +400,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         if matches!(shape, Shape::Simple(_) | Shape::List(_) | Shape::Map(_)) {
             if let Some(docs) = crucible_codegen_common::documentation::model_with_notes(shape) {
-                python_doc(&mut models, "", &docs);
+                python_doc(service, &mut models, "", &docs);
             }
         }
     }
@@ -447,7 +446,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "Use with or close(). Share across threads only if all supplied callbacks are thread-safe."
             }
         );
-        client.push_str(&format!("class {name}({base}):\n    {}\n    def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:\n        super().__init__(endpoint=endpoint or {}, schema=m._SCHEMA, classes=m._CLASSES, **kwargs)\n    __init__.__doc__ = {base}.__init__.__doc__\n\n",literal(&crucible_codegen_common::documentation::text(&client_docs)),options.endpoint.as_ref().map_or("None".into(),|s|literal(s))));
+        client.push_str(&format!("class {name}({base}):\n    {}\n    def __init__(self, endpoint: str | None = None, **kwargs: Any) -> None:\n        super().__init__(endpoint=endpoint or {}, schema=m._SCHEMA, classes=m._CLASSES, **kwargs)\n    __init__.__doc__ = {base}.__init__.__doc__\n\n",literal(&links::text(service, &client_docs)),options.endpoint.as_ref().map_or("None".into(),|s|literal(s))));
         for op in &service.operations {
             let input = op
                 .input
@@ -480,7 +479,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             let argument = if op.input.is_none() { "None" } else { "input" };
             let docs = format!(
                 "        {}\n",
-                literal(&crucible_codegen_common::documentation::text(
+                literal(&links::text(
+                    service,
                     &crucible_codegen_common::documentation::operation_with_notes(service, op)
                 ))
             );
@@ -564,11 +564,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     Ok(files)
 }
 
-pub(crate) fn python_doc(out: &mut String, indent: &str, docs: &str) {
+pub(crate) fn python_doc(service: &Service, out: &mut String, indent: &str, docs: &str) {
     // A standalone string literal is an attribute docstring after an assignment.
     // JSON escaping also prevents quotes and backslashes from changing Python syntax.
     out.push_str(&format!(
         "{indent}{}\n",
-        literal(&crucible_codegen_common::documentation::text(docs))
+        literal(&links::text(service, docs))
     ));
 }

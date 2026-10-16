@@ -1,0 +1,27 @@
+/// See [Nowhere].
+service Unresolved {
+    version "1"
+    protocol json
+    operations [GetThing]
+}
+
+/// A thing; see [Thing.missing], [Kind.GREEN] and [String.length].
+structure Thing {
+    name: string
+}
+
+enum Kind {
+    RED
+}
+
+string Label
+
+/// Reads a [Thing] by [GetThing.nope], typed [Label.x].
+readonly operation GetThing {
+    http GET "/things"
+    output {
+        thing?: Thing
+        kind?: Kind
+        label?: Label
+    }
+}

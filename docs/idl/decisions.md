@@ -874,9 +874,9 @@ trait when a project defines it.
 
 41. **`///` comments are Markdown documentation on the following
     declaration; `[Name]` resolves to a shape or operation in the package
-    and a dangling link is reported.** It is a warning for now, so a port in
-    progress still compiles; it becomes an error once the ported models are
-    clean. *Replaces:* `@documentation`, and
+    and a dangling link is reported.** It was a warning while ports were in
+    progress, and is an error since decision 80, which also says what a
+    link resolves to and how each output renders it. *Replaces:* `@documentation`, and
     Smithy's unchecked links. *Why:* 5.5k doc lines with cross-links feed
     14 SDKs and the reference site; a broken link should fail at compile
     time, not in a rendered page.
@@ -1566,6 +1566,60 @@ references are to the code as of the design.
     only `crucible-model.json` strips them, `snapshot.rs:68-155`). *Why:*
     new clients read the current release, and documentation fixes reach
     every line.
+
+## Doc links
+
+80. **`[Name]` doc links resolve once, to ids in a table beside the
+    documentation, and a dangling one is an error (decision 41).** A doc
+    link is a CommonMark reference link that its comment does not define,
+    whose label is a capitalised declaration name with an optional
+    `.member`: `[CreateApiKey]`, `[City.name]`, `[Color.RED]`, the collapsed
+    `[Name][]` and the full `[text][Name]`. A `[Name]: url` definition in the
+    same comment wins, as CommonMark says: that `[Name]` is an ordinary link.
+    Code spans and blocks, inline links, images and other bracketed prose
+    (`[1]`, `[optional]`, `[lower]`) are not doc links. `Name` resolves as a
+    type name does, to the package's declarations and its imports'; a
+    prelude type is accepted and has no target. `Name.member` is a
+    structure's, union's or error's member, an enum's value, or an
+    operation's input member, else its output member, since operation
+    documentation names what a caller sends most. A link that names nothing
+    is an error at its label, every one collected; Leyline and Pigeon had
+    none. Lowering records `Service::doc_links`, each label to the id it
+    names (an operation, shape, member, enum value, resource or the
+    service; a metadata or rule name is accepted with no entry), and for an
+    `[Operation.member]` label the operation in `doc_link_operations`, since
+    operations can share the structure that holds the member; and it leaves
+    `docs` as written. Both fields are `serde(default)` and omitted when
+    empty, so a snapshot without links is unchanged and every older one
+    reads; `crucible-model.json` drops them with the documentation. Links
+    are checked in a package with no service, or several, as well. Only the
+    broken-link callback makes a doc link, never a destination or definition
+    the model wrote, so model text cannot pose as one.
+    `crucible_ir::doc_links::links` is the one finder (pulldown-cmark's
+    broken-link callback): lowering, every renderer and the language server
+    use it, so they agree on what a link is, and `Service::doc_link` says
+    what a label names in this service, or nothing. The audience
+    projection drops the links whose target it removed, so in external
+    output a link to internal API is its text and no id. Renderers:
+    `describe.json`'s `html` makes a link `<a data-crucible-ref="<id>">`
+    with no address, for its reader to map the id to its own page, `text`
+    keeps the link's text without brackets, and `markdown` is what the
+    author wrote; the static reference and the Explorer give the anchor
+    its hash route, and the mdBook pages a relative link to the page. Native
+    SDK documentation renders each link in its language's form to the
+    generated symbol, around each dialect's existing escaping
+    (`crucible_codegen_common::doc_links::render`); a target the language
+    has no symbol for, and a full `[text][Name]`, is plain text. OpenAPI and
+    JSON Schema descriptions and MCP tool descriptions, which have nothing to
+    link to, keep the Markdown with each doc link as its text; the CDK,
+    Terraform and the service CLI still carry the author's Markdown.
+    *Replaces:* the warning of decision 41.
+    *Why:* a table, not Markdown rewritten to `[Name](crucible:<id>)` on
+    lowering: the author's Markdown stays what `describe.json` promises, a
+    renderer that does not read the table prints the label as it did
+    instead of a URL that leaks an id, and frozen releases' `docs` keep
+    their meaning. One table per service, keyed by label, since a name
+    resolves the same everywhere in a package.
 
 ## Settled in the syntax pass
 

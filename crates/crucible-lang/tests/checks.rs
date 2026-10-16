@@ -577,7 +577,7 @@ fn the_shared_ir_rules_apply_to_cru() {
 #[test]
 fn warnings_do_not_withhold_the_service() {
     let (errors, warnings) = split(
-        "resource Loose {\n    id looseId: string\n}\noperation GetLoose reads Loose {\n    http GET \"/loose/{looseId}\"\n    input { $looseId }\n}\noperation Note on Order {\n    http POST \"/orders/{orderId}/note\"\n    input {\n        $orderId\n        note: string\n    }\n}\n/// See [Nowhere].\nstructure Doc { a: string }",
+        "resource Loose {\n    id looseId: string\n}\noperation GetLoose reads Loose {\n    http GET \"/loose/{looseId}\"\n    input { $looseId }\n}\noperation Note on Order {\n    http POST \"/orders/{orderId}/note\"\n    input {\n        $orderId\n        note: string\n    }\n}",
     );
     assert_eq!(errors, Vec::<String>::new());
     assert!(
@@ -598,12 +598,22 @@ fn warnings_do_not_withhold_the_service() {
         1,
         "{warnings:?}"
     );
-    assert!(
-        warnings
-            .iter()
-            .any(|w| w.contains("`[Nowhere]` names nothing")),
-        "{warnings:?}"
+}
+
+#[test]
+fn doc_links_outside_code_must_name_something() {
+    // A dangling link is an error (decision 80); one in code, one the
+    // comment defines and prose in brackets are not links.
+    let m = messages("/// See [Nowhere] and [Ping.nothing].\nstructure Doc { a: string }");
+    assert_mentions(&m, "the doc link `[Nowhere]` names nothing in this package");
+    assert_mentions(
+        &m,
+        "neither `Ping`'s input nor its output has a member `nothing`",
     );
+    let m = messages(
+        "/// `[Code]`, [Defined], [optional] and [1].\n///\n/// ```\n/// [Fenced]\n/// ```\n///\n/// [Defined]: https://example.com\nstructure Doc { a: string }",
+    );
+    assert_eq!(m, Vec::<String>::new());
 }
 
 #[test]

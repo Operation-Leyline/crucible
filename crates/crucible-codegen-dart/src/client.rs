@@ -6,7 +6,11 @@ fn operation_docs(service: &Service, op: &Operation, pages: bool) -> String {
     let token = op.idempotency_token.as_deref().map(field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
-        text.push_str(&docs::escape(summary));
+        text.push_str(&super::links::escape(
+            service,
+            super::links::Library::Client,
+            summary,
+        ));
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));
@@ -104,7 +108,11 @@ fn client_docs(service: &Service, client_name: &str) -> String {
             .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
-        text.push_str(&docs::escape(service_docs));
+        text.push_str(&super::links::escape(
+            service,
+            super::links::Library::Client,
+            service_docs,
+        ));
         text.push_str("\n\n");
     }
     text.push_str(&format!(

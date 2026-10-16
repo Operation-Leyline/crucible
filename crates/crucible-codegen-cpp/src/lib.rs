@@ -1,5 +1,6 @@
 //! C++20 client generation from the shared lowered IR.
 mod client;
+mod links;
 mod models;
 mod names;
 mod permissions;

@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use crucible_lang::ast::{
-    Annotation, Arg, BindingValue, Body, Clause, ClauseValue, Condition, ConditionKind,
+    Annotation, Arg, BindingValue, Body, BodyKind, Clause, ClauseValue, Condition, ConditionKind,
     ConstraintValue, Decl, Dotted, ErrorEntry, ExamplePart, Expr, ExprKind, Ident, Item, Key,
     Member, MemberKind, MetaType, OpEntry, Operand, Path, Ref, Requirement, RequirementKind,
     StepKind, TypeRef, Value,
@@ -667,14 +667,15 @@ impl Walker<'_> {
 
 /// Every place `name` refers to its declaration in one file, the declaration
 /// itself included: `(start, end, is_declaration)`. Words that merely spell
-/// the name, a member called the same say, are not references.
+/// the name, a member called the same say, are not references; the name in
+/// a `[Name]` or `[Name.member]` doc link is one (decision 80).
 pub fn occurrences(
     parsed: &Parsed,
     text: &str,
     index: &Index,
     name: &str,
 ) -> Vec<(u32, u32, bool)> {
-    highlights(parsed, index)
+    let mut found: Vec<(u32, u32, bool)> = highlights(parsed, index)
         .into_iter()
         .filter(|highlight| {
             names_declaration(highlight)
@@ -687,7 +688,179 @@ pub fn occurrences(
                 highlight.modifiers & DECLARATION != 0,
             )
         })
-        .collect()
+        .collect();
+    if index.declarations.contains_key(name) {
+        found.extend(
+            doc_links(parsed, text)
+                .into_iter()
+                .filter(|link| link.name == name)
+                .map(|link| (link.start, link.name_end(), false)),
+        );
+        found.sort_by_key(|(start, _, _)| *start);
+    }
+    found
+}
+
+/// The label of a `[Name]` or `[Name.member]` doc link in a `///` comment,
+/// by source offsets: `start..end` covers the whole label, the name first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DocLinkSite {
+    pub name: String,
+    /// The member or enum value after the `.`, with its source range.
+    pub member: Option<(String, u32, u32)>,
+    pub start: u32,
+    pub end: u32,
+    /// The whole link: for `[text][Name]` its text too, which navigates
+    /// like the label; edits only ever touch the label.
+    pub link_start: u32,
+    pub link_end: u32,
+}
+
+impl DocLinkSite {
+    /// Where the name part ends.
+    pub fn name_end(&self) -> u32 {
+        self.start + self.name.len() as u32
+    }
+}
+
+/// One `///` line of a doc comment: its Markdown text, where that text
+/// starts, and the token's span.
+type DocLine<'a> = (&'a str, u32, crucible_lang::Span);
+
+/// Every doc link in a file's doc comments, as the compiler finds them
+/// ([`crucible_ir::doc_links::links`]): each run of `///` lines, `//`
+/// comments between them skipped, is one Markdown text, as the parser
+/// attaches it. Links in code, inline links and links the comment defines
+/// are not doc links.
+pub fn doc_links(parsed: &Parsed, text: &str) -> Vec<DocLinkSite> {
+    fn flush(block: &mut Vec<DocLine<'_>>, out: &mut Vec<DocLinkSite>) {
+        let (Some(first), Some(last)) = (block.first(), block.last()) else {
+            return;
+        };
+        let doc = crucible_lang::ast::Doc {
+            text: block
+                .iter()
+                .map(|(line, _, _)| *line)
+                .collect::<Vec<_>>()
+                .join("\n"),
+            span: first.2.to(last.2),
+            line_starts: block.iter().map(|(_, start, _)| *start).collect(),
+        };
+        block.clear();
+        for link in crucible_ir::doc_links::links(&doc.text) {
+            let span = doc.source_span(link.label_span);
+            let (name, member) = crucible_ir::doc_links::split(&link.label);
+            let member = member.map(|member| {
+                let start = span.start + name.len() as u32 + 1;
+                (member.to_owned(), start, span.end)
+            });
+            let whole = doc.source_span(link.span);
+            out.push(DocLinkSite {
+                name: name.to_owned(),
+                member,
+                start: span.start,
+                end: span.end,
+                link_start: whole.start,
+                link_end: whole.end,
+            });
+        }
+    }
+    let mut out = Vec::new();
+    let mut block: Vec<DocLine<'_>> = Vec::new();
+    for token in &parsed.tokens {
+        match token.kind {
+            TokenKind::DocComment => {
+                let whole = token.span.text(text);
+                let line = whole.strip_prefix("///").unwrap_or(whole);
+                let line = line.strip_prefix(' ').unwrap_or(line);
+                let start = token.span.start + (whole.len() - line.len()) as u32;
+                block.push((line.trim_end_matches('\r'), start, token.span));
+            }
+            TokenKind::Whitespace | TokenKind::LineComment => {}
+            _ => flush(&mut block, &mut out),
+        }
+    }
+    flush(&mut block, &mut out);
+    out
+}
+
+/// The doc link whose label covers `offset`; an offset just past it counts,
+/// as for [`ident_at`].
+pub fn doc_link_at(parsed: &Parsed, text: &str, offset: usize) -> Option<DocLinkSite> {
+    let offset = offset as u32;
+    doc_links(parsed, text)
+        .into_iter()
+        .find(|link| link.link_start <= offset && offset <= link.link_end)
+}
+
+/// Where the member `member` of the declaration `name` is written, as a
+/// doc link resolves it: a structure's, union's or error's member (one an
+/// `include` brings, at the included structure), an enum value, or an
+/// operation's input member, else its output member. `(file, start, end)`.
+pub fn member_location(parsed: &[Parsed], name: &str, member: &str) -> Option<(usize, u32, u32)> {
+    member_in(parsed, name, member, 0)
+}
+
+fn member_in(
+    parsed: &[Parsed],
+    name: &str,
+    member: &str,
+    depth: usize,
+) -> Option<(usize, u32, u32)> {
+    // An `include` cycle is the compiler's to report.
+    if depth > 16 {
+        return None;
+    }
+    let (file, decl) = parsed.iter().enumerate().find_map(|(file, parsed)| {
+        parsed.file.items.iter().find_map(|item| {
+            describe(&item.decl)
+                .is_some_and(|(_, _, ident)| ident.name == name)
+                .then_some((file, &item.decl))
+        })
+    })?;
+    let in_members = |members: &mut dyn Iterator<Item = &Member>| -> Option<(usize, u32, u32)> {
+        let mut includes = Vec::new();
+        for m in members {
+            let ident = match &m.kind {
+                MemberKind::Field { name, .. } => name,
+                MemberKind::Elided { name, alias, .. } => alias.as_ref().unwrap_or(name),
+                MemberKind::Include(included) => {
+                    includes.push(included.name.as_str());
+                    continue;
+                }
+                MemberKind::All(_) => continue,
+            };
+            if ident.name == member {
+                return Some((file, ident.span.start, ident.span.end));
+            }
+        }
+        includes
+            .into_iter()
+            .find_map(|included| member_in(parsed, included, member, depth + 1))
+    };
+    match decl {
+        Decl::Structure(s) => in_members(&mut s.members.iter()),
+        Decl::Union(u) => in_members(&mut u.members.iter()),
+        Decl::Error(e) => in_members(&mut e.entries.iter().filter_map(|entry| match entry {
+            ErrorEntry::Member(m) => Some(m),
+            _ => None,
+        })),
+        Decl::Enum(e) => e
+            .values
+            .iter()
+            .find(|v| v.name.name == member)
+            .map(|v| (file, v.name.span.start, v.name.span.end)),
+        Decl::Operation(op) => [BodyKind::Input, BodyKind::Output]
+            .into_iter()
+            .filter_map(|kind| {
+                op.entries.iter().find_map(|entry| match entry {
+                    OpEntry::Body(body) if body.kind == kind => Some(body),
+                    _ => None,
+                })
+            })
+            .find_map(|body| in_members(&mut body.members.iter())),
+        _ => None,
+    }
 }
 
 /// Whether a highlighted name is a package declaration or a reference to
@@ -1079,5 +1252,34 @@ operation GetCity reads City {
         assert_eq!(city, ["name", "kind", "size"]);
         assert_eq!(outline[3].children[0].name, "input");
         assert_eq!(outline[3].children[0].children[0].name, "name");
+    }
+}
+
+#[cfg(test)]
+mod doc_link_tests {
+    use super::*;
+
+    #[test]
+    fn doc_links_are_found_across_lines_and_interleaved_comments() {
+        let source = "/// See [Item] and\n// not documentation\n///   [Item.name], `[Item]`.\nstructure Item {\n    include Base\n}\nstructure Base { name: string }\nenum Kind { RED }\n";
+        let parsed = crucible_lang::parse(source);
+        let links = doc_links(&parsed, source);
+        let spans: Vec<&str> = links
+            .iter()
+            .map(|l| &source[l.start as usize..l.end as usize])
+            .collect();
+        assert_eq!(spans, ["Item", "Item.name"]);
+        let (member, start, end) = links[1].member.clone().unwrap();
+        assert_eq!(member, "name");
+        assert_eq!(&source[start as usize..end as usize], "name");
+        let parsed = [parsed];
+        // `name` comes from `include Base`, so it is found there.
+        let (file, start, end) = member_location(&parsed, "Item", "name").unwrap();
+        assert_eq!(file, 0);
+        assert_eq!(start as usize, source.find("name: string").unwrap());
+        assert_eq!(end - start, 4);
+        let (_, start, _) = member_location(&parsed, "Kind", "RED").unwrap();
+        assert_eq!(start as usize, source.find("RED").unwrap());
+        assert!(member_location(&parsed, "Item", "missing").is_none());
     }
 }

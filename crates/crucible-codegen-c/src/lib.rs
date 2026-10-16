@@ -1,5 +1,6 @@
 //! Native C17 client generation from the shared lowered IR.
 mod client;
+mod links;
 pub mod models;
 mod names;
 mod permissions;

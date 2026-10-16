@@ -1,0 +1,23 @@
+lib/hostile/client.rb: # Widgets, linked. Make one with {LinksClient#create_widget} and read it back with
+lib/hostile/client.rb: # the read call; a {Widget} has a {Widget#name} and a
+lib/hostile/client.rb: # {Color}, such as {Color::RED}. Gadget is a resource, {LinksClient} is this
+lib/hostile/client.rb: # service and String a prelude type. Internal: Reveal and Secret.
+lib/hostile/client.rb: # `[NotALink]` in code, and [an ordinary link](https://example.com).
+lib/hostile/client.rb: # Makes a {Widget}; read it with {LinksClient#get_widget}.
+lib/hostile/client.rb: # Reads a Gadget.
+lib/hostile/client.rb: # Reads the {Widget} that {LinksClient#create_widget} made, by {GetWidgetInput#widget_id},
+lib/hostile/client.rb: # and returns it as {GetWidgetOutput#widget}. Fails with {WidgetError}.
+lib/hostile/models/color.rb: # A colour. {Color::RED} is the first.
+lib/hostile/models/color.rb: # Red, unlike {Color::BLUE}.
+lib/hostile/models/create_widget_input.rb: # What {Widget#name} becomes.
+lib/hostile/models/create_widget_input.rb: # A {Choice}: {Choice::WidgetVariant} or {Choice::LabelVariant}, one of two.
+lib/hostile/models/create_widget_input.rb: # A Label, plain text where a language has no type for it.
+lib/hostile/models/create_widget_input.rb: # A {Code}, such as {Code::ONE}.
+lib/hostile/models/create_widget_input.rb: # Widgets, a list.
+lib/hostile/models/create_widget_input.rb: # WidgetsByName, a map.
+lib/hostile/models/create_widget_input.rb: # Why a call failed, as {WidgetError#message_value} says.
+lib/hostile/models/widget.rb: # A widget; {LinksClient#create_widget} makes one.
+lib/hostile/models/widget.rb: # The name {CreateWidgetInput#name} chose.
+lib/hostile/models/widget.rb: # One of {Color}; {Color::BLUE} by default.
+lib/hostile/models/widget.rb: # What it is made of: {Widget#object} is a keyword in some languages.
+lib/hostile/models/widget_error.rb: # Raised by {LinksClient#get_widget} when {GetWidgetInput#widget_id} names nothing.

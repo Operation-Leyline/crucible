@@ -198,8 +198,8 @@ fn smithy_documentation_reaches_models_and_client() {
     ] {
         assert!(source.contains(text), "{text}");
     }
-    // A bare `[Secret]` would be a YARD reference that cannot resolve.
-    assert!(client.contains(r"\[Secret]"));
+    // The doc link `[Secret]` is a YARD reference.
+    assert!(client.contains("and {Secret} for"));
     assert!(file(".yardopts").contains("--markup markdown"));
 }
 

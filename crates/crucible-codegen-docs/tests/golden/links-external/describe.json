@@ -1,0 +1,2077 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.links#CreateWidget": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Makes a <a data-crucible-ref=\"example.links#Widget\">Widget</a>; read it with <a data-crucible-ref=\"example.links#GetWidget\">GetWidget</a>.</p>\n",
+        "markdown": "Makes a [Widget]; read it with [GetWidget].",
+        "text": "Makes a Widget; read it with GetWidget."
+      },
+      "errors": [
+        "example.links#WidgetError"
+      ],
+      "examples": [],
+      "id": "example.links#CreateWidget",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.links#CreateWidgetInput",
+      "inputSchema": {
+        "$defs": {
+          "example.links.Choice": {
+            "description": "One of two things.",
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "widget": {
+                    "$ref": "#/$defs/example.links.Widget"
+                  }
+                },
+                "required": [
+                  "widget"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "label": {
+                    "$ref": "#/$defs/smithy.api.String"
+                  }
+                },
+                "required": [
+                  "label"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "example.links.Code": {
+            "description": "A numbered code.",
+            "enum": [
+              1,
+              2
+            ],
+            "format": "int32",
+            "type": "integer"
+          },
+          "example.links.Color": {
+            "description": "A colour. Color.RED is the first.",
+            "enum": [
+              "RED",
+              "BLUE"
+            ],
+            "type": "string"
+          },
+          "example.links.CreateWidgetInput": {
+            "properties": {
+              "byName": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.WidgetsByName"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "WidgetsByName, a map."
+              },
+              "choice": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Choice"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A Choice: Choice.widget or Choice.label, one of two."
+              },
+              "code": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Code"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A Code, such as Code.ONE."
+              },
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Color"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "label": {
+                "anyOf": [
+                  {
+                    "description": "A short label.",
+                    "maxLength": 10,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "A Label, plain text where a language has no type for it."
+              },
+              "name": {
+                "$ref": "#/$defs/smithy.api.String",
+                "description": "What Widget.name becomes."
+              },
+              "note": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Why a call failed, as WidgetError.message says."
+              },
+              "widgets": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Widgets"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Widgets, a list."
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.links.Label": {
+            "description": "A short label.",
+            "maxLength": 10,
+            "minLength": 1,
+            "type": "string"
+          },
+          "example.links.Widget": {
+            "description": "A widget; CreateWidget makes one.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Color"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "One of Color; Color.BLUE by default."
+              },
+              "name": {
+                "$ref": "#/$defs/smithy.api.String",
+                "description": "The name CreateWidget.name chose."
+              },
+              "object": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What it is made of: Widget.object is a keyword in some languages."
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "example.links.Widgets": {
+            "description": "Several widgets.",
+            "items": {
+              "$ref": "#/$defs/example.links.Widget"
+            },
+            "type": "array",
+            "uniqueItems": false
+          },
+          "example.links.WidgetsByName": {
+            "additionalProperties": {
+              "$ref": "#/$defs/example.links.Widget"
+            },
+            "description": "Widgets by name.",
+            "propertyNames": {
+              "$ref": "#/$defs/smithy.api.String"
+            },
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "byName": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.links.WidgetsByName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "WidgetsByName, a map."
+          },
+          "choice": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.links.Choice"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A Choice: Choice.widget or Choice.label, one of two."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.links.Code"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A Code, such as Code.ONE."
+          },
+          "color": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.links.Color"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "anyOf": [
+              {
+                "description": "A short label.",
+                "maxLength": 10,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A Label, plain text where a language has no type for it."
+          },
+          "name": {
+            "$ref": "#/$defs/smithy.api.String",
+            "description": "What Widget.name becomes."
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/smithy.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a call failed, as WidgetError.message says."
+          },
+          "widgets": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.links.Widgets"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Widgets, a list."
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "CreateWidget",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.links#CreateWidgetOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.links.Color": {
+            "description": "A colour. Color.RED is the first.",
+            "enum": [
+              "RED",
+              "BLUE"
+            ],
+            "type": "string"
+          },
+          "example.links.CreateWidgetOutput": {
+            "properties": {
+              "widget": {
+                "$ref": "#/$defs/example.links.Widget"
+              }
+            },
+            "required": [
+              "widget"
+            ],
+            "type": "object"
+          },
+          "example.links.Widget": {
+            "description": "A widget; CreateWidget makes one.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Color"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "One of Color; Color.BLUE by default."
+              },
+              "name": {
+                "$ref": "#/$defs/smithy.api.String",
+                "description": "The name CreateWidget.name chose."
+              },
+              "object": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What it is made of: Widget.object is a keyword in some languages."
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "widget": {
+            "$ref": "#/$defs/example.links.Widget"
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "name",
+          "color",
+          "choice",
+          "label",
+          "code",
+          "widgets",
+          "byName",
+          "note"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "widget"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "byName": {
+              "key": {
+                "color": "RED",
+                "name": "name",
+                "object": "object"
+              }
+            },
+            "choice": {
+              "widget": {
+                "color": "RED",
+                "name": "name",
+                "object": "object"
+              }
+            },
+            "code": 1,
+            "color": "RED",
+            "label": "label",
+            "name": "name",
+            "note": "note",
+            "widgets": [
+              {
+                "color": "RED",
+                "name": "name",
+                "object": "object"
+              }
+            ]
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/widgets"
+        },
+        "minimalInput": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/widgets"
+        },
+        "output": {
+          "body": {
+            "widget": {
+              "color": "RED",
+              "name": "name",
+              "object": "object"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/widgets"
+    },
+    "example.links#GetGadget": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Reads a <a data-crucible-ref=\"example.links#Gadget\">Gadget</a>.</p>\n",
+        "markdown": "Reads a [Gadget].",
+        "text": "Reads a Gadget."
+      },
+      "errors": [
+        "example.links#WidgetError"
+      ],
+      "examples": [],
+      "id": "example.links#GetGadget",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.links#GetGadgetInput",
+      "inputSchema": {
+        "$defs": {
+          "example.links.GetGadgetInput": {
+            "properties": {
+              "gadgetId": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "gadgetId"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "gadgetId": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "gadgetId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetGadget",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.links#GetGadgetOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.links.GetGadgetOutput": {
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "label"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "label": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "gadgetId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.links#Gadget"
+      ],
+      "response": {
+        "body": [
+          "label"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "gadgetId": "gadgetId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/gadgets/gadgetId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "gadgetId": "gadgetId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/gadgets/gadgetId"
+        },
+        "output": {
+          "body": {
+            "label": "label"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/gadgets/{gadgetId}"
+    },
+    "example.links#GetWidget": {
+      "auth": [
+        "smithy.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Reads the <a data-crucible-ref=\"example.links#Widget\">Widget</a> that <a data-crucible-ref=\"example.links#CreateWidget\">CreateWidget</a> made, by <a data-crucible-ref=\"example.links#GetWidgetInput$widgetId\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widgetId</a>,\nand returns it as <a data-crucible-ref=\"example.links#GetWidgetOutput$widget\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widget</a>. Fails with <a data-crucible-ref=\"example.links#WidgetError\">WidgetError</a>.</p>\n",
+        "markdown": "Reads the [Widget] that [CreateWidget] made, by [GetWidget.widgetId],\nand returns it as [GetWidget.widget]. Fails with [WidgetError].",
+        "text": "Reads the Widget that CreateWidget made, by GetWidget.widgetId,\nand returns it as GetWidget.widget. Fails with WidgetError."
+      },
+      "errors": [
+        "example.links#WidgetError"
+      ],
+      "examples": [],
+      "id": "example.links#GetWidget",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.links#GetWidgetInput",
+      "inputSchema": {
+        "$defs": {
+          "example.links.GetWidgetInput": {
+            "properties": {
+              "widgetId": {
+                "$ref": "#/$defs/smithy.api.String"
+              }
+            },
+            "required": [
+              "widgetId"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "widgetId": {
+            "$ref": "#/$defs/smithy.api.String"
+          }
+        },
+        "required": [
+          "widgetId"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetWidget",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.links#GetWidgetOutput",
+      "outputSchema": {
+        "$defs": {
+          "example.links.Color": {
+            "description": "A colour. Color.RED is the first.",
+            "enum": [
+              "RED",
+              "BLUE"
+            ],
+            "type": "string"
+          },
+          "example.links.GetWidgetOutput": {
+            "properties": {
+              "widget": {
+                "$ref": "#/$defs/example.links.Widget"
+              }
+            },
+            "required": [
+              "widget"
+            ],
+            "type": "object"
+          },
+          "example.links.Widget": {
+            "description": "A widget; CreateWidget makes one.",
+            "properties": {
+              "color": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/example.links.Color"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "One of Color; Color.BLUE by default."
+              },
+              "name": {
+                "$ref": "#/$defs/smithy.api.String",
+                "description": "The name CreateWidget.name chose."
+              },
+              "object": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/smithy.api.String"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "What it is made of: Widget.object is a keyword in some languages."
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "type": "object"
+          },
+          "smithy.api.String": {
+            "type": "string"
+          }
+        },
+        "properties": {
+          "widget": {
+            "$ref": "#/$defs/example.links.Widget"
+          }
+        },
+        "required": [
+          "widget"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "widgetId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "widget"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "widgetId": "widgetId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/widgets/widgetId"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "widgetId": "widgetId"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/widgets/widgetId"
+        },
+        "output": {
+          "body": {
+            "widget": {
+              "color": "RED",
+              "name": "name",
+              "object": "object"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/widgets/{widgetId}"
+    }
+  },
+  "resources": {
+    "example.links#Gadget": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.links#Gadget",
+      "identifiers": {
+        "gadgetId": "smithy.api#String"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": null,
+        "delete": null,
+        "list": null,
+        "put": null,
+        "read": "example.links#GetGadget",
+        "update": null
+      },
+      "name": "Gadget",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.links#GetGadget"
+      ],
+      "properties": {
+        "label": "smithy.api#String"
+      },
+      "resources": []
+    }
+  },
+  "service": {
+    "auth": [
+      "smithy.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "smithy.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "documentation": {
+      "html": "<p>Widgets, linked. Make one with <a data-crucible-ref=\"example.links#CreateWidget\">CreateWidget</a> and read it back with\n<a data-crucible-ref=\"example.links#GetWidget\">the read call</a>; a <a data-crucible-ref=\"example.links#Widget\">Widget</a> has a <a data-crucible-ref=\"example.links#Widget$name\">Widget.name</a> and a\n<a data-crucible-ref=\"example.links#Color\">Color</a>, such as <a data-crucible-ref=\"example.links#Color$RED\">Color.RED</a>. <a data-crucible-ref=\"example.links#Gadget\">Gadget</a> is a resource, <a data-crucible-ref=\"example.links#Links\">Links</a> is this\nservice and String a prelude type. Internal: Reveal and Secret.</p>\n<p><code>[NotALink]</code> in code, and <a href=\"https://example.com\">an ordinary link</a>.</p>\n",
+      "markdown": "Widgets, linked. Make one with [CreateWidget] and read it back with\n[the read call][GetWidget]; a [Widget] has a [Widget.name] and a\n[Color], such as [Color.RED]. [Gadget] is a resource, [Links] is this\nservice and [String] a prelude type. Internal: [Reveal] and [Secret].\n\n`[NotALink]` in code, and [an ordinary link](https://example.com).",
+      "text": "Widgets, linked. Make one with CreateWidget and read it back with\nthe read call; a Widget has a Widget.name and a\nColor, such as Color.RED. Gadget is a resource, Links is this\nservice and String a prelude type. Internal: Reveal and Secret.\n\n[NotALink] in code, and an ordinary link (https://example.com)."
+    },
+    "errors": [
+      "example.links#WidgetError"
+    ],
+    "id": "example.links#Links",
+    "internal": false,
+    "name": "Links",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {},
+      "since": null,
+      "unstable": false
+    },
+    "protocol": "crucibleJson",
+    "resourceRoots": [
+      "example.links#Gadget"
+    ],
+    "title": "Links",
+    "version": "1"
+  },
+  "shapes": {
+    "example.links#Choice": {
+      "documentation": {
+        "html": "<p>One of two things.</p>\n",
+        "markdown": "One of two things.",
+        "text": "One of two things."
+      },
+      "error": null,
+      "id": "example.links#Choice",
+      "internal": false,
+      "kind": "union",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "widget",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Widget",
+          "targetName": "Widget",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "widget"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        }
+      ],
+      "name": "Choice",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#Code": {
+      "documentation": {
+        "html": "<p>A numbered code.</p>\n",
+        "markdown": "A numbered code.",
+        "text": "A numbered code."
+      },
+      "id": "example.links#Code",
+      "internal": false,
+      "kind": "intEnum",
+      "members": [],
+      "name": "Code",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "ONE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": 1
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "TWO",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": 2
+        }
+      ]
+    },
+    "example.links#Color": {
+      "documentation": {
+        "html": "<p>A colour. <a data-crucible-ref=\"example.links#Color$RED\">Color.RED</a> is the first.</p>\n",
+        "markdown": "A colour. [Color.RED] is the first.",
+        "text": "A colour. Color.RED is the first."
+      },
+      "id": "example.links#Color",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "Color",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "<p>Red, unlike <a data-crucible-ref=\"example.links#Color$BLUE\">Color.BLUE</a>.</p>\n",
+            "markdown": "Red, unlike [Color.BLUE].",
+            "text": "Red, unlike Color.BLUE."
+          },
+          "internal": false,
+          "name": "RED",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "RED"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "BLUE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "BLUE"
+        }
+      ]
+    },
+    "example.links#CreateWidgetInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.links#CreateWidgetInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>What <a data-crucible-ref=\"example.links#Widget$name\">Widget.name</a> becomes.</p>\n",
+            "markdown": "What [Widget.name] becomes.",
+            "text": "What Widget.name becomes."
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "color",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Color",
+          "targetName": "Color",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "color"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>A <a data-crucible-ref=\"example.links#Choice\">Choice</a>: <a data-crucible-ref=\"example.links#Choice$widget\">Choice.widget</a> or <a data-crucible-ref=\"example.links#Choice$label\">Choice.label</a>, one of two.</p>\n",
+            "markdown": "A [Choice]: [Choice.widget] or [Choice.label], one of two.",
+            "text": "A Choice: Choice.widget or Choice.label, one of two."
+          },
+          "internal": false,
+          "name": "choice",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Choice",
+          "targetName": "Choice",
+          "targetType": "union",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "choice"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 10,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>A <a data-crucible-ref=\"example.links#Label\">Label</a>, plain text where a language has no type for it.</p>\n",
+            "markdown": "A [Label], plain text where a language has no type for it.",
+            "text": "A Label, plain text where a language has no type for it."
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Label",
+          "targetName": "Label",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>A <a data-crucible-ref=\"example.links#Code\">Code</a>, such as <a data-crucible-ref=\"example.links#Code$ONE\">Code.ONE</a>.</p>\n",
+            "markdown": "A [Code], such as [Code.ONE].",
+            "text": "A Code, such as Code.ONE."
+          },
+          "internal": false,
+          "name": "code",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Code",
+          "targetName": "Code",
+          "targetType": "intEnum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "code"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p><a data-crucible-ref=\"example.links#Widgets\">Widgets</a>, a list.</p>\n",
+            "markdown": "[Widgets], a list.",
+            "text": "Widgets, a list."
+          },
+          "internal": false,
+          "name": "widgets",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Widgets",
+          "targetName": "Widgets",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "widgets"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p><a data-crucible-ref=\"example.links#WidgetsByName\">WidgetsByName</a>, a map.</p>\n",
+            "markdown": "[WidgetsByName], a map.",
+            "text": "WidgetsByName, a map."
+          },
+          "internal": false,
+          "name": "byName",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#WidgetsByName",
+          "targetName": "WidgetsByName",
+          "targetType": "map",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "byName"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>Why a call failed, as <a data-crucible-ref=\"example.links#WidgetError$message\">WidgetError.message</a> says.</p>\n",
+            "markdown": "Why a call failed, as [WidgetError.message] says.",
+            "text": "Why a call failed, as WidgetError.message says."
+          },
+          "internal": false,
+          "name": "note",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "note"
+        }
+      ],
+      "name": "CreateWidgetInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#CreateWidgetOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.links#CreateWidgetOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "widget",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.links#Widget",
+          "targetName": "Widget",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "widget"
+        }
+      ],
+      "name": "CreateWidgetOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#GetGadgetInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.links#GetGadgetInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "gadgetId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "gadgetId"
+        }
+      ],
+      "name": "GetGadgetInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#GetGadgetOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.links#GetGadgetOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "label",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "label"
+        }
+      ],
+      "name": "GetGadgetOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#GetWidgetInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.links#GetWidgetInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "widgetId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "widgetId"
+        }
+      ],
+      "name": "GetWidgetInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#GetWidgetOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "id": "example.links#GetWidgetOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "widget",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.links#Widget",
+          "targetName": "Widget",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "widget"
+        }
+      ],
+      "name": "GetWidgetOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#Label": {
+      "constraints": {
+        "length": {
+          "max": 10,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>A short label.</p>\n",
+        "markdown": "A short label.",
+        "text": "A short label."
+      },
+      "id": "example.links#Label",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "Label",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#Widget": {
+      "documentation": {
+        "html": "<p>A widget; <a data-crucible-ref=\"example.links#CreateWidget\">CreateWidget</a> makes one.</p>\n",
+        "markdown": "A widget; [CreateWidget] makes one.",
+        "text": "A widget; CreateWidget makes one."
+      },
+      "error": null,
+      "id": "example.links#Widget",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>The name <a data-crucible-ref=\"example.links#CreateWidgetInput$name\" data-crucible-operation=\"example.links#CreateWidget\">CreateWidget.name</a> chose.</p>\n",
+            "markdown": "The name [CreateWidget.name] chose.",
+            "text": "The name CreateWidget.name chose."
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>One of <a data-crucible-ref=\"example.links#Color\">Color</a>; <a data-crucible-ref=\"example.links#Color$BLUE\">Color.BLUE</a> by default.</p>\n",
+            "markdown": "One of [Color]; [Color.BLUE] by default.",
+            "text": "One of Color; Color.BLUE by default."
+          },
+          "internal": false,
+          "name": "color",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Color",
+          "targetName": "Color",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "color"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>What it is made of: <a data-crucible-ref=\"example.links#Widget$object\">Widget.object</a> is a keyword in some languages.</p>\n",
+            "markdown": "What it is made of: [Widget.object] is a keyword in some languages.",
+            "text": "What it is made of: Widget.object is a keyword in some languages."
+          },
+          "internal": false,
+          "name": "object",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "object"
+        }
+      ],
+      "name": "Widget",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#WidgetError": {
+      "documentation": {
+        "html": "<p>Raised by <a data-crucible-ref=\"example.links#GetWidget\">GetWidget</a> when <a data-crucible-ref=\"example.links#GetWidgetInput$widgetId\" data-crucible-operation=\"example.links#GetWidget\">GetWidget.widgetId</a> names nothing.</p>\n",
+        "markdown": "Raised by [GetWidget] when [GetWidget.widgetId] names nothing.",
+        "text": "Raised by GetWidget when GetWidget.widgetId names nothing."
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "WidgetError",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "WidgetError",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "WidgetError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.links#WidgetError",
+        "status": 404,
+        "wireCode": "WidgetError"
+      },
+      "id": "example.links#WidgetError",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "WidgetError",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.links#Widgets": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>Several widgets.</p>\n",
+        "markdown": "Several widgets.",
+        "text": "Several widgets."
+      },
+      "id": "example.links#Widgets",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Widget",
+          "targetName": "Widget",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Widgets",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.links#WidgetsByName": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>Widgets by name.</p>\n",
+        "markdown": "Widgets by name.",
+        "text": "Widgets by name."
+      },
+      "id": "example.links#WidgetsByName",
+      "internal": false,
+      "kind": "map",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "key",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "smithy.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "key"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "internal": false,
+          "name": "value",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.links#Widget",
+          "targetName": "Widget",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "value"
+        }
+      ],
+      "name": "WidgetsByName",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "sparse": false
+    },
+    "smithy.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "smithy.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    }
+  }
+}

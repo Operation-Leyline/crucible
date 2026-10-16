@@ -21,7 +21,9 @@ const CATALOG = golden("catalog-internal");
 const PERMISSIONS = golden("permissions-internal");
 const PERMISSIONS_EXTERNAL = golden("permissions-external");
 const SAMPLES = golden("samples-external");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES };
+const LINKS = golden("links-internal");
+const LINKS_EXTERNAL = golden("links-external");
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -502,10 +504,62 @@ test("the test fixtures cover all goldens the generator ships", () => {
   assert.deepEqual(dirs, [
     "catalog-external",
     "catalog-internal",
+    "links-external",
+    "links-internal",
     "permissions-external",
     "permissions-internal",
     "samples-external",
     "weather-external",
     "weather-internal",
   ]);
+});
+
+test("doc links become hash routes to the page for their id", () => {
+  const m = x.index(LINKS_EXTERNAL);
+  const overview = htmlOf(x.overviewView(m));
+  const anchor = (route, id, label) => `<a href="${route}" data-crucible-ref="${id}">${label}</a>`;
+  const opAnchor = (route, id, label) => `<a href="${route}" data-crucible-ref="${id}" data-crucible-operation="example.links#GetWidget">${label}</a>`;
+  assert.ok(overview.includes(anchor("#/op/example.links%23GetWidget", "example.links#GetWidget", "the read call")), overview);
+  assert.ok(overview.includes(anchor("#/shape/example.links%23Widget", "example.links#Widget", "Widget")), overview);
+  // A member or enum value opens its type's page.
+  assert.ok(overview.includes(anchor("#/shape/example.links%23Widget", "example.links#Widget$name", "Widget.name")), overview);
+  assert.ok(overview.includes(anchor("#/shape/example.links%23Color", "example.links#Color$RED", "Color.RED")), overview);
+  assert.ok(overview.includes(anchor("#/resource/example.links%23Gadget", "example.links#Gadget", "Gadget")), overview);
+  assert.ok(overview.includes(anchor("#/", "example.links#Links", "Links")), overview);
+  // Internal API is plain text in the external reference.
+  assert.ok(overview.includes("Internal: Reveal and Secret."), overview);
+  // An operation's input and output members open its request and response.
+  const get = htmlOf(x.operationView(m, "example.links#GetWidget", null));
+  assert.ok(get.includes(opAnchor("#/op/example.links%23GetWidget/request", "example.links#GetWidgetInput$widgetId", "GetWidget.widgetId")), get);
+  assert.ok(get.includes(opAnchor("#/op/example.links%23GetWidget/response", "example.links#GetWidgetOutput$widget", "GetWidget.widget")), get);
+  assert.equal(x.parseRoute("#/op/example.links%23GetWidget/request").section, "request");
+  // Member docs and enum value docs link too.
+  assert.ok(htmlOf(x.shapeView(m, "example.links#Color")).includes(anchor("#/shape/example.links%23Color", "example.links#Color$BLUE", "Color.BLUE")));
+  // The internal reference links internal API.
+  const internal = htmlOf(x.overviewView(x.index(LINKS)));
+  assert.ok(internal.includes(anchor("#/op/example.links%23Reveal", "example.links#Reveal", "Reveal")), internal);
+});
+
+test("a doc link to an id the description lacks keeps no address", () => {
+  const m = x.index(LINKS_EXTERNAL);
+  assert.equal(x.refHref(m, "example.links#Secret"), null);
+  assert.equal(x.refHref(m, "example.links#Secret$value"), null);
+  const node = x.rich('<p><a data-crucible-ref="example.links#Secret">Secret</a></p>', m);
+  assert.equal(node.html, '<p><a data-crucible-ref="example.links#Secret">Secret</a></p>');
+  // Without the model, as an extension may call it, the html is unchanged.
+  assert.equal(x.rich('<a data-crucible-ref="example.links#Widget">W</a>').html, '<a data-crucible-ref="example.links#Widget">W</a>');
+  // The route is built from the encoded id, never raw markup.
+  const hostile = x.rich('<a data-crucible-ref="example.links#Widget&quot;&gt;&lt;script&gt;">W</a>', m);
+  assert.ok(!hostile.html.includes("<script>") && !hostile.html.includes('href="#'), hostile.html);
+});
+
+test("an operation member link opens the operation it names, though operations share the structure", () => {
+  const description = structuredClone(LINKS_EXTERNAL);
+  // A second operation with GetWidget's input: the link's operation decides.
+  description.operations["example.links#AnotherGet"] = { ...description.operations["example.links#GetWidget"], id: "example.links#AnotherGet", name: "AnotherGet" };
+  const m = x.index(description);
+  assert.equal(x.refHref(m, "example.links#GetWidgetInput$widgetId", "example.links#GetWidget"), "#/op/example.links%23GetWidget/request");
+  assert.equal(x.refHref(m, "example.links#GetWidgetInput$widgetId", "example.links#AnotherGet"), "#/op/example.links%23AnotherGet/request");
+  const html = x.rich('<a data-crucible-ref="example.links#GetWidgetInput$widgetId" data-crucible-operation="example.links#GetWidget">w</a>', m).html;
+  assert.equal(html, '<a href="#/op/example.links%23GetWidget/request" data-crucible-ref="example.links#GetWidgetInput$widgetId" data-crucible-operation="example.links#GetWidget">w</a>');
 });

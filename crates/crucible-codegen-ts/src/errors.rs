@@ -5,7 +5,7 @@ use crucible_ir::Diagnostics;
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Fault, Service, Shape, Structure};
 
-use crate::names::{doc, documented, property, ts_type};
+use crate::names::{Links, doc, documented_linked, property, ts_type};
 
 /// Properties an error inherits, which a member must not shadow.
 const INHERITED: &[&str] = &[
@@ -31,14 +31,21 @@ pub(crate) fn error_shapes(service: &Service) -> Vec<(&ShapeId, &Structure)> {
     errors
 }
 
-pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
+pub(crate) fn emit(service: &Service, links: &Links<'_>, diagnostics: &mut Diagnostics) -> String {
     let exception = crucible_codegen_common::service_exception_name(service);
+    let links = &links.naming("m.", crate::names::CLIENT_SCOPE, "");
     let mut out = String::new();
     for (id, structure) in error_shapes(service) {
         let name = service.name_of(id);
         let error = structure.error.as_ref().expect("filtered to errors");
         out.push('\n');
-        documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
+        documented_linked(
+            &mut out,
+            links,
+            "",
+            structure.docs.as_deref(),
+            &structure.notes,
+        );
         out.push_str(&format!("export class {name} extends {exception} {{\n"));
         for member in &structure.members {
             if INHERITED.contains(&member.name.as_str()) {
@@ -52,11 +59,11 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
                 continue;
             }
             if member.name == "message" {
-                documented(&mut out, "  ", member.docs.as_deref(), &member.notes);
+                documented_linked(&mut out, links, "  ", member.docs.as_deref(), &member.notes);
                 out.push_str("  declare message: string;\n");
                 continue;
             }
-            documented(&mut out, "  ", member.docs.as_deref(), &member.notes);
+            documented_linked(&mut out, links, "  ", member.docs.as_deref(), &member.notes);
             let marker = if member.optional_on_client() { "?" } else { "" };
             out.push_str(&format!(
                 "  declare readonly {}{marker}: {};\n",
@@ -99,6 +106,7 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
+    header.push_str(&crate::names::doc_imports(&out, false));
     let mut shapes = crucible_codegen_common::schema(service, str::to_owned)["shapes"].clone();
     // Only error classes need formatting metadata, including their nested targets.
     let mut pending: Vec<_> = error_shapes(service)

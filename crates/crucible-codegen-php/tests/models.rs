@@ -207,9 +207,10 @@ fn smithy_documentation_reaches_models_and_client() {
     ] {
         assert!(source.contains(text), "{text}");
     }
-    // `*/` in model text cannot end the docblock; `@since` and `[Secret]` cannot start a tag or link.
+    // `*/` in model text cannot end the docblock and `@since` cannot start
+    // a tag; the doc link `[Secret]` is a `{@see}` tag.
     assert!(client.contains(r"`*\/`"));
-    assert!(client.contains(r"\[Secret]"));
+    assert!(client.contains(r"and {@see \VaultSdk\Secret} for"));
     assert!(!client.contains("`*/`"));
 }
 

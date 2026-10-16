@@ -8,6 +8,7 @@ use serde_json::Value;
 
 const WEATHER: &str = "service-docs-weather";
 const CATALOG: &str = "service-docs";
+const LINKS: &str = "doc-links";
 
 fn package_dir(name: &str) -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -82,6 +83,62 @@ fn weather_external_and_internal_match_reviewed_goldens() {
     golden("weather-external", WEATHER, Audience::External);
     golden("weather-internal", WEATHER, Audience::Internal);
 }
+#[test]
+fn doc_links_match_reviewed_goldens() {
+    golden("links-external", LINKS, Audience::External);
+    golden("links-internal", LINKS, Audience::Internal);
+}
+
+#[test]
+fn doc_links_link_pages_and_internal_ones_are_text_externally() {
+    let page = |audience, path: &str| {
+        files(LINKS, audience)
+            .into_iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+    };
+    let get = page(Audience::External, "src/operations/API_GetWidget.md");
+    assert!(
+        get.contains("<a href=\"../shapes/Widget.md\">Widget</a>"),
+        "{get}"
+    );
+    assert!(
+        get.contains("<a href=\"../operations/API_CreateWidget.md\">CreateWidget</a>"),
+        "{get}"
+    );
+    // An operation's input member is on the operation's page.
+    assert!(
+        get.contains("<a href=\"../operations/API_GetWidget.md\">GetWidget.widgetId</a>"),
+        "{get}"
+    );
+    assert!(
+        get.contains("<a href=\"../shapes/WidgetError.md\">WidgetError</a>"),
+        "{get}"
+    );
+    let index = page(Audience::External, "src/index.md");
+    assert!(
+        index.contains("<a href=\"operations/API_GetWidget.md\">the read call</a>"),
+        "{index}"
+    );
+    assert!(
+        index.contains("<a href=\"shapes/Color.md\">Color.RED</a>"),
+        "{index}"
+    );
+    assert!(index.contains("<a href=\"index.md\">Gadget</a>"), "{index}");
+    assert!(index.contains("Internal: Reveal and Secret."), "{index}");
+    assert!(!index.contains("data-crucible-ref"), "{index}");
+    let internal = page(Audience::Internal, "src/index.md");
+    assert!(
+        internal.contains("<a href=\"shapes/Secret.md\">Secret</a>"),
+        "{internal}"
+    );
+    assert!(
+        internal.contains("<a href=\"operations/API_Reveal.md\">Reveal</a>"),
+        "{internal}"
+    );
+}
+
 #[test]
 fn rpc_metadata_examples_and_shapes_match_reviewed_goldens() {
     golden("catalog-external", CATALOG, Audience::External);
@@ -275,12 +332,17 @@ fn all_links_point_to_generated_pages() {
     for files in [
         files(WEATHER, Audience::Internal),
         files(CATALOG, Audience::Internal),
+        files(LINKS, Audience::External),
+        files(LINKS, Audience::Internal),
         leyline,
     ] {
         let paths: BTreeSet<_> = files.iter().map(|f| f.path.as_str()).collect();
         for file in files.iter().filter(|f| f.path.ends_with(".md")) {
-            for segment in file.contents.split("](").skip(1) {
-                let Some((target, _)) = segment.split_once(')') else {
+            // Markdown links, and the anchors doc links became.
+            let markdown = file.contents.split("](").skip(1).map(|s| (s, ')'));
+            let anchors = file.contents.split("<a href=\"").skip(1).map(|s| (s, '"'));
+            for (segment, end) in markdown.chain(anchors) {
+                let Some((target, _)) = segment.split_once(end) else {
                     continue;
                 };
                 if !target.ends_with(".md") {

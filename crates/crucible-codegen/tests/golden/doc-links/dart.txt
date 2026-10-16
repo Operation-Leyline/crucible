@@ -1,0 +1,23 @@
+lib/src/client.dart: /// Widgets, linked. Make one with [LinksClient.createWidget] and read it back with
+lib/src/client.dart: /// the read call; a [models.Widget] has a [models.Widget.name] and a
+lib/src/client.dart: /// [models.Color], such as [models.Color.red]. Gadget is a resource, [LinksClient] is this
+lib/src/client.dart: /// service and String a prelude type. Internal: Reveal and Secret.
+lib/src/client.dart: /// `[NotALink]` in code, and [an ordinary link](https://example.com).
+lib/src/client.dart: /// Makes a [models.Widget]; read it with [LinksClient.getWidget].
+lib/src/client.dart: /// Reads a Gadget.
+lib/src/client.dart: /// Reads the [models.Widget] that [LinksClient.createWidget] made, by [models.GetWidgetInput.widgetId],
+lib/src/client.dart: /// and returns it as [models.GetWidgetOutput.widget]. Fails with [models.WidgetError].
+lib/src/models.dart: /// A colour. [Color.red] is the first.
+lib/src/models.dart: /// Red, unlike [Color.blue].
+lib/src/models.dart: /// What [Widget.name] becomes.
+lib/src/models.dart: /// A [Choice]: [ChoiceWidget] or [ChoiceLabel], one of two.
+lib/src/models.dart: /// A Label, plain text where a language has no type for it.
+lib/src/models.dart: /// A [Code], such as [Code.one].
+lib/src/models.dart: /// [Widgets], a list.
+lib/src/models.dart: /// [WidgetsByName], a map.
+lib/src/models.dart: /// Why a call failed, as [WidgetError.message] says.
+lib/src/models.dart: /// A widget; CreateWidget makes one.
+lib/src/models.dart: /// The name [CreateWidgetInput.name] chose.
+lib/src/models.dart: /// One of [Color]; [Color.blue] by default.
+lib/src/models.dart: /// What it is made of: [Widget.object] is a keyword in some languages.
+lib/src/models.dart: /// Raised by GetWidget when [GetWidgetInput.widgetId] names nothing.

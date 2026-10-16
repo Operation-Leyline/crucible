@@ -211,6 +211,83 @@ fn xml(text: &str) -> String {
         .replace('\'', "&apos;")
 }
 
+/// What a doc comment's `[Name]` links (decision 80) become: Javadoc
+/// `{@link}` tags with fully qualified references, so they resolve from any
+/// file, and the generated simple name as their label.
+pub(crate) struct Links<'a> {
+    pub(crate) service: &'a Service,
+    pub(crate) package: &'a str,
+}
+
+impl Links<'_> {
+    /// The class a shape is generated as, if it is one: a structure,
+    /// union, error, enum or recursive collection.
+    fn class(&self, id: &ShapeId, shape: &Shape) -> Option<String> {
+        let generated = match shape {
+            Shape::Structure(_) | Shape::Union(_) | Shape::Enum(_) | Shape::IntEnum(_) => true,
+            Shape::List(_) | Shape::Map(_) => {
+                recursive_collection(self.service, id, id, &mut BTreeSet::new())
+            }
+            Shape::Simple(_) | Shape::Unit { .. } => false,
+        };
+        generated.then(|| ty(self.service, id, self.package))
+    }
+
+    /// The `{@link}` to a doc link's target, or `None` for one Java has no
+    /// declaration for (a resource, a scalar, a plain collection).
+    fn link(&self, target: crucible_ir::doc_links::DocTarget<'_>) -> Option<String> {
+        use crucible_ir::doc_links::DocTarget;
+        let client = client_name(self.service);
+        let (reference, label) = match target {
+            DocTarget::Service => (format!("{}.{client}", self.package), client),
+            DocTarget::Operation(op) => {
+                let name = method(op.name());
+                (format!("{}.{client}#{name}", self.package), name)
+            }
+            DocTarget::Resource(_) => return None,
+            DocTarget::Shape(id, shape) => {
+                (self.class(id, shape)?, self.service.name_of(id).to_owned())
+            }
+            DocTarget::Member {
+                shape,
+                owner,
+                member,
+            } => {
+                let field = member_field(&member.name, self.package);
+                (
+                    format!("{}#{field}", self.class(shape, owner)?),
+                    format!("{}.{field}", self.service.name_of(shape)),
+                )
+            }
+            DocTarget::EnumValue {
+                shape,
+                owner,
+                value,
+            } => {
+                let constant = field(value).to_uppercase();
+                (
+                    format!("{}#{constant}", self.class(shape, owner)?),
+                    format!("{}.{constant}", self.service.name_of(shape)),
+                )
+            }
+        };
+        Some(format!("{{@link {reference} {label}}}"))
+    }
+
+    /// Model Markdown as Javadoc blocks, its doc links as `{@link}` tags.
+    fn blocks(&self, markdown: &str) -> Vec<String> {
+        vec![crucible_codegen_common::doc_links::render(
+            self.service,
+            markdown,
+            |text| docs::javadoc(text).join("\n"),
+            |target| self.link(target),
+        )]
+        .into_iter()
+        .filter(|block| !block.is_empty())
+        .collect()
+    }
+}
+
 // One Javadoc comment: the model's own documentation first, then Crucible's notes
 // (already HTML), then block tags. Nothing here can emit a comment terminator,
 // because every text source passes through `docs`.
@@ -227,12 +304,26 @@ fn javadoc_for(
     tags: &[String],
     meta: &DocNotes,
 ) -> String {
-    javadoc_with(indent, model, &[], notes, tags, meta)
+    javadoc_with(None, indent, model, &[], notes, tags, meta)
+}
+
+/// [`javadoc_for`] for model documentation, whose doc links become
+/// `{@link}` tags.
+fn javadoc_linked(
+    links: &Links<'_>,
+    indent: &str,
+    model: Option<&str>,
+    notes: &[String],
+    tags: &[String],
+    meta: &DocNotes,
+) -> String {
+    javadoc_with(Some(links), indent, model, &[], notes, tags, meta)
 }
 
 /// [`javadoc_for`] with `rendered`: Javadoc blocks already rendered from
 /// Markdown, after `notes` and before the model's own notes ("Unstable.").
 fn javadoc_with(
+    links: Option<&Links<'_>>,
     indent: &str,
     model: Option<&str>,
     rendered: &[String],
@@ -253,7 +344,10 @@ fn javadoc_with(
         ));
     }
     let tags = &tags[..];
-    let mut blocks = model.map(docs::javadoc).unwrap_or_default();
+    let mut blocks = match (model, links) {
+        (Some(model), Some(links)) => links.blocks(model),
+        (model, _) => model.map(docs::javadoc).unwrap_or_default(),
+    };
     blocks.extend(notes.iter().map(|note| format!("<p>{note}</p>")));
     blocks.extend(rendered.iter().cloned());
     blocks.extend(meta_notes.iter().map(|note| format!("<p>{note}</p>")));
@@ -287,14 +381,14 @@ fn code(text: &str) -> String {
 
 /// Documents an operation method. `variant` says how this overload differs.
 fn operation_javadoc(
-    service: &Service,
+    links: &Links<'_>,
     op: &Operation,
-    package: &str,
     variant: &str,
     params: &[(&str, &str)],
     returns: &str,
     throws: bool,
 ) -> String {
+    let (service, package) = (links.service, links.package);
     let mut notes = vec![variant.to_string()];
     // What the caller must hold, as the model states it (docs/permissions.md
     // §6.3): Markdown holding model text, rendered like model documentation.
@@ -348,6 +442,7 @@ fn operation_javadoc(
         ));
     }
     javadoc_with(
+        Some(links),
         "    ",
         op.docs.as_deref(),
         &requirements,
@@ -596,6 +691,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         return Err(diagnostics);
     }
     let package = &options.package_name;
+    let links = &Links { service, package };
     let header = format!("// Generated by Crucible. DO NOT EDIT.\npackage {package};\n\n");
     let source = format!("src/main/java/{}", package.replace('.', "/"));
     let resource = format!("src/main/resources/{}", package.replace('.', "/"));
@@ -639,7 +735,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             format!("// Generated by Crucible. DO NOT EDIT.\npackage {package}.model;\n\n");
         match shape {
             Shape::List(l) => {
-                models.push_str(&javadoc_for(
+                models.push_str(&javadoc_linked(
+                    links,
                     "    ",
                     l.docs.as_deref(),
                     &[format!(
@@ -658,7 +755,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push_str(&format!("    public final class {name} extends java.util.ArrayList<{}> {{\n        private static final long serialVersionUID = 1L;\n        /** Creates an empty collection. */\n        public {name}() {{}}\n{hidden}    }}\n",ty(service,&l.member.target,package)))
             }
             Shape::Map(m) => {
-                models.push_str(&javadoc_for(
+                models.push_str(&javadoc_linked(
+                    links,
                     "    ",
                     m.docs.as_deref(),
                     &["A recursive map; a nominal type breaks the cycle.".to_string()],
@@ -674,10 +772,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push_str(&format!("    public final class {name} extends java.util.LinkedHashMap<{}, {}> {{\n        private static final long serialVersionUID = 1L;\n        /** Creates an empty collection. */\n        public {name}() {{}}\n{hidden}    }}\n",ty(service,&m.key.target,package),ty(service,&m.value.target,package)))
             }
             Shape::Enum(e) => {
-                models.push_str(&javadoc_for("    ", e.docs.as_deref(), &["An open enum: values this client does not know are preserved, so compare with the constants or {@link #value()}.".to_string()], &["@param value the wire value".to_string()], &e.notes));
+                models.push_str(&javadoc_linked(links, "    ", e.docs.as_deref(), &["An open enum: values this client does not know are preserved, so compare with the constants or {@link #value()}.".to_string()], &["@param value the wire value".to_string()], &e.notes));
                 models.push_str(&format!("    public record {name}(java.lang.String value) {{\n        /**\n         * Requires a non-null value.\n         *\n         * @param value the wire value\n         */\n        public {name} {{ java.util.Objects.requireNonNull(value); }}\n        /** @return the wire value. */\n        @Override public java.lang.String toString() {{ return value; }}\n"));
                 for v in &e.values {
-                    models.push_str(&javadoc_for(
+                    models.push_str(&javadoc_linked(
+                        links,
                         "        ",
                         v.docs.as_deref(),
                         &[format!("The {} value.", code(&v.value))],
@@ -693,10 +792,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 models.push_str("    }\n");
             }
             Shape::IntEnum(e) => {
-                models.push_str(&javadoc_for("    ", e.docs.as_deref(), &["An open integer enum: values this client does not know are preserved, so compare with the constants or {@link #value()}.".to_string()], &["@param value the wire value".to_string()], &e.notes));
+                models.push_str(&javadoc_linked(links, "    ", e.docs.as_deref(), &["An open integer enum: values this client does not know are preserved, so compare with the constants or {@link #value()}.".to_string()], &["@param value the wire value".to_string()], &e.notes));
                 models.push_str(&format!("    public record {name}(int value) {{\n        /** @return the wire value. */\n        @Override public java.lang.String toString() {{ return java.lang.Integer.toString(value); }}\n"));
                 for v in &e.values {
-                    models.push_str(&javadoc_for(
+                    models.push_str(&javadoc_linked(
+                        links,
                         "        ",
                         v.docs.as_deref(),
                         &[format!("The {} value.", code(&v.value.to_string()))],
@@ -721,7 +821,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 } else {
                     notes.push(format!("Build one with {{@link #builder()}}; the public fields are also writable. Smithy shape {}.", code(&id.to_string())));
                 }
-                models.push_str(&javadoc_for(
+                models.push_str(&javadoc_linked(
+                    links,
                     "    ",
                     s.docs.as_deref(),
                     &notes,
@@ -759,7 +860,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     } else {
                         "Required.".to_string()
                     };
-                    models.push_str(&javadoc_for(
+                    models.push_str(&javadoc_linked(
+                        links,
                         "        ",
                         m.docs
                             .as_deref()
@@ -987,11 +1089,11 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .clone()
         .or_else(|| service.title.clone())
         .unwrap_or_else(|| format!("Client for the `{}` service.", service.id.name()));
-    let mut client = format!("{header}{}", javadoc("", Some(&service_summary), &[
+    let mut client = format!("{header}{}", javadoc_linked(links, "", Some(&service_summary), &[
         format!("Create one with {{@code new {client_name}(config)}} and share it: the client is thread-safe and holds no per-call state, so a single instance can serve every thread."),
         "The configuration is copied on construction. Every operation has a blocking form and an {@code Async} form returning a {@link java.util.concurrent.CompletableFuture}; the client opens no resources of its own, so there is nothing to close. A caller-supplied {@link java.net.http.HttpClient} stays owned by the caller.".to_string(),
         "Failures surface as modeled errors, the service exception for any other error response, or a network error when no response arrived.".to_string(),
-    ], &[]));
+    ], &[], &DocNotes::default()));
     client.push_str(&format!(
         "public final class {client_name} {{\n    private final ClientRuntime runtime;\n{}    public {client_name}(ClientConfig config) {{\n        runtime = new ClientRuntime(config, {}, ModelRegistry.classes());\n    }}\n",
         javadoc("    ", None, &["Creates a client from a copy of the configuration.".to_string()], &["@param config endpoint, token, retry and timeout settings".to_string(), "@throws IllegalArgumentException if the endpoint or a retry setting is invalid".to_string()]),
@@ -1025,7 +1127,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         };
         let async_note = "Asynchronous form: the future completes exceptionally with the errors of the blocking form.";
         let od = |variant: &str, params: &[(&str, &str)], returns: &str, throws: bool| {
-            operation_javadoc(service, op, package, variant, params, returns, throws)
+            operation_javadoc(links, op, variant, params, returns, throws)
         };
         client.push_str(&od(async_note, in_doc, "a future of the response", false));
         client.push_str(&format!("    public java.util.concurrent.CompletableFuture<{output}> {async_name}({parameter}) {{\n        return runtime.call({}, {argument}, {output}.class);\n    }}\n",literal(op.name())));

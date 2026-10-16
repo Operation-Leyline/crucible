@@ -5,7 +5,7 @@ import Foundation
 ///
 /// Stores secrets.
 ///
-/// See [the guide](https://example.com/guide) and \[Secret] for `*/` details. @since 1
+/// See [the guide](https://example.com/guide) and ``Secret`` for `*/` details. @since 1
 ///
 /// Create one ``VaultClient`` and share it: it is `Sendable`, holds no per-call state, and any number of calls may run at once. Call ``VaultClient/close()`` when finished. Every operation is `async` and reports failure as a ``VaultException`` for a service response, a ``NetworkError`` when no response arrives, or a ``TimeoutError`` when the call outlasts ``ClientConfig/timeout``; cancelling the calling task cancels the call.
 public final class VaultClient: Sendable {

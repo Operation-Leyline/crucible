@@ -118,7 +118,9 @@ pub fn emit(service: &Service, options: &Options) -> Vec<File> {
                 docs.push_str(&format!("An alias of {}.", code_span(primary)));
             }
             header.push_str(&crucible_codegen_common::doxygen_for(
-                Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
+                crate::links::render(service, Some(docs.as_str()), p)
+                    .as_deref()
+                    .filter(|d| !d.trim().is_empty()),
                 &notes(permission),
                 "",
             ));

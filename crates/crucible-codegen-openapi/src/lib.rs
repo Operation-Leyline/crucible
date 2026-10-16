@@ -117,7 +117,7 @@ pub fn generate(service: &Service, options: &Options) -> Result<String, Diagnost
     }
 
     let mut info = json!({"title": service.title.as_deref().unwrap_or(service.id.name()), "version": service.version});
-    description(&mut info, service.docs.as_deref());
+    description(service, &mut info, service.docs.as_deref());
     let mut schemas = Map::new();
     for (id, shape) in &service.shapes {
         schemas.insert(key(id), schemas::shape(service, shape));
@@ -179,7 +179,13 @@ pub(crate) fn traits(traits: &Traits) -> Value {
     )
 }
 
-pub(crate) fn description(value: &mut Value, docs: Option<&str>) {
+/// An object's description: the author's Markdown, its doc links (decision
+/// 80) as their text, since OpenAPI has no symbol to link them to.
+pub(crate) fn description(service: &Service, value: &mut Value, docs: Option<&str>) {
+    let docs = docs.map(|docs| {
+        crucible_codegen_common::doc_links::render(service, docs, str::to_owned, |_| None)
+    });
+    let docs = docs.as_deref();
     if let Some(docs) = docs {
         value["description"] = json!(docs);
     }

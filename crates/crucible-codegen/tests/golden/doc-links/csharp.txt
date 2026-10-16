@@ -1,0 +1,26 @@
+ActivityTelemetryHook.cs: /// <summary>The name of the <see cref="System.Diagnostics.ActivitySource"/> and <see cref="System.Diagnostics.Metrics.Meter"/> a client reports to by default.</summary>
+BigDecimal.cs: /// <param name="value">The decimal text, such as <c>12.50</c>.</param>
+LinksClient.cs: /// Widgets, linked. Make one with <see cref="global::Hostile.LinksClient.CreateWidgetAsync"/> and read it back with the read call; a <see cref="global::Hostile.Models.Widget"/> has a <see cref="global::Hostile.Models.Widget.Name"/> and a <see cref="global::Hostile.Models.Color"/>, such as <see cref="global::Hostile.Models.Color.RED"/>. Gadget is a resource, <see cref="global::Hostile.LinksClient"/> is this service and String a prelude type. Internal: Reveal and Secret.
+LinksClient.cs: /// <para><c>[NotALink]</c> in code, and <see href="https://example.com">an ordinary link</see>.</para>
+LinksClient.cs: /// <para>Every operation has an asynchronous form returning a Task and a blocking form that runs it on the thread pool. Failures surface as modeled errors, the service exception for any other error response, or a NetworkError when no response arrived.</para>
+LinksClient.cs: /// Makes a <see cref="global::Hostile.Models.Widget"/>; read it with <see cref="global::Hostile.LinksClient.GetWidgetAsync"/>.
+LinksClient.cs: /// Makes a <see cref="global::Hostile.Models.Widget"/>; read it with <see cref="global::Hostile.LinksClient.GetWidgetAsync"/>.
+LinksClient.cs: /// Reads a Gadget.
+LinksClient.cs: /// Reads a Gadget.
+LinksClient.cs: /// Reads the <see cref="global::Hostile.Models.Widget"/> that <see cref="global::Hostile.LinksClient.CreateWidgetAsync"/> made, by <see cref="global::Hostile.Models.GetWidgetInput.WidgetId"/>, and returns it as <see cref="global::Hostile.Models.GetWidgetOutput.Widget"/>. Fails with <see cref="global::Hostile.Models.WidgetError"/>.
+LinksClient.cs: /// Reads the <see cref="global::Hostile.Models.Widget"/> that <see cref="global::Hostile.LinksClient.CreateWidgetAsync"/> made, by <see cref="global::Hostile.Models.GetWidgetInput.WidgetId"/>, and returns it as <see cref="global::Hostile.Models.GetWidgetOutput.Widget"/>. Fails with <see cref="global::Hostile.Models.WidgetError"/>.
+Models/Color.cs: /// A colour. <see cref="global::Hostile.Models.Color.RED"/> is the first.
+Models/Color.cs: /// Red, unlike <see cref="global::Hostile.Models.Color.BLUE"/>.
+Models/CreateWidgetInput.cs: /// What <see cref="global::Hostile.Models.Widget.Name"/> becomes.
+Models/CreateWidgetInput.cs: /// A <see cref="global::Hostile.Models.Choice"/>: <see cref="global::Hostile.Models.Choice.Widget"/> or <see cref="global::Hostile.Models.Choice.Label"/>, one of two.
+Models/CreateWidgetInput.cs: /// A Label, plain text where a language has no type for it.
+Models/CreateWidgetInput.cs: /// A <see cref="global::Hostile.Models.Code"/>, such as <see cref="global::Hostile.Models.Code.ONE"/>.
+Models/CreateWidgetInput.cs: /// Widgets, a list.
+Models/CreateWidgetInput.cs: /// WidgetsByName, a map.
+Models/CreateWidgetInput.cs: /// Why a call failed, as <see cref="global::Hostile.Models.WidgetError.MessageValue"/> says.
+Models/Widget.cs: /// A widget; <see cref="global::Hostile.LinksClient.CreateWidgetAsync"/> makes one.
+Models/Widget.cs: /// The name <see cref="global::Hostile.Models.CreateWidgetInput.Name"/> chose.
+Models/Widget.cs: /// One of <see cref="global::Hostile.Models.Color"/>; <see cref="global::Hostile.Models.Color.BLUE"/> by default.
+Models/Widget.cs: /// What it is made of: <see cref="global::Hostile.Models.Widget.Object"/> is a keyword in some languages.
+Models/WidgetError.cs: /// Raised by <see cref="global::Hostile.LinksClient.GetWidgetAsync"/> when <see cref="global::Hostile.Models.GetWidgetInput.WidgetId"/> names nothing.
+Optional.cs: /// <param name="value">The value; null becomes an explicit null.</param>

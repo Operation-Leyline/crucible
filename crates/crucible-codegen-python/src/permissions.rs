@@ -96,6 +96,7 @@ pub(crate) fn emit(service: &Service) -> String {
         let name = format!("{shape}Permission");
         out.push_str(&format!("class {name}(OpenEnum):\n"));
         python_doc(
+            service,
             &mut out,
             "    ",
             &format!(
@@ -125,11 +126,12 @@ pub(crate) fn emit(service: &Service) -> String {
                 Some(docs.as_str()).filter(|d| !d.trim().is_empty()),
                 &notes(permission),
             ) {
-                python_doc(&mut out, "    ", &docs);
+                python_doc(service, &mut out, "    ", &docs);
             }
         }
         out.push_str(&format!("\n    def canonical(self) -> {name}:\n"));
         python_doc(
+            service,
             &mut out,
             "        ",
             "The permission this one stands for: a deprecated alias's primary, or this one, unknown values included.",
@@ -169,6 +171,7 @@ pub(crate) fn emit(service: &Service) -> String {
         "PERMISSIONS: tuple[ResourcePermissions, ...] = (\n{registry})\n"
     ));
     python_doc(
+        service,
         &mut out,
         "",
         "Every permission this client knows, by resource type, deprecated aliases included. A grant picker offers only the grantable ones that are not deprecated.",

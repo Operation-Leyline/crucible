@@ -1,0 +1,14 @@
+schema_version = 1
+
+# Doc links the compiler refuses (decision 80): a name that names nothing,
+# a member a type, an operation or a prelude type does not have, and a
+# member of a declaration that has none. Each is reported at its label.
+[model]
+namespace = "example.unresolved"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

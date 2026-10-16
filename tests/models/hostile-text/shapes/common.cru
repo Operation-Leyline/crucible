@@ -4,6 +4,7 @@
 /// ```
 /// @throws fenced
 /// ```
+/// Links: [Kind], [Kind.QUOTE], [Kind.INTERP], [Kind.BACKSLASH], [Kind.COMMENT], [Do], [Do.text] and [Do.weird].
 enum Kind {
     QUOTE = "q\"uote"
     BACKSLASH = "b\\s"

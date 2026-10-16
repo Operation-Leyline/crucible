@@ -4,24 +4,26 @@
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Service, Shape, SimpleKind, Structure};
 
-use crate::names::{documented, literal, optional, property, ts_type};
+use crate::names::{Links, documented_linked, literal, optional, property, ts_type};
 
-pub(crate) fn emit(service: &Service) -> String {
+pub(crate) fn emit(service: &Service, links: &Links<'_>) -> String {
+    let links = &links.naming("", crate::names::CLIENT_SCOPE, crate::names::ERRORS_SCOPE);
     let mut out = String::new();
     for (id, shape) in model_shapes(service) {
         out.push('\n');
         let name = service.name_of(id);
         match shape {
             Shape::IntEnum(values) => {
-                documented(&mut out, "", values.docs.as_deref(), &values.notes);
+                documented_linked(&mut out, links, "", values.docs.as_deref(), &values.notes);
                 out.push_str(&format!("export const {name} = {{\n"));
                 for value in &values.values {
-                    documented(&mut out, "  ", value.docs.as_deref(), &value.notes);
+                    documented_linked(&mut out, links, "  ", value.docs.as_deref(), &value.notes);
                     out.push_str(&format!("  {}: {},\n", property(&value.name), value.value));
                 }
                 out.push_str("} as const;\n");
-                documented(
+                documented_linked(
                     &mut out,
+                    links,
                     "",
                     values.docs.as_deref().or(Some(
                         "Open integer values, including unrecognized server values.",
@@ -34,7 +36,7 @@ pub(crate) fn emit(service: &Service) -> String {
             }
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
-                documented(&mut out, "", simple.docs.as_deref(), &simple.notes);
+                documented_linked(&mut out, links, "", simple.docs.as_deref(), &simple.notes);
                 let ts = match simple.kind {
                     SimpleKind::Boolean => "boolean",
                     SimpleKind::String => "string",
@@ -48,10 +50,10 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {ts};\n"));
             }
             Shape::Enum(values) => {
-                documented(&mut out, "", values.docs.as_deref(), &values.notes);
+                documented_linked(&mut out, links, "", values.docs.as_deref(), &values.notes);
                 out.push_str(&format!("export const {name} = {{\n"));
                 for value in &values.values {
-                    documented(&mut out, "  ", value.docs.as_deref(), &value.notes);
+                    documented_linked(&mut out, links, "  ", value.docs.as_deref(), &value.notes);
                     out.push_str(&format!(
                         "  {}: {},\n",
                         property(&value.name),
@@ -59,14 +61,15 @@ pub(crate) fn emit(service: &Service) -> String {
                     ));
                 }
                 out.push_str("} as const;\n");
-                documented(&mut out, "", values.docs.as_deref(), &values.notes);
+                documented_linked(&mut out, links, "", values.docs.as_deref(), &values.notes);
                 out.push_str(&format!(
                     "export type {name} = (typeof {name})[keyof typeof {name}];\n"
                 ));
             }
             Shape::List(list) => {
-                documented(
+                documented_linked(
                     &mut out,
+                    links,
                     "",
                     crucible_codegen_common::documentation::model(shape).as_deref(),
                     &list.notes,
@@ -80,8 +83,9 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {item}[];\n"));
             }
             Shape::Map(map) => {
-                documented(
+                documented_linked(
                     &mut out,
+                    links,
                     "",
                     crucible_codegen_common::documentation::model(shape).as_deref(),
                     &map.notes,
@@ -102,20 +106,27 @@ pub(crate) fn emit(service: &Service) -> String {
                 out.push_str(&format!("export type {name} = {record};\n"));
             }
             Shape::Structure(structure) => {
-                documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
+                documented_linked(
+                    &mut out,
+                    links,
+                    "",
+                    structure.docs.as_deref(),
+                    &structure.notes,
+                );
                 out.push_str(&format!("export interface {name} {{\n"));
-                fields(&mut out, service, structure, "");
+                fields(&mut out, service, links, structure, "");
                 out.push_str("}\n");
             }
             Shape::Union(union) => {
-                documented(&mut out, "", union.docs.as_deref(), &union.notes);
+                documented_linked(&mut out, links, "", union.docs.as_deref(), &union.notes);
                 out.push_str(&format!("export type {name} =\n"));
-                union_arms(&mut out, service, union);
+                union_arms(&mut out, service, links, union);
             }
         }
     }
     let mut header = String::from(crate::HEADER);
     header.push_str(&crate::names::runtime_types(&out, &[]));
+    header.push_str(&crate::names::doc_imports(&out, false));
     header + &out
 }
 
@@ -133,9 +144,15 @@ pub(crate) fn model_shapes(service: &Service) -> Vec<(&ShapeId, &Shape)> {
 }
 
 /// Interface members, one per line, each with its docs.
-pub(crate) fn fields(out: &mut String, service: &Service, structure: &Structure, prefix: &str) {
+pub(crate) fn fields(
+    out: &mut String,
+    service: &Service,
+    links: &Links<'_>,
+    structure: &Structure,
+    prefix: &str,
+) {
     for member in &structure.members {
-        documented(out, "  ", member.docs.as_deref(), &member.notes);
+        documented_linked(out, links, "  ", member.docs.as_deref(), &member.notes);
         let marker = if optional(structure, member) { "?" } else { "" };
         out.push_str(&format!(
             "  {}{marker}: {};\n",
@@ -146,7 +163,7 @@ pub(crate) fn fields(out: &mut String, service: &Service, structure: &Structure,
 }
 
 /// One arm per member, each forbidding the others: exactly one is set.
-fn union_arms(out: &mut String, service: &Service, union: &Structure) {
+fn union_arms(out: &mut String, service: &Service, links: &Links<'_>, union: &Structure) {
     for member in &union.members {
         let others: String = union
             .members
@@ -155,7 +172,7 @@ fn union_arms(out: &mut String, service: &Service, union: &Structure) {
             .map(|other| format!(" {}?: never;", property(&other.name)))
             .collect();
         out.push_str("  | {\n");
-        documented(out, "      ", member.docs.as_deref(), &member.notes);
+        documented_linked(out, links, "      ", member.docs.as_deref(), &member.notes);
         out.push_str(&format!(
             "      {}: {};{others} $unknown?: never;\n    }}\n",
             property(&member.name),

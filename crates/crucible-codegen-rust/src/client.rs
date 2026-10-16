@@ -6,7 +6,7 @@ use crucible_ir::ir::{Member, Operation, Service, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::errors::info_static;
-use crate::names::{doc, documented, field, function, literal, variant};
+use crate::names::{Links, doc, documented, field, function, literal, variant};
 use crate::operations::{input_type, marker_for, output_type, structure};
 use crate::types::simple_kind;
 
@@ -56,7 +56,13 @@ pub(crate) fn emit(service: &Service, diagnostics: &mut Diagnostics) -> String {
         }
     }
     let before = out.len();
-    documented(&mut out, "", service.docs.as_deref(), &service.notes);
+    documented(
+        &mut out,
+        Links::top(service, true),
+        "",
+        service.docs.as_deref(),
+        &service.notes,
+    );
     // A blank line after the service's own docs would detach them from the
     // client they describe (clippy::empty_line_after_doc_comments).
     let separator = if out.len() == before { "\n" } else { "" };
@@ -145,6 +151,7 @@ fn service_exception(service: &Service, diagnostics: &mut Diagnostics) -> String
         let error = service.name_of(id);
         documented(
             &mut out,
+            Links::top(service, true),
             "    ",
             shape.docs.as_deref().or(Some("A modeled service error.")),
             &shape.notes,
@@ -222,7 +229,7 @@ fn error_enum(service: &Service, op: &Operation) -> String {
             .find(|id| service.name_of(id) == *error)
             .and_then(|id| service.shape(id))
             .and_then(crucible_codegen_common::documentation::shape)
-            .map(crucible_codegen_common::docs::escape);
+            .map(|docs| Links::top(service, true).escape(docs));
         doc(
             &mut out,
             "    ",
@@ -314,6 +321,7 @@ fn method(service: &Service, op: &Operation, options_name: Option<&str>) -> Stri
     let mut out = String::from("\n");
     documented(
         &mut out,
+        Links::top(service, true),
         "    ",
         Some(&crucible_codegen_common::documentation::operation(
             service, op,

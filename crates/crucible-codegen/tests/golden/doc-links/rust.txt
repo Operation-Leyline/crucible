@@ -1,0 +1,55 @@
+src/lib.rs: /// A colour. [Color::Red](super::Color::Red) is the first.
+src/lib.rs: /// Red, unlike [Color::Blue](super::Color::Blue).
+src/lib.rs: /// What [Widget::name](super::Widget::name) becomes.
+src/lib.rs: /// A [Choice](super::Choice): [Choice::Widget](super::Choice::Widget) or [Choice::Label](super::Choice::Label), one of two.
+src/lib.rs: /// A [Label](super::Label), plain text where a language has no type for it.
+src/lib.rs: /// A [Code](super::Code), such as [Code::One](super::Code::One).
+src/lib.rs: /// [Widgets](super::Widgets), a list.
+src/lib.rs: /// [WidgetsByName](super::WidgetsByName), a map.
+src/lib.rs: /// Why a call failed, as [WidgetError::message](super::WidgetError::message) says.
+src/lib.rs: /// What [Widget::name](super::Widget::name) becomes.
+src/lib.rs: /// A [Choice](super::Choice): [Choice::Widget](super::Choice::Widget) or [Choice::Label](super::Choice::Label), one of two.
+src/lib.rs: /// A [Label](super::Label), plain text where a language has no type for it.
+src/lib.rs: /// A [Code](super::Code), such as [Code::One](super::Code::One).
+src/lib.rs: /// [Widgets](super::Widgets), a list.
+src/lib.rs: /// [WidgetsByName](super::WidgetsByName), a map.
+src/lib.rs: /// Why a call failed, as [WidgetError::message](super::WidgetError::message) says.
+src/lib.rs: /// What [Widget::name](super::Widget::name) becomes.
+src/lib.rs: /// A [Choice](super::Choice): [Choice::Widget](super::Choice::Widget) or [Choice::Label](super::Choice::Label), one of two.
+src/lib.rs: /// A [Label](super::Label), plain text where a language has no type for it.
+src/lib.rs: /// A [Code](super::Code), such as [Code::One](super::Code::One).
+src/lib.rs: /// [Widgets](super::Widgets), a list.
+src/lib.rs: /// [WidgetsByName](super::WidgetsByName), a map.
+src/lib.rs: /// Why a call failed, as [WidgetError::message](super::WidgetError::message) says.
+src/lib.rs: /// A widget; [LinksClient::create_widget](super::LinksClient::create_widget) makes one.
+src/lib.rs: /// The name [CreateWidgetInput::name](super::CreateWidgetInput::name) chose.
+src/lib.rs: /// One of [Color](super::Color); [Color::Blue](super::Color::Blue) by default.
+src/lib.rs: /// What it is made of: [Widget::object](super::Widget::object) is a keyword in some languages.
+src/lib.rs: /// The name [CreateWidgetInput::name](super::CreateWidgetInput::name) chose.
+src/lib.rs: /// One of [Color](super::Color); [Color::Blue](super::Color::Blue) by default.
+src/lib.rs: /// What it is made of: [Widget::object](super::Widget::object) is a keyword in some languages.
+src/lib.rs: /// The name [CreateWidgetInput::name](super::CreateWidgetInput::name) chose.
+src/lib.rs: /// One of [Color](super::Color); [Color::Blue](super::Color::Blue) by default.
+src/lib.rs: /// What it is made of: [Widget::object](super::Widget::object) is a keyword in some languages.
+src/lib.rs: /// Raised by [LinksClient::get_widget](super::LinksClient::get_widget) when [GetWidgetInput::widget_id](super::GetWidgetInput::widget_id) names nothing.
+src/lib.rs: /// Raised by [LinksClient::get_widget] when [GetWidgetInput::widget_id] names nothing.
+src/lib.rs: /// Makes a [Widget]; read it with [LinksClient::get_widget].
+src/lib.rs: /// Raised by [LinksClient::get_widget] when [GetWidgetInput::widget_id] names nothing.
+src/lib.rs: /// Reads a Gadget.
+src/lib.rs: /// Raised by [LinksClient::get_widget] when [GetWidgetInput::widget_id] names nothing.
+src/lib.rs: /// Reads the [Widget] that [LinksClient::create_widget] made, by [GetWidgetInput::widget_id],
+src/lib.rs: /// and returns it as [GetWidgetOutput::widget]. Fails with [WidgetError].
+src/lib.rs: /// Raised by [LinksClient::get_widget] when [GetWidgetInput::widget_id] names nothing.
+src/lib.rs: /// Widgets, linked. Make one with [LinksClient::create_widget] and read it back with
+src/lib.rs: /// the read call; a [Widget] has a [Widget::name] and a
+src/lib.rs: /// [Color], such as [Color::Red]. Gadget is a resource, [LinksClient] is this
+src/lib.rs: /// service and String a prelude type. Internal: Reveal and Secret.
+src/lib.rs: /// `[NotALink]` in code, and [an ordinary link](https://example.com).
+src/lib.rs: /// Makes a [Widget]; read it with [LinksClient::get_widget].
+src/lib.rs: /// Makes a [Widget]; read it with [LinksClient::get_widget].
+src/lib.rs: /// Reads a Gadget.
+src/lib.rs: /// Reads a Gadget.
+src/lib.rs: /// Reads the [Widget] that [LinksClient::create_widget] made, by [GetWidgetInput::widget_id],
+src/lib.rs: /// and returns it as [GetWidgetOutput::widget]. Fails with [WidgetError].
+src/lib.rs: /// Reads the [Widget] that [LinksClient::create_widget] made, by [GetWidgetInput::widget_id],
+src/lib.rs: /// and returns it as [GetWidgetOutput::widget]. Fails with [WidgetError].

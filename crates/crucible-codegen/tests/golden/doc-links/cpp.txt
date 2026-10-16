@@ -1,0 +1,23 @@
+include/hostile/client.hpp: * Widgets, linked. Make one with LinksClient::create_widget() and read it back with
+include/hostile/client.hpp: * the read call; a models::Widget has a models::Widget::name and a
+include/hostile/client.hpp: * models::Color, such as models::Color::known_red(). Gadget is a resource, LinksClient is this
+include/hostile/client.hpp: * service and String a prelude type. Internal: Reveal and Secret.
+include/hostile/client.hpp: * `[NotALink]` in code, and [an ordinary link](https://example.com).
+include/hostile/client.hpp: * Makes a models::Widget; read it with LinksClient::get_widget().
+include/hostile/client.hpp: * Reads a Gadget.
+include/hostile/client.hpp: * Reads the models::Widget that LinksClient::create_widget() made, by models::GetWidgetInput::widget_id,
+include/hostile/client.hpp: * and returns it as models::GetWidgetOutput::widget. Fails with models::WidgetError.
+include/hostile/models.hpp: * A colour. models::Color::known_red() is the first.
+include/hostile/models.hpp: * Red, unlike models::Color::known_blue().
+include/hostile/models.hpp: * A widget; LinksClient::create_widget() makes one.
+include/hostile/models.hpp: * The name models::CreateWidgetInput::name chose.
+include/hostile/models.hpp: * One of models::Color; models::Color::known_blue() by default.
+include/hostile/models.hpp: * What it is made of: models::Widget::object is a keyword in some languages.
+include/hostile/models.hpp: * What models::Widget::name becomes.
+include/hostile/models.hpp: * A models::Choice: Choice.widget or Choice.label, one of two.
+include/hostile/models.hpp: * A Label, plain text where a language has no type for it.
+include/hostile/models.hpp: * A models::Code, such as models::Code::known_one().
+include/hostile/models.hpp: * Widgets, a list.
+include/hostile/models.hpp: * WidgetsByName, a map.
+include/hostile/models.hpp: * Why a call failed, as models::WidgetError::message says.
+include/hostile/models.hpp: * Raised by LinksClient::get_widget() when models::GetWidgetInput::widget_id names nothing.

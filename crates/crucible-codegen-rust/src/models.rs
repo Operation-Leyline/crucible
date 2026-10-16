@@ -7,7 +7,7 @@ use crucible_ir::ir::{Constraints, Member, Service, Shape, SimpleKind, Structure
 use crucible_ir::{Diagnostics, ShapeId};
 use serde_json::Value;
 
-use crate::names::{check_distinct, documented, field, function, literal, variant};
+use crate::names::{Links, check_distinct, documented, field, function, literal, variant};
 use crate::types::{boxed_members, builtin, field_type, rust_type};
 
 /// The body of `pub mod model { ... }`.
@@ -75,16 +75,33 @@ pub(crate) fn emit(
         }
         out.push('\n');
         match shape {
-            Shape::IntEnum(values) => {
-                crate::open::int_enumeration(&mut out, name, values, client, !shape.sensitive())
-            }
+            Shape::IntEnum(values) => crate::open::int_enumeration(
+                &mut out,
+                service,
+                name,
+                values,
+                client,
+                !shape.sensitive(),
+            ),
             Shape::Unit { .. } => {}
             Shape::Simple(simple) => {
-                documented(&mut out, "", simple.docs.as_deref(), &simple.notes);
+                documented(
+                    &mut out,
+                    Links::child(service, client),
+                    "",
+                    simple.docs.as_deref(),
+                    &simple.notes,
+                );
                 out.push_str(&format!("pub type {name} = {};\n", builtin(simple.kind)));
             }
             Shape::List(list) => {
-                documented(&mut out, "", list.docs.as_deref(), &list.notes);
+                documented(
+                    &mut out,
+                    Links::child(service, client),
+                    "",
+                    list.docs.as_deref(),
+                    &list.notes,
+                );
                 let item = rust_type(service, &list.member.target, "");
                 let item = if list.sparse {
                     format!("::std::option::Option<{item}>")
@@ -94,7 +111,13 @@ pub(crate) fn emit(
                 out.push_str(&format!("pub type {name} = ::std::vec::Vec<{item}>;\n"));
             }
             Shape::Map(map) => {
-                documented(&mut out, "", map.docs.as_deref(), &map.notes);
+                documented(
+                    &mut out,
+                    Links::child(service, client),
+                    "",
+                    map.docs.as_deref(),
+                    &map.notes,
+                );
                 let key = rust_type(service, &map.key.target, "");
                 let value = rust_type(service, &map.value.target, "");
                 let value = if map.sparse {
@@ -108,6 +131,7 @@ pub(crate) fn emit(
             }
             Shape::Enum(values) => enumeration(
                 &mut out,
+                service,
                 id,
                 name,
                 values,
@@ -116,7 +140,13 @@ pub(crate) fn emit(
                 diagnostics,
             ),
             Shape::Structure(structure) => {
-                documented(&mut out, "", structure.docs.as_deref(), &structure.notes);
+                documented(
+                    &mut out,
+                    Links::child(service, client),
+                    "",
+                    structure.docs.as_deref(),
+                    &structure.notes,
+                );
                 out.push_str(crate::DERIVE);
                 if strict.contains(id) {
                     out.push_str("#[serde(deny_unknown_fields)]\n");
@@ -157,11 +187,23 @@ pub(crate) fn emit(
                 crate::open::union(&mut out, service, id, name, union, &boxed, client)
             }
             Shape::Union(union) => {
-                documented(&mut out, "", union.docs.as_deref(), &union.notes);
+                documented(
+                    &mut out,
+                    Links::child(service, client),
+                    "",
+                    union.docs.as_deref(),
+                    &union.notes,
+                );
                 out.push_str(crate::DERIVE);
                 out.push_str(&format!("pub enum {name} {{\n"));
                 for member in &union.members {
-                    documented(&mut out, "    ", member.docs.as_deref(), &member.notes);
+                    documented(
+                        &mut out,
+                        Links::child(service, client),
+                        "    ",
+                        member.docs.as_deref(),
+                        &member.notes,
+                    );
                     let mut ty = rust_type(service, &member.target, "");
                     if boxed.contains(&id.with_member(&member.name)) {
                         ty = format!("::std::boxed::Box<{ty}>");
@@ -229,8 +271,10 @@ pub(crate) fn model_shapes(service: &Service) -> Vec<(&ShapeId, &Shape)> {
     shapes
 }
 
+#[allow(clippy::too_many_arguments)]
 fn enumeration(
     out: &mut String,
+    service: &Service,
     id: &ShapeId,
     name: &str,
     values: &crucible_ir::ir::Enum,
@@ -251,10 +295,16 @@ fn enumeration(
         }
     }
     if client {
-        crate::open::enumeration(out, name, values, debug);
+        crate::open::enumeration(out, service, name, values, debug);
         return;
     }
-    documented(out, "", values.docs.as_deref(), &values.notes);
+    documented(
+        out,
+        Links::child(service, client),
+        "",
+        values.docs.as_deref(),
+        &values.notes,
+    );
     out.push_str(&if debug {
         crate::DERIVE_ENUM.to_owned()
     } else {
@@ -262,7 +312,13 @@ fn enumeration(
     });
     out.push_str(&format!("pub enum {name} {{\n"));
     for value in &values.values {
-        documented(out, "    ", value.docs.as_deref(), &value.notes);
+        documented(
+            out,
+            Links::child(service, client),
+            "    ",
+            value.docs.as_deref(),
+            &value.notes,
+        );
         out.push_str(&format!(
             "    #[serde(rename = {})]\n    {},\n",
             literal(&value.value),
@@ -304,7 +360,13 @@ pub(crate) fn member_field(
     client: bool,
     diagnostics: &mut Diagnostics,
 ) {
-    documented(out, "    ", member.docs.as_deref(), &member.notes);
+    documented(
+        out,
+        Links::child(service, client),
+        "    ",
+        member.docs.as_deref(),
+        &member.notes,
+    );
     let mut serde = vec![format!("rename = {}", literal(&member.name))];
     let optional = if client {
         member.optional_on_client()

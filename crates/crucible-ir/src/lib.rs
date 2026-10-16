@@ -6,6 +6,7 @@
 mod audience;
 mod capabilities;
 mod diagnostics;
+pub mod doc_links;
 mod doc_notes;
 mod extensions;
 pub mod ir;

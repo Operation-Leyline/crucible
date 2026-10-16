@@ -1,0 +1,32 @@
+src/commonMain/kotlin/hostile/LinksClient.kt: * Widgets, linked. Make one with [createWidget][hostile.LinksClient.createWidget] and read it back with the read call; a [Widget][hostile.model.Widget] has a [Widget.name][hostile.model.Widget.name] and a [Color][hostile.model.Color], such as [Color.RED][hostile.model.Color.RED]. Gadget is a resource, [LinksClient][hostile.LinksClient] is this service and String a prelude type. Internal: Reveal and Secret.
+src/commonMain/kotlin/hostile/LinksClient.kt: * `[NotALink]` in code, and [an ordinary link](https://example.com).
+src/commonMain/kotlin/hostile/LinksClient.kt: * Makes a [Widget][hostile.model.Widget]; read it with [getWidget][hostile.LinksClient.getWidget].
+src/commonMain/kotlin/hostile/LinksClient.kt: * Makes a [Widget][hostile.model.Widget]; read it with [getWidget][hostile.LinksClient.getWidget].
+src/commonMain/kotlin/hostile/LinksClient.kt: * Reads a Gadget.
+src/commonMain/kotlin/hostile/LinksClient.kt: * Reads a Gadget.
+src/commonMain/kotlin/hostile/LinksClient.kt: * Reads the [Widget][hostile.model.Widget] that [createWidget][hostile.LinksClient.createWidget] made, by [GetWidgetInput.widgetId][hostile.model.GetWidgetInput.widgetId], and returns it as [GetWidgetOutput.widget][hostile.model.GetWidgetOutput.widget]. Fails with [WidgetError][hostile.model.WidgetError].
+src/commonMain/kotlin/hostile/LinksClient.kt: * Reads the [Widget][hostile.model.Widget] that [createWidget][hostile.LinksClient.createWidget] made, by [GetWidgetInput.widgetId][hostile.model.GetWidgetInput.widgetId], and returns it as [GetWidgetOutput.widget][hostile.model.GetWidgetOutput.widget]. Fails with [WidgetError][hostile.model.WidgetError].
+src/commonMain/kotlin/hostile/model/Color.kt: * A colour. [Color.RED][hostile.model.Color.RED] is the first.
+src/commonMain/kotlin/hostile/model/Color.kt: * Red, unlike [Color.BLUE][hostile.model.Color.BLUE].
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * What [Widget.name][hostile.model.Widget.name] becomes.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * A [Choice][hostile.model.Choice]: [Choice.Widget][hostile.model.Choice.Widget] or [Choice.Label][hostile.model.Choice.Label], one of two.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * A Label, plain text where a language has no type for it.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * A [Code][hostile.model.Code], such as [Code.ONE][hostile.model.Code.ONE].
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * [Widgets][hostile.model.Widgets], a list.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * [WidgetsByName][hostile.model.WidgetsByName], a map.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * Why a call failed, as [WidgetError.messageValue][hostile.model.WidgetError.messageValue] says.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * What \[Widget.name\] becomes.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * A [Choice][hostile.model.Choice]: [Choice.Widget][hostile.model.Choice.Widget] or [Choice.Label][hostile.model.Choice.Label], one of two.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * A Label, plain text where a language has no type for it.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * A [Code][hostile.model.Code], such as [Code.ONE][hostile.model.Code.ONE].
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * [Widgets][hostile.model.Widgets], a list.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * [WidgetsByName][hostile.model.WidgetsByName], a map.
+src/commonMain/kotlin/hostile/model/CreateWidgetInput.kt: * Why a call failed, as [WidgetError.messageValue][hostile.model.WidgetError.messageValue] says.
+src/commonMain/kotlin/hostile/model/Widget.kt: * A widget; [createWidget][hostile.LinksClient.createWidget] makes one.
+src/commonMain/kotlin/hostile/model/Widget.kt: * The name [CreateWidgetInput.name][hostile.model.CreateWidgetInput.name] chose.
+src/commonMain/kotlin/hostile/model/Widget.kt: * One of [Color][hostile.model.Color]; [Color.BLUE][hostile.model.Color.BLUE] by default.
+src/commonMain/kotlin/hostile/model/Widget.kt: * What it is made of: [Widget.`object`][hostile.model.Widget.`object`] is a keyword in some languages.
+src/commonMain/kotlin/hostile/model/Widget.kt: * The name \[CreateWidget.name\] chose.
+src/commonMain/kotlin/hostile/model/Widget.kt: * One of [Color][hostile.model.Color]; [Color.BLUE][hostile.model.Color.BLUE] by default.
+src/commonMain/kotlin/hostile/model/Widget.kt: * What it is made of: [Widget.`object`][hostile.model.Widget.`object`] is a keyword in some languages.
+src/commonMain/kotlin/hostile/model/WidgetError.kt: * Raised by [getWidget][hostile.LinksClient.getWidget] when [GetWidgetInput.widgetId][hostile.model.GetWidgetInput.widgetId] names nothing.

@@ -1,0 +1,23 @@
+include/hostile/client.h: * Widgets, linked. Make one with hostile_operations_create_widget() and read it back with
+include/hostile/client.h: * the read call; a hostile_models_widget has a hostile_models_widget_get_name() and a
+include/hostile/client.h: * hostile_models_color, such as hostile_models_color_known_red(). Gadget is a resource, hostile_client_new() is this
+include/hostile/client.h: * service and String a prelude type. Internal: Reveal and Secret.
+include/hostile/client.h: * `[NotALink]` in code, and [an ordinary link](https://example.com).
+include/hostile/client.h: * Makes a hostile_models_widget; read it with hostile_operations_get_widget().
+include/hostile/client.h: * Reads a Gadget.
+include/hostile/client.h: * Reads the hostile_models_widget that hostile_operations_create_widget() made, by hostile_models_get_widget_input_get_widget_id(),
+include/hostile/client.h: * and returns it as hostile_models_get_widget_output_get_widget(). Fails with hostile_models_widget_error.
+include/hostile/models.h: * A colour. hostile_models_color_known_red() is the first.
+include/hostile/models.h: * A widget; hostile_operations_create_widget() makes one.
+include/hostile/models.h: * Raised by hostile_operations_get_widget() when hostile_models_get_widget_input_get_widget_id() names nothing.
+include/hostile/models.h: * Red, unlike hostile_models_color_known_blue().
+include/hostile/models.h: * What hostile_models_widget_get_name() becomes.
+include/hostile/models.h: * A hostile_models_choice: Choice.widget or Choice.label, one of two.
+include/hostile/models.h: * A Label, plain text where a language has no type for it.
+include/hostile/models.h: * A hostile_models_code, such as hostile_models_code_known_one().
+include/hostile/models.h: * hostile_models_widgets, a list.
+include/hostile/models.h: * hostile_models_widgets_by_name, a map.
+include/hostile/models.h: * Why a call failed, as hostile_models_widget_error_get_message() says.
+include/hostile/models.h: * The name hostile_models_create_widget_input_get_name() chose.
+include/hostile/models.h: * One of hostile_models_color; hostile_models_color_known_blue() by default.
+include/hostile/models.h: * What it is made of: hostile_models_widget_get_object() is a keyword in some languages.

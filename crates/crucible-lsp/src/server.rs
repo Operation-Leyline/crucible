@@ -1279,8 +1279,14 @@ impl Server {
         let (document, parsed, unit) = self.model(uri)?;
         let unit = unit?;
         let lines = Lines::new(&document.text);
+        let offset = lines.offset(position);
+        // A doc link's name (`[Name]`, the `Name` of `[Name.member]`) refers
+        // to the declaration as a reference does (decision 80).
         let (start, end, name) =
-            analysis::ident_at(&parsed, &document.text, lines.offset(position))?;
+            analysis::ident_at(&parsed, &document.text, offset).or_else(|| {
+                let link = analysis::doc_link_at(&parsed, &document.text, offset)?;
+                (offset as u32 <= link.name_end()).then(|| (link.start, link.name_end(), link.name))
+            })?;
         let declaration = unit.index.declarations.get(&name)?;
         // Only a name used as a reference or declaration counts: `id` the
         // keyword does not refer to a type that happens to be called `id`.
@@ -1291,9 +1297,40 @@ impl Server {
     }
 
     fn definition(&self, uri: &Url, position: Position) -> Option<GotoDefinitionResponse> {
+        if let Some(location) = self.doc_link_member(uri, position) {
+            return Some(GotoDefinitionResponse::Scalar(location));
+        }
         let (unit, _, declaration, _) = self.declaration_at(uri, position)?;
         self.location_of(unit, declaration, uri)
             .map(GotoDefinitionResponse::Scalar)
+    }
+
+    /// From the member of a `[Name.member]` doc link, the member or enum
+    /// value it names; the declaration when the member is not written in a
+    /// file the editor can open, or not found (the compiler reports that).
+    fn doc_link_member(&self, uri: &Url, position: Position) -> Option<Location> {
+        let (document, parsed, unit) = self.model(uri)?;
+        let unit = unit?;
+        let offset = Lines::new(&document.text).offset(position) as u32;
+        let link = analysis::doc_link_at(&parsed, &document.text, offset as usize)?;
+        let (member, start, _) = link.member.as_ref()?;
+        if offset < *start {
+            return None;
+        }
+        let declaration = unit.index.declarations.get(&link.name)?;
+        let found = analysis::member_location(&unit.compiled.parsed, &link.name, member)
+            .filter(|(file, _, _)| *file < unit.own);
+        match found {
+            Some((file, start, end)) => {
+                let target = self.uri_of(unit, file, uri)?;
+                let lines = Lines::new(&unit.compiled.files[file].text);
+                Some(Location {
+                    uri: target,
+                    range: lines.range(start, end),
+                })
+            }
+            None => self.location_of(unit, declaration, uri),
+        }
     }
 
     /// Where a declaration's name is, if it is in a file the editor can open.
@@ -1512,6 +1549,13 @@ impl Server {
         if new_name != name && unit.index.declarations.contains_key(new_name) {
             return Err(failed(format!("`{new_name}` is already declared")));
         }
+        // A doc link's label starts with an uppercase letter (decision 80):
+        // under a lowercase name, every `[Old]` would silently become prose.
+        if !new_name.starts_with(|c: char| c.is_ascii_uppercase()) && self.doc_linked(unit, &name) {
+            return Err(failed(format!(
+                "doc links name `{name}`, and a doc link names a declaration that starts with an uppercase letter: `[{new_name}]` would be prose"
+            )));
+        }
         let mut changes: HashMap<Url, Vec<TextEdit>> = HashMap::new();
         for (uri, range, _) in self.occurrences(unit, &name, uri) {
             changes.entry(uri).or_default().push(TextEdit {
@@ -1523,6 +1567,15 @@ impl Server {
             changes: Some(changes),
             ..Default::default()
         }))
+    }
+
+    /// Whether a doc comment in the package links `name`.
+    fn doc_linked(&self, unit: &Unit, name: &str) -> bool {
+        (0..unit.own).any(|file| {
+            analysis::doc_links(&unit.compiled.parsed[file], &unit.compiled.files[file].text)
+                .iter()
+                .any(|link| link.name == name)
+        })
     }
 
     fn highlights(&self, uri: &Url, position: Position) -> Option<Vec<DocumentHighlight>> {

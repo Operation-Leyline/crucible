@@ -28,7 +28,10 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         crucible_codegen_common::doxygen(
             &format!(
                 "{}\nConstruct with ClientConfig. Concurrent calls require thread-safe callbacks and transport. Copies share connections and close state; close after calls finish.",
-                service.docs.as_deref().unwrap_or("HTTP service client.")
+                crate::links::text(
+                    service,
+                    service.docs.as_deref().unwrap_or("HTTP service client.")
+                )
             ),
             ""
         )
@@ -70,8 +73,9 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
             })
             .unwrap_or_else(|| "runtime::Json(runtime::Json::Object{})".into());
         header.push_str(&crucible_codegen_common::doxygen_for(
-            Some(&crucible_codegen_common::documentation::operation(
-                service, operation,
+            Some(&crate::links::text(
+                service,
+                &crucible_codegen_common::documentation::operation(service, operation),
             )),
             &operation.notes,
             "    ",

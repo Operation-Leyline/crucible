@@ -533,7 +533,10 @@ fn smithy_documentation_reaches_models_and_client() {
     ] {
         assert!(client.contains(text), "{text}");
     }
-    assert!(client.contains(r"\[Secret]"), "bare references are escaped");
+    assert!(
+        client.contains("and ``Secret`` for"),
+        "a doc link is a DocC symbol link"
+    );
     vault_golden("Models.swift", models);
     vault_golden("VaultClient.swift", client);
 }
@@ -774,4 +777,34 @@ fn hyphenated_permission_symbols_spell_words() {
         files.iter().any(|file| file.contents.contains(expected)),
         "no file spells `mail-send` as {expected}"
     );
+}
+
+#[test]
+fn doc_links_are_docc_symbol_links() {
+    let service = crucible_ir::project(
+        &load_with("doc-links", |text| text),
+        crucible_ir::Audience::External,
+    )
+    .unwrap();
+    let files = emit(&service, &options()).unwrap();
+    let all: String = files.iter().map(|f| f.contents.as_str()).collect();
+    for text in [
+        // Operation, type, member, enum value, the service.
+        "/// Widgets, linked. Make one with ``LinksClient/createWidget(_:)`` and read it back with",
+        "/// the read call; a ``Widget`` has a ``Widget/name`` and a",
+        "/// ``Color``, such as ``Color/red``. Gadget is a resource, ``LinksClient`` is this",
+        // A prelude type and internal API are plain text, without brackets.
+        "/// service and String a prelude type. Internal: Reveal and Secret.",
+        "/// `[NotALink]` in code, and [an ordinary link](https://example.com).",
+        // An operation's member is its input's or output's field.
+        "``GetWidgetInput/widgetId``",
+        "``GetWidgetOutput/widget``",
+        "Fails with ``WidgetError``.",
+    ] {
+        assert!(all.contains(text), "{text}");
+    }
+    for leak in ["Secret`", "`reveal`", "/reveal("] {
+        let at = all.find(leak).map(|i| &all[i.saturating_sub(200)..i + 50]);
+        assert!(at.is_none(), "{leak}: {at:?}");
+    }
 }

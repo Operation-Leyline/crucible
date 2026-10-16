@@ -7,7 +7,9 @@
 // Safety rule: every model string reaches the page as a text node (`h` turns
 // string children into text). The only HTML ever inserted is a description's
 // `documentation.html`, which the generator sanitised at build time; it goes
-// through `rich`, the single place that touches `innerHTML`.
+// through `rich`, the single place that touches `innerHTML`. Its doc links,
+// `<a data-crucible-ref="<id>">` anchors with no address, get the hash route
+// of the page for their id there.
 //
 // Layout: pure view functions return plain node objects (`h`/`rich`), so tests
 // can render a description under Node without a DOM. `mount` turns those nodes
@@ -34,8 +36,25 @@
   }
 
   // Sanitised documentation HTML from the description; empty means no element.
-  function rich(html) {
-    return typeof html === "string" && html.trim() ? { tag: "div", attrs: { class: "cx-doc" }, children: [], html } : null;
+  // With the indexed description `m`, each doc link gets its page's address.
+  function rich(html, m) {
+    if (typeof html !== "string" || !html.trim()) return null;
+    return { tag: "div", attrs: { class: "cx-doc" }, children: [], html: m ? linkRefs(m, html) : html };
+  }
+
+  // The generator writes exactly this opening tag for a doc link, its id
+  // escaped as attribute text; an anchor whose id this description does not
+  // have (an internal one in an external reference never reaches it) stays
+  // without an address.
+  const DOC_LINK = /<a data-crucible-ref="([^"]*)"( data-crucible-operation="([^"]*)")?>/g;
+  const UNESCAPES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"' };
+  const unescape = (raw) => raw.replace(/&(amp|lt|gt|quot);/g, (e) => UNESCAPES[e]);
+
+  function linkRefs(m, html) {
+    return html.replace(DOC_LINK, (anchor, raw, rest, operation) => {
+      const target = refHref(m, unescape(raw), operation == null ? null : unescape(operation));
+      return target ? `<a href="${escapeText(target)}" data-crucible-ref="${raw}"${rest || ""}>` : anchor;
+    });
   }
 
   function mount(node, doc) {
@@ -143,6 +162,30 @@
     return `#/${kind}/${enc(id)}${section ? `/${enc(section)}` : ""}`;
   }
 
+  // The page a doc link's id names: the service overview, an operation,
+  // resource or data type, a member or enum value on its type's page, and an
+  // operation input's or output's member in that operation's request or
+  // response. `null` when the description has none.
+  // `operation`, from `data-crucible-operation`, is the operation an
+  // `[Operation.member]` link names, exact where operations share a shape.
+  function refHref(m, id, operation) {
+    if (id === m.service.id) return href("overview");
+    if (m.operations[id]) return href("op", id);
+    if (m.resources[id]) return href("resource", id);
+    const at = id.indexOf("$");
+    if (at < 0) return m.shapes[id] && !isBuiltin(id) ? href("shape", id) : null;
+    const shape = id.slice(0, at);
+    const named = operation && m.operations[operation];
+    if (named && named.input === shape) return href("op", operation, "request");
+    if (named && named.output === shape) return href("op", operation, "response");
+    for (const opId of names(m.operations)) {
+      const op = m.operations[opId];
+      if (op.input === shape) return href("op", opId, "request");
+      if (op.output === shape) return href("op", opId, "response");
+    }
+    return m.shapes[shape] && !isBuiltin(shape) ? href("shape", shape) : null;
+  }
+
   function parseRoute(hash) {
     const parts = String(hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
     if (!parts.length) return { kind: "overview" };
@@ -196,8 +239,8 @@
   }
 
   // Prose from the description (already HTML) plus the structured notes.
-  function prose(item) {
-    return [noteBlock(item), rich(item.documentation && item.documentation.html)];
+  function prose(m, item) {
+    return [noteBlock(item), rich(item.documentation && item.documentation.html, m)];
   }
 
   function pretty(value) {
@@ -247,8 +290,8 @@
     return code(member.targetType);
   }
 
-  function describeMember(member) {
-    return [badges(member), rich(member.documentation && member.documentation.html), noteBlock(member)];
+  function describeMember(m, member) {
+    return [badges(member), rich(member.documentation && member.documentation.html, m), noteBlock(member)];
   }
 
   function location(bindings, member) {
@@ -270,7 +313,7 @@
       member.required ? "Yes" : "No",
       member.default == null ? "—" : code(JSON.stringify(member.default)),
       constraintText(member.constraints) || "—",
-      describeMember(member),
+      describeMember(m, member),
     ]);
     const columns = ["Member", bindings ? "Wire location" : "Wire name", "Type", "Required", "Default", "Constraints", "Description"];
     return table(columns, rows, caption);
@@ -337,7 +380,7 @@
   // What the caller must hold (docs/permissions.md §6.3), as the Markdown
   // reference's Authorization section states it; nothing for an operation
   // that declares nothing.
-  function authorizationSection(op) {
+  function authorizationSection(m, op) {
     const r = op.requirements;
     if (!r || !r.kind) return null;
     const body = [];
@@ -346,7 +389,7 @@
     else if (r.kind === "internal") body.push(h("p", {}, "Requires permissions internal to the service."));
     else {
       // Markdown holding model text, rendered and sanitised at build time.
-      for (const s of list(op.requirementDocumentation)) body.push(rich(s.html));
+      for (const s of list(op.requirementDocumentation)) body.push(rich(s.html, m));
       const rows = list(r.clauses).map((c) => [
         c.mode,
         code(c.permission),
@@ -354,7 +397,7 @@
         list(c.bindings).map((b, i) => [i ? ", " : "", code(b.identifier), " = ", code(b.value)]),
         c.when ? code(c.when) : "",
         // Model Markdown, rendered and sanitised at build time like the rest.
-        (c.renderedDocumentation && rich(c.renderedDocumentation.html)) || c.documentation || "",
+        (c.renderedDocumentation && rich(c.renderedDocumentation.html, m)) || c.documentation || "",
       ]);
       body.push(table(["Mode", "Permission", "Resource type", "Bindings", "When", "Notes"], rows, "Requirements"));
     }
@@ -394,7 +437,7 @@
       const shape = m.shapes[id] || { name: id, error: {}, documentation: {}, notes: {} };
       const e = shape.error || {};
       const retry = !e.retryable ? "No" : e.retryable.throttling ? "Yes (throttling)" : "Yes";
-      return [[link("shape", id, shape.name), badges(shape)], String(e.status == null ? "" : e.status), text(e.fault), retry, [rich(shape.documentation && shape.documentation.html), noteBlock(shape)]];
+      return [[link("shape", id, shape.name), badges(shape)], String(e.status == null ? "" : e.status), text(e.fault), retry, [rich(shape.documentation && shape.documentation.html, m), noteBlock(shape)]];
     });
     return table(["Error", "HTTP status", "Fault", "Retryable", "Description"], rows, "Errors");
   }
@@ -432,12 +475,12 @@
     return h("section", { id: sectionId("examples") }, out);
   }
 
-  function examplesSection(op) {
+  function examplesSection(m, op) {
     const examples = list(op.examples);
     if (!examples.length) return sampleSection(op);
     const out = [sectionHeading(op, "examples", "Examples")];
     examples.forEach((e, i) => {
-      out.push(h("h3", {}, e.title || `Example ${i + 1}`), rich(e.documentation && e.documentation.html));
+      out.push(h("h3", {}, e.title || `Example ${i + 1}`), rich(e.documentation && e.documentation.html, m));
       if (e.allowConstraintErrors) out.push(h("p", { class: "cx-muted" }, "This example intentionally permits constraint violations."));
       for (const [key, label] of [["input", "Request"], ["output", "Response"], ["error", "Error response"]]) {
         if (e[key] == null) continue;
@@ -451,13 +494,13 @@
 
   // ----------------------------------------------------------------- pages
 
-  function pageHeader(title, item, extra) {
-    return h("header", { class: "cx-page-head" }, h("h1", { id: "cx-title", tabindex: "-1" }, title, " ", badges(item), extra), prose(item));
+  function pageHeader(m, title, item, extra) {
+    return h("header", { class: "cx-page-head" }, h("h1", { id: "cx-title", tabindex: "-1" }, title, " ", badges(item), extra), prose(m, item));
   }
 
   function overviewView(m) {
     const s = m.service;
-    const out = [pageHeader(s.title || s.name, s)];
+    const out = [pageHeader(m, s.title || s.name, s)];
     out.push(
       h(
         "dl",
@@ -491,7 +534,7 @@
   function resourceView(m, id) {
     const r = m.resources[id];
     if (!r) return missingView(`No resource ${id}.`);
-    const out = [pageHeader(r.name, r)];
+    const out = [pageHeader(m, r.name, r)];
     const slots = ["create", "put", "read", "update", "delete", "list"].filter((slot) => r.lifecycle && m.operations[r.lifecycle[slot]]);
     if (slots.length) {
       out.push(h("h2", {}, "Lifecycle"), table(["Lifecycle", "Operation"], slots.map((slot) => [slot, [link("op", r.lifecycle[slot], m.operations[r.lifecycle[slot]].name), badges(m.operations[r.lifecycle[slot]])]]), "Resource lifecycle"));
@@ -514,10 +557,10 @@
     const op = m.operations[id];
     if (!op) return missingView(`No operation ${id}.`);
     const out = [
-      pageHeader(op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
+      pageHeader(m, op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
       panels,
       h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", ".")),
-      authorizationSection(op),
+      authorizationSection(m, op),
       messageSection(m, op, true),
       messageSection(m, op, false),
       h("section", { id: sectionId("errors") }, sectionHeading(op, "errors", "Errors"), errorsTable(m, op.errors)),
@@ -542,7 +585,7 @@
       const rows = ["inputToken", "outputToken", "items", "pageSize"].filter((k) => op.pagination[k] != null).map((k) => [k, code(op.pagination[k])]);
       out.push(h("section", { id: sectionId("pagination") }, sectionHeading(op, "pagination", "Pagination"), table(["Role", "Member path"], rows, "Pagination"), h("p", {}, "Follow the output token until absent or empty; reject repeated tokens.")));
     }
-    out.push(examplesSection(op));
+    out.push(examplesSection(m, op));
     out.push(
       h(
         "section",
@@ -558,7 +601,7 @@
   function shapeView(m, id) {
     const s = m.shapes[id];
     if (!s) return missingView(`No data type ${id}.`);
-    const out = [pageHeader(s.name, s, h("span", { class: "cx-kind" }, s.kind))];
+    const out = [pageHeader(m, s.name, s, h("span", { class: "cx-kind" }, s.kind))];
     if (s.sensitive) out.push(h("p", { class: "cx-note cx-sensitive" }, h("strong", {}, "Sensitive: "), "avoid logging this value."));
     if (s.error) {
       const e = s.error;
@@ -569,7 +612,7 @@
       if (s.kind === "union") out.push(h("p", { class: "cx-muted" }, "A union carries exactly one member."));
     }
     if (list(s.values).length) {
-      out.push(h("h2", {}, "Values"), table(["Name", "Wire value", "Description"], s.values.map((v) => [code(v.name), code(JSON.stringify(v.value)), [badges(v), rich(v.documentation && v.documentation.html), noteBlock(v)]]), "Values"));
+      out.push(h("h2", {}, "Values"), table(["Name", "Wire value", "Description"], s.values.map((v) => [code(v.name), code(JSON.stringify(v.value)), [badges(v), rich(v.documentation && v.documentation.html, m), noteBlock(v)]]), "Values"));
     }
     const c = constraintText(s.constraints);
     if (c) out.push(h("p", {}, "Constraints: ", c, "."));
@@ -822,7 +865,7 @@
   const api = {
     FORMAT,
     h, rich, mount, toHTML,
-    index, navigation, filterNavigation, parseRoute, href,
+    index, navigation, filterNavigation, parseRoute, href, refHref,
     overviewView, operationView, shapeView, resourceView, pageFor, navView,
     requestSyntax, responseSyntax, exampleMessage,
     operationPanels, registerOperationPanel,

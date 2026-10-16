@@ -11,7 +11,7 @@ fn client_docs(service: &Service, client_name: &str) -> String {
             .unwrap_or_else(|| service.id.name())
     );
     if let Some(service_docs) = &service.docs {
-        text.push_str(&docs::escape(service_docs));
+        text.push_str(&super::links::escape(service, service_docs));
         text.push_str("\n\n");
     }
     text.push_str(&format!(
@@ -38,7 +38,7 @@ fn operation_docs(
     let token = op.idempotency_token.as_deref().map(super::field);
     let mut text = String::new();
     if let Some(summary) = &op.docs {
-        text.push_str(&docs::escape(summary));
+        text.push_str(&super::links::escape(service, summary));
         text.push_str("\n\n");
     }
     text.push_str(&docs::operation_notes(op, token.as_deref()).join("\n\n"));

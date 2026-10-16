@@ -97,13 +97,26 @@ impl Client {
     }
 
     fn request(&mut self, method: &str, params: Value) -> Value {
+        self.respond(method, params)["result"].clone()
+    }
+
+    /// The error message a request is refused with.
+    fn request_error(&mut self, method: &str, params: Value) -> String {
+        let reply = self.respond(method, params);
+        reply["error"]["message"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{method} succeeded: {reply}"))
+            .to_owned()
+    }
+
+    fn respond(&mut self, method: &str, params: Value) -> Value {
         self.next_id += 1;
         let id = self.next_id;
         self.send(json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params }));
         loop {
             let message = self.receive();
             if message["id"] == id {
-                return message["result"].clone();
+                return message;
             }
         }
     }
@@ -1266,5 +1279,187 @@ fn a_dollar_completes_what_the_member_list_may_bind() {
             "{line}:{character}: {items}"
         );
     }
+    client.stop();
+}
+
+const LINKED_SERVICE: &str = r#"service Shop {
+    version "1"
+    protocol json
+    operations [GetItem]
+}
+
+/// Reads an [Item] by [GetItem.id]; see [Item.name], [Item][] and
+/// [the item][Item]. Not `[Item]` in code.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output { item?: Item }
+}
+"#;
+
+const LINKED_TYPES: &str =
+    "/// An item; [GetItem] returns it.\nstructure Item {\n    name: string\n}\n";
+
+#[test]
+fn doc_links_navigate_find_references_and_rename() {
+    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("lsp-doc-links");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("crucible.toml"),
+        "[model]\nnamespace = \"example.shop\"\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("service.cru"), LINKED_SERVICE).unwrap();
+    std::fs::write(dir.join("types.cru"), LINKED_TYPES).unwrap();
+    let service = uri(&dir.join("service.cru"));
+    let types = uri(&dir.join("types.cru"));
+    let mut client = Client::start();
+    client.open(&service, LINKED_SERVICE);
+    assert!(client.diagnostics(&service).is_empty());
+    let at = |word: &str, nth: usize, by: usize| {
+        let mut p = position(LINKED_SERVICE, word, nth);
+        p["character"] = json!(p["character"].as_u64().unwrap() as usize + by);
+        json!({ "textDocument": { "uri": service }, "position": p })
+    };
+
+    // `[Item]` (the first `Item` after `[`) goes to the structure in the
+    // other file, `[Item.name]`'s member part to the member, and
+    // `[GetItem.id]`'s to the input member.
+    let definition = client.request("textDocument/definition", at("[Item]", 0, 1));
+    assert_eq!(definition["uri"], types, "{definition}");
+    assert_eq!(
+        definition["range"]["start"],
+        json!({ "line": 1, "character": 10 })
+    );
+    let definition = client.request("textDocument/definition", at("Item.name", 0, 5));
+    assert_eq!(definition["uri"], types, "{definition}");
+    assert_eq!(
+        definition["range"]["start"],
+        json!({ "line": 2, "character": 4 })
+    );
+    let definition = client.request("textDocument/definition", at("Item.name", 0, 1));
+    assert_eq!(
+        definition["range"]["start"],
+        json!({ "line": 1, "character": 10 })
+    );
+    let definition = client.request("textDocument/definition", at("GetItem.id", 0, 8));
+    assert_eq!(definition["uri"], service, "{definition}");
+    assert_eq!(
+        definition["range"]["start"],
+        position(LINKED_SERVICE, "id: string", 0)
+    );
+    // A bracket in a code span is not a link.
+    let definition = client.request("textDocument/definition", at("`[Item]`", 0, 3));
+    assert!(definition.is_null(), "{definition}");
+
+    // References from the declaration include every doc link to it, across
+    // the package, and not the code span.
+    client.open(&types, LINKED_TYPES);
+    client.diagnostics(&types);
+    let mut params = json!({
+        "textDocument": { "uri": types },
+        "position": position(LINKED_TYPES, "Item", 1),
+        "context": { "includeDeclaration": false }
+    });
+    let references = client.request("textDocument/references", params.clone());
+    let mut found: Vec<(String, u64, u64)> = references
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| {
+            (
+                r["uri"].as_str().unwrap().to_owned(),
+                r["range"]["start"]["line"].as_u64().unwrap(),
+                r["range"]["start"]["character"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    found.sort();
+    let mut want: Vec<(String, u64, u64)> = [
+        ("[Item]", 0),
+        ("[Item.name]", 0),
+        ("[Item][]", 0),
+        ("[the item][Item]", 0),
+        ("item?: Item", 0),
+    ]
+    .into_iter()
+    .map(|(word, nth)| {
+        let p = position(LINKED_SERVICE, word, nth);
+        let skip = word.find("Item").unwrap() as u64;
+        (
+            service.clone(),
+            p["line"].as_u64().unwrap(),
+            p["character"].as_u64().unwrap() + skip,
+        )
+    })
+    .collect();
+    want.sort();
+    assert_eq!(found, want);
+    // From a doc link, the same references.
+    params = at("[Item][]", 0, 1);
+    params["context"] = json!({ "includeDeclaration": false });
+    let from_link = client.request("textDocument/references", params);
+    assert_eq!(
+        from_link.as_array().unwrap().len(),
+        want.len(),
+        "{from_link}"
+    );
+
+    // Renaming rewrites the labels, the name part of `[Item.name]` too, and
+    // leaves the code span alone.
+    let prepared = client.request("textDocument/prepareRename", at("Item.name", 0, 2));
+    assert_eq!(prepared["placeholder"], "Item", "{prepared}");
+    let mut params = at("[the item][Item]", 0, 12);
+    params["newName"] = json!("Thing");
+    let edit = client.request("textDocument/rename", params);
+    let apply = |text: &str, edits: &Value| {
+        let mut text = text.to_owned();
+        let mut edits: Vec<&Value> = edits.as_array().unwrap().iter().collect();
+        edits.sort_by_key(|e| {
+            (
+                e["range"]["start"]["line"].as_u64().unwrap(),
+                e["range"]["start"]["character"].as_u64().unwrap(),
+            )
+        });
+        for e in edits.into_iter().rev() {
+            let offset = |p: &Value| {
+                let line = p["line"].as_u64().unwrap() as usize;
+                let start: usize = text.split('\n').take(line).map(|l| l.len() + 1).sum();
+                start + p["character"].as_u64().unwrap() as usize
+            };
+            let (start, end) = (offset(&e["range"]["start"]), offset(&e["range"]["end"]));
+            text.replace_range(start..end, e["newText"].as_str().unwrap());
+        }
+        text
+    };
+    let renamed = apply(LINKED_SERVICE, &edit["changes"][&service]);
+    assert!(
+        renamed.contains("/// Reads an [Thing] by [GetItem.id]; see [Thing.name], [Thing][] and\n/// [the item][Thing]. Not `[Item]` in code."),
+        "{renamed}"
+    );
+    assert!(renamed.contains("output { item?: Thing }"), "{renamed}");
+    let renamed = apply(LINKED_TYPES, &edit["changes"][&types]);
+    assert_eq!(
+        renamed,
+        "/// An item; [GetItem] returns it.\nstructure Thing {\n    name: string\n}\n"
+    );
+    // The displayed text of `[the item][Item]` navigates like its label.
+    let definition = client.request("textDocument/definition", at("[the item][Item]", 0, 3));
+    assert_eq!(definition["uri"], types, "{definition}");
+    let mut params = at("[the item][Item]", 0, 3);
+    params["context"] = json!({ "includeDeclaration": false });
+    let from_text = client.request("textDocument/references", params);
+    assert_eq!(
+        from_text.as_array().unwrap().len(),
+        want.len(),
+        "{from_text}"
+    );
+    // A doc link names a capitalised declaration, so a lowercase new name
+    // for a linked one is refused rather than turning its links into prose.
+    let mut params = at("[Item][]", 0, 1);
+    params["newName"] = json!("item");
+    let refused = client.request_error("textDocument/rename", params);
+    assert!(refused.contains("would be prose"), "{refused}");
     client.stop();
 }

@@ -1,0 +1,24 @@
+src/Color.php: * A colour. {@see \Hostile\Color::RED} is the first.
+src/Color.php: * Red, unlike {@see \Hostile\Color::BLUE}.
+src/CreateWidgetInput.php: * @param string $name What {@see \Hostile\Widget::$name} becomes.
+src/CreateWidgetInput.php: * @param \Hostile\Choice|null|\Hostile\Runtime\Absent $choice A {@see \Hostile\Choice}: {@see \Hostile\ChoiceWidget} or {@see \Hostile\ChoiceLabel}, one of two.
+src/CreateWidgetInput.php: * @param string|null|\Hostile\Runtime\Absent $label A Label, plain text where a language has no type for it.
+src/CreateWidgetInput.php: * @param \Hostile\Code|null|\Hostile\Runtime\Absent $codeValue A {@see \Hostile\Code}, such as {@see \Hostile\Code::ONE}.
+src/CreateWidgetInput.php: * @param list<\Hostile\Widget>|null|\Hostile\Runtime\Absent $widgets Widgets, a list.
+src/CreateWidgetInput.php: * @param array<string|int, \Hostile\Widget>|null|\Hostile\Runtime\Absent $byName WidgetsByName, a map.
+src/CreateWidgetInput.php: * @param string|null|\Hostile\Runtime\Absent $note Why a call failed, as {@see \Hostile\WidgetError::$messageValue} says.
+src/LinksClient.php: * Widgets, linked. Make one with {@see \Hostile\LinksClient::createWidget()} and read it back with
+src/LinksClient.php: * the read call; a {@see \Hostile\Widget} has a {@see \Hostile\Widget::$name} and a
+src/LinksClient.php: * {@see \Hostile\Color}, such as {@see \Hostile\Color::RED}. Gadget is a resource, {@see \Hostile\LinksClient} is this
+src/LinksClient.php: * service and String a prelude type. Internal: Reveal and Secret.
+src/LinksClient.php: * `[NotALink]` in code, and [an ordinary link](https://example.com).
+src/LinksClient.php: * Makes a {@see \Hostile\Widget}; read it with {@see \Hostile\LinksClient::getWidget()}.
+src/LinksClient.php: * Reads a Gadget.
+src/LinksClient.php: * Reads the {@see \Hostile\Widget} that {@see \Hostile\LinksClient::createWidget()} made, by {@see \Hostile\GetWidgetInput::$widgetId},
+src/LinksClient.php: * and returns it as {@see \Hostile\GetWidgetOutput::$widget}. Fails with {@see \Hostile\WidgetError}.
+src/Runtime/UnknownServiceError.php: * An error response that this client's model does not describe, such as one
+src/Widget.php: * A widget; {@see \Hostile\LinksClient::createWidget()} makes one.
+src/Widget.php: * @param string $name The name {@see \Hostile\CreateWidgetInput::$name} chose.
+src/Widget.php: * @param \Hostile\Color|null|\Hostile\Runtime\Absent $color One of {@see \Hostile\Color}; {@see \Hostile\Color::BLUE} by default.
+src/Widget.php: * @param string|null|\Hostile\Runtime\Absent $object What it is made of: {@see \Hostile\Widget::$object} is a keyword in some languages.
+src/WidgetError.php: * Raised by {@see \Hostile\LinksClient::getWidget()} when {@see \Hostile\GetWidgetInput::$widgetId} names nothing.

@@ -418,6 +418,7 @@ version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "pulldown-cmark",
  "regex",
  "serde",
  "serde_json",

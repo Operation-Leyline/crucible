@@ -27,7 +27,7 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
         (Some(docs), Some(requires)) => Some(format!("{docs}\n\n{requires}")),
         (docs, requires) => docs.map(str::to_owned).or(requires),
     };
-    description(&mut value, docs.as_deref());
+    description(service, &mut value, docs.as_deref());
     if let Some(requirements) = crucible_codegen_common::permissions::requirements(service, op) {
         value["x-crucible-requires"] = requirements;
     }
@@ -156,7 +156,7 @@ fn parameter(
         "style": if location == "query" { "form" } else { "simple" },
         "explode": location == "query",
     });
-    description(&mut value, member.docs.as_deref());
+    description(service, &mut value, member.docs.as_deref());
     annotate(&mut value, &member.notes, Slot::Parameter);
     if let Some(examples) = examples {
         value["examples"] = examples;
@@ -227,7 +227,7 @@ fn headers(
     bindings.headers.iter().map(|binding| {
         let member = structure.member(&binding.member).expect("lowering resolves response headers");
         let mut header = json!({"schema": schemas::member(service, member, false, bindings.timestamp_formats.get(&member.name).copied(), bindings.header_encodings.get(&member.name).copied()), "style": "simple", "explode": false});
-        description(&mut header, member.docs.as_deref());
+        description(service, &mut header, member.docs.as_deref());
         annotate(&mut header, &member.notes, Slot::Parameter);
         if let Some(examples) = examples::member(service, structure, bindings, &member.name, samples) {
             header["examples"] = examples;

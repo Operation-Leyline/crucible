@@ -812,3 +812,87 @@ fn representation_method_collisions_are_diagnosed() {
             .contains("an error member cannot be named `toString` in TypeScript")
     );
 }
+
+#[test]
+fn doc_links_are_tsdoc_link_tags() {
+    let service =
+        crucible_ir::project(&load("doc-links"), crucible_ir::Audience::External).unwrap();
+    let files = emit(
+        &service,
+        &Options {
+            package_name: "@example/links".into(),
+            package_version: "0.0.0".into(),
+            client_name: None,
+            endpoint: None,
+            middleware: vec![],
+            package_json: None,
+            metadata: Default::default(),
+        },
+    )
+    .unwrap();
+    let file = |name: &str| {
+        files
+            .iter()
+            .find(|f| f.path.ends_with(name))
+            .unwrap()
+            .contents
+            .clone()
+    };
+    let (models, client, errors) = (file("models.ts"), file("client.ts"), file("errors.ts"));
+    // A type, a client method, a member and an enum value, as each file
+    // names them: `client.ts` imports the models as `m`.
+    assert!(
+        models.contains(" * A widget; {@link __client.LinksClient.createWidget | LinksClient.createWidget} makes one."),
+        "{models}"
+    );
+    assert!(
+        models.contains(" * The name {@link CreateWidgetInput.name} chose."),
+        "{models}"
+    );
+    assert!(
+        models.contains(" * One of {@link Color}; {@link Color.BLUE} by default."),
+        "{models}"
+    );
+    assert!(client.contains("Reads the {@link m.Widget | Widget} that {@link LinksClient.createWidget} made, by {@link m.GetWidgetInput.widgetId | GetWidgetInput.widgetId},"), "{client}");
+    assert!(
+        client.contains(
+            "and returns it as {@link m.GetWidgetOutput.widget | GetWidgetOutput.widget}. Fails with {@link __errors.WidgetError | WidgetError}."
+        ),
+        "{client}"
+    );
+    assert!(errors.contains("Raised by {@link __client.LinksClient.getWidget | LinksClient.getWidget} when {@link m.GetWidgetInput.widgetId | GetWidgetInput.widgetId} names nothing."), "{errors}");
+    // The service is the client; a resource, a prelude type, `[text][Name]`
+    // and internal API are plain text, and code stays code.
+    let overview = "the read call; a {@link m.Widget | Widget} has a {@link m.Widget.name | Widget.name} and a";
+    assert!(client.contains(overview), "{client}");
+    assert!(client.contains("{@link m.Color | Color}, such as {@link m.Color.RED | Color.RED}. Gadget is a resource, {@link LinksClient} is this"), "{client}");
+    assert!(
+        client.contains("service and String a prelude type. Internal: Reveal and Secret."),
+        "{client}"
+    );
+    assert!(client.contains("`[NotALink]` in code"), "{client}");
+    // A link to another file's symbol goes through a type-only namespace
+    // import of that file, so it resolves where it is written.
+    assert!(
+        models.contains("import type * as __client from \"./client.js\";"),
+        "{models}"
+    );
+    assert!(
+        models.contains("import type * as __errors from \"./errors.js\";"),
+        "{models}"
+    );
+    assert!(
+        client.contains("import type * as __errors from \"./errors.js\";"),
+        "{client}"
+    );
+    assert!(
+        errors.contains("import type * as __client from \"./client.js\";"),
+        "{errors}"
+    );
+    assert!(!client.contains("import type * as __client"), "{client}");
+    for file in [&models, &client, &errors] {
+        assert!(
+            !file.contains("Secret}") && !file.contains("Reveal}") && !file.contains("{@link the")
+        );
+    }
+}

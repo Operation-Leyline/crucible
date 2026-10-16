@@ -89,6 +89,8 @@ pub(crate) fn emit(service: &Service, namespace: &str) -> Vec<File> {
         let class = format!("{shape}Permission");
         let mut out = header.clone();
         out.push_str(&docblock(
+            service,
+            namespace,
             Some(&format!(
                 "The permissions `{shape}` accepts (`{}`), by the values grants store.",
                 resource.name
@@ -110,6 +112,8 @@ pub(crate) fn emit(service: &Service, namespace: &str) -> Vec<File> {
             }
             // Escaped and deprecated as the model's enum values are.
             out.push_str(&docblock(
+                service,
+                namespace,
                 Some(text.as_str()).filter(|t| !t.trim().is_empty()),
                 &notes(permission),
                 "    ",

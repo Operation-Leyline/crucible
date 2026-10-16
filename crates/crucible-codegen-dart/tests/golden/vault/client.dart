@@ -13,7 +13,7 @@ import 'runtime/client_runtime.dart';
 ///
 /// Stores secrets.
 ///
-/// See [the guide](https://example.com/guide) and \[Secret] for `*/` details. @since 1
+/// See [the guide](https://example.com/guide) and [models.Secret] for `*/` details. @since 1
 ///
 /// Create one `VaultClient`, share it, and call [close] when finished. It holds no per-call state, so many calls may be in flight at once within an isolate; do not send it to another isolate. Each operation returns a `Future` and reports failure as a [VaultException] for service responses, a [NetworkException] when no response arrives, or a [CancelledException]. A call that outlasts `ClientConfig.timeout` fails with a `TimeoutException`.
 final class VaultClient {

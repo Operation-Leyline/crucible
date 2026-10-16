@@ -1,4 +1,5 @@
 //! Native R package generation from the shared lowered Smithy IR.
+mod links;
 mod markdown;
 mod permissions;
 mod surface;
@@ -97,10 +98,12 @@ fn literal(value: &str) -> String {
 fn function(name: &str) -> String {
     format!("`{name}`")
 }
-fn roxygen(text: &str) -> String {
+/// A roxygen `@md` description of model Markdown, its doc links as roxygen
+/// links.
+fn roxygen(service: &Service, text: &str) -> String {
     format!(
         "#' @description\n{}#' @md\n",
-        crucible_codegen_common::docs::comment_text(text)
+        crucible_codegen_common::docs::comment_text(&links::roxygen(service, text))
             .replace('@', "@@")
             .lines()
             .map(|line| if line.trim().is_empty() {
@@ -111,8 +114,8 @@ fn roxygen(text: &str) -> String {
             .collect::<String>()
     )
 }
-fn roxygen_details(text: &str) -> String {
-    roxygen(text).replacen("@description", "@details", 1)
+fn roxygen_details(service: &Service, text: &str) -> String {
+    roxygen(service, text).replacen("@description", "@details", 1)
 }
 fn contains_nul(value: &serde_json::Value) -> bool {
     match value {
@@ -335,6 +338,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         let mut out = String::from("# Generated from the lowered Smithy model.\n");
         out.push_str(&roxygen(
+            service,
             &crucible_codegen_common::documentation::with_notes(
                 Some(
                     crucible_codegen_common::documentation::shape(shape)
@@ -347,43 +351,52 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         match shape {
             Shape::Enum(e) => {
                 for value in &e.values {
-                    out.push_str(&roxygen_details(&format!(
-                        "{} = {}: {}",
-                        value.name,
-                        value.value,
-                        crucible_codegen_common::documentation::with_notes(
-                            Some(value.docs.as_deref().unwrap_or("Known enum value.")),
-                            &value.notes
-                        )
-                        .unwrap_or_default()
-                    )));
+                    out.push_str(&roxygen_details(
+                        service,
+                        &format!(
+                            "{} = {}: {}",
+                            value.name,
+                            value.value,
+                            crucible_codegen_common::documentation::with_notes(
+                                Some(value.docs.as_deref().unwrap_or("Known enum value.")),
+                                &value.notes
+                            )
+                            .unwrap_or_default()
+                        ),
+                    ));
                 }
             }
             Shape::IntEnum(e) => {
                 for value in &e.values {
-                    out.push_str(&roxygen_details(&format!(
-                        "{} = {}: {}",
-                        value.name,
-                        value.value,
-                        crucible_codegen_common::documentation::with_notes(
-                            Some(value.docs.as_deref().unwrap_or("Known enum value.")),
-                            &value.notes
-                        )
-                        .unwrap_or_default()
-                    )));
+                    out.push_str(&roxygen_details(
+                        service,
+                        &format!(
+                            "{} = {}: {}",
+                            value.name,
+                            value.value,
+                            crucible_codegen_common::documentation::with_notes(
+                                Some(value.docs.as_deref().unwrap_or("Known enum value.")),
+                                &value.notes
+                            )
+                            .unwrap_or_default()
+                        ),
+                    ));
                 }
             }
             Shape::Union(u) => {
                 for m in &u.members {
-                    out.push_str(&roxygen_details(&format!(
-                        "{}: {}",
-                        m.name,
-                        crucible_codegen_common::documentation::with_notes(
-                            Some(m.docs.as_deref().unwrap_or("Union arm.")),
-                            &m.notes
-                        )
-                        .unwrap_or_default()
-                    )));
+                    out.push_str(&roxygen_details(
+                        service,
+                        &format!(
+                            "{}: {}",
+                            m.name,
+                            crucible_codegen_common::documentation::with_notes(
+                                Some(m.docs.as_deref().unwrap_or("Union arm.")),
+                                &m.notes
+                            )
+                            .unwrap_or_default()
+                        ),
+                    ));
                 }
             }
             _ => {}
@@ -400,7 +413,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     values.push(format!("{} = {}",literal(&f),function(&f)));
                     schema["shapes"][id.to_string()]["members"][&m.name]["optional"] = json!(m.optional_on_client());
                 }
-                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), crucible_codegen_common::docs::comment_text(&crucible_codegen_common::documentation::with_notes(Some(m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.")), &m.notes).unwrap_or_default()).replace('@', "@@").replace('\n', "\n#' "))); }
+                for m in &s.members { out.push_str(&format!("#' @param {} {}\n", field(&m.name), crucible_codegen_common::docs::comment_text(&links::roxygen(service, &crucible_codegen_common::documentation::with_notes(Some(m.docs.as_deref().unwrap_or("Model member; UNSET omits an optional member and NULL sends null.")), &m.notes).unwrap_or_default())).replace('@', "@@").replace('\n', "\n#' "))); }
                 out.push_str(&format!("{} <- function({}) .crucible_model({}, list({}))\n", function(name),args.join(", "),literal(&id.to_string()),values.join(", ")));
             }
             Shape::Enum(_) => out.push_str(&format!("{} <- function(value) structure(.crucible_string(value), class = c({}, 'crucible_enum', 'character'), crucible_target = {} )\n",function(name),literal(name),literal(&id.to_string()))),
@@ -453,7 +466,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             }
             _ => {}
         }
-        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", markdown::render(&crucible_codegen_common::documentation::with_notes(Some(crucible_codegen_common::documentation::shape(shape).unwrap_or("Native model constructor.")), shape.notes().unwrap_or(&Default::default())).unwrap_or_default()), markdown::render(&details)) });
+        files.push(File { path: format!("man/{name}.Rd"), contents: format!("\\name{{{name}}}\n\\alias{{{name}}}\n\\title{{{name}}}\n\\description{{{}}}\n\\details{{{}}}\n", links::rd(service, &crucible_codegen_common::documentation::with_notes(Some(crucible_codegen_common::documentation::shape(shape).unwrap_or("Native model constructor.")), shape.notes().unwrap_or(&Default::default())).unwrap_or_default()), links::rd(service, &details)) });
         files.push(File {
             path: format!("R/model-{name}.R"),
             contents: out,
@@ -481,14 +494,17 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     files.extend(permissions::emit(service));
     let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     let mut operation_notes = String::new();
-    let mut client = roxygen(&format!(
-        "{}\nConstruct with client_config(). Call client$close() after use. Clients and page functions are mutable; use them from one R execution thread.",
-        crucible_codegen_common::documentation::with_notes(
-            Some(service.docs.as_deref().unwrap_or("HTTP service client.")),
-            &service.notes
-        )
-        .unwrap_or_default()
-    )) + &format!(
+    let mut client = roxygen(
+        service,
+        &format!(
+            "{}\nConstruct with client_config(). Call client$close() after use. Clients and page functions are mutable; use them from one R execution thread.",
+            crucible_codegen_common::documentation::with_notes(
+                Some(service.docs.as_deref().unwrap_or("HTTP service client.")),
+                &service.notes
+            )
+            .unwrap_or_default()
+        ),
+    ) + &format!(
         "# Generated native operation methods.\n{} <- function(config = client_config()) {{\n  client <- .crucible_client(config, {})\n",
         function(&client_name),
         options
@@ -508,7 +524,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
         let notes = crucible_codegen_common::documentation::operation_with_notes(service, op);
         operation_notes.push_str(&format!("{}\n{}\n\n", method(op), notes));
-        client.push_str(&roxygen(&notes));
+        client.push_str(&roxygen(service, &notes));
         for (method, dispatch) in
             std::iter::once((method(op), "call")).chain(pages(op).map(|pages| (pages, "pages")))
         {
@@ -601,7 +617,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         .map(|s| format!("\\alias{{{s}}}\n"))
         .collect::<String>();
     files.push(File{path:"man/client.Rd".into(),contents:format!("\\name{{{package}-client}}\n{aliases}\\title{{Generated Smithy Client}}\n\\description{{Native model constructors and an HTTP client for the generated service.}}\n\\details{{Use {client_name}(client_config(endpoint = URL)) to construct a client. Model constructors accept named members. long() accepts a decimal string to preserve signed 64-bit integers. timestamp() accepts exact seconds and nanoseconds. UNSET omits an optional member; NULL represents JSON null. A page method returns a lazy function; call it until it returns NULL. Call client$close() to release client resources.}}\n")});
-    files.push(File { path: "man/operations.Rd".into(), contents: format!("\\name{{operations}}\n\\alias{{operations}}\n\\title{{Operation contracts}}\n\\description{{{}}}\n", markdown::render(&operation_notes)) });
+    files.push(File { path: "man/operations.Rd".into(), contents: format!("\\name{{operations}}\n\\alias{{operations}}\n\\title{{Operation contracts}}\n\\description{{{}}}\n", links::rd(service, &operation_notes)) });
     files.push(File { path: "man/runtime.Rd".into(), contents: format!("\\name{{runtime}}\n\\alias{{runtime}}\n\\title{{Runtime entry points}}\n\\description{{{}}}\n", markdown::render("UNSET: Sentinel omitting an optional model member; NULL represents explicit JSON null.\nlong: Constructs an exact signed 64-bit integer from a decimal string; numeric inputs beyond exact double precision are rejected.\nbig_integer: Constructs an exact arbitrary precision integer from a decimal string.\nbig_decimal: Constructs an exact arbitrary precision decimal from a decimal string.\njson_number: Preserves a JSON numeric token without double rounding.\njson_parse: Parses a UTF-8 JSON string, preserving exact numeric tokens.\njson_encode: Encodes a native JSON value into UTF-8 text.\njson_object: Constructs a JSON object distinct from an unnamed array.\ncancellation_token: Constructs a cancellation environment with cancel and check methods; an optional predicate is polled by check.\ntimestamp: Constructs an exact seconds and nanoseconds timestamp; nanoseconds must be in [0, 1000000000).\n\nclient_config settings:\nendpoint: HTTP endpoint override; absent uses the generated endpoint.\ntoken: Bearer token provider invoked for each authenticated attempt.\ntransport: Custom HTTP transport; callbacks must respect the supplied deadline and cancellation scope.\ntimeout: Total call budget in seconds, including credentials, retries, backoff, and response reads.\nmax_attempts: Maximum attempts including the first request (default 3).\nbase_delay: Initial full-jitter exponential backoff bound in seconds.\nmax_delay: Maximum backoff bound in seconds; Retry-After can override it.\nheaders: Default request headers applied to every attempt.\nmiddleware: Request transformations applied on every attempt after authentication.")) });
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)

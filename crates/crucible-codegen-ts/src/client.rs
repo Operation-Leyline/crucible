@@ -6,18 +6,22 @@ use std::collections::{BTreeMap, BTreeSet};
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Operation, Service, Shape};
 
-use crate::names::{doc, documented, literal, method_name, optional};
+use crate::names::{Links, doc, documented_linked, literal, method_name, optional};
 use crate::{Middleware, Options};
 
-pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String {
+pub(crate) fn emit(service: &Service, options: &Options, links: &Links<'_>) -> String {
+    let client = links.client;
+    let links = links.naming("m.", "", crate::names::ERRORS_SCOPE);
     let mut out = String::new();
-    doc(
+    documented_linked(
         &mut out,
+        &links,
         "",
         Some(&format!(
             "{}\n\nFetch-based HTTP client. Construct with ClientConfig. Calls may run concurrently when custom fetch, middleware and credential providers support concurrency. The client owns no transport pool and has no close method; callers manage custom fetch resources.",
             service.docs.as_deref().unwrap_or("")
         )),
+        &Default::default(),
     );
     out.push_str(&format!(
         "export class {client} {{\n  readonly #transport: Transport;\n\n"
@@ -50,7 +54,7 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     for operation in &service.operations {
         out.push('\n');
         let (name, paginator_name) = &names[&operation.id];
-        method(&mut out, service, operation, name);
+        method(&mut out, &links, operation, name);
         if operation.paginated.is_some() {
             out.push('\n');
             paginator(
@@ -79,6 +83,7 @@ pub(crate) fn emit(service: &Service, options: &Options, client: &str) -> String
     if out.contains("m.") {
         header.push_str("import type * as m from \"./models.js\";\n");
     }
+    header.push_str(&crate::names::doc_imports(&out, false));
     header.push_str("import * as spec from \"./schemas.js\";\n\n");
     header + &out
 }
@@ -148,9 +153,11 @@ fn output_type(service: &Service, operation: &Operation) -> String {
         .map_or("void".to_owned(), |id| format!("m.{}", service.name_of(id)))
 }
 
-fn method(out: &mut String, service: &Service, operation: &Operation, name: &str) {
-    documented(
+fn method(out: &mut String, links: &Links<'_>, operation: &Operation, name: &str) {
+    let service = links.service;
+    documented_linked(
         out,
+        links,
         "  ",
         Some(&crucible_codegen_common::documentation::operation(
             service, operation,

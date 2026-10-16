@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use crucible_ir::ShapeId;
 use crucible_ir::ir::{Enum, Service, Structure};
 
-use crate::names::{documented, literal, variant};
+use crate::names::{Links, documented, literal, variant};
 use crate::types::rust_type;
 
 pub(crate) fn unknown_variant<'a>(names: impl Iterator<Item = &'a str>) -> String {
@@ -24,16 +24,36 @@ fn serde_impls(out: &mut String, name: &str, kind: &str) {
     ));
 }
 
-pub(crate) fn enumeration(out: &mut String, name: &str, values: &Enum, debug: bool) {
+pub(crate) fn enumeration(
+    out: &mut String,
+    service: &crucible_ir::ir::Service,
+    name: &str,
+    values: &Enum,
+    debug: bool,
+) {
+    // Only the client has open enums.
+    let client = true;
     let unknown = unknown_variant(values.values.iter().map(|value| value.name.as_str()));
-    documented(out, "", values.docs.as_deref(), &values.notes);
+    documented(
+        out,
+        Links::child(service, client),
+        "",
+        values.docs.as_deref(),
+        &values.notes,
+    );
     let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
         "#[derive({debug}Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
         crate::NON_EXHAUSTIVE
     ));
     for value in &values.values {
-        documented(out, "    ", value.docs.as_deref(), &value.notes);
+        documented(
+            out,
+            Links::child(service, client),
+            "    ",
+            value.docs.as_deref(),
+            &value.notes,
+        );
         out.push_str(&format!("    {},\n", variant(&value.name)));
     }
     out.push_str(&format!("    /// A value introduced by a newer service.\n    {unknown}(::std::string::String),\n}}\nimpl {name} {{\n    pub fn as_str(&self) -> &str {{\n        match self {{\n"));
@@ -68,13 +88,25 @@ pub(crate) fn union(
     client: bool,
 ) {
     let unknown = unknown_variant(union.members.iter().map(|member| member.name.as_str()));
-    documented(out, "", union.docs.as_deref(), &union.notes);
+    documented(
+        out,
+        Links::child(service, client),
+        "",
+        union.docs.as_deref(),
+        &union.notes,
+    );
     out.push_str(&format!(
         "#[derive(Clone, PartialEq)]\n{}pub enum {name} {{\n",
         if client { crate::NON_EXHAUSTIVE } else { "" }
     ));
     for member in &union.members {
-        documented(out, "    ", member.docs.as_deref(), &member.notes);
+        documented(
+            out,
+            Links::child(service, client),
+            "    ",
+            member.docs.as_deref(),
+            &member.notes,
+        );
         let mut ty = rust_type(service, &member.target, "");
         // An event stream's modeled errors live with the other errors.
         if matches!(service.shape(&member.target), Some(crucible_ir::ir::Shape::Structure(s)) if s.error.is_some())
@@ -149,20 +181,33 @@ pub(crate) fn union(
 
 pub(crate) fn int_enumeration(
     out: &mut String,
+    service: &crucible_ir::ir::Service,
     name: &str,
     values: &crucible_ir::ir::IntEnum,
     client: bool,
     debug: bool,
 ) {
     let unknown = unknown_variant(values.values.iter().map(|v| v.name.as_str()));
-    documented(out, "", values.docs.as_deref(), &values.notes);
+    documented(
+        out,
+        Links::child(service, client),
+        "",
+        values.docs.as_deref(),
+        &values.notes,
+    );
     let debug = if debug { "Debug, " } else { "" };
     out.push_str(&format!(
         "#[derive({debug}Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]\n{}pub enum {name} {{\n",
         if client { crate::NON_EXHAUSTIVE } else { "" }
     ));
     for value in &values.values {
-        documented(out, "    ", value.docs.as_deref(), &value.notes);
+        documented(
+            out,
+            Links::child(service, client),
+            "    ",
+            value.docs.as_deref(),
+            &value.notes,
+        );
         out.push_str(&format!("    {},\n", variant(&value.name)));
     }
     if client {

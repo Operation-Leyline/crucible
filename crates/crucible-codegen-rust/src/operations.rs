@@ -7,7 +7,7 @@ use crucible_ir::{Diagnostics, ShapeId};
 
 use crate::errors::{error_shapes, info_static};
 use crate::info::{constant, custom_traits, members};
-use crate::names::{documented, function, literal};
+use crate::names::{Links, documented, function, literal};
 
 pub(crate) struct Functions {
     pub classify: String,
@@ -91,7 +91,13 @@ fn operation_items(service: &Service, op: &Operation, diagnostics: &mut Diagnost
         deprecated: None,
         ..op.notes.clone()
     };
-    documented(&mut out, "", op.docs.as_deref(), &served);
+    documented(
+        &mut out,
+        Links::top(service, false),
+        "",
+        op.docs.as_deref(),
+        &served,
+    );
     let parameter = if op.input.is_some() {
         format!(
             ", input: {}",
@@ -125,7 +131,13 @@ pub(crate) fn marker_for(
 ) -> String {
     let name = op.name();
     let mut out = String::from("\n");
-    documented(&mut out, "", op.docs.as_deref(), &op.notes);
+    documented(
+        &mut out,
+        Links::top(service, client),
+        "",
+        op.docs.as_deref(),
+        &op.notes,
+    );
     out.push_str(&format!("pub struct {name};\n\n"));
 
     let path: Vec<String> = op

@@ -1,5 +1,6 @@
 //! Native PHP client generation from lowered Smithy semantics.
 mod client;
+mod links;
 mod models;
 mod names;
 mod permissions;

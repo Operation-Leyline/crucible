@@ -119,7 +119,12 @@ Browsers refuse to fetch a sibling file from `file://`, hence the script form.
 Documentation HTML in `describe.json` is sanitized at build time and is the only
 markup the renderer inserts. Every other model string (names, enum values,
 defaults, example bodies, notes, links) is added as text, and only `http(s)` and
-`mailto` links become anchors.
+`mailto` links become anchors. A doc link's anchor (`data-crucible-ref`, below)
+gets the hash route of its target's page: an operation's, a data type's or a
+resource's, the overview for the service, a member's or enum value's type, and
+for an operation's input or output member the operation's request or response.
+An id the description lacks keeps no address. The Markdown pages link the same
+targets as relative page links, which mdBook rewrites to `.html`.
 
 ### Extending the renderer
 
@@ -203,6 +208,34 @@ becomes empty strings. CommonMark HTML is rendered once at build time with
 `pulldown-cmark`; raw HTML is escaped as text, as in the shared native
 documentation renderer. Active URL schemes are removed from links and images.
 Readers can display `html` without interpreting model Markdown again.
+
+Doc links (`[GetCity]`, `[City.name]`, `[the read call][GetCity]`; see
+[the language reference](idl/reference.md) and decision 80 in
+[idl/decisions.md](idl/decisions.md)) stay as written in `markdown`. In `html`
+each one whose target the description has is an anchor with no address,
+carrying the target's absolute ID for the reader to map to its own URL:
+
+```html
+<a data-crucible-ref="com.example#CreateApiKey">CreateApiKey</a>
+```
+
+The ID names an operation, resource, shape or the service, or a member or enum
+value as `shape$member`. An operation's input or output member is its
+structure's, and the anchor also names the operation, since operations can
+share a structure:
+
+```html
+<a data-crucible-ref="com.example#GetCityInput$cityId" data-crucible-operation="com.example#GetCity">GetCity.cityId</a>
+```
+
+These attributes are the only markup the generator adds, their values escaped
+as attribute text, and the anchor's content is the link's own rendered text.
+Only a doc link the comment does not define becomes such an anchor: a link
+destination or definition in model text, character references included, stays
+an ordinary link. In `text` a doc link is its
+text without brackets. A link whose target this audience does not have (internal
+API in an external description, or a prelude type) is its text in both, so no
+internal ID appears.
 
 Every documented API element has `notes`: `deprecated` is null or an object
 with nullable `message` and `since` strings; `since` is a nullable string;
@@ -486,6 +519,7 @@ except the identical renderer files, which have one reviewed copy under
 `describe.json`.
 The Catalog fixture covers documentation notes, pagination, unions, enums,
 idempotency, RPC headers, timestamp examples, and arbitrary-precision wire values.
+The Links goldens (`tests/models/doc-links`) cover doc links in both audiences.
 Run the focused tests after intended changes:
 
 ```sh
