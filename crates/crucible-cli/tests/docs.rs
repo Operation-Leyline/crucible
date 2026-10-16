@@ -91,3 +91,47 @@ fn docs_cli_documents_the_release_chain() {
     assert_eq!(changes["versions"], describe["versions"]);
     assert!(out.join("src/releases/v2.md").is_file());
 }
+
+/// `--schemas` moves the operations' JSON Schemas into one root map, or
+/// leaves them out; every mode is `crucible.describe/1`.
+#[test]
+fn docs_cli_shares_or_omits_operation_schemas() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    common::install_shared(root, "service-docs-weather");
+    let model = root.join("service-docs-weather");
+    let describe = |schemas: &str| -> Value {
+        let out = root.join(schemas);
+        let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
+            .args(["generate", "docs"])
+            .arg(&model)
+            .arg("--out")
+            .arg(&out)
+            .args(["--schemas", schemas])
+            .output()
+            .unwrap();
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+        serde_json::from_slice(&fs::read(out.join("describe.json")).unwrap()).unwrap()
+    };
+    let inline = describe("inline");
+    let get = "example.weather#GetCity";
+    assert!(inline["operations"][get]["inputSchema"]["$defs"].is_object());
+    assert!(inline.get("schemas").is_none());
+    let shared = describe("shared");
+    assert_eq!(shared["format"], "crucible.describe/1");
+    assert_eq!(
+        shared["operations"][get]["outputSchema"],
+        serde_json::json!({"$ref": "#/$defs/example.weather.GetCityOutput"})
+    );
+    assert_eq!(
+        shared["schemas"]["$defs"]["example.weather.GetCityOutput"]["required"],
+        serde_json::json!(["city"])
+    );
+    let omitted = describe("omit");
+    assert!(omitted["operations"][get].get("inputSchema").is_none());
+    assert_eq!(omitted["schemas"], serde_json::json!({"mode": "omit"}));
+}

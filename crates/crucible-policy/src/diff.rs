@@ -21,6 +21,7 @@ pub fn diff_renamed(old: &Service, new: &Service, config: &Config, renames: &Ren
     let mut checker = Checker {
         old,
         new,
+        full_new: new,
         renames,
         severity: config.compatibility.severity,
         report: Report::default(),
@@ -33,9 +34,23 @@ pub fn diff_renamed(old: &Service, new: &Service, config: &Config, renames: &Ren
         checker.permissions_wire();
     }
     if compatibility.sdk_source.value {
-        checker.severity = compatibility.sdk_source.severity_in(compatibility.severity);
-        checker.sdk();
-        checker.permissions_sdk();
+        // SDKs are generated from the client view, without the operations a
+        // third party calls (decision 81): an operation that becomes
+        // sender-signed leaves every SDK, with the types only it reached.
+        let old_view = crucible_ir::client_view(old);
+        let new_view = crucible_ir::client_view(new);
+        let mut sdk = Checker {
+            old: &old_view,
+            new: &new_view,
+            full_new: new,
+            renames,
+            severity: compatibility.sdk_source.severity_in(compatibility.severity),
+            report: std::mem::take(&mut checker.report),
+            seen: BTreeSet::new(),
+        };
+        sdk.sdk();
+        sdk.permissions_sdk();
+        checker.report = sdk.report;
     }
     checker.report.finish(config)
 }

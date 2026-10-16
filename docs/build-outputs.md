@@ -326,7 +326,9 @@ existing document. The CLI exports a standalone Cargo package. Its runtime
 paths default to the build helper's matching Crucible source checkout; use
 `.runtime_path(...)` to select another local checkout. Generation verifies that
 both Rust client and CLI runtime manifests exist. The CLI target uses the Rust
-emitter even when the build helper's `rust` feature is disabled.
+emitter even when the build helper's `rust` feature is disabled. Like the
+SDKs, the CLI has no command for a sender-signed operation (`@sender`,
+decision 81), which a third party calls.
 
 `model.docs("reference").generate_into("generated/reference")` exports Markdown
 in mdBook layout, `describe.json`, and the static HTML reference (`index.html`). Its default audience is external; select

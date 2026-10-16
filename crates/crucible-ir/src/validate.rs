@@ -52,12 +52,50 @@ pub fn service(service: &Service, diagnostics: &mut Diagnostics) {
         self::operation(service, operation, diagnostics);
     }
     routes(&service.operations, diagnostics);
+    sender_lifecycle(service, diagnostics);
+}
+
+/// A resource's lifecycle is what clients and infrastructure call to
+/// manage it, so no sender-signed operation (decision 81) holds a slot:
+/// Terraform's provider would call it unsigned.
+fn sender_lifecycle(service: &Service, diagnostics: &mut Diagnostics) {
+    for resource in service.resources.values() {
+        let lifecycle = &resource.lifecycle;
+        for (role, slot) in [
+            ("creates", &lifecycle.create),
+            ("puts", &lifecycle.put),
+            ("reads", &lifecycle.read),
+            ("updates", &lifecycle.update),
+            ("deletes", &lifecycle.delete),
+            ("lists", &lifecycle.list),
+        ] {
+            let Some(operation) = slot
+                .as_ref()
+                .and_then(|id| service.operations.iter().find(|op| &op.id == id))
+            else {
+                continue;
+            };
+            if let Some(sender) = &operation.sender {
+                diagnostics.push(
+                    &operation.id,
+                    format!(
+                        "sender.lifecycle: {} {role} {}, so clients and infrastructure call it to manage the resource, but {} calls it: bind it to no lifecycle role (`on {}`, or no resource)",
+                        operation.name(),
+                        resource.id.name(),
+                        sender.name,
+                        resource.id.name()
+                    ),
+                );
+            }
+        }
+    }
 }
 
 /// The rules of one operation, in the context of `service` (its shapes,
 /// protocol and auth schemes), apart from those that compare operations.
 pub fn operation(service: &Service, operation: &Operation, diagnostics: &mut Diagnostics) {
     errors(operation, diagnostics);
+    sender(operation, diagnostics);
     http(service, operation, diagnostics);
     if let Some(paginated) = &operation.paginated {
         pagination(service, operation, paginated, diagnostics);
@@ -203,6 +241,44 @@ fn operations(service: &Service, diagnostics: &mut Diagnostics) {
                 format!("{} is part of the service twice", operation.name()),
             );
         }
+    }
+}
+
+/// A sender-signed operation (decision 81) is called by a third party that
+/// holds no credential of this service, so it is `public`, and its
+/// signature is a modelled request header.
+fn sender(operation: &Operation, diagnostics: &mut Diagnostics) {
+    let Some(sender) = &operation.sender else {
+        return;
+    };
+    if sender.name.trim().is_empty() {
+        diagnostics.push(
+            &operation.id,
+            format!(
+                "sender.name: `@sender` on {} names no sender; name who calls it, such as `@sender(\"Stripe\", signature: signature)`",
+                operation.name()
+            ),
+        );
+    }
+    if !operation.public || !operation.auth.is_empty() {
+        diagnostics.push(
+            &operation.id,
+            format!(
+                "sender.public: {} is called by {}, which holds no credential of this service: declare it `public`, and let its signature authenticate it",
+                operation.name(),
+                sender.name
+            ),
+        );
+    }
+    if operation.signature_header().is_none() {
+        diagnostics.push(
+            &operation.id,
+            format!(
+                "sender.signature: `signature: {}` on {} names no input member bound with `@header`; the signature travels in a request header the model declares",
+                sender.signature,
+                operation.name()
+            ),
+        );
     }
 }
 

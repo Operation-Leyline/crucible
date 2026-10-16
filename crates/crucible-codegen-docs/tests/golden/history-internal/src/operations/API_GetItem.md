@@ -8,13 +8,16 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[]</code>. Optional authentication: null.
+None: this operation takes no credential.
 
 ## Request syntax
 
 ```http
 GET /things/{id} HTTP/1.1
+Crucible-Version: v3
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request parameters
 
@@ -51,12 +54,14 @@ Content-Type: application/json
 
 ## Errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [ItemNotFound](../shapes/ItemNotFound.md) | 404 | client | No | <p>No item has that id.</p>  |
-| [ItemGone](../shapes/ItemGone.md) | 410 | client | No | <p>The item was deleted.</p>  Added in [v3](../releases/v3.md). |
-| [ItemLocked](../shapes/ItemLocked.md) | 423 | client | No | <p>Another writer holds the item.</p>  Added in [v3](../releases/v3.md). |
-| [Conflict](../shapes/Conflict.md) **Internal** | 409 | client | No | <p>Two writers raced; only the service sees it.</p>  <strong>Internal</strong> Added in [v3](../releases/v3.md). |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [ItemNotFound](../shapes/ItemNotFound.md) | <code>ItemNotFound</code> | 404 | client | No | <p>No item has that id.</p>  |
+| [ItemGone](../shapes/ItemGone.md) | <code>ItemGone</code> | 410 | client | No | <p>The item was deleted.</p>  Added in [v3](../releases/v3.md). |
+| [ItemLocked](../shapes/ItemLocked.md) | <code>ItemLocked</code> | 423 | client | No | <p>Another writer holds the item.</p>  Added in [v3](../releases/v3.md). |
+| [Conflict](../shapes/Conflict.md) **Internal** | <code>Conflict</code> | 409 | client | No | <p>Two writers raced; only the service sees it.</p>  <strong>Internal</strong> Added in [v3](../releases/v3.md). |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries
 

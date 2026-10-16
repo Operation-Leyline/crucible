@@ -1,0 +1,5050 @@
+{
+  "format": "crucible.describe/1",
+  "operations": {
+    "example.weather#CreateCity": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.weather#ConflictError",
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "<p>Creates Lisbon with coordinates.</p>\n",
+            "markdown": "Creates Lisbon with coordinates.",
+            "text": "Creates Lisbon with coordinates."
+          },
+          "error": null,
+          "input": {
+            "body": {
+              "location": {
+                "coordinates": {
+                  "latitude": 38.72,
+                  "longitude": -9.14
+                }
+              },
+              "name": "Lisbon"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Expected-Revision": "7"
+            },
+            "labels": {},
+            "method": "POST",
+            "payload": null,
+            "query": [],
+            "uri": "/cities"
+          },
+          "output": {
+            "body": {
+              "city": {
+                "createdAt": 1767323045,
+                "id": "c-0a1b2c3d",
+                "name": "Lisbon",
+                "population": 545000,
+                "updatedAt": "2026-01-02T03:04:05Z"
+              }
+            },
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          },
+          "title": "Create a city"
+        },
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": {
+            "message": {
+              "body": {
+                "__type": "ConflictError",
+                "message": "Lisbon already exists"
+              },
+              "headers": {
+                "Content-Type": "application/json",
+                "X-Crucible-Error": "ConflictError"
+              },
+              "labels": {},
+              "payload": null,
+              "query": []
+            },
+            "shape": "example.weather#ConflictError",
+            "status": 409,
+            "wireCode": "ConflictError"
+          },
+          "input": {
+            "body": {
+              "name": "Lisbon"
+            },
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "labels": {},
+            "method": "POST",
+            "payload": null,
+            "query": [],
+            "uri": "/cities"
+          },
+          "output": null,
+          "title": "Create a duplicate city"
+        }
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CreateCity",
+      "idempotencyToken": "clientToken",
+      "idempotent": true,
+      "input": "example.weather#CreateCityInput",
+      "inputSchema": {
+        "$ref": "#/$defs/example.weather.CreateCityInput"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "CreateCity",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.weather#CreateCityOutput",
+      "outputSchema": {
+        "$ref": "#/$defs/example.weather.CreateCityOutput"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "readonly": false,
+      "request": {
+        "body": [
+          "name",
+          "location",
+          "clientToken"
+        ],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "expectedRevision",
+            "name": "X-Expected-Revision"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.weather#City"
+      ],
+      "response": {
+        "body": [
+          "city"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": {
+            "clientToken": "3f2b8c1e-5d4a-4e6f-9a7b-0c1d2e3f4a5b",
+            "location": {
+              "coordinates": {
+                "latitude": 1.5,
+                "longitude": 1.5
+              }
+            },
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Expected-Revision": "1"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/cities"
+        },
+        "minimalInput": {
+          "body": {
+            "name": "name"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/cities"
+        },
+        "output": {
+          "body": {
+            "city": {
+              "createdAt": 1768469400,
+              "id": "c-4xzk6sz6",
+              "name": "name",
+              "population": 0,
+              "secret": "secret",
+              "updatedAt": "2026-01-15T09:30:00Z"
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 201,
+      "uri": "/cities"
+    },
+    "example.weather#GetCity": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.weather#NotFoundError",
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": null,
+          "input": {
+            "body": null,
+            "headers": {},
+            "labels": {
+              "cityId": "c-0a1b2c3d"
+            },
+            "method": "GET",
+            "payload": null,
+            "query": [
+              {
+                "name": "at",
+                "value": "2026-01-02T03:04:05Z"
+              }
+            ],
+            "uri": "/cities/c-0a1b2c3d?at=2026-01-02T03%3A04%3A05Z"
+          },
+          "output": {
+            "body": {
+              "city": {
+                "id": "c-0a1b2c3d",
+                "name": "Lisbon",
+                "secret": "INTERNAL_EXAMPLE_SECRET"
+              },
+              "forecast": {
+                "clear": {
+                  "highC": 21
+                }
+              }
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Request-Id": "req-1"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          },
+          "title": "Read a city"
+        },
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": {
+            "message": {
+              "body": {
+                "__type": "NotFoundError",
+                "message": "No such city",
+                "resourceId": "c-ffffffff"
+              },
+              "headers": {
+                "Content-Type": "application/json",
+                "X-Crucible-Error": "NotFoundError"
+              },
+              "labels": {},
+              "payload": null,
+              "query": []
+            },
+            "shape": "example.weather#NotFoundError",
+            "status": 404,
+            "wireCode": "NotFoundError"
+          },
+          "input": {
+            "body": null,
+            "headers": {},
+            "labels": {
+              "cityId": "c-ffffffff"
+            },
+            "method": "GET",
+            "payload": null,
+            "query": [],
+            "uri": "/cities/c-ffffffff"
+          },
+          "output": null,
+          "title": "Read a missing city"
+        }
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#GetCity",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.weather#GetCityInput",
+      "inputSchema": {
+        "$ref": "#/$defs/example.weather.GetCityInput"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetCity",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.weather#GetCityOutput",
+      "outputSchema": {
+        "$ref": "#/$defs/example.weather.GetCityOutput"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "cityId"
+        ],
+        "payload": null,
+        "query": [
+          {
+            "member": "at",
+            "name": "at"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.weather#City"
+      ],
+      "response": {
+        "body": [
+          "city",
+          "forecast"
+        ],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "requestId",
+            "name": "X-Request-Id"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "at",
+              "value": "2026-01-15T09:30:00Z"
+            }
+          ],
+          "uri": "/cities/c-4xzk6sz6?at=2026-01-15T09%3A30%3A00Z"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6"
+        },
+        "output": {
+          "body": {
+            "city": {
+              "createdAt": 1768469400,
+              "id": "c-4xzk6sz6",
+              "name": "name",
+              "population": 0,
+              "secret": "secret",
+              "updatedAt": "2026-01-15T09:30:00Z"
+            },
+            "forecast": {
+              "clear": {}
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Request-Id": "requestId"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/cities/{cityId}"
+    },
+    "example.weather#GetCityPhoto": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.weather#NotFoundError",
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#GetCityPhoto",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.weather#GetCityPhotoInput",
+      "inputSchema": {
+        "$ref": "#/$defs/example.weather.GetCityPhotoInput"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "GetCityPhoto",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.weather#GetCityPhotoOutput",
+      "outputSchema": {
+        "$ref": "#/$defs/example.weather.GetCityPhotoOutput"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [
+          "cityId"
+        ],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.weather#City"
+      ],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "caption",
+            "name": "X-Photo-Caption"
+          }
+        ],
+        "labels": [],
+        "payload": {
+          "kind": "blob",
+          "mediaType": "image/jpeg",
+          "member": "photo"
+        },
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "image/jpeg"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "output": {
+          "body": null,
+          "headers": {
+            "Content-Type": "image/jpeg",
+            "X-Photo-Caption": "caption"
+          },
+          "labels": {},
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "image/jpeg",
+            "value": "cGhvdG8="
+          },
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/cities/{cityId}/photo"
+    },
+    "example.weather#ListCities": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [
+        {
+          "allowConstraintErrors": false,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "error": null,
+          "input": {
+            "body": null,
+            "headers": {},
+            "labels": {},
+            "method": "GET",
+            "payload": null,
+            "query": [
+              {
+                "name": "maxResults",
+                "value": "2"
+              },
+              {
+                "name": "tag",
+                "value": "coastal"
+              },
+              {
+                "name": "tag",
+                "value": "capital"
+              }
+            ],
+            "uri": "/cities?maxResults=2&tag=coastal&tag=capital"
+          },
+          "output": {
+            "body": {
+              "cities": [
+                {
+                  "id": "c-0a1b2c3d",
+                  "name": "Lisbon"
+                }
+              ],
+              "nextToken": "page-2"
+            },
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          },
+          "title": "List the first page"
+        }
+      ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ListCities",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.weather#ListCitiesInput",
+      "inputSchema": {
+        "$ref": "#/$defs/example.weather.ListCitiesInput"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "ListCities",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.weather#ListCitiesOutput",
+      "outputSchema": {
+        "$ref": "#/$defs/example.weather.ListCitiesOutput"
+      },
+      "pagination": {
+        "inputToken": "nextToken",
+        "items": "cities",
+        "outputToken": "nextToken",
+        "pageSize": "maxResults"
+      },
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [
+          {
+            "member": "nextToken",
+            "name": "nextToken"
+          },
+          {
+            "member": "maxResults",
+            "name": "maxResults"
+          },
+          {
+            "member": "tags",
+            "name": "tag"
+          }
+        ],
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.weather#City"
+      ],
+      "response": {
+        "body": [
+          "cities",
+          "nextToken"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [
+            {
+              "name": "nextToken",
+              "value": "nextToken"
+            },
+            {
+              "name": "maxResults",
+              "value": "1"
+            },
+            {
+              "name": "tag",
+              "value": "tags"
+            }
+          ],
+          "uri": "/cities?nextToken=nextToken&maxResults=1&tag=tags"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/cities"
+        },
+        "output": {
+          "body": {
+            "cities": [
+              {
+                "createdAt": 1768469400,
+                "id": "c-4xzk6sz6",
+                "name": "name",
+                "population": 0,
+                "secret": "secret",
+                "updatedAt": "2026-01-15T09:30:00Z"
+              }
+            ],
+            "nextToken": "nextToken"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/cities"
+    },
+    "example.weather#Ping": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Ping",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": null,
+      "inputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "internal": false,
+      "method": "GET",
+      "name": "Ping",
+      "notes": {
+        "deprecated": {
+          "message": "Use Status instead.",
+          "since": "2026-09"
+        },
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": null,
+      "outputSchema": {
+        "$defs": {},
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/ping"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/ping"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/ping"
+    },
+    "example.weather#PutCityPhoto": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "<p>Stores a city's photo exactly as sent.</p>\n",
+        "markdown": "Stores a city's photo exactly as sent.",
+        "text": "Stores a city's photo exactly as sent."
+      },
+      "errors": [
+        "example.weather#NotFoundError",
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#PutCityPhoto",
+      "idempotencyToken": null,
+      "idempotent": true,
+      "input": "example.weather#PutCityPhotoInput",
+      "inputSchema": {
+        "$ref": "#/$defs/example.weather.PutCityPhotoInput"
+      },
+      "internal": false,
+      "method": "PUT",
+      "name": "PutCityPhoto",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.weather#PutCityPhotoOutput",
+      "outputSchema": {
+        "$ref": "#/$defs/example.weather.PutCityPhotoOutput"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {
+        "Content-Type": "image/jpeg"
+      },
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "caption",
+            "name": "X-Photo-Caption"
+          }
+        ],
+        "labels": [
+          "cityId"
+        ],
+        "payload": {
+          "kind": "blob",
+          "mediaType": "image/jpeg",
+          "member": "photo"
+        },
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [
+        "example.weather#City"
+      ],
+      "response": {
+        "body": [
+          "photo"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {
+            "Content-Type": "image/jpeg",
+            "X-Photo-Caption": "caption"
+          },
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "PUT",
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "image/jpeg",
+            "value": "cGhvdG8="
+          },
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {
+            "Content-Type": "image/jpeg"
+          },
+          "labels": {
+            "cityId": "c-4xzk6sz6"
+          },
+          "method": "PUT",
+          "payload": {
+            "encoding": "base64",
+            "kind": "blob",
+            "mediaType": "image/jpeg",
+            "value": "cGhvdG8="
+          },
+          "query": [],
+          "uri": "/cities/c-4xzk6sz6/photo"
+        },
+        "output": {
+          "body": {
+            "photo": {
+              "caption": "caption",
+              "size": 1,
+              "thumbnail": "dGh1bWJuYWk="
+            }
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/cities/{cityId}/photo"
+    },
+    "example.weather#Status": {
+      "auth": [
+        "crucible.api#httpBearerAuth"
+      ],
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "errors": [
+        "example.weather#ThrottlingError",
+        "example.weather#ValidationError"
+      ],
+      "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Status",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.weather#StatusInput",
+      "inputSchema": {
+        "$ref": "#/$defs/example.weather.StatusInput"
+      },
+      "internal": true,
+      "method": "GET",
+      "name": "Status",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.weather#StatusOutput",
+      "outputSchema": {
+        "$ref": "#/$defs/example.weather.StatusOutput"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": true,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {},
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/status"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "method": "GET",
+          "payload": null,
+          "query": [],
+          "uri": "/status"
+        },
+        "output": {
+          "body": null,
+          "headers": {},
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "status": 200,
+      "uri": "/status"
+    }
+  },
+  "resources": {
+    "example.weather#City": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "id": "example.weather#City",
+      "identifiers": {
+        "cityId": "example.weather#CityId"
+      },
+      "internal": false,
+      "lifecycle": {
+        "create": "example.weather#CreateCity",
+        "delete": null,
+        "list": "example.weather#ListCities",
+        "put": null,
+        "read": "example.weather#GetCity",
+        "update": null
+      },
+      "name": "City",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "operations": [
+        "example.weather#CreateCity",
+        "example.weather#GetCity",
+        "example.weather#GetCityPhoto",
+        "example.weather#ListCities",
+        "example.weather#PutCityPhoto"
+      ],
+      "properties": {},
+      "resources": []
+    }
+  },
+  "schemas": {
+    "$defs": {
+      "crucible.api.Document": {},
+      "crucible.api.Double": {
+        "format": "double",
+        "type": "number"
+      },
+      "crucible.api.Integer": {
+        "format": "int32",
+        "maximum": 2147483647,
+        "minimum": -2147483648,
+        "type": "integer"
+      },
+      "crucible.api.Long": {
+        "format": "int64",
+        "maximum": 9223372036854775807,
+        "minimum": -9223372036854775808,
+        "type": "integer"
+      },
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "crucible.api.Timestamp": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "crucible.api.Unit": {
+        "maxProperties": 0,
+        "type": "object"
+      },
+      "example.weather.CityId": {
+        "pattern": "^c-[a-z0-9]{8}$",
+        "type": "string"
+      },
+      "example.weather.CityName": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+      },
+      "example.weather.CitySummaries": {
+        "items": {
+          "$ref": "#/$defs/example.weather.CitySummary"
+        },
+        "type": "array",
+        "uniqueItems": false
+      },
+      "example.weather.CitySummary": {
+        "properties": {
+          "createdAt": {
+            "anyOf": [
+              {
+                "type": "number",
+                "x-crucible-timestamp-format": "epoch-seconds"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "deprecated": true,
+            "x-crucible-deprecation": {
+              "message": "Use updatedAt.",
+              "since": "2026-08"
+            }
+          },
+          "id": {
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "type": "string"
+          },
+          "population": {
+            "$ref": "#/$defs/crucible.api.Long",
+            "default": 0,
+            "x-crucible-default": 0
+          },
+          "secret": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Internal audit value."
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "example.weather.Coordinates": {
+        "properties": {
+          "latitude": {
+            "$ref": "#/$defs/crucible.api.Double"
+          },
+          "longitude": {
+            "$ref": "#/$defs/crucible.api.Double"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "type": "object"
+      },
+      "example.weather.CreateCityInput": {
+        "additionalProperties": false,
+        "properties": {
+          "clientToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "SDKs send this automatically. When calling the API directly, send a unique value for each intended operation, and the same value when retrying it; a service may refuse a request without one."
+          },
+          "expectedRevision": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.Long"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.weather.Location"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "maxLength": 40,
+            "type": "string",
+            "x-crucible-traits": {
+              "example.weather#audited": {}
+            }
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "example.weather.CreateCityOutput": {
+        "properties": {
+          "city": {
+            "$ref": "#/$defs/example.weather.CitySummary"
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "type": "object"
+      },
+      "example.weather.DateTime": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "example.weather.Forecast": {
+        "additionalProperties": {
+          "$ref": "#/$defs/crucible.api.Document"
+        },
+        "propertyNames": {
+          "$ref": "#/$defs/example.weather.Sky"
+        },
+        "type": "object"
+      },
+      "example.weather.GetCityInput": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cityId": {
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cityId"
+        ],
+        "type": "object"
+      },
+      "example.weather.GetCityOutput": {
+        "properties": {
+          "city": {
+            "$ref": "#/$defs/example.weather.CitySummary"
+          },
+          "forecast": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/example.weather.Forecast"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "city"
+        ],
+        "type": "object"
+      },
+      "example.weather.GetCityPhotoInput": {
+        "properties": {
+          "cityId": {
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cityId"
+        ],
+        "type": "object"
+      },
+      "example.weather.GetCityPhotoOutput": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "photo": {
+            "anyOf": [
+              {
+                "contentEncoding": "base64",
+                "description": "A photo, carried unparsed.",
+                "type": "string",
+                "x-crucible-length": {
+                  "max": 4096,
+                  "min": 1,
+                  "unit": "bytes"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "example.weather.ListCitiesInput": {
+        "properties": {
+          "maxResults": {
+            "anyOf": [
+              {
+                "format": "int32",
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/$defs/crucible.api.String"
+                },
+                "maxItems": 5,
+                "type": "array",
+                "uniqueItems": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "example.weather.ListCitiesOutput": {
+        "properties": {
+          "cities": {
+            "$ref": "#/$defs/example.weather.CitySummaries"
+          },
+          "nextToken": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "cities"
+        ],
+        "type": "object"
+      },
+      "example.weather.Location": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "coordinates": {
+                "$ref": "#/$defs/example.weather.Coordinates"
+              }
+            },
+            "required": [
+              "coordinates"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "unknown": {
+                "$ref": "#/$defs/crucible.api.Unit"
+              }
+            },
+            "required": [
+              "unknown"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "example.weather.Photo": {
+        "contentEncoding": "base64",
+        "description": "A photo, carried unparsed.",
+        "type": "string",
+        "x-crucible-length": {
+          "max": 4096,
+          "min": 1,
+          "unit": "bytes"
+        }
+      },
+      "example.weather.PhotoSummary": {
+        "externalDocs": {
+          "description": "Photo guide",
+          "url": "https://weather.example/docs/photos"
+        },
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "size": {
+            "$ref": "#/$defs/crucible.api.Integer"
+          },
+          "thumbnail": {
+            "contentEncoding": "base64",
+            "description": "The photo's first bytes: base64 in JSON.",
+            "type": "string",
+            "x-crucible-length": {
+              "max": 8,
+              "min": null,
+              "unit": "bytes"
+            }
+          }
+        },
+        "required": [
+          "size",
+          "thumbnail"
+        ],
+        "type": "object",
+        "x-crucible-external-docs": {
+          "Reference": "https://weather.example/docs/photos/reference"
+        },
+        "x-crucible-since": "2026-10",
+        "x-crucible-unstable": true
+      },
+      "example.weather.PutCityPhotoInput": {
+        "properties": {
+          "caption": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cityId": {
+            "pattern": "^c-[a-z0-9]{8}$",
+            "type": "string"
+          },
+          "photo": {
+            "contentEncoding": "base64",
+            "description": "A photo, carried unparsed.",
+            "type": "string",
+            "x-crucible-length": {
+              "max": 4096,
+              "min": 1,
+              "unit": "bytes"
+            }
+          }
+        },
+        "required": [
+          "cityId",
+          "photo"
+        ],
+        "type": "object"
+      },
+      "example.weather.PutCityPhotoOutput": {
+        "properties": {
+          "photo": {
+            "$ref": "#/$defs/example.weather.PhotoSummary"
+          }
+        },
+        "required": [
+          "photo"
+        ],
+        "type": "object"
+      },
+      "example.weather.Sky": {
+        "enum": [
+          "clear",
+          "cloudy"
+        ],
+        "type": "string"
+      },
+      "example.weather.StatusInput": {
+        "properties": {},
+        "type": "object"
+      },
+      "example.weather.StatusOutput": {
+        "properties": {},
+        "type": "object"
+      },
+      "example.weather.Tags": {
+        "items": {
+          "$ref": "#/$defs/crucible.api.String"
+        },
+        "maxItems": 5,
+        "type": "array",
+        "uniqueItems": false
+      },
+      "example.weather.Thumbnail": {
+        "contentEncoding": "base64",
+        "description": "The photo's first bytes: base64 in JSON.",
+        "type": "string",
+        "x-crucible-length": {
+          "max": 8,
+          "min": null,
+          "unit": "bytes"
+        }
+      }
+    },
+    "mode": "shared"
+  },
+  "service": {
+    "auth": [
+      "crucible.api#httpBearerAuth"
+    ],
+    "authSchemes": {
+      "crucible.api#httpBearerAuth": {
+        "kind": "bearer"
+      }
+    },
+    "documentation": {
+      "html": "",
+      "markdown": "",
+      "text": ""
+    },
+    "errors": [
+      "example.weather#ThrottlingError",
+      "example.weather#ValidationError"
+    ],
+    "id": "example.weather#Weather",
+    "internal": false,
+    "name": "Weather",
+    "notes": {
+      "deprecated": null,
+      "externalDocs": {
+        "Home": "https://weather.example/docs"
+      },
+      "since": null,
+      "unstable": false
+    },
+    "protocol": "crucibleJson",
+    "resourceRoots": [
+      "example.weather#City"
+    ],
+    "title": "Weather",
+    "version": "2026-10-01"
+  },
+  "shapes": {
+    "crucible.api#Document": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Document",
+      "internal": false,
+      "kind": "document",
+      "members": [],
+      "name": "Document",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Double": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Double",
+      "internal": false,
+      "kind": "double",
+      "members": [],
+      "name": "Double",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Integer": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Integer",
+      "internal": false,
+      "kind": "integer",
+      "members": [],
+      "name": "Integer",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Long": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Long",
+      "internal": false,
+      "kind": "long",
+      "members": [],
+      "name": "Long",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#String": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#String",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "String",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Timestamp": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Timestamp",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "Timestamp",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "crucible.api#Unit": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "crucible.api#Unit",
+      "internal": false,
+      "kind": "unit",
+      "members": [],
+      "name": "Unit",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#CityId": {
+      "constraints": {
+        "length": null,
+        "pattern": "^c-[a-z0-9]{8}$",
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CityId",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "CityId",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#CityName": {
+      "constraints": {
+        "length": {
+          "max": 100,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CityName",
+      "internal": false,
+      "kind": "string",
+      "members": [],
+      "name": "CityName",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#CitySummaries": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CitySummaries",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#CitySummary",
+          "targetName": "CitySummary",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "CitySummaries",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.weather#CitySummary": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CitySummary",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^c-[a-z0-9]{8}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "id",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CityId",
+          "targetName": "CityId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "id"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 100,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CityName",
+          "targetName": "CityName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": 0,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "population",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Long",
+          "targetName": "Long",
+          "targetType": "long",
+          "timestampFormat": "date-time",
+          "wireDefault": 0,
+          "wireName": "population"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "updatedAt",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "updatedAt"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "createdAt",
+          "notes": {
+            "deprecated": {
+              "message": "Use updatedAt.",
+              "since": "2026-08"
+            },
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Timestamp",
+          "targetName": "Timestamp",
+          "targetType": "timestamp",
+          "timestampFormat": "epoch-seconds",
+          "wireDefault": null,
+          "wireName": "createdAt"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "<p>Internal audit value.</p>\n",
+            "markdown": "Internal audit value.",
+            "text": "Internal audit value."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": true,
+          "name": "secret",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "secret"
+        }
+      ],
+      "name": "CitySummary",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#ConflictError": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ConflictError",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ConflictError",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ConflictError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.weather#ConflictError",
+        "status": 409,
+        "wireCode": "ConflictError"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ConflictError",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ConflictError",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Coordinates": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Coordinates",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "latitude",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Double",
+          "targetName": "Double",
+          "targetType": "double",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "latitude"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "longitude",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Double",
+          "targetName": "Double",
+          "targetType": "double",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "longitude"
+        }
+      ],
+      "name": "Coordinates",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#CreateCityInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CreateCityInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 40,
+              "min": null
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "name",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CityName",
+          "targetName": "CityName",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "name"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "location",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#Location",
+          "targetName": "Location",
+          "targetType": "union",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "location"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "clientToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "clientToken"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "expectedRevision",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Long",
+          "targetName": "Long",
+          "targetType": "long",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "expectedRevision"
+        }
+      ],
+      "name": "CreateCityInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#CreateCityOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#CreateCityOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "city",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CitySummary",
+          "targetName": "CitySummary",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "city"
+        }
+      ],
+      "name": "CreateCityOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#DateTime": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#DateTime",
+      "internal": false,
+      "kind": "timestamp",
+      "members": [],
+      "name": "DateTime",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Forecast": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Forecast",
+      "internal": false,
+      "kind": "map",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "key",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#Sky",
+          "targetName": "Sky",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "key"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "value",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Document",
+          "targetName": "Document",
+          "targetType": "document",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "value"
+        }
+      ],
+      "name": "Forecast",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "sparse": false
+    },
+    "example.weather#GetCityInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#GetCityInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^c-[a-z0-9]{8}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "cityId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CityId",
+          "targetName": "CityId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "cityId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "at",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#DateTime",
+          "targetName": "DateTime",
+          "targetType": "timestamp",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "at"
+        }
+      ],
+      "name": "GetCityInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#GetCityOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#GetCityOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "city",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CitySummary",
+          "targetName": "CitySummary",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "city"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "forecast",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#Forecast",
+          "targetName": "Forecast",
+          "targetType": "map",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "forecast"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "requestId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "requestId"
+        }
+      ],
+      "name": "GetCityOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#GetCityPhotoInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#GetCityPhotoInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^c-[a-z0-9]{8}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "cityId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CityId",
+          "targetName": "CityId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "cityId"
+        }
+      ],
+      "name": "GetCityPhotoInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#GetCityPhotoOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#GetCityPhotoOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "caption",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "caption"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 4096,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "photo",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#Photo",
+          "targetName": "Photo",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "photo"
+        }
+      ],
+      "name": "GetCityPhotoOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#ListCitiesInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ListCitiesInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "nextToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "nextToken"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": {
+              "max": 100,
+              "min": 1
+            },
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "maxResults",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "maxResults"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 5,
+              "min": null
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "tags",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#Tags",
+          "targetName": "Tags",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "tags"
+        }
+      ],
+      "name": "ListCitiesInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#ListCitiesOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ListCitiesOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "cities",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CitySummaries",
+          "targetName": "CitySummaries",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "cities"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "nextToken",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "nextToken"
+        }
+      ],
+      "name": "ListCitiesOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Location": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Location",
+      "internal": false,
+      "kind": "union",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "coordinates",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#Coordinates",
+          "targetName": "Coordinates",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "coordinates"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "unknown",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Unit",
+          "targetName": "Unit",
+          "targetType": "unit",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "unknown"
+        }
+      ],
+      "name": "Location",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#NotFoundError": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "resourceId"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "NotFoundError",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "NotFoundError",
+              "message": "message",
+              "resourceId": "resourceId"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "NotFoundError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.weather#NotFoundError",
+        "status": 404,
+        "wireCode": "NotFoundError"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#NotFoundError",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "resourceId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "resourceId"
+        }
+      ],
+      "name": "NotFoundError",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Photo": {
+      "constraints": {
+        "length": {
+          "max": 4096,
+          "min": 1
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>A photo, carried unparsed.</p>\n",
+        "markdown": "A photo, carried unparsed.",
+        "text": "A photo, carried unparsed."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Photo",
+      "internal": false,
+      "kind": "blob",
+      "members": [],
+      "name": "Photo",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#PhotoSummary": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#PhotoSummary",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "size",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "size"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 8,
+              "min": null
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "thumbnail",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#Thumbnail",
+          "targetName": "Thumbnail",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "thumbnail"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "caption",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "caption"
+        }
+      ],
+      "name": "PhotoSummary",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {
+          "Photo guide": "https://weather.example/docs/photos",
+          "Reference": "https://weather.example/docs/photos/reference"
+        },
+        "since": "2026-10",
+        "unstable": true
+      },
+      "sensitive": false
+    },
+    "example.weather#PutCityPhotoInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#PutCityPhotoInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": "^c-[a-z0-9]{8}$",
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "cityId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#CityId",
+          "targetName": "CityId",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "cityId"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "caption",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "caption"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": {
+              "max": 4096,
+              "min": 1
+            },
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "photo",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#Photo",
+          "targetName": "Photo",
+          "targetType": "blob",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "photo"
+        }
+      ],
+      "name": "PutCityPhotoInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#PutCityPhotoOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#PutCityPhotoOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "photo",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#PhotoSummary",
+          "targetName": "PhotoSummary",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "photo"
+        }
+      ],
+      "name": "PutCityPhotoOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Sky": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Sky",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "Sky",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "CLEAR",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "clear"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "CLOUDY",
+          "notes": {
+            "deprecated": {
+              "message": "Reported as CLEAR with a cloud cover reading.",
+              "since": null
+            },
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "cloudy"
+        }
+      ]
+    },
+    "example.weather#StatusInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#StatusInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [],
+      "name": "StatusInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#StatusOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#StatusOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [],
+      "name": "StatusOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Tags": {
+      "constraints": {
+        "length": {
+          "max": 5,
+          "min": null
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Tags",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "Tags",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.weather#ThrottlingError": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message"
+          ],
+          "headerEncodings": {},
+          "headers": [
+            {
+              "member": "retryAfter",
+              "name": "Retry-After"
+            }
+          ],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ThrottlingError",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": {
+          "throttling": true
+        },
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ThrottlingError",
+              "message": "message"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "Retry-After": "1",
+              "X-Crucible-Error": "ThrottlingError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.weather#ThrottlingError",
+        "status": 429,
+        "wireCode": "ThrottlingError"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ThrottlingError",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "retryAfter",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#Integer",
+          "targetName": "Integer",
+          "targetType": "integer",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "retryAfter"
+        }
+      ],
+      "name": "ThrottlingError",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#Thumbnail": {
+      "constraints": {
+        "length": {
+          "max": 8,
+          "min": null
+        },
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "<p>The photo's first bytes: base64 in JSON.</p>\n",
+        "markdown": "The photo's first bytes: base64 in JSON.",
+        "text": "The photo's first bytes: base64 in JSON."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#Thumbnail",
+      "internal": false,
+      "kind": "blob",
+      "members": [],
+      "name": "Thumbnail",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#ValidationError": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": {
+        "bindings": {
+          "body": [
+            "message",
+            "reason",
+            "fieldList",
+            "requestId"
+          ],
+          "headerEncodings": {},
+          "headers": [],
+          "labels": [],
+          "payload": null,
+          "query": [],
+          "timestampFormats": {}
+        },
+        "bodyDiscriminator": "ValidationError",
+        "discriminatorHeader": "X-Crucible-Error",
+        "fault": "client",
+        "protocolHeaders": {
+          "Content-Type": "application/json"
+        },
+        "retryable": null,
+        "sample": {
+          "fallbacks": [],
+          "generated": true,
+          "message": {
+            "body": {
+              "__type": "ValidationError",
+              "fieldList": [
+                {
+                  "message": "message",
+                  "path": "path"
+                }
+              ],
+              "message": "message",
+              "reason": "unknownOperation",
+              "requestId": "requestId"
+            },
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Crucible-Error": "ValidationError"
+            },
+            "labels": {},
+            "payload": null,
+            "query": []
+          }
+        },
+        "shape": "example.weather#ValidationError",
+        "status": 400,
+        "wireCode": "ValidationError"
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ValidationError",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "reason",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "example.weather#ValidationReason",
+          "targetName": "ValidationReason",
+          "targetType": "enum",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "reason"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "fieldList",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#ValidationFieldList",
+          "targetName": "ValidationFieldList",
+          "targetType": "list",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "fieldList"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "requestId",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "requestId"
+        }
+      ],
+      "name": "ValidationError",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#ValidationField": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ValidationField",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "path",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "path"
+        },
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "message",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "message"
+        }
+      ],
+      "name": "ValidationField",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.weather#ValidationFieldList": {
+      "constraints": {
+        "length": null,
+        "pattern": null,
+        "range": null,
+        "uniqueItems": false
+      },
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ValidationFieldList",
+      "internal": false,
+      "kind": "list",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "member",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": true,
+          "required": false,
+          "sensitive": false,
+          "target": "example.weather#ValidationField",
+          "targetName": "ValidationField",
+          "targetType": "structure",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "member"
+        }
+      ],
+      "name": "ValidationFieldList",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "set": false,
+      "sparse": false
+    },
+    "example.weather#ValidationReason": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.weather#ValidationReason",
+      "internal": false,
+      "kind": "enum",
+      "members": [],
+      "name": "ValidationReason",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false,
+      "values": [
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "UNKNOWN_OPERATION",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "unknownOperation"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "CANNOT_PARSE",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "cannotParse"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "FIELD_VALIDATION_FAILED",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "fieldValidationFailed"
+        },
+        {
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "OTHER",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "value": "other"
+        }
+      ]
+    }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "2026-10-01",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "2026-10-01",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

@@ -6,14 +6,17 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[]</code>. Optional authentication: null.
+None: this operation takes no credential.
 
 ## Request syntax
 
 ```http
 POST /check HTTP/1.1
 Content-Type: application/json
+Crucible-Version: 1
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request body
 

@@ -1,0 +1,67 @@
+# Samples
+
+> Every kind of value the reference samples\.
+
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Crucible-Version: 1` on every request you make. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+
+## Overview
+
+- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource
+
+## Operations
+
+- [Bulk](src/operations/API_Bulk.md): `POST /bulk`. Values a sample cannot show in full\, or can only show exactly\.
+- [Check](src/operations/API_Check.md): `POST /check`. A pattern the generator cannot follow\.
+- [GetGraph](src/operations/API_GetGraph.md): `GET /graphs/{graphId}`.
+- [PutGraph](src/operations/API_PutGraph.md): `PUT /graphs/{graphId}`. Every scalar\, collection and default in one request\.
+- [Walk](src/operations/API_Walk.md): `POST /walk`. Recursive input and output\.
+
+## Data types
+
+- [Archive](src/shapes/Archive.md): blob.
+- [Bell](src/shapes/Bell.md): string. A control character\, valid in a body and not in a header\.
+- [Blank](src/shapes/Blank.md): string. White space only\: list items differ by length\.
+- [Blanks](src/shapes/Blanks.md): list.
+- [Bounded](src/shapes/Bounded.md): string. Outside the generator\'s subset\: a word boundary\.
+- [BulkInput](src/shapes/BulkInput.md): structure.
+- [Busy](src/shapes/Busy.md): error, HTTP 503.
+- [CheckInput](src/shapes/CheckInput.md): structure.
+- [EpochTime](src/shapes/EpochTime.md): timestamp.
+- [Essay](src/shapes/Essay.md): string. Longer than a sample shows\.
+- [Expression](src/shapes/Expression.md): union. Recursion through a union whose first arm leads back\.
+- [GetGraphInput](src/shapes/GetGraphInput.md): structure.
+- [GetGraphOutput](src/shapes/GetGraphOutput.md): structure.
+- [GraphId](src/shapes/GraphId.md): string. A graph id\: a type prefix and 26 Crockford base\-32 characters\.
+- [GraphName](src/shapes/GraphName.md): string. A DNS\-style name\.
+- [GraphNotFound](src/shapes/GraphNotFound.md): error, HTTP 404.
+- [Huge](src/shapes/Huge.md): bigInteger. Above every 64\-bit integer\.
+- [Label](src/shapes/Label.md): string.
+- [Limits](src/shapes/Limits.md): map.
+- [ManyLabels](src/shapes/ManyLabels.md): list. More labels than a sample shows\.
+- [ManyLimits](src/shapes/ManyLimits.md): map. More entries than a sample shows\.
+- [Negative](src/shapes/Negative.md): integer.
+- [Node](src/shapes/Node.md): structure. A tree\: recursion through an optional list\.
+- [Nodes](src/shapes/Nodes.md): list.
+- [Port](src/shapes/Port.md): integer.
+- [Price](src/shapes/Price.md): bigDecimal.
+- [Printable](src/shapes/Printable.md): string.
+- [Priority](src/shapes/Priority.md): intEnum.
+- [PutGraphInput](src/shapes/PutGraphInput.md): structure.
+- [PutGraphOutput](src/shapes/PutGraphOutput.md): structure.
+- [Ratio](src/shapes/Ratio.md): double.
+- [Region](src/shapes/Region.md): string.
+- [Regions](src/shapes/Regions.md): list.
+- [Sha](src/shapes/Sha.md): string.
+- [Source](src/shapes/Source.md): union.
+- [Tags](src/shapes/Tags.md): list.
+- [Thumbnail](src/shapes/Thumbnail.md): blob.
+- [Tier](src/shapes/Tier.md): enum.
+- [Tight](src/shapes/Tight.md): bigDecimal. Just below 0\.3\, which a double would round onto\.
+- [WalkInput](src/shapes/WalkInput.md): structure.
+- [WalkOutput](src/shapes/WalkOutput.md): structure.
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): every page above in one file
+- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)
+- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)

@@ -8,6 +8,53 @@ use crate::File;
 /// What a generated sample is, as the static reference says it too.
 const GENERATED_NOTE: &str = "Generated from the model's types and constraints, not written by the API's authors. Nothing beyond those constraints was checked, so the service may still refuse a value (a query its parser rejects, an id that does not exist).";
 
+/// What a request without the release header gets (docs/api-versions.md).
+const VERSION_NOTE: &str = "A request without it is served at the release the service chooses for unversioned requests, which may be an older one.";
+
+/// The `Crucible-Version: <current>` line every request of a versioned
+/// service sends, or nothing for a service without an `api_version`.
+fn version_header(d: &Description) -> Option<String> {
+    let name = d.versions["carrier"]["name"].as_str()?;
+    let current = d.versions["current"].as_str()?;
+    Some(format!("{name}: {current}"))
+}
+
+/// The request header an authentication scheme puts on the wire, as the
+/// request syntax shows it.
+fn scheme_header(d: &Description, scheme: &str) -> Option<&'static str> {
+    (d.service["authSchemes"][scheme]["kind"] == "bearer")
+        .then_some("Authorization: Bearer {token}")
+}
+
+/// An authentication scheme, as a reader acts on it.
+fn scheme_text(d: &Description, scheme: &str) -> String {
+    match scheme_header(d, scheme) {
+        Some(_) => format!(
+            "Bearer token ({}): send {}.",
+            code(scheme),
+            code("Authorization: Bearer <token>")
+        ),
+        None => format!(
+            "{}: {}",
+            code(scheme),
+            code(&d.service["authSchemes"][scheme].to_string())
+        ),
+    }
+}
+
+/// Text as a Markdown code span, whatever backticks it holds: a code span
+/// reads nothing inside it as Markdown.
+fn code_span(text: &str) -> String {
+    let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
+    let ticks = "`".repeat(longest + 1);
+    let pad = if text.starts_with('`') || text.ends_with('`') {
+        " "
+    } else {
+        ""
+    };
+    format!("{ticks}{pad}{text}{pad}{ticks}")
+}
+
 fn string(v: &Value) -> &str {
     v.as_str().unwrap_or_default()
 }
@@ -161,10 +208,16 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         release_code(string(&d.service["version"])),
         code(string(&d.service["protocol"]))
     );
+    if let Some(header) = version_header(d) {
+        index.push_str(&format!(
+            "Every request names the release it is written for in a header: {}, the current release. {}\n\n",
+            release_code(&header),
+            VERSION_NOTE
+        ));
+    }
     if chained(d) {
         index.push_str(&format!(
-            "Clients name their release in the {} header; {} lists every supported release and what changed in each.\n\n",
-            code(string(&d.versions["carrier"]["name"])),
+            "{} lists every supported release and what changed in each.\n\n",
             link("Releases", "releases.md")
         ));
     }
@@ -173,11 +226,10 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         index.push_str("No default authentication schemes.\n\n");
     }
     for scheme in list(&d.service["auth"]) {
-        index.push_str(&format!(
-            "- {}: {}\n",
-            code(string(scheme)),
-            code(&d.service["authSchemes"][string(scheme)].to_string())
-        ));
+        index.push_str(&format!("- {}\n", scheme_text(d, string(scheme))));
+    }
+    if !list(&d.service["auth"]).is_empty() {
+        index.push_str("\nAn operation that takes no credential says so on its page.\n");
     }
     if !list(&d.service["permissions"]).is_empty() {
         index.push_str(&format!(
@@ -304,7 +356,318 @@ pub(super) fn render(service: &Service, d: &Description) -> Vec<File> {
         let depth = file.path.matches('/').count() - 1;
         file.contents = doc_links(d, &file.contents, &"../".repeat(depth));
     }
+    let agents = llms(d, &files);
+    files.extend(agents);
     files
+}
+
+/// The first sentence of an item's documentation, as one line of plain
+/// text: what an index line says about the page it links.
+fn summary(item: &Value) -> String {
+    let text = string(&item["documentation"]["text"]);
+    let paragraph = text.split("\n\n").next().unwrap_or_default();
+    let line = paragraph.split_whitespace().collect::<Vec<_>>().join(" ");
+    // A sentence ends at a period before a capital, so "Payments Inc.
+    // reports" and "e.g. a city" stay whole.
+    let end = line.match_indices(". ").map(|(at, _)| at).find(|&at| {
+        line[at + 2..]
+            .chars()
+            .next()
+            .is_some_and(char::is_uppercase)
+    });
+    plain(match end {
+        Some(end) => &line[..=end],
+        None => &line,
+    })
+}
+
+/// Model text as inert Markdown text, for `llms.txt`, which an agent reads
+/// as written: `<`, `>` and `&` as character references, which open no tag,
+/// comment or entity, and every other ASCII punctuation character
+/// backslash-escaped, so none opens a link, emphasis or code span.
+fn plain(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '&' => out.push_str("&amp;"),
+            '\n' | '\r' => out.push(' '),
+            c if c.is_ascii_punctuation() => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// An index line's description: the page's own facts, then its summary
+/// and badges.
+fn described(facts: &str, item: &Value) -> String {
+    let mut parts = vec![facts.to_owned()];
+    let summary = summary(item);
+    if !summary.is_empty() {
+        parts.push(summary);
+    }
+    if item["internal"] == true {
+        parts.push("Internal.".into());
+    }
+    if !item["notes"]["deprecated"].is_null() {
+        parts.push("Deprecated.".into());
+    }
+    parts.join(" ")
+}
+
+/// `llms.txt` and `llms-full.txt` (llmstxt.org): an index of the pages for
+/// an agent, which fetches Markdown rather than the single-page reference,
+/// and every page in one file. Links are relative to the output's root,
+/// where the pages sit under `src/` beside `index.html`.
+fn llms(d: &Description, pages: &[File]) -> [File; 2] {
+    let title = string(&d.service["title"]);
+    let mut about = summary(&d.service);
+    if about.is_empty() {
+        about = format!("The API reference of {}.", plain(title));
+    }
+    // The title is one heading's text: `plain` escapes what `heading`
+    // does, and a URL's `:` too.
+    let mut out = format!("# {}\n\n> {about}\n\n", plain(title));
+    let mut facts = vec![format!(
+        "Every page below is Markdown. Requests are {} over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination.",
+        if d.service["protocol"] == "crucibleJson" {
+            "JSON".to_owned()
+        } else {
+            format!("`{}`", string(&d.service["protocol"]))
+        }
+    )];
+    let schemes: Vec<&str> = list(&d.service["auth"])
+        .iter()
+        .filter_map(|scheme| scheme_header(d, string(scheme)))
+        .collect();
+    if !schemes.is_empty() {
+        facts.push(
+            "Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential."
+                .into(),
+        );
+    }
+    if let Some(header) = version_header(d) {
+        // A third party's request names no release (decision 81).
+        let signed = d.operations.values().any(|op| !op["sender"].is_null());
+        facts.push(format!(
+            "Send {} on every request you make{}.",
+            code_span(&header),
+            if signed {
+                "; an operation a third party calls says what its sender sends instead"
+            } else {
+                ""
+            }
+        ));
+    }
+    facts.push("`describe.json` holds the whole reference as data (`crucible.describe/1`).".into());
+    out.push_str(&facts.join(" "));
+    out.push_str("\n\n## Overview\n\n");
+    out.push_str("- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource\n");
+    if pages.iter().any(|page| page.path == "src/permissions.md") {
+        out.push_str("- [Permissions](src/permissions.md): every permission an operation can require, by resource type\n");
+    }
+    out.push_str("\n## Operations\n\n");
+    for op in d.operations.values() {
+        let mut facts = format!(
+            "{}.",
+            code_span(&format!("{} {}", string(&op["method"]), string(&op["uri"])))
+        );
+        if let Some(sender) = op["sender"].as_object() {
+            let name = plain(
+                sender
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            );
+            match sender.get("header").and_then(Value::as_str) {
+                Some(header) => facts.push_str(&format!(
+                    " Called by {name}, which signs it in the {} header.",
+                    code_span(header)
+                )),
+                None => facts.push_str(&format!(" Called by {name}, which signs it.")),
+            }
+        }
+        out.push_str(&format!(
+            "- [{}](src/{}): {}\n",
+            string(&op["name"]),
+            operation_path(op),
+            described(&facts, op)
+        ));
+    }
+    out.push_str("\n## Data types\n\n");
+    for (id, shape) in &d.shapes {
+        if crate::builtin(id) {
+            continue;
+        }
+        let kind = if shape["error"].is_null() {
+            string(&shape["kind"]).to_owned()
+        } else {
+            format!("error, HTTP {}", shape["error"]["status"])
+        };
+        out.push_str(&format!(
+            "- [{}](src/{}): {}\n",
+            string(&shape["name"]),
+            shape_path(shape),
+            described(&format!("{}.", kind), shape)
+        ));
+    }
+    if chained(d) {
+        out.push_str("\n## Releases\n\n- [Releases](src/releases.md): every supported release, oldest first\n");
+        for release in list(&d.versions["releases"]) {
+            let name = string(&release["name"]);
+            out.push_str(&format!(
+                "- [{}](src/{}): what changed in {}{}\n",
+                literal(name),
+                release_path(name),
+                literal(name),
+                if release["current"] == true {
+                    ", the current release"
+                } else {
+                    ""
+                }
+            ));
+        }
+    }
+    out.push_str("\n## Optional\n\n");
+    out.push_str("- [llms-full.txt](llms-full.txt): every page above in one file\n");
+    out.push_str(
+        "- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)\n",
+    );
+    out.push_str(
+        "- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)\n",
+    );
+
+    // The pages in the index's order, each under a comment naming its file,
+    // so a reader can follow a page's relative links from it.
+    let page = |path: &str| pages.iter().find(|page| page.path == path);
+    let mut order: Vec<String> = vec!["src/index.md".into(), "src/permissions.md".into()];
+    order.extend(
+        d.operations
+            .values()
+            .map(|op| format!("src/{}", operation_path(op))),
+    );
+    order.extend(
+        d.shapes
+            .iter()
+            .filter(|(id, _)| !crate::builtin(id))
+            .map(|(_, shape)| format!("src/{}", shape_path(shape))),
+    );
+    if chained(d) {
+        order.push("src/releases.md".into());
+        order.extend(
+            list(&d.versions["releases"])
+                .iter()
+                .map(|release| format!("src/{}", release_path(string(&release["name"])))),
+        );
+    }
+    // Each page starts at a comment naming its file, its `=` runs longer
+    // than any in the pages, so no page's text (a code block, an example)
+    // can pose as a boundary. Its links are rebased onto the root, where
+    // this file is.
+    let pages: Vec<&File> = order.iter().filter_map(|path| page(path)).collect();
+    let longest = pages
+        .iter()
+        .flat_map(|page| page.contents.split(|c| c != '=').map(str::len))
+        .max()
+        .unwrap_or(0);
+    let rule = "=".repeat(longest.max(2) + 1);
+    let full: Vec<String> = pages
+        .iter()
+        .map(|page| {
+            let dir = page.path.rsplit_once('/').map_or("", |(dir, _)| dir);
+            format!(
+                "<!-- {rule} {} {rule} -->\n\n{}",
+                page.path,
+                rebase(page.contents.trim_end(), dir)
+            )
+        })
+        .collect();
+    [
+        File {
+            path: "llms.txt".into(),
+            contents: out,
+        },
+        File {
+            path: "llms-full.txt".into(),
+            contents: full.join("\n\n"),
+        },
+    ]
+}
+
+/// A page's relative links (Markdown destinations and the `href`s of the
+/// documentation's anchors) rewritten from its directory `dir` to the root.
+/// An absolute URL, a fragment or a root path is left as it is.
+fn rebase(contents: &str, dir: &str) -> String {
+    use pulldown_cmark::{Event, Parser, Tag};
+    let resolve = |destination: &str| -> Option<String> {
+        if destination.is_empty()
+            || destination.contains(':')
+            || destination.starts_with(['#', '/'])
+        {
+            return None;
+        }
+        let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
+        for part in destination.split('/') {
+            match part {
+                "." => {}
+                ".." => {
+                    parts.pop();
+                }
+                part => parts.push(part),
+            }
+        }
+        Some(parts.join("/"))
+    };
+    let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for (event, range) in Parser::new(contents).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                // The generator's links are inline: `[label](destination)`.
+                let source = &contents[range.clone()];
+                let written = format!("]({dest_url})");
+                if let Some(at) = source.rfind(&written)
+                    && let Some(rebased) = resolve(&dest_url)
+                {
+                    let start = range.start + at + 2;
+                    edits.push((start..start + dest_url.len(), rebased));
+                }
+            }
+            Event::Html(_) | Event::InlineHtml(_) => {
+                let source = &contents[range.clone()];
+                for (at, _) in source.match_indices("href=\"") {
+                    let start = at + "href=\"".len();
+                    let Some(length) = source[start..].find('"') else {
+                        continue;
+                    };
+                    let destination = &source[start..start + length];
+                    if let Some(rebased) = resolve(destination) {
+                        let start = range.start + start;
+                        edits.push((start..start + length, rebased));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    edits.sort_by_key(|(range, _)| range.start);
+    edits.dedup_by_key(|(range, _)| range.start);
+    let mut out = String::with_capacity(contents.len());
+    let mut at = 0;
+    for (range, text) in edits {
+        if range.start < at {
+            continue;
+        }
+        out.push_str(&contents[at..range.start]);
+        out.push_str(&text);
+        at = range.end;
+    }
+    out.push_str(&contents[at..]);
+    out
 }
 
 /// The pages' doc links (decision 80): each `<a data-crucible-ref="<id>">`
@@ -400,8 +763,11 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
         return "No modeled errors.\n\n".into();
     }
     let mut out =
-        "| Error | HTTP status | Fault | Retryable | Description |\n|---|---|---|---|---|\n"
+        "| Error | Code | HTTP status | Fault | Retryable | Description |\n|---|---|---|---|---|---|\n"
             .to_owned();
+    let mut headers = std::collections::BTreeSet::new();
+    // Errors whose body is a payload: their code is in the header alone.
+    let mut payloads = Vec::new();
     for id in list(ids) {
         let shape = &d.shapes[string(id)];
         let e = &shape["error"];
@@ -412,19 +778,47 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
         } else {
             "Yes"
         };
+        if let Some(header) = e["discriminatorHeader"].as_str() {
+            headers.insert(header);
+        }
+        if e["bodyDiscriminator"].is_null() || !e["bindings"]["payload"].is_null() {
+            payloads.push(code(string(&shape["name"])));
+        }
+        let wire = e["bodyDiscriminator"]
+            .as_str()
+            .unwrap_or(string(&e["wireCode"]));
         out.push_str(&format!(
-            "| {}{} | {} | {} | {retry} | {} |\n",
+            "| {}{} | {} | {} | {} | {retry} | {} |\n",
             link(
                 string(&shape["name"]),
                 &format!("{prefix}{}", shape_path(shape))
             ),
             badge(shape),
+            code(wire),
             e["status"],
             string(&e["fault"]),
             cell_docs(shape, prefix)
         ));
     }
     out.push('\n');
+    // How a reader tells the errors apart: the code travels in a header
+    // beside the body.
+    if let [header] = headers.into_iter().collect::<Vec<_>>()[..] {
+        let body = if payloads.is_empty() {
+            " and in its JSON body".to_owned()
+        } else if payloads.len() < list(ids).len() {
+            format!(
+                ", and in its JSON body except for {}, whose body carries no code",
+                payloads.join(", ")
+            )
+        } else {
+            String::new()
+        };
+        out.push_str(&format!(
+            "An error response names its code in the {} header{body}.\n\n",
+            code(header)
+        ));
+    }
     out
 }
 /// An item's description cell, on a page at `prefix` from `src/`.
@@ -573,6 +967,19 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
             http.push_str(&format!("\n{name}: {}", string(value)));
         }
     }
+    // What every request carries besides its modeled headers: the
+    // credential and the release it is written for.
+    if request {
+        for scheme in list(&op["auth"]) {
+            if let Some(header) = scheme_header(d, string(scheme)) {
+                http.push_str(&format!("\n{header}"));
+            }
+        }
+        // A third party's request names no release of this API.
+        if let Some(header) = version_header(d).filter(|_| op["sender"].is_null()) {
+            http.push_str(&format!("\n{header}"));
+        }
+    }
     for header in list(&b["headers"]) {
         http.push_str(&format!(
             "\n{}: {{{}}}",
@@ -591,6 +998,13 @@ fn message(d: &Description, op: &Value, request: bool) -> String {
         http.push_str(&format!("\n\n{{{}}}", string(&b["payload"]["member"])));
     }
     out.push_str(&fence("http", &http));
+    if request && version_header(d).is_some() && op["sender"].is_null() {
+        out.push_str(&format!(
+            "{} names the release this page describes. {}\n\n",
+            code(string(&d.versions["carrier"]["name"])),
+            VERSION_NOTE
+        ));
+    }
     if let Some(shape) = d.shapes.get(string(&op[shape_key])) {
         let all = list(&shape["members"]);
         let parameters: Vec<_> = all
@@ -690,8 +1104,11 @@ fn operation(d: &Description, op: &Value) -> String {
         docs(op),
         history_line(&op["history"], "../")
     );
-    out.push_str(&format!("Protocol: {}.\n\n## Authentication\n\nEffective schemes: {}. Optional authentication: {}.\n\n",
-        code(string(&op["protocol"])),code(&op["auth"].to_string()),op["optionalAuth"]));
+    out.push_str(&format!(
+        "Protocol: {}.\n\n## Authentication\n\n",
+        code(string(&op["protocol"]))
+    ));
+    out.push_str(&authentication(d, op));
     out.push_str(&authorization(op));
     out.push_str(&message(d, op, true));
     out.push_str(&message(d, op, false));
@@ -781,6 +1198,44 @@ fn cell(service: &Service, markdown: &str) -> String {
 /// Documentation HTML as one table cell.
 fn table_cell(html: &str) -> String {
     html.trim().replace('|', "&#124;").replace('\n', " ")
+}
+
+/// Who calls a sender-signed operation (decision 81) and where its
+/// signature travels, or nothing for an operation clients call.
+fn sender(op: &Value) -> Option<String> {
+    let sender = op["sender"].as_object()?;
+    let name = literal(
+        sender
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or_default(),
+    );
+    let header = sender
+        .get("header")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    Some(format!(
+        "Called by {name}, not by clients of this API. It takes no credential: {name} signs each request, and the service verifies the signature in the {} header.",
+        code(header)
+    ))
+}
+
+/// How the caller authenticates: each effective scheme as the header it
+/// sends, or that the operation takes no credential.
+fn authentication(d: &Description, op: &Value) -> String {
+    if let Some(sender) = sender(op) {
+        return format!("{sender}\n\n");
+    }
+    let schemes = list(&op["auth"]);
+    if schemes.is_empty() {
+        return "None: this operation takes no credential.\n\n".into();
+    }
+    let mut out = String::new();
+    for scheme in schemes {
+        out.push_str(&format!("- {}\n", scheme_text(d, string(scheme))));
+    }
+    out.push('\n');
+    out
 }
 
 /// What the caller must hold (docs/permissions.md §6.3), or nothing for an

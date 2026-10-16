@@ -302,7 +302,9 @@ Descriptors use Crucible's External audience projection. Internal operations are
 unavailable through MCP, and internal members are removed from both schemas and
 the JSON passed into or returned from tool calls. Servers still retain their
 full ordinary API. External projection diagnostics fail descriptor generation;
-there is no Internal audience option for MCP.
+there is no Internal audience option for MCP. A sender-signed operation
+(`@sender`, decision 81) is no tool: a third party calls it and signs the
+exact request, which an agent cannot.
 
 JSON Schema emission is shared with OpenAPI. MCP embeds only reachable
 definitions under `$defs` instead of OpenAPI's `components/schemas`. Inputs use

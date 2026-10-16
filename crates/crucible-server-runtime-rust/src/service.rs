@@ -98,6 +98,10 @@ struct Inner {
     request_timeout: Option<Duration>,
     request_id: Option<RequestIdSource>,
     unversioned: Unversioned,
+    /// Whether the current release has a sender-signed operation (decision
+    /// 81), settled at build: only then can a request without a release be
+    /// one, served at the current release.
+    signed: bool,
 }
 
 impl Crucible {
@@ -546,6 +550,19 @@ impl Crucible {
             .map(|value| value.to_str().unwrap_or_default().trim());
         let older = match header {
             Some(name) => pick(name)?,
+            // A third party's request names no release of this API and is
+            // written for the one that declares its operation, the current
+            // (decision 81), whatever the builder chose for clients.
+            None if self.inner.signed
+                && self.inner.protocols.iter().any(|protocol| {
+                    protocol
+                        .route(job.request(), operations)
+                        .and_then(|route| operations.entry(route.operation))
+                        .is_some_and(|entry| entry.info.sender.is_some())
+                }) =>
+            {
+                None
+            }
             None => match &self.inner.unversioned {
                 // No version, and none chosen: the oldest supported.
                 Unversioned::Oldest => versions.older.first(),
@@ -1021,6 +1038,11 @@ impl Builder {
             .iter()
             .position(|p| p.fallback())
             .unwrap_or(0);
+        let signed = self
+            .operations
+            .entries
+            .values()
+            .any(|entry| entry.info.sender.is_some());
         let core = Crucible {
             inner: Arc::new(Inner {
                 operations: self.operations,
@@ -1035,6 +1057,7 @@ impl Builder {
                 request_timeout: self.request_timeout,
                 request_id: self.request_id,
                 unversioned: self.unversioned,
+                signed,
             }),
             endpoint: None,
         };

@@ -5,6 +5,7 @@
   - [DeleteItem](operations/API_DeleteItem.md)
   - [GetItem](operations/API_GetItem.md)
   - [ListItems](operations/API_ListItems.md)
+  - [RecordPayment](operations/API_RecordPayment.md)
 - Data types
   - [InternalServerException](shapes/InternalServerException.md)
   - [ValidationException](shapes/ValidationException.md)
@@ -23,6 +24,8 @@
   - [ListItemsInput](shapes/ListItemsInput.md)
   - [ListItemsOutput](shapes/ListItemsOutput.md)
   - [Names](shapes/Names.md)
+  - [RecordPaymentInput](shapes/RecordPaymentInput.md)
+  - [RecordPaymentOutput](shapes/RecordPaymentOutput.md)
 - [Releases](releases.md)
   - [v1](releases/v1.md)
   - [v2](releases/v2.md)

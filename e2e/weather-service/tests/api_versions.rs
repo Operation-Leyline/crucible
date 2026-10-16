@@ -14,7 +14,7 @@ use shop::versions::{v1, v2};
 use shop::{
     DeleteItemInput, DeleteItemOperation, DeleteItemOutput, GetItemInput, GetItemOperation,
     GetItemOutput, ItemGoneException, Kind, Label, ListItemsInput, ListItemsOperation,
-    ListItemsOutput,
+    ListItemsOutput, RecordPaymentInput, RecordPaymentOperation, RecordPaymentOutput,
 };
 
 struct Shop;
@@ -62,6 +62,17 @@ impl DeleteItemOperation for Shop {
         // v3's force is a word; older clients sent a boolean.
         Ok(DeleteItemOutput {
             deleted: format!("gone {}", input.force.as_deref().unwrap_or("-")),
+        })
+    }
+}
+
+impl RecordPaymentOperation for Shop {
+    async fn record_payment(&self, input: RecordPaymentInput) -> Result<RecordPaymentOutput> {
+        // The handler verifies the signature; here, that it arrived.
+        assert_eq!(input.signature, "t=1,v1=abc");
+        let version = self.context().api_version().map(|v| v.name());
+        Ok(RecordPaymentOutput {
+            release: version.unwrap_or("none").to_owned(),
         })
     }
 }
@@ -375,6 +386,44 @@ async fn a_direct_invocation_is_served_at_the_current_version() {
     );
 }
 
+/// A sender-signed operation (decision 81) is called by a third party that
+/// names no release: it is served at the current release, even where a
+/// client's request without one is refused or served at the oldest.
+#[tokio::test]
+async fn a_sender_signed_request_is_served_at_the_current_release() {
+    for unversioned in [Unversioned::Oldest, Unversioned::Required] {
+        let response = service(unversioned)
+            .handle(
+                Request::post("/payments")
+                    .header("payment-signature", "t=1,v1=abc")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["crucible-version"], "v3");
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            serde_json::from_slice::<Value>(&body).unwrap(),
+            json!({ "release": "v3" })
+        );
+    }
+    // A client's request without a release is still the builder's to settle.
+    let (status, _, _) = call(&service(Unversioned::Required), "GET", "/items/a", None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    // A release it names is honoured: v1 has no such operation.
+    let (status, _, _) = call(
+        &service(Unversioned::Oldest),
+        "POST",
+        "/payments",
+        Some("v1"),
+    )
+    .await;
+    assert_ne!(status, StatusCode::OK);
+}
+
 #[test]
 fn a_split_builder_names_the_hooks_it_is_missing() {
     let shop = Arc::new(Shop);
@@ -382,6 +431,7 @@ fn a_split_builder_names_the_hooks_it_is_missing() {
         .get_item(shop.clone())
         .list_items(shop.clone())
         .delete_item(shop.clone())
+        .record_payment(shop.clone())
         .v1_migration(shop)
         .build()
     else {

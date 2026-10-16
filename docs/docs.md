@@ -6,7 +6,8 @@ syntax, modeled errors, pagination, idempotency, and examples. Resource lifecycl
 tables and data-type pages connect those operation pages.
 
 The output is Markdown in mdBook layout, a versioned `describe.json` contract,
-and a static single-page HTML reference that renders that contract in a browser. It retains information that an OpenAPI conversion cannot carry,
+a static single-page HTML reference that renders that contract in a browser,
+and an `llms.txt` index of the Markdown pages for agents. It retains information that an OpenAPI conversion cannot carry,
 including resources, pagination, idempotency tokens, retryable errors, and all
 documentation notes. The Markdown and HTML renderers, and the in-service Explorer, read the same
 description data.
@@ -61,6 +62,13 @@ document. Its SDK file must declare this model, and the build needs the
 `crucible-build` feature of each SDK's language. `crucible sdk describe`
 prints the same document without a reference.
 
+A large API's `describe.json` repeats each type's JSON Schema in every
+operation that reaches it. `.schemas(crucible_build::Schemas::Shared)`, or
+`--schemas shared`, writes each definition once; `Schemas::Omit`
+(`--schemas omit`) leaves the operation schemas out. `Inline`, the
+default, is the original form; every mode is `crucible.describe/1`
+([Operation schemas](#operation-schemas)).
+
 `ModelPackage::docs` offers the same methods after explicit compilation.
 `generate` publishes under `OUT_DIR`; `generate_into` also exports relative to
 the Cargo producer's manifest. Fallible `try_generate` and `try_generate_into`
@@ -78,6 +86,8 @@ explorer.css
 describe.json
 describe.js
 changes.json
+llms.txt
+llms-full.txt
 sdks.json           (with an SDK file)
 book.toml
 src/
@@ -107,8 +117,62 @@ a leading or trailing `.` or a Windows device name (`con`) has its first
 character escaped too. Two release pages that would share a file where
 case folds are refused (`docs.filename`) before any file is written.
 
+Each operation page is complete on its own, so a reader that fetches one
+page can call the operation: its method and URI, the headers every request
+sends (the fixed `Content-Type`, `Authorization: Bearer {token}` for each
+bearer scheme, `Crucible-Version` with the current release), the modelled
+parameters and body, the response, the errors with the code each carries
+in `X-Crucible-Error` and the body, idempotency, pagination, and the
+model's examples or, without any, the generated sample.
+
 With mdBook installed, `mdbook build generated/weather-docs` renders the
 Markdown. Crucible does not launch mdBook or serve the HTML reference.
+
+## Markdown for agents
+
+An agent reads Markdown it can fetch by URL far more reliably than a
+single-page HTML reference, and fetches `.md` URLs rather than negotiating
+an `Accept` header. The output's root therefore holds, beside `index.html`:
+
+- `llms.txt`, following the [llms.txt](https://llmstxt.org/) convention:
+  an H1 with the service's title, a blockquote with the first sentence of
+  its documentation, a paragraph on what every request sends, then
+  sections of links, each with a one-line description: `Overview` (the
+  service overview and the permissions page), `Operations` (method, URI
+  and first sentence of each), `Data types` (kind, an error's status, and
+  first sentence), `Releases` (a chain of more than one release), and
+  `Optional` (`llms-full.txt`, `describe.json`, `changes.json`).
+  Operations and types are in shape-id order, and internal and deprecated
+  items say so. An agent loads this file as written, so model text in it
+  (the title, a summary, a sender's name) is inert: `<`, `>` and `&` are
+  character references and every other ASCII punctuation character is
+  backslash-escaped, so it opens no link, tag, comment or code span;
+  a method and URI and a header name are code spans. A summary is the
+  documentation's first sentence, ending at a period before a capital
+  letter, so "Payments Inc. reports" stays whole.
+- `llms-full.txt`: every page `llms.txt` links, in its order. Each starts at
+  a boundary comment, `<!-- === src/index.md === -->`, whose run of `=` is
+  longer than any run in the pages, so no page's text (a code block, an
+  example value) can pose as one. Each page's relative links are rebased
+  onto the root, where the file sits, so they resolve from it.
+
+Every page's Markdown has one stable path, the file under `src/`, and
+`llms.txt` links those paths relative to the root. Serve the output
+directory as it is generated and each page's Markdown is at a stable URL
+beside the HTML: no copy is made. The mapping from the static reference's
+routes is fixed:
+
+| Static reference | Markdown |
+|---|---|
+| `index.html` (overview) | `src/index.md` |
+| `#/op/<id>` | `src/operations/API_<Name>.md` |
+| `#/shape/<id>` | `src/shapes/<Name>.md` |
+| `#/release/<name>` | `src/releases/<escaped name>.md` |
+| mdBook's `<page>.html` | `src/<page>.md` |
+
+A site that publishes mdBook's `book/` output alone, without `src/`,
+publishes `src/` beside it, or rewrites `llms.txt`'s `src/` prefix to where
+it puts the pages.
 
 ## Static HTML reference
 
@@ -283,7 +347,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `responseProtocolHeaders` | Fixed response headers for the modeled response, resolved in lowering |
 | `request`, `response` | Fully resolved binding objects below |
 | `input`, `output` | Nullable shape IDs; null means no modeled value/Unit |
-| `inputSchema`, `outputSchema` | Self-contained shared JSON Schemas for the entire input/output's document value, including bound members; `$defs` and local `$ref` references |
+| `inputSchema`, `outputSchema` | JSON Schemas for the entire input/output's document value, including bound members: self-contained with `$defs` and local `$ref` references, a `$ref` into the root `schemas`, or absent, by the reference's schema mode ([Operation schemas](#operation-schemas)) |
 | `errors` | Effective operation and inherited service error-ID array |
 | `auth` | Effective authentication scheme IDs |
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
@@ -291,6 +355,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `examples` | Ordered example objects described below |
 | `sample` | A generated example, below: `{generated: true, input, minimalInput, output, fallbacks}` |
 | `requirements` | Absent when the operation declares nothing; else `{kind}`: `none`, `internal`, `pending` with `reason`, or `list` with `clauses` (`mode`, `permission`, `resourceType`, `tier`, and optional `bindings`, `when`, `documentation`) and `partial: true` when further clauses name internal permissions this audience does not see. A clause's `documentation` is the model's raw Markdown string, not a common documentation object; beside it, `renderedDocumentation` is the same text as a common documentation object (`markdown`, `html`, `text`) |
+| `sender` | Absent unless a third party calls the operation and signs each request (`@sender`, decision 81): `{name, member, header}`, who sends it, the input member that carries the signature and its request header. Such an operation is public; the renderers say who calls it and where the signature travels, and show no `Authorization` or `Crucible-Version` header for it |
 | `requirementSentences`, `requirementDocumentation` | Beside `requirements`: what the caller must hold, as Markdown strings and as common documentation objects (`markdown`, `html`, `text`), since they carry model text. The two arrays are index-aligned. An entry may hold several paragraphs (a handler clause's longer documentation follows the sentences as its own entry) |
 
 The JSON Schemas come from `crucible-codegen-common::json_schema`, also used by
@@ -298,6 +363,34 @@ OpenAPI and MCP. They describe logical document values rather than an HTTP
 envelope; binding descriptions separately determine the wire location. Nullable/required/default
 behavior, effective constraints, and documentation notes reuse the shared schema
 implementation.
+
+### Operation schemas
+
+A reference is generated in one of three schema modes, each a valid
+`crucible.describe/1` document, and a consumer must handle all three:
+
+| Mode | `inputSchema`, `outputSchema` | Root `schemas` |
+|---|---|---|
+| `Inline` (default) | A self-contained schema: the root type's definition, with `$defs` holding every definition it reaches | Absent |
+| `Shared` | `{"$ref": "#/$defs/<key>"}`, where `<key>` is the input or output type's id with `#` as `.`, resolved against the root `schemas`; for an operation without an input or output, the same empty-object schema as `Inline` | `{"mode": "shared", "$defs": {...}}`: every definition an operation schema reaches, once |
+| `Omit` | Absent | `{"mode": "omit"}` |
+
+The root `schemas.mode` names the mode; a description without `schemas`
+is `Inline`. A consumer that does not know a mode treats the operation
+schemas as absent.
+
+In `Shared` mode, the schema an operation would have inline is the
+definition its `$ref` names, with a `$defs` of the definitions it
+references, directly or through another. That is the inline schema
+less the definitions nothing references (an inline schema also lists
+the type of a member whose own constraints replace it), so it validates
+the same documents. `CrucibleExplorer.operationSchema(description,
+operation, "inputSchema")` rebuilds it, and returns `null` in `Omit`
+mode, where a reader derives what it needs from `shapes`. A removed
+operation's older entry in `versions` keeps its schemas inline in
+`Shared` mode, since its definitions are an older release's, and has
+none in `Omit` mode. Sharing writes each definition once: Leyline's
+description is 5.8 MB inline, 4.2 MB shared and 3.4 MB without schemas.
 
 | Binding field | Type and meaning |
 |---|---|
@@ -568,7 +661,8 @@ version 1.
 A reference's `sdks.json` lists the SDKs its audience may see: an
 external reference lists the external SDKs, an internal one every SDK.
 Each SDK describes its own audience's operations, so an operation may be
-absent from an SDK that does not expose it. The document is refused when
+absent from an SDK that does not expose it; a sender-signed operation
+(`sender` in `describe.json`) is in no SDK. The document is refused when
 an SDK would not generate, naming every such SDK. Describing reads
 neither the environment nor the SDKs' README and license files.
 
@@ -665,8 +759,10 @@ assembles the document.
 
 Weather and RPC Catalog goldens include every generated file in both audiences,
 except the identical renderer files, which have one reviewed copy under
-`tests/golden/site`, and `describe.js`, which tests compare with
-`describe.json`.
+`tests/golden/site`, `describe.js`, which tests compare with
+`describe.json`, and `llms-full.txt`, which tests compare with the pages.
+`tests/golden/schemas` holds Weather's description in the `Shared` and
+`Omit` modes, which the renderer's tests read.
 The Catalog fixture covers documentation notes, pagination, unions, enums,
 idempotency, RPC headers, timestamp examples, and arbitrary-precision wire values.
 The Links goldens (`tests/models/doc-links`) cover doc links in both audiences.

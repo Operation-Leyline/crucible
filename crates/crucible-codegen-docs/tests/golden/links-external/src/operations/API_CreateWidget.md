@@ -6,14 +6,18 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[&quot;crucible.api#httpBearerAuth&quot;]</code>. Optional authentication: null.
+- Bearer token (<code>crucible.api#httpBearerAuth</code>): send <code>Authorization: Bearer &lt;token&gt;</code>.
 
 ## Request syntax
 
 ```http
 POST /widgets HTTP/1.1
 Content-Type: application/json
+Authorization: Bearer {token}
+Crucible-Version: 1
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request body
 
@@ -62,9 +66,11 @@ Content-Type: application/json
 
 ## Errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [WidgetError](../shapes/WidgetError.md) | 404 | client | No | <p>Raised by <a href="../operations/API_GetWidget.md">GetWidget</a> when <a href="../operations/API_GetWidget.md">GetWidget.widgetId</a> names nothing.</p>  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [WidgetError](../shapes/WidgetError.md) | <code>WidgetError</code> | 404 | client | No | <p>Raised by <a href="../operations/API_GetWidget.md">GetWidget</a> when <a href="../operations/API_GetWidget.md">GetWidget.widgetId</a> names nothing.</p>  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries
 

@@ -17,6 +17,53 @@ version's section when it is prepared.
 
 ### Added
 
+- Sender-signed operations (decision 81 in
+  [docs/idl/decisions.md](docs/idl/decisions.md)): `@sender("Stripe",
+  signature: signature)` on a `public` operation says a third party calls
+  it and signs each request in the named input member's header, such as a
+  webhook receiver. The IR carries `Operation::sender` (`ir::Sender`,
+  `serde(default)`) and `Operation::signature_header`; `describe.json`
+  (additive) gives the operation `sender: {name, member, header}`, and the
+  references say "Called by Stripe, not by clients of this API" and which
+  header carries the signature. `crucible_ir::client_view` leaves such
+  operations out, with what only they reach, and every client generator,
+  the service CLI, the in-build Rust client, `sdks.json` and MCP tools read
+  that view; servers implement them as before, and serve a request to one
+  that names no release at the current release, whatever `Unversioned`
+  says (`OperationInfo::sender`, generated as `.with_sender(..)`). OpenAPI
+  marks them `x-crucible-sender`. The compatibility guard compares client
+  views, so a released operation that becomes sender-signed, and every
+  type only it reached, is a `compatibility.sdk` finding. The compiler
+  refuses `@sender` on an operation that is not `public`
+  (`sender.public`), with a signature that is not an `@header` input
+  member (`sender.signature`), or on a resource lifecycle operation
+  (`sender.lifecycle`).
+
+- A schema mode for `describe.json`: `DocsOutput::schemas` and `crucible
+  generate docs --schemas inline|shared|omit`. `Inline`, the default, is
+  unchanged. `Shared` writes every JSON Schema definition once, in a root
+  `schemas` object (`{"$defs": ...}`), and makes each operation's
+  `inputSchema` and `outputSchema` a `$ref` into it; `Omit` leaves them
+  out. The root `schemas.mode` names the mode (`shared` or `omit`; absent
+  is inline). Every mode is `crucible.describe/1` (additive), and a
+  consumer must handle all three; `CrucibleExplorer.operationSchema` rebuilds an
+  operation's schema in each, and the static reference and the Explorer
+  read it through that. Leyline's description is 5.8 MB inline, 4.2 MB
+  shared. See [docs/docs.md](docs/docs.md#operation-schemas).
+
+- The API reference has Markdown for agents: `llms.txt` beside
+  `index.html` (the llms.txt convention: the service, what every request
+  sends, and a linked line per page, operations and data types with their
+  method, URI, kind and first sentence) and `llms-full.txt`, every page in
+  one file. Each page's Markdown keeps its one path under `src/`; the
+  mapping from the static reference's routes is in
+  [docs/docs.md](docs/docs.md#markdown-for-agents). Operation pages now
+  carry what a caller needs without another page: the `Authorization` and
+  `Crucible-Version` headers in the request syntax (neither for a
+  sender-signed operation), the authentication
+  scheme as the header it sends (or that the operation takes no
+  credential), and each error's wire code and the header that carries it.
+
 - Release history in the API reference (decisions 77 and 78 in
   [docs/idl/decisions.md](docs/idl/decisions.md)). `describe.json`
   (`crucible.describe/1`, additive) gives every operation, shape, member

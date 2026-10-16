@@ -12,15 +12,21 @@ Service version: <code>1</code>.
 
 Wire protocol: <code>crucibleJson</code>.
 
+Every request names the release it is written for in a header: <code>Crucible&#45;Version&#58; 1</code>, the current release. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
+
 ## Authentication
 
-- <code>crucible.api#httpBearerAuth</code>: <code>{&quot;kind&quot;:&quot;bearer&quot;}</code>
+- Bearer token (<code>crucible.api#httpBearerAuth</code>): send <code>Authorization: Bearer &lt;token&gt;</code>.
+
+An operation that takes no credential says so on its page.
 
 ## Service errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [WidgetError](shapes/WidgetError.md) | 404 | client | No | <p>Raised by <a href="operations/API_GetWidget.md">GetWidget</a> when <a href="operations/API_GetWidget.md">GetWidget.widgetId</a> names nothing.</p>  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [WidgetError](shapes/WidgetError.md) | <code>WidgetError</code> | 404 | client | No | <p>Raised by <a href="operations/API_GetWidget.md">GetWidget</a> when <a href="operations/API_GetWidget.md">GetWidget.widgetId</a> names nothing.</p>  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Operations
 

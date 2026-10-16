@@ -588,3 +588,49 @@ fn example_coverage_checks_take_their_own_severity_or_turn_off() {
     assert!(check(&service, &Config::default()).findings.is_empty());
     assert!(Config::parse("[rules.examples]\nshapes = true\n").is_err());
 }
+
+/// A released operation that becomes sender-signed (decision 81) leaves
+/// every client SDK, with the types only it reached: each is a
+/// `compatibility.sdk` finding that says why.
+#[test]
+fn an_operation_that_becomes_sender_signed_leaves_the_sdks() {
+    let dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/sender-signed");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    let new = {
+        let compiled = crucible_lang::compile(&package, None);
+        compiled.service.expect("sender-signed compiles")
+    };
+    for file in &mut package.files {
+        file.text = file
+            .text
+            .replace("\r\n", "\n")
+            .replace("@sender(\"Payments Inc.\", signature: signature)\n", "");
+    }
+    let old = crucible_lang::compile(&package, None)
+        .service
+        .expect("without @sender");
+    let findings = sdk_findings(&old, &new);
+    for expected in [
+        "example.hooks#RecordPaymentEvent: operation is now sender-signed (`@sender`); client SDKs drop it",
+        "example.hooks#RecordPaymentEventInput: type is now reached only by sender-signed operations (`@sender`); client SDKs drop it",
+        "example.hooks#PaymentEventBody: type is now reached only by sender-signed operations (`@sender`); client SDKs drop it",
+    ] {
+        assert!(
+            findings.iter().any(|f| f == expected),
+            "{expected}: {findings:?}"
+        );
+    }
+    // Already sender-signed, ReportLeakedKeys was in no SDK, and still is not.
+    assert!(
+        !findings.iter().any(|f| f.contains("LeakedKey")),
+        "{findings:?}"
+    );
+    // Nothing a client calls changed.
+    assert!(
+        !findings.iter().any(|f| f.contains("GetAccount")),
+        "{findings:?}"
+    );
+    // The wire is unchanged: the server still serves it.
+    assert!(rules(&old, &new).is_empty(), "{:?}", rules(&old, &new));
+}

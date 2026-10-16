@@ -57,7 +57,7 @@ are built from the current model.
 |---|---|
 | A supported version | That version |
 | The current version | The current version: no conversion |
-| No version | As the builder says (below) |
+| No version | As the builder says (below); for a sender-signed operation (`@sender`, decision 81), whose third-party caller names no release, the current version |
 | An unknown version | Refused with `400`, the service's validation error naming the supported versions |
 | A version with a `sunset` | Served, with a `Sunset: <date>` header (RFC 8594) |
 

@@ -8,7 +8,9 @@ Service version: <code>v3</code>.
 
 Wire protocol: <code>crucibleJson</code>.
 
-Clients name their release in the <code>Crucible-Version</code> header; [Releases](releases.md) lists every supported release and what changed in each.
+Every request names the release it is written for in a header: <code>Crucible&#45;Version&#58; v3</code>, the current release. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
+
+[Releases](releases.md) lists every supported release and what changed in each.
 
 ## Authentication
 

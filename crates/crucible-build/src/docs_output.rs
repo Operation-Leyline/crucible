@@ -10,6 +10,7 @@ pub struct DocsOutput<'a> {
     name: String,
     audience: crucible_codegen::Audience,
     sdks: Option<PathBuf>,
+    schemas: crucible_codegen::Schemas,
 }
 
 impl<'a> DocsOutput<'a> {
@@ -19,6 +20,7 @@ impl<'a> DocsOutput<'a> {
             name: name.into(),
             audience: crucible_codegen::Audience::External,
             sdks: None,
+            schemas: crucible_codegen::Schemas::default(),
         }
     }
 
@@ -36,6 +38,17 @@ impl<'a> DocsOutput<'a> {
     /// language.
     pub fn sdks(mut self, file: impl AsRef<Path>) -> Self {
         self.sdks = Some(crate::absolute(file.as_ref()));
+        self
+    }
+
+    /// Where `describe.json` carries each operation's `inputSchema` and
+    /// `outputSchema`: `Inline` (the default) gives each its own `$defs`,
+    /// `Shared` puts every definition once in a root `schemas` object and
+    /// makes each a `$ref` into it, and `Omit` leaves them out. Each mode
+    /// is `crucible.describe/1`; a large API's description shrinks by its
+    /// repeated definitions.
+    pub fn schemas(mut self, schemas: crucible_codegen::Schemas) -> Self {
+        self.schemas = schemas;
         self
     }
 
@@ -67,6 +80,7 @@ impl<'a> DocsOutput<'a> {
             .output(&self.name, Generator::Docs)
             .audience(self.audience);
         output.sdks = self.sdks;
+        output.docs.schemas = self.schemas;
         output
     }
 }

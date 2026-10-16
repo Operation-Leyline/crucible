@@ -2,7 +2,8 @@
 // Leyline's model.
 // Documentation is abridged. This excerpt exists to show what the weather
 // model cannot: resources, property elision, include, enum-valued metadata,
-// a public operation with a payload, and the standard error package.
+// a sender-signed public operation with a payload, and the standard error
+// package.
 
 // ---- project metadata: throttling, audit and suspension ---------------------
 
@@ -317,7 +318,8 @@ operation DeleteGraph deletes Graph {
 
 /// Receive an event from the payment processor (Stripe webhook). Only the
 /// processor calls it; it takes no `Authorization` header. The caller proves
-/// itself with the `Stripe-Signature` header.
+/// itself with the `Stripe-Signature` header, which `@sender` names.
+@sender("Stripe", signature: signature)
 @auditExcluded("Public operation without a single organization audit scope; every processed event is recorded as a row beside its purchase.")
 @operationClass(controlWrite)
 @ownRequestLimit

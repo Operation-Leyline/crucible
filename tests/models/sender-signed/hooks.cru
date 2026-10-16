@@ -1,0 +1,77 @@
+/// Accounts, paid for through a payment processor that reports payments to
+/// [RecordPaymentEvent].
+service Hooks {
+    version "2026-10-01"
+    title "Hooks"
+    protocol json
+    auth bearer
+    operations [GetAccount, RecordPaymentEvent, ReportLeakedKeys]
+    errors [AccessDenied]
+}
+
+/// A request that is not signed, or not signed by the sender.
+error AccessDenied {
+    status 403
+    message: string
+}
+
+string AccountId { pattern "^a-[0-9a-z]{8}$" }
+
+/// The processor's signature: a timestamp and an HMAC of the exact body.
+sensitive string PaymentSignature { length 1..1024; pattern "^[ -~]+$" }
+
+/// The event as the processor sent it, unparsed, so the signature is
+/// checked over exactly those bytes.
+blob PaymentEventBody { mediaType "application/json" }
+
+/// Read an account. Called by clients with a bearer token.
+readonly operation GetAccount {
+    http GET "/accounts/{accountId}"
+    input {
+        accountId: AccountId
+    }
+    output {
+        accountId: AccountId
+        /// What only payment events change.
+        credit: long
+    }
+}
+
+/// Receive an event from the payment processor. A request whose signature
+/// does not verify is refused with [AccessDenied].
+@sender("Payments Inc.", signature: signature)
+public operation RecordPaymentEvent {
+    http POST "/payment-events"
+    input {
+        @header("Payment-Signature")
+        signature: PaymentSignature
+        @payload
+        event: PaymentEventBody
+    }
+    output {
+        received: boolean
+    }
+}
+
+/// A key the scanner found in public.
+structure LeakedKey {
+    token: string
+    url?: string
+}
+
+list LeakedKeys: LeakedKey { length 1..100 }
+
+/// Receive a report of leaked keys from a code host's secret scanner. Its
+/// signature header is optional in the model, so that a request without one
+/// is refused like a wrong one, with [AccessDenied].
+@sender("CodeHost", signature: signature)
+public operation ReportLeakedKeys {
+    http POST "/leaked-keys" -> 200
+    input {
+        @header("Scanner-Key-Identifier")
+        keyIdentifier?: string
+        @header("Scanner-Signature")
+        signature?: string
+        keys: LeakedKeys
+    }
+}

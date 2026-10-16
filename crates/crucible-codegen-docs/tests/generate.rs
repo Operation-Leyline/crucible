@@ -37,8 +37,12 @@ fn golden(name: &str, package: &str, audience: Audience) {
 fn golden_files(name: &str, files: Vec<crucible_codegen_docs::File>) {
     let files: Vec<_> = files
         .into_iter()
-        // describe.js repeats describe.json; the site test pins that.
-        .filter(|f| f.path != "describe.js" && !SITE_RUNTIME.contains(&f.path.as_str()))
+        // describe.js repeats describe.json, and llms-full.txt the pages;
+        // the site and llms tests pin those.
+        .filter(|f| {
+            !["describe.js", "llms-full.txt"].contains(&f.path.as_str())
+                && !SITE_RUNTIME.contains(&f.path.as_str())
+        })
         .collect();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/golden")
@@ -547,7 +551,10 @@ fn all_links_point_to_generated_pages() {
         leyline,
     ] {
         let paths: BTreeSet<_> = files.iter().map(|f| f.path.as_str()).collect();
-        for file in files.iter().filter(|f| f.path.ends_with(".md")) {
+        for file in files
+            .iter()
+            .filter(|f| f.path.ends_with(".md") || f.path.ends_with(".txt"))
+        {
             // Markdown links, and the anchors doc links became.
             let markdown = file.contents.split("](").skip(1).map(|s| (s, ')'));
             let anchors = file.contents.split("<a href=\"").skip(1).map(|s| (s, '"'));
@@ -746,7 +753,10 @@ fn a_release_name_cannot_redirect_a_link() {
         "{summary}"
     );
     let mut checked = 0;
-    for file in files.iter().filter(|f| f.path.ends_with(".md")) {
+    for file in files
+        .iter()
+        .filter(|f| f.path.ends_with(".md") || f.path.ends_with(".txt"))
+    {
         for destination in destinations(&file.contents) {
             assert!(
                 !destination.contains("://"),
@@ -893,7 +903,10 @@ fn release_names_read_back_as_written() {
             size.contains(&format!("Clients of {} do not see it.", names[0])),
             "{size}"
         );
-        for file in files.iter().filter(|f| f.path.ends_with(".md")) {
+        for file in files
+            .iter()
+            .filter(|f| f.path.ends_with(".md") || f.path.ends_with(".txt"))
+        {
             for destination in destinations(&file.contents) {
                 assert!(
                     !destination.contains("://"),
@@ -903,4 +916,483 @@ fn release_names_read_back_as_written() {
             }
         }
     }
+}
+
+/// `llms.txt` links every page, each to a generated file, and
+/// `llms-full.txt` holds every page, each under a comment naming it.
+#[test]
+fn llms_txt_indexes_every_page_and_llms_full_holds_them() {
+    let cases = [
+        files(WEATHER, Audience::External),
+        files(WEATHER, Audience::Internal),
+        files(CATALOG, Audience::Internal),
+        generate(&project(&leyline(), Audience::External).unwrap()).unwrap(),
+        versioned_files(&package_dir("version-history"), Audience::Internal),
+    ];
+    for files in cases {
+        let file = |path: &str| {
+            files
+                .iter()
+                .find(|f| f.path == path)
+                .unwrap_or_else(|| panic!("{path}"))
+                .contents
+                .clone()
+        };
+        let index = file("llms.txt");
+        assert!(index.starts_with("# "), "{index}");
+        assert!(index.contains("\n\n> "), "a summary: {index}");
+        let linked: BTreeSet<String> = destinations(&index).into_iter().collect();
+        for destination in &linked {
+            assert!(
+                files.iter().any(|f| &f.path == destination),
+                "{destination} is not generated: {index}"
+            );
+        }
+        let full = file("llms-full.txt");
+        let sections = llms_full_pages(&full);
+        let pages: Vec<&crucible_codegen_docs::File> = files
+            .iter()
+            .filter(|f| f.path.starts_with("src/") && f.path != "src/SUMMARY.md")
+            .collect();
+        assert_eq!(sections.len(), pages.len(), "one section per page");
+        for page in pages {
+            assert!(linked.contains(&page.path), "llms.txt links {}", page.path);
+            let (_, section) = sections
+                .iter()
+                .find(|(path, _)| path == &page.path)
+                .unwrap_or_else(|| panic!("llms-full.txt holds {}", page.path));
+            // The same text, links aside.
+            assert_eq!(
+                section.lines().next(),
+                page.contents.lines().next(),
+                "{}",
+                page.path
+            );
+            assert_eq!(
+                destinations(section).len(),
+                destinations(&page.contents).len(),
+                "{}",
+                page.path
+            );
+        }
+        // Every page's link resolves from the root, where llms-full.txt is.
+        for destination in destinations(&full) {
+            let path = destination.split('#').next().unwrap();
+            assert!(
+                destination.contains(':') || files.iter().any(|f| f.path == path),
+                "{destination} from llms-full.txt"
+            );
+        }
+        for href in hrefs(&full) {
+            assert!(
+                href.contains(':') || files.iter().any(|f| f.path == href),
+                "{href} from llms-full.txt"
+            );
+        }
+    }
+}
+
+/// llms-full.txt's pages, by the boundary comment before each: a run of
+/// `=` longer than any in the pages, the file, and the run again.
+fn llms_full_pages(full: &str) -> Vec<(String, String)> {
+    let first = full.lines().next().unwrap();
+    let rule = first
+        .strip_prefix("<!-- ")
+        .and_then(|rest| rest.split(' ').next())
+        .unwrap();
+    assert!(rule.len() > 2 && rule.chars().all(|c| c == '='), "{first}");
+    let mut out: Vec<(String, String)> = Vec::new();
+    for line in full.lines() {
+        if let Some(path) = line
+            .strip_prefix(&format!("<!-- {rule} "))
+            .and_then(|rest| rest.strip_suffix(&format!(" {rule} -->")))
+        {
+            out.push((path.to_owned(), String::new()));
+        } else if let Some((_, text)) = out.last_mut() {
+            text.push_str(line);
+            text.push('\n');
+        }
+    }
+    for (_, text) in &mut out {
+        *text = text.trim_start().to_owned();
+    }
+    out
+}
+
+/// The `href`s of raw HTML anchors in Markdown.
+fn hrefs(markdown: &str) -> Vec<String> {
+    pulldown_cmark::Parser::new(markdown)
+        .filter_map(|event| match event {
+            pulldown_cmark::Event::Html(text) | pulldown_cmark::Event::InlineHtml(text) => {
+                Some(text.to_string())
+            }
+            _ => None,
+        })
+        .flat_map(|html| {
+            html.match_indices("href=\"")
+                .filter_map(|(at, _)| {
+                    let rest = &html[at + 6..];
+                    rest.find('"').map(|end| rest[..end].to_owned())
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// Every operation page says how to call it on its own: the credential
+/// and release headers in the request syntax, and each error's code.
+#[test]
+fn operation_pages_carry_the_headers_and_error_codes_a_caller_sends_and_reads() {
+    let files = files(WEATHER, Audience::External);
+    let page = |path: &str| {
+        files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let get = page("src/operations/API_GetCity.md");
+    assert!(
+        get.contains(
+            "GET /cities/{cityId}?at={at} HTTP/1.1\nAuthorization: Bearer {token}\nCrucible-Version: 2026-10-01\n"
+        ),
+        "{get}"
+    );
+    assert!(
+        get.contains("| <code>NotFoundError</code> | 404 |"),
+        "{get}"
+    );
+    assert!(
+        get.contains("<code>X-Crucible-Error</code> header"),
+        "{get}"
+    );
+    let create = page("src/operations/API_CreateCity.md");
+    assert!(
+        create.contains("Content-Type: application/json\nAuthorization: Bearer {token}\n"),
+        "{create}"
+    );
+}
+
+/// An operation's schema rebuilt from a shared description: its root
+/// definition with every definition it reaches, as `explorer.js` does.
+fn rebuilt(description: &Value, schema: &Value) -> Value {
+    let Some(name) = schema["$ref"]
+        .as_str()
+        .and_then(|r| r.strip_prefix("#/$defs/"))
+    else {
+        return schema.clone();
+    };
+    let defs = &description["schemas"]["$defs"];
+    let mut reached = BTreeSet::new();
+    let mut pending = vec![name.to_owned()];
+    fn refs(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::Object(object) => {
+                for (key, value) in object {
+                    match (key.as_str(), value.as_str()) {
+                        ("$ref", Some(target)) => {
+                            if let Some(name) = target.strip_prefix("#/$defs/") {
+                                out.push(name.to_owned());
+                            }
+                        }
+                        _ => refs(value, out),
+                    }
+                }
+            }
+            Value::Array(values) => values.iter().for_each(|v| refs(v, out)),
+            _ => {}
+        }
+    }
+    while let Some(name) = pending.pop() {
+        if reached.insert(name.clone()) {
+            refs(&defs[&name], &mut pending);
+        }
+    }
+    let mut out = defs[name].clone();
+    out["$defs"] = Value::Object(
+        reached
+            .into_iter()
+            .map(|name| (name.clone(), defs[&name].clone()))
+            .collect(),
+    );
+    out
+}
+
+/// An inline schema with only the definitions its root (named by the
+/// shared form's `$ref`) references, directly or through another: what a
+/// shared schema rebuilds to. An inline schema also lists definitions a
+/// member's own constraints replaced, which nothing references.
+fn referenced(inline: &Value, shared: &Value) -> Value {
+    let Some(name) = shared["$ref"]
+        .as_str()
+        .and_then(|r| r.strip_prefix("#/$defs/"))
+    else {
+        return inline.clone();
+    };
+    let description = serde_json::json!({ "schemas": { "$defs": inline["$defs"] } });
+    let mut root = inline.clone();
+    root.as_object_mut().unwrap().remove("$defs");
+    assert_eq!(
+        root, inline["$defs"][name],
+        "the root is its shape's definition"
+    );
+    rebuilt(&description, shared)
+}
+
+/// `Schemas::Shared` and `Schemas::Omit` change only where the operation
+/// schemas are: shared, each rebuilds to the inline schema exactly, and
+/// every other file is the same in every mode.
+#[test]
+fn shared_and_omitted_schemas_keep_the_contract_and_rebuild_the_inline_ones() {
+    use crucible_codegen_docs::{Options, Schemas, generate_with};
+    let services = [
+        (
+            "weather",
+            project(&documented(WEATHER), Audience::Internal).unwrap(),
+        ),
+        (
+            "catalog",
+            project(&documented(CATALOG), Audience::Internal).unwrap(),
+        ),
+        (
+            "permissions",
+            project(&leyline(), Audience::External).unwrap(),
+        ),
+    ];
+    for (name, service) in services {
+        let with = |schemas| {
+            let mut options = Options::default();
+            options.schemas = schemas;
+            generate_with(&service, &options).unwrap()
+        };
+        let describe = |files: &[crucible_codegen_docs::File]| -> Value {
+            let file = files.iter().find(|f| f.path == "describe.json").unwrap();
+            serde_json::from_str(&file.contents).unwrap()
+        };
+        let inline_files = with(Schemas::Inline);
+        let inline = describe(&inline_files);
+        assert!(
+            inline.get("schemas").is_none(),
+            "{name}: inline is the absent mode"
+        );
+        for mode in [Schemas::Shared, Schemas::Omit] {
+            let files = with(mode);
+            // Only the description (and its script) differ.
+            for (a, b) in inline_files.iter().zip(&files) {
+                assert_eq!(a.path, b.path);
+                if !["describe.json", "describe.js"].contains(&a.path.as_str()) {
+                    assert_eq!(a.contents, b.contents, "{name}: {}", a.path);
+                }
+            }
+            let mut description = describe(&files);
+            for (id, op) in inline["operations"].as_object().unwrap() {
+                for key in ["inputSchema", "outputSchema"] {
+                    let schema = &description["operations"][id][key];
+                    match mode {
+                        Schemas::Shared => {
+                            assert_eq!(
+                                rebuilt(&description, schema),
+                                referenced(&op[key], schema),
+                                "{name}: {id} {key}"
+                            );
+                        }
+                        _ => assert!(schema.is_null(), "{name}: {id} {key}"),
+                    }
+                }
+            }
+            // The mode is explicit.
+            match mode {
+                Schemas::Omit => {
+                    assert_eq!(
+                        description["schemas"],
+                        serde_json::json!({"mode": "omit"}),
+                        "{name}"
+                    )
+                }
+                _ => assert_eq!(description["schemas"]["mode"], "shared", "{name}"),
+            }
+            // Everything else is unchanged.
+            description.as_object_mut().unwrap().remove("schemas");
+            let mut expected = inline.clone();
+            for value in [&mut description, &mut expected] {
+                for op in value["operations"].as_object_mut().unwrap().values_mut() {
+                    let op = op.as_object_mut().unwrap();
+                    op.remove("inputSchema");
+                    op.remove("outputSchema");
+                }
+            }
+            assert_eq!(description, expected, "{name}");
+        }
+    }
+}
+
+/// The shared and omitted descriptions the renderer's tests read.
+#[test]
+fn shared_and_omitted_descriptions_match_reviewed_goldens() {
+    use crucible_codegen_docs::{Options, Schemas, generate_with};
+    let service = project(&documented(WEATHER), Audience::Internal).unwrap();
+    for (mode, name) in [
+        (Schemas::Shared, "weather-shared.json"),
+        (Schemas::Omit, "weather-omit.json"),
+    ] {
+        let mut options = Options::default();
+        options.schemas = mode;
+        let files = generate_with(&service, &options).unwrap();
+        let file = files
+            .into_iter()
+            .find(|f| f.path == "describe.json")
+            .unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden/schemas")
+            .join(name);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, &file.contents).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&path).unwrap().replace("\r\n", "\n"),
+            file.contents,
+            "{}",
+            path.display()
+        );
+    }
+}
+
+/// Sender-signed operations (decision 81): the reference says who calls
+/// each and which header carries its signature, and asks no credential or
+/// release header of it.
+#[test]
+fn sender_signed_operations_match_reviewed_goldens() {
+    golden("sender-external", "sender-signed", Audience::External);
+    let files = files("sender-signed", Audience::External);
+    let page = |path: &str| {
+        files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let payment = page("src/operations/API_RecordPaymentEvent.md");
+    assert!(
+        payment.contains(r"Called by Payments Inc\., not by clients of this API. It takes no credential: Payments Inc\. signs each request, and the service verifies the signature in the <code>Payment-Signature</code> header."),
+        "{payment}"
+    );
+    assert!(!payment.contains("Authorization: Bearer"), "{payment}");
+    assert!(!payment.contains("Crucible-Version"), "{payment}");
+    assert!(page("src/operations/API_GetAccount.md").contains("Crucible-Version: 2026-10-01"));
+    assert!(page("llms.txt").contains(
+        "- [ReportLeakedKeys](src/operations/API_ReportLeakedKeys.md): `POST /leaked-keys`. Called by CodeHost, which signs it in the `Scanner-Signature` header."
+    ));
+    let describe: Value = serde_json::from_str(&page("describe.json")).unwrap();
+    assert_eq!(
+        describe["operations"]["example.hooks#RecordPaymentEvent"]["sender"],
+        serde_json::json!({"name": "Payments Inc.", "member": "signature", "header": "Payment-Signature"})
+    );
+    assert!(
+        describe["operations"]["example.hooks#GetAccount"]
+            .get("sender")
+            .is_none()
+    );
+}
+
+/// Model text reaches llms.txt as text: a title, a summary or a sender's
+/// name opens no link, tag or comment, and llms-full.txt carries the
+/// pages' own markup only, with a link only where the author wrote one.
+#[test]
+fn model_text_cannot_inject_markup_into_llms_txt() {
+    let hostile = r"Hostile [live](https://live.example) `[code](https://code.example)` \[escaped](https://escaped.example) <script>alert(1)</script> <img src=x onerror=y> https://bare.example <!-- unclosed";
+    let mut service = documented("hostile-text");
+    service.title = Some("Title [t](https://title.example) <b>bold</b> # x".into());
+    service.docs = Some(format!("{hostile}. Second sentence."));
+    for op in &mut service.operations {
+        op.docs = Some(hostile.into());
+        op.public = true;
+        op.auth.clear();
+        op.sender = Some(crucible_ir::ir::Sender {
+            name: hostile.into(),
+            signature: "text".into(),
+        });
+    }
+    for shape in service.shapes.values_mut() {
+        if let crucible_ir::ir::Shape::Structure(s) = shape {
+            s.docs = Some(hostile.into());
+        }
+    }
+    let files = generate(&project(&service, Audience::External).unwrap()).unwrap();
+    let file = |path: &str| {
+        files
+            .iter()
+            .find(|f| f.path == path)
+            .unwrap_or_else(|| panic!("{path}"))
+            .contents
+            .clone()
+    };
+    let generated = |destination: &str| files.iter().any(|f| f.path == destination);
+    let index = file("llms.txt");
+    assert!(index.contains("Hostile"), "{index}");
+    for destination in destinations(&index) {
+        assert!(
+            generated(&destination),
+            "{destination} in llms.txt:\n{index}"
+        );
+    }
+    let markup: Vec<String> = pulldown_cmark::Parser::new(&index)
+        .filter_map(|event| match event {
+            pulldown_cmark::Event::Html(t) | pulldown_cmark::Event::InlineHtml(t) => {
+                Some(t.to_string())
+            }
+            _ => None,
+        })
+        .collect();
+    assert!(markup.is_empty(), "{markup:?} in llms.txt:\n{index}");
+    assert!(
+        index.starts_with(r"# Title \[t\]\(https\:\/\/title\.example\) &lt;b&gt;"),
+        "the title is one heading's text:\n{index}"
+    );
+    let full = file("llms-full.txt");
+    for destination in destinations(&full).into_iter().chain(hrefs(&full)) {
+        let path = destination.split('#').next().unwrap();
+        assert!(
+            generated(path) || destination == "https://live.example",
+            "{destination} in llms-full.txt"
+        );
+    }
+    let rule = full
+        .lines()
+        .next()
+        .unwrap()
+        .split(' ')
+        .nth(1)
+        .unwrap()
+        .to_owned();
+    for event in pulldown_cmark::Parser::new(&full) {
+        if let pulldown_cmark::Event::Html(t) | pulldown_cmark::Event::InlineHtml(t) = event {
+            let t = t.to_string();
+            assert!(!t.contains("<script") && !t.contains("<img"), "{t}");
+            if t.starts_with("<!--") {
+                assert!(t.starts_with(&format!("<!-- {rule} src/")), "{t}");
+            }
+        }
+    }
+}
+
+/// An error whose body is its payload carries its code in the header
+/// alone, and the error table says so.
+#[test]
+fn a_payload_error_s_code_is_in_its_header_alone() {
+    let files = files("error-payloads", Audience::External);
+    let pages: String = files
+        .iter()
+        .filter(|f| f.path.starts_with("src/operations/"))
+        .map(|f| f.contents.as_str())
+        .collect();
+    assert!(
+        pages.contains(
+            "An error response names its code in the <code>X-Crucible-Error</code> header.\n"
+        ),
+        "{pages}"
+    );
+    assert!(!pages.contains("and in its JSON body"), "{pages}");
 }

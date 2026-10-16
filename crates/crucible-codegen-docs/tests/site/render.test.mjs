@@ -26,7 +26,12 @@ const LINKS_EXTERNAL = golden("links-external");
 const HISTORY = golden("history-internal");
 const HISTORY_EXTERNAL = golden("history-external");
 const VERSIONED = golden("versioned-external");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED };
+const SENDER = golden("sender-external");
+// Weather's internal description with its schemas shared and omitted.
+const schemas = (name) => JSON.parse(readFileSync(join(crate, "tests", "golden", "schemas", `${name}.json`), "utf8"));
+const WEATHER_SHARED = schemas("weather-shared");
+const WEATHER_OMIT = schemas("weather-omit");
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED, WEATHER_SHARED, WEATHER_OMIT, SENDER };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -69,7 +74,9 @@ for (const [name, description] of Object.entries(DESCRIPTIONS)) {
         ? op.examples.reduce((n, e) => n + ["input", "output", "error"].filter((k) => e[k] != null).length, 0)
         : 2;
       const bodyShapes = [op.request, op.response].filter((b) => !b.payload && b.body.length).length;
-      assert.equal(copies.length, 2 + bodyShapes + messages + 2, `${id} copy buttons`);
+      // A schema block for each schema the description carries.
+      const schemaBlocks = ["inputSchema", "outputSchema"].filter((k) => op[k]).length;
+      assert.equal(copies.length, 2 + bodyShapes + messages + schemaBlocks, `${id} copy buttons`);
       if (op.pagination) assert.ok(text.includes(op.pagination.inputToken), `${id} pagination`);
       if (op.idempotencyToken) assert.ok(text.includes(op.idempotencyToken), `${id} idempotency token`);
       for (const error of op.errors) assert.ok(text.includes(description.shapes[error].name), `${id} error ${error}`);
@@ -86,6 +93,56 @@ for (const [name, description] of Object.entries(DESCRIPTIONS)) {
     }
   });
 }
+
+// The definitions an inline schema's root references, directly or through
+// another: what a shared schema rebuilds to. An inline schema also lists the
+// definitions a member's own constraints replaced, which nothing references.
+function referenced(schema, rootName) {
+  const defs = schema.$defs;
+  const reached = new Set();
+  const pending = [rootName];
+  const visit = (value) => {
+    if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === "object") for (const [k, v] of Object.entries(value)) k === "$ref" ? pending.push(v.slice("#/$defs/".length)) : visit(v);
+  };
+  while (pending.length) {
+    const name = pending.pop();
+    if (reached.has(name)) continue;
+    reached.add(name);
+    visit(defs[name]);
+  }
+  return { ...schema, $defs: Object.fromEntries([...reached].sort().map((name) => [name, defs[name]])) };
+}
+
+test("a shared schema rebuilds to the inline one, and an omitted one has no section", () => {
+  const shared = x.index(WEATHER_SHARED);
+  assert.ok(WEATHER_SHARED.schemas && WEATHER_SHARED.schemas.mode === "shared" && WEATHER_SHARED.schemas.$defs, "a root schemas map");
+  assert.deepEqual(WEATHER_OMIT.schemas, { mode: "omit" });
+  assert.equal(WEATHER.schemas, undefined, "inline is the absent mode");
+  for (const [id, op] of Object.entries(WEATHER.operations)) {
+    for (const key of ["inputSchema", "outputSchema"]) {
+      const sharedOp = WEATHER_SHARED.operations[id];
+      // Inline descriptions are returned as they are.
+      assert.deepEqual(x.operationSchema(WEATHER, op, key), op[key], `${id} ${key} inline`);
+      const ref = sharedOp[key].$ref;
+      const expected = ref ? referenced(op[key], ref.slice("#/$defs/".length)) : op[key];
+      assert.deepEqual(x.operationSchema(shared, sharedOp, key), expected, `${id} ${key} shared`);
+      assert.deepEqual(x.operationSchema(WEATHER_SHARED, sharedOp, key), expected, `${id} ${key} from the description`);
+      assert.equal(x.operationSchema(WEATHER_OMIT, WEATHER_OMIT.operations[id], key), null, `${id} ${key} omitted`);
+    }
+    const omitted = x.operationView(x.index(WEATHER_OMIT), id, null);
+    assert.ok(!textOf(omitted).includes("JSON Schemas"), `${id}: no schema section`);
+    assert.ok(textOf(x.operationView(shared, id, null)).includes("JSON Schemas"), `${id}: shared schemas shown`);
+  }
+});
+
+test("a sender-signed operation says who calls it and where its signature travels", () => {
+  const m = x.index(SENDER);
+  const text = textOf(x.operationView(m, "example.hooks#RecordPaymentEvent", null));
+  assert.match(text, /Called by Payments Inc\., not by clients of this API/);
+  assert.match(text, /Payment-Signature/);
+  assert.ok(!textOf(x.operationView(m, "example.hooks#GetAccount", null)).includes("Called by"));
+});
 
 test("request syntax places labels, query, headers and the raw payload", () => {
   const op = WEATHER.operations["example.weather#PutCityPhoto"];
@@ -507,7 +564,8 @@ test("an operation states what the caller must hold, and the overview lists the 
 });
 
 test("the test fixtures cover all goldens the generator ships", () => {
-  const dirs = readdirSync(join(crate, "tests", "golden")).filter((d) => d !== "site").sort();
+  // `schemas` holds Weather's description in the other schema modes.
+  const dirs = readdirSync(join(crate, "tests", "golden")).filter((d) => d !== "site" && d !== "schemas").sort();
   assert.deepEqual(dirs, [
     "catalog-external",
     "catalog-internal",
@@ -518,6 +576,7 @@ test("the test fixtures cover all goldens the generator ships", () => {
     "permissions-external",
     "permissions-internal",
     "samples-external",
+    "sender-external",
     "versioned-external",
     "weather-external",
     "weather-internal",

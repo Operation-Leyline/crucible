@@ -55,6 +55,30 @@ fn docs_probe() {
             .unwrap()
             .contains("Internal API")
     );
+    // The schema modes (docs/docs.md, "Operation schemas").
+    let shared = model
+        .docs("shared")
+        .schemas(crucible_build::Schemas::Shared)
+        .generate();
+    let shared: Value =
+        serde_json::from_slice(&fs::read(shared.path.join("describe.json")).unwrap()).unwrap();
+    assert_eq!(
+        shared["operations"]["example.weather#GetCity"]["inputSchema"],
+        serde_json::json!({"$ref": "#/$defs/example.weather.GetCityInput"})
+    );
+    assert_eq!(shared["schemas"]["mode"], "shared");
+    assert!(shared["schemas"]["$defs"]["example.weather.GetCityInput"].is_object());
+    let omitted = model
+        .docs("omitted")
+        .schemas(crucible_build::Schemas::Omit)
+        .generate();
+    let omitted: Value =
+        serde_json::from_slice(&fs::read(omitted.path.join("describe.json")).unwrap()).unwrap();
+    assert!(
+        omitted["operations"]["example.weather#GetCity"]
+            .get("inputSchema")
+            .is_none()
+    );
     let index: Value =
         serde_json::from_slice(&fs::read("out/crucible-artifacts.json").unwrap()).unwrap();
     assert!(index.is_object());

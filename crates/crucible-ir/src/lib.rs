@@ -21,7 +21,7 @@ mod timestamp_default;
 pub mod validate;
 pub mod versions;
 
-pub use audience::{Audience, project};
+pub use audience::{Audience, client_view, project};
 pub use capabilities::{Capabilities, Feature, FeatureUse};
 pub use diagnostics::{Diagnostic, Diagnostics};
 pub use protocol::{Protocol, ProtocolSettings};

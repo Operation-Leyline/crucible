@@ -149,6 +149,34 @@ pub mod shop {
 
         pub type Names = ::std::vec::Vec<::std::string::String>;
 
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RecordPaymentInput {
+            #[serde(rename = "signature")]
+            pub signature: ::std::string::String,
+        }
+        impl ::std::fmt::Debug for RecordPaymentInput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RecordPaymentInput");
+                debug.field("signature", &self.signature);
+                debug.finish()
+            }
+        }
+
+        #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
+        #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
+        pub struct RecordPaymentOutput {
+            #[serde(rename = "release")]
+            pub release: ::std::string::String,
+        }
+        impl ::std::fmt::Debug for RecordPaymentOutput {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                let mut debug = f.debug_struct("RecordPaymentOutput");
+                debug.field("release", &self.release);
+                debug.finish()
+            }
+        }
+
         /// A request field that failed validation.
         #[derive(Clone, PartialEq, ::crucible_server_runtime_rust::__generated::serde::Serialize, ::crucible_server_runtime_rust::__generated::serde::Deserialize)]
         #[serde(crate = "::crucible_server_runtime_rust::__generated::serde")]
@@ -211,6 +239,12 @@ pub mod shop {
         }
 
         impl ::crucible_server_runtime_rust::__generated::validate::Validate for ListItemsInput {
+            fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
+                let _ = validator;
+            }
+        }
+
+        impl ::crucible_server_runtime_rust::__generated::validate::Validate for RecordPaymentInput {
             fn validate(&self, validator: &mut ::crucible_server_runtime_rust::__generated::validate::Validator) {
                 let _ = validator;
             }
@@ -434,7 +468,7 @@ pub mod shop {
 
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
-    pub use model::{DeleteItemInput, DeleteItemOutput, GetItemInput, GetItemOutput, Kind, Kinds, Label, ListItemsInput, ListItemsOutput, Names, ValidationExceptionField, ValidationExceptionFieldList, ValidationExceptionReason};
+    pub use model::{DeleteItemInput, DeleteItemOutput, GetItemInput, GetItemOutput, Kind, Kinds, Label, ListItemsInput, ListItemsOutput, Names, RecordPaymentInput, RecordPaymentOutput, ValidationExceptionField, ValidationExceptionFieldList, ValidationExceptionReason};
     #[doc(inline)]
     #[allow(unused_imports, deprecated)]
     pub use errors::{InternalServerException, ItemGoneException, ItemNotFoundException, ValidationException};
@@ -461,6 +495,8 @@ pub mod shop {
         pub(super) static R_16: Redaction = Redaction::Structure(&[("limit", &R_0), ("sort", &R_1)]);
         pub(super) static R_17: Redaction = Redaction::Structure(&[("names", &R_18), ("kinds", &R_14)]);
         pub(super) static R_18: Redaction = Redaction::List(&R_1);
+        pub(super) static R_19: Redaction = Redaction::Structure(&[("signature", &R_1)]);
+        pub(super) static R_20: Redaction = Redaction::Structure(&[("release", &R_1)]);
     }
 
 
@@ -579,6 +615,50 @@ pub mod shop {
         fn list_items(&self, input: ListItemsInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<ListItemsOutput>> + Send;
     }
 
+    /// A payment processor's delivery (decision 81). The processor names no
+    /// release of the shop: it is served at the current one, v3, whatever the
+    /// service does with a client's request that names none.
+    pub struct RecordPayment;
+
+    static RECORD_PAYMENT_OPERATION: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(
+        "example.shop#RecordPayment",
+        "RecordPayment",
+        None,
+        "POST",
+        &[::crucible_server_runtime_rust::__generated::operation::Segment::Literal("payments")],
+        &[],
+        200,
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("signature", ::crucible_server_runtime_rust::__generated::operation::Location::Header("payment-signature"), ::crucible_server_runtime_rust::__generated::operation::Scalar::String, &__redaction::R_1, &[]),
+        ],
+        &[
+            ::crucible_server_runtime_rust::__generated::member_info("release", ::crucible_server_runtime_rust::__generated::operation::Location::Body, ::crucible_server_runtime_rust::__generated::operation::Scalar::Json, &__redaction::R_1, &[]),
+        ],
+        &["ValidationException", "InternalServerException"],
+        false,
+        false,
+        false,
+        None,
+        &[],
+    ).with_sender("Payments");
+
+    impl ::crucible_server_runtime_rust::__generated::Operation for RecordPayment {
+        const AUTH_BEARER: bool = false;
+        const AUTH_SCHEMES: ::std::option::Option<&'static [::crucible_server_runtime_rust::__generated::operation::AuthScheme]> = Some(&[]);
+        const PUBLIC: bool = true;
+        const API_VERSION: ::std::option::Option<&'static str> = ::std::option::Option::Some("v3");
+        const INFO: &'static ::crucible_server_runtime_rust::__generated::OperationInfo = &RECORD_PAYMENT_OPERATION;
+        type Input = model::RecordPaymentInput;
+        type Output = model::RecordPaymentOutput;
+    }
+
+    /// A payment processor's delivery (decision 81). The processor names no
+    /// release of the shop: it is served at the current one, v3, whatever the
+    /// service does with a client's request that names none.
+    pub trait RecordPaymentOperation: ::crucible_server_runtime_rust::__generated::WithContext + Send + Sync + 'static {
+        fn record_payment(&self, input: RecordPaymentInput) -> impl ::std::future::Future<Output = ::crucible_server_runtime_rust::__generated::Result<RecordPaymentOutput>> + Send;
+    }
+
     fn classify<'a>(error: &'a (dyn ::std::error::Error + 'static)) -> ::std::option::Option<&'a dyn ::crucible_server_runtime_rust::__generated::ModelledError> {
         if let Some(error) = error.downcast_ref::<errors::InternalServerException>() {
             return Some(error);
@@ -627,6 +707,7 @@ pub mod shop {
             &DELETE_ITEM_OPERATION,
             &GET_ITEM_OPERATION,
             &LIST_ITEMS_OPERATION,
+            &RECORD_PAYMENT_OPERATION,
         ],
         &[&errors::INTERNAL_SERVER_EXCEPTION_INFO, &errors::ITEM_GONE_EXCEPTION_INFO, &errors::ITEM_NOT_FOUND_EXCEPTION_INFO, &errors::VALIDATION_EXCEPTION_INFO],
         classify,
@@ -655,6 +736,11 @@ pub mod shop {
             Self(self.0.add::<ListItems, S, _>(implementation, |implementation, input| async move { implementation.list_items(input).await }))
         }
 
+        /// Serves RecordPayment with `implementation`.
+        pub fn record_payment<S: RecordPaymentOperation>(self, implementation: ::std::sync::Arc<S>) -> Self {
+            Self(self.0.add::<RecordPayment, S, _>(implementation, |implementation, input| async move { implementation.record_payment(input).await }))
+        }
+
         pub fn build(self) -> ::std::result::Result<::crucible_server_runtime_rust::__generated::Operations, ::crucible_server_runtime_rust::__generated::MissingOperations> {
             self.0.build()
         }
@@ -667,12 +753,13 @@ pub mod shop {
     /// Every operation, served by one type: checked at compile time.
     pub fn operations<T>(implementation: ::std::sync::Arc<T>) -> ::crucible_server_runtime_rust::__generated::Operations
     where
-        T: DeleteItemOperation + GetItemOperation + ListItemsOperation + versions::Migrations,
+        T: DeleteItemOperation + GetItemOperation + ListItemsOperation + RecordPaymentOperation + versions::Migrations,
     {
         builder()
             .delete_item(implementation.clone())
             .get_item(implementation.clone())
             .list_items(implementation.clone())
+            .record_payment(implementation.clone())
             .migrations(implementation.clone())
             .build()
             .expect("every operation is registered")

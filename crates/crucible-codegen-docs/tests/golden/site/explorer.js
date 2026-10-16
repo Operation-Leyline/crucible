@@ -107,6 +107,48 @@
     };
   }
 
+  // An operation's input or output JSON Schema, self-contained, whichever
+  // way describe.json carries it (docs/docs.md, "Operation schemas"): the
+  // root `schemas.mode` is "shared" or "omit", and absent when inline.
+  // Inline it is returned as it is, shared as its root definition with the
+  // definitions it reaches, and omitted it is `null`. `key` is "inputSchema" or
+  // "outputSchema"; `description` is a description or an `index` of one.
+  function operationSchema(description, op, key) {
+    const shared = description && description.d ? description.d.schemas : description && description.schemas;
+    const schema = op && op[key];
+    // "omit", or a mode this renderer does not know: no schemas to show.
+    if (!schema || typeof schema !== "object" || (shared && shared.mode !== "shared")) return null;
+    const prefix = "#/$defs/";
+    if (typeof schema.$ref !== "string" || !schema.$ref.startsWith(prefix) || !shared || !shared.$defs) return schema;
+    const defs = shared.$defs;
+    const own = (name) => Object.prototype.hasOwnProperty.call(defs, name);
+    const rootName = schema.$ref.slice(prefix.length);
+    if (!own(rootName)) return schema;
+    const reached = new Set();
+    const pending = [rootName];
+    const visit = (value) => {
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) {
+          if (k === "$ref" && typeof v === "string" && v.startsWith(prefix)) pending.push(v.slice(prefix.length));
+          else visit(v);
+        }
+      }
+    };
+    while (pending.length) {
+      const name = pending.pop();
+      if (reached.has(name) || !own(name)) continue;
+      reached.add(name);
+      visit(defs[name]);
+    }
+    const out = {};
+    for (const [k, v] of Object.entries(defs[rootName])) Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+    const $defs = {};
+    for (const name of [...reached].sort()) Object.defineProperty($defs, name, { value: defs[name], enumerable: true, writable: true, configurable: true });
+    out.$defs = $defs;
+    return out;
+  }
+
   // Built-ins are `crucible.api#..`; a describe.json written before the
   // prelude moved spells them `smithy.api#..`.
   const isBuiltin = (id) => id.startsWith("crucible.api#") || id.startsWith("smithy.api#");
@@ -695,7 +737,21 @@
     const out = [
       pageHeader(m, op.name, op, h("span", { class: "cx-method", "data-method": op.method }, op.method)),
       panels,
-      h("section", { id: sectionId("overview") }, h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", ".")),
+      h(
+        "section",
+        { id: sectionId("overview") },
+        h("p", {}, "Protocol ", code(op.protocol), ". Authentication: ", list(op.auth).length ? list(op.auth).map((a) => code(a)) : "none", "."),
+        // A third party calls it and signs each request (decision 81).
+        op.sender
+          ? h(
+              "p",
+              { class: "cx-sender" },
+              `Called by ${op.sender.name}, not by clients of this API. It takes no credential: ${op.sender.name} signs each request, and the service verifies the signature in the `,
+              code(op.sender.header || ""),
+              " header.",
+            )
+          : null,
+      ),
       authorizationSection(m, op),
       messageSection(m, op, true),
       messageSection(m, op, false),
@@ -722,15 +778,23 @@
       out.push(h("section", { id: sectionId("pagination") }, sectionHeading(op, "pagination", "Pagination"), table(["Role", "Member path"], rows, "Pagination"), h("p", {}, "Follow the output token until absent or empty; reject repeated tokens.")));
     }
     out.push(examplesSection(m, op));
-    out.push(
-      h(
-        "section",
-        { id: sectionId("schemas") },
-        sectionHeading(op, "schemas", "JSON Schemas"),
-        h("details", {}, h("summary", {}, "Input schema"), codeBlock("input schema", pretty(op.inputSchema), "json")),
-        h("details", {}, h("summary", {}, "Output schema"), codeBlock("output schema", pretty(op.outputSchema), "json")),
-      ),
-    );
+    // A description may omit the schemas, or share their definitions.
+    const schemas = [
+      ["inputSchema", "Input schema", "input schema"],
+      ["outputSchema", "Output schema", "output schema"],
+    ]
+      .map(([key, title, label]) => [operationSchema(m, op, key), title, label])
+      .filter(([schema]) => schema);
+    if (schemas.length) {
+      out.push(
+        h(
+          "section",
+          { id: sectionId("schemas") },
+          sectionHeading(op, "schemas", "JSON Schemas"),
+          schemas.map(([schema, title, label]) => h("details", {}, h("summary", {}, title), codeBlock(label, pretty(schema), "json"))),
+        ),
+      );
+    }
     return out;
   }
 
@@ -1004,7 +1068,7 @@
     h, rich, mount, toHTML,
     index, navigation, filterNavigation, parseRoute, href, refHref,
     overviewView, operationView, shapeView, resourceView, releaseView, pageFor, navView,
-    requestSyntax, responseSyntax, exampleMessage,
+    requestSyntax, responseSyntax, exampleMessage, operationSchema,
     operationPanels, registerOperationPanel,
     start, load, boot,
   };

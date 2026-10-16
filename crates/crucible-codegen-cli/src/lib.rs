@@ -14,6 +14,9 @@ use crucible_ir::ir::Service;
 
 /// Generate package sources without reading the model AST or touching disk.
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    // The CLI is a client: a sender-signed operation is a third party's to
+    // call (decision 81).
+    let service = &crucible_ir::client_view(service);
     let mut diagnostics = Diagnostics::default();
     package::validate(service, options, &mut diagnostics);
     let schema = schema::emit(service, options, &mut diagnostics);

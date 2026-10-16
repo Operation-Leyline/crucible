@@ -955,6 +955,22 @@ pub struct Operation {
     /// `errors` (docs/permissions.md §6.1).
     #[serde(default, skip_serializing_if = "Requirements::is_undeclared")]
     pub requirements: Requirements,
+    /// Who calls the operation when a third party does, proving itself with
+    /// a signature it computes rather than a credential of this service
+    /// (`@sender`, decision 81): a webhook receiver. Such an operation is
+    /// `public`, and clients do not call it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sender: Option<Sender>,
+}
+
+/// A sender-signed operation's caller (decision 81).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Sender {
+    /// Who sends the request, as the documentation names it: `Stripe`.
+    pub name: String,
+    /// The input member, bound to a request header, that carries the
+    /// signature the sender computes.
+    pub signature: String,
 }
 
 /// One `@examples` entry. `input`, `output` and `error.content` are model
@@ -981,6 +997,17 @@ pub struct ExampleError {
 impl Operation {
     pub fn name(&self) -> &str {
         self.id.name()
+    }
+
+    /// The request header a sender-signed operation's signature travels
+    /// in: its `signature` member's header binding (decision 81).
+    pub fn signature_header(&self) -> Option<&str> {
+        let sender = self.sender.as_ref()?;
+        self.request
+            .headers
+            .iter()
+            .find(|binding| binding.member == sender.signature)
+            .map(|binding| binding.name.as_str())
     }
 }
 

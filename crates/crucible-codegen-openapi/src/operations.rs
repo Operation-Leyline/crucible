@@ -40,6 +40,11 @@ pub(crate) fn operation(service: &Service, op: &Operation) -> Value {
     if let Some(token) = &op.idempotency_token {
         value["x-crucible-idempotency-token"] = json!(token);
     }
+    // A third party calls it and signs each request (decision 81).
+    if let Some(sender) = &op.sender {
+        value["x-crucible-sender"] = json!({"name": sender.name, "member": sender.signature,
+            "header": op.signature_header()});
+    }
     if let Some(pagination) = &op.paginated {
         value["x-crucible-pagination"] = json!({"inputToken": pagination.input_token, "outputToken": pagination.output_token, "items": pagination.items, "pageSize": pagination.page_size});
     }

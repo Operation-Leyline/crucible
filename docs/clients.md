@@ -14,6 +14,10 @@ API. Use `--audience internal` on `crucible generate`, or
 full contract. See [selecting an API audience](build-outputs.md#selecting-an-api-audience)
 for diagnostics and migration instructions.
 
+A sender-signed operation (`@sender`, a webhook receiver a third party
+calls and signs) is in no client, whatever the audience, nor are the types
+only it reaches ([decision 81](idl/decisions.md)).
+
 ## Language guides
 
 For standalone command-line tools, see [generating a service CLI](clients/cli.md).

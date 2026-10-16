@@ -1,0 +1,41 @@
+# Links
+
+> Widgets\, linked\.
+
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential. Send `Crucible-Version: 1` on every request you make. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+
+## Overview
+
+- [Service overview](src/index.md): protocol, authentication, service errors, and the operations of each resource
+
+## Operations
+
+- [CreateWidget](src/operations/API_CreateWidget.md): `POST /widgets`. Makes a Widget\; read it with GetWidget\.
+- [GetGadget](src/operations/API_GetGadget.md): `GET /gadgets/{gadgetId}`. Reads a Gadget\.
+- [GetWidget](src/operations/API_GetWidget.md): `GET /widgets/{widgetId}`. Reads the Widget that CreateWidget made\, by GetWidget\.widgetId\, and returns it as GetWidget\.widget\.
+- [Reveal](src/operations/API_Reveal.md): `GET /secrets`. Reads a Secret\; internal\, like Secret\.value\. Internal.
+
+## Data types
+
+- [Choice](src/shapes/Choice.md): union. One of two things\.
+- [Code](src/shapes/Code.md): intEnum. A numbered code\.
+- [Color](src/shapes/Color.md): enum. A colour\.
+- [CreateWidgetInput](src/shapes/CreateWidgetInput.md): structure.
+- [CreateWidgetOutput](src/shapes/CreateWidgetOutput.md): structure.
+- [GetGadgetInput](src/shapes/GetGadgetInput.md): structure.
+- [GetGadgetOutput](src/shapes/GetGadgetOutput.md): structure.
+- [GetWidgetInput](src/shapes/GetWidgetInput.md): structure.
+- [GetWidgetOutput](src/shapes/GetWidgetOutput.md): structure.
+- [Label](src/shapes/Label.md): string. A short label\.
+- [RevealOutput](src/shapes/RevealOutput.md): structure.
+- [Secret](src/shapes/Secret.md): structure. Not part of the external contract\; Reveal returns it\. Internal.
+- [Widget](src/shapes/Widget.md): structure. A widget\; CreateWidget makes one\.
+- [WidgetError](src/shapes/WidgetError.md): error, HTTP 404. Raised by GetWidget when GetWidget\.widgetId names nothing\.
+- [Widgets](src/shapes/Widgets.md): list. Several widgets\.
+- [WidgetsByName](src/shapes/WidgetsByName.md): map. Widgets by name\.
+
+## Optional
+
+- [llms-full.txt](llms-full.txt): every page above in one file
+- [describe.json](describe.json): the whole reference as JSON (`crucible.describe/1`)
+- [changes.json](changes.json): the release chain alone (`crucible.changes/1`)

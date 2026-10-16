@@ -197,6 +197,8 @@ pub use crucible_codegen::ROptions;
 pub use crucible_codegen::RubyOptions;
 #[cfg(feature = "rust")]
 pub use crucible_codegen::RustServerOptions;
+#[cfg(feature = "docs")]
+pub use crucible_codegen::Schemas;
 #[cfg(feature = "swift")]
 pub use crucible_codegen::SwiftOptions;
 #[cfg(feature = "terraform")]
@@ -589,7 +591,10 @@ impl ServerOutput {
             check_policy(&service, policy)?;
         }
         let service = if self.side == Side::Client {
-            crucible_ir::project(&service, self.audience).map_err(|e| e.to_string())?
+            // A client never calls a sender-signed operation (decision 81).
+            crucible_ir::client_view(
+                &crucible_ir::project(&service, self.audience).map_err(|e| e.to_string())?,
+            )
         } else {
             service
         };

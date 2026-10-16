@@ -77,6 +77,8 @@ impl ModelPackage {
             audience: crucible_codegen::Audience::External,
             #[cfg(feature = "docs")]
             sdks: None,
+            #[cfg(feature = "docs")]
+            docs: crucible_codegen::DocsOptions::default(),
         }
     }
 

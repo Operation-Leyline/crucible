@@ -14,14 +14,17 @@ Protocol: <code>crucibleJson</code>.
 
 ## Authentication
 
-Effective schemes: <code>[]</code>. Optional authentication: null.
+None: this operation takes no credential.
 
 ## Request syntax
 
 ```http
 POST /ListItems HTTP/1.1
 Content-Type: application/json
+Crucible-Version: 2026-10
 ```
+
+<code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
 
 ### Request body
 
@@ -60,9 +63,11 @@ Content-Type: application/json
 
 ## Errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [Unavailable](../shapes/Unavailable.md) | 503 | server | Yes | <p>Temporarily unavailable.</p>  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [Unavailable](../shapes/Unavailable.md) | <code>Unavailable</code> | 503 | server | Yes | <p>Temporarily unavailable.</p>  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Idempotency and retries
 

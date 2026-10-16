@@ -1,7 +1,7 @@
 service Shop {
     version "v3"
     protocol json
-    operations [GetItem, ListItems, DeleteItem]
+    operations [GetItem, ListItems, DeleteItem, RecordPayment]
     errors [ValidationException, InternalServerException]
 }
 
@@ -16,6 +16,19 @@ readonly operation GetItem {
 }
 
 enum Kind { SMALL, LARGE, HUGE }
+
+/// A payment processor's delivery (decision 81). The processor names no
+/// release of the shop: it is served at the current one, v3, whatever the
+/// service does with a client's request that names none.
+@sender("Payments", signature: signature)
+public operation RecordPayment {
+    http POST "/payments"
+    input {
+        @header("Payment-Signature")
+        signature: string
+    }
+    output { release: string }
+}
 
 readonly operation ListItems {
     http GET "/items"

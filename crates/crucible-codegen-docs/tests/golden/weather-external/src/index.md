@@ -9,16 +9,22 @@ Service version: <code>2026&#45;10&#45;01</code>.
 
 Wire protocol: <code>crucibleJson</code>.
 
+Every request names the release it is written for in a header: <code>Crucible&#45;Version&#58; 2026&#45;10&#45;01</code>, the current release. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.
+
 ## Authentication
 
-- <code>crucible.api#httpBearerAuth</code>: <code>{&quot;kind&quot;:&quot;bearer&quot;}</code>
+- Bearer token (<code>crucible.api#httpBearerAuth</code>): send <code>Authorization: Bearer &lt;token&gt;</code>.
+
+An operation that takes no credential says so on its page.
 
 ## Service errors
 
-| Error | HTTP status | Fault | Retryable | Description |
-|---|---|---|---|---|
-| [ThrottlingError](shapes/ThrottlingError.md) | 429 | client | Yes (throttling) |  |
-| [ValidationError](shapes/ValidationError.md) | 400 | client | No |  |
+| Error | Code | HTTP status | Fault | Retryable | Description |
+|---|---|---|---|---|---|
+| [ThrottlingError](shapes/ThrottlingError.md) | <code>ThrottlingError</code> | 429 | client | Yes (throttling) |  |
+| [ValidationError](shapes/ValidationError.md) | <code>ValidationError</code> | 400 | client | No |  |
+
+An error response names its code in the <code>X-Crucible-Error</code> header and in its JSON body.
 
 ## Operations
 
