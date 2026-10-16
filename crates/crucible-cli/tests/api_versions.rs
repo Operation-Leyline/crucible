@@ -316,6 +316,36 @@ fn an_sdk_file_entry_names_its_release() {
     assert!(operations("ts-v1").contains(&"example.shop#CountItems".to_owned()));
     assert!(operations("rust-v2").contains(&"example.shop#CountItems".to_owned()));
     assert!(!operations("ts").contains(&"example.shop#CountItems".to_owned()));
+    // SDKs of several releases: the raw request is the current release's.
+    assert_eq!(
+        document["http"]["operations"]["example.shop#GetItem"]["uri"],
+        "/things/id"
+    );
+
+    // One line described alone: its raw request is its release's, with
+    // v1's route, names and header, as the line's SDK sends them.
+    let line: serde_json::Value = serde_json::from_str(&success(crucible(
+        root,
+        &["sdk", "describe", "--sdk", "ts-v1"],
+    )))
+    .unwrap();
+    let http = &line["http"]["operations"];
+    assert_eq!(http["example.shop#GetItem"]["uri"], "/items/id", "{http}");
+    assert!(
+        http["example.shop#ListItems"]["uri"]
+            .as_str()
+            .unwrap()
+            .contains("max="),
+        "{http}"
+    );
+    assert!(
+        http["example.shop#GetItem"]["headers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|header| header["name"] == "Crucible-Version" && header["value"] == "v1"),
+        "{http}"
+    );
 
     // A release the model does not serve is refused at its key.
     fs::write(

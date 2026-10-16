@@ -113,7 +113,25 @@ pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<
         .collect();
     middleware.sort();
     middleware.dedup();
-    let http = http::document(service, audience, &middleware)?;
+    // The raw request is the described SDKs' release when they share one,
+    // so it sends what they send (an older line's routes, names and
+    // release); SDKs of several releases get `service`'s.
+    let release = crucible_ir::versions::current_name(service);
+    let current_release = crucible_ir::versions::current_name(current);
+    let mut releases = selected
+        .iter()
+        .map(|sdk| sdk.api_version.as_deref().unwrap_or(current_release));
+    let shared = releases
+        .next()
+        .filter(|first| releases.all(|other| other == *first));
+    let http = match shared {
+        Some(shared) if shared != release => {
+            let line = crucible_ir::versions::line(current, shared)
+                .map_err(|diagnostics| diagnostics.to_string())?;
+            http::document(&line, audience, &middleware)?
+        }
+        _ => http::document(service, audience, &middleware)?,
+    };
     Ok(crate::sdk::canonical(&json!({
         "format": FORMAT,
         "service": service.id.to_string(),
