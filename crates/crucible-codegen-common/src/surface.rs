@@ -215,22 +215,28 @@ pub struct Member {
     /// convert to (Go's `Optional[T]`).
     #[serde(rename = "type")]
     pub type_name: String,
-    /// The member may be absent: the model's client nullability
-    /// (`optional_on_client`), whatever the language spells it with.
+    /// For an input, whether the caller may leave the member out of the
+    /// style's form (a modeled default the server or builder applies, an
+    /// idempotency token the client fills, or an optional member); for an
+    /// output, whether it may be absent. Each generator states its own
+    /// rule, the one its emitted code follows, so languages may differ.
     pub optional: bool,
 }
 
 impl Member {
+    /// `optional` is the generator's own rule (see [`Member::optional`]),
+    /// which no model property alone decides.
     pub fn new(
         member: &crucible_ir::ir::Member,
         name: impl Into<String>,
         type_name: impl Into<String>,
+        optional: bool,
     ) -> Self {
         Self {
             member: member.name.clone(),
             name: name.into(),
             type_name: type_name.into(),
-            optional: member.optional_on_client(),
+            optional,
         }
     }
 }

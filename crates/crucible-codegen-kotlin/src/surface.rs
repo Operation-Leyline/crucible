@@ -69,19 +69,19 @@ fn structure(
             .members
             .iter()
             .map(|member| {
-                let mut entry = Member::new(
-                    member,
-                    escape(&field(&member.name)),
-                    caller_type(&ty(service, &member.target, package), package, models),
-                );
                 // A builder may leave out what `build()` defaults; a model
                 // lacks only what is an `OptionalValue`.
-                entry.optional = if style == "dsl" {
+                let optional = if style == "dsl" {
                     crate::models::omittable(member)
                 } else {
                     crate::models::optional_value(member)
                 };
-                entry
+                Member::new(
+                    member,
+                    escape(&field(&member.name)),
+                    caller_type(&ty(service, &member.target, package), package, models),
+                    optional,
+                )
             })
             .collect();
     }

@@ -71,9 +71,8 @@ fn structure(
                 if let Some(import) = import(&native) {
                     platform.insert(import.to_owned());
                 }
-                let mut entry = Member::new(member, field(&member.name), native);
-                entry.optional = omittable(shape, member);
-                entry
+                let optional = omittable(shape, member);
+                Member::new(member, field(&member.name), native, optional)
             })
             .collect();
     }

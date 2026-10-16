@@ -73,6 +73,7 @@ fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
                     // implicit, `dart:typed_data` is imported above when a
                     // blob needs it, and the package exports the rest bare.
                     surface::unqualified(&ty(service, &member.target), "."),
+                    member.optional_on_client(),
                 )
             })
             .collect();

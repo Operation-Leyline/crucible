@@ -81,6 +81,7 @@ fn structure(
                     member,
                     names::field(&member.name),
                     caller_type(options, &layout.ty(id, &member.target)),
+                    member.optional_on_client(),
                 )
             })
             .collect();

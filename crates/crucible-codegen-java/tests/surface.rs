@@ -22,6 +22,27 @@ fn options(package: &str, endpoint: Option<&str>) -> Options {
     }
 }
 
+/// `code` without each `java.lang.` that starts a qualified name (not one
+/// inside a package such as `org.java.lang.weather`).
+fn without_java_lang(code: &str) -> String {
+    let mut out = String::with_capacity(code.len());
+    let mut rest = code;
+    while let Some(at) = rest.find("java.lang.") {
+        let inside = rest[..at]
+            .chars()
+            .next_back()
+            .or_else(|| out.chars().next_back())
+            .is_some_and(|c| c.is_alphanumeric() || c == '_' || c == '.');
+        out.push_str(&rest[..at]);
+        if inside {
+            out.push_str("java.lang.");
+        }
+        rest = &rest[at + "java.lang.".len()..];
+    }
+    out.push_str(rest);
+    out
+}
+
 fn source(files: &[File], suffix: &str) -> String {
     files
         .iter()
@@ -129,7 +150,7 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
                 .type_name
                 .strip_prefix(qualifier.as_str())
                 .unwrap();
-            let model = source(&files, &format!("/model/{local}.java")).replace("java.lang.", "");
+            let model = without_java_lang(&source(&files, &format!("/model/{local}.java")));
             assert!(model.contains(&format!("public final class {local}")));
             let builder = model
                 .find("public static final class Builder {")
@@ -326,4 +347,35 @@ fn defaulted_input_members_are_omittable() {
             ("note".to_owned(), true),
         ]
     );
+}
+
+/// A package whose name contains `java.lang` keeps it: only a type name's
+/// leading `java.lang.` is the platform's.
+#[test]
+fn a_package_containing_java_lang_keeps_it() {
+    let service = load("weather");
+    let options = options("org.java.lang.weather", None);
+    let surface = surface(&service, &options);
+    assert_eq!(surface.package.qualifier, "org.java.lang.weather.model.");
+    let input = surface.operations["example.weather#CreateCity"]
+        .input
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        input.type_name,
+        "org.java.lang.weather.model.CreateCityInput"
+    );
+    let location = input
+        .members
+        .iter()
+        .find(|member| member.member == "location")
+        .unwrap();
+    assert_eq!(location.type_name, "org.java.lang.weather.model.Location");
+    let name = input
+        .members
+        .iter()
+        .find(|member| member.member == "clientToken")
+        .unwrap();
+    assert_eq!(name.type_name, "String");
+    assert_declared(&service, &options, &surface);
 }

@@ -60,6 +60,7 @@ fn structure(service: &Service, qualifier: &str, id: &ShapeId, style: &str) -> S
                     member,
                     field(&member.name),
                     qualified_yard_type(service, &member.target, qualifier),
+                    member.optional_on_client(),
                 )
             })
             .collect();

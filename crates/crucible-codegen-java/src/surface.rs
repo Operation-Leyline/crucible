@@ -73,7 +73,28 @@ pub fn surface(service: &Service, options: &Options) -> surface::Surface {
 /// A type as the generated code spells it, less `java.lang.`, which every
 /// Java file imports.
 fn caller_type(service: &Service, id: &ShapeId, package: &str) -> String {
-    ty(service, id, package).replace("java.lang.", "")
+    without_java_lang(&ty(service, id, package))
+}
+
+/// `ty` without the `java.lang.` that starts a type name: the whole type or
+/// a generic argument, never the same letters inside a package such as
+/// `org.java.lang.weather`.
+fn without_java_lang(ty: &str) -> String {
+    const PREFIX: &str = "java.lang.";
+    let mut out = String::with_capacity(ty.len());
+    let mut rest = ty;
+    let mut boundary = true;
+    while let Some(c) = rest.chars().next() {
+        if boundary && rest.starts_with(PREFIX) {
+            rest = &rest[PREFIX.len()..];
+            boundary = false;
+            continue;
+        }
+        boundary = matches!(c, '<' | ',' | ' ' | '[' | '?' | '&');
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
+    }
+    out
 }
 
 /// An input as its builder sets it, or an output as its accessors read it.
@@ -91,16 +112,43 @@ fn structure(service: &Service, id: &ShapeId, package: &str, input: bool) -> Str
                 } else {
                     accessor(&field, shape.error.is_some())
                 };
-                let mut entry =
-                    Member::new(member, name, caller_type(service, &member.target, package));
-                entry.optional = if input {
+                // A builder may leave out what starts unset or at its
+                // default; a model lacks only what is an `OptionalValue`.
+                let optional = if input {
                     omittable(member, false)
                 } else {
                     unset_field(member, false)
                 };
-                entry
+                Member::new(
+                    member,
+                    name,
+                    caller_type(service, &member.target, package),
+                    optional,
+                )
             })
             .collect();
     }
     structure
+}
+
+#[cfg(test)]
+mod tests {
+    use super::without_java_lang;
+
+    #[test]
+    fn only_a_leading_java_lang_is_dropped() {
+        assert_eq!(without_java_lang("java.lang.String"), "String");
+        assert_eq!(
+            without_java_lang("java.util.Map<java.lang.String, java.lang.Long>"),
+            "java.util.Map<String, Long>"
+        );
+        assert_eq!(
+            without_java_lang("org.java.lang.weather.model.City"),
+            "org.java.lang.weather.model.City"
+        );
+        assert_eq!(
+            without_java_lang("java.util.List<org.java.lang.weather.model.City>"),
+            "java.util.List<org.java.lang.weather.model.City>"
+        );
+    }
 }

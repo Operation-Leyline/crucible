@@ -61,6 +61,7 @@ fn structure(service: &Service, namespace: &str, id: &ShapeId, style: &str) -> S
                     // The docblock spelling: `list<\Ns\City>` says more
                     // than the declared `array`.
                     ty(service, &member.target, namespace, true),
+                    member.optional_on_client(),
                 )
             })
             .collect();

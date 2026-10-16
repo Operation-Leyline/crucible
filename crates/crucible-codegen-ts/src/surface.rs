@@ -81,16 +81,15 @@ fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
             .members
             .iter()
             .map(|member| {
-                let mut entry = Member::new(
-                    member,
-                    property(&member.name),
-                    caller_type(service, &member.target),
-                );
                 // The interface's own `?`: an input may omit what is not
                 // `@required` (a default is the server's to apply), and an
                 // output follows client nullability.
-                entry.optional = optional(shape, member);
-                entry
+                Member::new(
+                    member,
+                    property(&member.name),
+                    caller_type(service, &member.target),
+                    optional(shape, member),
+                )
             })
             .collect();
     }

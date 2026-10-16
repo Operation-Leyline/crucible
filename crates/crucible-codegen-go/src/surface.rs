@@ -17,9 +17,11 @@ use crate::{
 ///
 /// A snippet imports the module under its package name, so the module's
 /// declarations read `weather.ListCitiesInput`; a standard-library type a
-/// member has (`time.Time`, `*big.Int`) adds its import.
+/// member has (`time.Time`, `*big.Int`) adds its import. A package named
+/// like one of those (`time`, `big`) is imported under `{name}sdk`, so the
+/// two never share a name in the snippet.
 pub fn surface(service: &Service, options: &Options) -> surface::Surface {
-    let package = &options.package_name;
+    let package = &snippet_alias(&options.package_name);
     let qualifier = format!("{package}.");
     let client = format!("{qualifier}{}", client_name(service));
     let config = if options.endpoint.is_some() {
@@ -82,21 +84,31 @@ fn structure(
             .iter()
             .map(|member| {
                 let native = field_type(service, shape, member, qualifier);
-                for (uses, import) in [
-                    ("time.", "import \"time\""),
-                    ("big.", "import \"math/big\""),
-                ] {
-                    if names_package(&native, uses) {
-                        platform.insert(import.to_owned());
+                for (name, import) in PLATFORM {
+                    if names_package(&native, &format!("{name}.")) {
+                        platform.insert((*import).to_owned());
                     }
                 }
-                let mut entry = Member::new(member, exported(&member.name), native);
-                entry.optional = absent(shape, member);
-                entry
+                let optional = absent(shape, member);
+                Member::new(member, exported(&member.name), native, optional)
             })
             .collect();
     }
     structure
+}
+
+/// The standard-library packages a member type may name, by the name a
+/// snippet's import gives them.
+const PLATFORM: &[(&str, &str)] = &[("time", "import \"time\""), ("big", "import \"math/big\"")];
+
+/// The name a snippet imports the module under: its package name, unless a
+/// standard-library import the surface may add would take it.
+fn snippet_alias(package: &str) -> String {
+    if PLATFORM.iter().any(|(name, _)| *name == package) {
+        format!("{package}sdk")
+    } else {
+        package.to_owned()
+    }
 }
 
 /// Whether the Go type `native` names a standard-library package `uses`

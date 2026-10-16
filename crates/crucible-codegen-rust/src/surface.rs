@@ -79,13 +79,14 @@ fn structure(service: &Service, id: &ShapeId, boxed: &BTreeSet<ShapeId>, input: 
                 if boxed.contains(&id.with_member(&member.name)) {
                     ty = format!("Box<{ty}>");
                 }
-                let mut entry = Member::new(member, names[&member.name].clone(), ty);
                 // A builder may leave unset what `build` does not need; an
                 // accessor returns an `Option` for what may be absent.
-                if input {
-                    entry.optional = !required_to_build(member);
-                }
-                entry
+                let optional = if input {
+                    !required_to_build(member)
+                } else {
+                    member.optional_on_client()
+                };
+                Member::new(member, names[&member.name].clone(), ty, optional)
             })
             .collect();
     }

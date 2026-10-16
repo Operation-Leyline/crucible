@@ -53,19 +53,19 @@ fn structure(service: &Service, id: &ShapeId, ns: &str, style: &str) -> Structur
             .members
             .iter()
             .map(|member| {
-                let mut entry = Member::new(
-                    member,
-                    identifier(&field(&member.name)),
-                    caller_type(&ty(service, &member.target, ns), ns),
-                );
                 // An input may leave out what the client defaults; an
                 // output lacks only what has a presence.
-                entry.optional = if style == "fields" {
+                let optional = if style == "fields" {
                     omittable(model, member)
                 } else {
                     presence(model, member)
                 };
-                entry
+                Member::new(
+                    member,
+                    identifier(&field(&member.name)),
+                    caller_type(&ty(service, &member.target, ns), ns),
+                    optional,
+                )
             })
             .collect();
     }

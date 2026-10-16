@@ -51,10 +51,17 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
     let runtime = source(&files, "runtime.go");
     let package = &options.package_name;
     let qualifier = &surface.package.qualifier;
-    assert_eq!(qualifier, &format!("{package}."));
+    // A snippet imports the module under its package name, unless that is
+    // a standard-library name the snippet may also import.
+    let alias = if ["time", "big"].contains(&package.as_str()) {
+        format!("{package}sdk")
+    } else {
+        package.clone()
+    };
+    assert_eq!(qualifier, &format!("{alias}."));
     assert_eq!(
         surface.package.imports[0],
-        format!("import {package} \"{}\"", options.module_path)
+        format!("import {alias} \"{}\"", options.module_path)
     );
     assert!(
         client.starts_with(&format!("package {package}\n"))
@@ -76,7 +83,7 @@ fn assert_declared(service: &crucible_ir::ir::Service, options: &Options, surfac
         surface
             .client
             .construct
-            .starts_with(&format!("{package}.New{name}({package}.Config{{"))
+            .starts_with(&format!("{alias}.New{name}({alias}.Config{{"))
     );
     if surface.client.construct.contains("Endpoint:") {
         assert!(block(&runtime, "type Config struct {").contains("\tEndpoint "));
@@ -313,4 +320,60 @@ fn only_optional_fields_may_be_absent() {
             ("note".to_owned(), true),
         ]
     );
+}
+
+/// A package named like a standard-library package a member type needs is
+/// imported under another name, so `time.Time` stays the standard
+/// library's and the module's types read `timesdk.`.
+#[test]
+fn a_package_named_like_the_standard_library_is_aliased() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/models/weather");
+    let mut package = crucible_lang::load_package(&dir).unwrap();
+    for file in &mut package.files {
+        file.text = file.text.replace("\r\n", "\n").replace(
+            "        location?: Location\n",
+            "        location?: Location\n        at?: timestamp\n        huge?: bigInteger\n",
+        );
+    }
+    let service = crucible_lang::compile(&package, None).service.unwrap();
+    for name in ["time", "big"] {
+        let options = Options {
+            module_path: format!("example.com/{name}"),
+            package_name: name.into(),
+            endpoint: None,
+        };
+        let surface = surface(&service, &options);
+        let alias = format!("{name}sdk");
+        assert_eq!(
+            surface.package.imports,
+            [
+                format!("import {alias} \"example.com/{name}\""),
+                "import \"math/big\"".to_owned(),
+                "import \"time\"".to_owned(),
+            ]
+        );
+        assert_eq!(surface.client.name, format!("{alias}.WeatherClient"));
+        assert!(
+            surface
+                .client
+                .construct
+                .starts_with(&format!("{alias}.NewWeatherClient("))
+        );
+        let input = surface.operations["example.weather#CreateCity"]
+            .input
+            .as_ref()
+            .unwrap();
+        let ty = |member: &str| {
+            input
+                .members
+                .iter()
+                .find(|entry| entry.member == member)
+                .unwrap()
+                .type_name
+                .clone()
+        };
+        assert_eq!(ty("at"), format!("{alias}.Optional[time.Time]"));
+        assert_eq!(ty("huge"), format!("{alias}.Optional[*big.Int]"));
+        assert_declared(&service, &options, &surface);
+    }
 }

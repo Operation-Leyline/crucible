@@ -51,6 +51,7 @@ fn structure(service: &Service, id: &ShapeId, style: &str) -> Structure {
                     member,
                     field(&member.name),
                     r_class(service, &member.target),
+                    member.optional_on_client(),
                 )
             })
             .collect();

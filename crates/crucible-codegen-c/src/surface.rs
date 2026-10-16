@@ -65,6 +65,7 @@ fn structure(service: &Service, id: &ShapeId, p: &str, style: &str, accessor: &s
                     member,
                     helper(&native, accessor, &names::field(&member.name)),
                     slot_type(service, &member.target, p),
+                    member.optional_on_client(),
                 )
             })
             .collect();
