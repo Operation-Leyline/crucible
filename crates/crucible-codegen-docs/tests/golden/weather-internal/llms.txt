@@ -2,7 +2,7 @@
 
 > The API reference of Weather.
 
-Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential. Send `Crucible-Version: 2026-10-01` on every request. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Authorization: Bearer <token>` unless an operation's page says it takes no credential. Send `Crucible-Version: 2026-10-01` on every request you make. `describe.json` holds the whole reference as data (`crucible.describe/1`).
 
 ## Overview
 
@@ -10,13 +10,13 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 
 ## Operations
 
-- [CreateCity](src/operations/API_CreateCity.md): POST /cities.
-- [GetCity](src/operations/API_GetCity.md): GET /cities/{cityId}.
-- [GetCityPhoto](src/operations/API_GetCityPhoto.md): GET /cities/{cityId}/photo.
-- [ListCities](src/operations/API_ListCities.md): GET /cities.
-- [Ping](src/operations/API_Ping.md): GET /ping. Deprecated.
-- [PutCityPhoto](src/operations/API_PutCityPhoto.md): PUT /cities/{cityId}/photo. Stores a city's photo exactly as sent.
-- [Status](src/operations/API_Status.md): GET /status. Internal.
+- [CreateCity](src/operations/API_CreateCity.md): `POST /cities`.
+- [GetCity](src/operations/API_GetCity.md): `GET /cities/{cityId}`.
+- [GetCityPhoto](src/operations/API_GetCityPhoto.md): `GET /cities/{cityId}/photo`.
+- [ListCities](src/operations/API_ListCities.md): `GET /cities`.
+- [Ping](src/operations/API_Ping.md): `GET /ping`. Deprecated.
+- [PutCityPhoto](src/operations/API_PutCityPhoto.md): `PUT /cities/{cityId}/photo`. Stores a city\'s photo exactly as sent\.
+- [Status](src/operations/API_Status.md): `GET /status`. Internal.
 
 ## Data types
 
@@ -38,7 +38,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [ListCitiesOutput](src/shapes/ListCitiesOutput.md): structure.
 - [Location](src/shapes/Location.md): union.
 - [NotFoundError](src/shapes/NotFoundError.md): error, HTTP 404.
-- [Photo](src/shapes/Photo.md): blob. A photo, carried unparsed.
+- [Photo](src/shapes/Photo.md): blob. A photo\, carried unparsed\.
 - [PhotoSummary](src/shapes/PhotoSummary.md): structure.
 - [PutCityPhotoInput](src/shapes/PutCityPhotoInput.md): structure.
 - [PutCityPhotoOutput](src/shapes/PutCityPhotoOutput.md): structure.
@@ -47,7 +47,7 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 - [StatusOutput](src/shapes/StatusOutput.md): structure.
 - [Tags](src/shapes/Tags.md): list.
 - [ThrottlingError](src/shapes/ThrottlingError.md): error, HTTP 429.
-- [Thumbnail](src/shapes/Thumbnail.md): blob. The photo's first bytes: base64 in JSON.
+- [Thumbnail](src/shapes/Thumbnail.md): blob. The photo\'s first bytes\: base64 in JSON\.
 - [ValidationError](src/shapes/ValidationError.md): error, HTTP 400.
 - [ValidationField](src/shapes/ValidationField.md): structure.
 - [ValidationFieldList](src/shapes/ValidationFieldList.md): list.

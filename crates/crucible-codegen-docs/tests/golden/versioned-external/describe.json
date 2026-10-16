@@ -618,6 +618,169 @@
       },
       "status": 200,
       "uri": "/items"
+    },
+    "example.shop#RecordPayment": {
+      "auth": [],
+      "documentation": {
+        "html": "<p>A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v3, whatever the\nservice does with a client's request that names none.</p>\n",
+        "markdown": "A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v3, whatever the\nservice does with a client's request that names none.",
+        "text": "A payment processor's delivery (decision 81). The processor names no\nrelease of the shop: it is served at the current one, v3, whatever the\nservice does with a client's request that names none."
+      },
+      "errors": [
+        "crucible.errors#ValidationException",
+        "crucible.errors#InternalServerException"
+      ],
+      "examples": [],
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#RecordPayment",
+      "idempotencyToken": null,
+      "idempotent": false,
+      "input": "example.shop#RecordPaymentInput",
+      "inputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.RecordPaymentInput": {
+            "properties": {
+              "signature": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "signature"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "signature": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "signature"
+        ],
+        "type": "object"
+      },
+      "internal": false,
+      "method": "POST",
+      "name": "RecordPayment",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "output": "example.shop#RecordPaymentOutput",
+      "outputSchema": {
+        "$defs": {
+          "crucible.api.String": {
+            "type": "string"
+          },
+          "example.shop.RecordPaymentOutput": {
+            "properties": {
+              "release": {
+                "$ref": "#/$defs/crucible.api.String"
+              }
+            },
+            "required": [
+              "release"
+            ],
+            "type": "object"
+          }
+        },
+        "properties": {
+          "release": {
+            "$ref": "#/$defs/crucible.api.String"
+          }
+        },
+        "required": [
+          "release"
+        ],
+        "type": "object"
+      },
+      "pagination": null,
+      "protocol": "crucibleJson",
+      "protocolHeaders": {},
+      "readonly": false,
+      "request": {
+        "body": [],
+        "headerEncodings": {},
+        "headers": [
+          {
+            "member": "signature",
+            "name": "Payment-Signature"
+          }
+        ],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "resources": [],
+      "response": {
+        "body": [
+          "release"
+        ],
+        "headerEncodings": {},
+        "headers": [],
+        "labels": [],
+        "payload": null,
+        "query": [],
+        "timestampFormats": {}
+      },
+      "responseProtocolHeaders": {
+        "Content-Type": "application/json"
+      },
+      "sample": {
+        "fallbacks": [],
+        "generated": true,
+        "input": {
+          "body": null,
+          "headers": {
+            "Payment-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/payments"
+        },
+        "minimalInput": {
+          "body": null,
+          "headers": {
+            "Payment-Signature": "signature"
+          },
+          "labels": {},
+          "method": "POST",
+          "payload": null,
+          "query": [],
+          "uri": "/payments"
+        },
+        "output": {
+          "body": {
+            "release": "release"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "labels": {},
+          "payload": null,
+          "query": []
+        }
+      },
+      "sender": {
+        "header": "Payment-Signature",
+        "member": "signature",
+        "name": "Payments"
+      },
+      "status": 200,
+      "uri": "/payments"
     }
   },
   "resources": {},
@@ -2394,6 +2557,132 @@
       "sensitive": false,
       "set": false,
       "sparse": false
+    },
+    "example.shop#RecordPaymentInput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#RecordPaymentInput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "signature",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "signature"
+        }
+      ],
+      "name": "RecordPaymentInput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
+    },
+    "example.shop#RecordPaymentOutput": {
+      "documentation": {
+        "html": "",
+        "markdown": "",
+        "text": ""
+      },
+      "error": null,
+      "history": {
+        "added": "v3",
+        "changed": [],
+        "missing": []
+      },
+      "id": "example.shop#RecordPaymentOutput",
+      "internal": false,
+      "kind": "structure",
+      "members": [
+        {
+          "clientOptional": false,
+          "constraints": {
+            "length": null,
+            "pattern": null,
+            "range": null,
+            "uniqueItems": false
+          },
+          "default": null,
+          "documentation": {
+            "html": "",
+            "markdown": "",
+            "text": ""
+          },
+          "history": {
+            "added": "v3",
+            "changed": [],
+            "missing": []
+          },
+          "internal": false,
+          "name": "release",
+          "notes": {
+            "deprecated": null,
+            "externalDocs": {},
+            "since": null,
+            "unstable": false
+          },
+          "nullable": false,
+          "required": true,
+          "sensitive": false,
+          "target": "crucible.api#String",
+          "targetName": "String",
+          "targetType": "string",
+          "timestampFormat": "date-time",
+          "wireDefault": null,
+          "wireName": "release"
+        }
+      ],
+      "name": "RecordPaymentOutput",
+      "notes": {
+        "deprecated": null,
+        "externalDocs": {},
+        "since": null,
+        "unstable": false
+      },
+      "sensitive": false
     }
   },
   "versions": {

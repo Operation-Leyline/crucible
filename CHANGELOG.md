@@ -28,17 +28,25 @@ version's section when it is prepared.
   header carries the signature. `crucible_ir::client_view` leaves such
   operations out, with what only they reach, and every client generator,
   the service CLI, the in-build Rust client, `sdks.json` and MCP tools read
-  that view; servers implement them as before. The compiler refuses
-  `@sender` on an operation that is not `public` (`sender.public`) or with
-  a signature that is not an `@header` input member (`sender.signature`).
+  that view; servers implement them as before, and serve a request to one
+  that names no release at the current release, whatever `Unversioned`
+  says (`OperationInfo::sender`, generated as `.with_sender(..)`). OpenAPI
+  marks them `x-crucible-sender`. The compatibility guard compares client
+  views, so a released operation that becomes sender-signed, and every
+  type only it reached, is a `compatibility.sdk` finding. The compiler
+  refuses `@sender` on an operation that is not `public`
+  (`sender.public`), with a signature that is not an `@header` input
+  member (`sender.signature`), or on a resource lifecycle operation
+  (`sender.lifecycle`).
 
 - A schema mode for `describe.json`: `DocsOutput::schemas` and `crucible
   generate docs --schemas inline|shared|omit`. `Inline`, the default, is
   unchanged. `Shared` writes every JSON Schema definition once, in a root
   `schemas` object (`{"$defs": ...}`), and makes each operation's
   `inputSchema` and `outputSchema` a `$ref` into it; `Omit` leaves them
-  out. Every mode is `crucible.describe/1` (additive), and a consumer must
-  handle all three; `CrucibleExplorer.operationSchema` rebuilds an
+  out. The root `schemas.mode` names the mode (`shared` or `omit`; absent
+  is inline). Every mode is `crucible.describe/1` (additive), and a
+  consumer must handle all three; `CrucibleExplorer.operationSchema` rebuilds an
   operation's schema in each, and the static reference and the Explorer
   read it through that. Leyline's description is 5.8 MB inline, 4.2 MB
   shared. See [docs/docs.md](docs/docs.md#operation-schemas).
@@ -51,7 +59,8 @@ version's section when it is prepared.
   mapping from the static reference's routes is in
   [docs/docs.md](docs/docs.md#markdown-for-agents). Operation pages now
   carry what a caller needs without another page: the `Authorization` and
-  `Crucible-Version` headers in the request syntax, the authentication
+  `Crucible-Version` headers in the request syntax (neither for a
+  sender-signed operation), the authentication
   scheme as the header it sends (or that the operation takes no
   credential), and each error's wire code and the header that carries it.
 

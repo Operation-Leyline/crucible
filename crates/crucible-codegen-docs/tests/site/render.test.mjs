@@ -116,7 +116,9 @@ function referenced(schema, rootName) {
 
 test("a shared schema rebuilds to the inline one, and an omitted one has no section", () => {
   const shared = x.index(WEATHER_SHARED);
-  assert.ok(WEATHER_SHARED.schemas && WEATHER_SHARED.schemas.$defs, "a root schemas map");
+  assert.ok(WEATHER_SHARED.schemas && WEATHER_SHARED.schemas.mode === "shared" && WEATHER_SHARED.schemas.$defs, "a root schemas map");
+  assert.deepEqual(WEATHER_OMIT.schemas, { mode: "omit" });
+  assert.equal(WEATHER.schemas, undefined, "inline is the absent mode");
   for (const [id, op] of Object.entries(WEATHER.operations)) {
     for (const key of ["inputSchema", "outputSchema"]) {
       const sharedOp = WEATHER_SHARED.operations[id];

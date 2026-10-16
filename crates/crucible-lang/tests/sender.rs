@@ -52,27 +52,31 @@ fn misused_sender_is_refused_at_each_use() {
     let refused = load_service(&model("sender-signed-refusals")).unwrap_err();
     for (position, message) in [
         (
-            "refused.cru:8:1:",
+            "refused.cru:25:1:",
             "sender.public: NotPublic is called by Stripe, which holds no credential of this service: declare it `public`, and let its signature authenticate it",
         ),
         (
-            "refused.cru:17:1:",
+            "refused.cru:34:1:",
             "sender.signature: `signature: signature` on BodySignature names no input member bound with `@header`",
         ),
         (
-            "refused.cru:25:1:",
+            "refused.cru:42:1:",
             "sender.signature: `signature: missing` on NoSuchMember names no input member bound with `@header`",
         ),
         (
-            "refused.cru:34:1:",
+            "refused.cru:51:1:",
             "sender.name: `@sender` on Unnamed names no sender",
         ),
         (
-            "refused.cru:43:20:",
+            "refused.cru:60:20:",
             "`@sender` takes who sends the request and the input member that carries its signature",
         ),
         (
-            "refused.cru:52:1:",
+            "refused.cru:13:1:",
+            "sender.lifecycle: CreateHook creates Hook, so clients and infrastructure call it to manage the resource, but Stripe calls it",
+        ),
+        (
+            "refused.cru:69:1:",
             "`@sender` applies to an operation, not to a structure",
         ),
     ] {

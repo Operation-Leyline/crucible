@@ -44,9 +44,16 @@ pub fn client_view(service: &Service) -> Service {
     }
     let reached = |operations: &mut dyn Iterator<Item = &Operation>| {
         let mut reached = BTreeSet::new();
+        // A resource's entry types stay with the resource, which the view
+        // keeps.
+        let entries = service
+            .resources
+            .values()
+            .flat_map(|r| r.identifiers.values().chain(r.properties.values()));
         let mut pending: Vec<ShapeId> = operations
             .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
             .chain(&service.errors)
+            .chain(entries)
             .cloned()
             .collect();
         while let Some(id) = pending.pop() {

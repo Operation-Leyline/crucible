@@ -9,6 +9,9 @@ use std::collections::BTreeSet;
 pub(crate) struct Checker<'a> {
     pub(crate) old: &'a Service,
     pub(crate) new: &'a Service,
+    /// The new model whole, when `new` is its client view: what the view
+    /// left out is named as such.
+    pub(crate) full_new: &'a Service,
     pub(crate) renames: &'a Renames,
     pub(crate) severity: Severity,
     pub(crate) report: Report,
@@ -534,10 +537,19 @@ impl Checker<'_> {
         }
         for old_op in &self.old.operations {
             let Some(new_op) = self.new.operations.iter().find(|op| op.id == old_op.id) else {
+                let signed = self
+                    .full_new
+                    .operations
+                    .iter()
+                    .any(|op| op.id == old_op.id && op.sender.is_some());
                 self.push(
                     "compatibility.sdk",
                     &old_op.id,
-                    "public operation symbol was removed",
+                    if signed {
+                        "operation is now sender-signed (`@sender`); client SDKs drop it"
+                    } else {
+                        "public operation symbol was removed"
+                    },
                 );
                 continue;
             };
@@ -565,7 +577,11 @@ impl Checker<'_> {
                 self.push(
                     "compatibility.sdk",
                     id,
-                    "public type symbol was removed or renamed",
+                    if self.full_new.shape(id).is_some() {
+                        "type is now reached only by sender-signed operations (`@sender`); client SDKs drop it"
+                    } else {
+                        "public type symbol was removed or renamed"
+                    },
                 );
                 continue;
             };

@@ -71,3 +71,11 @@ test("schema form and raw JSON mount through the existing renderer hook", () => 
     assert.deepEqual(JSON.parse(container.querySelector(".cx-try-json").value), first.input);
   } finally { Object.assign(globalThis, before); }
 });
+
+test("a sender-signed operation sends no bearer token, whatever is stored", () => {
+  const signed = { ...op, sender: { name: "Stripe", member: "signature", header: "Stripe-Signature" } };
+  const request = api.buildRequest(description, signed, first.input, base, { bearer: "secret" });
+  assert.equal(new Headers(request.headers).get("authorization"), null);
+  const plain = api.buildRequest(description, op, first.input, base, { bearer: "secret" });
+  assert.equal(new Headers(plain.headers).get("authorization"), "Bearer secret");
+});

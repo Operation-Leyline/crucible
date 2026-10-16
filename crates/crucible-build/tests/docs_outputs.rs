@@ -66,6 +66,7 @@ fn docs_probe() {
         shared["operations"]["example.weather#GetCity"]["inputSchema"],
         serde_json::json!({"$ref": "#/$defs/example.weather.GetCityInput"})
     );
+    assert_eq!(shared["schemas"]["mode"], "shared");
     assert!(shared["schemas"]["$defs"]["example.weather.GetCityInput"].is_object());
     let omitted = model
         .docs("omitted")

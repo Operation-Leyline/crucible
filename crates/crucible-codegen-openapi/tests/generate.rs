@@ -70,6 +70,34 @@ fn weather_matches_reviewed_golden() {
     );
 }
 
+/// Sender-signed operations (decision 81) carry `x-crucible-sender` and no
+/// security requirement; the operation clients call has neither.
+#[test]
+fn sender_signed_operations_match_reviewed_golden() {
+    let output = generate(&load("sender-signed"), &Options::default()).unwrap();
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/sender-signed.openapi.json");
+    if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+        fs::write(&path, &output).unwrap();
+    }
+    assert_eq!(
+        fs::read_to_string(&path).unwrap().replace("\r\n", "\n"),
+        output
+    );
+    let document: Value = serde_json::from_str(&output).unwrap();
+    let payment = &document["paths"]["/payment-events"]["post"];
+    assert_eq!(
+        payment["x-crucible-sender"],
+        serde_json::json!({"name": "Payments Inc.", "member": "signature", "header": "Payment-Signature"})
+    );
+    assert_eq!(payment["security"], serde_json::json!([]));
+    assert!(
+        document["paths"]["/accounts/{accountId}"]["get"]
+            .get("x-crucible-sender")
+            .is_none()
+    );
+}
+
 /// The typed permissions fixture, a `.cru` package; `edit` rewrites its
 /// source first.
 fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {

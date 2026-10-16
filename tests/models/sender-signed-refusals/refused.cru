@@ -3,6 +3,23 @@ service Refused {
     protocol json
     auth bearer
     operations [NotPublic, BodySignature, NoSuchMember, Unnamed, WrongArguments]
+    resources [Hook]
+}
+
+resource Hook {
+    id hookId: string
+}
+
+@sender("Stripe", signature: signature)
+public operation CreateHook creates Hook {
+    http POST "/hooks"
+    input {
+        @header("Stripe-Signature")
+        signature: string
+    }
+    output {
+        $hookId
+    }
 }
 
 @sender("Stripe", signature: signature)

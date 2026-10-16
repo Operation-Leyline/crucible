@@ -1109,6 +1109,9 @@
       "resources": []
     }
   },
+  "schemas": {
+    "mode": "omit"
+  },
   "service": {
     "auth": [
       "crucible.api#httpBearerAuth"

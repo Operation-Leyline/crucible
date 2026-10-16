@@ -1692,10 +1692,23 @@ references are to the code as of the design.
     which a third party does not send. Clients never call it, so
     `crucible_ir::client_view` drops it, with what only it reached and
     the doc links to it, for every client generator, the service CLI, the
-    in-build Rust client and `sdks.json`; MCP leaves it out too, since an
-    agent has no signature to send. The server implements it as any
-    `public` operation: the handler verifies the signature, over the raw
-    body when the input is a `@payload`. *Replaces:* inferring "called by
+    in-build Rust client and `sdks.json`, and client capability checks
+    read that view; MCP leaves it out too, since an agent has no signature
+    to send, and the in-service Explorer's try-it panel sends no bearer
+    token for it. OpenAPI marks it `x-crucible-sender`. The compatibility
+    guard compares client views: a released operation that becomes
+    sender-signed, and every type only it reached, is a
+    `compatibility.sdk` finding saying so, since every SDK drops them. A
+    resource lifecycle role is refused (`sender.lifecycle`): clients and
+    Terraform call those to manage the resource. The server implements it
+    as any `public` operation: the handler verifies the signature, over the
+    raw body when the input is a `@payload`. A third party names no
+    release, so a request to it without `Crucible-Version` is served at
+    the current release whatever `Unversioned` says for clients;
+    `OperationInfo::sender` (generated `.with_sender("Stripe")`) says which
+    operations, and the service settles at build whether it has any, so
+    only then does an unversioned request route against the current
+    table first. A release the request names is honoured. *Replaces:* inferring "called by
     another host" from an empty `auth` list, which also describes a
     public health check, and the prose every webhook repeated. *Why:*
     Leyline's two webhook receivers (`RecordStripeEvent`,

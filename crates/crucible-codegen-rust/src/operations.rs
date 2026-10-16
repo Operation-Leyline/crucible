@@ -205,8 +205,12 @@ pub(crate) fn marker_for(
         .map_or("None".to_owned(), |token| {
             format!("Some({})", literal(token))
         });
+    // A sender-signed operation (decision 81) says who calls it.
+    let sender = op.sender.as_ref().map_or(String::new(), |sender| {
+        format!(".with_sender({})", literal(&sender.name))
+    });
     out.push_str(&format!(
-        "static {}: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(\n    {},\n    {},\n    {resource},\n    {},\n    &[{}],\n    &[{query}],\n    {},\n    {input},\n    {output},\n    &[{}],\n    {},\n    {},\n    {},\n    {token},\n    {},\n);\n\n",
+        "static {}: ::crucible_server_runtime_rust::__generated::OperationInfo = ::crucible_server_runtime_rust::__generated::operation_info(\n    {},\n    {},\n    {resource},\n    {},\n    &[{}],\n    &[{query}],\n    {},\n    {input},\n    {output},\n    &[{}],\n    {},\n    {},\n    {},\n    {token},\n    {},\n){sender};\n\n",
         operation_static(op),
         literal(&op.id.to_string()),
         literal(name),

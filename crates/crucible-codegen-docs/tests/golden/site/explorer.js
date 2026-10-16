@@ -108,15 +108,16 @@
   }
 
   // An operation's input or output JSON Schema, self-contained, whichever
-  // way describe.json carries it (docs/docs.md, "Operation schemas"):
-  // inline as it is, shared as its root definition with the definitions it
-  // reaches from the root `schemas` (the inline form exactly), or `null`
-  // when the description omits schemas. `key` is "inputSchema" or
+  // way describe.json carries it (docs/docs.md, "Operation schemas"): the
+  // root `schemas.mode` is "shared" or "omit", and absent when inline.
+  // Inline it is returned as it is, shared as its root definition with the
+  // definitions it reaches, and omitted it is `null`. `key` is "inputSchema" or
   // "outputSchema"; `description` is a description or an `index` of one.
   function operationSchema(description, op, key) {
-    const schema = op && op[key];
-    if (!schema || typeof schema !== "object") return null;
     const shared = description && description.d ? description.d.schemas : description && description.schemas;
+    const schema = op && op[key];
+    // "omit", or a mode this renderer does not know: no schemas to show.
+    if (!schema || typeof schema !== "object" || (shared && shared.mode !== "shared")) return null;
     const prefix = "#/$defs/";
     if (typeof schema.$ref !== "string" || !schema.$ref.startsWith(prefix) || !shared || !shared.$defs) return schema;
     const defs = shared.$defs;

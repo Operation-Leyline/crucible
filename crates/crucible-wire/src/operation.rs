@@ -171,9 +171,19 @@ pub struct OperationInfo {
     pub idempotency_token: Option<&'static str>,
     /// The model's own traits on the operation: shape id and JSON value.
     pub traits: &'static [(&'static str, &'static str)],
+    /// Who calls a sender-signed operation (`@sender`, decision 81), a
+    /// third party that signs each request; `None` for an operation the
+    /// service's clients call. Generated as `.with_sender("Stripe")`.
+    pub sender: Option<&'static str>,
 }
 
 impl OperationInfo {
+    /// The same operation, called and signed by `sender` (decision 81).
+    pub const fn with_sender(mut self, sender: &'static str) -> Self {
+        self.sender = Some(sender);
+        self
+    }
+
     /// A trait's JSON value, as written in the model. It is parsed on each
     /// call: a handler reads its traits once, in `Handler::prepare`.
     pub fn trait_value(&self, id: &str) -> Option<Value> {

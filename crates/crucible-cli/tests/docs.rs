@@ -133,5 +133,5 @@ fn docs_cli_shares_or_omits_operation_schemas() {
     );
     let omitted = describe("omit");
     assert!(omitted["operations"][get].get("inputSchema").is_none());
-    assert!(omitted.get("schemas").is_none());
+    assert_eq!(omitted["schemas"], serde_json::json!({"mode": "omit"}));
 }

@@ -228,8 +228,9 @@ language's own checks include:
   value's symbol;
 - enum value names, and integer enum values, are unique;
 - `@sender("Name", signature: member)` is on an operation, which is
-  `public`, and `member` is an input member bound with `@header`
-  (decision 81; checked in `crucible_ir::validate`);
+  `public` and holds no resource lifecycle role, and `member` is an input
+  member bound with `@header` (decision 81; checked in
+  `crucible_ir::validate`);
 - a metadata declaration is checked once (targets, conflicts, retention,
   value type, no built-in annotation's name) and each use's value against
   its type;
@@ -436,7 +437,10 @@ the signature. The operation must be `public`: the sender holds no
 credential of this service. The IR carries `Operation::sender`. The API
 reference says who calls the operation and which header to verify, and
 asks no `Authorization` or `Crucible-Version` header of it; client SDKs,
-the service CLI and MCP tools leave it out. The handler verifies the
+the service CLI and MCP tools leave it out, and the server serves a
+request to it that names no release at the current one. Adding `@sender`
+to a released operation is a `compatibility.sdk` break: every SDK drops
+it, and the types only it reached. The handler verifies the
 signature: how (HMAC, a published public key) is the sender's, and
 belongs in the operation's documentation.
 

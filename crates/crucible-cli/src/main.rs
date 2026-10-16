@@ -794,6 +794,24 @@ fn lower_for_audience(
     Ok(projected)
 }
 
+/// [`lower_for_audience`] for a client: the capabilities are checked on
+/// what the client generates, without the sender-signed operations it
+/// leaves out (decision 81), so a construct only they use does not block
+/// it. The projection itself is returned: the client takes its view.
+fn lower_for_client(
+    source: &Source,
+    audience: crucible_codegen::Audience,
+    capabilities: &crucible_ir::Capabilities,
+) -> Result<Service, String> {
+    let all = crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied());
+    let full = lower_with_capabilities(source, &all)?;
+    let projected = crucible_ir::project(&full, audience).map_err(|d| d.to_string())?;
+    crucible_ir::client_view(&projected)
+        .require_capabilities(capabilities)
+        .map_err(|d| d.to_string())?;
+    Ok(projected)
+}
+
 /// Whether `path` is a Crucible language package.
 fn is_cru_package(path: &Path) -> bool {
     path.is_dir() && crucible_lang::is_package(path)
@@ -1147,7 +1165,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             runtime_path,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_ir::Capabilities::default())?;
+                lower_for_client(&source, audience, &crucible_ir::Capabilities::default())?;
             let runtime_path = runtime_path.canonicalize().map_err(|error| {
                 format!(
                     "cannot resolve runtime path {}: {error}",
@@ -1196,7 +1214,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_ruby::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_ruby::capabilities())?;
             let client = crucible_codegen::Client::Ruby(crucible_codegen::RubyOptions {
                 package_name,
                 module_name,
@@ -1219,8 +1237,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_version,
             endpoint,
         } => {
-            let service =
-                lower_for_audience(&source, audience, &crucible_codegen_c::capabilities())?;
+            let service = lower_for_client(&source, audience, &crucible_codegen_c::capabilities())?;
             let client = crucible_codegen::Client::C(crucible_codegen::COptions {
                 package_name,
                 prefix,
@@ -1242,8 +1259,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             package_version,
             endpoint,
         } => {
-            let service =
-                lower_for_audience(&source, audience, &crucible_codegen_r::capabilities())?;
+            let service = lower_for_client(&source, audience, &crucible_codegen_r::capabilities())?;
             let client = crucible_codegen::Client::R(crucible_codegen::ROptions {
                 package_name,
                 package_version,
@@ -1266,7 +1282,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_cpp::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_cpp::capabilities())?;
             let client = crucible_codegen::Client::Cpp(crucible_codegen::CppOptions {
                 package_name,
                 namespace,
@@ -1290,7 +1306,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_php::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_php::capabilities())?;
             let client = crucible_codegen::Client::Php(crucible_codegen::PhpOptions {
                 package_name,
                 namespace,
@@ -1313,7 +1329,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_dart::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_dart::capabilities())?;
             let client = crucible_codegen::Client::Dart(crucible_codegen::DartOptions {
                 package_name,
                 package_version,
@@ -1336,7 +1352,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_swift::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_swift::capabilities())?;
             let client = crucible_codegen::Client::Swift(crucible_codegen::SwiftOptions {
                 package_name,
                 module_name,
@@ -1360,7 +1376,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_csharp::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_csharp::capabilities())?;
             let client = crucible_codegen::Client::Csharp(crucible_codegen::CsharpOptions {
                 namespace,
                 package_id,
@@ -1385,7 +1401,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_kotlin::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_kotlin::capabilities())?;
             let client = crucible_codegen::Client::Kotlin(crucible_codegen::KotlinOptions {
                 group_id,
                 artifact_id,
@@ -1411,7 +1427,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_java::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_java::capabilities())?;
             let client = crucible_codegen::Client::Java(crucible_codegen::JavaOptions {
                 group_id,
                 artifact_id,
@@ -1435,7 +1451,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_go::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_go::capabilities())?;
             let client = crucible_codegen::Client::Go(crucible_codegen::GoOptions {
                 module_path,
                 package_name,
@@ -1458,7 +1474,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             endpoint,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_python::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_python::capabilities())?;
             let client = crucible_codegen::Client::Python(crucible_codegen::PythonOptions {
                 package_name,
                 module_name,
@@ -1495,7 +1511,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 crucible_codegen_rust::capabilities()
             };
             let service = if client {
-                lower_for_audience(&source, audience, &capabilities)?
+                lower_for_client(&source, audience, &capabilities)?
             } else {
                 lower_with_capabilities(&source, &capabilities)?
             };
@@ -1550,7 +1566,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             npm_access,
         } => {
             let service =
-                lower_for_audience(&source, audience, &crucible_codegen_ts::capabilities())?;
+                lower_for_client(&source, audience, &crucible_codegen_ts::capabilities())?;
             let package_json = package_json
                 .map(|path| {
                     let text = std::fs::read_to_string(&path)

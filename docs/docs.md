@@ -143,10 +143,18 @@ an `Accept` header. The output's root therefore holds, beside `index.html`:
   first sentence), `Releases` (a chain of more than one release), and
   `Optional` (`llms-full.txt`, `describe.json`, `changes.json`).
   Operations and types are in shape-id order, and internal and deprecated
-  items say so.
-- `llms-full.txt`: every page `llms.txt` links, in its order, each under an
-  `<!-- src/... -->` comment naming the file it came from, so a reader can
-  resolve the page's relative links.
+  items say so. An agent loads this file as written, so model text in it
+  (the title, a summary, a sender's name) is inert: `<`, `>` and `&` are
+  character references and every other ASCII punctuation character is
+  backslash-escaped, so it opens no link, tag, comment or code span;
+  a method and URI and a header name are code spans. A summary is the
+  documentation's first sentence, ending at a period before a capital
+  letter, so "Payments Inc. reports" stays whole.
+- `llms-full.txt`: every page `llms.txt` links, in its order. Each starts at
+  a boundary comment, `<!-- === src/index.md === -->`, whose run of `=` is
+  longer than any run in the pages, so no page's text (a code block, an
+  example value) can pose as one. Each page's relative links are rebased
+  onto the root, where the file sits, so they resolve from it.
 
 Every page's Markdown has one stable path, the file under `src/`, and
 `llms.txt` links those paths relative to the root. Serve the output
@@ -364,8 +372,12 @@ A reference is generated in one of three schema modes, each a valid
 | Mode | `inputSchema`, `outputSchema` | Root `schemas` |
 |---|---|---|
 | `Inline` (default) | A self-contained schema: the root type's definition, with `$defs` holding every definition it reaches | Absent |
-| `Shared` | `{"$ref": "#/$defs/<key>"}`, where `<key>` is the input or output type's id with `#` as `.`, resolved against the root `schemas`; for an operation without an input or output, the same empty-object schema as `Inline` | `{"$defs": {...}}`: every definition an operation schema reaches, once |
-| `Omit` | Absent | Absent |
+| `Shared` | `{"$ref": "#/$defs/<key>"}`, where `<key>` is the input or output type's id with `#` as `.`, resolved against the root `schemas`; for an operation without an input or output, the same empty-object schema as `Inline` | `{"mode": "shared", "$defs": {...}}`: every definition an operation schema reaches, once |
+| `Omit` | Absent | `{"mode": "omit"}` |
+
+The root `schemas.mode` names the mode; a description without `schemas`
+is `Inline`. A consumer that does not know a mode treats the operation
+schemas as absent.
 
 In `Shared` mode, the schema an operation would have inline is the
 definition its `$ref` names, with a `$defs` of the definitions it

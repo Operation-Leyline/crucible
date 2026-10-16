@@ -367,10 +367,40 @@ fn summary(item: &Value) -> String {
     let text = string(&item["documentation"]["text"]);
     let paragraph = text.split("\n\n").next().unwrap_or_default();
     let line = paragraph.split_whitespace().collect::<Vec<_>>().join(" ");
-    match line.find(". ") {
-        Some(end) => line[..=end].to_owned(),
-        None => line,
+    // A sentence ends at a period before a capital, so "Payments Inc.
+    // reports" and "e.g. a city" stay whole.
+    let end = line.match_indices(". ").map(|(at, _)| at).find(|&at| {
+        line[at + 2..]
+            .chars()
+            .next()
+            .is_some_and(char::is_uppercase)
+    });
+    plain(match end {
+        Some(end) => &line[..=end],
+        None => &line,
+    })
+}
+
+/// Model text as inert Markdown text, for `llms.txt`, which an agent reads
+/// as written: `<`, `>` and `&` as character references, which open no tag,
+/// comment or entity, and every other ASCII punctuation character
+/// backslash-escaped, so none opens a link, emphasis or code span.
+fn plain(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        match c {
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '&' => out.push_str("&amp;"),
+            '\n' | '\r' => out.push(' '),
+            c if c.is_ascii_punctuation() => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
     }
+    out
 }
 
 /// An index line's description: the page's own facts, then its summary
@@ -387,7 +417,6 @@ fn described(facts: &str, item: &Value) -> String {
     if !item["notes"]["deprecated"].is_null() {
         parts.push("Deprecated.".into());
     }
-    parts.retain(|part| !part.is_empty());
     parts.join(" ")
 }
 
@@ -399,9 +428,11 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
     let title = string(&d.service["title"]);
     let mut about = summary(&d.service);
     if about.is_empty() {
-        about = format!("The API reference of {title}.");
+        about = format!("The API reference of {}.", plain(title));
     }
-    let mut out = format!("# {title}\n\n> {about}\n\n");
+    // The title is one heading's text: `plain` escapes what `heading`
+    // does, and a URL's `:` too.
+    let mut out = format!("# {}\n\n> {about}\n\n", plain(title));
     let mut facts = vec![format!(
         "Every page below is Markdown. Requests are {} over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination.",
         if d.service["protocol"] == "crucibleJson" {
@@ -421,7 +452,17 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
         );
     }
     if let Some(header) = version_header(d) {
-        facts.push(format!("Send {} on every request.", code_span(&header)));
+        // A third party's request names no release (decision 81).
+        let signed = d.operations.values().any(|op| !op["sender"].is_null());
+        facts.push(format!(
+            "Send {} on every request you make{}.",
+            code_span(&header),
+            if signed {
+                "; an operation a third party calls says what its sender sends instead"
+            } else {
+                ""
+            }
+        ));
     }
     facts.push("`describe.json` holds the whole reference as data (`crucible.describe/1`).".into());
     out.push_str(&facts.join(" "));
@@ -432,19 +473,24 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
     }
     out.push_str("\n## Operations\n\n");
     for op in d.operations.values() {
-        let mut facts = format!("{} {}.", string(&op["method"]), string(&op["uri"]));
+        let mut facts = format!(
+            "{}.",
+            code_span(&format!("{} {}", string(&op["method"]), string(&op["uri"])))
+        );
         if let Some(sender) = op["sender"].as_object() {
-            facts.push_str(&format!(
-                " Called by {}, which signs it in the `{}` header.",
+            let name = plain(
                 sender
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or_default(),
-                sender
-                    .get("header")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-            ));
+            );
+            match sender.get("header").and_then(Value::as_str) {
+                Some(header) => facts.push_str(&format!(
+                    " Called by {name}, which signs it in the {} header.",
+                    code_span(header)
+                )),
+                None => facts.push_str(&format!(" Called by {name}, which signs it.")),
+            }
         }
         out.push_str(&format!(
             "- [{}](src/{}): {}\n",
@@ -519,10 +565,27 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
                 .map(|release| format!("src/{}", release_path(string(&release["name"])))),
         );
     }
-    let full: Vec<String> = order
+    // Each page starts at a comment naming its file, its `=` runs longer
+    // than any in the pages, so no page's text (a code block, an example)
+    // can pose as a boundary. Its links are rebased onto the root, where
+    // this file is.
+    let pages: Vec<&File> = order.iter().filter_map(|path| page(path)).collect();
+    let longest = pages
         .iter()
-        .filter_map(|path| page(path))
-        .map(|page| format!("<!-- {} -->\n\n{}", page.path, page.contents.trim_end()))
+        .flat_map(|page| page.contents.split(|c| c != '=').map(str::len))
+        .max()
+        .unwrap_or(0);
+    let rule = "=".repeat(longest.max(2) + 1);
+    let full: Vec<String> = pages
+        .iter()
+        .map(|page| {
+            let dir = page.path.rsplit_once('/').map_or("", |(dir, _)| dir);
+            format!(
+                "<!-- {rule} {} {rule} -->\n\n{}",
+                page.path,
+                rebase(page.contents.trim_end(), dir)
+            )
+        })
         .collect();
     [
         File {
@@ -534,6 +597,77 @@ fn llms(d: &Description, pages: &[File]) -> [File; 2] {
             contents: full.join("\n\n"),
         },
     ]
+}
+
+/// A page's relative links (Markdown destinations and the `href`s of the
+/// documentation's anchors) rewritten from its directory `dir` to the root.
+/// An absolute URL, a fragment or a root path is left as it is.
+fn rebase(contents: &str, dir: &str) -> String {
+    use pulldown_cmark::{Event, Parser, Tag};
+    let resolve = |destination: &str| -> Option<String> {
+        if destination.is_empty()
+            || destination.contains(':')
+            || destination.starts_with(['#', '/'])
+        {
+            return None;
+        }
+        let mut parts: Vec<&str> = dir.split('/').filter(|p| !p.is_empty()).collect();
+        for part in destination.split('/') {
+            match part {
+                "." => {}
+                ".." => {
+                    parts.pop();
+                }
+                part => parts.push(part),
+            }
+        }
+        Some(parts.join("/"))
+    };
+    let mut edits: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for (event, range) in Parser::new(contents).into_offset_iter() {
+        match event {
+            Event::Start(Tag::Link { dest_url, .. }) => {
+                // The generator's links are inline: `[label](destination)`.
+                let source = &contents[range.clone()];
+                let written = format!("]({dest_url})");
+                if let Some(at) = source.rfind(&written)
+                    && let Some(rebased) = resolve(&dest_url)
+                {
+                    let start = range.start + at + 2;
+                    edits.push((start..start + dest_url.len(), rebased));
+                }
+            }
+            Event::Html(_) | Event::InlineHtml(_) => {
+                let source = &contents[range.clone()];
+                for (at, _) in source.match_indices("href=\"") {
+                    let start = at + "href=\"".len();
+                    let Some(length) = source[start..].find('"') else {
+                        continue;
+                    };
+                    let destination = &source[start..start + length];
+                    if let Some(rebased) = resolve(destination) {
+                        let start = range.start + start;
+                        edits.push((start..start + length, rebased));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    edits.sort_by_key(|(range, _)| range.start);
+    edits.dedup_by_key(|(range, _)| range.start);
+    let mut out = String::with_capacity(contents.len());
+    let mut at = 0;
+    for (range, text) in edits {
+        if range.start < at {
+            continue;
+        }
+        out.push_str(&contents[at..range.start]);
+        out.push_str(&text);
+        at = range.end;
+    }
+    out.push_str(&contents[at..]);
+    out
 }
 
 /// The pages' doc links (decision 80): each `<a data-crucible-ref="<id>">`
@@ -632,6 +766,8 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
         "| Error | Code | HTTP status | Fault | Retryable | Description |\n|---|---|---|---|---|---|\n"
             .to_owned();
     let mut headers = std::collections::BTreeSet::new();
+    // Errors whose body is a payload: their code is in the header alone.
+    let mut payloads = Vec::new();
     for id in list(ids) {
         let shape = &d.shapes[string(id)];
         let e = &shape["error"];
@@ -644,6 +780,9 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
         };
         if let Some(header) = e["discriminatorHeader"].as_str() {
             headers.insert(header);
+        }
+        if e["bodyDiscriminator"].is_null() || !e["bindings"]["payload"].is_null() {
+            payloads.push(code(string(&shape["name"])));
         }
         let wire = e["bodyDiscriminator"]
             .as_str()
@@ -665,8 +804,18 @@ fn errors(d: &Description, ids: &Value, prefix: &str) -> String {
     // How a reader tells the errors apart: the code travels in a header
     // beside the body.
     if let [header] = headers.into_iter().collect::<Vec<_>>()[..] {
+        let body = if payloads.is_empty() {
+            " and in its JSON body".to_owned()
+        } else if payloads.len() < list(ids).len() {
+            format!(
+                ", and in its JSON body except for {}, whose body carries no code",
+                payloads.join(", ")
+            )
+        } else {
+            String::new()
+        };
         out.push_str(&format!(
-            "An error response names its code in the {} header and in its JSON body.\n\n",
+            "An error response names its code in the {} header{body}.\n\n",
             code(header)
         ));
     }

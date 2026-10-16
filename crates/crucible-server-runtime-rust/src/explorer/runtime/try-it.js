@@ -104,7 +104,8 @@
     for (const binding of bindings.headers || []) {
       if (values.get(binding.member) != null) headers.set(binding.name, headerValue(values.get(binding.member), (bindings.headerEncodings || {})[binding.member], (bindings.timestampFormats || {})[binding.member]));
     }
-    if (credentials.bearer) headers.set("Authorization", `Bearer ${credentials.bearer}`);
+    // A sender-signed operation takes no credential of this service.
+    if (credentials.bearer && !operation.sender) headers.set("Authorization", `Bearer ${credentials.bearer}`);
     if (query.length) uri += `${uri.includes("?") ? "&" : "?"}${query.join("&")}`;
     const baseUrl = new URL(base);
     const url = new URL(`${baseUrl.origin}${baseUrl.pathname}${uri.replace(/^\/+/, "")}`);
@@ -218,7 +219,14 @@
       field.append(input);
       form.append(field);
     };
-    credential("Bearer token", credentials.bearer, (value) => { credentials.bearer = value; });
+    // A third party calls a sender-signed operation (decision 81) and signs
+    // it: no credential of this service applies, the signature does.
+    if (operation.sender) {
+      const note = element("p", `Called by ${operation.sender.name}: no bearer token applies. Sign the request as ${operation.sender.name} does and send the signature in the ${operation.sender.header || "signature"} header, below.`, "cx-try-sender");
+      form.append(note);
+    } else {
+      credential("Bearer token", credentials.bearer, (value) => { credentials.bearer = value; });
+    }
     // The renderer resolves a shared or omitted schema (docs/docs.md).
     const renderer = root.CrucibleExplorer;
     const schema = (renderer && renderer.operationSchema ? renderer.operationSchema(description, operation, "inputSchema") : operation.inputSchema) || {};

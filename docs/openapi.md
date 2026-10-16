@@ -63,6 +63,7 @@ retain semantics that OpenAPI does not express directly, under the
 | `x-crucible-length` | Blob length in decoded bytes; base64 character length differs |
 | `x-crucible-decoded-schema` | Constraints before media-type header base64 encoding |
 | `x-crucible-errors`, `x-crucible-response-variants`, `x-crucible-retryable` | Modeled errors and per-response metadata |
+| `x-crucible-sender` | On a sender-signed operation (`@sender`, decision 81): `{name, member, header}`, the third party that calls it, and the input member and request header that carry the signature it computes. Its `security` is empty, as for any public operation |
 
 These extensions document behavior; generic OpenAPI tools need their own support
 to implement automatic tokens, pagination, and byte-length checks.

@@ -1,0 +1,471 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Hooks",
+    "version": "2026-10-01",
+    "description": "Accounts, paid for through a payment processor that reports payments to\nRecordPaymentEvent."
+  },
+  "paths": {
+    "/accounts/{accountId}": {
+      "get": {
+        "operationId": "GetAccount",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accountId": {
+                      "type": "string",
+                      "pattern": "^a-[0-9a-z]{8}$"
+                    },
+                    "credit": {
+                      "$ref": "#/components/schemas/crucible.api.Long",
+                      "description": "What only payment events change."
+                    }
+                  },
+                  "required": [
+                    "accountId",
+                    "credit"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AccessDenied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "AccessDenied"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "AccessDenied"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.hooks#AccessDenied"
+            ]
+          }
+        },
+        "security": [
+          {
+            "crucible.api.httpBearerAuth": []
+          }
+        ],
+        "x-crucible-shape": "example.hooks#GetAccount",
+        "x-crucible-traits": {},
+        "description": "Read an account. Called by clients with a bearer token.",
+        "x-crucible-readonly": true,
+        "parameters": [
+          {
+            "name": "accountId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^a-[0-9a-z]{8}$"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/payment-events": {
+      "post": {
+        "operationId": "RecordPaymentEvent",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "$ref": "#/components/schemas/crucible.api.Boolean"
+                    }
+                  },
+                  "required": [
+                    "received"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "AccessDenied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "AccessDenied"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "AccessDenied"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.hooks#AccessDenied"
+            ]
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.hooks#RecordPaymentEvent",
+        "x-crucible-traits": {},
+        "description": "Receive an event from the payment processor. A request whose signature\ndoes not verify is refused with AccessDenied.",
+        "x-crucible-sender": {
+          "name": "Payments Inc.",
+          "member": "signature",
+          "header": "Payment-Signature"
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "Payment-Signature",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "The processor's signature: a timestamp and an HMAC of the exact body.",
+              "pattern": "^[ -~]+$",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    },
+    "/leaked-keys": {
+      "post": {
+        "operationId": "ReportLeakedKeys",
+        "responses": {
+          "200": {
+            "description": "Successful response"
+          },
+          "403": {
+            "description": "AccessDenied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "$ref": "#/components/schemas/crucible.api.String"
+                    },
+                    "__type": {
+                      "type": "string",
+                      "const": "AccessDenied"
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "__type"
+                  ]
+                }
+              }
+            },
+            "headers": {
+              "X-Crucible-Error": {
+                "schema": {
+                  "type": "string",
+                  "const": "AccessDenied"
+                }
+              }
+            },
+            "x-crucible-errors": [
+              "example.hooks#AccessDenied"
+            ]
+          }
+        },
+        "security": [],
+        "x-crucible-shape": "example.hooks#ReportLeakedKeys",
+        "x-crucible-traits": {},
+        "description": "Receive a report of leaked keys from a code host's secret scanner. Its\nsignature header is optional in the model, so that a request without one\nis refused like a wrong one, with AccessDenied.",
+        "x-crucible-sender": {
+          "name": "CodeHost",
+          "member": "signature",
+          "header": "Scanner-Signature"
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "keys": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/example.hooks.LeakedKey"
+                    },
+                    "uniqueItems": false,
+                    "minItems": 1,
+                    "maxItems": 100
+                  }
+                },
+                "required": [
+                  "keys"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "parameters": [
+          {
+            "name": "Scanner-Key-Identifier",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          },
+          {
+            "name": "Scanner-Signature",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/crucible.api.String"
+            },
+            "style": "simple",
+            "explode": false
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "crucible.api.Boolean": {
+        "type": "boolean"
+      },
+      "crucible.api.Long": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": -9223372036854775808,
+        "maximum": 9223372036854775807
+      },
+      "crucible.api.String": {
+        "type": "string"
+      },
+      "example.hooks.AccessDenied": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "description": "A request that is not signed, or not signed by the sender."
+      },
+      "example.hooks.AccountId": {
+        "type": "string",
+        "pattern": "^a-[0-9a-z]{8}$"
+      },
+      "example.hooks.GetAccountInput": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "pattern": "^a-[0-9a-z]{8}$"
+          }
+        },
+        "required": [
+          "accountId"
+        ]
+      },
+      "example.hooks.GetAccountOutput": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "pattern": "^a-[0-9a-z]{8}$"
+          },
+          "credit": {
+            "$ref": "#/components/schemas/crucible.api.Long",
+            "description": "What only payment events change."
+          }
+        },
+        "required": [
+          "accountId",
+          "credit"
+        ]
+      },
+      "example.hooks.LeakedKey": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/crucible.api.String"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "description": "A key the scanner found in public."
+      },
+      "example.hooks.LeakedKeys": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/example.hooks.LeakedKey"
+        },
+        "uniqueItems": false,
+        "minItems": 1,
+        "maxItems": 100
+      },
+      "example.hooks.PaymentEventBody": {
+        "type": "string",
+        "contentEncoding": "base64",
+        "description": "The event as the processor sent it, unparsed, so the signature is\nchecked over exactly those bytes."
+      },
+      "example.hooks.PaymentSignature": {
+        "type": "string",
+        "description": "The processor's signature: a timestamp and an HMAC of the exact body.",
+        "pattern": "^[ -~]+$",
+        "minLength": 1,
+        "maxLength": 1024
+      },
+      "example.hooks.RecordPaymentEventInput": {
+        "type": "object",
+        "properties": {
+          "signature": {
+            "type": "string",
+            "description": "The processor's signature: a timestamp and an HMAC of the exact body.",
+            "pattern": "^[ -~]+$",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "event": {
+            "$ref": "#/components/schemas/example.hooks.PaymentEventBody"
+          }
+        },
+        "required": [
+          "signature",
+          "event"
+        ]
+      },
+      "example.hooks.RecordPaymentEventOutput": {
+        "type": "object",
+        "properties": {
+          "received": {
+            "$ref": "#/components/schemas/crucible.api.Boolean"
+          }
+        },
+        "required": [
+          "received"
+        ]
+      },
+      "example.hooks.ReportLeakedKeysInput": {
+        "type": "object",
+        "properties": {
+          "keyIdentifier": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signature": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/crucible.api.String"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/example.hooks.LeakedKey"
+            },
+            "uniqueItems": false,
+            "minItems": 1,
+            "maxItems": 100
+          }
+        },
+        "required": [
+          "keys"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "crucible.api.httpBearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "x-crucible-service": "example.hooks#Hooks",
+  "x-crucible-protocol": "crucible.protocols#json",
+  "x-crucible-traits": {}
+}

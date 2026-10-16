@@ -32,3 +32,4 @@ An error response names its code in the <code>X-Crucible-Error</code> header and
 - [DeleteItem](operations/API_DeleteItem.md)
 - [GetItem](operations/API_GetItem.md)
 - [ListItems](operations/API_ListItems.md)
+- [RecordPayment](operations/API_RecordPayment.md)

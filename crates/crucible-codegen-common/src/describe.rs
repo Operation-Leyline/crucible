@@ -28,8 +28,10 @@ pub struct Description {
     /// `api_version`. See [`versions`].
     #[serde(default)]
     pub versions: Value,
-    /// The operations' shared JSON Schema definitions, under `$defs`:
-    /// present only after [`Description::schemas`] with [`Schemas::Shared`].
+    /// The schema mode, when it is not inline: `{"mode": "shared", "$defs":
+    /// ...}`, the operations' shared JSON Schema definitions, or `{"mode":
+    /// "omit"}`. Absent for [`Schemas::Inline`]; set by
+    /// [`Description::schemas`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schemas: Option<Value>,
 }
@@ -60,6 +62,7 @@ impl Description {
         match mode {
             Schemas::Inline => {}
             Schemas::Omit => {
+                self.schemas = Some(json!({"mode": "omit"}));
                 for operation in self.operations.values_mut() {
                     strip(operation, &KEYS);
                 }
@@ -104,7 +107,7 @@ impl Description {
                             json!({"$ref": format!("#/$defs/{}", json_schema::key(&id))});
                     }
                 }
-                let mut shared = json!({"$defs": Value::Object(defs)});
+                let mut shared = json!({"mode": "shared", "$defs": Value::Object(defs)});
                 sort_objects(&mut shared);
                 self.schemas = Some(shared);
             }

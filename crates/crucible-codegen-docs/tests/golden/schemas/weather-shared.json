@@ -1666,7 +1666,8 @@
           "unit": "bytes"
         }
       }
-    }
+    },
+    "mode": "shared"
   },
   "service": {
     "auth": [

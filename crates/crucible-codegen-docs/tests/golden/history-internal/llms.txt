@@ -1,8 +1,8 @@
 # Shop
 
-> A shop's items, across three releases.
+> A shop\'s items\, across three releases\.
 
-Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Crucible-Version: v3` on every request. `describe.json` holds the whole reference as data (`crucible.describe/1`).
+Every page below is Markdown. Requests are JSON over HTTP; each operation's page gives its method and URI, its headers, its request and response with an example, its errors and its pagination. Send `Crucible-Version: v3` on every request you make. `describe.json` holds the whole reference as data (`crucible.describe/1`).
 
 ## Overview
 
@@ -10,30 +10,30 @@ Every page below is Markdown. Requests are JSON over HTTP; each operation's page
 
 ## Operations
 
-- [Audit](src/operations/API_Audit.md): POST /audit. Records an audit entry. Internal.
-- [DeleteItem](src/operations/API_DeleteItem.md): DELETE /items/{id}. Deletes an item.
-- [GetItem](src/operations/API_GetItem.md): GET /things/{id}. Reads one item.
-- [ListItems](src/operations/API_ListItems.md): GET /items. Lists item names.
-- [PutItem](src/operations/API_PutItem.md): PUT /items/{id}. Stores an item.
+- [Audit](src/operations/API_Audit.md): `POST /audit`. Records an audit entry\. Internal.
+- [DeleteItem](src/operations/API_DeleteItem.md): `DELETE /items/{id}`. Deletes an item\.
+- [GetItem](src/operations/API_GetItem.md): `GET /things/{id}`. Reads one item\.
+- [ListItems](src/operations/API_ListItems.md): `GET /items`. Lists item names\.
+- [PutItem](src/operations/API_PutItem.md): `PUT /items/{id}`. Stores an item\.
 
 ## Data types
 
 - [AuditInput](src/shapes/AuditInput.md): structure.
 - [AuditOutput](src/shapes/AuditOutput.md): structure.
-- [Conflict](src/shapes/Conflict.md): error, HTTP 409. Two writers raced; only the service sees it. Internal.
+- [Conflict](src/shapes/Conflict.md): error, HTTP 409. Two writers raced\; only the service sees it\. Internal.
 - [DeleteItemInput](src/shapes/DeleteItemInput.md): structure.
 - [GetItemInput](src/shapes/GetItemInput.md): structure.
 - [GetItemOutput](src/shapes/GetItemOutput.md): structure.
-- [ItemGone](src/shapes/ItemGone.md): error, HTTP 410. The item was deleted.
-- [ItemLocked](src/shapes/ItemLocked.md): error, HTTP 423. Another writer holds the item.
-- [ItemNotFound](src/shapes/ItemNotFound.md): error, HTTP 404. No item has that id.
-- [Kind](src/shapes/Kind.md): enum. How big an item is.
+- [ItemGone](src/shapes/ItemGone.md): error, HTTP 410. The item was deleted\.
+- [ItemLocked](src/shapes/ItemLocked.md): error, HTTP 423. Another writer holds the item\.
+- [ItemNotFound](src/shapes/ItemNotFound.md): error, HTTP 404. No item has that id\.
+- [Kind](src/shapes/Kind.md): enum. How big an item is\.
 - [ListItemsInput](src/shapes/ListItemsInput.md): structure.
 - [ListItemsOutput](src/shapes/ListItemsOutput.md): structure.
 - [Names](src/shapes/Names.md): list.
 - [PutItemInput](src/shapes/PutItemInput.md): structure.
 - [PutItemOutput](src/shapes/PutItemOutput.md): structure.
-- [Size](src/shapes/Size.md): structure. An item's dimensions.
+- [Size](src/shapes/Size.md): structure. An item\'s dimensions\.
 
 ## Releases
 
