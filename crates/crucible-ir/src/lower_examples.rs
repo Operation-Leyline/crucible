@@ -8,6 +8,10 @@ use base64::Engine as _;
 use serde_json::{Map, Number, Value};
 
 use crate::decimal::Decimal;
+
+/// The most digits the server's `BigInteger` reads (crucible-wire's
+/// `MAX_BIG_INTEGER_DIGITS`).
+const MAX_BIG_INTEGER_DIGITS: i64 = 10_000;
 use crate::ir::{
     Constraints, Member, Service, Shape, Simple, SimpleKind, Structure, TimestampFormat,
 };
@@ -222,12 +226,13 @@ impl Check<'_> {
                         .ok()
                         .map(|read| if float { f64::from(read as f32) } else { read })
                         .filter(|read| read.is_finite()),
-                    Value::String(text) => match text.as_str() {
-                        "NaN" => Some(f64::NAN),
-                        "Infinity" => Some(f64::INFINITY),
-                        "-Infinity" => Some(f64::NEG_INFINITY),
-                        _ => return self.mismatch(path, "number", value),
-                    },
+                    // The server reads only JSON numbers: `"NaN"`,
+                    // `"Infinity"` and `"-Infinity"` are refused too.
+                    Value::String(_) => {
+                        return self
+                            .problems
+                            .push(format!("{path} must be a finite number, not {value}"));
+                    }
                     _ => return self.mismatch(path, "number", value),
                 };
                 match read {
@@ -241,10 +246,19 @@ impl Check<'_> {
                 Value::Number(number) => self.range(path, constraints, number),
                 _ => self.mismatch(path, "number", value),
             },
+            // The server's `BigInteger` reads any whole number, `1e2`,
+            // `100e-2` and `1.0` included, of up to 10,000 digits.
             SimpleKind::BigInteger => match value {
-                Value::Number(number) if !number.to_string().contains(['.', 'e', 'E']) => {
-                    self.range(path, constraints, number)
-                }
+                Value::Number(number) => match Decimal::parse(number) {
+                    Some(integer) if !integer.is_integer() => self.mismatch(path, "integer", value),
+                    Some(integer) if integer.integer_digits() <= MAX_BIG_INTEGER_DIGITS => {
+                        self.range(path, constraints, number)
+                    }
+                    _ => self.problems.push(format!(
+                        "{path}: {value} is outside the range of the type \
+                         ({MAX_BIG_INTEGER_DIGITS} digits at most)"
+                    )),
+                },
                 _ => self.mismatch(path, "integer", value),
             },
             SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long => {
@@ -254,6 +268,9 @@ impl Check<'_> {
                     SimpleKind::Integer => (i128::from(i32::MIN), i128::from(i32::MAX)),
                     _ => (i128::from(i64::MIN), i128::from(i64::MAX)),
                 };
+                // The server reads an integer kind only from plain digits.
+                // (A model's `-0`, which it reads as the float -0.0, never
+                // gets here: the IR's numbers hold it as `0`.)
                 let integer = match value {
                     Value::Number(number) if !number.to_string().contains(['.', 'e', 'E']) => {
                         Decimal::parse(number)
@@ -293,8 +310,14 @@ impl Check<'_> {
     /// server bounds are [`crate::ir::Bounds::integer_bounds`], which
     /// accept exactly the integers these do.
     fn range(&mut self, path: &str, constraints: &Constraints, number: &Number) {
-        let (Some(bounds), Some(value)) = (&constraints.range, Decimal::parse(number)) else {
+        let Some(bounds) = &constraints.range else {
             return;
+        };
+        // Only an exponent past what any decimal holds fails to parse.
+        let Some(value) = Decimal::parse(number) else {
+            return self
+                .problems
+                .push(format!("{path}: {number} is outside the range of the type"));
         };
         let bound = |bound: &Option<Number>| bound.as_ref().and_then(Decimal::parse);
         let below = bound(&bounds.min).is_some_and(|min| value < min);
@@ -304,9 +327,9 @@ impl Check<'_> {
         }
     }
 
-    /// A `float` or `double` against its range, in the server's IEEE
-    /// arithmetic: a finite `float` is compared in `f32` with each bound
-    /// narrowed, everything else in `f64`. NaN is within every range.
+    /// A finite `float` or `double` against its range, in the server's
+    /// IEEE arithmetic: a `float` is compared in `f32` with each bound
+    /// narrowed, a `double` in `f64`.
     fn float_range(
         &mut self,
         path: &str,
@@ -319,7 +342,7 @@ impl Check<'_> {
             return;
         };
         let (min, max) = bounds.float_bounds();
-        let outside = if float && read.is_finite() {
+        let outside = if float {
             let read = read as f32;
             min.is_some_and(|min| read < min as f32) || max.is_some_and(|max| read > max as f32)
         } else {
@@ -479,6 +502,11 @@ mod tests {
             ),
             (D, Some("1e999999999"), None, "1e999999999", true),
             (D, Some("1e999999999"), None, "9.99999999e999999998", false),
+            // Equal values in other spellings are within.
+            (D, Some("1.0"), Some("1"), "1.00", true),
+            (D, Some("1.0"), Some("1"), "1.000000000000000000001", false),
+            // No decimal holds this exponent; the server cannot read it.
+            (D, None, None, "1e99999999999999999999", false),
         ]);
     }
 
@@ -527,6 +555,18 @@ mod tests {
             (I, None, Some("2.5E3"), "2501", false),
             (I, Some("0.5"), None, "1", true),
             (I, Some("0.5"), None, "0", false),
+            // The server's BigInteger reads any whole number, in any
+            // notation, of up to 10,000 digits.
+            (I, None, Some("100"), "1e2", true),
+            (I, None, Some("99"), "1e2", false),
+            (I, None, None, "100e-2", true),
+            (I, None, None, "1.0", true),
+            (I, None, None, "-0", true),
+            (I, None, None, "1e9999", true),
+            (I, None, None, "1e10000", false),
+            (I, None, None, "1.5", false),
+            (I, None, None, "1e-999999999", false),
+            (I, None, None, "1e99999999999999999999", false),
         ]);
     }
 
@@ -567,6 +607,17 @@ mod tests {
             (Byte, None, Some("1e999999999"), "127", true),
             (Byte, Some("1e999999999"), None, "127", false),
             (Byte, Some("-1e999999999"), None, "-128", true),
+            // Zero at any scale is zero, not a bound past i128.
+            (Long, Some("0e40"), None, "5", true),
+            (Long, Some("0e40"), None, "-1", false),
+            (Long, None, Some("-0e50"), "0", true),
+            (Long, None, Some("-0e50"), "1", false),
+            // An integer kind takes plain digits only. A model's `-0` is
+            // `0` by the time it is checked, and documents carry `0`.
+            (Integer, None, None, "-0", true),
+            (Integer, None, None, "0", true),
+            (Integer, None, None, "1e2", false),
+            (Integer, None, None, "1.0", false),
         ]);
         let bounds = |min: &str, max: &str| Bounds {
             min: Some(min.parse::<Number>().unwrap()),
@@ -580,6 +631,7 @@ mod tests {
             bounds("-1.5", "2.5E3").integer_bounds(),
             (Some(-1), Some(2500))
         );
+        assert_eq!(bounds("0e40", "-0e50").integer_bounds(), (Some(0), Some(0)));
         assert_eq!(
             bounds("1e999999999", "-0.5").integer_bounds(),
             (Some(i128::MAX), Some(-1))
@@ -606,16 +658,18 @@ mod tests {
             (Double, Some("-2.5E3"), None, "-2500", true),
             (Double, Some("-2.5E3"), None, "-2500.0000000000005", false),
             (Double, None, Some("1e400"), "1e308", true),
-            (Double, None, Some("1e400"), "\"Infinity\"", true),
-            (Double, None, Some("1e308"), "\"Infinity\"", false),
-            (Double, Some("-1"), None, "\"-Infinity\"", false),
-            (Double, Some("-1"), Some("1"), "\"NaN\"", true),
+            // The server reads only JSON numbers, so never these.
+            (Double, None, None, "\"Infinity\"", false),
+            (Double, None, None, "\"-Infinity\"", false),
+            (Double, None, None, "\"NaN\"", false),
+            (Double, None, None, "-0", true),
             (Double, None, None, "1e400", false),
             // 0.100000005 narrows to the f32 nearest 0.1, the bound's own.
             (Float, None, Some("0.1"), "0.100000005", true),
             (Float, None, Some("0.1"), "0.10000001", false),
             (Float, Some("0.29999999999999999999"), None, "0.3", true),
-            (Float, None, Some("1e100"), "\"Infinity\"", false),
+            (Float, None, None, "\"Infinity\"", false),
+            (Float, None, None, "\"NaN\"", false),
             (Float, None, None, "1e39", false),
             (Float, None, None, "3.4028235e38", true),
         ]);

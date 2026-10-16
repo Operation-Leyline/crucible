@@ -241,6 +241,37 @@ fn constraints_are_read_from_shapes() {
     );
 }
 
+/// A bound compares exactly with a rule's literal: in `f64`,
+/// `0.29999999999999999999` and `0.3` are the same number.
+#[test]
+fn range_bounds_compare_exactly_with_a_literal() {
+    let model = format!(
+        "{}\nbigDecimal Rate {{ range ..0.29999999999999999999 }}\n",
+        MODEL.replace(
+            "output { color: Color }",
+            "output { color: Color rate: Rate }"
+        )
+    );
+    let errors = |policy: &str| messages(&compiled_with(&model, policy), true);
+    let holds = |policy: &str| {
+        let found = errors(policy);
+        assert!(found.is_empty(), "{policy}: {found:#?}");
+    };
+    holds("rule Below { every number where name == Rate must range.max < 0.3 }");
+    holds(
+        "rule Exact { every number where name == Rate must range.max == 0.29999999999999999999 }",
+    );
+    holds("rule Above { every number where name == Rate must range.max > 0.29999999999999999998 }");
+    mentions(
+        &errors("rule Equal { every number where name == Rate must range.max == 0.3 }"),
+        "does not satisfy",
+    );
+    mentions(
+        &errors("rule Huge { every number must range.max < 1e99999999999999999999 }"),
+        "`1e99999999999999999999` is out of range",
+    );
+}
+
 #[test]
 fn a_loose_string_is_caught_by_has_length() {
     let model = format!("{MODEL}\nstructure WideData {{ loose: Loose }}\nreadonly operation Wide {{ http GET \"/wide\"\n output {{ wide: WideData }} }}\n").replace("operations [Ping]", "operations [Ping, Wide]");

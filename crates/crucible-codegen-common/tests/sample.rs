@@ -24,6 +24,7 @@ const REFUSED: &[&str] = &[
     "doc-links-unresolved",
     "example-range-refusals",
     "external-docs-refusals",
+    "number-literal-refusals",
     "patterns-unsupported",
     "recursive-output",
     "resource-entry-refusals",
@@ -457,4 +458,34 @@ fn a_member_sample_is_on_the_wire_in_its_format() {
 
 fn regex_match(pattern: &str, text: &str) -> bool {
     regex::Regex::new(pattern).unwrap().is_match(text)
+}
+
+/// A `bigInteger` example the server reads in any notation (`1e2`,
+/// `100e-2`, `1.0`) is written in digits in a snippet, which every
+/// language's big integer parses.
+#[test]
+fn a_big_integer_snippet_is_written_in_digits() {
+    use crucible_codegen_common::snippet::{self, Kind};
+    let service = load("samples");
+    let owner: ShapeId = "example.samples#EdgesInput".parse().unwrap();
+    let Some(Shape::Structure(input)) = service.shape(&owner) else {
+        panic!("input")
+    };
+    let huge = input.member("huge").unwrap();
+    for (written, digits) in [
+        ("1e2", "100"),
+        ("100e-2", "1"),
+        ("-1.0", "-1"),
+        ("1.5E30", "1500000000000000000000000000000"),
+        (
+            "123456789012345678901234567890",
+            "123456789012345678901234567890",
+        ),
+    ] {
+        let value: Value = serde_json::from_str(written).unwrap();
+        let Kind::Number { text, .. } = snippet::member(&service, huge, &value).kind else {
+            panic!("{written}: not a number")
+        };
+        assert_eq!(text, digits, "{written}");
+    }
 }

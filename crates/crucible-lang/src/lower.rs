@@ -1770,6 +1770,19 @@ impl<'a> Lowerer<'a> {
 
     fn number(&mut self, file: usize, literal: &NumLit) -> Option<Number> {
         match serde_json::from_str::<Number>(&literal.text) {
+            // Downstream every number is compared exactly; an exponent past
+            // what a decimal holds could only be skipped there.
+            Ok(number) if Decimal::parse(&number).is_none() => {
+                self.error(
+                    file,
+                    literal.span,
+                    format!(
+                        "`{}` is out of range: its exponent is too large",
+                        literal.text
+                    ),
+                );
+                None
+            }
             Ok(number) => Some(number),
             Err(_) => {
                 self.error(

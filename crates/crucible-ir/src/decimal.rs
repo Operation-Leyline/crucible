@@ -53,6 +53,11 @@ impl Decimal {
     /// The digit positions from the most significant integer digit (at
     /// least the units) to the last fractional one (at least none).
     fn span(&self) -> (i64, i64) {
+        // Zero counts as one digit at any scale: `0e40` would otherwise
+        // span 41 integer digits.
+        if self.is_zero() {
+            return (1, 0);
+        }
         let (_, scale) = self.0.as_bigint_and_scale();
         let digits = i64::try_from(self.0.digits()).unwrap_or(i64::MAX);
         (digits.saturating_sub(scale).max(1), scale.max(0))
@@ -80,9 +85,11 @@ impl Decimal {
 
     /// The value rounded to an integer, up or down, if that fits an `i128`.
     fn rounded(&self, up: bool) -> Option<i128> {
-        let (_, scale) = self.0.as_bigint_and_scale();
-        let digits = i64::try_from(self.0.digits()).unwrap_or(i64::MAX);
-        let integer_digits = digits.saturating_sub(scale);
+        // Zero at any scale (`0e40`, `-0e50`) is zero.
+        if self.is_zero() {
+            return Some(0);
+        }
+        let integer_digits = self.integer_digits();
         // i128 holds at most 39 digits; more cannot fit, and checking first
         // keeps `1e999999999` from being expanded.
         if integer_digits > 39 {
@@ -103,6 +110,34 @@ impl Decimal {
             RoundingMode::Floor
         };
         self.0.with_scale_round(0, mode).to_i128()
+    }
+
+    /// How many digits the value has before its decimal point: 3 for
+    /// `123.4` or `1.5e2`, 0 or fewer for a value below one, 1 for zero.
+    pub fn integer_digits(&self) -> i64 {
+        if self.is_zero() {
+            return 1;
+        }
+        let (_, scale) = self.0.as_bigint_and_scale();
+        let digits = i64::try_from(self.0.digits()).unwrap_or(i64::MAX);
+        digits.saturating_sub(scale)
+    }
+
+    /// Whether the value is a whole number, whatever its notation (`1e2`,
+    /// `100e-2`, `1.0`).
+    pub fn is_integer(&self) -> bool {
+        let (digits, scale) = self.0.as_bigint_and_scale();
+        // A nonzero value below one is not whole; deciding it here keeps
+        // the digits below from being padded out to `1e-999999999`'s scale.
+        if scale <= 0 || self.is_zero() {
+            return true;
+        }
+        if self.integer_digits() <= 0 {
+            return false;
+        }
+        let digits = digits.magnitude().to_string();
+        let fraction = &digits[digits.len() - scale as usize..];
+        fraction.bytes().all(|digit| digit == b'0')
     }
 
     /// The least integer at or above the value, if it fits an `i128`.
@@ -268,5 +303,39 @@ mod tests {
         assert_eq!(decimal("2.5E3").to_number().to_string(), "2500");
         assert_eq!(decimal("0.000").to_number().to_string(), "0");
         assert!(decimal("-0.0").is_zero());
+        // Zero is zero at any scale, not a 41-digit number.
+        for zero in ["0e40", "-0e50", "0e-50", "0.000"] {
+            let zero = decimal(zero);
+            assert_eq!((zero.ceil(), zero.floor()), (Some(0), Some(0)));
+            assert_eq!(zero.integer_digits(), 1);
+            assert!(zero.is_integer());
+            assert_eq!(zero.to_number().to_string(), "0");
+            assert_eq!(zero.add(&Decimal::integer(1)), Some(Decimal::integer(1)));
+        }
+    }
+
+    #[test]
+    fn integers_in_any_notation() {
+        for (text, integer, digits) in [
+            ("1e2", true, 3),
+            ("100e-2", true, 1),
+            ("1.0", true, 1),
+            ("-15.00", true, 2),
+            ("1.5", false, 1),
+            ("99e-2", false, 0),
+            ("1e-999999999", false, -999999998),
+            ("1e9999", true, 10_000),
+        ] {
+            let value = decimal(text);
+            assert_eq!(value.is_integer(), integer, "{text}");
+            assert_eq!(value.integer_digits(), digits, "{text}");
+        }
+    }
+
+    #[test]
+    fn exponents_past_i64_scale_do_not_parse() {
+        for text in ["1e99999999999999999999", "1e-9223372036854775808"] {
+            assert_eq!(Decimal::parse(&number(text)), None, "{text}");
+        }
     }
 }

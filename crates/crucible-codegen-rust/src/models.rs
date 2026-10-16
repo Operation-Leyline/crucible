@@ -903,6 +903,11 @@ mod tests {
             check(SimpleKind::Byte, Some("-1e999999999"), Some("1e999999999")),
             "validator.range_integer(i128::from(*value), Some(i128::MIN), Some(i128::MAX));\n"
         );
+        // Zero at any scale is zero, not a 41-digit bound that saturates.
+        assert_eq!(
+            check(SimpleKind::Long, Some("0e40"), Some("-0e50")),
+            "validator.range_integer(i128::from(*value), Some(0i128), Some(0i128));\n"
+        );
     }
 
     /// A `float` or `double` keeps IEEE comparison; a bound past `f64` is

@@ -12,6 +12,7 @@
 
 use base64::Engine as _;
 use crucible_ir::ShapeId;
+use crucible_ir::decimal::Decimal;
 use crucible_ir::ir::{
     EnumValue, IntEnumValue, Member, Operation, Paginated, Service, Shape, SimpleKind, Structure,
     TimestampFormat,
@@ -233,6 +234,11 @@ fn simple_kind<'a>(
             kind: number,
             text: match value {
                 Value::String(text) => text.clone(),
+                // A `bigInteger` may be written `1e2` or `100e-2`; its
+                // digits are what every language's big integer parses.
+                Value::Number(n) if number == SimpleKind::BigInteger => Decimal::parse(n)
+                    .filter(Decimal::is_integer)
+                    .map_or_else(|| n.to_string(), |d| d.to_number().to_string()),
                 other => other.to_string(),
             },
         },

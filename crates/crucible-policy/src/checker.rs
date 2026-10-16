@@ -1,9 +1,12 @@
 use crate::direction::Direction;
 use crate::{Renames, Report, Severity};
-use crucible_ir::ir::{Bindings, Constraints, Member, Operation, Service, Shape, Structure};
+use crucible_ir::decimal::Decimal;
+use crucible_ir::ir::{
+    Bindings, Bounds, Constraints, Member, Operation, Service, Shape, SimpleKind, Structure,
+};
 use crucible_ir::validate::needs_not_found;
 use crucible_ir::{Feature, ShapeId};
-use std::cmp::Ordering;
+use serde_json::Number;
 use std::collections::BTreeSet;
 
 pub(crate) struct Checker<'a> {
@@ -481,13 +484,18 @@ impl Checker<'_> {
                 "effective timestamp wire format changed",
             );
         }
-        self.constraints(id, &old.constraints, &new.constraints, direction);
+        let kind = match self.new.shape(&new.target) {
+            Some(Shape::Simple(simple)) => Some(simple.kind),
+            _ => None,
+        };
+        self.constraints(id, kind, &old.constraints, &new.constraints, direction);
         self.shape(&old.target, &new.target, direction, None);
     }
 
     fn constraints(
         &mut self,
         id: &ShapeId,
+        kind: Option<SimpleKind>,
         old: &Constraints,
         new: &Constraints,
         direction: Direction,
@@ -507,17 +515,7 @@ impl Checker<'_> {
         };
         let range_break = match (&accepted.range, &produced.range) {
             (None, _) => false,
-            (Some(a), Some(b)) => {
-                a.min.as_ref().is_some_and(|v| {
-                    b.min
-                        .as_ref()
-                        .is_none_or(|w| compare_numbers(w, v) == Ordering::Less)
-                }) || a.max.as_ref().is_some_and(|v| {
-                    b.max
-                        .as_ref()
-                        .is_none_or(|w| compare_numbers(w, v) == Ordering::Greater)
-                })
-            }
+            (Some(a), Some(b)) => range_widened(kind, a, b),
             (Some(a), None) => a.min.is_some() || a.max.is_some(),
         };
         let pattern_break = old.pattern != new.pattern && accepted.pattern.is_some();
@@ -708,10 +706,53 @@ impl Checker<'_> {
     }
 }
 
-/// `a` against `b`, exactly: a `bigDecimal` bound tightened from `0.3` to
-/// `0.29999999999999999999` is unchanged in `f64`.
-fn compare_numbers(a: &serde_json::Number, b: &serde_json::Number) -> Ordering {
-    crucible_ir::decimal::compare(a, b).unwrap_or(Ordering::Equal)
+/// Whether `produced` admits a value `accepted` refuses, with bounds as the
+/// generated server compares them: an integer kind against the integers
+/// its bounds admit, a `float` or `double` in IEEE arithmetic, and
+/// everything else exactly. So `..10.5` to `..10` on an integer, or `0.3`
+/// to `0.29999999999999999999` on a `double`, changes nothing, while the
+/// same change on a `bigDecimal` tightens it.
+fn range_widened(
+    kind: Option<SimpleKind>,
+    accepted: &Bounds<Number>,
+    produced: &Bounds<Number>,
+) -> bool {
+    fn widened<T: PartialOrd>(
+        (accepted_min, accepted_max): (Option<T>, Option<T>),
+        (produced_min, produced_max): (Option<T>, Option<T>),
+    ) -> bool {
+        accepted_min
+            .as_ref()
+            .is_some_and(|a| produced_min.as_ref().is_none_or(|p| p < a))
+            || accepted_max
+                .as_ref()
+                .is_some_and(|a| produced_max.as_ref().is_none_or(|p| p > a))
+    }
+    match kind {
+        Some(SimpleKind::Byte | SimpleKind::Short | SimpleKind::Integer | SimpleKind::Long) => {
+            widened(accepted.integer_bounds(), produced.integer_bounds())
+        }
+        // The server narrows a `float`'s bounds to `f32`.
+        Some(SimpleKind::Float) => {
+            let narrow = |(min, max): (Option<f64>, Option<f64>)| {
+                (min.map(|m| m as f32), max.map(|m| m as f32))
+            };
+            widened(
+                narrow(accepted.float_bounds()),
+                narrow(produced.float_bounds()),
+            )
+        }
+        Some(SimpleKind::Double) => widened(accepted.float_bounds(), produced.float_bounds()),
+        _ => {
+            let exact = |bounds: &Bounds<Number>| {
+                (
+                    bounds.min.as_ref().and_then(Decimal::parse),
+                    bounds.max.as_ref().and_then(Decimal::parse),
+                )
+            };
+            widened(exact(accepted), exact(produced))
+        }
+    }
 }
 
 fn error_info<'a>(service: &'a Service, id: &ShapeId) -> Option<&'a crucible_ir::ir::ErrorInfo> {
