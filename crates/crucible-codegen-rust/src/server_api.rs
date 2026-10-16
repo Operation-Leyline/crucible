@@ -82,6 +82,21 @@ pub(crate) fn exports(service: &Service, diagnostics: &mut Diagnostics) -> Strin
     out
 }
 
+/// The names of the model's types and errors the service module exports,
+/// sorted.
+pub(crate) fn type_names(service: &Service) -> Vec<String> {
+    let mut names: Vec<String> = models::model_shapes(service)
+        .into_iter()
+        .filter(|(_, shape)| !matches!(shape, Shape::Unit { .. }))
+        .map(|(id, _)| id)
+        .chain(errors::error_shapes(service).into_iter().map(|(id, _)| id))
+        .map(|id| service.name_of(id).to_owned())
+        .collect();
+    names.sort();
+    names.dedup();
+    names
+}
+
 pub(crate) fn module(service: &Service) -> String {
     names::module(service.id.name())
 }

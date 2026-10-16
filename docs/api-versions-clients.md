@@ -1,9 +1,9 @@
 # API versions and clients
 
 **Status: 5a built (clients send their release), the reference's
-release history (PR 3), and the projections themselves as an IR function
-with no caller yet (PR 4); the rest of 5b and 5c settled and ready to
-build (decisions 68-79); 5d designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
+release history (PR 3), and 5b built: the projections (PR 4), checked by
+the compiler (PR 5) and served by the Rust server (PR 6); 5c settled and
+ready to build (decisions 68-79, 82); 5d designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
 how clients take part, following decisions 51, 57 and 57a in
@@ -475,8 +475,26 @@ the conversions between consecutive models; it reads projections instead
 - **Types grow with the model.** A release's types, its hooks' types and
   its legacy handlers' types are the projection's. A legacy handler's
   input gains the members added since to the shapes it shares with the
-  current model. Generated structures are `#[non_exhaustive]` with
-  builders, so a handler that reads fields keeps compiling.
+  current model. A hook or legacy handler that reads fields keeps
+  compiling; generated server structures are plain structs, so one that
+  builds a type an addition reached with a struct literal names the new
+  member, as a handler building a current type does.
+- **A hook is per shape and direction, never per operation** (decision
+  82). A step's `operations` include operations added since (they are
+  computed on the newer projection), and the generator does not read
+  them: an operation added since that reaches a hooked shape in a
+  direction the trait has already reuses that method, and adds its name to
+  the method's documentation ("Needed by ..."). The trait's methods and
+  signatures are unchanged by such an addition;
+  `crucible-codegen-rust/tests/versions.rs` compares the traits before and
+  after one, and `e2e/weather-service/tests/api_versions_additive.rs`
+  compiles the e2e service's hooks against the model with one. Hooks name
+  the current release's types by `versions::<current>`, which re-exports
+  them and becomes that release's module once a later one freezes it, so
+  a signature survives the freeze too
+  (`e2e/weather-service/tests/api_versions_freeze.rs`). A hook's body can
+  still break as a handler's does: a struct literal of a type an addition
+  reached, or an exhaustive `match` on an enum that gained a value.
 - **A new operation can need a new hook direction.** A hook is generated
   only for the directions the model uses: a structure only in outputs has
   no upgrade hook. An operation added since that takes such a structure in
@@ -485,16 +503,25 @@ the conversions between consecutive models; it reads projections instead
   operations that need it, and the service does not compile until it is
   written. It is not hidden: hiding the operation at that release would
   stop an addition reaching it, against decision 51, and a default that
-  fails at run time is a silent skip.
+  fails at run time is a silent skip. Decision 82 revisits this and keeps
+  it.
 - **Operations added since are served at older releases** through the
-  conversion chain, like any other. Most steps touch none of their shapes;
-  an empty conversion is skipped instead of costing a JSON round trip,
-  once measured (AGENTS.md).
+  conversion chain, like any other. Most steps touch none of their shapes,
+  so their conversions are empty. Measured (PR 6, release build): an
+  empty conversion costs nothing distinguishable from noise (under a
+  nanosecond, against 0.75 us to clone a small output), while the JSON
+  round trip from the current type to the release's (about 1.5 us for the
+  same output) is paid once per request whatever the chain's length, and
+  is needed as long as each release has its own types. Empty conversions
+  are therefore kept, not skipped.
 - **The last-version loop stays an id match** (`versions.rs:93-114`): it
   is right once reused names are refused.
-- **Strictness** follows the projection: an older release's responses now
-  carry members added since, so the lenient-output rule in
-  [api-versions.md](api-versions.md#limits) stays. The *Limits* entry
+- **Strictness** is the release's: a structure the frozen release's
+  outputs or errors reached stays lenient, as the lenient-output rule in
+  [api-versions.md](api-versions.md#limits) has it, and reachability is
+  read from the frozen release by id, not from the projection, so an
+  operation added since that sends an input-only strict structure in an
+  output does not make it lenient at older releases. The *Limits* entry
   "older versions are their frozen releases" goes away; "auth is the
   release's" holds for every operation the release had.
 
@@ -666,7 +693,7 @@ client of the previous release sees instead, in model terms.
   `behavior` and `removeOperation` the operation.
 - **The audience applies.** Older definitions are rendered from the
   previous release's frozen model as projected to the document's audience
-  (`ApiVersion::service` today, `ApiVersion::release` after 5b), and a
+  (`ApiVersion::release`), and a
   change whose subjects are all internal is left out of an external
   document, as the elements it names are.
 
@@ -691,10 +718,8 @@ ship before any projection (PR 3, built). `missing` needs no projection
 either: a member is missing at the releases up to a `reshape` of its
 structure, or a `remove operation` whose own input or output holds it,
 when the frozen release before that step lacks it, which is what undo
-will restore (decision 74). Until 5b serves projections, an older release
-is still served from its frozen model, so an addition does not yet reach
-it as `history` says it will; the reference describes the projection PR 6
-serves. `generate docs` and a build's docs output both render it, since
+will restore (decision 74). Since PR 6 the server serves projections, so
+an addition reaches an older release as `history` says it does. `generate docs` and a build's docs output both render it, since
 decision 67 lowered resources. The per-release reference needs 5b and 5c.
 
 ## 5d. Upgrade guides
@@ -714,7 +739,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1 to 5.
+is built, and so are PRs 1 to 6.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -824,7 +849,7 @@ is built, and so are PRs 1 to 5.
    came with it: a rename follows into permission bindings and `when`
    paths (#346), and a `retype` declares the binding change it causes
    (#348). See *What PR 5 settled*, below.
-6. **Serving projections.** *Risk carried from PR 5:* a hooked step's
+6. **Serving projections.** *Built.* *Risk carried from PR 5:* a hooked step's
    `operations` are now computed on the newer projection (`guard.rs`,
    `operations_reaching` in `Context::lower`), so they include operations
    added since. If this PR generates one hook method per listed
@@ -843,6 +868,38 @@ is built, and so are PRs 1 to 5.
    new operation at `v1` and sees the new member; `tests/auth_versions.rs`
    still authenticates each release with its own schemes; goldens;
    `tools/test-consumers.py`. CHANGELOG: older releases now see additions.
+   *As built:* the risk is settled by decision 82: hooks were already one
+   method per step, shape and direction, keyed by the shape, and the
+   generator never read a step's `operations`; each method's documentation
+   now names the operations that need it. The compiler sets
+   `ApiVersion::service` to the projection
+   (`crucible-lang/tests/projections.rs` checks it is what `projections`
+   computes, and that each projection keeps its release's fixed protocol
+   headers and feature uses, which the guard's comparison does not read).
+   A legacy handler's requirements are still mapped from the frozen
+   release, as the generator's backstop for an edited IR, and an operation
+   a release had that its projection leaves out without being retired is
+   reported. The e2e fixture froze `v3` with `ListLabels` (added in v3)
+   and a strict `Label`, and `v4` retypes `Label.size` by hook and adds
+   `Label.color`, `GetLabel` and `PutLabel`, whose input needs the upgrade
+   direction; `tests/api_versions.rs` calls them at `v1`, sees `color`,
+   and shows the lenient output rule on `Label`;
+   `tests/api_versions_additive.rs` builds the fixture with `FindLabels`
+   and `Label.shelf` added and compiles the same hooks
+   (`tests/support/versioned_hooks.rs`) against it;
+   `tests/auth_versions.rs` serves `tests/models/version-projection-auth`
+   generated. Empty conversions are kept: measured, they cost nothing (see
+   *Generated code*). Review follow-ups: output reachability for the
+   lenient rule is read from the frozen release (it was the projection's,
+   which relaxed input-only strict structures an operation added since
+   outputs; `an_operation_added_since_leaves_an_input_only_strict_structure_strict`);
+   `versions::<current>` re-exports the current types so hook signatures
+   survive a freeze (`tests/api_versions_freeze.rs`, two committed
+   packages under `versioned_freeze/`); a projection that lost an
+   operation the current model has is reported. Older modules still
+   duplicate types a projection leaves unchanged rather than re-export
+   them. Leyline's and Pigeon's generated servers, which have
+   no migrations, are byte-identical before and after.
 7. **One SDK line per release (5c),** after PR 5 (it needs projections,
    not the server). `ModelPackage::api_version`, `--api-version`, the SDK
    file's `api_version` (listed in sdk-packaging.md section 1), the server

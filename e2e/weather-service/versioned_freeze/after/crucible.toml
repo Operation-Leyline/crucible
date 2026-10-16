@@ -1,0 +1,8 @@
+# `../before` once v2 is frozen and v3 adds an operation, nothing else:
+# the same hooks compile against both (tests/api_versions_freeze.rs).
+[model]
+namespace = "example.shelf"
+imports = ["crucible.errors"]
+
+[model.baseline]
+path = "releases/v2.json"

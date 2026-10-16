@@ -1120,8 +1120,9 @@ pass in `reports/`.
     [api-versions.md](../api-versions.md). Clients send their release
     (57, phase 5a). Projections and SDK lines per release (57a) are
     settled in decisions 68-79; the projections are computed in
-    crucible-ir, not yet checked or served; declared `conversion`s and
-    example replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen
+    crucible-ir, checked by the compiler and served by the Rust server
+    (75, 82); SDK lines per release, declared `conversion`s and example
+    replay (59) are not built yet.)* **The source is always the latest model; history is a chain of frozen
     artifacts plus declared changes.** Each released version's compiled
     artifact is checked in under `releases/` and never edited. A
     `migration "2026-11-01" from "2026-09-04" { .. }` block declares how to
@@ -1576,7 +1577,8 @@ references are to the code as of the design.
     a payload-bound message has no body, its older clients never sent the
     member, and the release's request must stay valid.
 
-75. **The server generator serves projections, and their types grow.**
+75. *(Built; decision 82 settles which additions add a method.)* **The
+    server generator serves projections, and their types grow.**
     Version modules, hook types and legacy handlers' types are projected.
     An operation added since that needs a hook direction a released
     migration lacked makes that migration's trait require the method, its
@@ -1734,6 +1736,59 @@ references are to the code as of the design.
     declared once and documented with the other request parameters. The
     verification scheme (HMAC, ECDSA, a key id) stays the handler's and
     the documentation's: senders differ, and no generator acts on it.
+
+## Migration hooks
+
+82. **A hook is one step's conversion of one shape in one direction,
+    never one operation's.** A hooked step generates a method for each
+    direction its subject travels in at the older release, whatever
+    operations reach it: `upgrade_<shape>` and `downgrade_<shape>` for a
+    `reshape`, `upgrade_<shape>_<member>` and `downgrade_<shape>_<member>`
+    for a `retype`, `require_<shape>_<member>` for `require .. by hook`, and
+    a legacy handler per removed operation. A step's `operations` are
+    computed on the newer projection since PR 5 of
+    [api-versions-clients.md](../api-versions-clients.md#order), so they
+    include operations added since; the generator does not read them. An
+    operation added since that reaches a hooked shape in a direction the
+    trait has already reuses that method: it adds its name to the
+    method's documentation ("Needed by ..."), and the trait's methods,
+    their names, parameter and return types are unchanged.
+    Hooks name every release's types by that release's module, the current
+    one's too: `versions::<current>` re-exports the service's own types, and
+    once a later release freezes it, it is that release's projected module
+    under the same name. So a hook signature that names `v2::Shelf` while
+    v2 is current names v2's own `Shelf` after the freeze, and an
+    additive release does not change it either.
+    What this guarantees is the trait's shape: its methods and the paths
+    of their types, so the signatures of hand-written hooks compile
+    unchanged on an additive change and across a freeze. A hook's body can
+    still break the way a handler's does, because the types themselves are
+    projected and grow as the current types do (decision 75): a struct
+    literal of a type an addition reached must name the new member, an
+    exhaustive `match` on an enum that gained a value (one older releases
+    receive without a downgrade, such as one only inputs reach) needs its
+    arm, and a value passed between a release's type and the current one's
+    meets two types once the release is frozen.
+    Decision 75 is revisited for the one addition that does add a method:
+    an operation added since that sends a hooked shape in a direction no
+    released operation did (a structure only outputs reached, now taken as
+    an input). It stands: the trait requires the method, documented with
+    the operation that needs it, and the service does not compile until it
+    is written. *Why:* the alternatives each break something settled.
+    One method per operation, or one per operation defaulting to a
+    per-shape method, adds a method on every addition that reaches the
+    shape, and a default that forwards gains nothing over calling the
+    per-shape method directly. A default for the new direction can only
+    fail at run time, a silent skip. Hiding the operation at older
+    releases breaks 51. Refusing the addition in the compiler blocks the
+    model from growing for a conversion the service can write. A missing
+    method is a compile error that names the shape, the direction and the
+    operation, and it is the one conversion nobody has written yet; every
+    method already written keeps its meaning. A current-release module
+    that re-exports, rather than nothing, is what lets a signature written
+    before a freeze survive it: without it the newer side of the newest
+    migration's hooks is the service module's own types, and freezing that
+    release renames them.
 
 ## Settled in the syntax pass
 

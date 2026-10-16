@@ -23,9 +23,10 @@ Phase 4 adds the hooked steps (`by hook`, `reshape`, `retype`,
 `remove operation`'s legacy handler): typed functions the service writes
 ([Hooks](#hooks)). Phase 5 is
 [api-versions-clients.md](api-versions-clients.md): generated clients
-send their version (built), older versions become projections of the
-current model, with an SDK line and a reference per version, and upgrade
-guides (settled in decisions 68-79).
+send their version (built), older versions are projections of the
+current model (built: the compiler checks them and the Rust server serves
+them), with an SDK line and a reference per version, and upgrade guides
+(settled in decisions 68-79).
 
 ## Versions
 
@@ -86,7 +87,7 @@ every release in the chain and records, on the current `ir::Service`:
 ```rust
 pub struct ApiVersion {
     pub name: String,            // "2026-09-04"
-    pub service: Service,        // what the version is served from: its frozen release, for now
+    pub service: Service,        // what the version is served from: the current model projected back to it
     pub release: Service,        // that release's frozen IR: its shapes, routes, errors
     pub steps: Vec<VersionStep>, // the migration from it to the next version
     pub sunset: Option<String>,
@@ -126,14 +127,23 @@ it with a warning at the example.
 ## Generated code
 
 The Rust server generator writes a `versions` module in the service's
-module, with a module per older version, generated from that version's IR
-as the current one is:
+module, with a module per older version, generated from that version's
+projection as the current one is from the current model. A projection is
+the current model as seen at the release ([api-versions-clients.md](api-versions-clients.md#5b-releases-as-the-current-model-sees-them)),
+so an operation, member or enum value added since is in it, and a request
+at that release reaches it (decision 51):
 
 ```rust
 pub mod versions {
     pub const V2026_09_04: ApiVersion = ..; // for `behavior` branches
     pub const V2026_11_01: ApiVersion = ..;
     pub const CURRENT: ApiVersion = V2026_11_01;
+
+    // The current release: the service's own types, by the name they keep
+    // once a later release freezes this one.
+    pub mod v2026_11_01 {
+        pub use super::super::{GetGraphInput, ..};
+    }
 
     pub mod v2026_09_04 {
         pub struct GetGraphInput { .. }  // the old types, with serde and Validate
@@ -147,7 +157,9 @@ pub mod versions {
 The conversions are `'static` data the framework interprets, not generated
 functions: generated Rust stays types and descriptions (AGENTS.md).
 `operations(service)` registers each old operation with the current
-handler. Nothing in a handler changes; a `behavior` branch reads
+handler, an operation added since included: its requests cross every
+later migration's conversion, as any other operation's do. Nothing in a
+handler changes; a `behavior` branch reads
 `self.context().api_version() < Some(versions::V2026_11_01)`.
 
 ## Runtime
@@ -229,9 +241,26 @@ impl versions::v1::Migration for Shop {
 ```
 
 - **Typed both ways.** A hook takes the older version's type and returns
-  the next version's (an upgrade), or the reverse (a downgrade). Only the
-  directions the model uses are generated: a structure only in outputs has
-  no upgrade hook.
+  the next version's (an upgrade), or the reverse (a downgrade), each as
+  that release's projection has it. Only the directions the model uses
+  are generated: a structure only in outputs has no upgrade hook.
+- **One method per shape and direction** (decision 82), whatever
+  operations reach it; its documentation names them. An operation added
+  since that reaches a hooked shape in a direction the migration already
+  converts reuses the method, so the trait's methods and signatures are
+  unchanged by an additive change. One that sends the shape the other way
+  (a structure only outputs reached, now taken as an input) needs the
+  other direction: the trait gains that method, documented with the
+  operation, and the service does not compile until it is written
+  (decision 75).
+- **Named by release.** A hook names each release's types by its module,
+  the current release's included: `versions::<current>` re-exports the
+  service's types, and is that release's own module once a later release
+  freezes it, so a signature written against `v2::Shelf` compiles
+  unchanged across the freeze. A hook's body can still break as a
+  handler's does: the types grow with the model, so a struct literal of
+  a type an addition reached, or an exhaustive `match` on an enum that
+  gained a value, needs the new member or arm.
 - **`by hook` or `by async hook`.** A plain hook is a function; an async
   one returns a future, for a conversion that reads other state, such as
   the account's saved preference. A legacy handler is always async.
@@ -258,35 +287,37 @@ version's value, which the other step would convert again.
 
 ## Testing
 
-The e2e service serves a three-release model (`e2e/weather-service/versioned`)
+The e2e service serves a four-release model (`e2e/weather-service/versioned`)
 over HTTP: routing, every automatic step, every hook, a removed
-operation, error downgrades and the unversioned modes
-(`tests/api_versions.rs`). Not built yet: running each frozen release's
+operation, error downgrades, the unversioned modes, and operations and
+members added since reaching v1 through every conversion
+(`tests/api_versions.rs`). `tests/api_versions_additive.rs` compiles the
+same hooks against the model with an operation and a member added that
+reach a hooked shape, and `tests/auth_versions.rs` authenticates each
+release of `tests/models/version-projection-auth` by its own schemes. Not built yet: running each frozen release's
 examples against the server at its version as generated tests
 (decision 59).
 
 ## Limits
 
-- **Strictness at older versions.** A structure an older release's
-  outputs or errors also reach does not refuse unknown members when an
-  older request carries one: it must read responses that gained members
-  since. One only inputs reach stays as strict as the release was.
-- **Older versions are their frozen releases.** A request at an older
-  version is read and answered with that release's types, so what was
-  added since (an operation, an optional member) is not visible at it.
-  Decision 51 has additive changes reach every version; that needs each
-  version's types generated from the current model as seen at it
-  (decision 57a), not from the frozen release. Phase 5b does that
-  ([api-versions-clients.md](api-versions-clients.md#5b-releases-as-the-current-model-sees-them))
-  and removes this entry.
+- **Strictness at older versions.** A structure the release's own
+  outputs or errors reached does not refuse unknown members when an older
+  request carries one, as before projections: it reads the current output
+  converted down. Reachability is the frozen release's, by id (decision
+  71), so a strict structure only the release's inputs reached stays as
+  strict as the release was, even where an operation added since sends
+  it in an output, and so does one added since.
+- **Additions stop at a reshape, a removal and a payload.** What a
+  `reshape` or `remove operation` restores is its release's definition,
+  and a member added since that would travel in the body of a message the
+  release sent as a payload is not in that release (decision 74).
 - **Auth is the release's.** An older version's operations carry the
   auth their release declared, and `AuthenticatorChain`
   prepares a plan for each version's entry, so a request is
   authenticated by its own version's schemes. A tightened requirement is a
   breaking change the guard reports, which no migration step declares.
-  After 5b it still holds for every operation the release had; one added
-  since, which the release never declared, takes the current schemes
-  (decision 73).
+  An operation added since, which the release never declared, takes the
+  current schemes (decision 73).
 - **Not converted, and reported:** a member inside a recursive shape; a
   renamed member, reshaped or retyped structure, or added or renamed enum
   value inside an error; an enum that keys a map; `add .. downgrade` on a

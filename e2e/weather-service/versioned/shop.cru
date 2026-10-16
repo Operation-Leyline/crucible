@@ -1,7 +1,7 @@
 service Shop {
-    version "v3"
+    version "v4"
     protocol json
-    operations [GetItem, ListItems, DeleteItem, RecordPayment]
+    operations [GetItem, ListItems, ListLabels, GetLabel, PutLabel, DeleteItem, RecordPayment]
     errors [ValidationException, InternalServerException]
 }
 
@@ -18,7 +18,7 @@ readonly operation GetItem {
 enum Kind { SMALL, LARGE, HUGE }
 
 /// A payment processor's delivery (decision 81). The processor names no
-/// release of the shop: it is served at the current one, v3, whatever the
+/// release of the shop: it is served at the current one, v4, whatever the
 /// service does with a client's request that names none.
 @sender("Payments", signature: signature)
 public operation RecordPayment {
@@ -72,9 +72,45 @@ migration "v2" from "v1" {
     sunset "2027-01-01"
 }
 
-structure Label {
+/// An item's label. Strict: a request naming a member it does not have
+/// is refused, at the current release; an older release's outputs reach it
+/// too, so there it reads what it does not know.
+strict structure Label {
     title: string
-    size?: integer
+    size?: string
+    color?: string
+}
+
+/// Every label on the shelf, and the kinds of item they mark. Added in v3,
+/// it reaches v1 and v2 clients too (decision 51), its kinds as they know
+/// them.
+readonly operation ListLabels {
+    http GET "/labels"
+    output {
+        labels: Labels
+        kinds: Kinds
+    }
+}
+
+list Labels: Label
+
+/// One label. Added in v4, and served at every release.
+readonly operation GetLabel {
+    http GET "/labels/{id}"
+    input { id: string }
+    output { label: Label }
+}
+
+/// Replaces a label. Added in v4: its input reaches `Label`, so the
+/// migration to v4 converts a size older clients send, as well as one
+/// they receive.
+idempotent operation PutLabel {
+    http PUT "/labels/{id}"
+    input {
+        id: string
+        label: Label
+    }
+    output { label: Label }
 }
 
 error ItemGoneException {
@@ -96,4 +132,10 @@ migration "v3" from "v2" {
     retype DeleteItem.input.force -> string by hook
     retype DeleteItem.output.deleted -> string by hook
     remove operation CountItems
+}
+
+// v4 measures a label's size in words, and added a label's color and two
+// operations on labels, which reach every release.
+migration "v4" from "v3" {
+    retype Label.size -> string by hook
 }

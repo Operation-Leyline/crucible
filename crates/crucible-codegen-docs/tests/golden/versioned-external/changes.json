@@ -6,7 +6,7 @@
       "kind": "header",
       "name": "Crucible-Version"
     },
-    "current": "v3",
+    "current": "v4",
     "releases": [
       {
         "changes": [],
@@ -933,7 +933,7 @@
             ]
           }
         ],
-        "current": true,
+        "current": false,
         "documentation": {
           "html": "",
           "markdown": "",
@@ -941,6 +941,80 @@
         },
         "from": "v2",
         "name": "v3",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "",
+              "markdown": "",
+              "text": ""
+            },
+            "kind": "retype",
+            "member": "size",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": "v3",
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "size",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "crucible.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "size"
+              },
+              "shapes": {}
+            },
+            "shape": "example.shop#Label",
+            "subjects": [
+              "example.shop#Label$size"
+            ],
+            "target": "crucible.api#String"
+          }
+        ],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": "v3",
+        "name": "v4",
         "retired": [],
         "sunset": null,
         "sunsetDocumentation": {

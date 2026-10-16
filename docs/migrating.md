@@ -38,6 +38,26 @@ handwritten `README.md` or `AGENTS.md` is refused: declare it as the SDK's
 `readme` or `agents` instead. An `@externalDocs` URL must be an absolute
 `http`, `https` or `mailto` URL.
 
+### Older API versions see what was added since
+
+A service with migrations serves each older release from the current
+model as seen at it ([API versions](api-versions.md)), so a request at an
+older release reaches the operations and members added since. Handlers do
+not change. The `versions::<release>` modules' types gain the members
+added since: a hook or legacy handler that builds one of those types with
+a struct literal names the new members, and an exhaustive `match` on one
+of their enums needs the values added since. No `Migration` method is
+renamed or retyped. The newest migration's hooks name the current
+release's types as `versions::<current>::..`, a new re-export of the
+service's own types that becomes the release's own module when a later
+release freezes it: name them that way and the hooks compile unchanged
+across the freeze. An operation paginated since now pages at older
+releases. An operation added since that sends a hooked shape in a
+direction no released operation did adds that one method to the
+migration's trait (its documentation names the operation); implement it.
+Code that read `ApiVersion::service` as the frozen release reads
+`ApiVersion::release`.
+
 ### Smithy is no longer an input
 
 Crucible reads `.cru` packages only. A model that is still Smithy converts

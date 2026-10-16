@@ -1,0 +1,9 @@
+# Release v2 of a shelf, with v1 frozen: the hooks of its migration name
+# v2's types by `versions::v2`, which `../after` (v2 frozen, v3 current)
+# keeps (tests/api_versions_freeze.rs).
+[model]
+namespace = "example.shelf"
+imports = ["crucible.errors"]
+
+[model.baseline]
+path = "releases/v1.json"

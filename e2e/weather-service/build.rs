@@ -94,6 +94,46 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // The same model with an addition that reaches a hooked shape: an
+    // operation whose output reaches `Label`, whose size the migration to v4
+    // retypes by hook, and a member appended to `Label`. Copied from
+    // `versioned/`, so the two differ by the addition alone:
+    // tests/api_versions_additive.rs compiles the same hooks against it.
+    std::fs::write(
+        out.join("versioned_additive.rs"),
+        crucible_build::model(additive(&out.join("versioned_additive")))
+            .server()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
+    // One release, then the same release frozen behind an additive one:
+    // tests/api_versions_freeze.rs compiles the same hooks against both.
+    for (stage, dir) in [
+        ("before", "versioned_freeze/before"),
+        ("after", "versioned_freeze/after"),
+    ] {
+        println!("cargo::rerun-if-changed={dir}");
+        std::fs::write(
+            out.join(format!("versioned_freeze_{stage}.rs")),
+            crucible_build::model(dir).server().render().unwrap(),
+        )
+        .unwrap();
+    }
+    // Authentication per release (decision 73): an operation a release had
+    // keeps its release's, one added since takes the current model's
+    // (tests/auth_versions.rs).
+    let desk = "../../tests/models/version-projection-auth";
+    println!("cargo::rerun-if-changed={desk}");
+    std::fs::write(
+        out.join("versioned_auth.rs"),
+        crucible_build::model(desk)
+            .server()
+            .custom_rejections()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     // Sparse lists and maps carry null elements (tests/sparse.rs).
     std::fs::write(
         out.join("sparse.rs"),
@@ -143,4 +183,52 @@ fn main() {
         .explorer()
         .mcp()
         .generate();
+}
+
+/// `versioned/` copied to `dir`, with an operation added whose output
+/// reaches `Label` and a member appended to `Label`. A file is written only
+/// when it changed, so the copy does not make every build run this script
+/// again.
+fn additive(dir: &std::path::Path) -> std::path::PathBuf {
+    fn write(path: &std::path::Path, contents: &[u8]) {
+        if std::fs::read(path).ok().as_deref() != Some(contents) {
+            std::fs::write(path, contents).unwrap();
+        }
+    }
+    let releases = dir.join("releases");
+    std::fs::create_dir_all(&releases).unwrap();
+    for entry in std::fs::read_dir("versioned/releases").unwrap() {
+        let entry = entry.unwrap();
+        write(
+            &releases.join(entry.file_name()),
+            &std::fs::read(entry.path()).unwrap(),
+        );
+    }
+    write(
+        &dir.join("crucible.toml"),
+        &std::fs::read("versioned/crucible.toml").unwrap(),
+    );
+    let source = std::fs::read_to_string("versioned/shop.cru")
+        .unwrap()
+        .replace("\r\n", "\n");
+    let edited = source
+        .replacen(
+            "operations [GetItem,",
+            "operations [FindLabels, GetItem,",
+            1,
+        )
+        .replacen(
+            "    color?: string\n}",
+            "    color?: string\n    shelf?: string\n}",
+            1,
+        );
+    assert_eq!(
+        edited.len(),
+        source.len() + "FindLabels, ".len() + "    shelf?: string\n".len(),
+        "versioned/shop.cru no longer has what the additive copy edits"
+    );
+    let edited = edited
+        + "\n/// The labels with a title, added after v4's hooks were written.\nreadonly operation FindLabels {\n    http GET \"/found-labels\"\n    input {\n        @query\n        title: string\n    }\n    output { labels: Labels }\n}\n";
+    write(&dir.join("shop.cru"), edited.as_bytes());
+    dir.to_owned()
 }

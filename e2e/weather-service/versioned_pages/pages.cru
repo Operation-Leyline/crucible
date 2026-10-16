@@ -42,8 +42,8 @@ readonly operation ListTags {
     }
 }
 
-// v2 renamed ListThings' token and pages ListTags, which v1 callers reach
-// without a token.
+// v2 renamed ListThings' token and pages ListTags, whose token reaches v1
+// callers too.
 migration "v2" from "v1" {
     rename ListThings.input.nextToken -> pageToken
     rename ListThings.output.nextToken -> pageToken

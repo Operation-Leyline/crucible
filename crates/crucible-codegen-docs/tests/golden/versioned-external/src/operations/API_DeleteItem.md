@@ -11,7 +11,7 @@ None: this operation takes no credential.
 
 ```http
 DELETE /items/{id}?force={force} HTTP/1.1
-Crucible-Version: v3
+Crucible-Version: v4
 ```
 
 <code>Crucible-Version</code> names the release this page describes. A request without it is served at the release the service chooses for unversioned requests, which may be an older one.

@@ -489,3 +489,64 @@ async fn a_legacy_served_by_entry_keeps_its_own_releases_authentication() {
     assert_eq!(call(&service, "/retired", "v1").await, 401);
     assert_eq!(call(&service, "/retired", "v2").await, 200);
 }
+
+// A help desk generated from `tests/models/version-projection-auth`: v1 is
+// frozen and served as the current model sees it (decision 73).
+include!(concat!(env!("OUT_DIR"), "/versioned_auth.rs"));
+
+struct Desk;
+
+impl desk::GetTicketOperation for Desk {
+    async fn get_ticket(
+        &self,
+        input: desk::GetTicketInput,
+    ) -> crucible_server_runtime_rust::Result<desk::GetTicketOutput> {
+        Ok(desk::GetTicketOutput { subject: input.id })
+    }
+}
+
+impl desk::ListTicketsOperation for Desk {
+    async fn list_tickets(&self) -> crucible_server_runtime_rust::Result<desk::ListTicketsOutput> {
+        Ok(desk::ListTicketsOutput {
+            subjects: Vec::new(),
+        })
+    }
+}
+
+impl desk::PingOperation for Desk {
+    async fn ping(&self) -> crucible_server_runtime_rust::Result<desk::PingOutput> {
+        Ok(desk::PingOutput { ok: true })
+    }
+}
+
+impl desk::HealthOperation for Desk {
+    async fn health(&self) -> crucible_server_runtime_rust::Result<desk::HealthOutput> {
+        Ok(desk::HealthOutput { ok: true })
+    }
+}
+
+/// Each release is authenticated by its own contract for what it had, and by
+/// the current one for what was added since: GetTicket, which v1 served
+/// with bearer auth and v2 made public, still needs a token at v1; Ping and
+/// Health, added in v2, are bearer and public at v1 as they are now.
+#[tokio::test]
+async fn a_projected_release_authenticates_what_it_had_by_its_own_schemes() {
+    let service = Crucible::builder(desk::operations(Arc::new(Desk)))
+        .defaults()
+        .api_version(Unversioned::Required)
+        .on_rejection(weather_service::weather::SERVICE.reject.unwrap())
+        .operation_middleware(crucible_auth::AuthenticatorChain::new(vec![Arc::new(
+            Bearer,
+        )]))
+        .build()
+        .unwrap();
+    for (path, v1, v2) in [
+        ("/tickets/a", 401, 200),
+        ("/tickets", 401, 401),
+        ("/ping", 401, 401),
+        ("/health", 200, 200),
+    ] {
+        assert_eq!(call(&service, path, "v1").await, v1, "{path} at v1");
+        assert_eq!(call(&service, path, "v2").await, v2, "{path} at v2");
+    }
+}

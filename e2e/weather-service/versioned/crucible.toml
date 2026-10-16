@@ -1,8 +1,9 @@
-# The API versions fixture (docs/api-versions.md): v3 is current; v1 and
-# v2 are frozen under releases/ and still served.
+# The API versions fixture (docs/api-versions.md): v4 is current; v1, v2
+# and v3 are frozen under releases/ and still served, each as the current
+# model sees it.
 [model]
 namespace = "example.shop"
 imports = ["crucible.errors"]
 
 [model.baseline]
-path = "releases/v2.json"
+path = "releases/v3.json"

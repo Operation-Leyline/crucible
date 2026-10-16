@@ -1,6 +1,7 @@
 //! Older API versions served from the current implementation
-//! (docs/api-versions.md): `versioned/` is release v3 of a shop, with v1
-//! and v2 frozen under `releases/`.
+//! (docs/api-versions.md): `versioned/` is release v4 of a shop, with v1,
+//! v2 and v3 frozen under `releases/`. Each older release is served as the
+//! current model sees it, so what was added since reaches it (decision 51).
 
 use std::sync::Arc;
 
@@ -10,14 +11,25 @@ use crucible_server_runtime_rust::{Crucible, Result, Unversioned, WithContext};
 use serde_json::{Value, json};
 
 include!(concat!(env!("OUT_DIR"), "/versioned.rs"));
-use shop::versions::{v1, v2};
 use shop::{
     DeleteItemInput, DeleteItemOperation, DeleteItemOutput, GetItemInput, GetItemOperation,
-    GetItemOutput, ItemGoneException, Kind, Label, ListItemsInput, ListItemsOperation,
-    ListItemsOutput, RecordPaymentInput, RecordPaymentOperation, RecordPaymentOutput,
+    GetItemOutput, GetLabelInput, GetLabelOperation, GetLabelOutput, ItemGoneException, Kind,
+    Label, ListItemsInput, ListItemsOperation, ListItemsOutput, ListLabelsOperation,
+    ListLabelsOutput, PutLabelInput, PutLabelOperation, PutLabelOutput, RecordPaymentInput,
+    RecordPaymentOperation, RecordPaymentOutput,
 };
 
 struct Shop;
+
+/// Item `id`'s label: a big item has a size and a color.
+fn label(id: &str) -> Label {
+    let big = id == "big";
+    Label {
+        title: format!("item {id}"),
+        size: big.then(|| "9".to_owned()),
+        color: big.then(|| "red".to_owned()),
+    }
+}
 
 impl GetItemOperation for Shop {
     async fn get_item(&self, input: GetItemInput) -> Result<GetItemOutput> {
@@ -28,10 +40,7 @@ impl GetItemOperation for Shop {
             .into());
         }
         Ok(GetItemOutput {
-            label: Label {
-                title: format!("item {}", input.id),
-                size: (input.id == "big").then_some(9),
-            },
+            label: label(&input.id),
             kind: if input.id == "big" {
                 Kind::Huge
             } else {
@@ -57,6 +66,40 @@ impl ListItemsOperation for Shop {
     }
 }
 
+impl ListLabelsOperation for Shop {
+    async fn list_labels(&self) -> Result<ListLabelsOutput> {
+        Ok(ListLabelsOutput {
+            labels: vec![label("big"), label("a")],
+            kinds: vec![Kind::Huge, Kind::Small],
+        })
+    }
+}
+
+impl GetLabelOperation for Shop {
+    async fn get_label(&self, input: GetLabelInput) -> Result<GetLabelOutput> {
+        Ok(GetLabelOutput {
+            label: label(&input.id),
+        })
+    }
+}
+
+impl PutLabelOperation for Shop {
+    async fn put_label(&self, input: PutLabelInput) -> Result<PutLabelOutput> {
+        // The current size is a word: say which release's client sent it.
+        let version = self.context().api_version().map(|v| v.name());
+        let mut label = input.label;
+        assert!(
+            label
+                .size
+                .as_deref()
+                .is_none_or(|size| size.parse::<i32>().is_ok()),
+            "{version:?}: {label:?}"
+        );
+        label.color = Some(format!("{} for {}", version.unwrap_or("none"), input.id));
+        Ok(PutLabelOutput { label })
+    }
+}
+
 impl DeleteItemOperation for Shop {
     async fn delete_item(&self, input: DeleteItemInput) -> Result<DeleteItemOutput> {
         // v3's force is a word; older clients sent a boolean.
@@ -77,55 +120,9 @@ impl RecordPaymentOperation for Shop {
     }
 }
 
-/// The migration to v2 needs the sort order an older request did not send.
-impl v1::Migration for Shop {
-    async fn require_list_items_input_sort(&self, request: v1::ListItemsInput) -> Result<String> {
-        // Such as the account's saved preference; here, from the request,
-        // as v1 sent it (`max`, renamed in the same migration).
-        match request.max {
-            Some(0) => Err(crucible_server_runtime_rust::Error::internal(
-                "no preference",
-            )),
-            Some(1) => Ok("newest".to_owned()),
-            _ => Ok("name".to_owned()),
-        }
-    }
-}
-
-/// The migration to v3 regrouped GetItem's output, retyped `deleted`, and
-/// removed CountItems.
-impl v2::Migration for Shop {
-    fn downgrade_get_item_output(&self, output: GetItemOutput) -> Result<v2::GetItemOutput> {
-        Ok(v2::GetItemOutput {
-            title: output.label.title,
-            size: output.label.size,
-            // The hook owns the whole output, the new kind included.
-            kind: match output.kind {
-                Kind::Small => v2::Kind::Small,
-                Kind::Large | Kind::Huge => v2::Kind::Large,
-            },
-        })
-    }
-
-    fn upgrade_delete_item_input_force(&self, force: bool) -> Result<String> {
-        Ok(if force { "yes" } else { "no" }.to_owned())
-    }
-
-    fn downgrade_delete_item_output_deleted(&self, deleted: String) -> Result<bool> {
-        Ok(deleted == "gone yes")
-    }
-
-    async fn count_items(&self, input: v2::CountItemsInput) -> Result<v2::CountItemsOutput> {
-        // A removed operation's handler answers with its own release's errors.
-        if input.shelf.as_deref() == Some("closed") {
-            return Err(v2::CountUnavailableException {
-                message: "closed".to_owned(),
-            }
-            .into());
-        }
-        Ok(v2::CountItemsOutput { count: 3 })
-    }
-}
+// Every migration's hooks, which tests/api_versions_additive.rs compiles
+// unchanged against the model with an addition that reaches a hooked shape.
+include!("support/versioned_hooks.rs");
 
 fn service(unversioned: Unversioned) -> Crucible {
     Crucible::builder(shop::operations(Arc::new(Shop)))
@@ -141,11 +138,28 @@ async fn call(
     uri: &str,
     version: Option<&str>,
 ) -> (StatusCode, HeaderMap, Value) {
+    send(service, method, uri, version, None).await
+}
+
+async fn send(
+    service: &Crucible,
+    method: &str,
+    uri: &str,
+    version: Option<&str>,
+    body: Option<Value>,
+) -> (StatusCode, HeaderMap, Value) {
     let mut request = Request::builder().method(method).uri(uri);
     if let Some(version) = version {
         request = request.header("crucible-version", version);
     }
-    let response = service.handle(request.body(Body::empty()).unwrap()).await;
+    let body = match body {
+        Some(body) => {
+            request = request.header("content-type", "application/json");
+            Body::from(body.to_string())
+        }
+        None => Body::empty(),
+    };
+    let response = service.handle(request.body(body).unwrap()).await;
     let status = response.status();
     let headers = response.headers().clone();
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
@@ -183,25 +197,35 @@ async fn each_version_reads_and_answers_in_its_own_shapes() {
     );
     assert!(headers.get("sunset").is_none());
 
-    // v1 crosses the hook, then the rename.
+    // v1 crosses the hooks, then the rename.
     let (_, _, body) = call(&service, "GET", "/items/big", Some("v1")).await;
     assert_eq!(
         body,
         json!({ "name": "item big", "size": 9, "kind": "LARGE" })
     );
 
-    // v3 is the model as it is: the new route, the label, HUGE.
+    // v3 has the new route, the label and HUGE, a size that is a number,
+    // and the color v4 added to the label, which reaches it.
     let (status, _, body) = call(&service, "GET", "/things/big", Some("v3")).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert_eq!(
         body,
-        json!({ "label": { "title": "item big", "size": 9 }, "kind": "HUGE" })
+        json!({ "label": { "title": "item big", "size": 9, "color": "red" }, "kind": "HUGE" })
     );
-    // At v3 `/items/{id}` is DeleteItem's alone.
-    let (status, _, _) = call(&service, "GET", "/items/big", Some("v3")).await;
-    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    // v4 is the model as it is: the size is a word.
+    let (status, _, body) = call(&service, "GET", "/things/big", Some("v4")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body,
+        json!({ "label": { "title": "item big", "size": "9", "color": "red" }, "kind": "HUGE" })
+    );
+    // Since v3 `/items/{id}` is DeleteItem's alone.
+    for version in ["v3", "v4"] {
+        let (status, _, _) = call(&service, "GET", "/items/big", Some(version)).await;
+        assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    }
     // v2 has no `/things`: answered as any unknown route is.
-    let (_, _, unknown) = call(&service, "GET", "/nowhere", Some("v3")).await;
+    let (_, _, unknown) = call(&service, "GET", "/nowhere", Some("v4")).await;
     let (_, _, body) = call(&service, "GET", "/things/big", Some("v2")).await;
     assert_eq!(body["reason"], "unknownOperation", "{body}");
     assert_eq!(body["reason"], unknown["reason"]);
@@ -227,11 +251,13 @@ async fn an_older_request_gets_the_values_it_could_not_send() {
     // What a v1 request did send is kept.
     let (_, _, body) = call(&service, "GET", "/items?sort=size", Some("v1")).await;
     assert_eq!(body["names"], json!(["v1", "20", "size"]));
-    // At v3 both are required.
-    let (status, _, _) = call(&service, "GET", "/items?sort=name", Some("v3")).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (_, _, body) = call(&service, "GET", "/items?limit=5&sort=name", Some("v3")).await;
-    assert_eq!(body["names"], json!(["v3", "5", "name"]));
+    // Since v3 both are required.
+    for version in ["v3", "v4"] {
+        let (status, _, _) = call(&service, "GET", "/items?sort=name", Some(version)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (_, _, body) = call(&service, "GET", "/items?limit=5&sort=name", Some(version)).await;
+        assert_eq!(body["names"], json!([version, "5", "name"]));
+    }
 }
 
 #[tokio::test]
@@ -241,6 +267,7 @@ async fn a_new_enum_value_reaches_older_clients_as_one_they_know() {
         ("v1", json!(["SMALL", "LARGE"])),
         ("v2", json!(["SMALL", "LARGE"])),
         ("v3", json!(["SMALL", "HUGE"])),
+        ("v4", json!(["SMALL", "HUGE"])),
     ] {
         let (_, _, body) = call(&service, "GET", "/items?limit=5&sort=name", Some(version)).await;
         assert_eq!(body["kinds"], kinds, "{version}: {body}");
@@ -250,8 +277,10 @@ async fn a_new_enum_value_reaches_older_clients_as_one_they_know() {
 #[tokio::test]
 async fn a_new_error_reaches_older_clients_as_one_they_know() {
     let service = service(Unversioned::Oldest);
-    let (status, _, body) = call(&service, "GET", "/things/gone", Some("v3")).await;
-    assert_eq!(status, StatusCode::GONE, "{body}");
+    for version in ["v3", "v4"] {
+        let (status, _, body) = call(&service, "GET", "/things/gone", Some(version)).await;
+        assert_eq!(status, StatusCode::GONE, "{body}");
+    }
     for version in ["v1", "v2"] {
         let (status, _, body) = call(&service, "GET", "/items/gone", Some(version)).await;
         assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
@@ -274,9 +303,11 @@ async fn a_retyped_member_is_converted_by_its_hook() {
         let (_, _, body) = call(&service, "DELETE", "/items/a?force=false", Some(version)).await;
         assert_eq!(body, json!({ "deleted": false }));
     }
-    let (status, _, body) = call(&service, "DELETE", "/items/a?force=yes", Some("v3")).await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body, json!({ "deleted": "gone yes" }));
+    for version in ["v3", "v4"] {
+        let (status, _, body) = call(&service, "DELETE", "/items/a?force=yes", Some(version)).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body, json!({ "deleted": "gone yes" }));
+    }
 }
 
 #[tokio::test]
@@ -295,8 +326,10 @@ async fn a_removed_operation_keeps_serving_older_versions() {
             json!({ "__type": "CountUnavailableException", "message": "closed" })
         );
     }
-    let (_, _, body) = call(&service, "GET", "/count", Some("v3")).await;
-    assert_eq!(body["reason"], "unknownOperation", "{body}");
+    for version in ["v3", "v4"] {
+        let (_, _, body) = call(&service, "GET", "/count", Some(version)).await;
+        assert_eq!(body["reason"], "unknownOperation", "{body}");
+    }
 }
 
 /// An operation-aware extension prepares a plan per operation, older
@@ -315,7 +348,7 @@ async fn a_removed_operation_passes_operation_aware_extensions() {
         assert_eq!(status, StatusCode::OK, "{version}: {body}");
         assert_eq!(body, json!({ "count": 3 }));
     }
-    let (status, _, body) = call(&service, "GET", "/items?limit=2&sort=name", Some("v3")).await;
+    let (status, _, body) = call(&service, "GET", "/items?limit=2&sort=name", Some("v4")).await;
     assert_eq!(status, StatusCode::OK, "{body}");
 }
 
@@ -336,7 +369,7 @@ async fn an_extension_scoped_to_an_older_description_prepares_for_it() {
         )
         .build()
         .unwrap();
-    for (version, uri) in [("v1", "/items/a"), ("v3", "/things/a")] {
+    for (version, uri) in [("v1", "/items/a"), ("v4", "/things/a")] {
         let (status, _, body) = call(&service, "GET", uri, Some(version)).await;
         assert_eq!(status, StatusCode::OK, "{version}: {body}");
     }
@@ -352,7 +385,7 @@ async fn a_request_without_a_version_is_settled_by_the_builder() {
     // Required: refused, naming the versions served.
     let (status, _, body) = call(&service(Unversioned::Required), "GET", "/items/a", None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(body.to_string().contains("v1, v2, v3"), "{body}");
+    assert!(body.to_string().contains("v1, v2, v3, v4"), "{body}");
 
     // A resolver: such as the version an account first used.
     let resolved = service(Unversioned::Resolve(Arc::new(|_| Some("v2".to_owned()))));
@@ -370,7 +403,7 @@ async fn a_request_without_a_version_is_settled_by_the_builder() {
     )
     .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(body.to_string().contains("v1, v2, v3"), "{body}");
+    assert!(body.to_string().contains("v1, v2, v3, v4"), "{body}");
     assert!(!body.to_string().contains("v9"), "{body}");
 }
 
@@ -382,7 +415,7 @@ async fn a_direct_invocation_is_served_at_the_current_version() {
         .await;
     assert_eq!(
         answer,
-        json!({ "output": { "label": { "title": "item big", "size": 9 }, "kind": "HUGE" } })
+        json!({ "output": { "label": { "title": "item big", "size": "9", "color": "red" }, "kind": "HUGE" } })
     );
 }
 
@@ -401,27 +434,31 @@ async fn a_sender_signed_request_is_served_at_the_current_release() {
             )
             .await;
         assert_eq!(response.status(), StatusCode::OK);
-        assert_eq!(response.headers()["crucible-version"], "v3");
+        assert_eq!(response.headers()["crucible-version"], "v4");
         let body = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
         assert_eq!(
             serde_json::from_slice::<Value>(&body).unwrap(),
-            json!({ "release": "v3" })
+            json!({ "release": "v4" })
         );
     }
     // A client's request without a release is still the builder's to settle.
     let (status, _, _) = call(&service(Unversioned::Required), "GET", "/items/a", None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    // A release it names is honoured: v1 has no such operation.
-    let (status, _, _) = call(
-        &service(Unversioned::Oldest),
-        "POST",
-        "/payments",
-        Some("v1"),
-    )
-    .await;
-    assert_ne!(status, StatusCode::OK);
+    // A release it names is honoured: added in v3, the operation reaches v1
+    // too (decision 51), and is served there.
+    let response = service(Unversioned::Oldest)
+        .handle(
+            Request::post("/payments")
+                .header("payment-signature", "t=1,v1=abc")
+                .header("crucible-version", "v1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["crucible-version"], "v1");
 }
 
 #[test]
@@ -430,18 +467,23 @@ fn a_split_builder_names_the_hooks_it_is_missing() {
     let Err(missing) = shop::builder()
         .get_item(shop.clone())
         .list_items(shop.clone())
+        .list_labels(shop.clone())
+        .get_label(shop.clone())
+        .put_label(shop.clone())
         .delete_item(shop.clone())
         .record_payment(shop.clone())
         .v1_migration(shop)
         .build()
     else {
-        panic!("v2's hooks are missing");
+        panic!("v2's and v3's hooks are missing");
     };
     let missing = missing.to_string();
     for expected in [
         "versions::v2::Migration::count_items",
         "versions::v2::Migration::downgrade_get_item_output",
         "versions::v2::Migration::downgrade_delete_item_output_deleted",
+        "versions::v3::Migration::downgrade_label_size",
+        "versions::v3::Migration::upgrade_label_size",
     ] {
         assert!(missing.contains(expected), "{missing}");
     }
@@ -472,14 +514,14 @@ async fn an_mcp_tool_call_is_served_at_the_current_version() {
         )
         .await;
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(response.headers()["crucible-version"], "v3");
+    assert_eq!(response.headers()["crucible-version"], "v4");
     let body = axum::body::to_bytes(response.into_body(), usize::MAX)
         .await
         .unwrap();
     let body: Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(
         body["result"]["structuredContent"],
-        json!({ "label": { "title": "item big", "size": 9 }, "kind": "HUGE" }),
+        json!({ "label": { "title": "item big", "size": "9", "color": "red" }, "kind": "HUGE" }),
         "{body}"
     );
 }
@@ -508,13 +550,117 @@ async fn a_generated_client_names_its_release() {
     server.abort();
     assert_eq!(
         serde_json::to_value(&output).unwrap(),
-        json!({ "label": { "title": "item big", "size": 9 }, "kind": "HUGE" })
+        json!({ "label": { "title": "item big", "size": "9", "color": "red" }, "kind": "HUGE" })
     );
 }
 
 #[test]
 fn versions_order_as_released() {
-    use shop::versions::{CURRENT, V1, V2, V3};
-    assert!(V1 < V2 && V2 < V3);
-    assert_eq!(CURRENT, V3);
+    use shop::versions::{CURRENT, V1, V2, V3, V4};
+    assert!(V1 < V2 && V2 < V3 && V3 < V4);
+    assert_eq!(CURRENT, V4);
+}
+
+/// ListLabels was added in v3, after v1 and v2 were released; a v1 client
+/// calls it all the same (decision 51). Its response crosses every
+/// migration down: v4's size word becomes the number older releases have,
+/// v3's HUGE the LARGE they know, and the color v4 appended to a label
+/// reaches them as it is.
+#[tokio::test]
+async fn an_operation_added_since_is_served_at_older_releases() {
+    let service = service(Unversioned::Oldest);
+    let older = json!({
+        "labels": [
+            { "title": "item big", "size": 9, "color": "red" },
+            { "title": "item a" },
+        ],
+        "kinds": ["LARGE", "SMALL"],
+    });
+    for version in ["v1", "v2"] {
+        let (status, headers, body) = call(&service, "GET", "/labels", Some(version)).await;
+        assert_eq!(status, StatusCode::OK, "{version}: {body}");
+        assert_eq!(headers["crucible-version"], version);
+        assert_eq!(body, older, "{version}");
+    }
+    let (_, _, body) = call(&service, "GET", "/labels", Some("v3")).await;
+    assert_eq!(body["kinds"], json!(["HUGE", "SMALL"]));
+    assert_eq!(body["labels"][0]["size"], 9);
+    let (_, _, body) = call(&service, "GET", "/labels", Some("v4")).await;
+    assert_eq!(body["labels"][0]["size"], "9");
+
+    // GetLabel, added in v4, reaches every release too.
+    for (version, size) in [("v1", json!(9)), ("v3", json!(9)), ("v4", json!("9"))] {
+        let (status, _, body) = call(&service, "GET", "/labels/big", Some(version)).await;
+        assert_eq!(status, StatusCode::OK, "{version}: {body}");
+        assert_eq!(
+            body,
+            json!({ "label": { "title": "item big", "size": size, "color": "red" } }),
+            "{version}"
+        );
+    }
+}
+
+/// PutLabel, added in v4, takes a label: an older client sends the size as
+/// the number its release has, which the migration to v4 converts up, and
+/// reads it back as one. Its input reaches `Label` as no operation's did
+/// when v3 was released, so the migration from v3 converts a size both ways.
+#[tokio::test]
+async fn an_operation_added_since_converts_its_input_up() {
+    let service = service(Unversioned::Oldest);
+    let sent = json!({ "label": { "title": "new", "size": 3 } });
+    for version in ["v1", "v2", "v3"] {
+        let (status, _, body) = send(
+            &service,
+            "PUT",
+            "/labels/a",
+            Some(version),
+            Some(sent.clone()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{version}: {body}");
+        assert_eq!(
+            body,
+            json!({ "label": { "title": "new", "size": 3, "color": format!("{version} for a") } })
+        );
+    }
+    let current = json!({ "label": { "title": "new", "size": "3" } });
+    let (status, _, body) = send(&service, "PUT", "/labels/a", Some("v4"), Some(current)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        body,
+        json!({ "label": { "title": "new", "size": "3", "color": "v4 for a" } })
+    );
+    // An older release's number is not the current release's word.
+    let (status, _, _) = send(&service, "PUT", "/labels/a", Some("v4"), Some(sent)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+/// `Label` is strict: the current release refuses a member it does not
+/// define. Release v3's own outputs reached it, so at v3 it reads what it
+/// does not know (the lenient output rule, docs/api-versions.md#limits).
+/// v1 never had it: only operations added since reach it there, so v1
+/// refuses an unknown member as the current release does.
+#[tokio::test]
+async fn a_strict_structure_its_releases_outputs_reached_reads_what_it_does_not_know() {
+    let service = service(Unversioned::Oldest);
+    let label = |size: Value| json!({ "label": { "title": "new", "size": size, "shelf": "top" } });
+    for (version, size, status) in [
+        ("v4", json!("3"), StatusCode::BAD_REQUEST),
+        ("v1", json!(3), StatusCode::BAD_REQUEST),
+        ("v3", json!(3), StatusCode::OK),
+    ] {
+        let (got, _, body) = send(
+            &service,
+            "PUT",
+            "/labels/a",
+            Some(version),
+            Some(label(size)),
+        )
+        .await;
+        assert_eq!(got, status, "{version}: {body}");
+        if status == StatusCode::OK {
+            assert_eq!(body["label"]["title"], "new");
+            assert!(body["label"].get("shelf").is_none(), "{body}");
+        }
+    }
 }

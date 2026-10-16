@@ -1,7 +1,7 @@
 # RecordPayment
 
 <p>A payment processor's delivery (decision 81). The processor names no
-release of the shop: it is served at the current one, v3, whatever the
+release of the shop: it is served at the current one, v4, whatever the
 service does with a client's request that names none.</p>
 
 Added in [v3](../releases/v3.md).

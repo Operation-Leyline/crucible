@@ -501,6 +501,9 @@ impl<'c> Release<'_, 'c> {
         let projection =
             crucible_ir::versions::undo(self.newer, &version, &mut errors, &mut warnings);
         version.steps = steps.iter().map(|step| step.lowered.clone()).collect();
+        // The release is served from its projection (decision 75), so what
+        // was added since reaches it (decision 51); `release` stays frozen.
+        version.service = Box::new(projection.clone());
 
         // What undo could not do, at the step that asked for it.
         let mut broken = collided.clone();
