@@ -3,14 +3,30 @@ mod client;
 mod models;
 mod names;
 mod permissions;
+mod surface;
 
 use crucible_ir::{
     Diagnostics,
-    ir::{Service, Shape},
+    ir::{Operation, Service, Shape},
 };
 use names::{field, identifier, reserved, variant};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+
+pub use surface::surface;
+
+/// The client class: the service name plus `Client`.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+/// An operation's method on the client.
+fn operation_method(op: &Operation) -> String {
+    names::method(op.name())
+}
+/// The generator method yielding every page of a paginated operation's `method`.
+fn pages_method(method: &str) -> String {
+    format!("{method}Pages")
+}
 
 pub struct Options {
     pub package_name: String,
@@ -52,7 +68,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         );
     }
     let mut names = BTreeSet::from(["decoder", "schema", "runtime"].map(str::to_owned));
-    names.insert(format!("{}Client", service.id.name()).to_ascii_lowercase());
+    names.insert(client_name(service).to_ascii_lowercase());
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
         let name = service.name_of(id);
@@ -125,12 +141,13 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     permissions::check_names(service, &mut result);
     let mut methods = BTreeSet::from(["close".to_string()]);
     for op in &service.operations {
-        let name = names::method(op.name());
+        let name = operation_method(op);
         if !identifier(&name) {
             result.push(&op.id, "invalid PHP operation name");
         }
-        for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("Pages")) {
-            if !methods.insert(format!("{name}{suffix}").to_ascii_lowercase()) {
+        let pages = op.paginated.is_some().then(|| pages_method(&name));
+        for method in std::iter::once(name).chain(pages) {
+            if !methods.insert(method.to_ascii_lowercase()) {
                 result.push(&op.id, "PHP operation name collision");
             }
         }
@@ -272,7 +289,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         }
     }
     files.push(File {
-        path: format!("src/{}Client.php", service.id.name()),
+        path: format!("src/{}.php", client_name(service)),
         contents: client::emit(service, options),
     });
     files.push(File {

@@ -1,0 +1,4010 @@
+{
+  "format": "crucible.sdks/1",
+  "sdks": {
+    "c": {
+      "audience": "external",
+      "client": {
+        "construct": "weather_client_config config = weather_client_defaults(); config.endpoint = weather_string_view(endpoint); weather_client *client = NULL; weather_error error = {0}; weather_client_new(&config, &client, &error);",
+        "fallible": true,
+        "name": "weather_client",
+        "statements": true
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "c",
+      "middleware": [],
+      "name": "c",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "weather_models_create_city_input_set_name",
+                "optional": false,
+                "type": "weather_string"
+              },
+              {
+                "member": "location",
+                "name": "weather_models_create_city_input_set_location",
+                "optional": true,
+                "type": "const weather_models_location *"
+              },
+              {
+                "member": "clientToken",
+                "name": "weather_models_create_city_input_set_client_token",
+                "optional": true,
+                "type": "weather_string"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "weather_models_create_city_input_set_expected_revision",
+                "optional": true,
+                "type": "int64_t"
+              }
+            ],
+            "style": "setters",
+            "type": "weather_models_create_city_input"
+          },
+          "method": "weather_operations_create_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "weather_models_create_city_output_get_city",
+                "optional": false,
+                "type": "const weather_models_city_summary *"
+              }
+            ],
+            "style": "functions",
+            "type": "weather_models_create_city_output"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "weather_models_get_city_input_set_city_id",
+                "optional": false,
+                "type": "weather_string"
+              },
+              {
+                "member": "at",
+                "name": "weather_models_get_city_input_set_at",
+                "optional": true,
+                "type": "weather_timestamp"
+              }
+            ],
+            "style": "setters",
+            "type": "weather_models_get_city_input"
+          },
+          "method": "weather_operations_get_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "weather_models_get_city_output_get_city",
+                "optional": false,
+                "type": "const weather_models_city_summary *"
+              },
+              {
+                "member": "forecast",
+                "name": "weather_models_get_city_output_get_forecast",
+                "optional": true,
+                "type": "const weather_models_forecast *"
+              },
+              {
+                "member": "requestId",
+                "name": "weather_models_get_city_output_get_request_id",
+                "optional": true,
+                "type": "weather_string"
+              }
+            ],
+            "style": "functions",
+            "type": "weather_models_get_city_output"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "weather_models_get_city_photo_input_set_city_id",
+                "optional": false,
+                "type": "weather_string"
+              }
+            ],
+            "style": "setters",
+            "type": "weather_models_get_city_photo_input"
+          },
+          "method": "weather_operations_get_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "weather_models_get_city_photo_output_get_caption",
+                "optional": true,
+                "type": "weather_string"
+              },
+              {
+                "member": "photo",
+                "name": "weather_models_get_city_photo_output_get_photo",
+                "optional": true,
+                "type": "weather_blob"
+              }
+            ],
+            "style": "functions",
+            "type": "weather_models_get_city_photo_output"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "weather_models_list_cities_input_set_next_token",
+                "optional": true,
+                "type": "weather_string"
+              },
+              {
+                "member": "maxResults",
+                "name": "weather_models_list_cities_input_set_max_results",
+                "optional": true,
+                "type": "int32_t"
+              },
+              {
+                "member": "tags",
+                "name": "weather_models_list_cities_input_set_tags",
+                "optional": true,
+                "type": "const weather_models_tags *"
+              }
+            ],
+            "style": "setters",
+            "type": "weather_models_list_cities_input"
+          },
+          "method": "weather_operations_list_cities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "weather_models_list_cities_output_get_cities",
+                "optional": false,
+                "type": "const weather_models_city_summaries *"
+              },
+              {
+                "member": "nextToken",
+                "name": "weather_models_list_cities_output_get_next_token",
+                "optional": true,
+                "type": "weather_string"
+              }
+            ],
+            "style": "functions",
+            "type": "weather_models_list_cities_output"
+          },
+          "paginators": [
+            "weather_operations_list_cities_pages_new",
+            "weather_operations_list_cities_pages_next"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "weather_operations_ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "weather_models_put_city_photo_input_set_city_id",
+                "optional": false,
+                "type": "weather_string"
+              },
+              {
+                "member": "caption",
+                "name": "weather_models_put_city_photo_input_set_caption",
+                "optional": true,
+                "type": "weather_string"
+              },
+              {
+                "member": "photo",
+                "name": "weather_models_put_city_photo_input_set_photo",
+                "optional": false,
+                "type": "weather_blob"
+              }
+            ],
+            "style": "setters",
+            "type": "weather_models_put_city_photo_input"
+          },
+          "method": "weather_operations_put_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "weather_models_put_city_photo_output_get_photo",
+                "optional": false,
+                "type": "const weather_models_photo_summary *"
+              }
+            ],
+            "style": "functions",
+            "type": "weather_models_put_city_photo_output"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "setters",
+            "type": "weather_models_status_input"
+          },
+          "method": "weather_operations_status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "functions",
+            "type": "weather_models_status_output"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "cmake",
+        "import": "weather/client.h",
+        "imports": [
+          "#include \"weather/client.h\""
+        ],
+        "name": "weather",
+        "qualifier": ""
+      }
+    },
+    "cpp": {
+      "audience": "external",
+      "client": {
+        "construct": "example::weather::WeatherClient(example::weather::runtime::ClientConfig{.endpoint = endpoint})",
+        "fallible": false,
+        "name": "example::weather::WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "cpp",
+      "middleware": [],
+      "name": "cpp",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "std::string"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "example::weather::models::Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "client_token",
+                "optional": true,
+                "type": "std::string"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expected_revision",
+                "optional": true,
+                "type": "std::int64_t"
+              }
+            ],
+            "style": "positional",
+            "type": "example::weather::models::CreateCityInput"
+          },
+          "method": "create_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "example::weather::models::CitySummary"
+              }
+            ],
+            "style": "fields",
+            "type": "example::weather::models::CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "std::string"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "example::weather::runtime::Timestamp"
+              }
+            ],
+            "style": "positional",
+            "type": "example::weather::models::GetCityInput"
+          },
+          "method": "get_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "example::weather::models::CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "std::map<example::weather::models::Sky, example::weather::runtime::Json>"
+              },
+              {
+                "member": "requestId",
+                "name": "request_id",
+                "optional": true,
+                "type": "std::string"
+              }
+            ],
+            "style": "fields",
+            "type": "example::weather::models::GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "std::string"
+              }
+            ],
+            "style": "positional",
+            "type": "example::weather::models::GetCityPhotoInput"
+          },
+          "method": "get_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "std::string"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "example::weather::runtime::Blob"
+              }
+            ],
+            "style": "fields",
+            "type": "example::weather::models::GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "std::string"
+              },
+              {
+                "member": "maxResults",
+                "name": "max_results",
+                "optional": true,
+                "type": "std::int32_t"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "std::vector<std::string>"
+              }
+            ],
+            "style": "positional",
+            "type": "example::weather::models::ListCitiesInput"
+          },
+          "method": "list_cities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "std::vector<example::weather::models::CitySummary>"
+              },
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "std::string"
+              }
+            ],
+            "style": "fields",
+            "type": "example::weather::models::ListCitiesOutput"
+          },
+          "paginators": [
+            "list_cities_pages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "std::string"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "std::string"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "example::weather::runtime::Blob"
+              }
+            ],
+            "style": "positional",
+            "type": "example::weather::models::PutCityPhotoInput"
+          },
+          "method": "put_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "example::weather::models::PhotoSummary"
+              }
+            ],
+            "style": "fields",
+            "type": "example::weather::models::PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "positional",
+            "type": "example::weather::models::StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "fields",
+            "type": "example::weather::models::StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "cmake",
+        "import": "weather/client.hpp",
+        "imports": [
+          "#include \"weather/client.hpp\""
+        ],
+        "name": "weather",
+        "qualifier": "example::weather::"
+      }
+    },
+    "csharp": {
+      "audience": "external",
+      "client": {
+        "construct": "new WeatherClient(new ClientConfig { Endpoint = endpoint })",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "csharp",
+      "middleware": [],
+      "name": "csharp",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": "CreateCityAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "Name",
+                "optional": false,
+                "type": "string"
+              },
+              {
+                "member": "location",
+                "name": "Location",
+                "optional": true,
+                "type": "Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "ClientToken",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "ExpectedRevision",
+                "optional": true,
+                "type": "long"
+              }
+            ],
+            "style": "fields",
+            "type": "CreateCityInput"
+          },
+          "method": "CreateCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "City",
+                "optional": false,
+                "type": "CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": "GetCityAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "CityId",
+                "optional": false,
+                "type": "string"
+              },
+              {
+                "member": "at",
+                "name": "At",
+                "optional": true,
+                "type": "System.DateTimeOffset"
+              }
+            ],
+            "style": "fields",
+            "type": "GetCityInput"
+          },
+          "method": "GetCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "City",
+                "optional": false,
+                "type": "CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "Forecast",
+                "optional": true,
+                "type": "System.Collections.Generic.Dictionary<Sky, System.Text.Json.Nodes.JsonNode>"
+              },
+              {
+                "member": "requestId",
+                "name": "RequestIdValue",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": "GetCityPhotoAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "CityId",
+                "optional": false,
+                "type": "string"
+              }
+            ],
+            "style": "fields",
+            "type": "GetCityPhotoInput"
+          },
+          "method": "GetCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "Caption",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "photo",
+                "name": "Photo",
+                "optional": true,
+                "type": "byte[]"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": "ListCitiesAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "NextToken",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "maxResults",
+                "name": "MaxResults",
+                "optional": true,
+                "type": "int"
+              },
+              {
+                "member": "tags",
+                "name": "Tags",
+                "optional": true,
+                "type": "System.Collections.Generic.List<string>"
+              }
+            ],
+            "style": "fields",
+            "type": "ListCitiesInput"
+          },
+          "method": "ListCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "Cities",
+                "optional": false,
+                "type": "System.Collections.Generic.List<CitySummary>"
+              },
+              {
+                "member": "nextToken",
+                "name": "NextToken",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "ListCitiesOutput"
+          },
+          "paginators": [
+            "ListCitiesPagesAsync"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": "PingAsync",
+          "input": null,
+          "method": "Ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": "PutCityPhotoAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "CityId",
+                "optional": false,
+                "type": "string"
+              },
+              {
+                "member": "caption",
+                "name": "Caption",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "photo",
+                "name": "Photo",
+                "optional": false,
+                "type": "byte[]"
+              }
+            ],
+            "style": "fields",
+            "type": "PutCityPhotoInput"
+          },
+          "method": "PutCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "Photo",
+                "optional": false,
+                "type": "PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": "StatusAsync",
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "fields",
+            "type": "StatusInput"
+          },
+          "method": "Status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "nuget",
+        "import": "Example.Weather",
+        "imports": [
+          "using Example.Weather;",
+          "using Example.Weather.Models;"
+        ],
+        "name": "Example.Weather",
+        "qualifier": ""
+      }
+    },
+    "dart": {
+      "audience": "external",
+      "client": {
+        "construct": "WeatherClient(ClientConfig(endpoint: endpoint))",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "dart",
+      "middleware": [],
+      "name": "dart",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "clientToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expectedRevision",
+                "optional": true,
+                "type": "BigInt"
+              }
+            ],
+            "style": "keywords",
+            "type": "CreateCityInput"
+          },
+          "method": "createCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "Timestamp"
+              }
+            ],
+            "style": "keywords",
+            "type": "GetCityInput"
+          },
+          "method": "getCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "Forecast"
+              },
+              {
+                "member": "requestId",
+                "name": "requestId",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              }
+            ],
+            "style": "keywords",
+            "type": "GetCityPhotoInput"
+          },
+          "method": "getCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "Uint8List"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "maxResults",
+                "name": "maxResults",
+                "optional": true,
+                "type": "int"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "Tags"
+              }
+            ],
+            "style": "keywords",
+            "type": "ListCitiesInput"
+          },
+          "method": "listCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "ListCitiesOutput"
+          },
+          "paginators": [
+            "listCitiesPages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "Uint8List"
+              }
+            ],
+            "style": "keywords",
+            "type": "PutCityPhotoInput"
+          },
+          "method": "putCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "keywords",
+            "type": "StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "pub",
+        "import": "package:weather/weather.dart",
+        "imports": [
+          "import 'package:weather/weather.dart';",
+          "import 'dart:typed_data';"
+        ],
+        "name": "weather",
+        "qualifier": ""
+      }
+    },
+    "go": {
+      "audience": "external",
+      "client": {
+        "construct": "weather.NewWeatherClient(weather.Config{Endpoint: endpoint})",
+        "fallible": true,
+        "name": "weather.WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "go",
+      "middleware": [],
+      "name": "go",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "Name",
+                "optional": false,
+                "type": "weather.CityName"
+              },
+              {
+                "member": "location",
+                "name": "Location",
+                "optional": true,
+                "type": "weather.Optional[*weather.Location]"
+              },
+              {
+                "member": "clientToken",
+                "name": "ClientToken",
+                "optional": true,
+                "type": "weather.Optional[string]"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "ExpectedRevision",
+                "optional": true,
+                "type": "weather.Optional[int64]"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.CreateCityInput"
+          },
+          "method": "CreateCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "City",
+                "optional": false,
+                "type": "*weather.CitySummary"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "CityId",
+                "optional": false,
+                "type": "weather.CityId"
+              },
+              {
+                "member": "at",
+                "name": "At",
+                "optional": true,
+                "type": "weather.Optional[weather.DateTime]"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.GetCityInput"
+          },
+          "method": "GetCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "City",
+                "optional": false,
+                "type": "*weather.CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "Forecast",
+                "optional": true,
+                "type": "weather.Optional[weather.Forecast]"
+              },
+              {
+                "member": "requestId",
+                "name": "RequestId",
+                "optional": true,
+                "type": "weather.Optional[string]"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "CityId",
+                "optional": false,
+                "type": "weather.CityId"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.GetCityPhotoInput"
+          },
+          "method": "GetCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "Caption",
+                "optional": true,
+                "type": "weather.Optional[string]"
+              },
+              {
+                "member": "photo",
+                "name": "Photo",
+                "optional": true,
+                "type": "weather.Optional[weather.Photo]"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "NextToken",
+                "optional": true,
+                "type": "weather.Optional[string]"
+              },
+              {
+                "member": "maxResults",
+                "name": "MaxResults",
+                "optional": true,
+                "type": "weather.Optional[int32]"
+              },
+              {
+                "member": "tags",
+                "name": "Tags",
+                "optional": true,
+                "type": "weather.Optional[weather.Tags]"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.ListCitiesInput"
+          },
+          "method": "ListCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "Cities",
+                "optional": false,
+                "type": "weather.CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "NextToken",
+                "optional": true,
+                "type": "weather.Optional[string]"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.ListCitiesOutput"
+          },
+          "paginators": [
+            "ListCitiesPages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "Ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "CityId",
+                "optional": false,
+                "type": "weather.CityId"
+              },
+              {
+                "member": "caption",
+                "name": "Caption",
+                "optional": true,
+                "type": "weather.Optional[string]"
+              },
+              {
+                "member": "photo",
+                "name": "Photo",
+                "optional": false,
+                "type": "weather.Photo"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.PutCityPhotoInput"
+          },
+          "method": "PutCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "Photo",
+                "optional": false,
+                "type": "*weather.PhotoSummary"
+              }
+            ],
+            "style": "fields",
+            "type": "weather.PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "fields",
+            "type": "weather.StatusInput"
+          },
+          "method": "Status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "fields",
+            "type": "weather.StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "go",
+        "import": "example.com/weather",
+        "imports": [
+          "import weather \"example.com/weather\""
+        ],
+        "name": "example.com/weather",
+        "qualifier": "weather."
+      }
+    },
+    "java": {
+      "audience": "external",
+      "client": {
+        "construct": "ClientConfig config = new ClientConfig();\nconfig.endpoint = endpoint;\nWeatherClient client = new WeatherClient(config);",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": true
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "java",
+      "middleware": [],
+      "name": "java",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": "createCityAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "com.example.weather.model.Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "clientToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expectedRevision",
+                "optional": true,
+                "type": "Long"
+              }
+            ],
+            "style": "builder",
+            "type": "com.example.weather.model.CreateCityInput"
+          },
+          "method": "createCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "com.example.weather.model.CitySummary"
+              }
+            ],
+            "style": "methods",
+            "type": "com.example.weather.model.CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": "getCityAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "java.time.Instant"
+              }
+            ],
+            "style": "builder",
+            "type": "com.example.weather.model.GetCityInput"
+          },
+          "method": "getCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "com.example.weather.model.CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "java.util.Map<com.example.weather.model.Sky, com.google.gson.JsonElement>"
+              },
+              {
+                "member": "requestId",
+                "name": "requestId",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "methods",
+            "type": "com.example.weather.model.GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": "getCityPhotoAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              }
+            ],
+            "style": "builder",
+            "type": "com.example.weather.model.GetCityPhotoInput"
+          },
+          "method": "getCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "byte[]"
+              }
+            ],
+            "style": "methods",
+            "type": "com.example.weather.model.GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": "listCitiesAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "maxResults",
+                "name": "maxResults",
+                "optional": true,
+                "type": "Integer"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "java.util.List<String>"
+              }
+            ],
+            "style": "builder",
+            "type": "com.example.weather.model.ListCitiesInput"
+          },
+          "method": "listCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "java.util.List<com.example.weather.model.CitySummary>"
+              },
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "methods",
+            "type": "com.example.weather.model.ListCitiesOutput"
+          },
+          "paginators": [
+            "listCitiesPages",
+            "listCitiesPagesAsync"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": "pingAsync",
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": "putCityPhotoAsync",
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "byte[]"
+              }
+            ],
+            "style": "builder",
+            "type": "com.example.weather.model.PutCityPhotoInput"
+          },
+          "method": "putCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "com.example.weather.model.PhotoSummary"
+              }
+            ],
+            "style": "methods",
+            "type": "com.example.weather.model.PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": "statusAsync",
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "builder",
+            "type": "com.example.weather.model.StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "methods",
+            "type": "com.example.weather.model.StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "maven",
+        "import": "com.example.weather",
+        "imports": [
+          "import com.example.weather.ClientConfig;",
+          "import com.example.weather.WeatherClient;"
+        ],
+        "name": "com.example:weather",
+        "qualifier": "com.example.weather.model."
+      }
+    },
+    "kotlin": {
+      "audience": "external",
+      "client": {
+        "construct": "WeatherClient(ClientConfig(endpoint = endpoint))",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "kotlin",
+      "middleware": [],
+      "name": "kotlin",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "clientToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expectedRevision",
+                "optional": true,
+                "type": "Long"
+              }
+            ],
+            "style": "dsl",
+            "type": "CreateCityInput"
+          },
+          "method": "createCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "kotlin.time.Instant"
+              }
+            ],
+            "style": "dsl",
+            "type": "GetCityInput"
+          },
+          "method": "getCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "Forecast"
+              },
+              {
+                "member": "requestId",
+                "name": "requestIdValue",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              }
+            ],
+            "style": "dsl",
+            "type": "GetCityPhotoInput"
+          },
+          "method": "getCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "ByteArray"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "maxResults",
+                "name": "maxResults",
+                "optional": true,
+                "type": "Int"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "Tags"
+              }
+            ],
+            "style": "dsl",
+            "type": "ListCitiesInput"
+          },
+          "method": "listCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "ListCitiesOutput"
+          },
+          "paginators": [
+            "listCitiesPages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "ByteArray"
+              }
+            ],
+            "style": "dsl",
+            "type": "PutCityPhotoInput"
+          },
+          "method": "putCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "dsl",
+            "type": "StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "maven",
+        "import": "com.example.weather",
+        "imports": [
+          "import com.example.weather.WeatherClient",
+          "import com.example.weather.ClientConfig",
+          "import com.example.weather.model.*"
+        ],
+        "name": "com.example:weather-kotlin",
+        "qualifier": ""
+      }
+    },
+    "php": {
+      "audience": "external",
+      "client": {
+        "construct": "new \\Example\\Weather\\WeatherClient(new \\Example\\Weather\\Runtime\\ClientConfig(endpoint: $endpoint))",
+        "fallible": false,
+        "name": "\\Example\\Weather\\WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "php",
+      "middleware": [],
+      "name": "php",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "string"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "\\Example\\Weather\\Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "clientToken",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expectedRevision",
+                "optional": true,
+                "type": "int"
+              }
+            ],
+            "style": "keywords",
+            "type": "\\Example\\Weather\\CreateCityInput"
+          },
+          "method": "createCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "\\Example\\Weather\\CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "\\Example\\Weather\\CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "string"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "\\Example\\Weather\\Runtime\\Timestamp"
+              }
+            ],
+            "style": "keywords",
+            "type": "\\Example\\Weather\\GetCityInput"
+          },
+          "method": "getCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "\\Example\\Weather\\CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "array<string|int, \\Example\\Weather\\Runtime\\JsonValue>"
+              },
+              {
+                "member": "requestId",
+                "name": "requestId",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "\\Example\\Weather\\GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "string"
+              }
+            ],
+            "style": "keywords",
+            "type": "\\Example\\Weather\\GetCityPhotoInput"
+          },
+          "method": "getCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "\\Example\\Weather\\GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "maxResults",
+                "name": "maxResults",
+                "optional": true,
+                "type": "int"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "list<string>"
+              }
+            ],
+            "style": "keywords",
+            "type": "\\Example\\Weather\\ListCitiesInput"
+          },
+          "method": "listCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "list<\\Example\\Weather\\CitySummary>"
+              },
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "\\Example\\Weather\\ListCitiesOutput"
+          },
+          "paginators": [
+            "listCitiesPages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "string"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "string"
+              }
+            ],
+            "style": "keywords",
+            "type": "\\Example\\Weather\\PutCityPhotoInput"
+          },
+          "method": "putCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "\\Example\\Weather\\PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "\\Example\\Weather\\PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "keywords",
+            "type": "\\Example\\Weather\\StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "\\Example\\Weather\\StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "composer",
+        "import": "Example\\Weather",
+        "imports": [],
+        "name": "example/weather",
+        "qualifier": "\\Example\\Weather\\"
+      }
+    },
+    "python": {
+      "audience": "external",
+      "client": {
+        "construct": "example_weather.WeatherClient()",
+        "fallible": false,
+        "name": "example_weather.WeatherClient",
+        "statements": false
+      },
+      "endpoint": "https://api.weather.example",
+      "endpointEnv": null,
+      "language": "python",
+      "middleware": [],
+      "name": "python",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "example_weather.CityName"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "example_weather.Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "client_token",
+                "optional": true,
+                "type": "str"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expected_revision",
+                "optional": true,
+                "type": "int"
+              }
+            ],
+            "style": "keywords",
+            "type": "example_weather.CreateCityInput"
+          },
+          "method": "create_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "example_weather.CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "example_weather.CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "example_weather.CityId"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "example_weather.DateTime"
+              }
+            ],
+            "style": "keywords",
+            "type": "example_weather.GetCityInput"
+          },
+          "method": "get_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "example_weather.CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "example_weather.Forecast"
+              },
+              {
+                "member": "requestId",
+                "name": "request_id",
+                "optional": true,
+                "type": "str"
+              }
+            ],
+            "style": "properties",
+            "type": "example_weather.GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "example_weather.CityId"
+              }
+            ],
+            "style": "keywords",
+            "type": "example_weather.GetCityPhotoInput"
+          },
+          "method": "get_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "str"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "example_weather.Photo"
+              }
+            ],
+            "style": "properties",
+            "type": "example_weather.GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "str"
+              },
+              {
+                "member": "maxResults",
+                "name": "max_results",
+                "optional": true,
+                "type": "int"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "example_weather.Tags"
+              }
+            ],
+            "style": "keywords",
+            "type": "example_weather.ListCitiesInput"
+          },
+          "method": "list_cities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "example_weather.CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "str"
+              }
+            ],
+            "style": "properties",
+            "type": "example_weather.ListCitiesOutput"
+          },
+          "paginators": [
+            "list_cities_pages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "example_weather.CityId"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "str"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "example_weather.Photo"
+              }
+            ],
+            "style": "keywords",
+            "type": "example_weather.PutCityPhotoInput"
+          },
+          "method": "put_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "example_weather.PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "example_weather.PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "keywords",
+            "type": "example_weather.StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "example_weather.StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "pypi",
+        "import": "example_weather",
+        "imports": [
+          "import example_weather"
+        ],
+        "name": "example-weather",
+        "qualifier": "example_weather."
+      }
+    },
+    "r": {
+      "audience": "external",
+      "client": {
+        "construct": "WeatherClient(client_config(endpoint = endpoint))",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "r",
+      "middleware": [],
+      "name": "r",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "character"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "client_token",
+                "optional": true,
+                "type": "character"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expected_revision",
+                "optional": true,
+                "type": "crucible_long"
+              }
+            ],
+            "style": "keywords",
+            "type": "CreateCityInput"
+          },
+          "method": "create_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              }
+            ],
+            "style": "elements",
+            "type": "CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "character"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "crucible_timestamp"
+              }
+            ],
+            "style": "keywords",
+            "type": "GetCityInput"
+          },
+          "method": "get_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "list"
+              },
+              {
+                "member": "requestId",
+                "name": "request_id",
+                "optional": true,
+                "type": "character"
+              }
+            ],
+            "style": "elements",
+            "type": "GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "character"
+              }
+            ],
+            "style": "keywords",
+            "type": "GetCityPhotoInput"
+          },
+          "method": "get_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "character"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "raw"
+              }
+            ],
+            "style": "elements",
+            "type": "GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "character"
+              },
+              {
+                "member": "maxResults",
+                "name": "max_results",
+                "optional": true,
+                "type": "numeric"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "list"
+              }
+            ],
+            "style": "keywords",
+            "type": "ListCitiesInput"
+          },
+          "method": "list_cities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "list"
+              },
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "character"
+              }
+            ],
+            "style": "elements",
+            "type": "ListCitiesOutput"
+          },
+          "paginators": [
+            "list_cities_pages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "character"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "character"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "raw"
+              }
+            ],
+            "style": "keywords",
+            "type": "PutCityPhotoInput"
+          },
+          "method": "put_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "PhotoSummary"
+              }
+            ],
+            "style": "elements",
+            "type": "PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "keywords",
+            "type": "StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "elements",
+            "type": "StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "cran",
+        "import": "weather",
+        "imports": [
+          "library(weather)"
+        ],
+        "name": "weather",
+        "qualifier": ""
+      }
+    },
+    "ruby": {
+      "audience": "external",
+      "client": {
+        "construct": "ExampleWeather::WeatherClient.new(ExampleWeather::Runtime::ClientConfig.new(endpoint: endpoint))",
+        "fallible": false,
+        "name": "ExampleWeather::WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "ruby",
+      "middleware": [],
+      "name": "ruby",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "ExampleWeather::Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "client_token",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expected_revision",
+                "optional": true,
+                "type": "Integer"
+              }
+            ],
+            "style": "keywords",
+            "type": "ExampleWeather::CreateCityInput"
+          },
+          "method": "create_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "ExampleWeather::CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "ExampleWeather::CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "ExampleWeather::Runtime::Timestamp"
+              }
+            ],
+            "style": "keywords",
+            "type": "ExampleWeather::GetCityInput"
+          },
+          "method": "get_city",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "ExampleWeather::CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "Hash{String => ExampleWeather::Runtime::JsonValue}"
+              },
+              {
+                "member": "requestId",
+                "name": "request_id",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "ExampleWeather::GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "String"
+              }
+            ],
+            "style": "keywords",
+            "type": "ExampleWeather::GetCityPhotoInput"
+          },
+          "method": "get_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "ExampleWeather::GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "maxResults",
+                "name": "max_results",
+                "optional": true,
+                "type": "Integer"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "Array<String>"
+              }
+            ],
+            "style": "keywords",
+            "type": "ExampleWeather::ListCitiesInput"
+          },
+          "method": "list_cities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "Array<ExampleWeather::CitySummary>"
+              },
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "ExampleWeather::ListCitiesOutput"
+          },
+          "paginators": [
+            "list_cities_pages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "String"
+              }
+            ],
+            "style": "keywords",
+            "type": "ExampleWeather::PutCityPhotoInput"
+          },
+          "method": "put_city_photo",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "ExampleWeather::PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "ExampleWeather::PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "keywords",
+            "type": "ExampleWeather::StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "ExampleWeather::StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "rubygems",
+        "import": "example_weather",
+        "imports": [
+          "require 'example_weather'"
+        ],
+        "name": "example_weather",
+        "qualifier": "ExampleWeather::"
+      }
+    },
+    "rust": {
+      "audience": "external",
+      "client": {
+        "construct": "WeatherClient::new(runtime::Config::new(endpoint))",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "rust",
+      "middleware": [],
+      "name": "rust",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": true,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "CityName"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "client_token",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expected_revision",
+                "optional": true,
+                "type": "i64"
+              }
+            ],
+            "style": "builder",
+            "type": "CreateCityInput"
+          },
+          "method": "create_city",
+          "optionsMethod": "create_city_with_options",
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              }
+            ],
+            "style": "methods",
+            "type": "CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": true,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "CityId"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "DateTime"
+              }
+            ],
+            "style": "builder",
+            "type": "GetCityInput"
+          },
+          "method": "get_city",
+          "optionsMethod": "get_city_with_options",
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "Forecast"
+              },
+              {
+                "member": "requestId",
+                "name": "request_id",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "methods",
+            "type": "GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": true,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "CityId"
+              }
+            ],
+            "style": "builder",
+            "type": "GetCityPhotoInput"
+          },
+          "method": "get_city_photo",
+          "optionsMethod": "get_city_photo_with_options",
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "Photo"
+              }
+            ],
+            "style": "methods",
+            "type": "GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "maxResults",
+                "name": "max_results",
+                "optional": true,
+                "type": "i32"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "Tags"
+              }
+            ],
+            "style": "builder",
+            "type": "ListCitiesInput"
+          },
+          "method": "list_cities",
+          "optionsMethod": "list_cities_with_options",
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "next_token",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "methods",
+            "type": "ListCitiesOutput"
+          },
+          "paginators": [
+            "list_cities_pages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": "ping_with_options",
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": true,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "city_id",
+                "optional": false,
+                "type": "CityId"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "Photo"
+              }
+            ],
+            "style": "builder",
+            "type": "PutCityPhotoInput"
+          },
+          "method": "put_city_photo",
+          "optionsMethod": "put_city_photo_with_options",
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "PhotoSummary"
+              }
+            ],
+            "style": "methods",
+            "type": "PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "builder",
+            "type": "StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": "status_with_options",
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "methods",
+            "type": "StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "cargo",
+        "import": "weather_sdk",
+        "imports": [
+          "use weather_sdk::*;"
+        ],
+        "name": "weather-sdk",
+        "qualifier": ""
+      }
+    },
+    "swift": {
+      "audience": "external",
+      "client": {
+        "construct": "try WeatherClient(ClientConfig(endpoint: endpoint))",
+        "fallible": true,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": null,
+      "language": "swift",
+      "middleware": [],
+      "name": "swift",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "clientToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expectedRevision",
+                "optional": true,
+                "type": "Int64"
+              }
+            ],
+            "style": "keywords",
+            "type": "CreateCityInput"
+          },
+          "method": "createCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "Timestamp"
+              }
+            ],
+            "style": "keywords",
+            "type": "GetCityInput"
+          },
+          "method": "getCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "Forecast"
+              },
+              {
+                "member": "requestId",
+                "name": "requestId",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              }
+            ],
+            "style": "keywords",
+            "type": "GetCityPhotoInput"
+          },
+          "method": "getCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "Foundation.Data"
+              }
+            ],
+            "style": "properties",
+            "type": "GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "maxResults",
+                "name": "maxResults",
+                "optional": true,
+                "type": "Int32"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "Tags"
+              }
+            ],
+            "style": "keywords",
+            "type": "ListCitiesInput"
+          },
+          "method": "listCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "String"
+              }
+            ],
+            "style": "properties",
+            "type": "ListCitiesOutput"
+          },
+          "paginators": [
+            "listCitiesPages"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "String"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "String"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "Foundation.Data"
+              }
+            ],
+            "style": "keywords",
+            "type": "PutCityPhotoInput"
+          },
+          "method": "putCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "keywords",
+            "type": "StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "swiftpm",
+        "import": "Weather",
+        "imports": [
+          "import Foundation",
+          "import Weather"
+        ],
+        "name": "Weather",
+        "qualifier": ""
+      }
+    },
+    "ts": {
+      "audience": "external",
+      "client": {
+        "construct": "new WeatherClient()",
+        "fallible": false,
+        "name": "WeatherClient",
+        "statements": false
+      },
+      "endpoint": null,
+      "endpointEnv": "WEATHER_ENDPOINT",
+      "language": "ts",
+      "middleware": [
+        {
+          "headers": [
+            "x-amz-content-sha256"
+          ],
+          "name": "content-sha256"
+        }
+      ],
+      "name": "ts",
+      "operations": {
+        "example.weather#CreateCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "name",
+                "name": "name",
+                "optional": false,
+                "type": "models.CityName"
+              },
+              {
+                "member": "location",
+                "name": "location",
+                "optional": true,
+                "type": "models.Location"
+              },
+              {
+                "member": "clientToken",
+                "name": "clientToken",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "expectedRevision",
+                "name": "expectedRevision",
+                "optional": true,
+                "type": "bigint"
+              }
+            ],
+            "style": "object",
+            "type": "models.CreateCityInput"
+          },
+          "method": "createCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "models.CitySummary"
+              }
+            ],
+            "style": "properties",
+            "type": "models.CreateCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCity": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "models.CityId"
+              },
+              {
+                "member": "at",
+                "name": "at",
+                "optional": true,
+                "type": "models.DateTime"
+              }
+            ],
+            "style": "object",
+            "type": "models.GetCityInput"
+          },
+          "method": "getCity",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "city",
+                "name": "city",
+                "optional": false,
+                "type": "models.CitySummary"
+              },
+              {
+                "member": "forecast",
+                "name": "forecast",
+                "optional": true,
+                "type": "models.Forecast"
+              },
+              {
+                "member": "requestId",
+                "name": "requestId",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "models.GetCityOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#GetCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "models.CityId"
+              }
+            ],
+            "style": "object",
+            "type": "models.GetCityPhotoInput"
+          },
+          "method": "getCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": true,
+                "type": "models.Photo"
+              }
+            ],
+            "style": "properties",
+            "type": "models.GetCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#ListCities": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "maxResults",
+                "name": "maxResults",
+                "optional": true,
+                "type": "number"
+              },
+              {
+                "member": "tags",
+                "name": "tags",
+                "optional": true,
+                "type": "models.Tags"
+              }
+            ],
+            "style": "object",
+            "type": "models.ListCitiesInput"
+          },
+          "method": "listCities",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cities",
+                "name": "cities",
+                "optional": false,
+                "type": "models.CitySummaries"
+              },
+              {
+                "member": "nextToken",
+                "name": "nextToken",
+                "optional": true,
+                "type": "string"
+              }
+            ],
+            "style": "properties",
+            "type": "models.ListCitiesOutput"
+          },
+          "paginators": [
+            "paginateListCities"
+          ]
+        },
+        "example.weather#Ping": {
+          "asyncMethod": null,
+          "input": null,
+          "method": "ping",
+          "optionsMethod": null,
+          "output": null,
+          "paginators": null
+        },
+        "example.weather#PutCityPhoto": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "cityId",
+                "name": "cityId",
+                "optional": false,
+                "type": "models.CityId"
+              },
+              {
+                "member": "caption",
+                "name": "caption",
+                "optional": true,
+                "type": "string"
+              },
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "models.Photo"
+              }
+            ],
+            "style": "object",
+            "type": "models.PutCityPhotoInput"
+          },
+          "method": "putCityPhoto",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [
+              {
+                "member": "photo",
+                "name": "photo",
+                "optional": false,
+                "type": "models.PhotoSummary"
+              }
+            ],
+            "style": "properties",
+            "type": "models.PutCityPhotoOutput"
+          },
+          "paginators": null
+        },
+        "example.weather#Status": {
+          "asyncMethod": null,
+          "input": {
+            "fallible": false,
+            "members": [],
+            "style": "object",
+            "type": "models.StatusInput"
+          },
+          "method": "status",
+          "optionsMethod": null,
+          "output": {
+            "fallible": false,
+            "members": [],
+            "style": "properties",
+            "type": "models.StatusOutput"
+          },
+          "paginators": null
+        }
+      },
+      "package": {
+        "ecosystem": "npm",
+        "import": "@example/weather",
+        "imports": [
+          "import { WeatherClient } from \"@example/weather\";",
+          "import type * as models from \"@example/weather\";"
+        ],
+        "name": "@example/weather",
+        "qualifier": "models."
+      }
+    }
+  },
+  "service": "example.weather#Weather"
+}

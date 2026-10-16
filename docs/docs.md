@@ -47,6 +47,20 @@ fn main() {
 }
 ```
 
+To document the service's SDKs beside the reference, pass its
+`crucible-sdk.toml`: `model.docs("reference").sdks("../crucible-sdk.toml")`,
+or `--sdks` on `crucible generate docs`:
+
+```sh
+crucible generate docs model --out generated/reference --sdks crucible-sdk.toml
+```
+
+The output then
+also holds `sdks.json`, the [`crucible.sdks/1`](#the-cruciblesdks1-contract)
+document. Its SDK file must declare this model, and the build needs the
+`crucible-build` feature of each SDK's language. `crucible sdk describe`
+prints the same document without a reference.
+
 `ModelPackage::docs` offers the same methods after explicit compilation.
 `generate` publishes under `OUT_DIR`; `generate_into` also exports relative to
 the Cargo producer's manifest. Fallible `try_generate` and `try_generate_into`
@@ -63,6 +77,7 @@ explorer.js
 explorer.css
 describe.json
 describe.js
+sdks.json           (with an SDK file)
 book.toml
 src/
   SUMMARY.md
@@ -280,6 +295,125 @@ payloads use `encoding: "identity"`. Error examples include `shape`, `status`,
 `wireCode`, and `message`, with the protocol discriminator in the body or header
 as appropriate.
 
+## The `crucible.sdks/1` contract
+
+`sdks.json` describes the SDKs a service declares in `crucible-sdk.toml`
+(see [releasing generated SDKs](sdk-releases.md)), so a documentation site
+can show, beside each operation of `describe.json`, how each SDK calls it.
+Each client generator builds its part from the same naming functions and
+collision allocators the code it emits uses, so the names are the ones the
+package declares, suffixes and keyword escapes included (TypeScript's
+`paginateListThings_2`, Rust's `list_things_pages_2`, `member_build` and
+`r#type`, Kotlin's backticks, C#'s `@`). Endpoints, default middleware and
+package names come from the SDK file, with defaults resolved: an unset
+`client_name` is the generator's own class name, and an unset Rust
+`package` is `{service}-sdk`.
+
+It follows `crucible.describe/1`'s rules: UTF-8 JSON, object keys sorted
+recursively, operations keyed and sorted by absolute operation shape ID,
+member arrays in model order, nullable fields always present as JSON
+`null`, and no clocks, build paths, environment or machine-specific
+values: the same SDK file and model give the same bytes. Consumers must
+reject an unknown `format`, ignore unknown fields, and handle additional
+`language`, `ecosystem` and `style` strings. Additive fields may join
+version 1.
+
+A reference's `sdks.json` lists the SDKs its audience may see: an
+external reference lists the external SDKs, an internal one every SDK.
+Each SDK describes its own audience's operations, so an operation may be
+absent from an SDK that does not expose it. The document is refused when
+an SDK would not generate, naming every such SDK. Describing reads
+neither the environment nor the SDKs' README and license files.
+
+```json
+{
+  "format": "crucible.sdks/1",
+  "service": "example.weather#Weather",
+  "sdks": { "ts": {} }
+}
+```
+
+| Field of each SDK (keyed by its `[sdk.<name>]`) | Type and meaning |
+|---|---|
+| `name`, `language`, `audience` | The SDK's name, its `crucible generate` target (`rust`, `ts`, ...) and `external` or `internal` |
+| `package` | `{ecosystem, name, import, imports, qualifier}`: `ecosystem` is `cargo`, `npm`, `pypi`, `go`, `maven`, `nuget`, `swiftpm`, `pub`, `composer`, `rubygems`, `cmake` or `cran`; `name` is the coordinate its tool installs, without a version (a crate, npm or PyPI name, a Go module path, Maven `group:artifact`); `import` is what source code names (a crate path, import specifier, module, Java package, namespace or header); `imports` are the source lines a snippet starts with; `qualifier` is the prefix the package's model types take after them (Go `weather.`, Ruby `Weather::`, TypeScript `models.`, empty where the imports bring them in unqualified; a Go package named like a standard-library package its types need, `time` or `big`, is imported as `timesdk` or `bigsdk`) |
+| `client` | `{name, construct, statements, fallible}`: the client type, and native source that constructs it: an expression, or with `statements` a statement sequence declaring a variable `client` (C, Java). `fallible` says construction can fail: Go's constructor also returns an `error`, Swift's throws (`construct` carries its `try`), C's reports one |
+| `endpoint`, `endpointEnv` | The endpoint generated into the client, or null; the environment variable an `endpoint = { env = ".." }` names, or null. A variable is never read: `endpoint` is then null, and since a released SDK always has that endpoint generated in (`crucible sdk generate` and `build` refuse an unset variable), `construct` takes none. Without any endpoint, `construct` reads a variable named `endpoint` (PHP `$endpoint`) |
+| `middleware` | Default middleware, in order: `{name, headers}`, such as `{"name": "content-sha256", "headers": ["x-amz-content-sha256"]}` |
+| `operations` | Operation ID to the operation object below |
+
+Every spelling in an SDK entry (the client's name and `construct`, input,
+output and member types) resolves in a source file that starts with
+`package.imports`, and model types carry `package.qualifier`.
+
+| Operation field | Type and meaning |
+|---|---|
+| `method` | The method or function a caller invokes |
+| `asyncMethod` | A separate asynchronous method, or null (Java `listCitiesAsync`, C# `ListCitiesAsync`) |
+| `optionsMethod` | A separate method taking per-call options, or null (Rust `list_cities_with_options`) |
+| `paginators` | Null when the operation is not paginated; else the methods that page through it (TypeScript `paginateListCities`, Java `listCitiesPages` and `listCitiesPagesAsync`, C `..._pages_new` and `..._pages_next`) |
+| `input`, `output` | Null when there is no modeled value; else `{type, style, fallible, members}` |
+
+`type` is the native type, qualified as above. `style` says how a caller
+builds an input or reads an output, and each member's `name` is the
+identifier that style uses. `fallible` is true when finishing an input's
+builder can fail at the call site (Rust's `build()` returns a `Result`
+when a required member has no default). Each member is
+`{member, name, type, optional}`: the model member name, the native
+identifier, the native type, and `optional`: for an input, whether the
+caller may leave it out of the style's form, as the generated code allows
+(a member with a modeled default that the server or builder applies, an
+idempotency token the client fills); for an output, whether it may be
+absent. The type is what the style's form takes or
+yields: the value's type (`bigint`, `Date` and `Uint8Array` in
+TypeScript; `i64`, `runtime::Document`, and `Box<Node>` for a recursive
+member, in Rust),
+unless the language's field holds a wrapper a bare value does not convert
+to (Go's `weather.Optional[string]`, set with `weather.Some(value)`).
+
+| Input `style` | A caller writes | Languages |
+|---|---|---|
+| `object` | an object literal of `name: value` properties | TypeScript |
+| `builder` | `Type::builder().name(value).build()` (Rust; `?` when `fallible`), `Type.builder().name(value).build()` (Java) | Rust, Java |
+| `keywords` | the type's constructor with named arguments: `Type(name=value)` | Python, Swift, Dart, PHP, Ruby, R |
+| `fields` | a value whose fields are set: Go `&weather.Type{Name: value}`, C# `new Type { Name = value }` | Go, C# |
+| `positional` | the type's constructor with its members as arguments: those with `optional` false first, then the optional ones, each in model order; trailing optional ones may be left out | C++ |
+| `dsl` | `Type { name = value }`, or the method's DSL block | Kotlin |
+| `setters` | `name(&input, value)`: each member's setter function | C |
+
+| Output `style` | A caller reads | Languages |
+|---|---|---|
+| `properties` | `output.name` | TypeScript, Python, C#, Kotlin, Swift, Dart, PHP, Ruby |
+| `methods` | `output.name()` | Rust, Java |
+| `fields` | `output.name` (struct fields) | Go, C++ |
+| `functions` | `name(output)`: each member's getter function | C |
+| `elements` | `output$name` | R |
+
+How a method is called is each language's own convention, the same for
+every operation:
+
+| Language | A call |
+|---|---|
+| TypeScript | `await client.method(input)`; a paginator is an async iterator: `for await (const page of client.paginator(input))` |
+| Rust | `client.method(input).await?`; a paginator yields pages |
+| Python | `client.method(input)`; the async client (`Async` before the client name) has the same methods to `await` |
+| Go | `client.Method(ctx, input)` returns `(output, error)`; a paginator's `HasMorePages()` and `NextPage(ctx)` |
+| Java | `client.method(input)`; `asyncMethod` returns a `CompletableFuture` |
+| C# | `client.Method(input)`, or `await client.MethodAsync(input)` |
+| Kotlin | `client.method(input)` from a coroutine |
+| Swift | `try await client.method(input)` |
+| Dart | `await client.method(input)` |
+| PHP | `$client->method($input)` |
+| Ruby | `client.method(input)` |
+| C++ | `client.method(input)` |
+| C | the operation function with the client, input, a result and an error; free the result with the `_result_free` function beside it |
+| R | `client$method(input)` |
+
+`crucible_codegen_common::surface::Surface` is the in-memory form, built by
+each client generator's `surface(&Service, &Options)` and by
+`crucible_codegen::Client::surface`; `crucible_codegen::sdks::document`
+assembles the document.
+
 ## Reviewing generated changes
 
 Weather and RPC Catalog goldens include every generated file in both audiences,
@@ -296,6 +430,13 @@ cargo test -p crucible-build --features docs
 cargo test -p crucible-codegen --features docs
 cargo test -p crucible-cli
 ```
+
+`crates/crucible-codegen/tests/golden/weather.sdks.json` holds every
+language's `crucible.sdks/1` entry for Weather, and `collisions.sdks.json`
+the TypeScript and Rust names that collision suffixes change
+(`tests/models/client-docs-surface-collisions`). Each client generator's
+`tests/surface.rs` checks that every name its surface gives is declared in
+the code it emits.
 
 The renderer itself is tested under Node's built-in runner, against the Weather
 and Catalog `describe.json` goldens, a hostile-markup fixture, and a minimal DOM

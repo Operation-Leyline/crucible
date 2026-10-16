@@ -498,3 +498,156 @@ fn generate_ts_accepts_documentation_without_a_field_for_it() {
     let text = fs::read_to_string(root.join("adhoc/docs/package.json")).unwrap();
     assert!(!text.contains("docs.weather.example"), "{text}");
 }
+
+#[test]
+fn describe_prints_each_sdks_surface_as_its_generator_names_it() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    let document: serde_json::Value =
+        serde_json::from_str(&success(crucible(root, &["sdk", "describe"]))).unwrap();
+    assert_eq!(document["format"], "crucible.sdks/1");
+    assert_eq!(document["service"], "example.weather#Weather");
+    let ts = &document["sdks"]["ts"];
+    assert_eq!(ts["package"]["name"], "@example/weather");
+    assert_eq!(ts["client"]["name"], "WeatherClient");
+    // The environment holds a deployment's endpoint, which a description
+    // never reads; a released SDK has it generated in.
+    assert_eq!(ts["endpoint"], serde_json::Value::Null);
+    assert_eq!(ts["endpointEnv"], "WEATHER_SDK_TEST_ENDPOINT");
+    assert_eq!(ts["client"]["construct"], "new WeatherClient()");
+    assert_eq!(
+        ts["operations"]["example.weather#ListCities"]["paginators"][0],
+        "paginateListCities"
+    );
+    let rust = &document["sdks"]["rust"];
+    assert_eq!(
+        rust["operations"]["example.weather#GetCity"]["method"],
+        "get_city"
+    );
+
+    // An unset endpoint variable is not needed, the output is the same
+    // bytes, and --out writes only the selected SDKs, creating its
+    // directory.
+    let output = Command::new(env!("CARGO_BIN_EXE_crucible"))
+        .current_dir(root)
+        .env_remove("WEATHER_SDK_TEST_ENDPOINT")
+        .args([
+            "sdk",
+            "describe",
+            "--sdk",
+            "ts",
+            "--out",
+            "target/docs/sdks.json",
+        ])
+        .output()
+        .unwrap();
+    success(output);
+    let written = json(&root.join("target/docs/sdks.json"));
+    assert_eq!(written["sdks"]["ts"], document["sdks"]["ts"]);
+    assert_eq!(
+        written["sdks"]
+            .as_object()
+            .unwrap()
+            .keys()
+            .collect::<Vec<_>>(),
+        ["ts"]
+    );
+    assert_eq!(written["sdks"]["ts"]["endpoint"], serde_json::Value::Null);
+    assert_eq!(
+        written["sdks"]["ts"]["endpointEnv"],
+        "WEATHER_SDK_TEST_ENDPOINT"
+    );
+    let error = failure(crucible(root, &["sdk", "describe", "--sdk", "go"]));
+    assert!(error.contains("declares no SDK \"go\""), "{error}");
+}
+
+#[test]
+fn a_reference_refuses_an_sdk_file_for_another_model() {
+    let directory = service(SDK_FILE);
+    let root = directory.path();
+    common::install_shared(root, "client-docs");
+    let error = failure(crucible(
+        root,
+        &[
+            "generate",
+            "docs",
+            "client-docs",
+            "--out",
+            "reference",
+            "--sdks",
+            "crucible-sdk.toml",
+        ],
+    ));
+    assert!(error.contains("declares SDKs for the model"), "{error}");
+}
+
+#[test]
+fn a_reference_writes_sdks_json_beside_describe_json() {
+    let directory = tempfile::tempdir_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let root = directory.path();
+    fs::create_dir(root.join(".git")).unwrap();
+    common::install_shared(root, "service-docs-weather");
+    fs::write(
+        root.join("crucible-sdk.toml"),
+        r#"schema_version = 1
+model = "service-docs-weather"
+
+[sdk.ts]
+package = "@example/weather"
+endpoint = { env = "WEATHER_SDK_TEST_ENDPOINT" }
+middleware = ["content-sha256"]
+out = "generated/ts"
+
+[sdk.rust]
+out = "generated/rust"
+
+[sdk.ts-internal]
+language = "ts"
+audience = "internal"
+package = "@example/weather-internal"
+out = "generated/ts-internal"
+"#,
+    )
+    .unwrap();
+    let generate = |audience: &str, out: &str| {
+        success(crucible(
+            root,
+            &[
+                "generate",
+                "docs",
+                "service-docs-weather",
+                "--out",
+                out,
+                "--audience",
+                audience,
+                "--sdks",
+                "crucible-sdk.toml",
+            ],
+        ))
+    };
+    generate("external", "reference");
+    let description = json(&root.join("reference/describe.json"));
+    let sdks = json(&root.join("reference/sdks.json"));
+    assert_eq!(sdks["format"], "crucible.sdks/1");
+    assert_eq!(sdks["service"], description["service"]["id"]);
+    assert_eq!(
+        sdks["sdks"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        ["rust", "ts"],
+        "an external reference names no internal SDK"
+    );
+    let ts = &sdks["sdks"]["ts"];
+    assert_eq!(ts["endpoint"], serde_json::Value::Null);
+    assert_eq!(ts["endpointEnv"], "WEATHER_SDK_TEST_ENDPOINT");
+    assert_eq!(ts["middleware"][0]["headers"][0], "x-amz-content-sha256");
+    for id in ts["operations"].as_object().unwrap().keys() {
+        assert!(description["operations"].get(id).is_some(), "{id}");
+    }
+    // The same inputs give the same bytes, whatever the environment holds.
+    let first = fs::read(root.join("reference/sdks.json")).unwrap();
+    generate("external", "reference");
+    assert_eq!(fs::read(root.join("reference/sdks.json")).unwrap(), first);
+
+    generate("internal", "internal");
+    let internal = json(&root.join("internal/sdks.json"));
+    assert_eq!(internal["sdks"].as_object().unwrap().len(), 3);
+}

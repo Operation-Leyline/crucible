@@ -3,6 +3,9 @@ mod client;
 mod models;
 mod names;
 mod permissions;
+mod surface;
+
+pub use surface::surface;
 
 use crucible_ir::{
     Diagnostics,
@@ -68,7 +71,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
             "C++ namespace must contain non-reserved identifiers",
         );
     }
-    let mut generated = BTreeSet::from([format!("{}Client", service.id.name())]);
+    let mut generated = BTreeSet::from([client::client_name(service)]);
     let mut aliases = BTreeMap::new();
     for (id, shape) in &service.shapes {
         let name = service.name_of(id);
@@ -144,7 +147,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
         }
     }
     let mut methods = BTreeSet::from(["close".to_owned(), "runtime_".to_owned()]);
-    methods.insert(format!("{}Client", service.id.name()));
+    methods.insert(client::client_name(service));
     for operation in &service.operations {
         if operation.method == "HEAD"
             && (!operation.request.body.is_empty() || operation.request.payload.is_some())
@@ -154,9 +157,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
                 "C++ libcurl transport cannot send HEAD request body or payload bindings",
             );
         }
-        let name = names::field(operation.name());
-        for suffix in std::iter::once("").chain(operation.paginated.is_some().then_some("_pages")) {
-            let method = format!("{name}{suffix}");
+        for method in std::iter::once(client::method(operation)).chain(client::pages(operation)) {
             if !names::identifier(&method) || !methods.insert(method) {
                 result.push(&operation.id, "C++ operation name collision");
             }

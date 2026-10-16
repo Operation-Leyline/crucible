@@ -1,0 +1,3 @@
+readonly operation ListThingsPaginator {
+    http GET "/ListThingsPaginator"
+}

@@ -2,11 +2,12 @@
 mod models;
 mod names;
 mod permissions;
+mod surface;
 
 use crucible_codegen_common::docs;
 use crucible_ir::{
     Diagnostics,
-    ir::{Service, Shape},
+    ir::{Operation, Service, Shape},
 };
 use names::{constant, field, literal};
 
@@ -92,6 +93,21 @@ fn operation_docs(
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
+pub use surface::surface;
+
+/// The client class: the service name plus `Client`, under the module.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+/// An operation's method on the client.
+fn operation_method(op: &Operation) -> String {
+    field(op.name())
+}
+/// The method enumerating every page of a paginated operation's `method`.
+fn pages_method(method: &str) -> String {
+    format!("{method}_pages")
+}
+
 pub struct Options {
     pub package_name: String,
     pub module_name: String,
@@ -123,7 +139,7 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     }
     let mut files = BTreeSet::new();
     let mut constants = BTreeSet::from(["Registry", "Runtime"].map(str::to_owned));
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     if !constant(&client_name) {
         diagnostics.push(
             &service.id,
@@ -185,9 +201,9 @@ fn diagnose(service: &Service, options: &Options) -> Diagnostics {
     permissions::check_names(service, &mut diagnostics);
     let mut methods = BTreeSet::from(["close".to_owned(), "call".to_owned(), "pages".to_owned()]);
     for op in &service.operations {
-        let name = field(op.name());
-        for suffix in std::iter::once("").chain(op.paginated.is_some().then_some("_pages")) {
-            let method = format!("{name}{suffix}");
+        let name = operation_method(op);
+        let pages = op.paginated.is_some().then(|| pages_method(&name));
+        for method in std::iter::once(name).chain(pages) {
             if !names::method(&method) || !methods.insert(method) {
                 diagnostics.push(&op.id, "Ruby operation name collision");
             }
@@ -217,7 +233,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     let package = &options.package_name;
     let module = &options.module_name;
     let schema =
@@ -329,7 +345,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         literal(options.endpoint.as_deref().unwrap_or(""))
     );
     for op in &service.operations {
-        let name = field(op.name());
+        let name = operation_method(op);
         let input = if op.input.is_some() { "input, " } else { "" };
         let value = if op.input.is_some() {
             "input"
@@ -351,7 +367,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         client.push_str(&format!("    def {name}({input}cancellation: nil)\n      @runtime.call({}, {value}, cancellation: cancellation)\n    end\n",literal(op.name())));
         if op.paginated.is_some() {
             client.push_str(&docs::line_comment("    ", "#", &format!("Every page of {{#{name}}}, following the pagination token until the service stops returning one. Returns an `Enumerator`; the call for each page is made as it is consumed, so each can fail.\n\n@param input [{}] the request for the first page\n@param cancellation [Runtime::CancellationToken, nil]\n@return [Enumerator<{output_type}>]", input_type.as_deref().unwrap_or("Runtime::Unit"))));
-            client.push_str(&format!("    def {name}_pages(input, cancellation: nil)\n      @runtime.pages({}, input, cancellation: cancellation)\n    end\n",literal(op.name())));
+            client.push_str(&format!("    def {}(input, cancellation: nil)\n      @runtime.pages({}, input, cancellation: cancellation)\n    end\n",pages_method(&name), literal(op.name())));
         }
     }
     client.push_str("  end\nend\n");

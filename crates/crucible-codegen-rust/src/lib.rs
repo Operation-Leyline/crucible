@@ -34,6 +34,7 @@ mod permissions;
 mod runtime_dependency;
 mod scaffold;
 mod server_api;
+mod surface;
 mod types;
 mod versions;
 
@@ -44,6 +45,7 @@ pub use file::File;
 pub use names::escape_identifier;
 pub use runtime_dependency::RuntimeDependency;
 pub use scaffold::{ScaffoldOptions, Stub, file_stem, folder, module_name, scaffold};
+pub use surface::surface;
 
 use crucible_ir::ir::{Service, Shape};
 use crucible_ir::{Diagnostics, ShapeId};

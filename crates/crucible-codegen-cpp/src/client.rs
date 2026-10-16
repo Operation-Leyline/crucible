@@ -1,8 +1,26 @@
 use crate::{File, Options, models::Layout, names};
-use crucible_ir::ir::{Service, Shape};
+use crucible_ir::ir::{Operation, Service, Shape};
+
+/// The client class: the service name plus `Client`.
+pub(crate) fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+
+/// The client method that calls `operation`.
+pub(crate) fn method(operation: &Operation) -> String {
+    names::field(operation.name())
+}
+
+/// The lazy page iterator a `@paginated` operation adds, or `None`.
+pub(crate) fn pages(operation: &Operation) -> Option<String> {
+    operation
+        .paginated
+        .as_ref()
+        .map(|_| format!("{}_pages", method(operation)))
+}
 
 pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<File> {
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     let package = &options.package_name;
     let ns = &options.namespace;
     let mut header = format!(
@@ -28,7 +46,7 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
     source.push_str("    return {};\n}\n}\n");
     source.push_str(&format!("{client_name}::{client_name}(runtime::ClientConfig config) : runtime_(std::make_shared<runtime::ClientRuntime>(std::move(config), schema(), decode_error, {})) {{}}\n", names::literal(options.endpoint.as_deref().unwrap_or(""))));
     for operation in &service.operations {
-        let name = names::field(operation.name());
+        let name = method(operation);
         let wire_name = names::literal(operation.name());
         let output = operation
             .output
@@ -73,9 +91,9 @@ pub fn emit(service: &Service, options: &Options, layout: &Layout<'_>) -> Vec<Fi
         } else {
             source.push_str("    scope.check();\n    return {};\n}\n");
         }
-        if operation.paginated.is_some() {
-            header.push_str(&format!("    /** Creates a lazy iterator; next returns nullopt when exhausted. */\n    [[nodiscard]] runtime::Pages<{output}> {name}_pages({input}std::stop_token stop = {{}}) const;\n"));
-            source.push_str(&format!("runtime::Pages<{output}> {client_name}::{name}_pages({input}std::stop_token stop) const {{\n    return runtime::Pages<{output}>(runtime_, {wire_name}, {encoded}, stop);\n}}\n"));
+        if let Some(pages) = pages(operation) {
+            header.push_str(&format!("    /** Creates a lazy iterator; next returns nullopt when exhausted. */\n    [[nodiscard]] runtime::Pages<{output}> {pages}({input}std::stop_token stop = {{}}) const;\n"));
+            source.push_str(&format!("runtime::Pages<{output}> {client_name}::{pages}({input}std::stop_token stop) const {{\n    return runtime::Pages<{output}>(runtime_, {wire_name}, {encoded}, stop);\n}}\n"));
         }
     }
     header.push_str("};\n}\n");

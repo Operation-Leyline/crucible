@@ -129,7 +129,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                     let field = field(&member.name);
                     let value_type = ty(service, &member.target, module);
                     let member_docs = doc(member.docs.as_deref(), &member.notes, "        ");
-                    if member.optional_on_client() {
+                    if presence(member) {
                         out.push_str(&format!("        /// Whether `{field}` was omitted, set to null, or given a value.\n        public var `{field}Presence`: OptionalValue<{value_type}>\n{member_docs}        public var `{field}`: {value_type}? {{\n            get {{ `{field}Presence`.value }}\n            set {{ `{field}Presence` = newValue.map {{ .value($0) }} ?? .null }}\n        }}\n"));
                         parameters.push(format!("`{field}`: {value_type}? = nil"));
                         parameters.push(format!(
@@ -159,7 +159,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 ));
                 for member in &structure.members {
                     let field = field(&member.name);
-                    if member.optional_on_client() {
+                    if presence(member) {
                         out.push_str(&format!("            self.`{field}Presence` = `{field}Presence` ?? (`{field}`.map {{ .value($0) }} ?? .unset)\n"));
                     } else {
                         out.push_str(&format!("            self.`{field}` = `{field}`\n"));
@@ -183,17 +183,9 @@ pub fn emit(service: &Service, module: &str) -> String {
                     let field = format!(
                         "{}{}",
                         field(&member.name),
-                        if member.optional_on_client() {
-                            "Presence"
-                        } else {
-                            ""
-                        }
+                        if presence(member) { "Presence" } else { "" }
                     );
-                    let read = if member.optional_on_client() {
-                        "optional"
-                    } else {
-                        "read"
-                    };
+                    let read = if presence(member) { "optional" } else { "read" };
                     out.push_str(&format!("                {field}: context.codec.{read}(context.target, {}, object, as: {}.self){}\n", literal(&member.name), ty(service, &member.target, module), if index + 1 == structure.members.len() { "" } else { "," }));
                 }
                 out.push_str("            )\n        }\n        func toWire(_ context: WireContext) throws -> JSONValue {\n");
@@ -202,7 +194,7 @@ pub fn emit(service: &Service, module: &str) -> String {
                 } else {
                     out.push_str("            var object: [Swift.String: JSONValue] = [:]\n");
                     for member in &structure.members {
-                        out.push_str(&format!("            try context.codec.put(context.target, {}, self.`{}`, into: &object)\n", literal(&member.name), format_args!("{}{}", field(&member.name), if member.optional_on_client() { "Presence" } else { "" })));
+                        out.push_str(&format!("            try context.codec.put(context.target, {}, self.`{}`, into: &object)\n", literal(&member.name), format_args!("{}{}", field(&member.name), if presence(member) { "Presence" } else { "" })));
                     }
                     out.push_str("            return .object(object)\n");
                 }
@@ -254,4 +246,12 @@ pub fn emit(service: &Service, module: &str) -> String {
     );
     out.push_str(&errors);
     out
+}
+
+/// Whether a structure member has a `{name}Presence` and an optional
+/// initializer parameter (`= nil`), so a caller may leave it out and a
+/// value may lack it. A defaulted member is not one: Swift's initializer
+/// takes every other member, and the decoder fills the default.
+pub(crate) fn presence(member: &crucible_ir::ir::Member) -> bool {
+    member.optional_on_client()
 }

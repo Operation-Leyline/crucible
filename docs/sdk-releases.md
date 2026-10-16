@@ -124,6 +124,23 @@ development version (`0.0.0-dev` for TypeScript, Dart, Swift and C#,
 for Ruby, PHP, C, C++ and R, the generator's version for Rust, none for
 Go), and never reads a registry.
 
+## Describe declared SDKs for a documentation site
+
+```sh
+crucible sdk describe [--sdk <name>]... [--out <file>]
+```
+
+prints the [`crucible.sdks/1`](docs.md#the-cruciblesdks1-contract)
+document: for each SDK, its package, client class, per-operation method,
+paginators and model members as its generator names them, with the
+endpoint and default middleware the file resolves to. A documentation
+site renders SDK snippets from it instead of re-deriving each language's
+names. It never reads the environment: an `endpoint = { env = ".." }` is
+described by its variable's name with a null value, so a docs build needs
+no deployment variables and gives the same bytes everywhere. `--out`
+creates the file's directory. It runs at the pinned revision, like `config`, since the names
+are the pinned generators'.
+
 **One compiler for SDKs and server.** When the service's `Cargo.lock`
 (the nearest to the SDK file) resolves `crucible-build` or
 `crucible-server-runtime-rust` from Git, `crucible sdk` runs only at that

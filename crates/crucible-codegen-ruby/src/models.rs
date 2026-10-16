@@ -21,7 +21,14 @@ pub(crate) fn yard(text: Option<&str>, notes: &DocNotes, indent: &str) -> String
 }
 
 /// The YARD spelling of a member's Ruby type.
-fn yard_type(service: &Service, id: &ShapeId) -> String {
+pub(crate) fn yard_type(service: &Service, id: &ShapeId) -> String {
+    qualified_yard_type(service, id, "")
+}
+
+/// [`yard_type`] with `qualifier` (the gem's module, `Weather::`) ahead of
+/// the gem's own constants, as code outside the module names them; core
+/// classes stay bare.
+pub(crate) fn qualified_yard_type(service: &Service, id: &ShapeId, qualifier: &str) -> String {
     match service.shape(id) {
         Some(Shape::Simple(s)) => match s.kind {
             SimpleKind::Boolean => "Boolean".into(),
@@ -34,16 +41,19 @@ fn yard_type(service: &Service, id: &ShapeId) -> String {
             | SimpleKind::BigInteger => "Integer".into(),
             SimpleKind::Float | SimpleKind::Double => "Float".into(),
             SimpleKind::BigDecimal => "BigDecimal".into(),
-            SimpleKind::Timestamp => "Runtime::Timestamp".into(),
-            SimpleKind::Document => "Runtime::JsonValue".into(),
+            SimpleKind::Timestamp => format!("{qualifier}Runtime::Timestamp"),
+            SimpleKind::Document => format!("{qualifier}Runtime::JsonValue"),
         },
-        Some(Shape::List(list)) => format!("Array<{}>", yard_type(service, &list.member.target)),
+        Some(Shape::List(list)) => format!(
+            "Array<{}>",
+            qualified_yard_type(service, &list.member.target, qualifier)
+        ),
         Some(Shape::Map(map)) => format!(
             "Hash{{String => {}}}",
-            yard_type(service, &map.value.target)
+            qualified_yard_type(service, &map.value.target, qualifier)
         ),
-        Some(Shape::Unit { .. }) | None => "Runtime::Unit".into(),
-        Some(_) => service.name_of(id).to_string(),
+        Some(Shape::Unit { .. }) | None => format!("{qualifier}Runtime::Unit"),
+        Some(_) => format!("{qualifier}{}", service.name_of(id)),
     }
 }
 

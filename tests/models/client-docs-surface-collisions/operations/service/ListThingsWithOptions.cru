@@ -1,0 +1,3 @@
+readonly operation ListThingsWithOptions {
+    http GET "/ListThingsWithOptions"
+}

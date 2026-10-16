@@ -174,7 +174,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     let t = ty(service, &m.target, package);
                     let f = field(&m.name);
                     let n = literal(&m.name);
-                    let (storage, cast) = if m.optional_on_client() {
+                    let (storage, cast) = if optional_value(m) {
                         let storage = format!("__crucibleField{index}");
                         let cast = format!("{package}.OptionalValue<{t}>");
                         models.push_str(&format!("    internal val {storage}: {cast},\n"));
@@ -275,7 +275,7 @@ pub fn emit(service: &Service, package: &str) -> (Vec<(String, String)>, String)
                     encode.push_str(&format!(
                         "            codec.put(result, target, {n}, model.{storage})\n"
                     ));
-                    decode.push_str(&format!("            {storage} = codec.readMember(target, value.asJsonObject, {n}, {}) as {cast},\n",m.optional_on_client()));
+                    decode.push_str(&format!("            {storage} = codec.readMember(target, value.asJsonObject, {n}, {}) as {cast},\n",optional_value(m)));
                 }
                 models.push_str(&format!(
                     "){} {{\n",
@@ -517,4 +517,17 @@ fn recursive_collection(
     targets
         .into_iter()
         .any(|target| target == start || recursive_collection(service, start, target, visited))
+}
+
+/// Whether a member is stored as an `OptionalValue`, unset until a caller
+/// sets it, so a value may lack it (`has{Name}()` tells).
+pub(crate) fn optional_value(member: &crucible_ir::ir::Member) -> bool {
+    member.optional_on_client()
+}
+
+/// Whether a builder may leave a member unset: it is an `OptionalValue`,
+/// or `build()` fills its modeled default. Only a member with neither is
+/// required, and `build()` fails without it.
+pub(crate) fn omittable(member: &crucible_ir::ir::Member) -> bool {
+    optional_value(member) || member.client_default().is_some()
 }

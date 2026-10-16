@@ -1,0 +1,11 @@
+schema_version = 1
+
+[model]
+namespace = "example.surface"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

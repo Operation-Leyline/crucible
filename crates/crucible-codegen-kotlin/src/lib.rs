@@ -1,11 +1,14 @@
 //! Kotlin Multiplatform models and coroutine clients.
 mod models;
 mod permissions;
+mod surface;
+
 use crucible_codegen_common::documentation as docs;
 use crucible_ir::ir::{DocNotes, Operation, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+pub use surface::surface;
 
 pub struct Options {
     pub group_id: String,
@@ -109,6 +112,20 @@ fn method(text: &str) -> String {
         chars.next().expect("name").to_ascii_lowercase(),
         chars.as_str()
     )
+}
+/// The client class: the service name plus `Client`.
+fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+/// The client method an operation has.
+fn method_name(op: &Operation) -> String {
+    method(op.name())
+}
+/// The page-walking method a `@paginated` operation has.
+fn pages_method_name(op: &Operation) -> Option<String> {
+    op.paginated
+        .as_ref()
+        .map(|_| format!("{}Pages", method_name(op)))
 }
 fn ty(service: &Service, id: &ShapeId, package: &str) -> String {
     match service.shape(id).expect("lowered target") {
@@ -293,7 +310,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             "Kotlin default multiplatform transports require an HTTP/1.1-compatible service",
         );
     }
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     if !options
         .package_name
         .split('.')
@@ -457,11 +474,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "Kotlin portable transports cannot send a GET or HEAD body",
             );
         }
-        for suffix in [""]
-            .into_iter()
-            .chain(op.paginated.is_some().then_some("Pages"))
-        {
-            if !methods.insert(format!("{}{suffix}", method(op.name()))) {
+        for method in [method_name(op)].into_iter().chain(pages_method_name(op)) {
+            if !methods.insert(method) {
                 diagnostics.push(&op.id, "Kotlin client method name collision");
             }
         }
@@ -494,7 +508,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
         kdoc("    ", None, &["Releases the client's own HTTP engine and timers; calls started afterwards fail.".to_string()], &[])
     );
     for op in &service.operations {
-        let name = method(op.name());
+        let name = method_name(op);
         let input = op.input.as_ref().map(|id| ty(service, id, package));
         let output = op
             .output
@@ -524,7 +538,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
             client.push_str(&format!("    suspend fun `{name}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): {output} = `{name}`({input}(block))\n"));
         }
 
-        if op.paginated.is_some() {
+        if let Some(pages) = pages_method_name(op) {
             if let Some(input) = &input {
                 client.push_str(&operation_kdoc(
                     service,
@@ -535,7 +549,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "a cold flow of pages",
                     true,
                 ));
-                client.push_str(&format!("    fun `{name}Pages`(block: {input}.Builder.() -> kotlin.Unit = {{}}): kotlinx.coroutines.flow.Flow<{output}> = `{name}Pages`({input}(block))\n"));
+                client.push_str(&format!("    fun `{pages}`(block: {input}.Builder.() -> kotlin.Unit = {{}}): kotlinx.coroutines.flow.Flow<{output}> = `{pages}`({input}(block))\n"));
             }
             client.push_str(&operation_kdoc(
                 service,
@@ -546,7 +560,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 "a cold flow of pages",
                 true,
             ));
-            client.push_str(&format!("    fun `{name}Pages`({parameter}): kotlinx.coroutines.flow.Flow<{output}> = kotlinx.coroutines.flow.flow {{\n        runtime.pages({}, {argument}).collect {{ emit(it as {output}) }}\n    }}\n",literal(op.name())));
+            client.push_str(&format!("    fun `{pages}`({parameter}): kotlinx.coroutines.flow.Flow<{output}> = kotlinx.coroutines.flow.flow {{\n        runtime.pages({}, {argument}).collect {{ emit(it as {output}) }}\n    }}\n",literal(op.name())));
         }
     }
     client.push_str("}\n");

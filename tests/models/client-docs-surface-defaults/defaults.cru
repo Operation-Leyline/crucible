@@ -1,0 +1,8 @@
+/// Input and output members whose presence differs by rule: required,
+/// optional, and with a modeled default (which an input may omit, since
+/// the server applies it, and an output always has).
+service Defaults {
+    version "1"
+    protocol json
+    operations [Configure]
+}

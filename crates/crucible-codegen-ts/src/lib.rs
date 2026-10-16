@@ -15,6 +15,7 @@ mod models;
 mod names;
 mod permissions;
 mod schemas;
+mod surface;
 
 use crucible_ir::Diagnostics;
 use crucible_ir::ir::Service;
@@ -125,6 +126,22 @@ pub enum Middleware {
     ContentSha256,
 }
 
+impl Middleware {
+    /// The name `crucible-sdk.toml` spells it with.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::ContentSha256 => "content-sha256",
+        }
+    }
+
+    /// The request headers it adds.
+    pub fn headers(self) -> &'static [&'static str] {
+        match self {
+            Self::ContentSha256 => &["x-amz-content-sha256"],
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Options {
     pub package_name: String,
@@ -176,14 +193,21 @@ pub fn capabilities() -> crucible_ir::Capabilities {
     ])
 }
 
+pub use surface::surface;
+
+/// The client class: `client_name`, or the service name plus `Client`.
+pub(crate) fn client_name(service: &Service, options: &Options) -> String {
+    options
+        .client_name
+        .clone()
+        .unwrap_or_else(|| format!("{}Client", service.id.name()))
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
-    let client = options
-        .client_name
-        .clone()
-        .unwrap_or_else(|| format!("{}Client", service.id.name()));
+    let client = client_name(service, options);
     let exception = crucible_codegen_common::service_exception_name(service);
     if client == exception {
         diagnostics.push(

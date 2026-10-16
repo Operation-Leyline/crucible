@@ -1,0 +1,3 @@
+readonly operation ListThingsPages {
+    http GET "/ListThingsPages"
+}

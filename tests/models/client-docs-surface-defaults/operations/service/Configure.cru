@@ -1,0 +1,16 @@
+operation Configure {
+    http POST "/Configure"
+    input {
+        name: string
+        count: integer = 17
+        mode: string = "fast"
+        @token
+        token?: string
+        note?: string
+    }
+    output {
+        name: string
+        count: integer = 17
+        note?: string
+    }
+}

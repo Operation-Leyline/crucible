@@ -1,12 +1,35 @@
 //! A Python package with typed models and sync/async HTTPX clients.
 mod names;
 mod permissions;
+mod surface;
 
 use crucible_ir::ir::{Service, Shape};
 use crucible_ir::{Capabilities, Diagnostics, Feature, ShapeId};
 use names::{field, literal, ty};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+
+pub use surface::surface;
+
+/// The synchronous client class: the service name plus `Client`.
+pub(crate) fn client_name(service: &Service) -> String {
+    format!("{}Client", service.id.name())
+}
+
+/// The asynchronous client class beside [`client_name`].
+pub(crate) fn async_client_name(service: &Service) -> String {
+    format!("Async{}", client_name(service))
+}
+
+/// An operation's method on both client classes.
+pub(crate) fn method_name(operation: &str) -> String {
+    field(operation)
+}
+
+/// The method that pages through a `@paginated` operation's results.
+pub(crate) fn pages_name(operation: &str) -> String {
+    format!("{}_pages", method_name(operation))
+}
 
 pub struct Options {
     pub package_name: String,
@@ -33,13 +56,28 @@ pub fn capabilities() -> Capabilities {
     ])
 }
 
+/// Whether a structure's dataclass field defaults to `UNSET`, so a caller
+/// may leave it out: in an input every member not `@required` (the server
+/// applies a default), elsewhere a client-optional one; an idempotency
+/// token always, since the client fills it.
+pub(crate) fn omittable(
+    structure: &crucible_ir::ir::Structure,
+    member: &crucible_ir::ir::Member,
+) -> bool {
+    (if structure.input {
+        !member.required
+    } else {
+        member.optional_on_client()
+    }) || member.idempotency_token
+}
+
 pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
     let exception = crucible_codegen_common::service_exception_name(service);
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
     let mut diagnostics = Diagnostics::default();
-    let client_name = format!("{}Client", service.id.name());
-    let async_client_name = format!("Async{client_name}");
+    let client_name = client_name(service);
+    let async_client_name = async_client_name(service);
     if !names::identifier(&options.module_name)
         || field(&options.module_name) != options.module_name
     {
@@ -143,10 +181,10 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
     }
     let mut methods = BTreeSet::from(["close".to_string(), "aclose".to_string()]);
     for op in &service.operations {
-        if field(op.name()).starts_with('_') || !methods.insert(field(op.name())) {
+        if method_name(op.name()).starts_with('_') || !methods.insert(method_name(op.name())) {
             diagnostics.push(&op.id, "operation collides with a Python client method");
         }
-        if op.paginated.is_some() && !methods.insert(format!("{}_pages", field(op.name()))) {
+        if op.paginated.is_some() && !methods.insert(pages_name(op.name())) {
             diagnostics.push(&op.id, "paginator collides with a Python client method");
         }
     }
@@ -319,13 +357,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 for m in &s.members {
                     let native = field(&m.name);
                     let t = ty(service, &m.target, "");
-                    let optional = matches!(shape, Shape::Union(_))
-                        || if s.input {
-                            !m.required
-                        } else {
-                            m.optional_on_client()
-                        }
-                        || m.idempotency_token;
+                    let optional = matches!(shape, Shape::Union(_)) || omittable(s, m);
                     if s.error.is_some() {
                         if native == "message" {
                             models.push_str("    message: str\n");
@@ -425,7 +457,8 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                 .output
                 .as_ref()
                 .map_or("None".into(), |id| ty(service, id, "m."));
-            let method = field(op.name());
+            let method = method_name(op.name());
+            let pages = pages_name(op.name());
             let required = op
                 .input
                 .as_ref()
@@ -459,7 +492,7 @@ pub fn emit(service: &Service, options: &Options) -> Result<Vec<File>, Diagnosti
                     "Iterator"
                 };
                 let each = if asynchronous { "async for" } else { "for" };
-                client.push_str(&format!("    {def} {method}_pages(self, {parameter}**options: Any) -> {iter}[{output}]:\n        \"\"\"Yield pages lazily from a snapshot of input; stop on absent/empty tokens and reject repeated tokens.\"\"\"\n        {each} page in self._pages({}, {argument}, **options):\n            yield page\n\n",literal(op.name())));
+                client.push_str(&format!("    {def} {pages}(self, {parameter}**options: Any) -> {iter}[{output}]:\n        \"\"\"Yield pages lazily from a snapshot of input; stop on absent/empty tokens and reject repeated tokens.\"\"\"\n        {each} page in self._pages({}, {argument}, **options):\n            yield page\n\n",literal(op.name())));
             }
         }
     }

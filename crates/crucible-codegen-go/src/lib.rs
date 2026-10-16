@@ -1,10 +1,38 @@
 //! Native Go models, context-aware clients, and a standard-library runtime.
 mod permissions;
+mod surface;
 use crucible_codegen_common::documentation::{model as shape_docs, operation as operation_docs};
 use crucible_ir::ir::{DocNotes, Service, Shape, SimpleKind};
 use crucible_ir::{Diagnostics, ShapeId};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
+
+pub use surface::surface;
+
+/// The client struct: the exported service name plus `Client`.
+pub(crate) fn client_name(service: &Service) -> String {
+    format!("{}Client", exported(service.id.name()))
+}
+
+/// An operation's method on the client.
+pub(crate) fn method_name(operation: &str) -> String {
+    exported(operation)
+}
+
+/// The method that creates a `@paginated` operation's paginator.
+pub(crate) fn pages_name(operation: &str) -> String {
+    format!("{}Pages", method_name(operation))
+}
+
+/// The paginator type [`pages_name`] returns.
+pub(crate) fn paginator_name(operation: &str) -> String {
+    format!("{}Paginator", method_name(operation))
+}
+
+/// A shape's declared Go type name, before [`ty`] makes a structure a pointer.
+pub(crate) fn type_name(service: &Service, id: &ShapeId) -> String {
+    exported(service.name_of(id))
+}
 
 pub struct Options {
     pub module_path: String,
@@ -21,7 +49,7 @@ fn literal(value: &str) -> String {
     crucible_codegen_common::quoted(value)
 }
 
-fn exported(value: &str) -> String {
+pub(crate) fn exported(value: &str) -> String {
     let mut result = String::new();
     let mut upper = true;
     for c in value.chars() {
@@ -38,10 +66,13 @@ fn exported(value: &str) -> String {
     result
 }
 
-fn simple(kind: SimpleKind) -> &'static str {
-    match kind {
+/// The Go type of a simple kind. `Decimal` is the package's own, so it
+/// takes `qualifier` (empty inside the package); the rest are the
+/// language's or the standard library's.
+fn simple(kind: SimpleKind, qualifier: &str) -> String {
+    let native = match kind {
         SimpleKind::BigInteger => "*big.Int",
-        SimpleKind::BigDecimal => "Decimal",
+        SimpleKind::BigDecimal => return format!("{qualifier}Decimal"),
         SimpleKind::String => "string",
         SimpleKind::Boolean => "bool",
         SimpleKind::Byte => "int8",
@@ -53,7 +84,8 @@ fn simple(kind: SimpleKind) -> &'static str {
         SimpleKind::Timestamp => "time.Time",
         SimpleKind::Document => "any",
         SimpleKind::Blob => "[]byte",
-    }
+    };
+    native.to_owned()
 }
 
 fn nullable_ty(service: &Service, id: &ShapeId, sparse: bool) -> String {
@@ -65,21 +97,50 @@ fn nullable_ty(service: &Service, id: &ShapeId, sparse: bool) -> String {
     }
 }
 
-fn ty(service: &Service, id: &ShapeId) -> String {
+pub(crate) fn ty(service: &Service, id: &ShapeId) -> String {
+    qualified_ty(service, id, "")
+}
+
+/// [`ty`] as code outside the package writes it: the package's own types
+/// prefixed with `qualifier` (`weather.`).
+pub(crate) fn qualified_ty(service: &Service, id: &ShapeId, qualifier: &str) -> String {
     let shape = service.shape(id).expect("lowered target");
     if id.is_prelude() {
         return match shape {
-            Shape::Simple(s) => simple(s.kind).into(),
+            Shape::Simple(s) => simple(s.kind, qualifier),
             Shape::IntEnum(_) => unreachable!("integer enums are capability-gated"),
-            Shape::Unit { .. } => "Unit".into(),
+            Shape::Unit { .. } => format!("{qualifier}Unit"),
             _ => unreachable!("prelude shape"),
         };
     }
-    let name = exported(service.name_of(id));
+    let name = type_name(service, id);
     if matches!(shape, Shape::Structure(_) | Shape::Union(_)) {
-        format!("*{name}")
+        format!("*{qualifier}{name}")
     } else {
-        name
+        format!("{qualifier}{name}")
+    }
+}
+
+/// A structure or union member's field type: its value's type, wrapped in
+/// `Optional` when the member may be absent and in every union.
+/// Whether a member's field is `Optional[T]`, so it can be left absent:
+/// Go fills no modeled defaults, and a plain field always sends its value
+/// (its zero value when unset).
+pub(crate) fn absent(shape: &Shape, member: &crucible_ir::ir::Member) -> bool {
+    member.optional_on_client() || matches!(shape, Shape::Union(_))
+}
+
+pub(crate) fn field_type(
+    service: &Service,
+    shape: &Shape,
+    member: &crucible_ir::ir::Member,
+    qualifier: &str,
+) -> String {
+    let t = qualified_ty(service, &member.target, qualifier);
+    if absent(shape, member) {
+        format!("{qualifier}Optional[{t}]")
+    } else {
+        t
     }
 }
 
@@ -119,7 +180,7 @@ fn emit_package(
     service.require_capabilities(&capabilities())?;
     crucible_codegen_common::check_service_exception_name(service)?;
     let mut errors = Diagnostics::default();
-    let client_name = format!("{}Client", exported(service.id.name()));
+    let client_name = client_name(service);
     let exception = exported(&crucible_codegen_common::service_exception_name(service));
     if options.package_name.is_empty()
         || !options
@@ -206,7 +267,7 @@ fn emit_package(
     names.insert(format!("New{client_name}"));
     let mut methods = BTreeSet::new();
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
-        let name = exported(service.name_of(id));
+        let name = type_name(service, id);
         if !names.insert(name.clone()) {
             errors.push(
                 id,
@@ -248,13 +309,11 @@ fn emit_package(
         }
     }
     for op in &service.operations {
-        let name = exported(op.name());
-        if !methods.insert(name.clone()) {
+        if !methods.insert(method_name(op.name())) {
             errors.push(&op.id, "Go operation method name collision");
         }
         if op.paginated.is_some()
-            && (!methods.insert(format!("{name}Pages"))
-                || !names.insert(format!("{name}Paginator")))
+            && (!methods.insert(pages_name(op.name())) || !names.insert(paginator_name(op.name())))
         {
             errors.push(&op.id, "Go paginator name collision");
         }
@@ -285,7 +344,7 @@ fn emit_package(
         models.push_str("import \"time\"\n\n");
     }
     for (id, shape) in service.shapes.iter().filter(|(id, _)| !id.is_prelude()) {
-        let name = exported(service.name_of(id));
+        let name = type_name(service, id);
         go_doc_for(
             &mut models,
             "",
@@ -315,7 +374,9 @@ fn emit_package(
                 models.push_str(")\n\n");
             }
             Shape::Unit { .. } => models.push_str(&format!("type {name} = Unit\n\n")),
-            Shape::Simple(s) => models.push_str(&format!("type {name} = {}\n\n", simple(s.kind))),
+            Shape::Simple(s) => {
+                models.push_str(&format!("type {name} = {}\n\n", simple(s.kind, "")))
+            }
             Shape::List(l) => models.push_str(&format!(
                 "type {name} []{}\n\n",
                 nullable_ty(service, &l.member.target, l.sparse)
@@ -355,12 +416,7 @@ fn emit_package(
                         m.docs.as_deref(),
                         &m.notes,
                     );
-                    let t = ty(service, &m.target);
-                    let t = if m.optional_on_client() || matches!(shape, Shape::Union(_)) {
-                        format!("Optional[{t}]")
-                    } else {
-                        t
-                    };
+                    let t = field_type(service, shape, m, "");
                     models.push_str(&format!("    {} {t}\n", exported(&m.name)));
                 }
                 if matches!(shape, Shape::Union(_)) {
@@ -482,13 +538,15 @@ fn emit_package(
     client.push_str("func modeledError(target string, values map[string]any, metadata *ServiceError) error {\n switch target {\n");
     for (id, shape) in &service.shapes {
         if matches!(shape,Shape::Structure(s) if s.error.is_some()) {
-            let name = exported(service.name_of(id));
+            let name = type_name(service, id);
             client.push_str(&format!(" case {}:\n  result := &{name}{{Metadata: metadata}}\n  if err := decodeModel(wireSchema, target, values, result); err != nil {{ return metadata }}\n  return result\n",literal(&id.to_string())));
         }
     }
     client.push_str(" }\n return metadata\n}\n\n");
     for op in &service.operations {
-        let name = exported(op.name());
+        let name = method_name(op.name());
+        let pages = pages_name(op.name());
+        let paginator = paginator_name(op.name());
         let input = op
             .input
             .as_ref()
@@ -520,7 +578,7 @@ fn emit_package(
                 op.output.as_ref().expect("paginated output"),
                 &p.output_token,
             );
-            client.push_str(&format!("// {name}Paginator fetches pages sequentially and rejects repeated tokens. Do not share it across goroutines.\ntype {name}Paginator struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\n// {name}Pages snapshots input and creates a paginator without sending a request.\nfunc (c *{client_name}) {name}Pages(input {input}) (*{name}Paginator, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{name}Paginator{{client:c, input:values, seen:seen}}, nil\n}}\n// HasMorePages reports whether pagination has reached the end.\nfunc (p *{name}Paginator) HasMorePages() bool {{ return !p.done }}\n// NextPage fetches one page using ctx and advances its token; returns an error for exhausted or repeated tokens.\nfunc (p *{name}Paginator) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&input_token),literal(op.name()),literal(&target),literal(&output_token),literal(&input_token)));
+            client.push_str(&format!("// {paginator} fetches pages sequentially and rejects repeated tokens. Do not share it across goroutines.\ntype {paginator} struct {{ client *{client_name}; input map[string]any; seen map[string]bool; done bool }}\n// {pages} snapshots input and creates a paginator without sending a request.\nfunc (c *{client_name}) {pages}(input {input}) (*{paginator}, error) {{\n values, err := encodeModel(c.schema, {}, input)\n if err != nil {{ return nil, err }}\n seen := map[string]bool{{}}\n if token, ok := values[{}].(string); ok && token != \"\" {{ seen[token] = true }}\n return &{paginator}{{client:c, input:values, seen:seen}}, nil\n}}\n// HasMorePages reports whether pagination has reached the end.\nfunc (p *{paginator}) HasMorePages() bool {{ return !p.done }}\n// NextPage fetches one page using ctx and advances its token; returns an error for exhausted or repeated tokens.\nfunc (p *{paginator}) NextPage(ctx context.Context) ({output}, error) {{\n var result {output}\n if p.done {{ return result, errNoMorePages }}\n values, err := p.client.callValues(ctx, {}, p.input)\n if err != nil {{ return result, err }}\n if err = decodeModel(p.client.schema, {}, values, &result); err != nil {{ return result, err }}\n token, err := pageToken(values, {})\n if err != nil {{ return result, err }}\n if token == \"\" {{ p.done = true }} else if p.seen[token] {{ p.done = true; return result, errRepeatedToken }} else {{ p.seen[token] = true; p.input[{}] = token }}\n return result, nil\n}}\n\n",literal(&op.input.as_ref().expect("paginated input").to_string()),literal(&input_token),literal(op.name()),literal(&target),literal(&output_token),literal(&input_token)));
         }
     }
     let provenance = serde_json::to_string_pretty(&serde_json::json!({"generatorVersion":env!("CARGO_PKG_VERSION"),"service":service.id.to_string(),"serviceVersion":service.version,"schemaSha256":format!("{:x}",Sha256::digest(schema.as_bytes()))})).expect("serializes");

@@ -1,4 +1,4 @@
-use super::{Options, literal, method, ty};
+use super::{Options, client_name, literal, method_name, pages_method_name, ty};
 use crucible_codegen_common::docs;
 use crucible_ir::ir::{Operation, Service};
 
@@ -86,7 +86,7 @@ fn operation_docs(
 }
 
 pub fn emit(service: &Service, options: &Options) -> String {
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = client_name(service);
     let module = &options.module_name;
     let endpoint = literal(options.endpoint.as_deref().unwrap_or(""));
     let mut out = format!(
@@ -110,7 +110,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
             .map(|id| ty(service, id, module))
             .unwrap_or_else(|| "Unit".into());
         let default = if op.input.is_none() { " = .init()" } else { "" };
-        let name = method(op.name());
+        let name = method_name(op);
         let wire = literal(op.name());
         out.push_str(&operation_docs(
             service,
@@ -120,9 +120,9 @@ pub fn emit(service: &Service, options: &Options) -> String {
             op.paginated.is_some(),
         ));
         out.push_str(&format!("    public func `{name}`(_ input: {input}{default}) async throws -> {output} {{\n        try await runtime.call({wire}, input: input, as: {output}.self)\n    }}\n"));
-        if op.paginated.is_some() {
+        if let Some(pages) = pages_method_name(op) {
             out.push_str(&docs::line_comment("    ", "///", &format!("Every page of ``{name}(_:)``, following the pagination token until the service stops returning one. Each `next()` makes one call, so each can fail.\n\n- Parameter input: The ``{input}`` for the first page.", input = input.trim_matches('`'))));
-            out.push_str(&format!("    public func `{name}Pages`(_ input: {input}) throws -> Pages<{output}> {{\n        try runtime.pages({wire}, input: input, as: {output}.self)\n    }}\n"));
+            out.push_str(&format!("    public func `{pages}`(_ input: {input}) throws -> Pages<{output}> {{\n        try runtime.pages({wire}, input: input, as: {output}.self)\n    }}\n"));
         }
     }
     out.push_str("}\n");

@@ -1,6 +1,6 @@
 use crate::{
     Options, names,
-    names::{literal, method, ty},
+    names::{literal, ty},
 };
 use crucible_codegen_common::docs;
 use crucible_ir::ir::{Operation, Service};
@@ -78,7 +78,7 @@ fn operation_docs(
 
 pub fn emit(service: &Service, options: &Options) -> String {
     let namespace = &options.namespace;
-    let client_name = format!("{}Client", service.id.name());
+    let client_name = crate::client_name(service);
     let endpoint = literal(options.endpoint.as_deref().unwrap_or(""));
     let mut out = format!(
         "<?php\ndeclare(strict_types=1);\nnamespace {namespace};\n\n{}final class {client_name}\n{{\n    private readonly Runtime\\ClientRuntime $runtime;\n{}    public function __construct(Runtime\\ClientConfig $config = new Runtime\\ClientConfig())\n    {{\n        $this->runtime = new Runtime\\ClientRuntime($config, Schema::codec(), Decoder::error(...), {endpoint});\n    }}\n    /** Releases the HTTP transport this client created. A transport passed in the configuration is left open. */\n    public function close(): void {{ $this->runtime->close(); }}\n",
@@ -86,7 +86,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
         docs::block_comment("    ", "Creates a client. Without a `$config`, the generated endpoint is used and no credentials are sent; see ClientConfig for credentials, retries, timeouts and the transport.", &["@throws \\InvalidArgumentException when the endpoint or another setting is invalid".to_string()]),
     );
     for op in &service.operations {
-        let name = method(op.name());
+        let name = crate::operation_method(op);
         let operation = literal(op.name());
         let input = op
             .input
@@ -118,7 +118,7 @@ pub fn emit(service: &Service, options: &Options) -> String {
         out.push_str(&format!("    public function {name}({input}?Runtime\\CancellationToken $cancellation = null): {output}\n    {{\n        return $this->runtime->call({operation}, {argument}, $cancellation);\n    }}\n"));
         if op.paginated.is_some() {
             out.push_str(&docs::block_comment("    ", &format!("Every page of `{name}()`, following the pagination token until the service stops returning one. The generator makes one call per page, so each can fail."), &[format!("@return \\Generator<int, {output}> the output of each page")]));
-            out.push_str(&format!("    public function {name}Pages({input}?Runtime\\CancellationToken $cancellation = null): \\Generator\n    {{\n        return $this->runtime->pages({operation}, {argument}, $cancellation);\n    }}\n"));
+            out.push_str(&format!("    public function {}({input}?Runtime\\CancellationToken $cancellation = null): \\Generator\n    {{\n        return $this->runtime->pages({operation}, {argument}, $cancellation);\n    }}\n", crate::pages_method(&name)));
         }
     }
     out.push_str("}\n");

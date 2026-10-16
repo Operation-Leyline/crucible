@@ -130,6 +130,80 @@ impl Client {
         self.emit_projected(&service, audience, stamp)
     }
 
+    /// The client's public surface for `audience`: the names its package,
+    /// client, methods, paginators and models have, from the generator's
+    /// own allocators. Refused when the generator refuses the client's
+    /// code, so it only ever describes a client that generates.
+    pub fn surface(
+        &self,
+        service: &Service,
+        audience: crate::Audience,
+    ) -> Result<crucible_codegen_common::surface::Surface, Diagnostics> {
+        let service = crucible_ir::project(service, audience)?;
+        match *self {
+            // The whole package is checked, manifest included, but an
+            // automatic runtime dependency is resolved to a stand-in: which
+            // revision the package pins names nothing a caller calls, and
+            // resolving it needs a verified Git checkout of the generator.
+            #[cfg(feature = "rust")]
+            Self::Rust(ref options) => {
+                service.require_capabilities(&self.capabilities())?;
+                let mut options = options.clone();
+                if matches!(
+                    options.runtime,
+                    crucible_codegen_rust::RuntimeDependency::Auto
+                ) {
+                    options.runtime = crucible_codegen_rust::RuntimeDependency::Git {
+                        repository: "https://runtime.invalid/crucible".into(),
+                        revision: "0".repeat(40),
+                        version_requirement: "*".into(),
+                    };
+                }
+                crucible_codegen_rust::emit_client_package(&service, &options)?;
+            }
+            #[allow(unreachable_patterns, reason = "other languages are feature-gated")]
+            _ => {
+                self.emit_files(&service)?;
+            }
+        }
+        Ok(self.surface_projected(&service))
+    }
+
+    fn surface_projected(&self, service: &Service) -> crucible_codegen_common::surface::Surface {
+        // Unused only in a build without client generators.
+        let _ = service;
+        match *self {
+            #[cfg(feature = "rust")]
+            Self::Rust(ref options) => crucible_codegen_rust::surface(service, options),
+            #[cfg(feature = "ts")]
+            Self::Ts(ref options) => crucible_codegen_ts::surface(service, options),
+            #[cfg(feature = "python")]
+            Self::Python(ref options) => crucible_codegen_python::surface(service, options),
+            #[cfg(feature = "go")]
+            Self::Go(ref options) => crucible_codegen_go::surface(service, options),
+            #[cfg(feature = "java")]
+            Self::Java(ref options) => crucible_codegen_java::surface(service, options),
+            #[cfg(feature = "csharp")]
+            Self::Csharp(ref options) => crucible_codegen_csharp::surface(service, options),
+            #[cfg(feature = "kotlin")]
+            Self::Kotlin(ref options) => crucible_codegen_kotlin::surface(service, options),
+            #[cfg(feature = "swift")]
+            Self::Swift(ref options) => crucible_codegen_swift::surface(service, options),
+            #[cfg(feature = "dart")]
+            Self::Dart(ref options) => crucible_codegen_dart::surface(service, options),
+            #[cfg(feature = "php")]
+            Self::Php(ref options) => crucible_codegen_php::surface(service, options),
+            #[cfg(feature = "ruby")]
+            Self::Ruby(ref options) => crucible_codegen_ruby::surface(service, options),
+            #[cfg(feature = "cpp")]
+            Self::Cpp(ref options) => crucible_codegen_cpp::surface(service, options),
+            #[cfg(feature = "c")]
+            Self::C(ref options) => crucible_codegen_c::surface(service, options),
+            #[cfg(feature = "r")]
+            Self::R(ref options) => crucible_codegen_r::surface(service, options),
+        }
+    }
+
     /// The package name and version a Rust or TypeScript package's
     /// `crucible.json` records. The other languages keep their own schema-1
     /// record until their metadata lands.

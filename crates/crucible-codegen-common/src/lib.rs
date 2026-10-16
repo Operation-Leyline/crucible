@@ -6,6 +6,7 @@ pub mod json_schema;
 pub mod mcp;
 pub mod metadata;
 pub mod permissions;
+pub mod surface;
 
 pub use metadata::{PackageMetadata, Registry};
 
