@@ -72,15 +72,7 @@ impl Generator {
             }
             Self::Server(server) => server.emit(service),
             #[cfg(feature = "docs")]
-            Self::Docs => crucible_codegen_docs::generate(service).map(|files| {
-                files
-                    .into_iter()
-                    .map(|file| File {
-                        path: file.path,
-                        contents: file.contents,
-                    })
-                    .collect()
-            }),
+            Self::Docs => docs_projected(service, &crate::DocsOptions::default()),
             #[cfg(feature = "openapi")]
             Self::OpenApi(options) => {
                 crucible_codegen_openapi::generate(service, options).map(|contents| {
@@ -128,6 +120,33 @@ impl Generator {
             }),
         }
     }
+}
+
+/// The API reference [`Generator::Docs`] emits, for `audience`, with
+/// `options` (where `describe.json` carries the operations' schemas).
+#[cfg(feature = "docs")]
+pub fn docs(
+    service: &Service,
+    audience: crate::Audience,
+    options: &crate::DocsOptions,
+) -> Result<Vec<File>, Diagnostics> {
+    docs_projected(&crucible_ir::project(service, audience)?, options)
+}
+
+#[cfg(feature = "docs")]
+fn docs_projected(
+    service: &Service,
+    options: &crate::DocsOptions,
+) -> Result<Vec<File>, Diagnostics> {
+    crucible_codegen_docs::generate_with(service, options).map(|files| {
+        files
+            .into_iter()
+            .map(|file| File {
+                path: file.path,
+                contents: file.contents,
+            })
+            .collect()
+    })
 }
 
 impl From<Client> for Generator {

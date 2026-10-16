@@ -23,6 +23,8 @@ pub use crucible_codegen_cpp::Options as CppOptions;
 pub use crucible_codegen_csharp::Options as CsharpOptions;
 #[cfg(feature = "dart")]
 pub use crucible_codegen_dart::Options as DartOptions;
+#[cfg(feature = "docs")]
+pub use crucible_codegen_docs::{Options as DocsOptions, Schemas};
 #[cfg(feature = "go")]
 pub use crucible_codegen_go::Options as GoOptions;
 #[cfg(any(feature = "cdk", feature = "terraform"))]
@@ -57,6 +59,8 @@ pub use crucible_codegen_ts::Middleware as TsMiddleware;
 pub use crucible_codegen_ts::Options as TsOptions;
 pub use file::File;
 pub use generator::Generator;
+#[cfg(feature = "docs")]
+pub use generator::docs;
 pub use output::write;
 pub use server::Server;
 

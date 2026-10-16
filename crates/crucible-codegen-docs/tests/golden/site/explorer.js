@@ -107,6 +107,47 @@
     };
   }
 
+  // An operation's input or output JSON Schema, self-contained, whichever
+  // way describe.json carries it (docs/docs.md, "Operation schemas"):
+  // inline as it is, shared as its root definition with the definitions it
+  // reaches from the root `schemas` (the inline form exactly), or `null`
+  // when the description omits schemas. `key` is "inputSchema" or
+  // "outputSchema"; `description` is a description or an `index` of one.
+  function operationSchema(description, op, key) {
+    const schema = op && op[key];
+    if (!schema || typeof schema !== "object") return null;
+    const shared = description && description.d ? description.d.schemas : description && description.schemas;
+    const prefix = "#/$defs/";
+    if (typeof schema.$ref !== "string" || !schema.$ref.startsWith(prefix) || !shared || !shared.$defs) return schema;
+    const defs = shared.$defs;
+    const own = (name) => Object.prototype.hasOwnProperty.call(defs, name);
+    const rootName = schema.$ref.slice(prefix.length);
+    if (!own(rootName)) return schema;
+    const reached = new Set();
+    const pending = [rootName];
+    const visit = (value) => {
+      if (Array.isArray(value)) value.forEach(visit);
+      else if (value && typeof value === "object") {
+        for (const [k, v] of Object.entries(value)) {
+          if (k === "$ref" && typeof v === "string" && v.startsWith(prefix)) pending.push(v.slice(prefix.length));
+          else visit(v);
+        }
+      }
+    };
+    while (pending.length) {
+      const name = pending.pop();
+      if (reached.has(name) || !own(name)) continue;
+      reached.add(name);
+      visit(defs[name]);
+    }
+    const out = {};
+    for (const [k, v] of Object.entries(defs[rootName])) Object.defineProperty(out, k, { value: v, enumerable: true, writable: true, configurable: true });
+    const $defs = {};
+    for (const name of [...reached].sort()) Object.defineProperty($defs, name, { value: defs[name], enumerable: true, writable: true, configurable: true });
+    out.$defs = $defs;
+    return out;
+  }
+
   // Built-ins are `crucible.api#..`; a describe.json written before the
   // prelude moved spells them `smithy.api#..`.
   const isBuiltin = (id) => id.startsWith("crucible.api#") || id.startsWith("smithy.api#");
@@ -722,15 +763,23 @@
       out.push(h("section", { id: sectionId("pagination") }, sectionHeading(op, "pagination", "Pagination"), table(["Role", "Member path"], rows, "Pagination"), h("p", {}, "Follow the output token until absent or empty; reject repeated tokens.")));
     }
     out.push(examplesSection(m, op));
-    out.push(
-      h(
-        "section",
-        { id: sectionId("schemas") },
-        sectionHeading(op, "schemas", "JSON Schemas"),
-        h("details", {}, h("summary", {}, "Input schema"), codeBlock("input schema", pretty(op.inputSchema), "json")),
-        h("details", {}, h("summary", {}, "Output schema"), codeBlock("output schema", pretty(op.outputSchema), "json")),
-      ),
-    );
+    // A description may omit the schemas, or share their definitions.
+    const schemas = [
+      ["inputSchema", "Input schema", "input schema"],
+      ["outputSchema", "Output schema", "output schema"],
+    ]
+      .map(([key, title, label]) => [operationSchema(m, op, key), title, label])
+      .filter(([schema]) => schema);
+    if (schemas.length) {
+      out.push(
+        h(
+          "section",
+          { id: sectionId("schemas") },
+          sectionHeading(op, "schemas", "JSON Schemas"),
+          schemas.map(([schema, title, label]) => h("details", {}, h("summary", {}, title), codeBlock(label, pretty(schema), "json"))),
+        ),
+      );
+    }
     return out;
   }
 
@@ -1004,7 +1053,7 @@
     h, rich, mount, toHTML,
     index, navigation, filterNavigation, parseRoute, href, refHref,
     overviewView, operationView, shapeView, resourceView, releaseView, pageFor, navView,
-    requestSyntax, responseSyntax, exampleMessage,
+    requestSyntax, responseSyntax, exampleMessage, operationSchema,
     operationPanels, registerOperationPanel,
     start, load, boot,
   };

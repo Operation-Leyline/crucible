@@ -29,7 +29,12 @@ stable under the same rules, as described in
 [the docs guide](docs.md#changesjson); `Description::versions` and
 `describe::sort_keys` are additive. `llms.txt` and `llms-full.txt` (the Markdown pages'
 index for agents, beside `index.html`) and the `src/` page paths they link
-are stable file names; their prose is not.
+are stable file names; their prose is not. `DocsOutput::schemas`,
+`crucible generate docs --schemas`, `crucible_codegen::{docs, DocsOptions,
+Schemas}`, `crucible_codegen_docs::{generate_with, Options, Schemas}`,
+`Description::schemas` (the method and the field) and
+`CrucibleExplorer.operationSchema` are additive; `Schemas` and the options
+are non-exhaustive.
 
 `DocsOutput::sdks`, `crucible generate docs --sdks` and `crucible sdk
 describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as

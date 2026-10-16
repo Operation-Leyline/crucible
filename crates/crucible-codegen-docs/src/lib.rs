@@ -20,9 +20,26 @@ pub(crate) fn builtin(id: &str) -> bool {
         .is_some_and(|(namespace, _)| namespace == crucible_ir::PRELUDE)
 }
 
+pub use crucible_codegen_common::describe::Schemas;
+
+/// Reference settings. Start from `Options::default()` and set fields.
+#[derive(Debug, Clone, Default)]
+#[non_exhaustive]
+pub struct Options {
+    /// Where `describe.json` carries the operations' JSON Schemas; inline
+    /// by default.
+    pub schemas: Schemas,
+}
+
 /// Generate all files before publication. The caller projects the audience first.
 pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
-    let description = describe::describe(service)?;
+    generate_with(service, &Options::default())
+}
+
+/// [`generate`] with `options`.
+pub fn generate_with(service: &Service, options: &Options) -> Result<Vec<File>, Diagnostics> {
+    let mut description = describe::describe(service)?;
+    description.schemas(options.schemas);
     let mut diagnostics = Diagnostics::default();
     let mut paths = std::collections::BTreeSet::new();
     for (id, item) in description.operations.iter().chain(&description.shapes) {

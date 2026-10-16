@@ -992,3 +992,177 @@ fn operation_pages_carry_the_headers_and_error_codes_a_caller_sends_and_reads() 
         "{create}"
     );
 }
+
+/// An operation's schema rebuilt from a shared description: its root
+/// definition with every definition it reaches, as `explorer.js` does.
+fn rebuilt(description: &Value, schema: &Value) -> Value {
+    let Some(name) = schema["$ref"]
+        .as_str()
+        .and_then(|r| r.strip_prefix("#/$defs/"))
+    else {
+        return schema.clone();
+    };
+    let defs = &description["schemas"]["$defs"];
+    let mut reached = BTreeSet::new();
+    let mut pending = vec![name.to_owned()];
+    fn refs(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::Object(object) => {
+                for (key, value) in object {
+                    match (key.as_str(), value.as_str()) {
+                        ("$ref", Some(target)) => {
+                            if let Some(name) = target.strip_prefix("#/$defs/") {
+                                out.push(name.to_owned());
+                            }
+                        }
+                        _ => refs(value, out),
+                    }
+                }
+            }
+            Value::Array(values) => values.iter().for_each(|v| refs(v, out)),
+            _ => {}
+        }
+    }
+    while let Some(name) = pending.pop() {
+        if reached.insert(name.clone()) {
+            refs(&defs[&name], &mut pending);
+        }
+    }
+    let mut out = defs[name].clone();
+    out["$defs"] = Value::Object(
+        reached
+            .into_iter()
+            .map(|name| (name.clone(), defs[&name].clone()))
+            .collect(),
+    );
+    out
+}
+
+/// An inline schema with only the definitions its root (named by the
+/// shared form's `$ref`) references, directly or through another: what a
+/// shared schema rebuilds to. An inline schema also lists definitions a
+/// member's own constraints replaced, which nothing references.
+fn referenced(inline: &Value, shared: &Value) -> Value {
+    let Some(name) = shared["$ref"]
+        .as_str()
+        .and_then(|r| r.strip_prefix("#/$defs/"))
+    else {
+        return inline.clone();
+    };
+    let description = serde_json::json!({ "schemas": { "$defs": inline["$defs"] } });
+    let mut root = inline.clone();
+    root.as_object_mut().unwrap().remove("$defs");
+    assert_eq!(
+        root, inline["$defs"][name],
+        "the root is its shape's definition"
+    );
+    rebuilt(&description, shared)
+}
+
+/// `Schemas::Shared` and `Schemas::Omit` change only where the operation
+/// schemas are: shared, each rebuilds to the inline schema exactly, and
+/// every other file is the same in every mode.
+#[test]
+fn shared_and_omitted_schemas_keep_the_contract_and_rebuild_the_inline_ones() {
+    use crucible_codegen_docs::{Options, Schemas, generate_with};
+    let services = [
+        (
+            "weather",
+            project(&documented(WEATHER), Audience::Internal).unwrap(),
+        ),
+        (
+            "catalog",
+            project(&documented(CATALOG), Audience::Internal).unwrap(),
+        ),
+        (
+            "permissions",
+            project(&leyline(), Audience::External).unwrap(),
+        ),
+    ];
+    for (name, service) in services {
+        let with = |schemas| {
+            let mut options = Options::default();
+            options.schemas = schemas;
+            generate_with(&service, &options).unwrap()
+        };
+        let describe = |files: &[crucible_codegen_docs::File]| -> Value {
+            let file = files.iter().find(|f| f.path == "describe.json").unwrap();
+            serde_json::from_str(&file.contents).unwrap()
+        };
+        let inline_files = with(Schemas::Inline);
+        let inline = describe(&inline_files);
+        assert!(inline.get("schemas").is_none(), "{name}");
+        for mode in [Schemas::Shared, Schemas::Omit] {
+            let files = with(mode);
+            // Only the description (and its script) differ.
+            for (a, b) in inline_files.iter().zip(&files) {
+                assert_eq!(a.path, b.path);
+                if !["describe.json", "describe.js"].contains(&a.path.as_str()) {
+                    assert_eq!(a.contents, b.contents, "{name}: {}", a.path);
+                }
+            }
+            let mut description = describe(&files);
+            for (id, op) in inline["operations"].as_object().unwrap() {
+                for key in ["inputSchema", "outputSchema"] {
+                    let schema = &description["operations"][id][key];
+                    match mode {
+                        Schemas::Shared => {
+                            assert_eq!(
+                                rebuilt(&description, schema),
+                                referenced(&op[key], schema),
+                                "{name}: {id} {key}"
+                            );
+                        }
+                        _ => assert!(schema.is_null(), "{name}: {id} {key}"),
+                    }
+                }
+            }
+            if mode == Schemas::Omit {
+                assert!(description.get("schemas").is_none(), "{name}");
+            }
+            // Everything else is unchanged.
+            description.as_object_mut().unwrap().remove("schemas");
+            let mut expected = inline.clone();
+            for value in [&mut description, &mut expected] {
+                for op in value["operations"].as_object_mut().unwrap().values_mut() {
+                    let op = op.as_object_mut().unwrap();
+                    op.remove("inputSchema");
+                    op.remove("outputSchema");
+                }
+            }
+            assert_eq!(description, expected, "{name}");
+        }
+    }
+}
+
+/// The shared and omitted descriptions the renderer's tests read.
+#[test]
+fn shared_and_omitted_descriptions_match_reviewed_goldens() {
+    use crucible_codegen_docs::{Options, Schemas, generate_with};
+    let service = project(&documented(WEATHER), Audience::Internal).unwrap();
+    for (mode, name) in [
+        (Schemas::Shared, "weather-shared.json"),
+        (Schemas::Omit, "weather-omit.json"),
+    ] {
+        let mut options = Options::default();
+        options.schemas = mode;
+        let files = generate_with(&service, &options).unwrap();
+        let file = files
+            .into_iter()
+            .find(|f| f.path == "describe.json")
+            .unwrap();
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/golden/schemas")
+            .join(name);
+        if std::env::var_os("CRUCIBLE_BLESS").is_some() {
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(&path, &file.contents).unwrap();
+        }
+        assert_eq!(
+            fs::read_to_string(&path).unwrap().replace("\r\n", "\n"),
+            file.contents,
+            "{}",
+            path.display()
+        );
+    }
+}

@@ -197,6 +197,8 @@ pub use crucible_codegen::ROptions;
 pub use crucible_codegen::RubyOptions;
 #[cfg(feature = "rust")]
 pub use crucible_codegen::RustServerOptions;
+#[cfg(feature = "docs")]
+pub use crucible_codegen::Schemas;
 #[cfg(feature = "swift")]
 pub use crucible_codegen::SwiftOptions;
 #[cfg(feature = "terraform")]

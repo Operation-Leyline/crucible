@@ -17,6 +17,17 @@ version's section when it is prepared.
 
 ### Added
 
+- A schema mode for `describe.json`: `DocsOutput::schemas` and `crucible
+  generate docs --schemas inline|shared|omit`. `Inline`, the default, is
+  unchanged. `Shared` writes every JSON Schema definition once, in a root
+  `schemas` object (`{"$defs": ...}`), and makes each operation's
+  `inputSchema` and `outputSchema` a `$ref` into it; `Omit` leaves them
+  out. Every mode is `crucible.describe/1` (additive), and a consumer must
+  handle all three; `CrucibleExplorer.operationSchema` rebuilds an
+  operation's schema in each, and the static reference and the Explorer
+  read it through that. Leyline's description is 5.8 MB inline, 4.2 MB
+  shared. See [docs/docs.md](docs/docs.md#operation-schemas).
+
 - The API reference has Markdown for agents: `llms.txt` beside
   `index.html` (the llms.txt convention: the service, what every request
   sends, and a linked line per page, operations and data types with their

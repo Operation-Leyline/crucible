@@ -153,6 +153,27 @@ impl From<AudienceArg> for crucible_codegen::Audience {
     }
 }
 
+/// Where describe.json carries the operations' JSON Schemas.
+#[derive(Clone, Copy, ValueEnum)]
+enum SchemasArg {
+    /// Each schema self-contained, with its own `$defs`.
+    Inline,
+    /// One root `schemas` map; each operation's schema a `$ref` into it.
+    Shared,
+    /// No operation schemas.
+    Omit,
+}
+
+impl From<SchemasArg> for crucible_codegen_docs::Schemas {
+    fn from(value: SchemasArg) -> Self {
+        match value {
+            SchemasArg::Inline => Self::Inline,
+            SchemasArg::Shared => Self::Shared,
+            SchemasArg::Omit => Self::Omit,
+        }
+    }
+}
+
 #[derive(Clone, Copy, ValueEnum)]
 enum ClientLanguage {
     Rust,
@@ -222,6 +243,10 @@ enum Target {
         /// describes beside describe.json: those the audience may see.
         #[arg(long, value_name = "FILE")]
         sdks: Option<PathBuf>,
+        /// Where describe.json carries each operation's inputSchema and
+        /// outputSchema; every mode is crucible.describe/1.
+        #[arg(long, value_enum, default_value = "inline")]
+        schemas: SchemasArg,
     },
     /// An OpenAPI 3.1 JSON document for a REST JSON service.
     Openapi {
@@ -995,7 +1020,12 @@ fn package_at(package: &Path, reference: &str) -> Result<tempfile::TempDir, Stri
 
 fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), String> {
     match target {
-        Target::Docs { source, out, sdks } => {
+        Target::Docs {
+            source,
+            out,
+            sdks,
+            schemas,
+        } => {
             // Checked first: the SDK file must declare this reference's
             // model, not another that happens to share its service ID.
             let sdks = sdks
@@ -1023,7 +1053,10 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             // client capabilities, only what their generators support.
             let full = lower_cru(&source, true)?;
             let service = crucible_ir::project(&full, audience).map_err(|e| e.to_string())?;
-            let files = crucible_codegen_docs::generate(&service).map_err(|e| e.to_string())?;
+            let mut options = crucible_codegen_docs::Options::default();
+            options.schemas = schemas.into();
+            let files = crucible_codegen_docs::generate_with(&service, &options)
+                .map_err(|e| e.to_string())?;
             let mut files = files
                 .into_iter()
                 .map(|file| crucible_codegen::File {

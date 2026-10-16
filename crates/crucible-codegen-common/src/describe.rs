@@ -28,9 +28,89 @@ pub struct Description {
     /// `api_version`. See [`versions`].
     #[serde(default)]
     pub versions: Value,
+    /// The operations' shared JSON Schema definitions, under `$defs`:
+    /// present only after [`Description::schemas`] with [`Schemas::Shared`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schemas: Option<Value>,
+}
+
+/// Where `describe.json` carries each operation's `inputSchema` and
+/// `outputSchema` (docs/docs.md, "Operation schemas").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Schemas {
+    /// Each schema self-contained, with the `$defs` it reaches: the format's
+    /// original form.
+    #[default]
+    Inline,
+    /// One root `schemas` object holds every definition under `$defs`; an
+    /// operation's schema is `{"$ref": "#/$defs/<key>"}` resolved against
+    /// it, or, for an operation without an input or output, the empty
+    /// object schema itself.
+    Shared,
+    /// No operation schemas: a reader derives what it needs from `shapes`.
+    Omit,
 }
 
 impl Description {
+    /// Move or drop the operations' JSON Schemas. A description is built
+    /// [`Schemas::Inline`]; this is applied once, after building.
+    pub fn schemas(&mut self, mode: Schemas) {
+        const KEYS: [&str; 2] = ["inputSchema", "outputSchema"];
+        match mode {
+            Schemas::Inline => {}
+            Schemas::Omit => {
+                for operation in self.operations.values_mut() {
+                    strip(operation, &KEYS);
+                }
+                // A removed operation's older entry has schemas too.
+                for release in self.versions["releases"]
+                    .as_array_mut()
+                    .into_iter()
+                    .flatten()
+                {
+                    for change in release["changes"].as_array_mut().into_iter().flatten() {
+                        if change["kind"] == "removeOperation" {
+                            strip(&mut change["older"]["operation"], &KEYS);
+                        }
+                    }
+                }
+            }
+            Schemas::Shared => {
+                // Older operations stay inline: their definitions are an
+                // older release's, which may differ under the same key.
+                let mut defs = Map::new();
+                for operation in self.operations.values_mut() {
+                    for (key, shape) in [("inputSchema", "input"), ("outputSchema", "output")] {
+                        // An operation without an input or output keeps its
+                        // empty object schema as it is.
+                        let Some(id) = operation[shape]
+                            .as_str()
+                            .and_then(|id| id.parse::<ShapeId>().ok())
+                        else {
+                            continue;
+                        };
+                        let reached = operation
+                            .get_mut(key)
+                            .and_then(Value::as_object_mut)
+                            .and_then(|schema| schema.remove("$defs"));
+                        if let Some(Value::Object(reached)) = reached {
+                            for (name, definition) in reached {
+                                defs.entry(name).or_insert(definition);
+                            }
+                        }
+                        // The root is its shape's own definition.
+                        operation[key] =
+                            json!({"$ref": format!("#/$defs/{}", json_schema::key(&id))});
+                    }
+                }
+                let mut shared = json!({"$defs": Value::Object(defs)});
+                sort_objects(&mut shared);
+                self.schemas = Some(shared);
+            }
+        }
+    }
+
     /// Deterministic UTF-8 JSON, independent of model-object insertion order.
     pub fn to_json(&self) -> String {
         let mut value = serde_json::to_value(self).expect("description is JSON data");
@@ -39,6 +119,14 @@ impl Description {
             "{}\n",
             serde_json::to_string_pretty(&value).expect("JSON data")
         )
+    }
+}
+
+fn strip(value: &mut Value, keys: &[&str]) {
+    if let Some(object) = value.as_object_mut() {
+        for key in keys {
+            object.remove(*key);
+        }
     }
 }
 
@@ -400,6 +488,7 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         operations,
         shapes,
         versions,
+        schemas: None,
     };
     // The permission registry (docs/permissions.md §6.3): internal entries
     // only when the caller described the server audience, whose IR keeps

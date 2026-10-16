@@ -12,6 +12,9 @@ pub struct Output<'a> {
     /// A reference's `crucible-sdk.toml`, whose SDKs `sdks.json` describes.
     #[cfg(feature = "docs")]
     pub(crate) sdks: Option<std::path::PathBuf>,
+    /// A reference's settings (`DocsOutput::schemas`).
+    #[cfg(feature = "docs")]
+    pub(crate) docs: crucible_codegen::DocsOptions,
 }
 
 impl Output<'_> {
@@ -97,11 +100,17 @@ impl Output<'_> {
         }
         // One lowering serves every generator: it carries the resources the
         // documentation and infrastructure generators read (decision 67).
+        let files = match self.generator {
+            #[cfg(feature = "docs")]
+            Generator::Docs => {
+                crucible_codegen::docs(&self.model.service, self.audience, &self.docs)
+            }
+            _ => self
+                .generator
+                .emit_for_audience(&self.model.service, self.audience),
+        };
         #[allow(unused_mut, reason = "only a reference adds a file")]
-        let mut files = self
-            .generator
-            .emit_for_audience(&self.model.service, self.audience)
-            .map_err(|e| format!("output {}: {e}", self.name))?;
+        let mut files = files.map_err(|e| format!("output {}: {e}", self.name))?;
         #[cfg(feature = "docs")]
         if let Some(path) = &self.sdks {
             files.push(

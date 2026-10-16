@@ -62,6 +62,13 @@ document. Its SDK file must declare this model, and the build needs the
 `crucible-build` feature of each SDK's language. `crucible sdk describe`
 prints the same document without a reference.
 
+A large API's `describe.json` repeats each type's JSON Schema in every
+operation that reaches it. `.schemas(crucible_build::Schemas::Shared)`, or
+`--schemas shared`, writes each definition once; `Schemas::Omit`
+(`--schemas omit`) leaves the operation schemas out. `Inline`, the
+default, is the original form; every mode is `crucible.describe/1`
+([Operation schemas](#operation-schemas)).
+
 `ModelPackage::docs` offers the same methods after explicit compilation.
 `generate` publishes under `OUT_DIR`; `generate_into` also exports relative to
 the Cargo producer's manifest. Fallible `try_generate` and `try_generate_into`
@@ -332,7 +339,7 @@ provisioning member bindings or interpreting design-time resource references.
 | `responseProtocolHeaders` | Fixed response headers for the modeled response, resolved in lowering |
 | `request`, `response` | Fully resolved binding objects below |
 | `input`, `output` | Nullable shape IDs; null means no modeled value/Unit |
-| `inputSchema`, `outputSchema` | Self-contained shared JSON Schemas for the entire input/output's document value, including bound members; `$defs` and local `$ref` references |
+| `inputSchema`, `outputSchema` | JSON Schemas for the entire input/output's document value, including bound members: self-contained with `$defs` and local `$ref` references, a `$ref` into the root `schemas`, or absent, by the reference's schema mode ([Operation schemas](#operation-schemas)) |
 | `errors` | Effective operation and inherited service error-ID array |
 | `auth` | Effective authentication scheme IDs |
 | `readonly`, `idempotent`, `idempotencyToken` | Retry/idempotency flags and nullable input token member name |
@@ -347,6 +354,30 @@ OpenAPI and MCP. They describe logical document values rather than an HTTP
 envelope; binding descriptions separately determine the wire location. Nullable/required/default
 behavior, effective constraints, and documentation notes reuse the shared schema
 implementation.
+
+### Operation schemas
+
+A reference is generated in one of three schema modes, each a valid
+`crucible.describe/1` document, and a consumer must handle all three:
+
+| Mode | `inputSchema`, `outputSchema` | Root `schemas` |
+|---|---|---|
+| `Inline` (default) | A self-contained schema: the root type's definition, with `$defs` holding every definition it reaches | Absent |
+| `Shared` | `{"$ref": "#/$defs/<key>"}`, where `<key>` is the input or output type's id with `#` as `.`, resolved against the root `schemas`; for an operation without an input or output, the same empty-object schema as `Inline` | `{"$defs": {...}}`: every definition an operation schema reaches, once |
+| `Omit` | Absent | Absent |
+
+In `Shared` mode, the schema an operation would have inline is the
+definition its `$ref` names, with a `$defs` of the definitions it
+references, directly or through another. That is the inline schema
+less the definitions nothing references (an inline schema also lists
+the type of a member whose own constraints replace it), so it validates
+the same documents. `CrucibleExplorer.operationSchema(description,
+operation, "inputSchema")` rebuilds it, and returns `null` in `Omit`
+mode, where a reader derives what it needs from `shapes`. A removed
+operation's older entry in `versions` keeps its schemas inline in
+`Shared` mode, since its definitions are an older release's, and has
+none in `Omit` mode. Sharing writes each definition once: Leyline's
+description is 5.8 MB inline, 4.2 MB shared and 3.4 MB without schemas.
 
 | Binding field | Type and meaning |
 |---|---|
@@ -716,6 +747,8 @@ Weather and RPC Catalog goldens include every generated file in both audiences,
 except the identical renderer files, which have one reviewed copy under
 `tests/golden/site`, `describe.js`, which tests compare with
 `describe.json`, and `llms-full.txt`, which tests compare with the pages.
+`tests/golden/schemas` holds Weather's description in the `Shared` and
+`Omit` modes, which the renderer's tests read.
 The Catalog fixture covers documentation notes, pagination, unions, enums,
 idempotency, RPC headers, timestamp examples, and arbitrary-precision wire values.
 The Links goldens (`tests/models/doc-links`) cover doc links in both audiences.

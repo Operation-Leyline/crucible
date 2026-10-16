@@ -219,7 +219,9 @@
       form.append(field);
     };
     credential("Bearer token", credentials.bearer, (value) => { credentials.bearer = value; });
-    const schema = operation.inputSchema;
+    // The renderer resolves a shared or omitted schema (docs/docs.md).
+    const renderer = root.CrucibleExplorer;
+    const schema = (renderer && renderer.operationSchema ? renderer.operationSchema(description, operation, "inputSchema") : operation.inputSchema) || {};
     const raw = element("textarea", null, "cx-try-json");
     raw.rows = 10;
     raw.spellcheck = false;
