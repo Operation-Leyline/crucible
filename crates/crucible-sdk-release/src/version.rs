@@ -6,7 +6,13 @@
 //!    kind, the floor, and anything `--bump` asks for.
 //!
 //! Phase 1 calls every change a patch; evidence (phase 2) only ever raises
-//! the kind passed in as [`Inputs::change`].
+//! the kind passed in as [`Inputs::change`]. One piece of that evidence is
+//! read already: a break in the model the SDK exposes, found by comparing
+//! the last release's `crucible-model.json` with the current one
+//! ([`Inputs::model_breaks`]), is a breaking change. On an SDK line of an
+//! older release (decision 76) the service's `version` never changes, so
+//! that comparison is what makes a break which reaches the line, excepted
+//! in the model or not, a major of that line.
 
 use std::fmt;
 use std::str::FromStr;
@@ -106,6 +112,10 @@ pub enum Reason {
     FirstRelease,
     /// The content digest differs from the last release's.
     ContentChanged { last: String, current: String },
+    /// The model the SDK exposes breaks since the last release: the
+    /// compatibility comparison of the two, both families at error and no
+    /// exception applied, found these. A breaking change.
+    ModelBreak { findings: Vec<String> },
     /// The last release has no schema-2 content digest (it predates SDK
     /// packaging), so it counts as changed, once.
     NoContentDigest,
@@ -129,6 +139,17 @@ impl fmt::Display for Reason {
             Self::NoContentDigest => f.write_str(
                 "the last release has no content digest (it predates crucible.json schema 2), so it counts as changed once",
             ),
+            Self::ModelBreak { findings } => {
+                let first = findings.first().map_or("", String::as_str);
+                match findings.len() {
+                    0 | 1 => write!(f, "the model breaks since the last release: {first}"),
+                    count => write!(
+                        f,
+                        "the model breaks since the last release: {first} (and {} more)",
+                        count - 1
+                    ),
+                }
+            }
             Self::FloorAboveLast { floor } => {
                 write!(f, "content unchanged, but the floor {floor} is above the last release")
             }
@@ -179,9 +200,17 @@ pub struct Inputs<'a> {
     pub bump: Option<ChangeKind>,
     /// `--first-release <sdk>`.
     pub first_release: bool,
-    /// For a `.cru` service only: its current `version`, compared with the
-    /// last release's `serviceVersion`.
+    /// For a `.cru` service only: the release the SDK is generated for (its
+    /// line's, decision 76, or the current `version`), compared with the
+    /// last release's `serviceVersion`. A line's never changes, so this
+    /// never warns on one.
     pub cru_service_version: Option<&'a str>,
+    /// The findings of comparing the last release's `crucible-model.json`
+    /// with the model the current package exposes, with the guard's
+    /// comparison at error for both families and no exception: an excepted
+    /// finding is still a break. Empty when nothing breaks, or when the
+    /// last release carries no model to compare.
+    pub model_breaks: &'a [String],
 }
 
 impl<'a> Inputs<'a> {
@@ -196,6 +225,7 @@ impl<'a> Inputs<'a> {
             bump: None,
             first_release: false,
             cru_service_version: None,
+            model_breaks: &[],
         }
     }
 }
@@ -260,11 +290,17 @@ pub fn choose(inputs: &Inputs<'_>) -> Result<Decision, VersionError> {
             last: last.version.clone(),
         });
     }
+    // A break in the model is breaking whatever else is said.
+    let change = if inputs.model_breaks.is_empty() {
+        inputs.change
+    } else {
+        ChangeKind::Breaking
+    };
     let mut warnings = Vec::new();
     if let (Some(current), Some(previous)) = (inputs.cru_service_version, last.service_version())
         && current != previous
         && inputs.bump < Some(ChangeKind::Breaking)
-        && inputs.change < ChangeKind::Breaking
+        && change < ChangeKind::Breaking
     {
         warnings.push(format!(
             "{}: the service version changed from {previous} to {current} since {}; a .cru service's version change is breaking, so consider --bump {}=major",
@@ -307,11 +343,14 @@ pub fn choose(inputs: &Inputs<'_>) -> Result<Decision, VersionError> {
             });
         }
     };
+    if !inputs.model_breaks.is_empty() {
+        reasons.push(Reason::ModelBreak {
+            findings: inputs.model_breaks.to_vec(),
+        });
+    }
     let mut candidates = vec![(
-        raise(&last.version, inputs.change),
-        Reason::Change {
-            kind: inputs.change,
-        },
+        raise(&last.version, change),
+        Reason::Change { kind: change },
     )];
     if let Some(floor) = inputs.floor {
         candidates.push((
@@ -571,6 +610,77 @@ mod tests {
         assert!(decide(inputs).warnings.is_empty());
         inputs.bump = None;
         inputs.cru_service_version = Some("2026-01-01");
+        assert!(decide(inputs).warnings.is_empty());
+    }
+
+    #[test]
+    fn a_model_break_is_a_major_and_says_why() {
+        let read = released("1.2.3", Some("d1"), "v1");
+        let breaks = ["compatibility.member: GetItemOutput$name was removed".to_owned()];
+        let mut inputs = Inputs::new("ts-v1", &read);
+        inputs.current_digest = Some("d2");
+        inputs.model_breaks = &breaks;
+        let decision = decide(inputs);
+        assert_eq!(decision.version, Some(v("2.0.0")));
+        assert_eq!(
+            decision.reasons,
+            vec![
+                Reason::ContentChanged {
+                    last: "d1".into(),
+                    current: "d2".into()
+                },
+                Reason::ModelBreak {
+                    findings: breaks.to_vec()
+                },
+                Reason::Change {
+                    kind: ChangeKind::Breaking
+                }
+            ]
+        );
+        assert_eq!(
+            decision.reasons[1].to_string(),
+            "the model breaks since the last release: compatibility.member: GetItemOutput$name was removed"
+        );
+        // Below 1.0 a break moves the minor, by the caret rules.
+        let read = released("0.2.3", Some("d1"), "v1");
+        let mut inputs = Inputs::new("ts-v1", &read);
+        inputs.current_digest = Some("d2");
+        inputs.model_breaks = &breaks;
+        assert_eq!(decide(inputs).version, Some(v("0.3.0")));
+        // Unchanged content is no release, whatever the models say.
+        inputs.current_digest = Some("d1");
+        assert_eq!(decide(inputs).version, None);
+    }
+
+    /// An SDK line of an older release (decision 76) records that release
+    /// as its `serviceVersion` in every release, so the version-changed
+    /// warning never fires on it; a break that reaches it, excepted in the
+    /// model or not, is found by the model comparison and is a major.
+    #[test]
+    fn a_line_is_classified_by_its_model_not_its_version() {
+        let read = released("1.4.0", Some("d1"), "v1");
+        let mut inputs = Inputs::new("ts-v1", &read);
+        inputs.current_digest = Some("d2");
+        // The current model moved from v3 to v4; the line is still v1.
+        inputs.cru_service_version = Some("v1");
+        let decision = decide(inputs);
+        assert!(decision.warnings.is_empty(), "{:?}", decision.warnings);
+        assert_eq!(decision.version, Some(v("1.4.1")));
+        let breaks = [
+            "compatibility.member: Label$size changed its target".to_owned(),
+            "compatibility.operation: CountItems was removed".to_owned(),
+        ];
+        inputs.model_breaks = &breaks;
+        let decision = decide(inputs);
+        assert!(decision.warnings.is_empty());
+        assert_eq!(decision.version, Some(v("2.0.0")));
+        assert!(decision.reasons[1].to_string().ends_with("(and 1 more)"));
+        // The current line's version change still warns, unless a break
+        // already makes the release a major.
+        inputs.cru_service_version = Some("v4");
+        inputs.model_breaks = &[];
+        assert_eq!(decide(inputs).warnings.len(), 1);
+        inputs.model_breaks = &breaks;
         assert!(decide(inputs).warnings.is_empty());
     }
 

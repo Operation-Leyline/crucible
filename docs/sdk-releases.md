@@ -67,6 +67,25 @@ channel = { git = "git@github.com:Operation-Pigeon/mailpigeon-rs.git", tag = "v{
   for that language, so `[sdk.java-internal]` sets `language = "java"`.
   `audience` is `"external"` (the default) or `"internal"`, and `out` is
   where `crucible sdk generate` writes the package.
+- **`api_version`** makes the SDK a line of an older release of a `.cru`
+  service (an SDK line, [api-versions-clients.md](api-versions-clients.md#5c-one-sdk-line-per-release)):
+  it is generated from the current model as that release sees it, sends
+  the release in `Crucible-Version` and records it as `serviceVersion`.
+  Without it, an SDK is the current release's. A line names its
+  language, since its name is not one:
+
+  ```toml
+  [sdk.ts-v1]
+  language = "ts"
+  api_version = "v1"
+  package = "@example/shop-v1"
+  out = "generated/shop-v1-ts"
+  channel = { npm = "https://npm.pkg.github.com", dist_tag = "v1" }
+  ```
+
+  A release the model does not serve is an error at the key, naming the
+  ones it does. A reference's `sdks.json` describes the SDKs of the
+  release it documents.
 - **Language keys** are the generator's options, in snake case:
   `package` (what the builder's `.package(..)` sets), `group_id`,
   `artifact_id`, `package_id` (C#), `module_name`, `namespace`, `prefix`
@@ -182,6 +201,9 @@ Rust and TypeScript packages carry two files at their root, which npm's
   `schemaSha256` (the shared wire schema's digest), `configSha256` (for a
   declared SDK) and `contentDigest`. `crucible sdk build` adds `source`:
   the service repository and commit, and `dirty` with `--allow-dirty`.
+  `serviceVersion` is the release the package is generated for: an SDK
+  line's own (`api_version`), else the service's current `version`. The
+  other languages' schema-1 `crucible.json` records it the same way.
 - `crucible-model.json`: the compiled model as the package's audience sees
   it, in the release snapshot format of `crucible freeze`, as compact JSON
   of the typed contract: no documentation strings and no raw trait maps,
@@ -277,12 +299,18 @@ inputs, generated at the last release's version, have the same
 `contentDigest`; then there is no release unless the `version` floor is
 above the last version. Otherwise the version is the highest of the last
 version plus a patch, the floor, and `--bump <name>=patch|minor|major`
-(Cargo's and npm's caret rules: below 1.0, `major` moves the minor). A
-release made before `crucible.json` schema 2 (Pigeon's `contractHash`
+(Cargo's and npm's caret rules: below 1.0, `major` moves the minor). The
+model the SDK exposes is compared with the last release's
+`crucible-model.json`, with the compatibility guard's comparison at error
+for both families and no exception applied: a finding makes the release
+breaking, with a `model-break` reason that lists it (an excepted break is
+still a break). A release made before `crucible.json` schema 2 (Pigeon's `contractHash`
 tarballs and `sdk-release.json` tags) counts as changed once. An empty
 channel needs `--first-release <name>`, which takes the floor or `0.1.0`;
 a channel that cannot be read fails the plan. For a `.cru` service, a
-changed `serviceVersion` warns until `--bump <name>=major`.
+changed `serviceVersion` warns until `--bump <name>=major`; an SDK line
+(`api_version`) records its own release every time, so it never warns,
+and a break that reaches its release is found by the model comparison.
 
 **`build`** plans again, then, into a new or empty `--out`:
 

@@ -45,6 +45,10 @@ pub struct Sdk {
     pub name: String,
     pub language: Language,
     pub audience: crucible_ir::Audience,
+    /// The release this SDK is a line of (`api_version`, decision 76):
+    /// generated from the current model as that release sees it, sending
+    /// it in `Crucible-Version`. `None` is the current release.
+    pub api_version: Option<String>,
     /// Where `crucible sdk generate` writes the development export.
     pub out: String,
     /// The version floor (see Versions); development exports ignore it.
@@ -379,6 +383,7 @@ impl Sdk {
                 crucible_ir::Audience::Internal => "internal",
             }),
         );
+        set("api_version", json!(self.api_version));
         set("model", json!(file.model));
         set("service", json!(file.service));
         set("out", json!(self.out));
@@ -483,6 +488,23 @@ impl Sdk {
     pub fn config_sha256(&self, file: &SdkFile) -> String {
         let text = serde_json::to_string(&self.effective(file)).expect("JSON serializes");
         crate::provenance::hex(&Sha256::digest(text.as_bytes()))
+    }
+
+    /// The model this SDK is generated from: `service`, the current model
+    /// as lowered with its versions, as this SDK's release sees it (its
+    /// line), or `service` itself for the current release. A release the
+    /// chain does not have is an error naming the supported ones. Its
+    /// audience is still to be projected.
+    pub fn model<'a>(
+        &self,
+        service: &'a crucible_ir::ir::Service,
+    ) -> Result<std::borrow::Cow<'a, crucible_ir::ir::Service>, String> {
+        match &self.api_version {
+            None => Ok(std::borrow::Cow::Borrowed(service)),
+            Some(release) => crucible_ir::versions::line(service, release)
+                .map(std::borrow::Cow::Owned)
+                .map_err(|diagnostics| format!("sdk.{}.api_version: {diagnostics}", self.name)),
+        }
     }
 
     /// The version `crucible sdk generate` writes: the CLI's development

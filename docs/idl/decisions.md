@@ -1586,7 +1586,8 @@ references are to the code as of the design.
     and gets no failing default. *Why:* hiding breaks 51, and a default that
     fails at run time is a silent skip.
 
-76. **An SDK line is chosen with `model(..).api_version(..)`,
+76. *(Built, PR 7 of [api-versions-clients.md](../api-versions-clients.md#order).)*
+    **An SDK line is chosen with `model(..).api_version(..)`,
     `--api-version` or an SDK file's `api_version`, and records its release
     as `crucible.json`'s `serviceVersion`.** Rust and TypeScript write it in
     schema 2, the other languages in schema 1. The "`version` changed"

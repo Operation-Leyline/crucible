@@ -28,6 +28,12 @@ struct Source {
     /// The service to lower, when the model defines several.
     #[arg(long)]
     service: Option<ShapeId>,
+    /// Generate for this supported release, from the current model as it
+    /// sees it (an SDK line): its types, its operations and the release
+    /// its clients send. Defaults to the current release. A server is
+    /// never generated for one: it serves every release.
+    #[arg(long, value_name = "RELEASE")]
+    api_version: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -689,24 +695,26 @@ fn run(command: Command) -> ExitCode {
             source,
             target,
             config,
-        } => lower_with_capabilities(
-            &source,
-            // An empty set would refuse every gated feature (`sparse`, ...)
-            // that the model is allowed to use; only a named client narrows it.
-            &target.map(ClientLanguage::capabilities).unwrap_or_else(|| {
-                crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied())
-            }),
-        )
-        .and_then(|service| {
-            // A package's manifest may carry its policy; --config selects another.
+        } => lower_cru(&source, true).and_then(|full| {
+            // A package's manifest may carry its policy; --config selects
+            // another. Policy reads the model as written, not a release's
+            // view of it.
             let manifest = is_cru_package(&source.model)
                 .then(|| source.model.join("crucible.toml"))
                 .filter(|path| {
                     std::fs::read_to_string(path)
                         .is_ok_and(|text| crucible_policy::Config::declares_policy(&text))
                 });
+            let service = select(full.clone(), &source)?;
+            // An empty set would refuse every gated feature (`sparse`, ...)
+            // that the model is allowed to use; only a named client narrows it.
+            service
+                .require_capabilities(&target.map(ClientLanguage::capabilities).unwrap_or_else(
+                    || crucible_ir::Capabilities::new(crucible_ir::Feature::ALL.iter().copied()),
+                ))
+                .map_err(|d| d.to_string())?;
             if let Some(path) = config.or(manifest) {
-                policy::check(&service, &path)?;
+                policy::check(&full, &path)?;
             }
             print!("{}", summary(&service));
             Ok(())
@@ -757,6 +765,12 @@ fn run(command: Command) -> ExitCode {
             contract,
             service_type,
         } => lower(&source).and_then(|service| {
+            if crucible_ir::versions::is_line(&service) {
+                return Err(format!(
+                    "--api-version {}: scaffolding writes a server's operations, and a server serves every release from the current model; scaffold without --api-version",
+                    service.version
+                ));
+            }
             let options = crucible_codegen_rust::ScaffoldOptions {
                 contract,
                 service_type,
@@ -781,7 +795,7 @@ fn lower_with_capabilities(
     source: &Source,
     capabilities: &crucible_ir::Capabilities,
 ) -> Result<Service, String> {
-    let service = lower_cru(source, true)?;
+    let service = select(lower_cru(source, true)?, source)?;
     service
         .require_capabilities(capabilities)
         .map_err(|d| d.to_string())?;
@@ -818,6 +832,18 @@ fn lower_for_client(
         .require_capabilities(capabilities)
         .map_err(|d| d.to_string())?;
     Ok(projected)
+}
+
+/// `service`, the current model as lowered with its versions, as the
+/// release `--api-version` names sees it (an SDK line, decision 76), the
+/// one function a build calls too; the current model without the flag. A
+/// release outside the chain is an error naming the supported ones.
+fn select(service: Service, source: &Source) -> Result<Service, String> {
+    match &source.api_version {
+        None => Ok(service),
+        Some(release) => crucible_ir::versions::line(&service, release)
+            .map_err(|diagnostics| format!("--api-version {release}: {diagnostics}")),
+    }
 }
 
 /// Whether `path` is a Crucible language package.
@@ -895,6 +921,7 @@ fn compile(package: PathBuf, service: Option<ShapeId>, out: Option<&Path>) -> Re
         &Source {
             model: package,
             service,
+            api_version: None,
         },
         true,
     )?;
@@ -1072,7 +1099,7 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
                 .transpose()?;
             // As in a build: documentation and infrastructure check no
             // client capabilities, only what their generators support.
-            let full = lower_cru(&source, true)?;
+            let full = select(lower_cru(&source, true)?, &source)?;
             let service = crucible_ir::project(&full, audience).map_err(|e| e.to_string())?;
             let mut options = crucible_codegen_docs::Options::default();
             options.schemas = schemas.into();
@@ -1115,8 +1142,9 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             config,
             out,
         } => {
-            let service = crucible_ir::project(&lower_cru(&source, true)?, audience)
-                .map_err(|d| d.to_string())?;
+            let service =
+                crucible_ir::project(&select(lower_cru(&source, true)?, &source)?, audience)
+                    .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let options = read_config(&config)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
@@ -1139,8 +1167,9 @@ fn generate(target: Target, audience: crucible_codegen::Audience) -> Result<(), 
             provider_address,
             out,
         } => {
-            let service = crucible_ir::project(&lower_cru(&source, true)?, audience)
-                .map_err(|d| d.to_string())?;
+            let service =
+                crucible_ir::project(&select(lower_cru(&source, true)?, &source)?, audience)
+                    .map_err(|d| d.to_string())?;
             let bindings = read_config(&bindings)?;
             let plan = crucible_codegen_infra::resolve(&service, &bindings)
                 .map_err(|d| format!("invalid provisioning bindings:\n{d}"))?;

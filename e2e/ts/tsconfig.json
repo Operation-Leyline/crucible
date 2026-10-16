@@ -11,5 +11,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["*.test.ts", "node.d.ts", "../generated/weather-ts/src"]
+  "include": ["*.test.ts", "node.d.ts", "../generated/weather-ts/src", "../generated/shop-v1-ts/src"]
 }

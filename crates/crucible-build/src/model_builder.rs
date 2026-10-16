@@ -13,6 +13,9 @@ pub struct ModelConfig {
     pub(crate) policy: Option<PathBuf>,
     /// Show the model's warnings and policy findings as Cargo warnings.
     pub(crate) report: bool,
+    /// The release every output but a server is generated for; `None` is
+    /// the current one.
+    pub(crate) api_version: Option<String>,
 }
 
 impl ModelConfig {
@@ -28,6 +31,7 @@ impl ModelConfig {
             service: None,
             policy,
             report: true,
+            api_version: None,
         }
     }
 
@@ -40,6 +44,12 @@ impl ModelConfig {
     /// Apply API policy before publishing the model or generating any SDK.
     pub fn policy(mut self, path: impl AsRef<Path>) -> Self {
         self.policy = Some(absolute(path.as_ref()));
+        self
+    }
+
+    /// Generate every output but a server for this supported release.
+    pub fn api_version(mut self, release: &str) -> Self {
+        self.api_version = Some(release.to_owned());
         self
     }
 
@@ -62,6 +72,14 @@ impl ModelConfig {
             println!("cargo::rerun-if-changed={}", policy.display());
             crate::check_policy(&service, policy, self.report)?;
         }
-        ModelPackage::new(self.source, service, output, self.policy, self.report)
+        let service = crate::line(service, self.api_version.as_deref())?;
+        ModelPackage::new(
+            self.source,
+            service,
+            output,
+            self.policy,
+            self.report,
+            self.api_version,
+        )
     }
 }

@@ -54,6 +54,14 @@ contract fields are not breaking. `Operation::snippet` and
 which generators share to write snippets and package READMEs, are
 generator support, not part of the stable surface.
 
+SDK lines ([api-versions-clients.md](api-versions-clients.md#5c-one-sdk-line-per-release))
+add `crucible_build::Model::api_version`, `ModelPackage::api_version`,
+the `--api-version` option of `crucible generate` and `crucible check`,
+the SDK file's `api_version` key and `crucible_codegen::sdks::lines_of`,
+all additive: without them every output is the current release's, as
+before. A reference's `sdks.json` describes the SDKs of the release it
+documents.
+
 `Crucible::builder` takes the operation registry produced by the generated
 service module. `Crucible::{invoke, invoke_json, invoke_json_with}` support
 direct calls, `handle` serves an HTTP request, and `into_router` integrates with

@@ -462,11 +462,24 @@ fn describe_inner(service: &Service, explorer: bool) -> Result<Description, Diag
         .iter()
         .map(|(id, s)| (id.to_string(), shape(service, id, s)))
         .collect();
+    // A line, an older release's reference (decision 79), carries the same
+    // `versions` block as the current reference, so its `service.version`
+    // is its release while `versions.current` is the current one; its
+    // elements are dated as the current model dates them, where they come
+    // from.
+    let current_model;
+    let chain = match crucible_ir::versions::line_current(service) {
+        Some(current) => {
+            current_model = current;
+            &current_model
+        }
+        None => service,
+    };
     // Older definitions are compared with the current ones before either
     // carries its history.
-    let versions = versions(service, &shapes);
+    let versions = versions(chain, &shapes);
     let mut operations: BTreeMap<String, Value> = operations;
-    let histories = crucible_ir::versions::history(service);
+    let histories = crucible_ir::versions::history(chain);
     for op in &service.operations {
         if let Some(value) = operations.get_mut(&op.id.to_string()) {
             value["history"] = history(histories.get(&op.id));

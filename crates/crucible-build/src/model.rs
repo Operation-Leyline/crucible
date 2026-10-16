@@ -82,6 +82,20 @@ impl Model {
         self
     }
 
+    /// Generate every output but a server for the supported release
+    /// `release`, from the current model as that release sees it (an SDK
+    /// line, decision 76): its types and operations, and the release its
+    /// clients send in `Crucible-Version` and record as `serviceVersion`.
+    /// The default is the current release. A release outside the chain
+    /// fails the build naming the supported ones, and a server is refused:
+    /// it serves every release from the current model. A sunset release can
+    /// be generated until its migration is removed.
+    pub fn api_version(mut self, release: &str) -> Self {
+        self.package.take();
+        self.builder = self.builder.api_version(release);
+        self
+    }
+
     fn path(&self) -> &Path {
         &self.builder.source
     }
@@ -114,6 +128,7 @@ impl Model {
         output.service = self.builder.service.clone();
         output.policy = self.builder.policy.clone();
         output.report = self.builder.report;
+        output.api_version = self.builder.api_version.clone();
         output.options.require_rejection = true;
         output
     }

@@ -22,6 +22,8 @@ pub struct ModelPackage {
     /// ([`crate::Model::report_warnings`]).
     #[cfg_attr(not(feature = "rust"), allow(dead_code))]
     report: bool,
+    /// The release `service` is a line of, as `Model::api_version` chose it.
+    api_version: Option<String>,
 }
 
 impl ModelPackage {
@@ -31,6 +33,7 @@ impl ModelPackage {
         output: PathBuf,
         policy: Option<PathBuf>,
         report: bool,
+        api_version: Option<String>,
     ) -> Result<Self, String> {
         let package = Self {
             source: model.clone(),
@@ -40,6 +43,7 @@ impl ModelPackage {
             artifacts: RefCell::new(BTreeMap::new()),
             policy,
             report,
+            api_version,
         };
         // OUT_DIR survives rebuilds: reset membership so removed generation
         // calls cannot leave previously published output variants discoverable.
@@ -59,7 +63,14 @@ impl ModelPackage {
         output.options.require_rejection = true;
         output.policy = self.policy.clone();
         output.report = self.report;
+        output.api_version = self.api_version.clone();
         output
+    }
+
+    /// The release this package's outputs are generated for: the one
+    /// `Model::api_version` selected, else the current release.
+    pub fn api_version(&self) -> &str {
+        crucible_ir::versions::current_name(&self.service)
     }
 
     /// Generate client bindings from an explicitly compiled model.

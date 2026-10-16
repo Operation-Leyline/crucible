@@ -178,6 +178,17 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+    // Release v1's SDK line (decision 76): a client generated from the
+    // current model as v1 sees it, which names v1 in `Crucible-Version`.
+    std::fs::write(
+        out.join("versioned_v1_client.rs"),
+        crucible_build::model("versioned")
+            .api_version("v1")
+            .client()
+            .render()
+            .unwrap(),
+    )
+    .unwrap();
     crucible_build::model("weather_model")
         .server()
         .explorer()

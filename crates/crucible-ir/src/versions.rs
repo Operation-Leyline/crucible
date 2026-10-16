@@ -12,7 +12,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+mod line;
 mod projection;
+pub use line::{is_line, line, line_current, releases};
 pub use projection::{Projection, current_permission, projections, rename_path, undo};
 
 use crate::ShapeId;

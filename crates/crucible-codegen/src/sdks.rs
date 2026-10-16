@@ -36,9 +36,27 @@ pub fn visible_in(file: &SdkFile, audience: Audience) -> Vec<&Sdk> {
         .collect()
 }
 
+/// Those of `selected` that are lines of `service`'s release (decision
+/// 76): the SDKs whose `api_version` names it, and those without one when
+/// it is the current release (`service` may itself be a line). A reference
+/// for a release describes these, so its snippets name the types and
+/// operations its pages do.
+pub fn lines_of<'a>(service: &Service, selected: &[&'a Sdk]) -> Vec<&'a Sdk> {
+    let release = crucible_ir::versions::current_name(service);
+    let current = crucible_ir::versions::line_current(service);
+    let current = crucible_ir::versions::current_name(current.as_ref().unwrap_or(service));
+    selected
+        .iter()
+        .copied()
+        .filter(|sdk| sdk.api_version.as_deref().unwrap_or(current) == release)
+        .collect()
+}
+
 /// The `crucible.sdks/1` document for `selected` SDKs of `file` (read with
 /// [`crate::sdk::load`]: no environment), generated from `service` (the
-/// full lowered model; each SDK projects its own audience). An
+/// full lowered model, or a line of it; each SDK is described from its own
+/// release's line and projects its own audience, and the raw request is
+/// `service`'s). An
 /// `endpoint = { env = "NAME" }` is recorded by its variable's name, with a
 /// null `endpoint`. Every SDK that cannot be described is reported, in one
 /// error. Deterministic: the same file and model give the same bytes.
@@ -52,10 +70,14 @@ pub fn document(file: &SdkFile, service: &Service, selected: &[&Sdk]) -> Result<
             service.id
         ));
     }
+    // Each SDK is described from its own line, found from the current
+    // model whichever release `service` is.
+    let current = crucible_ir::versions::line_current(service);
+    let current = current.as_ref().unwrap_or(service);
     let mut sdks = serde_json::Map::new();
     let mut errors = Vec::new();
     for sdk in selected {
-        match entry(file, service, sdk) {
+        match sdk.model(current).and_then(|line| entry(file, &line, sdk)) {
             Ok(entry) => {
                 sdks.insert(sdk.name.clone(), entry);
             }
@@ -107,10 +129,11 @@ pub fn render(document: &Value) -> String {
     text
 }
 
-/// `sdks.json` for a reference at `audience`: the [`document`] of
-/// [`visible_in`].
+/// `sdks.json` for a reference at `audience` of `service`'s release: the
+/// [`document`] of the SDKs [`visible_in`] it that are [`lines_of`] it.
 pub fn file(file: &SdkFile, service: &Service, audience: Audience) -> Result<crate::File, String> {
-    let document = document(file, service, &visible_in(file, audience))?;
+    let visible = visible_in(file, audience);
+    let document = document(file, service, &lines_of(service, &visible))?;
     Ok(crate::File {
         path: FILE_NAME.into(),
         contents: render(&document),
