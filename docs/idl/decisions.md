@@ -1581,8 +1581,9 @@ references are to the code as of the design.
     `crucible.json`.
 
 77. **The reference dates every element from the release chain.**
-    `history.added` is the release the element first appeared in,
-    following renames, `null` when the oldest supported release has it;
+    `history.added` is the release since which every release has the
+    element, following renames (its latest addition, if it was dropped and
+    added again), `null` when the oldest supported release has it;
     `history.changed` lists the releases whose steps name it;
     `history.missing` the releases that cannot see it because it sits
     inside a later reshape or removal. `crucible_ir::versions::history`

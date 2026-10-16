@@ -52,6 +52,11 @@
           "title": "Read items"
         }
       ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#ListItems",
       "idempotencyToken": null,
       "idempotent": false,
@@ -441,6 +446,11 @@
           "title": "Service unavailable"
         }
       ],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#WriteItem",
       "idempotencyToken": "clientToken",
       "idempotent": true,
@@ -835,6 +845,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#BigInteger",
       "internal": false,
       "kind": "bigInteger",
@@ -859,6 +874,11 @@
         "html": "",
         "markdown": "",
         "text": ""
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "crucible.api#Integer",
       "internal": false,
@@ -885,6 +905,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#String",
       "internal": false,
       "kind": "string",
@@ -910,6 +935,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#Timestamp",
       "internal": false,
       "kind": "timestamp",
@@ -930,6 +960,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#Content",
       "internal": false,
       "kind": "union",
@@ -950,6 +985,11 @@
             "html": "<p>Item text.</p>\n",
             "markdown": "Item text.",
             "text": "Item text."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "text",
@@ -988,6 +1028,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "amount",
           "notes": {
@@ -1019,6 +1064,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": true,
           "name": "secret",
@@ -1065,6 +1115,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#Items",
       "internal": false,
       "kind": "list",
@@ -1082,6 +1137,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -1120,6 +1180,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#ListItemsInput",
       "internal": false,
       "kind": "structure",
@@ -1137,6 +1202,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "nextToken",
@@ -1173,6 +1243,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "pageSize",
           "notes": {
@@ -1208,6 +1283,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#ListItemsOutput",
       "internal": false,
       "kind": "structure",
@@ -1225,6 +1305,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "items",
@@ -1257,6 +1342,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "nextToken",
@@ -1292,6 +1382,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#State",
       "internal": false,
       "kind": "enum",
@@ -1310,6 +1405,11 @@
             "html": "<p>Ready.</p>\n",
             "markdown": "Ready.",
             "text": "Ready."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "READY",
@@ -1331,6 +1431,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": true,
           "name": "HIDDEN",
@@ -1392,6 +1497,11 @@
         "status": 503,
         "wireCode": "Unavailable"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#Unavailable",
       "internal": false,
       "kind": "structure",
@@ -1409,6 +1519,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -1445,6 +1560,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#WriteItemInput",
       "internal": false,
       "kind": "structure",
@@ -1462,6 +1582,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "itemId",
@@ -1495,6 +1620,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "item",
           "notes": {
@@ -1526,6 +1656,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "clientToken",
@@ -1562,6 +1697,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.docs#WriteItemOutput",
       "internal": false,
       "kind": "structure",
@@ -1579,6 +1719,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "state",
@@ -1612,6 +1757,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "at",
           "notes": {
@@ -1644,6 +1794,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "total",
           "notes": {
@@ -1672,5 +1827,32 @@
       },
       "sensitive": false
     }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "2026-10",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "2026-10",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
   }
 }

@@ -149,3 +149,57 @@ fn docs_write_sdks_json_beside_describe_json() {
         String::from_utf8_lossy(&result.stderr)
     );
 }
+
+#[test]
+fn docs_history_probe() {
+    if std::env::var_os("CRUCIBLE_DOCS_HISTORY_PROBE").is_none() {
+        return;
+    }
+    let reference = crucible_build::model("version-history")
+        .docs("reference")
+        .generate();
+    let read = |name: &str| -> Value {
+        serde_json::from_slice(&fs::read(reference.path.join(name)).unwrap()).unwrap()
+    };
+    let description = read("describe.json");
+    assert_eq!(description["versions"]["current"], "v3");
+    assert_eq!(
+        description["versions"]["releases"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(
+        description["operations"]["example.history#DeleteItem"]["history"]["added"],
+        "v3"
+    );
+    let changes = read("changes.json");
+    assert_eq!(changes["format"], "crucible.changes/1");
+    assert_eq!(changes["versions"], description["versions"]);
+    assert!(reference.files.iter().any(|file| file == "changes.json"));
+    assert!(reference.path.join("src/releases/v3.md").is_file());
+}
+
+/// A build's reference reads the release chain the build serves: every
+/// supported release and what changed in each, beside `describe.json`.
+#[test]
+fn docs_document_the_release_chain() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    common::install_shared(root, "version-history");
+    let result = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "docs_history_probe", "--nocapture"])
+        .env("CRUCIBLE_DOCS_HISTORY_PROBE", "1")
+        .env("CARGO_MANIFEST_DIR", root)
+        .env("OUT_DIR", root.join("out"))
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}\n{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+}

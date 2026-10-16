@@ -1,0 +1,30 @@
+# Summary
+
+- [Service overview](index.md)
+- Service operations
+  - [Audit](operations/API_Audit.md) **Internal**
+  - [DeleteItem](operations/API_DeleteItem.md)
+  - [GetItem](operations/API_GetItem.md)
+  - [ListItems](operations/API_ListItems.md)
+  - [PutItem](operations/API_PutItem.md)
+- Data types
+  - [AuditInput](shapes/AuditInput.md)
+  - [AuditOutput](shapes/AuditOutput.md)
+  - [Conflict](shapes/Conflict.md) **Internal**
+  - [DeleteItemInput](shapes/DeleteItemInput.md)
+  - [GetItemInput](shapes/GetItemInput.md)
+  - [GetItemOutput](shapes/GetItemOutput.md)
+  - [ItemGone](shapes/ItemGone.md)
+  - [ItemLocked](shapes/ItemLocked.md)
+  - [ItemNotFound](shapes/ItemNotFound.md)
+  - [Kind](shapes/Kind.md)
+  - [ListItemsInput](shapes/ListItemsInput.md)
+  - [ListItemsOutput](shapes/ListItemsOutput.md)
+  - [Names](shapes/Names.md)
+  - [PutItemInput](shapes/PutItemInput.md)
+  - [PutItemOutput](shapes/PutItemOutput.md)
+  - [Size](shapes/Size.md)
+- [Releases](releases.md)
+  - [v1](releases/v1.md)
+  - [v2](releases/v2.md)
+  - [v3](releases/v3.md)

@@ -23,7 +23,10 @@ const PERMISSIONS_EXTERNAL = golden("permissions-external");
 const SAMPLES = golden("samples-external");
 const LINKS = golden("links-internal");
 const LINKS_EXTERNAL = golden("links-external");
-const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL };
+const HISTORY = golden("history-internal");
+const HISTORY_EXTERNAL = golden("history-external");
+const VERSIONED = golden("versioned-external");
+const DESCRIPTIONS = { WEATHER, WEATHER_EXTERNAL, CATALOG, PERMISSIONS, PERMISSIONS_EXTERNAL, SAMPLES, LINKS, LINKS_EXTERNAL, HISTORY, HISTORY_EXTERNAL, VERSIONED };
 
 // ---- walking rendered nodes ----------------------------------------------
 
@@ -152,6 +155,7 @@ test("internal, deprecated and unstable badges follow the description", () => {
 
 test("navigation groups operations by resource, then service operations, then data types", () => {
   const groups = x.navigation(x.index(WEATHER));
+  // One release, the current one: no changelog to list.
   assert.deepEqual(groups.map((g) => g.label), ["City", "Service operations", "Data types"]);
   assert.deepEqual(groups[0].entries.map((e) => e.item.name), ["CreateCity", "GetCity", "GetCityPhoto", "ListCities", "PutCityPhoto"]);
   assert.ok(!groups[2].entries.some((e) => e.id.startsWith("crucible.api#")));
@@ -235,6 +239,7 @@ function poison(value, key = "") {
   const DISPLAY = new Set([
     "name", "wireName", "targetName", "title", "message", "since", "pattern", "version", "text", "markdown",
     "wireCode", "bodyDiscriminator", "discriminatorHeader", "mediaType", "idempotencyToken", "default", "wireDefault",
+    "added", "changed", "missing", "from", "sunset", "current", "member", "members", "into",
   ]);
   if (Array.isArray(value)) return value.map((v) => poison(v, key));
   if (value && typeof value === "object") {
@@ -262,6 +267,7 @@ function everyString(value, key = "") {
 }
 
 const HOSTILE = poison(WEATHER);
+const HOSTILE_HISTORY = poison(HISTORY);
 const KNOWN_TAGS = "div|span|a|h1|h2|h3|p|ul|li|nav|main|section|header|table|caption|thead|tbody|tr|th|td|code|pre|button|dl|dt|dd|details|summary|strong";
 
 function allViews(description) {
@@ -270,13 +276,14 @@ function allViews(description) {
   for (const id of Object.keys(description.operations)) views.push(x.operationView(m, id, null));
   for (const id of Object.keys(description.shapes)) views.push(x.shapeView(m, id));
   for (const id of Object.keys(description.resources)) views.push(x.resourceView(m, id));
+  for (const release of m.releases) views.push(x.releaseView(m, release.name));
   return views;
 }
 
 test("XSS: model strings render as text, only documentation.html is markup", () => {
   const allowed = new Set([SAFE_HTML]);
   let hostileTexts = 0;
-  for (const view of allViews(HOSTILE)) {
+  for (const view of [...allViews(HOSTILE), ...allViews(HOSTILE_HISTORY)]) {
     const all = nodes(view);
     // The only markup entry point is a documentation html node, with exactly
     // the (pre-sanitised) string the description carried.
@@ -504,14 +511,17 @@ test("the test fixtures cover all goldens the generator ships", () => {
   assert.deepEqual(dirs, [
     "catalog-external",
     "catalog-internal",
+    "history-external",
+    "history-internal",
     "links-external",
     "links-internal",
     "permissions-external",
     "permissions-internal",
     "samples-external",
+    "versioned-external",
     "weather-external",
     "weather-internal",
-  ]);
+  ].sort());
 });
 
 test("doc links become hash routes to the page for their id", () => {
@@ -562,4 +572,98 @@ test("an operation member link opens the operation it names, though operations s
   assert.equal(x.refHref(m, "example.links#GetWidgetInput$widgetId", "example.links#AnotherGet"), "#/op/example.links%23AnotherGet/request");
   const html = x.rich('<a data-crucible-ref="example.links#GetWidgetInput$widgetId" data-crucible-operation="example.links#GetWidget">w</a>', m).html;
   assert.equal(html, '<a href="#/op/example.links%23GetWidget/request" data-crucible-ref="example.links#GetWidgetInput$widgetId" data-crucible-operation="example.links#GetWidget">w</a>');
+});
+
+// ---- release history (decisions 77 and 78) -------------------------------
+
+test("history badges date each element and link its release's changelog", () => {
+  const m = x.index(HISTORY_EXTERNAL);
+  const get = htmlOf(x.operationView(m, "example.history#GetItem", null));
+  assert.ok(get.includes('<a class="cx-badge cx-changed" href="#/release/v3">Changed in v3</a>'), get);
+  const size = x.shapeView(m, "example.history#Size");
+  const sizeHtml = htmlOf(size);
+  assert.ok(sizeHtml.includes('<a class="cx-badge cx-changed" href="#/release/v2">Changed in v2</a>'), sizeHtml);
+  assert.ok(sizeHtml.includes('<a class="cx-badge cx-added" href="#/release/v3">Added in v3</a>'), sizeHtml);
+  // A member a reshape hides from older clients says so.
+  assert.ok(textOf(size).includes("Not in v1"), textOf(size));
+  assert.ok(htmlOf(x.shapeView(m, "example.history#Kind")).includes(">Added in v2</a>"));
+  // Something older than every supported release carries no badge.
+  assert.ok(!htmlOf(x.shapeView(m, "example.history#Names")).includes("cx-added"));
+  // A new error is dated where an operation lists it.
+  assert.ok(htmlOf(x.operationView(m, "example.history#GetItem", null)).includes(">Added in v3</a>"));
+});
+
+test("@since is the fallback for an element older than every release", () => {
+  const description = structuredClone(HISTORY_EXTERNAL);
+  const op = description.operations["example.history#DeleteItem"];
+  op.notes.since = "2019";
+  const m = x.index(description);
+  assert.ok(!textOf(x.operationView(m, "example.history#DeleteItem", null)).includes("Since"));
+  op.history.added = null;
+  assert.ok(textOf(x.operationView(x.index(description), "example.history#DeleteItem", null)).includes("Since"));
+});
+
+test("each release has a changelog of its changes and what older clients see", () => {
+  const m = x.index(HISTORY_EXTERNAL);
+  assert.deepEqual(m.releases.map((r) => r.name), ["v1", "v2", "v3"]);
+  const v1 = textOf(x.releaseView(m, "v1"));
+  assert.ok(v1.includes("The oldest supported release.") && v1.includes("2027-01-01"), v1);
+  assert.ok(v1.includes("PingItems"), "retired operations");
+  assert.ok(htmlOf(x.releaseView(m, "v1")).includes("v1 is served until the end of 2026."), "sunset documentation");
+  const v2 = x.releaseView(m, "v2");
+  const v2Text = textOf(v2);
+  for (const expected of ["Renamed ", "GetItemOutput.title", " call it ", "name", "the service uses ", "20", "Added ", "HUGE", "LARGE", "Reshaped ", "width", "height", "area", "Retyped ", "by the service's hook.", "Changed how ", "ordering"]) {
+    assert.ok(v2Text.includes(expected), `v2: ${expected}`);
+  }
+  // A member the change names links to the page that has it.
+  assert.ok(htmlOf(v2).includes('<a href="#/op/example.history%23GetItem/response"><code>GetItemOutput.title</code></a>'), htmlOf(v2));
+  const v3 = textOf(x.releaseView(m, "v3"));
+  for (const expected of ["Moved ", "GET /things/{id}", "GET /items/{id}", "ItemGone", "ItemNotFound", "fills it in", "by a declared conversion.", "Removed ", "CountItems", "GET /count"]) {
+    assert.ok(v3.includes(expected), `v3: ${expected}`);
+  }
+  // The overview lists the releases and the header that carries them.
+  const overview = textOf(x.overviewView(m));
+  assert.ok(overview.includes("Crucible-Version") && overview.includes("Current"), overview);
+  assert.match(textOf(x.releaseView(m, "v9")), /No release v9\./);
+});
+
+test("the external reference leaves out the steps on internal API", () => {
+  const internal = x.index(HISTORY);
+  const external = x.index(HISTORY_EXTERNAL);
+  const all = (m) => m.releases.map((r) => textOf(x.releaseView(m, r.name))).join("\n");
+  assert.ok(all(internal).includes("Audit") && all(internal).includes("secret"));
+  assert.ok(!all(external).includes("Audit") && !all(external).includes("secret"));
+});
+
+test("releases are routes, a sidebar group and searchable", () => {
+  assert.deepEqual(x.parseRoute("#/release/v2"), { kind: "release", id: "v2", section: null });
+  assert.equal(x.href("release", "2026-10-01+rc"), "#/release/2026-10-01%2Brc");
+  const m = x.index(HISTORY_EXTERNAL);
+  const groups = x.navigation(m);
+  assert.equal(groups.at(-1).label, "Releases");
+  assert.deepEqual(groups.at(-1).entries.map((e) => e.id), ["v1", "v2", "v3"]);
+  assert.deepEqual(x.filterNavigation(groups, "v2").flatMap((g) => g.entries.map((e) => e.id)), ["v2"]);
+  assert.equal(x.pageFor(m, x.parseRoute("#/release/v3"), null).title, "Release v3");
+  // A description without releases has no such group, and no section on the overview.
+  const plain = structuredClone(HISTORY_EXTERNAL);
+  plain.versions = null;
+  const pm = x.index(plain);
+  assert.ok(!x.navigation(pm).some((g) => g.kind === "releases"));
+  assert.ok(!textOf(x.overviewView(pm)).includes("Crucible-Version"));
+});
+
+test("the e2e versioned service's reference renders its releases", () => {
+  const m = x.index(VERSIONED);
+  assert.deepEqual(m.releases.map((r) => r.name), ["v1", "v2", "v3"]);
+  const v3 = textOf(x.releaseView(m, "v3"));
+  assert.ok(v3.includes("Reshaped ") && v3.includes("Removed ") && v3.includes("CountItems"), v3);
+  assert.ok(textOf(x.releaseView(m, "v1")).includes("2027-01-01"));
+});
+
+test("the DOM boot path draws release pages", () => {
+  const { win, doc, app } = createWindow({ description: HISTORY_EXTERNAL });
+  x.start(app, HISTORY_EXTERNAL, { window: win });
+  win.setHash("#/release/v2");
+  assert.ok(app.textContent.includes("Reshaped"), app.textContent.slice(0, 200));
+  assert.equal(doc.title, "Release v2 · Shop");
 });

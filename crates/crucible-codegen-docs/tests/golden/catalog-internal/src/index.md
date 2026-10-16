@@ -10,7 +10,7 @@ Since <code>2026-01</code>.
 
 <p>Browse <strong>items</strong>. &lt;script&gt;alert(1)&lt;/script&gt;</p>
 
-Service version: <code>2026-10</code>.
+Service version: <code>2026&#45;10</code>.
 
 ## Protocol
 

@@ -93,12 +93,17 @@
     if (!description || description.format !== FORMAT) {
       throw new Error(`unsupported description format: ${description && description.format}`);
     }
+    const versions = description.versions || null;
     return {
       d: description,
       service: description.service,
       operations: description.operations || {},
       shapes: description.shapes || {},
       resources: description.resources || {},
+      versions,
+      // Oldest first, current last; empty unless the chain has more than
+      // the current release, which then has no changelog to show.
+      releases: versions && list(versions.releases).length > 1 ? list(versions.releases) : [],
     };
   }
 
@@ -129,6 +134,9 @@
     const shapes = names(m.shapes).filter((id) => !isBuiltin(id));
     if (shapes.length) {
       groups.push({ kind: "types", id: "", label: "Data types", item: null, entries: shapes.map((s) => ({ kind: "shape", id: s, item: m.shapes[s] })) });
+    }
+    if (m.releases.length) {
+      groups.push({ kind: "releases", id: "", label: "Releases", item: null, entries: m.releases.map((r) => ({ kind: "release", id: r.name, item: r })) });
     }
     return groups;
   }
@@ -192,7 +200,7 @@
     const parts = String(hash || "").replace(/^#\/?/, "").split("/").filter(Boolean);
     if (!parts.length) return { kind: "overview" };
     const kind = parts[0];
-    if (!["op", "shape", "resource"].includes(kind) || !parts[1]) return { kind: "missing", raw: String(hash) };
+    if (!["op", "shape", "resource", "release"].includes(kind) || !parts[1]) return { kind: "missing", raw: String(hash) };
     try {
       return { kind, id: decodeURIComponent(parts[1]), section: parts[2] ? decodeURIComponent(parts[2]) : null };
     } catch {
@@ -225,6 +233,19 @@
     return out;
   }
 
+  // When the element arrived and changed (decision 77), each linked to its
+  // release's changelog, and the releases that cannot see it.
+  function historyBadges(item) {
+    const hist = item && item.history;
+    if (!hist) return [];
+    const out = [];
+    if (typeof hist.added === "string") out.push(h("a", { class: "cx-badge cx-added", href: href("release", hist.added) }, `Added in ${hist.added}`));
+    for (const r of list(hist.changed)) out.push(h("a", { class: "cx-badge cx-changed", href: href("release", r) }, `Changed in ${r}`));
+    const missing = list(hist.missing).map(text);
+    if (missing.length) out.push(h("span", { class: "cx-badge cx-missing", title: `Clients of ${missing.join(", ")} use an older definition without it.` }, `Not in ${missing.join(", ")}`));
+    return out;
+  }
+
   function noteBlock(item) {
     const n = item.notes || {};
     const out = [];
@@ -234,7 +255,8 @@
       out.push(h("p", { class: "cx-note cx-deprecated" }, h("strong", {}, "Deprecated"), d.since ? ` since ${d.since}` : "", d.message ? `: ${d.message}` : "."));
     }
     if (n.unstable) out.push(h("p", { class: "cx-note cx-unstable" }, h("strong", {}, "Unstable API. "), "This API may change."));
-    if (n.since) out.push(h("p", { class: "cx-muted" }, "Since ", code(n.since), "."));
+    // `@since` is the author's fallback for what predates every release.
+    if (n.since && !(item.history && item.history.added)) out.push(h("p", { class: "cx-muted" }, "Since ", code(n.since), "."));
     const links = Object.keys(n.externalDocs || {});
     if (links.length) out.push(h("p", { class: "cx-links" }, links.map((name) => externalLink(name, n.externalDocs[name]))));
     return out;
@@ -293,7 +315,7 @@
   }
 
   function describeMember(m, member) {
-    return [badges(member), rich(member.documentation && member.documentation.html, m), noteBlock(member)];
+    return [badges(member), historyBadges(member), rich(member.documentation && member.documentation.html, m), noteBlock(member)];
   }
 
   function location(bindings, member) {
@@ -439,7 +461,7 @@
       const shape = m.shapes[id] || { name: id, error: {}, documentation: {}, notes: {} };
       const e = shape.error || {};
       const retry = !e.retryable ? "No" : e.retryable.throttling ? "Yes (throttling)" : "Yes";
-      return [[link("shape", id, shape.name), badges(shape)], String(e.status == null ? "" : e.status), text(e.fault), retry, [rich(shape.documentation && shape.documentation.html, m), noteBlock(shape)]];
+      return [[link("shape", id, shape.name), badges(shape), historyBadges(shape)], String(e.status == null ? "" : e.status), text(e.fault), retry, [rich(shape.documentation && shape.documentation.html, m), noteBlock(shape)]];
     });
     return table(["Error", "HTTP status", "Fault", "Retryable", "Description"], rows, "Errors");
   }
@@ -497,7 +519,7 @@
   // ----------------------------------------------------------------- pages
 
   function pageHeader(m, title, item, extra) {
-    return h("header", { class: "cx-page-head" }, h("h1", { id: "cx-title", tabindex: "-1" }, title, " ", badges(item), extra), prose(m, item));
+    return h("header", { class: "cx-page-head" }, h("h1", { id: "cx-title", tabindex: "-1" }, title, " ", badges(item), extra, historyBadges(item)), prose(m, item));
   }
 
   function overviewView(m) {
@@ -521,9 +543,121 @@
     out.push(...permissionsSection(s));
     out.push(h("h2", {}, "Service errors"), errorsTable(m, s.errors));
     out.push(h("h2", {}, "Operations"));
-    for (const group of navigation(m).filter((g) => g.kind !== "types")) {
+    for (const group of navigation(m).filter((g) => g.kind === "resource" || g.kind === "service")) {
       out.push(h("h3", {}, group.kind === "resource" ? link("resource", group.id, group.label) : group.label, " ", group.item ? badges(group.item) : null));
       out.push(h("ul", { class: "cx-list" }, group.entries.map((e) => h("li", {}, link("op", e.id, e.item.name), " ", badges(e.item), summaryLine(e.item)))));
+    }
+    if (m.releases.length) {
+      const carrier = m.versions.carrier || {};
+      out.push(
+        h("h2", {}, "Releases"),
+        h("p", {}, "The current release is ", code(m.versions.current), ". A client names the release it was built for in the ", code(carrier.name), " header."),
+        h("ul", { class: "cx-list" }, m.releases.map((r) => h("li", {}, link("release", r.name, r.name), " ", releaseBadges(r), r.sunset ? h("span", { class: "cx-muted" }, " — supported until ", code(r.sunset)) : null))),
+      );
+    }
+    return out;
+  }
+
+  // ------------------------------------------------------------ releases
+
+  const releaseBadges = (r) => [r.current ? h("span", { class: "cx-badge cx-current" }, "Current") : null, r.sunset ? h("span", { class: "cx-badge cx-deprecated" }, "Sunset") : null];
+
+  // An id as the model names it: `Shape`, `Shape.member`, `Operation`.
+  const idLabel = (id) => text(id).slice(text(id).indexOf("#") + 1).replace("$", ".");
+
+  // An element a change names, linked to its page when the description has one.
+  function element(m, id) {
+    const target = typeof id === "string" ? refHref(m, id, null) : null;
+    return target ? h("a", { href: target }, code(idLabel(id))) : code(idLabel(id));
+  }
+
+  // A type by id, as a member table shows it.
+  function typeRef(m, id) {
+    const shape = m.shapes[id];
+    if (shape && !isBuiltin(id)) return link("shape", id, shape.name);
+    return code(shape ? shape.kind : idLabel(id));
+  }
+
+  // One change of a release (docs/docs.md, the `versions` block): what it
+  // did, its documentation, and what a client of `from` sees instead.
+  function changeView(m, c, from) {
+    const o = c.older || {};
+    const clients = ["Clients of ", code(from)];
+    const member = () => element(m, `${text(c.shape)}$${text(c.member)}`);
+    const route = (method, uri) => code(`${text(method)} ${text(uri)}`);
+    let title;
+    let instead = null;
+    switch (c.kind) {
+      case "rename":
+        title = ["Renamed ", member()];
+        instead = [clients, " call it ", code(o.member), "."];
+        break;
+      case "require":
+        title = ["Required ", member()];
+        instead = o.filled === "default" ? [clients, " may leave it out: the service uses ", code(JSON.stringify(o.default)), "."] : [clients, " may leave it out: the service fills it in."];
+        break;
+      case "addEnumValue":
+        title = ["Added ", code(c.value), " to ", element(m, c.shape)];
+        instead = [clients, " receive ", code(o.value), " instead."];
+        break;
+      case "addError":
+        title = [element(m, c.operation), " can return ", element(m, c.error)];
+        instead = [clients, " receive ", element(m, o.error), " instead", list(o.members).map((x, i) => [i ? ", " : ", with ", code(x.member), " from ", code(x.from)]), "."];
+        break;
+      case "move":
+        title = ["Moved ", element(m, c.operation), " to ", route(c.method, c.uri)];
+        instead = [clients, " call ", route(o.method, o.uri), "."];
+        break;
+      case "reshape": {
+        const older = (o.shapes || {})[o.shape];
+        title = ["Reshaped ", element(m, c.shape)];
+        instead = [
+          h("p", {}, list(c.members).map((x, i) => [i ? ", " : "", code(x)]), " became ", code(c.into), ". ", clients, " use the older definition:"),
+          older ? memberTable(m, list(older.members), null, `${idLabel(o.shape)} before ${from}`) : null,
+        ];
+        break;
+      }
+      case "retype":
+        title = ["Retyped ", member(), " to ", typeRef(m, c.target)];
+        instead = [clients, " use ", o.member ? typeRef(m, o.member.target) : "an older type", ", converted ", c.by === "hook" ? "by the service's hook." : "by a declared conversion."];
+        break;
+      case "removeOperation":
+        title = ["Removed ", code(idLabel(c.operation))];
+        instead = o.operation ? [clients, " can still call it: ", route(o.operation.method, o.operation.uri), "."] : null;
+        break;
+      case "behavior":
+        title = ["Changed how ", element(m, c.operation), " behaves: ", code(c.name)];
+        break;
+      default:
+        title = ["Changed (", code(c.kind), ")"];
+    }
+    const older = instead && c.kind === "reshape" ? instead : instead ? h("p", {}, instead) : null;
+    return h("section", { class: "cx-change" }, h("h3", {}, title), rich(c.documentation && c.documentation.html, m), older);
+  }
+
+  function releaseView(m, name) {
+    const r = m.releases.find((x) => x.name === name);
+    if (!r) return missingView(`No release ${name}.`);
+    const out = [h("header", { class: "cx-page-head" }, h("h1", { id: "cx-title", tabindex: "-1" }, "Release ", r.name, " ", releaseBadges(r)))];
+    out.push(
+      h(
+        "dl",
+        { class: "cx-facts" },
+        h("dt", {}, "Follows"), h("dd", {}, r.from ? link("release", r.from, r.from) : "The oldest supported release."),
+        h("dt", {}, "Supported until"), h("dd", {}, r.sunset ? code(r.sunset) : "No sunset declared."),
+      ),
+      rich(r.documentation && r.documentation.html, m),
+    );
+    const sunset = rich(r.sunsetDocumentation && r.sunsetDocumentation.html, m);
+    if (sunset) out.push(h("h2", {}, "Sunset"), sunset);
+    if (list(r.retired).length) {
+      out.push(h("h2", {}, "Retired operations"), h("p", {}, "The release after this one dropped them, so this release and those before it no longer serve them: ", list(r.retired).map((id, i) => [i ? ", " : "", code(idLabel(id))]), "."));
+    }
+    if (r.from) {
+      out.push(h("h2", {}, "Changes"));
+      const changes = list(r.changes);
+      if (!changes.length) out.push(h("p", { class: "cx-muted" }, "No change a client of the release before it would notice."));
+      for (const c of changes) out.push(changeView(m, c, r.from));
     }
     return out;
   }
@@ -614,7 +748,7 @@
       if (s.kind === "union") out.push(h("p", { class: "cx-muted" }, "A union carries exactly one member."));
     }
     if (list(s.values).length) {
-      out.push(h("h2", {}, "Values"), table(["Name", "Wire value", "Description"], s.values.map((v) => [code(v.name), code(JSON.stringify(v.value)), [badges(v), rich(v.documentation && v.documentation.html, m), noteBlock(v)]]), "Values"));
+      out.push(h("h2", {}, "Values"), table(["Name", "Wire value", "Description"], s.values.map((v) => [code(v.name), code(JSON.stringify(v.value)), [badges(v), historyBadges(v), rich(v.documentation && v.documentation.html, m), noteBlock(v)]]), "Values"));
     }
     const c = constraintText(s.constraints);
     if (c) out.push(h("p", {}, "Constraints: ", c, "."));
@@ -631,6 +765,7 @@
       case "op": return { title: (m.operations[route.id] || {}).name || "Not found", view: operationView(m, route.id, panels) };
       case "shape": return { title: (m.shapes[route.id] || {}).name || "Not found", view: shapeView(m, route.id) };
       case "resource": return { title: (m.resources[route.id] || {}).name || "Not found", view: resourceView(m, route.id) };
+      case "release": return { title: m.releases.some((r) => r.name === route.id) ? `Release ${route.id}` : "Not found", view: releaseView(m, route.id) };
       default: return { title: "Not found", view: missingView(`Unknown address ${route.raw}.`) };
     }
   }
@@ -868,7 +1003,7 @@
     FORMAT,
     h, rich, mount, toHTML,
     index, navigation, filterNavigation, parseRoute, href, refHref,
-    overviewView, operationView, shapeView, resourceView, pageFor, navView,
+    overviewView, operationView, shapeView, resourceView, releaseView, pageFor, navView,
     requestSyntax, responseSyntax, exampleMessage,
     operationPanels, registerOperationPanel,
     start, load, boot,

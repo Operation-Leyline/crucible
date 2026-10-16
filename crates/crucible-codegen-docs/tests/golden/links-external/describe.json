@@ -14,6 +14,11 @@
         "example.links#WidgetError"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#CreateWidget",
       "idempotencyToken": null,
       "idempotent": false,
@@ -515,6 +520,11 @@
         "example.links#WidgetError"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#GetGadget",
       "idempotencyToken": null,
       "idempotent": false,
@@ -668,6 +678,11 @@
         "example.links#WidgetError"
       ],
       "examples": [],
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#GetWidget",
       "idempotencyToken": null,
       "idempotent": false,
@@ -936,6 +951,11 @@
         "markdown": "",
         "text": ""
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "crucible.api#String",
       "internal": false,
       "kind": "string",
@@ -956,6 +976,11 @@
         "text": "One of two things."
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#Choice",
       "internal": false,
       "kind": "union",
@@ -973,6 +998,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "widget",
@@ -1005,6 +1035,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "label",
@@ -1040,6 +1075,11 @@
         "markdown": "A numbered code.",
         "text": "A numbered code."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#Code",
       "internal": false,
       "kind": "intEnum",
@@ -1059,6 +1099,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "ONE",
           "notes": {
@@ -1074,6 +1119,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "TWO",
@@ -1092,6 +1142,11 @@
         "html": "<p>A colour. <a data-crucible-ref=\"example.links#Color$RED\">Color.RED</a> is the first.</p>\n",
         "markdown": "A colour. [Color.RED] is the first.",
         "text": "A colour. Color.RED is the first."
+      },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
       },
       "id": "example.links#Color",
       "internal": false,
@@ -1112,6 +1167,11 @@
             "markdown": "Red, unlike [Color.BLUE].",
             "text": "Red, unlike Color.BLUE."
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "RED",
           "notes": {
@@ -1127,6 +1187,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "BLUE",
@@ -1147,6 +1212,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#CreateWidgetInput",
       "internal": false,
       "kind": "structure",
@@ -1164,6 +1234,11 @@
             "html": "<p>What <a data-crucible-ref=\"example.links#Widget$name\">Widget.name</a> becomes.</p>\n",
             "markdown": "What [Widget.name] becomes.",
             "text": "What Widget.name becomes."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "name",
@@ -1197,6 +1272,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "color",
           "notes": {
@@ -1228,6 +1308,11 @@
             "html": "<p>A <a data-crucible-ref=\"example.links#Choice\">Choice</a>: <a data-crucible-ref=\"example.links#Choice$widget\">Choice.widget</a> or <a data-crucible-ref=\"example.links#Choice$label\">Choice.label</a>, one of two.</p>\n",
             "markdown": "A [Choice]: [Choice.widget] or [Choice.label], one of two.",
             "text": "A Choice: Choice.widget or Choice.label, one of two."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "choice",
@@ -1264,6 +1349,11 @@
             "markdown": "A [Label], plain text where a language has no type for it.",
             "text": "A Label, plain text where a language has no type for it."
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "label",
           "notes": {
@@ -1295,6 +1385,11 @@
             "html": "<p>A <a data-crucible-ref=\"example.links#Code\">Code</a>, such as <a data-crucible-ref=\"example.links#Code$ONE\">Code.ONE</a>.</p>\n",
             "markdown": "A [Code], such as [Code.ONE].",
             "text": "A Code, such as Code.ONE."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "code",
@@ -1328,6 +1423,11 @@
             "markdown": "[Widgets], a list.",
             "text": "Widgets, a list."
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "widgets",
           "notes": {
@@ -1360,6 +1460,11 @@
             "markdown": "[WidgetsByName], a map.",
             "text": "WidgetsByName, a map."
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "byName",
           "notes": {
@@ -1391,6 +1496,11 @@
             "html": "<p>Why a call failed, as <a data-crucible-ref=\"example.links#WidgetError$message\">WidgetError.message</a> says.</p>\n",
             "markdown": "Why a call failed, as [WidgetError.message] says.",
             "text": "Why a call failed, as WidgetError.message says."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "note",
@@ -1427,6 +1537,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#CreateWidgetOutput",
       "internal": false,
       "kind": "structure",
@@ -1444,6 +1559,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "widget",
@@ -1480,6 +1600,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#GetGadgetInput",
       "internal": false,
       "kind": "structure",
@@ -1497,6 +1622,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "gadgetId",
@@ -1533,6 +1663,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#GetGadgetOutput",
       "internal": false,
       "kind": "structure",
@@ -1550,6 +1685,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "label",
@@ -1586,6 +1726,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#GetWidgetInput",
       "internal": false,
       "kind": "structure",
@@ -1603,6 +1748,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "widgetId",
@@ -1639,6 +1789,11 @@
         "text": ""
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#GetWidgetOutput",
       "internal": false,
       "kind": "structure",
@@ -1656,6 +1811,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "widget",
@@ -1700,6 +1860,11 @@
         "markdown": "A short label.",
         "text": "A short label."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#Label",
       "internal": false,
       "kind": "string",
@@ -1720,6 +1885,11 @@
         "text": "A widget; CreateWidget makes one."
       },
       "error": null,
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#Widget",
       "internal": false,
       "kind": "structure",
@@ -1737,6 +1907,11 @@
             "html": "<p>The name <a data-crucible-ref=\"example.links#CreateWidgetInput$name\" data-crucible-operation=\"example.links#CreateWidget\">CreateWidget.name</a> chose.</p>\n",
             "markdown": "The name [CreateWidget.name] chose.",
             "text": "The name CreateWidget.name chose."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "name",
@@ -1770,6 +1945,11 @@
             "markdown": "One of [Color]; [Color.BLUE] by default.",
             "text": "One of Color; Color.BLUE by default."
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "color",
           "notes": {
@@ -1801,6 +1981,11 @@
             "html": "<p>What it is made of: <a data-crucible-ref=\"example.links#Widget$object\">Widget.object</a> is a keyword in some languages.</p>\n",
             "markdown": "What it is made of: [Widget.object] is a keyword in some languages.",
             "text": "What it is made of: Widget.object is a keyword in some languages."
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "object",
@@ -1876,6 +2061,11 @@
         "status": 404,
         "wireCode": "WidgetError"
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#WidgetError",
       "internal": false,
       "kind": "structure",
@@ -1893,6 +2083,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "message",
@@ -1934,6 +2129,11 @@
         "markdown": "Several widgets.",
         "text": "Several widgets."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#Widgets",
       "internal": false,
       "kind": "list",
@@ -1951,6 +2151,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "member",
@@ -1994,6 +2199,11 @@
         "markdown": "Widgets by name.",
         "text": "Widgets by name."
       },
+      "history": {
+        "added": null,
+        "changed": [],
+        "missing": []
+      },
       "id": "example.links#WidgetsByName",
       "internal": false,
       "kind": "map",
@@ -2011,6 +2221,11 @@
             "html": "",
             "markdown": "",
             "text": ""
+          },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
           },
           "internal": false,
           "name": "key",
@@ -2044,6 +2259,11 @@
             "markdown": "",
             "text": ""
           },
+          "history": {
+            "added": null,
+            "changed": [],
+            "missing": []
+          },
           "internal": false,
           "name": "value",
           "notes": {
@@ -2073,5 +2293,32 @@
       "sensitive": false,
       "sparse": false
     }
+  },
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "1",
+    "releases": [
+      {
+        "changes": [],
+        "current": true,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "1",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
   }
 }

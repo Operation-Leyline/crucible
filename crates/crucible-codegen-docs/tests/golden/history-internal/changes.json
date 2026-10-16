@@ -1,0 +1,862 @@
+{
+  "format": "crucible.changes/1",
+  "service": "example.history#Shop",
+  "versions": {
+    "carrier": {
+      "kind": "header",
+      "name": "Crucible-Version"
+    },
+    "current": "v3",
+    "releases": [
+      {
+        "changes": [],
+        "current": false,
+        "documentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        },
+        "from": null,
+        "name": "v1",
+        "retired": [
+          "example.history#PingItems"
+        ],
+        "sunset": "2027-01-01",
+        "sunsetDocumentation": {
+          "html": "<p>v1 is served until the end of 2026.</p>\n",
+          "markdown": "v1 is served until the end of 2026.",
+          "text": "v1 is served until the end of 2026."
+        }
+      },
+      {
+        "changes": [
+          {
+            "documentation": {
+              "html": "<p>An item's name, <code>name</code> in v1, is its <a data-crucible-ref=\"example.history#GetItemOutput$title\" data-crucible-operation=\"example.history#GetItem\">GetItem.title</a>.</p>\n",
+              "markdown": "An item's name, `name` in v1, is its [GetItem.title].",
+              "text": "An item's name, name in v1, is its GetItem.title."
+            },
+            "kind": "rename",
+            "member": "title",
+            "older": {
+              "member": "name",
+              "shapes": {}
+            },
+            "shape": "example.history#GetItemOutput",
+            "subjects": [
+              "example.history#GetItemOutput$title"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>The page size is <code>limit</code>.</p>\n",
+              "markdown": "The page size is `limit`.",
+              "text": "The page size is limit."
+            },
+            "kind": "rename",
+            "member": "limit",
+            "older": {
+              "member": "max",
+              "shapes": {}
+            },
+            "shape": "example.history#ListItemsInput",
+            "subjects": [
+              "example.history#ListItemsInput$limit"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>An older request without a page size gets 20.</p>\n",
+              "markdown": "An older request without a page size gets 20.",
+              "text": "An older request without a page size gets 20."
+            },
+            "kind": "require",
+            "member": "limit",
+            "older": {
+              "default": 20,
+              "filled": "default",
+              "required": false,
+              "shapes": {}
+            },
+            "shape": "example.history#ListItemsInput",
+            "subjects": [
+              "example.history#ListItemsInput$limit"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a huge item as large.</p>\n",
+              "markdown": "Older clients see a huge item as large.",
+              "text": "Older clients see a huge item as large."
+            },
+            "kind": "addEnumValue",
+            "older": {
+              "shapes": {},
+              "value": "LARGE"
+            },
+            "shape": "example.history#Kind",
+            "subjects": [
+              "example.history#Kind"
+            ],
+            "value": "HUGE"
+          },
+          {
+            "documentation": {
+              "html": "<p>A size is its area.</p>\n",
+              "markdown": "A size is its area.",
+              "text": "A size is its area."
+            },
+            "into": "area",
+            "kind": "reshape",
+            "members": [
+              "width",
+              "height",
+              "depth"
+            ],
+            "older": {
+              "shape": "example.history#Size",
+              "shapes": {
+                "example.history#Size": {
+                  "documentation": {
+                    "html": "<p>An item's dimensions.</p>\n",
+                    "markdown": "An item's dimensions.",
+                    "text": "An item's dimensions."
+                  },
+                  "error": null,
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.history#Size",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "width",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "crucible.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "width"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "height",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "crucible.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "height"
+                    },
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": true,
+                      "name": "depth",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": true,
+                      "required": false,
+                      "sensitive": false,
+                      "target": "crucible.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "depth"
+                    }
+                  ],
+                  "name": "Size",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                }
+              }
+            },
+            "shape": "example.history#Size",
+            "subjects": [
+              "example.history#Size"
+            ]
+          },
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "<p>The count is a string.</p>\n",
+              "markdown": "The count is a string.",
+              "text": "The count is a string."
+            },
+            "kind": "retype",
+            "member": "count",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "count",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "crucible.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "count"
+              },
+              "shapes": {}
+            },
+            "shape": "example.history#PutItemInput",
+            "subjects": [
+              "example.history#PutItemInput$count"
+            ],
+            "target": "crucible.api#String"
+          },
+          {
+            "by": "hook",
+            "documentation": {
+              "html": "<p>The priority is a word, and public.</p>\n",
+              "markdown": "The priority is a word, and public.",
+              "text": "The priority is a word, and public."
+            },
+            "kind": "retype",
+            "member": "priority",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": true,
+                "name": "priority",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": true,
+                "required": false,
+                "sensitive": false,
+                "target": "crucible.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "priority"
+              },
+              "shapes": {}
+            },
+            "shape": "example.history#PutItemInput",
+            "subjects": [
+              "example.history#PutItemInput$priority"
+            ],
+            "target": "crucible.api#String"
+          },
+          {
+            "documentation": {
+              "html": "<p>ListItems sorts by name.</p>\n",
+              "markdown": "ListItems sorts by name.",
+              "text": "ListItems sorts by name."
+            },
+            "kind": "behavior",
+            "name": "ordering",
+            "older": null,
+            "operation": "example.history#ListItems",
+            "subjects": [
+              "example.history#ListItems"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>The service's own code is its secret.</p>\n",
+              "markdown": "The service's own code is its secret.",
+              "text": "The service's own code is its secret."
+            },
+            "kind": "rename",
+            "member": "secret",
+            "older": {
+              "member": "secretCode",
+              "shapes": {}
+            },
+            "shape": "example.history#GetItemOutput",
+            "subjects": [
+              "example.history#GetItemOutput$secret"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>The service's hint is a public note.</p>\n",
+              "markdown": "The service's hint is a public note.",
+              "text": "The service's hint is a public note."
+            },
+            "kind": "rename",
+            "member": "note",
+            "older": {
+              "member": "hint",
+              "shapes": {}
+            },
+            "shape": "example.history#GetItemOutput",
+            "subjects": [
+              "example.history#GetItemOutput$note"
+            ]
+          }
+        ],
+        "current": false,
+        "documentation": {
+          "html": "<p>v2 names an item's title, measures its size as an area, and pages\n<a data-crucible-ref=\"example.history#ListItems\">ListItems</a> by <code>limit</code>.</p>\n",
+          "markdown": "v2 names an item's title, measures its size as an area, and pages\n[ListItems] by `limit`.",
+          "text": "v2 names an item's title, measures its size as an area, and pages\nListItems by limit."
+        },
+        "from": "v1",
+        "name": "v2",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      },
+      {
+        "changes": [
+          {
+            "documentation": {
+              "html": "<p>Items are things now.</p>\n",
+              "markdown": "Items are things now.",
+              "text": "Items are things now."
+            },
+            "kind": "move",
+            "method": "GET",
+            "older": {
+              "method": "GET",
+              "shapes": {},
+              "uri": "/items/{id}"
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ],
+            "uri": "/things/{id}"
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a deleted item as not found.</p>\n",
+              "markdown": "Older clients see a deleted item as not found.",
+              "text": "Older clients see a deleted item as not found."
+            },
+            "error": "example.history#ItemGone",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a locked item as not found, its detail saying\nwho holds it.</p>\n",
+              "markdown": "Older clients see a locked item as not found, its detail saying\nwho holds it.",
+              "text": "Older clients see a locked item as not found, its detail saying\nwho holds it."
+            },
+            "error": "example.history#ItemLocked",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                },
+                {
+                  "from": "holder",
+                  "member": "detail"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see a race as not found.</p>\n",
+              "markdown": "Older clients see a race as not found.",
+              "text": "Older clients see a race as not found."
+            },
+            "error": "example.history#Conflict",
+            "kind": "addError",
+            "older": {
+              "error": "example.history#ItemNotFound",
+              "members": [
+                {
+                  "from": "message",
+                  "member": "message"
+                }
+              ],
+              "shapes": {}
+            },
+            "operation": "example.history#GetItem",
+            "subjects": [
+              "example.history#GetItem"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Older clients see the service's own kind as large.</p>\n",
+              "markdown": "Older clients see the service's own kind as large.",
+              "text": "Older clients see the service's own kind as large."
+            },
+            "kind": "addEnumValue",
+            "older": {
+              "shapes": {},
+              "value": "LARGE"
+            },
+            "shape": "example.history#Kind",
+            "subjects": [
+              "example.history#Kind"
+            ],
+            "value": "SECRET"
+          },
+          {
+            "documentation": {
+              "html": "<p>An older request's sort order is the account's.</p>\n",
+              "markdown": "An older request's sort order is the account's.",
+              "text": "An older request's sort order is the account's."
+            },
+            "kind": "require",
+            "member": "sort",
+            "older": {
+              "default": null,
+              "filled": "service",
+              "required": false,
+              "shapes": {}
+            },
+            "shape": "example.history#ListItemsInput",
+            "subjects": [
+              "example.history#ListItemsInput$sort"
+            ]
+          },
+          {
+            "by": "conversion",
+            "documentation": {
+              "html": "<p>The total is a string, by a declared conversion.</p>\n",
+              "markdown": "The total is a string, by a declared conversion.",
+              "text": "The total is a string, by a declared conversion."
+            },
+            "kind": "retype",
+            "member": "total",
+            "older": {
+              "member": {
+                "clientOptional": false,
+                "constraints": {
+                  "length": null,
+                  "pattern": null,
+                  "range": null,
+                  "uniqueItems": false
+                },
+                "default": null,
+                "documentation": {
+                  "html": "",
+                  "markdown": "",
+                  "text": ""
+                },
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "internal": false,
+                "name": "total",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "nullable": false,
+                "required": true,
+                "sensitive": false,
+                "target": "crucible.api#Integer",
+                "targetName": "Integer",
+                "targetType": "integer",
+                "timestampFormat": "date-time",
+                "wireDefault": null,
+                "wireName": "total"
+              },
+              "shapes": {}
+            },
+            "shape": "example.history#PutItemOutput",
+            "subjects": [
+              "example.history#PutItemOutput$total"
+            ],
+            "target": "crucible.api#String"
+          },
+          {
+            "documentation": {
+              "html": "<p>CountItems is gone: count what <a data-crucible-ref=\"example.history#ListItems\">ListItems</a> returns.</p>\n",
+              "markdown": "[CountItems] is gone: count what [ListItems] returns.",
+              "text": "CountItems is gone: count what ListItems returns."
+            },
+            "kind": "removeOperation",
+            "older": {
+              "operation": {
+                "auth": [],
+                "documentation": {
+                  "html": "<p>Counts items.</p>\n",
+                  "markdown": "Counts items.",
+                  "text": "Counts items."
+                },
+                "errors": [],
+                "examples": [],
+                "history": {
+                  "added": null,
+                  "changed": [],
+                  "missing": []
+                },
+                "id": "example.history#CountItems",
+                "idempotencyToken": null,
+                "idempotent": false,
+                "input": null,
+                "inputSchema": {
+                  "$defs": {},
+                  "maxProperties": 0,
+                  "type": "object"
+                },
+                "internal": false,
+                "method": "GET",
+                "name": "CountItems",
+                "notes": {
+                  "deprecated": null,
+                  "externalDocs": {},
+                  "since": null,
+                  "unstable": false
+                },
+                "output": "example.history#CountItemsOutput",
+                "outputSchema": {
+                  "$defs": {
+                    "crucible.api.Integer": {
+                      "format": "int32",
+                      "maximum": 2147483647,
+                      "minimum": -2147483648,
+                      "type": "integer"
+                    },
+                    "example.history.CountItemsOutput": {
+                      "properties": {
+                        "count": {
+                          "$ref": "#/$defs/crucible.api.Integer"
+                        }
+                      },
+                      "required": [
+                        "count"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "properties": {
+                    "count": {
+                      "$ref": "#/$defs/crucible.api.Integer"
+                    }
+                  },
+                  "required": [
+                    "count"
+                  ],
+                  "type": "object"
+                },
+                "pagination": null,
+                "protocol": "crucibleJson",
+                "protocolHeaders": {},
+                "readonly": true,
+                "request": {
+                  "body": [],
+                  "headerEncodings": {},
+                  "headers": [],
+                  "labels": [],
+                  "payload": null,
+                  "query": [],
+                  "timestampFormats": {}
+                },
+                "resources": [],
+                "response": {
+                  "body": [
+                    "count"
+                  ],
+                  "headerEncodings": {},
+                  "headers": [],
+                  "labels": [],
+                  "payload": null,
+                  "query": [],
+                  "timestampFormats": {}
+                },
+                "responseProtocolHeaders": {
+                  "Content-Type": "application/json"
+                },
+                "sample": {
+                  "fallbacks": [],
+                  "generated": true,
+                  "input": {
+                    "body": null,
+                    "headers": {},
+                    "labels": {},
+                    "method": "GET",
+                    "payload": null,
+                    "query": [],
+                    "uri": "/count"
+                  },
+                  "minimalInput": {
+                    "body": null,
+                    "headers": {},
+                    "labels": {},
+                    "method": "GET",
+                    "payload": null,
+                    "query": [],
+                    "uri": "/count"
+                  },
+                  "output": {
+                    "body": {
+                      "count": 1
+                    },
+                    "headers": {
+                      "Content-Type": "application/json"
+                    },
+                    "labels": {},
+                    "payload": null,
+                    "query": []
+                  }
+                },
+                "status": 200,
+                "uri": "/count"
+              },
+              "shapes": {
+                "example.history#CountItemsOutput": {
+                  "documentation": {
+                    "html": "",
+                    "markdown": "",
+                    "text": ""
+                  },
+                  "error": null,
+                  "history": {
+                    "added": null,
+                    "changed": [],
+                    "missing": []
+                  },
+                  "id": "example.history#CountItemsOutput",
+                  "internal": false,
+                  "kind": "structure",
+                  "members": [
+                    {
+                      "clientOptional": false,
+                      "constraints": {
+                        "length": null,
+                        "pattern": null,
+                        "range": null,
+                        "uniqueItems": false
+                      },
+                      "default": null,
+                      "documentation": {
+                        "html": "",
+                        "markdown": "",
+                        "text": ""
+                      },
+                      "history": {
+                        "added": null,
+                        "changed": [],
+                        "missing": []
+                      },
+                      "internal": false,
+                      "name": "count",
+                      "notes": {
+                        "deprecated": null,
+                        "externalDocs": {},
+                        "since": null,
+                        "unstable": false
+                      },
+                      "nullable": false,
+                      "required": true,
+                      "sensitive": false,
+                      "target": "crucible.api#Integer",
+                      "targetName": "Integer",
+                      "targetType": "integer",
+                      "timestampFormat": "date-time",
+                      "wireDefault": null,
+                      "wireName": "count"
+                    }
+                  ],
+                  "name": "CountItemsOutput",
+                  "notes": {
+                    "deprecated": null,
+                    "externalDocs": {},
+                    "since": null,
+                    "unstable": false
+                  },
+                  "sensitive": false
+                }
+              }
+            },
+            "operation": "example.history#CountItems",
+            "subjects": [
+              "example.history#CountItems"
+            ]
+          },
+          {
+            "documentation": {
+              "html": "<p>Audit entries are kept for a year.</p>\n",
+              "markdown": "Audit entries are kept for a year.",
+              "text": "Audit entries are kept for a year."
+            },
+            "kind": "behavior",
+            "name": "retention",
+            "older": null,
+            "operation": "example.history#Audit",
+            "subjects": [
+              "example.history#Audit"
+            ]
+          }
+        ],
+        "current": true,
+        "documentation": {
+          "html": "<p>v3 moves <a data-crucible-ref=\"example.history#GetItem\">GetItem</a> to <code>/things</code>, reports a deleted item as gone, and\nretires CountItems: count the names <a data-crucible-ref=\"example.history#ListItems\">ListItems</a> returns.</p>\n",
+          "markdown": "v3 moves [GetItem] to `/things`, reports a deleted item as gone, and\nretires [CountItems]: count the names [ListItems] returns.",
+          "text": "v3 moves GetItem to /things, reports a deleted item as gone, and\nretires CountItems: count the names ListItems returns."
+        },
+        "from": "v2",
+        "name": "v3",
+        "retired": [],
+        "sunset": null,
+        "sunsetDocumentation": {
+          "html": "",
+          "markdown": "",
+          "text": ""
+        }
+      }
+    ]
+  }
+}

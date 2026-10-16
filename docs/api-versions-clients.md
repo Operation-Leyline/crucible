@@ -1,8 +1,8 @@
 # API versions and clients
 
-**Status: 5a built (clients send their release); 5b, 5c and the
-documentation history settled and ready to build (decisions 68-79); 5d
-designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
+**Status: 5a built (clients send their release), and the reference's
+release history (PR 3); 5b and 5c settled and ready to build (decisions
+68-79); 5d designed.** Phases 1-4 are built: a `.cru` service declares its breaking changes as
 migrations, and a Rust service serves every supported release from its
 current handlers ([api-versions.md](api-versions.md)). This document is
 how clients take part, following decisions 51, 57 and 57a in
@@ -496,7 +496,7 @@ gains `history`, an additive field of `crucible.describe/1`:
 
 | Field | Type | Value |
 |---|---|---|
-| `added` | string or `null` | the release the element first appeared in: the first of the frozen releases, oldest first, then the current model, that has it, following renames; `null` when the oldest supported release has it |
+| `added` | string or `null` | the release since which every release has the element, following renames (its latest addition, if it was dropped and added again); `null` when the oldest supported release has it |
 | `changed` | string array, oldest first, unique | each release whose migration has a step naming the element among its `subjects` (below) |
 | `missing` | string array, oldest first | the supported releases at which a client cannot see the element although it appeared before them or since: those before a `reshape` or `remove operation` it sits inside (decision 74). Empty for nearly everything |
 
@@ -601,7 +601,10 @@ client of the previous release sees instead, in model terms.
   change whose subjects are all internal is left out of an external
   document, as the elements it names are.
 
-This block is the data upgrade guides (5d) render.
+This block is the data upgrade guides (5d) render. As built (PR 3), each
+release also carries `sunsetDocumentation` and `retired`, the reference
+writes the block to `changes.json` too, and
+[docs.md](docs.md#release-history) is the exact schema.
 
 ### A reference for each release
 
@@ -614,15 +617,16 @@ describes and links the current one.
 
 ### What ships before 5b
 
-`history` (except `missing`) and `versions` read only the frozen chain and
-the steps: they can be produced as soon as the steps carry both sides and
-their documentation (PR 1 below), with no projection. `missing` needs
-the projection and is empty until 5b. One thing still limits them:
-`generate docs` refuses a `.cru` package until the language lowers
-resources (`main.rs:770-775`, `cru.rs:157`,
-[docs.md](docs.md#generating-a-reference)). They are built and tested
-through `describe()` (`describe.rs:186`) meanwhile, and reach the rendered
-reference when that lands. The per-release reference needs 5b and 5c.
+`history` and `versions` read only the frozen chain and the steps, so they
+ship before any projection (PR 3, built). `missing` needs no projection
+either: a member is missing at the releases up to a `reshape` of its
+structure, or a `remove operation` whose own input or output holds it,
+when the frozen release before that step lacks it, which is what undo
+will restore (decision 74). Until 5b serves projections, an older release
+is still served from its frozen model, so an addition does not yet reach
+it as `history` says it will; the reference describes the projection PR 6
+serves. `generate docs` and a build's docs output both render it, since
+decision 67 lowered resources. The per-release reference needs 5b and 5c.
 
 ## 5d. Upgrade guides
 
@@ -641,7 +645,7 @@ symbol to its own.
 ## Order
 
 Each line is one pull request, in this order unless it says otherwise. 5a
-is built, and so are PRs 1 and 2.
+is built, and so are PRs 1, 2 and 3.
 
 1. **Steps carry both sides.** *Built.* `VersionStep::Require` gains `old`
    and `from`, `Hook::Require` gains `from`, `AddEnumValue` gains `old`,
@@ -670,16 +674,24 @@ is built, and so are PRs 1 and 2.
    `tests/models/version-gone-operation` (refused),
    `tests/models/version-retired-operation` (excepted) and
    `tests/models/version-renamed-enum-value` (mapped both ways).
-3. **History and versions in `describe.json`.** `crucible_ir::versions::history`
-   derives history; the audience projection projects `Service::versions`
-   and drops internal steps; `describe.rs` serializes both. *Crates:*
-   crucible-ir (`versions.rs`, `audience.rs`), crucible-codegen-common
-   (`describe.rs`), crucible-codegen-docs (Markdown, `explorer.js`: added
-   and changed badges, a versions page), docs.md's contract tables.
-   *Tests:* a `describe()` golden of `e2e/weather-service/versioned` (three
-   releases: renames, a reshape, a removal, a sunset) whose versions come
-   from `crucible_lang::versions`, in both audiences, with an internal step
-   left out of the external one; `tools/test-docs-site.sh` against it.
+3. **History and versions in `describe.json`.** *Built.*
+   `crucible_ir::versions::history` (and `history_at`, `subjects`) derives
+   history, `missing` included; the audience projection projects
+   `Service::versions` and drops internal steps and retired operations;
+   `describe.rs` serializes both, and the reference writes `changes.json`
+   (`crucible.changes/1`) beside `describe.json`. The CLI loads the chain as
+   a build does (`guard_in`, `versions_in` with one `Releases`), for every
+   `generate`, `check` and `compile`. *Crates:* crucible-ir (`versions.rs`,
+   `audience.rs`), crucible-lang (`load_versioned_service`),
+   crucible-codegen-common (`describe.rs`), crucible-codegen-docs
+   (Markdown, `explorer.js`: added and changed badges, a page per release),
+   crucible-cli, docs.md's contract tables. *Tests:*
+   `crucible-lang/tests/history.rs` and goldens of
+   `tests/models/version-history` (three releases, every step kind, a
+   retired operation, two internal steps left out of the external view) in
+   both audiences, and of `e2e/weather-service/versioned`, all with their
+   versions from `crucible_lang::versions`; `tools/test-docs-site.sh`
+   against them; a build's and the CLI's docs output.
 4. **Projections in the IR.** `crucible_ir::versions`: undo, derived-IR
    recomputation, `validate::service`; no caller yet. *Crate:*
    crucible-ir. *Tests:* `crucible-lang/tests/projections.rs`, one
@@ -694,7 +706,8 @@ is built, and so are PRs 1 and 2.
    diagnostic with its span instead of the first error string.
    `ApiVersion` gains `release`, the frozen model, and every reader that
    needs the frozen model moves to it; `service` is still frozen. The
-   CLI's `check`, `generate` and `compile` compute versions. *Crates:*
+   CLI's `check`, `generate` and `compile` compute versions (built in PR
+   3). *Crates:*
    crucible-lang, crucible-build, crucible-cli, crucible-lsp. *Tests:* a
    `tests/models/` package per refusal (an older member name reused, a
    member name re-added after an excepted removal, a removed operation's
@@ -722,8 +735,9 @@ is built, and so are PRs 1 and 2.
    types); an unknown release; SDK file resolution;
    `tools/test_api_version_clients.py`; once PR 6 lands,
    `tools/test-e2e.sh` builds the Rust client at `v1` and calls the server.
-8. **A reference per release.** History for projections (`missing`
-   filled), and the renderer's release banner. *Crates:* crucible-ir,
+8. **A reference per release.** History for projections (an element
+   restored from frozen `r` dated within the chain that ends at `r`;
+   `missing` is computed since PR 3), and the renderer's release banner. *Crates:* crucible-ir,
    crucible-codegen-common, crucible-codegen-docs. *Tests:* a `describe()`
    golden of `v1`.
 9. **Upgrade guides (5d).** *Crate:* crucible-cli. *Tests:* the guide

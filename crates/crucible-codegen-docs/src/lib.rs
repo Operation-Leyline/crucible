@@ -42,12 +42,33 @@ pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
             );
         }
     }
+    // Release pages too: their files are escaped release names, distinct
+    // byte for byte, but `V1` and `v1` would share one where case folds.
+    let releases = description.versions["releases"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    if releases.len() > 1 {
+        for release in releases {
+            let name = release["name"].as_str().unwrap_or_default();
+            let file = markdown::release_file(name).to_ascii_lowercase();
+            if !paths.insert(format!("releases/{file}")) {
+                diagnostics.push(
+                    &service.id,
+                    format!("docs.filename: release {name:?}'s page collides with another release's on a case-insensitive filesystem"),
+                );
+            }
+        }
+    }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     let mut files = markdown::render(service, &description);
     let json = description.to_json();
     files.extend(site(&json));
+    files.push(File {
+        path: "changes.json".into(),
+        contents: changes(&description),
+    });
     files.push(File {
         path: "describe.json".into(),
         contents: json,
@@ -59,6 +80,20 @@ pub fn generate(service: &Service) -> Result<Vec<File>, Diagnostics> {
     }
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+/// `changes.json` (`crucible.changes/1`, docs/docs.md): the release chain
+/// alone, the same data as `describe.json`'s `versions`, for a site that
+/// builds a changelog or a feed without reading the whole description.
+fn changes(description: &describe::Description) -> String {
+    let mut value = serde_json::json!({
+        "format": "crucible.changes/1",
+        "service": description.service["id"],
+        "versions": description.versions,
+    });
+    describe::sort_keys(&mut value);
+    // `generate` ends every file with one newline.
+    serde_json::to_string_pretty(&value).expect("JSON data")
 }
 
 /// The static reference site: a fixed renderer plus this service's description.

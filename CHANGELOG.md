@@ -17,6 +17,38 @@ version's section when it is prepared.
 
 ### Added
 
+- Release history in the API reference (decisions 77 and 78 in
+  [docs/idl/decisions.md](docs/idl/decisions.md)). `describe.json`
+  (`crucible.describe/1`, additive) gives every operation, shape, member
+  and enum value a `history`: `added`, the first supported release that
+  has it, following renames (`null` when the oldest supported release has
+  it); `changed`, the releases whose migration names it; and `missing`,
+  the releases that see an older definition without it because it sits
+  inside a later `reshape` or `remove operation`. Its root gains
+  `versions`, `null` for a service without an `api_version`: the current
+  release, the `Crucible-Version` carrier, and every supported release,
+  oldest first, with its sunset and the sunset's documentation, the
+  operations it retired, its migration's documentation and each step as a
+  change, with the step's documentation and what a client of the release
+  before it sees instead (`older`, self-contained through `older.shapes`).
+  The reference writes the same block to `changes.json`
+  (`crucible.changes/1`) beside `describe.json`, for a changelog or a feed.
+  The mdBook pages and the static reference date each element ("Added in",
+  "Changed in", linked to the release) and, for a chain of more than one
+  release, have a page per release, its file named by the escaped release
+  name; `@since` is shown only for what predates every supported release.
+  `crucible_ir::versions` derives it all (`history`, `history_at`,
+  `subjects`, `named`, `older_member`). An external projection marks the
+  older releases (`ApiVersion::external`) instead of projecting them, and
+  `versions::visible` projects them where the reference reads them, best
+  effort and never refused, keeping a step only when the audience sees
+  every id it names on each side, so no external output names internal
+  API and no older release fails an output. See
+  [docs/docs.md](docs/docs.md#release-history).
+- `crucible_lang::load_versioned_service`: a package's service with the
+  older releases it serves, as a build lowers it, after its compatibility
+  guard.
+
 - `describe.json` (`crucible.describe/1`, additive): each operation has a
   `sample` and each error's metadata a `sample`, generated from the model
   alone and labelled `generated: true`: wire messages in the examples' form
@@ -557,6 +589,14 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- `crucible check`, `generate` and `compile` load the chain of older
+  releases a package serves, as a build does, through one
+  `crucible_lang::Releases` for the guard and the versions: `generate docs`
+  documents them, and a chain the build refuses (an operation dropped
+  without `remove operation`, a missing frozen release) fails these
+  commands too. `generate rust` serves older releases as the build's
+  server does.
 
 - `.cru`: a migration that drops an operation without `remove operation`
   is an error at its `from` (`crucible check`, the build, the editor),
@@ -1390,6 +1430,21 @@ version's section when it is prepared.
   they named client text: see *Migration*.
 
 ### Migration
+
+- **The CLI loads a package's older releases, as a build does.**
+  `crucible check`, `generate` and `compile` used to read only the current
+  model. Now:
+  - `crucible generate rust` (a server) for a package with migrations
+    serves its older releases. The service implements the generated
+    `versions::Migrations` trait (each migration's hooks), as a build's
+    server already does.
+  - A `retype` without `by hook` names a declared `conversion`, which the
+    Rust server generator does not generate yet, so `generate rust` refuses
+    it: add `by hook` to the step for a server.
+  - A chain the build refuses fails `check` and every `generate`: a
+    migration whose `from` release is not frozen under `releases/`, or an
+    operation dropped without `remove operation`. Freeze the release
+    (`crucible freeze --from <git ref>`) or declare the step.
 
 - **An operation dropped without `remove operation` no longer builds.**
   Before, a migration that left out the step built, and the server served

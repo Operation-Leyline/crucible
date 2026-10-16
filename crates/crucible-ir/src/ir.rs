@@ -152,6 +152,12 @@ pub struct ApiVersion {
     /// such a drop without the exception.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub retired: Vec<ShapeId>,
+    /// Set by an external audience projection, which leaves `service` and
+    /// `steps` as lowered: only the reference reads an older release, and
+    /// it reads it through [`crate::versions::visible`], which projects it
+    /// then (decision 78). `false` as lowered.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub external: bool,
 }
 
 /// One checked migration step, its paths resolved to shape ids. `old`

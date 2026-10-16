@@ -77,6 +77,7 @@ explorer.js
 explorer.css
 describe.json
 describe.js
+changes.json
 sdks.json           (with an SDK file)
 book.toml
 src/
@@ -84,13 +85,27 @@ src/
   index.md
   operations/API_GetCity.md
   shapes/CitySummary.md
+  releases.md       (a chain of more than one release)
+  releases/v2.md
 ```
 
 `SUMMARY.md` groups operations by resource, with a separate group for service
 operations. An operation bound to several resources appears in each group and
 has one page. The overview lists protocol identity, authentication, service
 errors, resource lifecycle slots, and operations. Data-type pages include
-structures, unions, enums, constrained scalars, and collections.
+structures, unions, enums, constrained scalars, and collections. A service
+whose chain has more than its current release also has `releases.md`, its
+supported releases, and a changelog page per release under `releases/`: its
+migration's documentation, its sunset, the operations it retired, and each
+change with what a client of the release before it sees instead. Operation
+and data-type pages say "Added in" and "Changed in", linked to those pages,
+and member, value and error tables carry the same dates
+([Release history](#release-history)). A release name may be any visible
+ASCII, so its page's file escapes it: letters, digits, `.`, `-` and `+`
+stay, any other byte is `_` and two hex digits (`v/2` is `v_2F2.md`), and
+a leading or trailing `.` or a Windows device name (`con`) has its first
+character escaped too. Two release pages that would share a file where
+case folds are refused (`docs.filename`) before any file is written.
 
 With mdBook installed, `mdbook build generated/weather-docs` renders the
 Markdown. Crucible does not launch mdBook or serve the HTML reference.
@@ -102,7 +117,8 @@ sidebar of resources and operations with search, the service overview, operation
 pages (request in protocol form, parameter and body tables, response, errors,
 pagination, idempotency, examples with copy buttons, or for an operation
 without examples its generated sample, labelled as generated), data-type pages, and
-internal/deprecated/unstable badges. Light and dark themes follow
+internal/deprecated/unstable badges, "Added in" and "Changed in" badges
+linked to a page per release (`#/release/v2`) that lists its changes. Light and dark themes follow
 `prefers-color-scheme`; every page has a hash address such as
 `#/op/example.weather%23GetCity/errors`, and the sidebar, search (`/` focuses
 it), and copy buttons work from the keyboard.
@@ -174,7 +190,8 @@ construct is accepted by this output.
   "service": {},
   "resources": {},
   "operations": {},
-  "shapes": {}
+  "shapes": {},
+  "versions": null
 }
 ```
 
@@ -190,15 +207,9 @@ operation, and resource maps are sorted by shape ID. Member arrays preserve
 source order; examples and enum values preserve model order. Generation
 adds no clocks, build paths, or deployment-specific values.
 
-*Designed, not built:* two additive fields for API versions. Every
-operation, shape, member and enum value gains `history` (`added`,
-`changed`, `missing`: the releases it first appeared and changed in, and
-those that cannot see it, derived from the frozen releases and their
-migrations), and the root gains `versions`, always present (the supported
-releases, oldest first, with their sunsets, the version header, and each
-migration's steps as an older client sees them, or `null`). Their schema and
-derivation are in [api-versions-clients.md](api-versions-clients.md#api-documentation-across-releases);
-these tables take them when they are built.
+Every operation, shape, member and enum value carries `history`, and the
+root carries `versions`, both described under
+[Release history](#release-history).
 
 ### Common documentation and notes
 
@@ -311,6 +322,145 @@ implementation.
 Version 1 shape kinds are `unit`, `boolean`, `string`, `byte`, `short`, `integer`,
 `long`, `float`, `double`, `bigInteger`, `bigDecimal`, `timestamp`, `document`,
 `blob`, `enum`, `intEnum`, `list`, `map`, `structure`, and `union`.
+
+### Release history
+
+The reference describes the current release and dates each element from
+the chain of frozen releases and their migrations, never from a
+hand-written `@since` (decisions 77 and 78 in
+[idl/decisions.md](idl/decisions.md);
+[api-versions-clients.md](api-versions-clients.md#api-documentation-across-releases)).
+`crucible_ir::versions` derives it, once, from the audience-projected
+model. An external projection marks the older releases rather than
+projecting them, since only the reference reads them;
+`crucible_ir::versions::visible` projects them where they are read, best
+effort: each older model without its internal API, never refused (a frozen
+release with a required internal member, public since, still documents
+the current one). It keeps a step only when the audience sees every id the
+step names on each side (`crucible_ir::versions::named`: the member's
+older name, an added value or error and its downgrade, a reshape's new
+member, a removed operation), and lists only the replaced members of a
+reshape and the error members it sees. So external output never names
+internal API, not even in history: a change only internal API saw dates
+nothing.
+
+Every operation, shape, member and enum value object has `history`:
+
+```json
+"history": { "added": "v2", "changed": ["v3"], "missing": [] }
+```
+
+| Field | Type | Value |
+|---|---|---|
+| `added` | string or `null` | The release since which every release has the element, following `rename` steps: walking back from the current model through the frozen releases, the oldest one that still has it, so an element dropped and added again is dated by its latest addition. `null` when the oldest supported release has it, which stays true when an old release is dropped. An element not frozen yet is added in the current release |
+| `changed` | string array, oldest first, unique | Each release whose migration has a step naming the element among its `subjects` |
+| `missing` | string array, oldest first | The supported releases that see an older definition without the element, because it is a member of a structure a later `reshape` restores, or of a removed operation's own input or output (decision 74). Empty for nearly everything |
+
+An element is identified by its id (`Shape`, `Shape$member`, `Enum$VALUE`,
+an operation's id); a member or enum value renamed in a migration is the
+same element under its older name before it. `added` says when the
+element came into the API, not which releases can use it. Once older
+releases are served as projections of the current model (phase 5b, PR 6
+of [api-versions-clients.md](api-versions-clients.md#order)), an addition
+reaches every supported release except the ones `missing` lists. Until
+then a server serves each older release from its frozen model, so an
+addition reaches none of them: `history` describes the projections to
+come, not what an older client is served today. A renderer shows `added`
+and falls back to `notes.since` when it is `null`.
+
+The root's `versions` is always present: `null` for a service without an
+`api_version`, an object for every `.cru` service, its keys sorted as
+everywhere in the document:
+
+```json
+"versions": {
+  "carrier": { "kind": "header", "name": "Crucible-Version" },
+  "current": "v3",
+  "releases": [
+    { "changes": [], "current": false,
+      "documentation": { "html": "", "markdown": "", "text": "" },
+      "from": null, "name": "v1", "retired": ["example.shop#PingItems"],
+      "sunset": "2027-01-01",
+      "sunsetDocumentation": { "html": "...", "markdown": "...", "text": "..." } },
+    { "changes": [
+        { "documentation": { "html": "", "markdown": "", "text": "" },
+          "kind": "rename", "member": "title",
+          "older": { "member": "name", "shapes": {} },
+          "shape": "example.shop#GetItemOutput",
+          "subjects": ["example.shop#GetItemOutput$title"] }
+      ],
+      "current": true,
+      "documentation": { "html": "...", "markdown": "...", "text": "..." },
+      "from": "v1", "name": "v2", "retired": [], "sunset": null,
+      "sunsetDocumentation": { "html": "", "markdown": "", "text": "" } }
+  ]
+}
+```
+
+| Field | Type | Value |
+|---|---|---|
+| `current` | string | The current model's `api_version` |
+| `carrier` | object | `{kind: "header", name: "Crucible-Version"}`: where a client names its release, the one carrier until a protocol declares another |
+| `releases` | array, oldest first, current last | The supported chain: the service's older releases, then the current model |
+| release `name`, `current` | string, boolean | The release's name; `current` is `true` for the last only |
+| release `from` | string or `null` | The release before it, whose migration made this one; `null` for the oldest supported |
+| release `documentation` | common documentation object | The `///` of `migration "<name>" from ..`; empty for the oldest |
+| release `sunset`, `sunsetDocumentation` | string or `null`; common documentation object | The date after which the release may be refused, declared by the migration from it, and that `sunset` step's `///`; `null` and empty for the current release |
+| release `retired` | operation-ID array | Operations this release has that the next one dropped under a `compatibility.operation` exception: this release and those before it no longer serve them. Only those the audience sees |
+| release `changes` | array, in declaration order | One object per step of the migration to this release, those whose subjects the audience sees; empty for the oldest |
+
+Documentation is rendered as everywhere in the document: a doc link in a
+migration's or step's documentation to something the current model has is
+an anchor, and one to what only an older release had (a removed operation,
+a member's older name) is its text. So is one to internal API in an
+external description: the projection drops the link's target, and a
+migration's documentation is kept as written, so write it for the
+audience that reads it.
+
+Every change has `kind`; `subjects`, the ids the step names on its newer
+side, which `history.changed` reads (for `removeOperation`, the older
+operation's); `documentation`, the step's `///`; and `older`, what a client
+of the release before (`from`) sees instead, in model terms. A change's
+own fields name the newer side:
+
+| `kind` | Fields | `subjects` | `older` |
+|---|---|---|---|
+| `rename` | `shape`, `member`: the member's new name | the member | `{member, shapes}`: the older name |
+| `require` | `shape`, `member` | the member | `{required: false, filled, default, shapes}`: `filled` is `"default"`, with `default` the wire value an omitted member gets, or `"service"` (`require .. by hook`), with `default` `null` |
+| `addEnumValue` | `shape`, `value`: the new value's name | the enum | `{value, shapes}`: the value older clients receive instead |
+| `addError` | `operation`, `error` | the operation | `{error, members: [{member, from}], shapes}`: the error older clients receive, and which of the new error's members (`from`) fill which of its members |
+| `move` | `operation`; `method`, `uri`: the current route, strings or `null` | the operation | `{method, uri, shapes}`: the older route |
+| `reshape` | `shape`, `members`: the older members it replaced, `into`: the member they became | the structure | `{shape, shapes}`: the older definition's id, its entry in `shapes` |
+| `retype` | `shape`, `member`; `target`: the new target's id, a string or `null`; `by`: `"hook"` or `"conversion"` | the member | `{member, shapes}`: the older member, as a member object (target, constraints, default, and its `history`), or `null` |
+| `removeOperation` | `operation` | the older operation | `{operation, shapes}`: the older operation, as an `operations` entry with its `history` |
+| `behavior` | `operation`, `name` | the operation | `null`: the documentation says what changed |
+
+`older` is self-contained: its `shapes` maps, by id, every shape the older
+definition reaches that the document's own `shapes` does not hold as the
+same definition (an older target the current model no longer has, or has
+changed), and always the older definition of a `reshape`. Each entry is a
+`shapes` entry rendered from the older release's model, as the document's
+audience sees it, with its `history` dated within the chain that ends at
+that release. The kinds that reach no older shape carry an empty map.
+
+#### `changes.json`
+
+Beside `describe.json`, `changes.json` holds the same release chain alone,
+for a documentation site that builds a changelog or a feed without reading
+the whole description. It follows the same rules (UTF-8, sorted keys, no
+clocks or paths), and its `versions` is the value `describe.json`
+holds:
+
+```json
+{
+  "format": "crucible.changes/1",
+  "service": "example.shop#Shop",
+  "versions": {}
+}
+```
+
+`service` is the service's id. Consumers must reject an unknown `format`
+and ignore unknown fields; additive fields may join version 1.
 
 ### Wire examples
 
@@ -520,6 +670,12 @@ except the identical renderer files, which have one reviewed copy under
 The Catalog fixture covers documentation notes, pagination, unions, enums,
 idempotency, RPC headers, timestamp examples, and arbitrary-precision wire values.
 The Links goldens (`tests/models/doc-links`) cover doc links in both audiences.
+The History goldens (`tests/models/version-history`) cover release history
+in both audiences: three releases, every kind of step, a retired operation
+and two steps on internal API that only the internal reference lists. The
+Versioned golden is the e2e versioned service's reference
+(`e2e/weather-service/versioned`). Both read their releases through
+`crucible_lang::load_versioned_service`, as a build does.
 Run the focused tests after intended changes:
 
 ```sh

@@ -98,6 +98,11 @@ h3 { margin: 1.5rem 0 0.5rem; font-size: 1.05rem; }
 .cx-badge.cx-deprecated { color: var(--danger); background: var(--danger-bg); }
 .cx-badge.cx-unstable { color: var(--warn); background: var(--warn-bg); }
 .cx-badge.cx-sensitive { color: var(--muted); }
+a.cx-badge { text-decoration: none; }
+.cx-badge.cx-added, .cx-badge.cx-current { color: var(--info); background: var(--info-bg); }
+.cx-badge.cx-changed { color: var(--warn); background: var(--warn-bg); }
+.cx-badge.cx-missing { color: var(--muted); }
+.cx-change { margin-bottom: 1.5rem; }
 .cx-method, .cx-kind {
   display: inline-block; margin-left: 0.4rem; padding: 0 0.4rem; font: 600 0.7rem/1.5 var(--mono);
   color: var(--muted); border: 1px solid var(--border); border-radius: 4px; vertical-align: middle;

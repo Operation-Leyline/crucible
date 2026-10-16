@@ -23,7 +23,11 @@ is non-exhaustive. Additive metadata fields may join format 1; incompatible
 field meanings require a new format version. The static HTML reference's file
 names (`index.html`, `explorer.js`, `explorer.css`, `describe.js`) and the
 `CrucibleExplorer.registerOperationPanel` hook are stable as described there;
-the renderer's CSS class names and internal functions are not.
+the renderer's CSS class names and internal functions are not. The
+`crucible.changes/1` contract (`changes.json`, beside `describe.json`) is
+stable under the same rules, as described in
+[the docs guide](docs.md#changesjson); `Description::versions` and
+`describe::sort_keys` are additive.
 
 `DocsOutput::sdks`, `crucible generate docs --sdks` and `crucible sdk
 describe` add the `crucible.sdks/1` contract (`sdks.json`), stable as

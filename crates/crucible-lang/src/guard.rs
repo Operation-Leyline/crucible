@@ -1538,6 +1538,7 @@ pub fn versions_in(
             sunset_docs,
             docs: doc_text(link.doc),
             retired,
+            external: false,
         });
     }
     out.reverse();

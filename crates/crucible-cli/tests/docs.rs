@@ -51,3 +51,43 @@ fn docs_cli_projects_audiences_and_preserves_outputs_on_diagnostics() {
     assert!(!result.status.success());
     assert_eq!(fs::read(out.join("describe.json")).unwrap(), bytes);
 }
+
+/// `generate docs` reads the release chain as a build does: the
+/// reference dates elements and lists each release's changes, in
+/// `describe.json` and in `changes.json` beside it.
+#[test]
+fn docs_cli_documents_the_release_chain() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("reference");
+    let result = Command::new(env!("CARGO_BIN_EXE_crucible"))
+        .args(["generate", "docs"])
+        .arg(common::shared_package("version-history"))
+        .arg("--out")
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let read = |name: &str| -> Value {
+        serde_json::from_slice(&fs::read(out.join(name)).unwrap()).unwrap()
+    };
+    let describe = read("describe.json");
+    let names: Vec<&str> = describe["versions"]["releases"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|release| release["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["v1", "v2", "v3"]);
+    assert_eq!(
+        describe["shapes"]["example.history#Size"]["members"][1]["history"],
+        serde_json::json!({"added": "v3", "changed": [], "missing": ["v1"]})
+    );
+    let changes = read("changes.json");
+    assert_eq!(changes["format"], "crucible.changes/1");
+    assert_eq!(changes["versions"], describe["versions"]);
+    assert!(out.join("src/releases/v2.md").is_file());
+}

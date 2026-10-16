@@ -14,10 +14,33 @@ pub enum Audience {
 
 /// Project a contract without mutating the full model used by servers and policy.
 /// Refusals are collected before returning; callers must not publish partial output.
+///
+/// An external projection leaves the older releases in `versions` as they
+/// are and marks them ([`crate::ir::ApiVersion::external`]): only the
+/// reference reads them, through [`crate::versions::visible`], which
+/// projects them then, best effort, so an older release this audience
+/// could not project never fails an output that does not read it.
 pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnostics> {
     if audience == Audience::Internal {
         return Ok(service.clone());
     }
+    external(service, false)
+}
+
+/// An older release as the external audience sees it, never refused: what
+/// [`project`] would refuse (an internal member that is required, an
+/// internal target, an example naming what it removes) is left out instead,
+/// with what then reaches nothing. The reference reads older releases this
+/// way, where a frozen release's internal API must not show and no refusal
+/// may stop the current release's reference.
+pub(crate) fn lenient_external(service: &Service) -> Service {
+    external(service, true).unwrap_or_else(|_| unreachable!("a lenient projection refuses nothing"))
+}
+
+/// The external projection; `lenient` keeps going past every refusal and
+/// drops what the refused construct would have left dangling, so it is
+/// never `Err`.
+fn external(service: &Service, lenient: bool) -> Result<Service, Diagnostics> {
     let mut result = service.clone();
     result
         .errors
@@ -116,7 +139,7 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
             }
         }
     }
-    if !diagnostics.is_empty() {
+    if !lenient && !diagnostics.is_empty() {
         return Err(diagnostics);
     }
     result
@@ -227,10 +250,72 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
     // 80): the external contract names no internal id.
     result.retain_doc_links();
     strip_raw_traits(&mut result);
+    // The older releases are projected only where they are read (decision
+    // 78): mark them, for `versions::visible`.
+    for version in &mut result.versions {
+        version.external = true;
+    }
+    if lenient {
+        // What `drop_dangling` removes, the bindings, tokens, pagination
+        // paths, examples and resource bindings filtered above may still
+        // name: project what remains again, until nothing more goes, so
+        // every member-name list is filtered against the final shapes.
+        if drop_dangling(&mut result) {
+            return external(&result, true);
+        }
+        return Ok(result);
+    }
     if diagnostics.is_empty() {
         Ok(result)
     } else {
         Err(diagnostics)
+    }
+}
+
+/// After a lenient projection, what names a shape it removed goes too: a
+/// member whose target is gone, then a collection whose element is, and an
+/// operation whose input or output is, until nothing dangles. Whether it
+/// removed anything.
+fn drop_dangling(service: &mut Service) -> bool {
+    let mut removed = false;
+    loop {
+        let present: BTreeSet<ShapeId> = service.shapes.keys().cloned().collect();
+        let mut changed = false;
+        service.shapes.retain(|_, shape| match shape {
+            Shape::List(list) => present.contains(&list.member.target),
+            Shape::Map(map) => {
+                present.contains(&map.key.target) && present.contains(&map.value.target)
+            }
+            _ => true,
+        });
+        changed |= service.shapes.len() != present.len();
+        for shape in service.shapes.values_mut() {
+            if let Shape::Structure(s) | Shape::Union(s) = shape {
+                let before = s.members.len();
+                s.members.retain(|m| present.contains(&m.target));
+                changed |= s.members.len() != before;
+            }
+        }
+        let before = service.operations.len();
+        service.operations.retain(|op| {
+            op.input
+                .iter()
+                .chain(&op.output)
+                .all(|id| present.contains(id))
+        });
+        changed |= service.operations.len() != before;
+        for op in &mut service.operations {
+            let before = op.errors.len();
+            op.errors.retain(|id| present.contains(id));
+            changed |= op.errors.len() != before;
+        }
+        let before = service.errors.len();
+        service.errors.retain(|id| present.contains(id));
+        changed |= service.errors.len() != before;
+        if !changed {
+            return removed;
+        }
+        removed = true;
     }
 }
 
