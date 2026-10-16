@@ -716,6 +716,16 @@ version's section when it is prepared.
   and `generate docs`, `cdk` and `terraform` refuse a `.cru` package for now.
   Their goldens are kept.
 
+### Deprecated
+
+- `OperationMiddlewareExt`, `InterceptorExt` and `ProtocolExt::when_trait`
+  with `"smithy.api#readonly"` or `"smithy.api#idempotent"`: those ids name
+  no trait now that the prelude is `crucible.api`. They still select the
+  readonly or idempotent operations, logging a deprecation warning when the
+  scope is built, until the next minor release. Use
+  `.when(|op| op.readonly)` and `.when(|op| op.idempotent)`; `when_trait`
+  with a model's own trait id is unchanged.
+
 ### Removed
 
 - `crucible_ir::ir::Service::renames`, `Member::client_optional` and
@@ -1370,6 +1380,19 @@ version's section when it is prepared.
   ```
 
   The exception stays while a release that had the operation is supported.
+
+- **The built-in vocabulary is `crucible.api`.** A tool that reads
+  generated output and recognised a built-in by the `smithy.api#` prefix
+  (in `describe.json`, OpenAPI, MCP schemas or an SDK's bundled schema)
+  matches `crucible.api#`, and one that read an `x-smithy-*` OpenAPI or JSON
+  Schema extension reads `x-crucible-*`. Client telemetry dashboards that
+  filter on `rpc.system = smithy` filter on `crucible`. A Rust service
+  replaces `when_trait("smithy.api#readonly")` and
+  `when_trait("smithy.api#idempotent")` with `.when(|op| op.readonly)` and
+  `.when(|op| op.idempotent)` before the next minor release; until then the
+  old ids work with a warning. Committed release snapshots need nothing:
+  they read as before. See
+  [migrating](docs/migrating.md#the-built-in-vocabulary-is-crucibleapi).
 
 - **A `null` document payload reads as the member's null.** In 0.7.0 a
   document `@httpPayload` sent as the body `null` read as a document value:

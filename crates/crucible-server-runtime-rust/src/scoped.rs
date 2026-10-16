@@ -14,6 +14,25 @@ pub struct Scoped<T> {
     applies: Predicate,
 }
 
+enum Builtin {
+    Readonly,
+    Idempotent,
+}
+
+/// The facts `when_trait` once named by their retired `smithy.api` ids,
+/// warned about once per call, at construction rather than per request.
+fn deprecated_builtin_trait(id: &str) -> Option<Builtin> {
+    let (builtin, instead) = match id {
+        "smithy.api#readonly" => (Builtin::Readonly, ".when(|op| op.readonly)"),
+        "smithy.api#idempotent" => (Builtin::Idempotent, ".when(|op| op.idempotent)"),
+        _ => return None,
+    };
+    tracing::warn!(
+        "`when_trait(\"{id}\")` is deprecated and goes in the next minor release: use `{instead}`"
+    );
+    Some(builtin)
+}
+
 macro_rules! scope_extension {
     ($name:ident, $bound:path) => {
         pub trait $name: $bound + Sized {
@@ -25,12 +44,21 @@ macro_rules! scope_extension {
                 let names = names.to_vec();
                 self.when(move |op| !names.contains(&op.name))
             }
+            /// Scopes to the operations that carry the model's own trait
+            /// `id` (`acme#operationClass`). For `readonly` and
+            /// `idempotent` operations, use `.when(|op| op.readonly)` and
+            /// `.when(|op| op.idempotent)`.
+            ///
+            /// The ids `smithy.api#readonly` and `smithy.api#idempotent`
+            /// still select those operations, with a deprecation warning,
+            /// until the next minor release: they name no trait since the
+            /// prelude became `crucible.api` (CHANGELOG, *Deprecated*).
             fn when_trait(self, id: &'static str) -> Scoped<Self> {
-                self.when(move |op| match id {
-                    "smithy.api#readonly" => op.readonly,
-                    "smithy.api#idempotent" => op.idempotent,
-                    _ => op.has_trait(id),
-                })
+                match deprecated_builtin_trait(id) {
+                    Some(Builtin::Readonly) => self.when(|op| op.readonly),
+                    Some(Builtin::Idempotent) => self.when(|op| op.idempotent),
+                    None => self.when(move |op| op.has_trait(id)),
+                }
             }
             fn when(
                 self,
@@ -151,5 +179,25 @@ impl<T: Protocol> Protocol for Scoped<T> {
     }
     fn prepare(&mut self, prepare: &Prepare<'_>) -> std::result::Result<(), String> {
         self.inner.prepare(&prepare.within(&*self.applies))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Builtin, deprecated_builtin_trait};
+
+    #[test]
+    fn retired_builtin_trait_ids_still_select_their_facts() {
+        assert!(matches!(
+            deprecated_builtin_trait("smithy.api#readonly"),
+            Some(Builtin::Readonly)
+        ));
+        assert!(matches!(
+            deprecated_builtin_trait("smithy.api#idempotent"),
+            Some(Builtin::Idempotent)
+        ));
+        // A model's own trait, and the prelude's namespace, name no fact.
+        assert!(deprecated_builtin_trait("acme#operationClass").is_none());
+        assert!(deprecated_builtin_trait("crucible.api#readonly").is_none());
     }
 }
