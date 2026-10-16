@@ -5,6 +5,7 @@
 
 mod audience;
 mod capabilities;
+pub mod decimal;
 mod diagnostics;
 pub mod doc_links;
 mod doc_notes;

@@ -417,6 +417,7 @@ name = "crucible-ir"
 version = "0.7.0"
 dependencies = [
  "base64 0.22.1",
+ "bigdecimal",
  "chrono",
  "pulldown-cmark",
  "regex",

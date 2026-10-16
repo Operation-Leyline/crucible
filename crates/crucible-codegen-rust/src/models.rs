@@ -828,46 +828,99 @@ fn range_check(
             bound("MAX", &range.max)
         );
     }
-    let float = matches!(kind, SimpleKind::Float | SimpleKind::Double);
-    let integral = |n: &serde_json::Number| {
-        n.as_i64()
-            .map(|i| i.to_string())
-            .or_else(|| n.as_u64().map(|u| u.to_string()))
-    };
-    if !float
-        && range
-            .min
-            .iter()
-            .chain(&range.max)
-            .all(|n| integral(n).is_some())
-    {
-        let bound = |n: &Option<serde_json::Number>| match n {
-            Some(n) => format!("Some({}i128)", integral(n).expect("checked integral")),
+    if !matches!(kind, SimpleKind::Float | SimpleKind::Double) {
+        // A fractional or exponent bound becomes the integer it admits, so
+        // the comparison stays exact; the example check agrees.
+        let (min, max) = range.integer_bounds();
+        let bound = |n: Option<i128>| match n {
+            Some(i128::MIN) => "Some(i128::MIN)".to_owned(),
+            Some(i128::MAX) => "Some(i128::MAX)".to_owned(),
+            Some(n) => format!("Some({n}i128)"),
             None => "None".to_owned(),
         };
-        format!(
+        return format!(
             "{pad}validator.range_integer(i128::from(*{value}), {}, {});\n",
-            bound(&range.min),
-            bound(&range.max)
-        )
-    } else {
-        let bound = |n: &Option<serde_json::Number>| match n {
-            Some(n) => format!("Some({}f64)", n.as_f64().unwrap_or_default()),
-            None => "None".to_owned(),
-        };
-        let (method, value) = if kind == SimpleKind::Float {
-            ("range_float32", format!("*{value}"))
-        } else {
-            ("range_float", format!("*{value} as f64"))
-        };
-        format!(
-            "{pad}validator.{method}({value}, {}, {});\n",
-            bound(&range.min),
-            bound(&range.max)
-        )
+            bound(min),
+            bound(max)
+        );
     }
+    let (min, max) = range.float_bounds();
+    let bound = |n: Option<f64>| match n {
+        // Past f64's range the bound is infinite, which has no literal.
+        Some(n) if n == f64::INFINITY => "Some(f64::INFINITY)".to_owned(),
+        Some(n) if n == f64::NEG_INFINITY => "Some(f64::NEG_INFINITY)".to_owned(),
+        Some(n) => format!("Some({n}f64)"),
+        None => "None".to_owned(),
+    };
+    let (method, value) = if kind == SimpleKind::Float {
+        ("range_float32", format!("*{value}"))
+    } else {
+        ("range_float", format!("*{value} as f64"))
+    };
+    format!(
+        "{pad}validator.{method}({value}, {}, {});\n",
+        bound(min),
+        bound(max)
+    )
 }
 
 fn opt(value: Option<u64>) -> String {
     value.map_or("None".to_owned(), |v| format!("Some({v})"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::range_check;
+    use crucible_ir::ir::{Bounds, SimpleKind};
+
+    fn bounds(min: Option<&str>, max: Option<&str>) -> Bounds<serde_json::Number> {
+        let number = |text: Option<&str>| text.map(|text| text.parse().unwrap());
+        Bounds {
+            min: number(min),
+            max: number(max),
+        }
+    }
+
+    /// An integer kind's fractional or exponent bound becomes the integer
+    /// it admits, compared exactly; `f64` would round `9007199254740993` onto
+    /// `9007199254740992.5`'s neighbour and accept it.
+    #[test]
+    fn integer_kinds_compare_exactly_against_any_bound() {
+        let check = |kind, min, max| range_check(kind, "value", &bounds(min, max), "");
+        assert_eq!(
+            check(
+                SimpleKind::Long,
+                Some("0.99999999999999999999"),
+                Some("9007199254740992.5")
+            ),
+            "validator.range_integer(i128::from(*value), Some(1i128), Some(9007199254740992i128));\n"
+        );
+        assert_eq!(
+            check(SimpleKind::Short, Some("-1.5"), Some("2.5E3")),
+            "validator.range_integer(i128::from(*value), Some(-1i128), Some(2500i128));\n"
+        );
+        assert_eq!(
+            check(SimpleKind::Byte, Some("-1e999999999"), Some("1e999999999")),
+            "validator.range_integer(i128::from(*value), Some(i128::MIN), Some(i128::MAX));\n"
+        );
+    }
+
+    /// A `float` or `double` keeps IEEE comparison; a bound past `f64` is
+    /// infinite, not the zero `Number::as_f64` would leave.
+    #[test]
+    fn floats_compare_against_their_nearest_f64() {
+        let check = |kind, min, max| range_check(kind, "value", &bounds(min, max), "");
+        assert_eq!(
+            check(
+                SimpleKind::Double,
+                Some("-1e400"),
+                Some("0.29999999999999999999")
+            ),
+            "validator.range_float(*value as f64, Some(f64::NEG_INFINITY), Some(0.3f64));\n"
+        );
+        assert_eq!(
+            check(SimpleKind::Float, None, Some("1e400")),
+            "validator.range_float32(*value, None, Some(f64::INFINITY));\n"
+        );
+    }
 }

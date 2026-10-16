@@ -22,6 +22,7 @@ fn load(name: &str) -> Service {
 /// The packages written for the compiler to refuse: nothing to sample.
 const REFUSED: &[&str] = &[
     "doc-links-unresolved",
+    "example-range-refusals",
     "external-docs-refusals",
     "patterns-unsupported",
     "recursive-output",

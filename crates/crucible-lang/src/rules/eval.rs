@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 
 use crucible_ir::ShapeId;
+use crucible_ir::decimal::Decimal;
 use crucible_ir::ir::{Bounds, Constraints, Shape, Traits};
 use serde_json::Value as Json;
 
@@ -19,44 +20,25 @@ pub(super) struct Unknown;
 
 pub(super) type Tri = Result<bool, Unknown>;
 
-/// A number as the model holds it: whole numbers stay exact, so two bounds
-/// past 2^53 do not compare equal.
-#[derive(Debug, Clone, Copy)]
-enum Num {
-    Int(i128),
-    Float(f64),
-}
+/// A number as the model holds it, exactly: two bounds past 2^53, or two
+/// fractions with more digits than `f64` keeps, do not compare equal.
+struct Num(Decimal);
 
 impl Num {
+    fn int(value: i128) -> Num {
+        Num(Decimal::integer(value))
+    }
+
     fn from_json(number: &serde_json::Number) -> Option<Num> {
-        if let Some(i) = number.as_i64() {
-            Some(Num::Int(i128::from(i)))
-        } else if let Some(u) = number.as_u64() {
-            Some(Num::Int(i128::from(u)))
-        } else {
-            number.as_f64().map(Num::Float)
-        }
+        Decimal::parse(number).map(Num)
     }
 
     fn from_literal(text: &str) -> Option<Num> {
-        text.parse::<i128>()
-            .map(Num::Int)
-            .or_else(|_| text.parse::<f64>().map(Num::Float))
-            .ok()
+        Decimal::from_text(text).map(Num)
     }
 
-    fn compare(self, other: Num) -> Option<std::cmp::Ordering> {
-        match (self, other) {
-            (Num::Int(a), Num::Int(b)) => Some(a.cmp(&b)),
-            (a, b) => a.float().partial_cmp(&b.float()),
-        }
-    }
-
-    fn float(self) -> f64 {
-        match self {
-            Num::Int(i) => i as f64,
-            Num::Float(f) => f,
-        }
+    fn compare(&self, other: &Num) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
     }
 }
 
@@ -257,8 +239,8 @@ impl Evaluator<'_, '_> {
         }
         let rest: Vec<&str> = path.rest.iter().map(|r| r.name.as_str()).collect();
         let bound = |b: &Bounds<u64>, which: &str| match which {
-            "min" => b.min.map(|n| Val::Num(Num::Int(i128::from(n)))),
-            _ => b.max.map(|n| Val::Num(Num::Int(i128::from(n)))),
+            "min" => b.min.map(|n| Val::Num(Num::int(i128::from(n)))),
+            _ => b.max.map(|n| Val::Num(Num::int(i128::from(n)))),
         };
         let range = |b: &Bounds<serde_json::Number>, which: &str| match which {
             "min" => b.min.as_ref().and_then(Num::from_json).map(Val::Num),
@@ -274,7 +256,7 @@ impl Evaluator<'_, '_> {
                 Entity::Operation(op) => match *field {
                     "method" => Some(Val::Str(op.method.clone())),
                     "uri" => Some(Val::Str(op.uri.to_string())),
-                    _ => Some(Val::Num(Num::Int(i128::from(op.status)))),
+                    _ => Some(Val::Num(Num::int(i128::from(op.status)))),
                 },
                 _ => None,
             },
@@ -342,7 +324,7 @@ impl Evaluator<'_, '_> {
                 let (Val::Num(left), Value::Number(right)) = (&left, value) else {
                     return Ok(false);
                 };
-                let Some(ordering) = Num::from_literal(&right.text).and_then(|r| left.compare(r))
+                let Some(ordering) = Num::from_literal(&right.text).map(|r| left.compare(&r))
                 else {
                     return Ok(false);
                 };
@@ -450,7 +432,7 @@ fn equals(left: &Val, right: &Value) -> bool {
         (Val::Str(l), Value::Str(r)) => *l == r.value,
         (Val::Str(l), Value::Ident(r)) => *l == r.name,
         (Val::Num(l), Value::Number(r)) => Num::from_literal(&r.text)
-            .and_then(|r| l.compare(r))
+            .map(|r| l.compare(&r))
             .is_some_and(|ordering| ordering == std::cmp::Ordering::Equal),
         (Val::Bool(l), Value::Ident(r)) => {
             (r.name == "true") == *l && matches!(r.name.as_str(), "true" | "false")

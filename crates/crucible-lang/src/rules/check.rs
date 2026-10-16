@@ -3,6 +3,8 @@
 //! not have, an operator the value cannot take. A rule that matches nothing
 //! silently is the failure this prevents (decision 46).
 
+use crucible_ir::decimal::Decimal;
+
 use super::metadata::{MetaIndex, MetaTy, applies_to};
 use super::subject::World;
 use super::vocabulary::{
@@ -324,7 +326,7 @@ impl Checker<'_, '_> {
         };
         match ty {
             PathType::Num => {
-                if !matches!(value, Value::Number(n) if n.text.parse::<f64>().is_ok()) {
+                if !matches!(value, Value::Number(n) if Decimal::from_text(&n.text).is_some()) {
                     self.error(value.span(), format!("`{}` is a number", spelled(path)));
                 }
             }

@@ -9,8 +9,10 @@
 //!
 //! Constructs the compiler cannot lower yet are diagnostics, never skipped.
 
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
+use crucible_ir::decimal::{self, Decimal};
 use crucible_ir::ir::{
     AuthScheme, Binding, Bindings, Bounds, Constraints, Deprecation, DocNotes, Enum,
     EnumValue as IrEnumValue, ErrorInfo, Example as IrExample, ExampleError, Fault, HeaderEncoding,
@@ -2481,10 +2483,10 @@ impl<'a> Lowerer<'a> {
                     if let Some(max) = &max {
                         value.insert("max".into(), Json::Number(max.clone()));
                     }
-                    if let (Some(lo), Some(hi)) = (
-                        min.as_ref().and_then(Number::as_f64),
-                        max.as_ref().and_then(Number::as_f64),
-                    ) && lo > hi
+                    // Exactly, as written: in `f64` the ends of
+                    // `0.30000000000000001..0.3` are equal.
+                    if let (Some(lo), Some(hi)) = (&min, &max)
+                        && decimal::compare(lo, hi) == Some(Ordering::Greater)
                     {
                         self.error(file, constraint.span, "the minimum exceeds the maximum");
                     }
@@ -4310,11 +4312,11 @@ impl<'a> Lowerer<'a> {
         }
         if let (Some(own_range), Some(range)) = (&own.constraints.range, &constraints.range)
             && !within(
-                own_range.min.as_ref().and_then(Number::as_f64),
-                own_range.max.as_ref().and_then(Number::as_f64),
-                range.min.as_ref().and_then(Number::as_f64),
-                range.max.as_ref().and_then(Number::as_f64),
-                |a, b| a.total_cmp(b),
+                own_range.min.as_ref().and_then(Decimal::parse),
+                own_range.max.as_ref().and_then(Decimal::parse),
+                range.min.as_ref().and_then(Decimal::parse),
+                range.max.as_ref().and_then(Decimal::parse),
+                Decimal::cmp,
             )
         {
             self.warning(

@@ -1,0 +1,48 @@
+service Ranges {
+    version "1"
+    protocol json
+    operations [Quote]
+}
+
+bigDecimal Rate { range ..0.29999999999999999999 }
+
+bigInteger Huge { range ..170141183460469231731687303715884105728 }
+
+long Count { range ..9007199254740992.5 }
+
+bigDecimal Tiny { range -1e-10.. }
+
+structure Settings {
+    rate: Rate = 0.3
+    count: Count = 9007199254740993
+}
+
+operation Quote {
+    http POST "/quotes"
+    input {
+        rate: Rate
+        huge: Huge
+        count: Count
+        tiny: Tiny
+        ratio: double { range ..0.29999999999999999999 }
+        settings?: Settings
+    }
+    example "At the bounds" {
+        input {
+            rate: 0.29999999999999999999
+            huge: 170141183460469231731687303715884105728
+            count: 9007199254740992
+            tiny: -1e-10
+            ratio: 0.3
+        }
+    }
+    example "Past the bounds" {
+        input {
+            rate: 3e-1
+            huge: 170141183460469231731687303715884105729
+            count: 9007199254740993
+            tiny: -1.00000000000000000001E-10
+            ratio: 0.3
+        }
+    }
+}

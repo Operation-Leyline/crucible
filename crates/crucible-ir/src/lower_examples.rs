@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use base64::Engine as _;
 use serde_json::{Map, Number, Value};
 
+use crate::decimal::Decimal;
 use crate::ir::{
     Constraints, Member, Service, Shape, Simple, SimpleKind, Structure, TimestampFormat,
 };
@@ -211,12 +212,31 @@ impl Check<'_> {
                     ));
                 }
             }
-            SimpleKind::Float | SimpleKind::Double => match value {
-                Value::Number(number) => self.range(path, constraints, number),
-                Value::String(text)
-                    if matches!(text.as_str(), "NaN" | "Infinity" | "-Infinity") => {}
-                _ => self.mismatch(path, "number", value),
-            },
+            SimpleKind::Float | SimpleKind::Double => {
+                let float = simple.kind == SimpleKind::Float;
+                let read = match value {
+                    // A body number is read as serde_json reads an `f64`,
+                    // then narrowed for a `float`; either past its range
+                    // is refused.
+                    Value::Number(number) => serde_json::from_str::<f64>(&number.to_string())
+                        .ok()
+                        .map(|read| if float { f64::from(read as f32) } else { read })
+                        .filter(|read| read.is_finite()),
+                    Value::String(text) => match text.as_str() {
+                        "NaN" => Some(f64::NAN),
+                        "Infinity" => Some(f64::INFINITY),
+                        "-Infinity" => Some(f64::NEG_INFINITY),
+                        _ => return self.mismatch(path, "number", value),
+                    },
+                    _ => return self.mismatch(path, "number", value),
+                };
+                match read {
+                    Some(read) => self.float_range(path, float, constraints, read, value),
+                    None => self
+                        .problems
+                        .push(format!("{path}: {value} is outside the range of the type")),
+                }
+            }
             SimpleKind::BigDecimal => match value {
                 Value::Number(number) => self.range(path, constraints, number),
                 _ => self.mismatch(path, "number", value),
@@ -234,15 +254,21 @@ impl Check<'_> {
                     SimpleKind::Integer => (i128::from(i32::MIN), i128::from(i32::MAX)),
                     _ => (i128::from(i64::MIN), i128::from(i64::MAX)),
                 };
-                let Value::Number(number) = value else {
+                let integer = match value {
+                    Value::Number(number) if !number.to_string().contains(['.', 'e', 'E']) => {
+                        Decimal::parse(number)
+                    }
+                    _ => None,
+                };
+                let Some(integer) = integer else {
                     return self.mismatch(path, "integer", value);
                 };
-                match number.to_string().parse::<i128>() {
-                    Ok(n) if (low..=high).contains(&n) => self.range(path, constraints, number),
-                    Ok(n) => self.problems.push(format!(
-                        "{path}: {n} is outside the range of the type ({low} to {high})"
-                    )),
-                    Err(_) => self.mismatch(path, "integer", value),
+                if integer < Decimal::integer(low) || integer > Decimal::integer(high) {
+                    self.problems.push(format!(
+                        "{path}: {value} is outside the range of the type ({low} to {high})"
+                    ));
+                } else if let Value::Number(number) = value {
+                    self.range(path, constraints, number);
                 }
             }
         }
@@ -262,29 +288,51 @@ impl Check<'_> {
         }
     }
 
+    /// An exact kind against its range: every integer kind and
+    /// `bigDecimal`, which the server compares exactly. An integer kind's
+    /// server bounds are [`crate::ir::Bounds::integer_bounds`], which
+    /// accept exactly the integers these do.
     fn range(&mut self, path: &str, constraints: &Constraints, number: &Number) {
+        let (Some(bounds), Some(value)) = (&constraints.range, Decimal::parse(number)) else {
+            return;
+        };
+        let bound = |bound: &Option<Number>| bound.as_ref().and_then(Decimal::parse);
+        let below = bound(&bounds.min).is_some_and(|min| value < min);
+        let above = bound(&bounds.max).is_some_and(|max| value > max);
+        if below || above {
+            self.constraint(format!("{path}: {number} is outside its range"));
+        }
+    }
+
+    /// A `float` or `double` against its range, in the server's IEEE
+    /// arithmetic: a finite `float` is compared in `f32` with each bound
+    /// narrowed, everything else in `f64`. NaN is within every range.
+    fn float_range(
+        &mut self,
+        path: &str,
+        float: bool,
+        constraints: &Constraints,
+        read: f64,
+        value: &Value,
+    ) {
         let Some(bounds) = &constraints.range else {
             return;
         };
-        let below = bounds.min.as_ref().is_some_and(|min| precedes(number, min));
-        let above = bounds.max.as_ref().is_some_and(|max| precedes(max, number));
-        if below || above {
-            self.constraint(format!("{path}: {number} is outside its range"));
+        let (min, max) = bounds.float_bounds();
+        let outside = if float && read.is_finite() {
+            let read = read as f32;
+            min.is_some_and(|min| read < min as f32) || max.is_some_and(|max| read > max as f32)
+        } else {
+            min.is_some_and(|min| read < min) || max.is_some_and(|max| read > max)
+        };
+        if outside {
+            self.constraint(format!("{path}: {value} is outside its range"));
         }
     }
 
     fn mismatch(&mut self, path: &str, expected: &str, value: &Value) {
         self.problems
             .push(format!("{path} must be a {expected}, not {}", kind(value)));
-    }
-}
-
-/// Whether `a < b`. Integers compare exactly, as `f64` would round `Long` and
-/// `BigInteger` values past 2^53 onto their bounds.
-fn precedes(a: &Number, b: &Number) -> bool {
-    match (a.to_string().parse::<i128>(), b.to_string().parse::<i128>()) {
-        (Ok(a), Ok(b)) => a < b,
-        _ => matches!((a.as_f64(), b.as_f64()), (Some(a), Some(b)) if a < b),
     }
 }
 
@@ -350,16 +398,226 @@ impl Service {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ir::Bounds;
+
+    /// Problems with `value` as a `kind` member ranged `min..max`.
+    fn problems(
+        kind: SimpleKind,
+        min: Option<&str>,
+        max: Option<&str>,
+        value: &str,
+    ) -> Vec<String> {
+        let target = ShapeId::new("test", "Number");
+        let shape = Shape::Simple(Simple {
+            internal: false,
+            sensitive: false,
+            kind,
+            constraints: Constraints::default(),
+            timestamp_format: None,
+            docs: None,
+            notes: Default::default(),
+            traits: Default::default(),
+        });
+        let shapes = BTreeMap::from([(target.clone(), shape)]);
+        let number = |text: Option<&str>| text.map(|text| text.parse::<Number>().unwrap());
+        let constraints = Constraints {
+            range: Some(Bounds {
+                min: number(min),
+                max: number(max),
+            }),
+            ..Constraints::default()
+        };
+        let value: Value = serde_json::from_str(value).unwrap();
+        crate::validate::value(&shapes, "value", &target, &constraints, &value)
+    }
+
+    type Case<'a> = (SimpleKind, Option<&'a str>, Option<&'a str>, &'a str, bool);
+
+    /// Each case: kind, minimum, maximum, value, and whether the generated
+    /// server accepts it.
+    fn assert_cases(cases: &[Case<'_>]) {
+        for &(kind, min, max, value, accepted) in cases {
+            let problems = problems(kind, min, max, value);
+            assert_eq!(
+                problems.is_empty(),
+                accepted,
+                "{kind:?} {min:?}..{max:?} with {value}: {problems:?}"
+            );
+        }
+    }
 
     #[test]
-    fn integer_bounds_compare_exactly_past_f64_precision() {
-        let bound: Number = "9007199254740993".parse().unwrap();
-        let below: Number = "9007199254740992".parse().unwrap();
-        assert!(precedes(&below, &bound));
-        assert!(!precedes(&bound, &below));
-        assert!(!precedes(&bound, &bound));
-        let fraction: Number = "1.5".parse().unwrap();
-        let two: Number = "2".parse().unwrap();
-        assert!(precedes(&fraction, &two));
+    fn big_decimal_compares_exactly() {
+        use SimpleKind::BigDecimal as D;
+        let max = Some("0.29999999999999999999");
+        let min = Some("-0.30000000000000000001");
+        assert_cases(&[
+            (D, None, max, "0.29999999999999999999", true),
+            (D, None, max, "0.29999999999999999998", true),
+            (D, None, max, "2.9999999999999999999e-1", true),
+            (D, None, max, "0.3", false),
+            (D, None, max, "3e-1", false),
+            (D, None, max, "0.29999999999999999999000000001", false),
+            (D, min, None, "-0.30000000000000000001", true),
+            (D, min, None, "-0.3", true),
+            (D, min, None, "-0.30000000000000000002", false),
+            (D, min, None, "-3.0000000000000000002E-1", false),
+            (D, Some("1e-10"), None, "1e-10", true),
+            (D, Some("1e-10"), None, "0.0000000001", true),
+            (D, Some("1e-10"), None, "1.00000000000000000001e-10", true),
+            (D, Some("1e-10"), None, "0.00000000009999999999999", false),
+            (D, None, Some("2.5E3"), "2500", true),
+            (D, None, Some("2.5E3"), "2.4999999999999999999e3", true),
+            (D, None, Some("2.5E3"), "2500.0000000000000000001", false),
+            (D, Some("9007199254740993"), None, "9007199254740993", true),
+            (
+                D,
+                Some("9007199254740993"),
+                None,
+                "9007199254740992.99999999",
+                false,
+            ),
+            (D, Some("1e999999999"), None, "1e999999999", true),
+            (D, Some("1e999999999"), None, "9.99999999e999999998", false),
+        ]);
+    }
+
+    #[test]
+    fn big_integer_compares_exactly_past_i128() {
+        use SimpleKind::BigInteger as I;
+        let max = Some("170141183460469231731687303715884105728");
+        let min = Some("-1e40");
+        assert_cases(&[
+            (
+                I,
+                None,
+                max,
+                "170141183460469231731687303715884105728",
+                true,
+            ),
+            (
+                I,
+                None,
+                max,
+                "170141183460469231731687303715884105727",
+                true,
+            ),
+            (
+                I,
+                None,
+                max,
+                "170141183460469231731687303715884105729",
+                false,
+            ),
+            (
+                I,
+                min,
+                None,
+                "-10000000000000000000000000000000000000000",
+                true,
+            ),
+            (
+                I,
+                min,
+                None,
+                "-10000000000000000000000000000000000000001",
+                false,
+            ),
+            (I, None, Some("2.5E3"), "2500", true),
+            (I, None, Some("2.5E3"), "2501", false),
+            (I, Some("0.5"), None, "1", true),
+            (I, Some("0.5"), None, "0", false),
+        ]);
+    }
+
+    #[test]
+    fn integer_kinds_compare_exactly_with_fractional_and_exponent_bounds() {
+        use SimpleKind::{Byte, Integer, Long, Short};
+        let long_min = Some("-9223372036854775807.99999999999999999999");
+        let int_max = Some("2147483646.00000000000000000001");
+        assert_cases(&[
+            // f64 rounds both 9007199254740993 and 9007199254740992.5 to
+            // 9007199254740992, and would accept the value.
+            (
+                Long,
+                None,
+                Some("9007199254740992.5"),
+                "9007199254740992",
+                true,
+            ),
+            (
+                Long,
+                None,
+                Some("9007199254740992.5"),
+                "9007199254740993",
+                false,
+            ),
+            (Long, long_min, None, "-9223372036854775807", true),
+            (Long, long_min, None, "-9223372036854775808", false),
+            (Long, None, Some("1e2"), "100", true),
+            (Long, None, Some("1e2"), "101", false),
+            (Long, None, None, "9223372036854775807", true),
+            (Long, None, None, "9223372036854775808", false),
+            (Integer, Some("0.99999999999999999999"), None, "1", true),
+            (Integer, Some("0.99999999999999999999"), None, "0", false),
+            (Integer, None, int_max, "2147483646", true),
+            (Integer, None, int_max, "2147483647", false),
+            (Short, None, Some("-1.5"), "-2", true),
+            (Short, None, Some("-1.5"), "-1", false),
+            (Byte, None, Some("1e999999999"), "127", true),
+            (Byte, Some("1e999999999"), None, "127", false),
+            (Byte, Some("-1e999999999"), None, "-128", true),
+        ]);
+        let bounds = |min: &str, max: &str| Bounds {
+            min: Some(min.parse::<Number>().unwrap()),
+            max: Some(max.parse::<Number>().unwrap()),
+        };
+        assert_eq!(
+            bounds("0.99999999999999999999", "-1e999999999").integer_bounds(),
+            (Some(1), Some(i128::MIN))
+        );
+        assert_eq!(
+            bounds("-1.5", "2.5E3").integer_bounds(),
+            (Some(-1), Some(2500))
+        );
+        assert_eq!(
+            bounds("1e999999999", "-0.5").integer_bounds(),
+            (Some(i128::MAX), Some(-1))
+        );
+    }
+
+    #[test]
+    fn floats_keep_ieee_semantics() {
+        use SimpleKind::{Double, Float};
+        assert_cases(&[
+            // The server's bound is the f64 nearest 0.29999999999999999999,
+            // which is 0.3's.
+            (Double, None, Some("0.29999999999999999999"), "0.3", true),
+            (
+                Double,
+                None,
+                Some("0.29999999999999999999"),
+                "0.30000000000000004",
+                false,
+            ),
+            (Double, Some("1e-10"), None, "1e-10", true),
+            (Double, Some("1e-10"), None, "9.999999999999999e-11", false),
+            (Double, None, Some("0.1"), "0.100000005", false),
+            (Double, Some("-2.5E3"), None, "-2500", true),
+            (Double, Some("-2.5E3"), None, "-2500.0000000000005", false),
+            (Double, None, Some("1e400"), "1e308", true),
+            (Double, None, Some("1e400"), "\"Infinity\"", true),
+            (Double, None, Some("1e308"), "\"Infinity\"", false),
+            (Double, Some("-1"), None, "\"-Infinity\"", false),
+            (Double, Some("-1"), Some("1"), "\"NaN\"", true),
+            (Double, None, None, "1e400", false),
+            // 0.100000005 narrows to the f32 nearest 0.1, the bound's own.
+            (Float, None, Some("0.1"), "0.100000005", true),
+            (Float, None, Some("0.1"), "0.10000001", false),
+            (Float, Some("0.29999999999999999999"), None, "0.3", true),
+            (Float, None, Some("1e100"), "\"Infinity\"", false),
+            (Float, None, None, "1e39", false),
+            (Float, None, None, "3.4028235e38", true),
+        ]);
     }
 }

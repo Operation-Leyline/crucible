@@ -708,32 +708,10 @@ impl Checker<'_> {
     }
 }
 
+/// `a` against `b`, exactly: a `bigDecimal` bound tightened from `0.3` to
+/// `0.29999999999999999999` is unchanged in `f64`.
 fn compare_numbers(a: &serde_json::Number, b: &serde_json::Number) -> Ordering {
-    let integer = |number: &serde_json::Number| {
-        number
-            .as_i64()
-            .map(i128::from)
-            .or_else(|| number.as_u64().map(i128::from))
-    };
-    let float_integer = |value: f64, integer: i128| {
-        // Casting the float to an integer preserves its represented value for
-        // comparison with 64-bit integer bounds, without rounding the integer.
-        let order = (value as i128).cmp(&integer);
-        if order == Ordering::Equal {
-            value.fract().partial_cmp(&0.0).unwrap_or(Ordering::Equal)
-        } else {
-            order
-        }
-    };
-    match (integer(a), integer(b)) {
-        (Some(a), Some(b)) => a.cmp(&b),
-        (Some(a), None) => float_integer(b.as_f64().expect("JSON numbers are finite"), a).reverse(),
-        (None, Some(b)) => float_integer(a.as_f64().expect("JSON numbers are finite"), b),
-        (None, None) => a
-            .as_f64()
-            .partial_cmp(&b.as_f64())
-            .expect("JSON numbers are finite"),
-    }
+    crucible_ir::decimal::compare(a, b).unwrap_or(Ordering::Equal)
 }
 
 fn error_info<'a>(service: &'a Service, id: &ShapeId) -> Option<&'a crucible_ir::ir::ErrorInfo> {

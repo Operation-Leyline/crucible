@@ -722,3 +722,32 @@ fn external_docs_links_are_web_or_mail_addresses() {
         assert!(refused.contains(line), "{refused}");
     }
 }
+
+/// An example or default just past a bound with more digits than an `f64`
+/// keeps is refused, as the server's exact comparison refuses it: each
+/// value's nearest `f64` is the bound's. The values at the bounds pass, and
+/// so does a `double` at its rounded bound, which the server compares in
+/// IEEE arithmetic.
+#[test]
+fn examples_past_a_high_precision_bound_are_refused() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/models/example-range-refusals");
+    let refused = crucible_lang::load_service(&dir).unwrap_err();
+    assert_eq!(
+        refused.matches("is outside its range").count(),
+        6,
+        "{refused}"
+    );
+    for problem in [
+        "the default: 0.3 is outside its range",
+        "the default: 9007199254740993 is outside its range",
+        "example 2 \"Past the bounds\": input.rate: 3e-1 is outside its range",
+        "example 2 \"Past the bounds\": input.huge: 170141183460469231731687303715884105729 is outside its range",
+        "example 2 \"Past the bounds\": input.count: 9007199254740993 is outside its range",
+        "example 2 \"Past the bounds\": input.tiny: -1.00000000000000000001e-10 is outside its range",
+    ] {
+        assert!(refused.contains(problem), "{problem}\n{refused}");
+    }
+    assert!(!refused.contains("example 1"), "{refused}");
+    assert!(!refused.contains("input.ratio"), "{refused}");
+}

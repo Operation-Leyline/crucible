@@ -31,18 +31,15 @@
 //! bytes), or a header, label or query value that would need a control
 //! character or surrounding white space, which HTTP cannot carry intact.
 
-mod decimal;
 mod pattern;
 
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
 
 use base64::Engine as _;
 use crucible_ir::ShapeId;
+use crucible_ir::decimal::Decimal;
 use crucible_ir::ir::{Constraints, Member, Service, Shape, SimpleKind, TimestampFormat};
 use serde_json::{Map, Number, Value, json};
-
-use decimal::Decimal;
 
 /// Which members a structure's sample includes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -620,14 +617,24 @@ impl<'a> Sampler<'a> {
         let range = constraints.range.as_ref();
         let min_bound = range.and_then(|r| r.min.as_ref());
         let max_bound = range.and_then(|r| r.max.as_ref());
-        // A bound with more digits than an i128 holds is itself the sample.
-        for number in [min_bound, max_bound].into_iter().flatten() {
-            if Decimal::parse(number).is_none() {
-                return Value::Number(number.clone());
+        // A bound past an i128 is itself the sample.
+        fn rounded(
+            bound: Option<&Number>,
+            round: fn(&Decimal) -> Option<i128>,
+        ) -> Option<(&Number, Option<i128>)> {
+            bound.map(|bound| (bound, Decimal::parse(bound).and_then(|d| round(&d))))
+        }
+        let (min, max) = (
+            rounded(min_bound, Decimal::ceil),
+            rounded(max_bound, Decimal::floor),
+        );
+        for (bound, rounded) in [min, max].into_iter().flatten() {
+            if rounded.is_none() {
+                return Value::Number(bound.clone());
             }
         }
-        let min = min_bound.and_then(Decimal::parse).and_then(Decimal::ceil);
-        let max = max_bound.and_then(Decimal::parse).and_then(Decimal::floor);
+        let min = min.and_then(|(_, rounded)| rounded);
+        let max = max.and_then(|(_, rounded)| rounded);
         let low = match (min, kind_low) {
             (Some(m), Some(k)) => m.max(k),
             (Some(m), None) => m,
@@ -697,45 +704,37 @@ impl<'a> Sampler<'a> {
         let range = constraints.range.as_ref();
         let min_bound = range.and_then(|r| r.min.as_ref());
         let max_bound = range.and_then(|r| r.max.as_ref());
-        // A bound with more digits than an i128 mantissa is itself the sample.
-        for number in [min_bound, max_bound].into_iter().flatten() {
-            if Decimal::parse(number).is_none() {
-                return Value::Number(number.clone());
-            }
-        }
         let (min, max) = (
             min_bound.and_then(Decimal::parse),
             max_bound.and_then(Decimal::parse),
         );
-        let below = |a: Decimal, b: Decimal| a.compare(b) == Some(Ordering::Less);
-        let (min, max) = match (min, max) {
-            (Some(min), Some(max)) if below(max, min) => {
-                self.fallback(slot, None, "no number is within the range".into());
-                return json!(0);
-            }
-            (min, max) => (min, max),
+        if let (Some(min), Some(max)) = (&min, &max)
+            && max < min
+        {
+            self.fallback(slot, None, "no number is within the range".into());
+            return json!(0);
+        }
+        let within = |d: &Decimal| {
+            !min.as_ref().is_some_and(|m| d < m) && !max.as_ref().is_some_and(|m| m < d)
         };
-        let within =
-            |d: Decimal| !min.is_some_and(|m| below(d, m)) && !max.is_some_and(|m| below(m, d));
-        let base = match (min, max) {
-            _ if within(Decimal::new(15, 1)) => Decimal::new(15, 1),
-            (Some(min), _) => min,
-            (None, Some(max)) => max,
+        let base = match (&min, &max) {
+            _ if within(&Decimal::new(15, 1)) => Decimal::new(15, 1),
+            (Some(min), _) => min.clone(),
+            (None, Some(max)) => max.clone(),
             (None, None) => Decimal::new(15, 1),
         };
         let seed = Decimal::integer(i128::from(slot.seed));
-        let value = [base.add(seed), base.sub(seed)]
+        // Arithmetic past a thousand digits is refused, leaving the bound.
+        let value = [base.add(&seed), base.sub(&seed)]
             .into_iter()
             .flatten()
-            .find(|d| within(*d))
+            .find(|d| within(d))
             .unwrap_or(base);
         // At a bound, the bound's own digits.
-        let equal =
-            |d: Option<Decimal>| d.is_some_and(|d| d.compare(value) == Some(Ordering::Equal));
-        if equal(min) {
+        if min.as_ref() == Some(&value) {
             return Value::Number(min_bound.expect("a minimum").clone());
         }
-        if equal(max) {
+        if max.as_ref() == Some(&value) {
             return Value::Number(max_bound.expect("a maximum").clone());
         }
         Value::Number(value.to_number())
