@@ -1,0 +1,8 @@
+/// Shelves of books, and the books retired from them.
+service Library {
+    version "1"
+    protocol json
+    auth bearer
+    operations [Ping]
+    resources [Shelf, Archive]
+}

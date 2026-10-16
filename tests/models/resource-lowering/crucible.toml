@@ -1,0 +1,14 @@
+schema_version = 1
+
+# Resource lowering (decisions 31-34 and 67): lifecycle slots, inherited
+# identifiers, view and collection bindings, a view of two resources, an
+# input alias and a resource the service does not reach.
+[model]
+namespace = "example.resources"
+language = 1
+sources = ["."]
+imports = []
+
+[model.naming]
+input = "{Operation}Input"
+output = "{Operation}Output"

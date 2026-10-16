@@ -1,0 +1,9 @@
+readonly operation CountBooks on Book collection {
+    http GET "/shelves/{shelfId}/count"
+    input {
+        $shelfId
+    }
+    output {
+        count: integer
+    }
+}

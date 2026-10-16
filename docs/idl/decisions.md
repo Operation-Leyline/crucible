@@ -339,9 +339,11 @@ trait when a project defines it.
     identified by `workspaceId`, `principalType` and `principalId`, and
     `ListGrants` binds `workspaceId` alone. The language cannot say that;
     the port writes `resource Grant in Workspace`, which makes `Grant` a
-    child in the resource tree where Smithy has it as a root. The contract
-    IR is the same (decision 63: resources are not lowered yet); resource
-    views and infrastructure lowering will see the difference.
+    child in the resource tree where Smithy has it as a root. The
+    operation contract is the same; the lowered resource tree (decision 67)
+    is not: `Grant` is among `Workspace`'s `resources`, not
+    `Service::resource_roots`, and inherits `workspaceId` instead of
+    declaring it.
 
 32. **An operation attaches itself to a resource with a role verb:
     `creates`, `puts`, `reads`, `updates`, `deletes`, `lists` for the
@@ -408,8 +410,8 @@ trait when a project defines it.
 > rejected as written. Built: 34a's keywords, checks and lowering, `$*`
 > (34d), property presence (34e), identifier spelling (34f) and 34h's two
 > warnings. Not built: `references` (34b) and 34c's default-view shorthand;
-> 34i is open. The compiler still refuses annotations on resource entries
-> and leaves `Service::resources` empty (decision 63).
+> 34i is open. The compiler still refuses annotations on resource entries.
+> Resources and their bindings are lowered (decision 67).
 
 34a. **Property mutability is declared on the property, from a closed set
     of keywords, and the compiler checks bindings against it.**
@@ -893,8 +895,8 @@ trait when a project defines it.
     operationClass on operation: enum { controlRead, controlWrite,
     dataPlane, asyncJob }`. Target kinds: `service`, `resource`,
     `operation`, `structure`, `union`, `error`, `enum`, `scalar`, `list`,
-    `map`, `member`, `enum value` (annotations on resources are not lowered
-    yet). Conflicts are kept, written `conflicts a, b` (decision 65); a
+    `map`, `member`, `enum value` (metadata on resources is not lowered
+    yet; their documentation notes are, decision 67). Conflicts are kept, written `conflicts a, b` (decision 65); a
     conflict may name another key, a built-in annotation or a modifier
     (`conflicts sensitive`). Selectors are not. A key's declaration is
     checked once (targets, conflicts, retention, value type, no built-in
@@ -1323,10 +1325,9 @@ these are working choices, changed freely as implementation teaches.
       from `@cfnMutability`; the weather comparison's normalization
       (`as_cru_lowers_it` in `weather_ir.rs`) fills it on the members
       `weather.cru` binds to `City`'s properties.
-    Like Smithy's `lower`, the `.cru` compile produces the contract IR and
-    leaves `Service::resources` empty; resource views come with the
-    documentation and infrastructure lowerings, which the language does not
-    have yet.
+    Like Smithy's `lower`, the `.cru` compile first produced the contract
+    IR and left `Service::resources` empty; it lowers resources since
+    decision 67, without adding a shape to the contract.
 
 64. **The compiler front end is hand-written, in a new `crucible-lang`
     crate.** A lexer that keeps every byte (whitespace and comments are
@@ -1361,7 +1362,62 @@ these are working choices, changed freely as implementation teaches.
     it. The documentation, CDK, Terraform and Explorer generators need a
     `.cru` package with resource lowering (decision 63 notes the language has
     none yet), so their resource-dependent tests are `#[ignore]`d until it
-    lands. The remaining mentions of Smithy in this file are history.
+    lands (decision 67 landed it, and they run again). The remaining
+    mentions of Smithy in this file are history.
+
+67. **Every compile lowers the service's resources, and a type only a
+    resource names stays out of the shapes.** Each resource the service
+    reaches, a root it lists in `resources [..]` or a descendant through
+    `in`, becomes an `ir::Resource`: its identifiers, inherited first
+    (decision 31), and its own properties, each with its resolved type;
+    its children the service reaches, sorted; its doc comment; and the
+    documentation notes `@deprecated`, `@since`, `@unstable` and
+    `@externalDocs`, which a resource now takes beside
+    `@authorizationName` (other annotations and metadata on a resource are
+    still refused). The roles of the operations attached to it (decision
+    32) fill the lifecycle: `creates`, `puts`, `reads`, `updates`,
+    `deletes` and `lists` the slots of those names, `on` its `operations`
+    and `on .. collection` its `collection_operations`, each sorted. Only
+    operations that lowered count. `Service::resource_roots` is the
+    service's list, sorted, so audience projection, which keeps the
+    resources reachable from the roots and clears `Operation::resource`
+    for the rest, keeps every one. `resource_references` stays empty
+    until `references` (34b) is in the grammar.
+
+    Bindings are per attached operation and positive, as decisions 33 and
+    34 define them: member lowering records which entry each `$name`
+    lowers to, and the paths name the lowered members, so `$bookId as
+    book` binds `bookId` at `book` and an identifier spelled `as id` (34f)
+    binds at `id` in a view or output. An input binds its own elisions,
+    those of the structures it includes among them; a member typed by a
+    view binds nothing there. An output binds its own elisions, then
+    `[member, viewMember]` for a member typed by a structure that carries
+    the resource's entries, and the element's bindings under
+    `collections[member]` for a list or map of one. A view `for A, B`
+    (34j) binds for each resource it lists. The first member to carry an
+    entry keeps it. Nothing binds by name, so, unlike Smithy, a `lists`
+    output whose items are a plain structure binds no collection, and a
+    collection operation's elided properties bind as an instance
+    operation's do.
+
+    The targets of identifiers and properties are not visited, and there
+    is one lowering: no documentation or infrastructure variant. A type
+    that no operation reaches, only a property bound by no member, is
+    named by `Resource::properties` but absent from `Service::shapes`, so
+    every SDK and server, and the compatibility guard, sees the shape set
+    it saw before resources were lowered. *Replaces:* Smithy's
+    `lower_documentation` and `lower_infrastructure`, which visited those
+    targets and so made the shape set depend on the output. *Why:* one IR
+    serves the server, the SDKs, the reference and the provisioning
+    generators, which therefore agree; the reference and the Explorer read
+    the resource maps by id, and the CDK and Terraform bindings name
+    member paths, whose targets are always reached. Release snapshots
+    written since carry the resources; one frozen before has none and
+    still reads, and the guard does not compare resources. Since a
+    resource cannot be `internal`, an internal operation in a lifecycle
+    slot of a public resource fails external projection
+    (`audience.resource_lifecycle`), as it did from Smithy; an internal
+    custom action (`on`) is removed with its bindings.
 
 ## API versions across releases
 

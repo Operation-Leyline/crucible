@@ -32,6 +32,7 @@ use crate::literal::resolve_enum_symbols;
 use crate::span::Span;
 
 mod permissions;
+mod resources;
 
 /// `namespaces[i]` is the namespace of `parsed[i]`: the package's own, or a
 /// bundled import's.
@@ -87,6 +88,8 @@ pub(crate) fn lower(
         not_found: None,
         permission_sites: BTreeMap::new(),
         requirement_sites: BTreeMap::new(),
+        carried: BTreeMap::new(),
+        resource_notes: BTreeMap::new(),
     };
     lowerer.collect(parsed, namespaces);
     lowerer.check_resources();
@@ -312,6 +315,9 @@ fn mutability_annotation(mutability: Mutability) -> &'static str {
 /// The roles whose input writes the resource's state (decision 34a).
 const WRITES: &[&str] = &["creates", "puts", "updates"];
 
+/// The annotations that become a declaration's documentation notes.
+const DOC_NOTES: &[&str] = &["deprecated", "since", "unstable", "externalDocs"];
+
 #[derive(Default)]
 struct ConstraintInfo {
     constraints: Constraints,
@@ -484,6 +490,14 @@ struct Lowerer<'a> {
     permission_sites: BTreeMap<ShapeId, Location>,
     /// Each operation's clauses, by operation and index in its list.
     requirement_sites: BTreeMap<(ShapeId, usize), Location>,
+    /// The resource entry each `$name` member carries, by the shape that
+    /// owns the member, the member's lowered name and the resource (a `for
+    /// A, B` view's member carries an entry of each): what
+    /// `lower/resources.rs` assembles into the resources' bindings.
+    carried: resources::Carried,
+    /// Each resource's documentation notes, by name, lowered where the
+    /// resource is checked so their problems are reported once.
+    resource_notes: BTreeMap<String, DocNotes>,
 }
 
 impl<'a> Lowerer<'a> {
@@ -686,18 +700,28 @@ impl<'a> Lowerer<'a> {
             };
             let file = decl.file;
             self.modifiers(file, decl.item, &[]);
-            if let Some(annotation) = decl
-                .item
-                .annotations
-                .iter()
-                .find(|a| !permissions::resource_annotation(a))
-            {
+            if let Some(annotation) = decl.item.annotations.iter().find(|a| {
+                !permissions::resource_annotation(a) && !DOC_NOTES.contains(&a.name.name.as_str())
+            }) {
                 self.error(
                     file,
                     annotation.span,
-                    "annotations on a resource are not supported by the compiler yet, apart from `@authorizationName`",
+                    "annotations on a resource are not supported by the compiler yet, apart from `@authorizationName` and the documentation notes `@deprecated`, `@since`, `@unstable` and `@externalDocs`",
                 );
             }
+            // The resource's documentation notes, for the reference (decision 67).
+            let notes: Vec<Annotation> = decl
+                .item
+                .annotations
+                .iter()
+                .filter(|a| DOC_NOTES.contains(&a.name.name.as_str()))
+                .cloned()
+                .collect();
+            let notes = self
+                .annotations(file, &notes, &[], Position::Shape("resource"))
+                .notes;
+            self.resource_notes
+                .insert(resource.name.name.clone(), notes);
             self.declare_permissions(*decl, resource);
             if let Some(parent) = &resource.parent {
                 match self.decl(&parent.name).map(|d| &d.item.decl) {
@@ -4012,6 +4036,9 @@ impl<'a> Lowerer<'a> {
                 )
             });
         self.locate(context.owner.with_member(&name), file, member.span);
+        if let (Some(found), Some(resource)) = (bound, context.resource) {
+            self.carry(context.owner, &name, resource, found.entry);
+        }
         Some(IrMember {
             internal,
             sensitive,
@@ -5123,6 +5150,7 @@ impl<'a> Lowerer<'a> {
             self.visit(error);
         }
         lowered.sort_by(|a, b| a.id.name().cmp(b.id.name()));
+        let (resources, resource_roots) = self.resources(&reached, &resource_names, &lowered);
 
         let version_declared = version.is_some();
         let mut service = Service {
@@ -5140,8 +5168,9 @@ impl<'a> Lowerer<'a> {
             auth: auth.clone(),
             auth_schemes,
             operations: lowered,
-            resources: BTreeMap::new(),
-            resource_roots: Vec::new(),
+            resources,
+            resource_roots,
+            // `references` (decision 34b) is not in the grammar yet.
             resource_references: BTreeMap::new(),
             // Cloned, not taken: `check_unreached` must not lower a reached
             // shape a second time and repeat its diagnostics.

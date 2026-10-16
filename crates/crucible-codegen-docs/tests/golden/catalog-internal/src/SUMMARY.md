@@ -1,7 +1,7 @@
 # Summary
 
 - [Service overview](index.md)
-- Service operations
+- Item
   - [ListItems](operations/API_ListItems.md)
   - [WriteItem](operations/API_WriteItem.md)
 - Data types

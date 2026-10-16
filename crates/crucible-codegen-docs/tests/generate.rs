@@ -15,21 +15,14 @@ fn package_dir(name: &str) -> std::path::PathBuf {
         .join(name)
 }
 
-/// The package's service as the reference describes it. A `.cru` package
-/// carries no resource metadata for the reference yet, so its operations are
-/// listed as the service's own.
+/// The package's lowered service, operations tied to their resources.
 fn documented(name: &str) -> crucible_ir::ir::Service {
-    let mut service = ungrouped(name);
-    for operation in &mut service.operations {
-        operation.resource = None;
-    }
-    service
-}
-
-/// The package's lowered service, operations still tied to their resources.
-fn ungrouped(name: &str) -> crucible_ir::ir::Service {
-    crucible_lang::load_service(&package_dir(name))
-        .unwrap_or_else(|rendered| panic!("{name}:\n{rendered}"))
+    crucible_lang::load_service(&package_dir(name)).unwrap_or_else(|rendered| {
+        panic!(
+            "{name}:
+{rendered}"
+        )
+    })
 }
 
 fn files(name: &str, audience: Audience) -> Vec<crucible_codegen_docs::File> {
@@ -115,13 +108,8 @@ fn leyline_with(edit: impl Fn(String) -> String) -> crucible_ir::ir::Service {
         .unwrap_or_else(|| panic!("the fixture compiles:\n{rendered}"))
 }
 
-/// The fixture as the reference describes it; see [`documented`].
 fn leyline() -> crucible_ir::ir::Service {
-    let mut service = leyline_with(|text| text);
-    for operation in &mut service.operations {
-        operation.resource = None;
-    }
-    service
+    leyline_with(|text| text)
 }
 
 /// Typed permissions (docs/permissions.md §6.3): a Permissions page with a
@@ -337,10 +325,7 @@ fn model_file_order_does_not_change_description_or_pages() {
         let mut package = crucible_lang::load_package(&package_dir(CATALOG)).unwrap();
         package.files.reverse();
         let compiled = crucible_lang::compile(&package, None);
-        let mut service = compiled.service.expect("the package compiles");
-        for operation in &mut service.operations {
-            operation.resource = None;
-        }
+        let service = compiled.service.expect("the package compiles");
         generate(&project(&service, Audience::External).unwrap()).unwrap()
     };
     let original = files(CATALOG, Audience::External);
@@ -367,10 +352,14 @@ fn missing_targets_are_collected() {
 }
 
 #[test]
-fn documentation_requires_the_resource_projection_and_detects_filename_collisions() {
-    let ordinary = ungrouped(WEATHER);
+fn documentation_requires_resource_metadata_and_detects_filename_collisions() {
+    // An operation names its resource, so the reference needs the
+    // resource's metadata, which the lowering carries.
+    let mut weather = documented(WEATHER);
+    assert!(generate(&weather).is_ok());
+    weather.resources.clear();
     assert!(
-        generate(&ordinary)
+        generate(&weather)
             .unwrap_err()
             .to_string()
             .contains("describe.resources")
@@ -406,12 +395,9 @@ fn file_description_preserves_arbitrary_example_keys() {
     }
     let compiled = crucible_lang::compile(&package, None);
     let rendered = compiled.render();
-    let mut service = compiled
+    let service = compiled
         .service
         .unwrap_or_else(|| panic!("the package compiles:\n{rendered}"));
-    for operation in &mut service.operations {
-        operation.resource = None;
-    }
     let generated = generate(&project(&service, Audience::Internal).unwrap()).unwrap();
     let script = &generated
         .iter()

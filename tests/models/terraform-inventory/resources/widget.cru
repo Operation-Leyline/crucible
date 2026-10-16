@@ -3,7 +3,7 @@ string Id
 string Name { length 1..100 }
 
 structure WidgetState for Widget {
-    id: Id
+    $widgetId as id
     $name
     $enabled
     $capacity

@@ -29,7 +29,21 @@ No default authentication schemes.
 
 ## Operations
 
-### Service operations
+### Item
+
+> **Deprecated.** <p>Deprecated since 2026-09: Use the next revision.</p>
+
+> **Unstable API.** This API may change.
+
+Since <code>2026-01</code>.
+
+<p><a href="https://example.com/guide">Guide</a></p>
+
+<p>Catalog items.</p>
+
+| Lifecycle | Operation |
+|---|---|
+| list | [ListItems](operations/API_ListItems.md) |
 
 - [ListItems](operations/API_ListItems.md)
 - [WriteItem](operations/API_WriteItem.md)

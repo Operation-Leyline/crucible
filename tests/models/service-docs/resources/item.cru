@@ -26,6 +26,10 @@ enum State {
 }
 
 /// Catalog items.
+@deprecated(since: "2026-09", message: "Use the next revision.")
+@since("2026-01")
+@unstable
+@externalDocs("Guide" = "https://example.com/guide")
 resource Item {
     id itemId: string
 }

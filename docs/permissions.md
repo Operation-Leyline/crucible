@@ -737,9 +737,9 @@ findings:
 
 This is the boundary between phase A1 (which produces it) and phases A2 and
 B (which consume it, §10). Permissions do not hang off
-`Service::resources`, which both contract lowerings leave empty (decision
-63). They get their own fields, all `#[serde(default)]`, so committed
-releases keep reading:
+`Service::resources`, which release snapshots frozen before resources were
+lowered leave empty (decision 67). They get their own fields, all
+`#[serde(default)]`, so committed releases keep reading:
 
 ```rust
 // ir::Service

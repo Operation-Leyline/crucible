@@ -17,6 +17,24 @@ version's section when it is prepared.
 
 ### Added
 
+- `.cru`: the compiler lowers resources. `ir::Service::resources` holds every
+  resource the service reaches, with its identifiers (inherited first),
+  properties, children, the lifecycle slots its operations' roles fill
+  (`creates` to `create`, ..., `on` to `operations`, `on .. collection` to
+  `collection_operations`) and, per attached operation, the member paths that
+  carry its identifiers and properties: `$name` elisions under their lowered
+  names, members typed by a `for` view, and lists and maps of one as
+  `collections`. `resource_roots` is the service's `resources [..]`. A type
+  only a resource names does not join `Service::shapes`, so SDK and server
+  output is unchanged. With them, documentation (`crucible generate docs`,
+  `Output` `Generator::Docs`), the in-service Explorer (`.explorer()`), and
+  CDK and Terraform output (`generate cdk`, `generate terraform`) work from a
+  `.cru` package again; they refused one since the Smithy front end was
+  removed. A resource takes the documentation notes `@deprecated`, `@since`,
+  `@unstable` and `@externalDocs`. Release snapshots now carry the resources;
+  older ones still read. See decision 67 in
+  [docs/idl/decisions.md](docs/idl/decisions.md).
+
 - `crucible-seshat`, an opt-in crate: `SeshatLog` (a `LogSink`) and
   `SeshatMetrics` (a `Recorder`) write request records and per-request
   counters as Seshat log-contract lines (`crucible.request`, `seshat.metric`).
@@ -484,6 +502,9 @@ version's section when it is prepared.
   `Prepare::operations()` is unchanged: each id once.
 
 ### Changed
+
+- The API reference lists a resource's lifecycle table only when one of its
+  lifecycle slots is filled; a resource with custom actions only lists them.
 
 - The `crucible-smithy` crate is renamed `crucible-ir` (library `crucible_ir`): it holds the
   IR, snapshots and the helpers every generator shares, and no longer reads

@@ -1,0 +1,9 @@
+operation GetArchive reads Archive {
+    http GET "/archive/{bookId}"
+    input {
+        $bookId
+    }
+    output {
+        archive: BookData
+    }
+}

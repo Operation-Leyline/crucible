@@ -231,43 +231,8 @@ fn failed_generation_preserves_exports() {
     assert_eq!(fs::read("exports/cdk/package.json").unwrap(), old_cdk);
     assert_eq!(fs::read("exports/terraform/main.go").unwrap(), old_provider);
 
-    common::copy_package(
-        &common::shared_package("cdk-model"),
-        Path::new("malformed-resource"),
-    );
-    let city = Path::new("malformed-resource/resources/city.cru");
-    let text = fs::read_to_string(city).unwrap();
-    assert!(text.contains("id cityId: string"));
-    fs::write(
-        city,
-        text.replace("id cityId: string", "id cityId: integer"),
-    )
-    .unwrap();
-    let ordinary = compile("malformed-resource");
-    #[cfg(feature = "go")]
-    ordinary
-        .go_client("ordinary-go-before")
-        .try_generate()
-        .unwrap();
-    let failed = || {
-        ordinary
-            .cdk("malformed-resource")
-            .options(cdk_options())
-            .bindings_value(bindings("cdk-bindings.json"))
-            .try_generate_into("exports/cdk")
-            .unwrap_err()
-    };
-    let error = failed();
-    assert!(
-        error.contains("resource identifier `cityId` must target a defined string shape"),
-        "{error}"
-    );
-    assert_eq!(failed(), error);
-    #[cfg(feature = "go")]
-    ordinary
-        .go_client("ordinary-go-after")
-        .try_generate()
-        .unwrap();
+    // A malformed resource (an integer identifier, say) no longer reaches
+    // provisioning: the compiler refuses it for every output.
     assert_eq!(fs::read("exports/cdk/package.json").unwrap(), old_cdk);
     for name in [
         "missing",
@@ -276,7 +241,6 @@ fn failed_generation_preserves_exports() {
         "missing-metadata",
         "empty-bindings",
         "unsupported",
-        "malformed-resource",
     ] {
         assert!(
             !Path::new("build-output/outputs").join(name).exists(),
@@ -337,7 +301,6 @@ fn probe(root: &Path, mode: &str) -> String {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn typed_provisioning_outputs_match_native_emitters_and_track_configuration() {
     let root = fixture();
     let log = probe(root.path(), "generate");
@@ -390,7 +353,6 @@ fn typed_provisioning_outputs_match_native_emitters_and_track_configuration() {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn invalid_provisioning_configuration_preserves_existing_native_exports() {
     let root = fixture();
     probe(root.path(), "generate");

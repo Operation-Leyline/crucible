@@ -6,7 +6,6 @@ use std::process::Command;
 use serde_json::Value;
 
 #[test]
-#[ignore = "documentation output from a .cru package needs resource lowering (decision 63)"]
 fn docs_cli_projects_audiences_and_preserves_outputs_on_diagnostics() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();

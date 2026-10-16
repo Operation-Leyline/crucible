@@ -400,7 +400,6 @@ fn rust_keyword_type_names_are_diagnosed() {
 /// the hostile enum as a property's type.
 #[cfg(feature = "all-outputs")]
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn hostile_model_text_never_reaches_infrastructure_or_cli_source_raw() {
     let hostile = service();
     let hostile_doc = hostile.docs.clone();

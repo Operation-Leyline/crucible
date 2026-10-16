@@ -79,6 +79,8 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
         .chain(&result.errors)
         .cloned()
         .collect();
+    // A resource names its entries' types without reaching them: the
+    // audience's shapes are what its operations reach (decision 67).
     for resource in result.resources.values() {
         for target in resource
             .identifiers
@@ -86,7 +88,6 @@ pub fn project(service: &Service, audience: Audience) -> Result<Service, Diagnos
             .chain(resource.properties.values())
         {
             check_target(service, &resource.id, target, &mut diagnostics);
-            pending.push(target.clone());
         }
     }
     for op in &result.operations {

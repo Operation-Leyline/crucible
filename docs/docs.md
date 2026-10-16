@@ -13,11 +13,6 @@ description data.
 
 ## Generating a reference
 
-> The reference describes resources, which only a `.cru` package with resource
-> lowering can supply (decision 63 in [idl/decisions.md](idl/decisions.md)).
-> Until that lands, `generate docs` refuses a `.cru` package and the
-> resource-dependent generator tests are ignored.
-
 From a checkout, generate the Weather reference from a package directory:
 
 ```sh

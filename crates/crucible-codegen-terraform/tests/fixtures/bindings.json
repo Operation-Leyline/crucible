@@ -5,7 +5,7 @@
       "properties": {
         "name": {
           "source": {
-            "shape": "example.infra#CreateInput",
+            "shape": "example.infra#CreateWidgetInput",
             "path": [
               "name"
             ]
@@ -15,7 +15,7 @@
         },
         "enabled": {
           "source": {
-            "shape": "example.infra#CreateInput",
+            "shape": "example.infra#CreateWidgetInput",
             "path": [
               "enabled"
             ]
@@ -25,7 +25,7 @@
         },
         "capacity": {
           "source": {
-            "shape": "example.infra#CreateInput",
+            "shape": "example.infra#CreateWidgetInput",
             "path": [
               "capacity"
             ]
@@ -35,7 +35,7 @@
         },
         "slug": {
           "source": {
-            "shape": "example.infra#CreateInput",
+            "shape": "example.infra#CreateWidgetInput",
             "path": [
               "slug"
             ]
@@ -47,7 +47,7 @@
       "attributes": {
         "id": {
           "source": {
-            "shape": "example.infra#WidgetOutput",
+            "shape": "example.infra#CreateWidgetOutput",
             "path": [
               "widget",
               "id"

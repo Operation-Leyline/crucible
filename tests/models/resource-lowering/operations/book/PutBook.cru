@@ -1,0 +1,11 @@
+operation PutBook puts Book {
+    http PUT "/shelves/{shelfId}/books/{bookId}"
+    input {
+        $shelfId
+        $bookId
+        $title
+    }
+    output {
+        book: BookData
+    }
+}

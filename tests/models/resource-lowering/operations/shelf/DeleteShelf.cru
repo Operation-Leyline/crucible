@@ -1,0 +1,6 @@
+operation DeleteShelf deletes Shelf {
+    http DELETE "/shelves/{shelfId}"
+    input {
+        $shelfId
+    }
+}

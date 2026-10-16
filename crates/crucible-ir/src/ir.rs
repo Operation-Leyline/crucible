@@ -53,8 +53,8 @@ pub struct Service {
     pub resource_roots: Vec<ShapeId>,
     /// Design-time resource references, keyed by the referencing shape.
     pub resource_references: BTreeMap<ShapeId, Vec<ResourceReference>>,
-    /// Every shape an operation reaches, prelude shapes included. Infrastructure
-    /// lowering additionally includes resource identifier/property targets.
+    /// Every shape an operation reaches, prelude shapes included. A type
+    /// only a resource's identifier or property names is not among them.
     pub shapes: BTreeMap<ShapeId, Shape>,
     pub traits: Traits,
     /// Service-local shape renames (Smithy `rename`); [`Service::name_of`]
@@ -74,8 +74,8 @@ pub struct Service {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub internal_traits: BTreeSet<ShapeId>,
     /// The permissions each resource declares, keyed by resource; only
-    /// resources that declare any (docs/permissions.md §6.1). Not under
-    /// `resources`, which the contract lowerings leave empty.
+    /// resources that declare any (docs/permissions.md §6.1). Kept apart
+    /// from `resources`, which older release snapshots leave empty.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub permissions: BTreeMap<ShapeId, ResourcePermissions>,
     /// The `@permissionTypes` enum, if the service has one.
@@ -307,6 +307,9 @@ impl Service {
         strip(&mut self.traits);
         for operation in &mut self.operations {
             strip(&mut operation.traits);
+        }
+        for resource in self.resources.values_mut() {
+            strip(&mut resource.traits);
         }
         for shape in self.shapes.values_mut() {
             match shape {

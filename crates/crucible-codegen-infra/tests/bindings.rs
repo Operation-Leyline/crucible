@@ -41,7 +41,6 @@ fn bindings() -> Value {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn resolves_nested_outputs_and_effective_member_constraints() {
     let service = weather();
     let bindings: Bindings = serde_json::from_value(bindings()).unwrap();
@@ -65,7 +64,6 @@ fn resolves_nested_outputs_and_effective_member_constraints() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn bad_paths_and_unbound_resources_are_collected() {
     let service = weather();
     let mut value = bindings();
@@ -82,7 +80,6 @@ fn bad_paths_and_unbound_resources_are_collected() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn cannot_override_model_types_or_expose_sensitive_parent() {
     let service = edited(
         "        city: CitySummary\n    }\n    errors [ConflictError]",
@@ -98,7 +95,6 @@ fn cannot_override_model_types_or_expose_sensitive_parent() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn aggregate_attributes_cannot_expose_sensitive_descendants() {
     let service = edited(
         "structure CitySummary {\n    id: CityId",
@@ -112,7 +108,6 @@ fn aggregate_attributes_cannot_expose_sensitive_descendants() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn provider_context_cannot_shadow_contract_and_unknown_policy_is_refused() {
     let service = weather();
     let mut value = bindings();
@@ -130,7 +125,6 @@ fn provider_context_cannot_shadow_contract_and_unknown_policy_is_refused() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn mutability_and_timestamp_representation_are_explicit() {
     let service = edited(
         "        @audited\n        name: CityName",
@@ -147,7 +141,6 @@ fn mutability_and_timestamp_representation_are_explicit() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn provider_length_refinements_cannot_weaken_model_constraints() {
     let service = weather();
     let mut value = bindings();
@@ -169,7 +162,6 @@ fn provider_length_refinements_cannot_weaken_model_constraints() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn write_only_members_cannot_be_returned_as_attributes() {
     let service = edited(
         "        @audited\n        name: CityName",
@@ -187,7 +179,6 @@ fn write_only_members_cannot_be_returned_as_attributes() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn numeric_context_refinements_do_not_require_prelude_reachability() {
     let mut service = weather();
     service.shapes.remove(&"smithy.api#Long".parse().unwrap());

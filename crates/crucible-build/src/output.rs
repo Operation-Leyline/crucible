@@ -92,18 +92,11 @@ impl Output<'_> {
                 self.name
             ));
         }
-        let service = match &self.generator {
-            #[cfg(feature = "docs")]
-            Generator::Docs => self.model.documentation()?,
-            #[cfg(feature = "cdk")]
-            Generator::Cdk { .. } => self.model.infrastructure()?,
-            #[cfg(feature = "terraform")]
-            Generator::Terraform { .. } => self.model.infrastructure()?,
-            _ => &self.model.service,
-        };
+        // One lowering serves every generator: it carries the resources the
+        // documentation and infrastructure generators read (decision 67).
         let files = self
             .generator
-            .emit_for_audience(service, self.audience)
+            .emit_for_audience(&self.model.service, self.audience)
             .map_err(|e| format!("output {}: {e}", self.name))?;
         let output = self.model.output.join("outputs").join(&self.name);
         crucible_codegen::write(&output, &files)

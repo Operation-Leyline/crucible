@@ -1,0 +1,9 @@
+operation ArchiveBook on Archive collection {
+    http POST "/archive"
+    input {
+        $title
+    }
+    output {
+        archived: BookData
+    }
+}

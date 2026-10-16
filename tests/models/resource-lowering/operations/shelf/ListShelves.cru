@@ -1,0 +1,6 @@
+operation ListShelves lists Shelf {
+    http GET "/shelves"
+    output {
+        shelves: ShelfList
+    }
+}

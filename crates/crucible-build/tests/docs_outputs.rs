@@ -61,7 +61,6 @@ fn docs_probe() {
 }
 
 #[test]
-#[ignore = "documentation, infrastructure and Explorer output from a .cru package needs resource lowering (decision 63)"]
 fn docs_share_artifact_ownership_stable_exports_and_failure_preservation() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();

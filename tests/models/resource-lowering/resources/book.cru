@@ -1,0 +1,30 @@
+string BookId
+/// Only the resource names it: no operation shows it.
+string Note
+
+/// A book on a shelf.
+resource Book in Shelf {
+    id bookId: BookId as id
+    immutable property title: Title
+    readonly property state?: Note
+}
+
+/// A retired book, kept for the record.
+@deprecated(since: "2026-10", message: "Read retired books from their shelf.")
+@since("2026-01")
+resource Archive {
+    id bookId: BookId as id
+    immutable property title: Title
+}
+
+/// What a book and its archived record both show.
+structure BookData for Book, Archive {
+    $*
+}
+
+map BookMap: string -> BookData
+
+/// Declared, but the service lists neither it nor a parent.
+resource Unreached {
+    id unreachedId: string
+}

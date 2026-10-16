@@ -1,0 +1,10 @@
+operation GetBook reads Book {
+    http GET "/shelves/{shelfId}/books/{book}"
+    input {
+        $shelfId
+        $bookId as book
+    }
+    output {
+        book: BookData
+    }
+}

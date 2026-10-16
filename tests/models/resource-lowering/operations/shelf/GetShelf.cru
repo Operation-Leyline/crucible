@@ -1,0 +1,10 @@
+operation GetShelf reads Shelf {
+    http GET "/shelves/{shelfId}"
+    input {
+        $shelfId
+    }
+    output {
+        $shelfId
+        $label
+    }
+}

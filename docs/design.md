@@ -107,6 +107,13 @@ reach, keyed by shape id. Lowering settles, once:
 - **Pagination**: the operation's `@paginated` merged over the service's.
 - **Timestamps**: member format, else target format, else the protocol default
   for where the value travels.
+- **Resources**: every resource the service reaches, with its identifiers
+  (inherited first), properties, children, the lifecycle slots its
+  operations' roles fill, and which members of each attached operation's
+  input and output carry its entries (decision 67 in
+  [idl/decisions.md](idl/decisions.md)). A type only a resource names is
+  not one of the shapes, so the SDKs and servers see the operation contract
+  alone.
 
 Raw `traits` maps stay on the service, operations, shapes and members, so a
 project's own traits reach emitters intact.
@@ -117,18 +124,12 @@ before generation; `crucible diff` and the shared GitHub action compare two
 lowered services. Policy does not re-read the AST or override subset validation.
 See [API policy and compatibility](api-policy.md).
 
-`Model::lower` preserves the operation contract for SDKs and servers without
-resource-only shapes or provisioning diagnostics. Infrastructure generators
-opt in through `Model::lower_infrastructure`, which also preserves the resource graph,
-identifiers, properties, explicit
-lifecycle slots, collection operations, and resolved resource member/reference
-paths. Infrastructure emitters consume a selected projection validated by
-`crucible-codegen-infra`; deployment policy remains separate from HTTP semantics.
-See [infrastructure generation](infrastructure.md) for target boundaries.
-
-`Model::lower_documentation` preserves resources and their lifecycle without
-provisioning member bindings. The description builder consumes that projected IR,
-including explicit service errors and declared protocols; the Markdown renderer
+One lowering serves every generator. Infrastructure emitters consume a
+selected projection validated by `crucible-codegen-infra`; deployment policy
+remains separate from HTTP semantics. See
+[infrastructure generation](infrastructure.md) for target boundaries. The
+description builder consumes the audience-projected IR, including explicit
+service errors, resources and declared protocols; the Markdown renderer
 consumes the versioned description. See [API reference generation](docs.md).
 
 ## Targets and phases

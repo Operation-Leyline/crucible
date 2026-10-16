@@ -4,12 +4,6 @@ Crucible generates CDK construct libraries and Terraform/OpenTofu providers from
 the same resource model. Deployment bindings select the supported surface
 and supply policy that an HTTP API cannot establish.
 
-> Resources come from a `.cru` package, and the language does not lower them
-> yet (decision 63 in [idl/decisions.md](idl/decisions.md)). Until it does,
-> `generate cdk`, `generate terraform` and the resource-dependent generator
-> tests are unavailable (the tests are `#[ignore]`d), and the commands below
-> describe the intended use.
-
 ## Architecture
 
 ```text
@@ -21,14 +15,16 @@ crucible.toml + .cru sources
 ```
 
 The shared resource IR preserves identifiers, properties, nested resources,
-lifecycle slots, collection operations, and resource references. It resolves
-`resourceIdentifier`, `property`, and `nestedProperties` member paths before a
-generator runs. Collection element mappings remain separate from instance paths.
-Generators never read the source; they read the IR.
+lifecycle slots and collection operations. It resolves the member paths that
+`$name` elisions and `for` views bind (decisions 33, 34 and 67 in
+[idl/decisions.md](idl/decisions.md)) before a generator runs. Collection
+element mappings remain separate from instance paths. Generators never read
+the source; they read the IR. Resource references (`references`, decision 34b)
+are not in the language yet.
 
-The CDK and Terraform CLI targets include resource metadata, resource-only
-shapes, and provisioning diagnostics. SDK/server generation and `crucible check`
-retain the operation-only contract.
+The CDK and Terraform targets read the same lowered service as SDKs and
+servers, which carries the resources but no shape that only a resource names;
+their provisioning diagnostics are their own.
 
 CDK packages bind to an existing custom-resource provider. They do not deploy a
 service backend, create a provider Lambda, or implement CloudFormation lifecycle
@@ -48,13 +44,13 @@ For example:
       "name": "City",
       "properties": {
         "Name": {
-          "source": { "shape": "example#CreateInput", "path": ["name"] },
+          "source": { "shape": "example#CreateCityInput", "path": ["name"] },
           "required": true,
           "immutable": true
         }
       },
       "attributes": {
-        "Id": { "source": { "shape": "example#Output", "path": ["id"] } }
+        "Id": { "source": { "shape": "example#CreateCityOutput", "path": ["id"] } }
       },
       "cdk": {
         "resource_type": "Custom::WeatherCity",
@@ -77,10 +73,10 @@ constraints and enclosing sensitivity. Only provider context can declare a scala
 aggregates containing sensitive descendants.
 
 `required` describes the provisioning contract; API inputs and infrastructure
-inputs are not always identical. `immutable` is explicit provider policy. The
-`aws.cloudformation#cfnMutability` values `create` and `create-and-read` also mark
-a selected member immutable. This is a supported subset of CloudFormation trait
-handling, not an implementation of the full AWS schema-generation plugin.
+inputs are not always identical. `immutable` is explicit provider policy. A
+selected member whose mutability is create-only is immutable too: one bound to
+an `immutable` property (decision 34a), or marked `@mutability(create)` or
+`@mutability(createAndRead)`.
 
 Optional refinements are `enum_values` (a nonempty subset of a modeled enum),
 `integer` (numeric types only), `length` (narrower bounds), and `timestamp_format`

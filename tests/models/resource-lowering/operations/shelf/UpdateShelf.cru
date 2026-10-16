@@ -1,0 +1,7 @@
+operation UpdateShelf updates Shelf {
+    http PATCH "/shelves/{shelfId}"
+    input {
+        $shelfId
+        $label
+    }
+}

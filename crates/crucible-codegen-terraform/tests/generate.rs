@@ -20,7 +20,6 @@ fn options() -> Options {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn emits_provider_using_go_wire_runtime() {
     let (service, bindings) = fixture();
     let plan = resolve(&service, &bindings).unwrap();
@@ -68,7 +67,6 @@ fn emits_provider_using_go_wire_runtime() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn rejects_unrelated_sources_and_sensitive_identifiers() {
     let (mut service, bindings) = fixture();
     let mut plan = resolve(&service, &bindings).unwrap();
@@ -79,7 +77,7 @@ fn rejects_unrelated_sources_and_sensitive_identifiers() {
         .source
         .as_mut()
         .unwrap()
-        .shape = "example.infra#UpdateInput".parse().unwrap();
+        .shape = "example.infra#UpdateWidgetInput".parse().unwrap();
     let target = "example.infra#Id".parse().unwrap();
     let crucible_ir::ir::Shape::Simple(id) = service.shapes.get_mut(&target).unwrap() else {
         panic!()
@@ -91,11 +89,10 @@ fn rejects_unrelated_sources_and_sensitive_identifiers() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn diagnoses_lifecycle_constraint_disagreement() {
     let (mut service, bindings) = fixture();
     let plan = resolve(&service, &bindings).unwrap();
-    let input = "example.infra#UpdateInput".parse().unwrap();
+    let input = "example.infra#UpdateWidgetInput".parse().unwrap();
     let crucible_ir::ir::Shape::Structure(input) = service.shapes.get_mut(&input).unwrap() else {
         panic!()
     };
@@ -114,7 +111,6 @@ fn diagnoses_lifecycle_constraint_disagreement() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn rejects_reserved_property_names_and_integer_refinement() {
     let (service, bindings) = fixture();
     let mut plan = resolve(&service, &bindings).unwrap();
@@ -129,7 +125,6 @@ fn rejects_reserved_property_names_and_integer_refinement() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn rejects_unsafe_or_unsupported_lifecycle_policy() {
     let (service, bindings) = fixture();
     let mut plan = resolve(&service, &bindings).unwrap();
@@ -142,11 +137,10 @@ fn rejects_unsafe_or_unsupported_lifecycle_policy() {
 }
 
 #[test]
-#[ignore = "blocked: the .cru front end does not lower resources yet"]
 fn rejects_unmapped_required_inputs_and_unknown_error_names() {
     let (mut service, bindings) = fixture();
     let plan = resolve(&service, &bindings).unwrap();
-    let input: crucible_ir::ShapeId = "example.infra#IdentityInput".parse().unwrap();
+    let input: crucible_ir::ShapeId = "example.infra#ReadWidgetInput".parse().unwrap();
     let crucible_ir::ir::Shape::Structure(input) = service.shapes.get_mut(&input).unwrap() else {
         panic!()
     };

@@ -22,11 +22,21 @@ Wire protocol: <code>crucibleJson</code>.
 
 ## Operations
 
-### Service operations
+### City
+
+
+| Lifecycle | Operation |
+|---|---|
+| create | [CreateCity](operations/API_CreateCity.md) |
+| read | [GetCity](operations/API_GetCity.md) |
+| list | [ListCities](operations/API_ListCities.md) |
 
 - [CreateCity](operations/API_CreateCity.md)
 - [GetCity](operations/API_GetCity.md)
 - [GetCityPhoto](operations/API_GetCityPhoto.md)
 - [ListCities](operations/API_ListCities.md)
-- [Ping](operations/API_Ping.md)
 - [PutCityPhoto](operations/API_PutCityPhoto.md)
+
+### Service operations
+
+- [Ping](operations/API_Ping.md)
