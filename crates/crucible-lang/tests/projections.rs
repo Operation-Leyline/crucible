@@ -7,11 +7,12 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use crucible_ir::ShapeId;
 use crucible_ir::ir::{
-    Member, Operation, Requirements, Service, Shape, SimpleKind, TimestampFormat,
+    Condition, Member, Operation, Requirements, Service, Shape, SimpleKind, TimestampFormat,
+    VersionStep,
 };
-use crucible_ir::versions::{Projection, projections};
+use crucible_ir::versions::{Projection, projections, undo};
+use crucible_ir::{Diagnostics, ShapeId};
 use crucible_policy::Config;
 
 fn dir(path: &str) -> PathBuf {
@@ -116,6 +117,26 @@ fn json(value: &impl serde::Serialize) -> serde_json::Value {
     serde_json::to_value(value).unwrap()
 }
 
+/// What `service`'s operations and errors reach.
+fn reached_in(service: &Service) -> BTreeSet<ShapeId> {
+    let mut reached = BTreeSet::new();
+    let mut pending: Vec<ShapeId> = service
+        .operations
+        .iter()
+        .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+        .chain(&service.errors)
+        .cloned()
+        .collect();
+    while let Some(id) = pending.pop() {
+        if let Some(shape) = service.shapes.get(&id)
+            && reached.insert(id)
+        {
+            pending.extend(shape.members().iter().map(|m| m.target.clone()));
+        }
+    }
+    reached
+}
+
 /// What the guard's comparison finds between each frozen release and its
 /// projection, both families at error with the manifest's exceptions
 /// (decision 68): nothing, when undo has no gap.
@@ -147,9 +168,41 @@ const PACKAGES: &[&str] = &[
     "tests/models/version-projection",
     "tests/models/version-projection-auth",
     "tests/models/version-projection-retype",
+    "tests/models/version-projection-derived",
+    "tests/models/version-projection-conditions",
     "e2e/weather-service/versioned",
+    "e2e/weather-service/versioned_pages",
     "e2e/weather-service/versioned_permissions",
 ];
+
+/// The packages whose projections are their frozen releases whole, apart
+/// from documentation: nothing was added since that reaches them.
+const UNCHANGED: &[&str] = &[
+    "tests/models/version-steps",
+    "tests/models/version-renamed-enum-value",
+    "tests/models/version-projection-retype",
+    "tests/models/version-projection-conditions",
+];
+
+/// The IR as JSON without its documentation and doc links: a projection
+/// keeps the current model's documentation for what it did not restore.
+fn without_docs(service: &Service) -> serde_json::Value {
+    fn strip(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Object(map) => {
+                map.remove("docs");
+                map.remove("doc_links");
+                map.remove("doc_link_operations");
+                map.values_mut().for_each(strip);
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(strip),
+            _ => {}
+        }
+    }
+    let mut value = json(service);
+    strip(&mut value);
+    value
+}
 
 /// Every versioned package's projections pass the IR's own checks
 /// (`projections` refuses one that does not) and compare clean with their
@@ -190,10 +243,11 @@ fn the_comparison_finds_what_undo_removes() {
     }
 }
 
-/// What lowering derived is recomputed: the shapes are exactly what the
-/// operations and errors reach, every target resolves, the recursion groups
-/// are those of the shapes, every feature use names something there, the
-/// operations are sorted, and a projection carries no versions of its own.
+/// What lowering derived is recomputed: the shapes are what the operations
+/// and errors reach, every target resolving, and what the current model
+/// holds that nothing reaches; the recursion groups are those of the shapes,
+/// every feature use names something there, the operations are sorted, and
+/// a projection carries no versions of its own.
 #[test]
 fn derived_ir_is_recomputed_for_every_projection() {
     for package in PACKAGES {
@@ -222,7 +276,14 @@ fn derived_ir_is_recomputed_for_every_projection() {
                 }
             }
             let shapes: BTreeSet<ShapeId> = model.shapes.keys().cloned().collect();
-            assert_eq!(shapes, reached, "{what}");
+            let unreached: BTreeSet<ShapeId> = shapes.difference(&reached).cloned().collect();
+            let current = reached_in(&service);
+            for id in &unreached {
+                assert!(
+                    service.shapes.contains_key(id) && !current.contains(id),
+                    "{what}: {id} is reached by nothing, here or in the current model"
+                );
+            }
             assert_eq!(
                 model.recursive_groups,
                 crucible_ir::ir::recursive_groups(&model.shapes),
@@ -244,15 +305,14 @@ fn derived_ir_is_recomputed_for_every_projection() {
     }
 }
 
-/// `tests/models/version-steps`: every kind of step, undone. Nothing was
-/// added since v1, so the projection is the frozen release, definition for
-/// definition: its shapes and its operations' routes, errors and bindings.
+/// `tests/models/version-steps`: every kind of step, undone, read member by
+/// member; `an_unchanged_release_projects_to_its_frozen_self` compares the
+/// whole projection with the frozen release.
 #[test]
 fn every_step_kind_is_undone() {
     let (service, _) = load("tests/models/version-steps");
     let projections = projected(&service);
     let v1 = at(&projections, "v1");
-    let frozen = &service.versions[0].service;
     let shape = |text: &str| id("example.steps", text);
     // rename, require (by default and by hook), add enum value, retype (by
     // hook and by conversion, the first renamed too), reshape.
@@ -294,17 +354,78 @@ fn every_step_kind_is_undone() {
         .map(|b| (b.member.as_str(), b.name.as_str()))
         .collect();
     assert_eq!(query, [("max", "max"), ("sort", "sort")]);
-    // Definition for definition, the frozen release.
-    assert_eq!(json(&v1.shapes), json(&frozen.shapes));
-    assert_eq!(v1.operations.len(), frozen.operations.len());
-    for (projected, frozen) in v1.operations.iter().zip(&frozen.operations) {
-        assert_eq!(projected.id, frozen.id);
-        assert_eq!(
-            (&projected.method, &projected.uri, &projected.errors),
-            (&frozen.method, &frozen.uri, &frozen.errors)
+}
+
+/// Where nothing added since reaches an older release, its projection is
+/// the frozen release, whole: every derived field, header and feature use,
+/// documentation and doc links aside.
+#[test]
+fn an_unchanged_release_projects_to_its_frozen_self() {
+    for package in UNCHANGED {
+        let (service, _) = load(package);
+        for (version, projection) in service.versions.iter().zip(projected(&service)) {
+            assert_eq!(
+                without_docs(&projection.service),
+                without_docs(&version.service),
+                "{package} at {}",
+                version.name
+            );
+        }
+    }
+}
+
+/// Every step undo applies makes a difference the guard's comparison sees:
+/// undoing the migration without it leaves a finding against the frozen
+/// release. `behavior` changes no shape, so it has nothing to undo.
+#[test]
+fn every_step_is_needed() {
+    for package in PACKAGES {
+        let (service, config) = load(package);
+        let config = Config {
+            exceptions: config.exceptions,
+            ..Config::default()
+        };
+        let projections = projected(&service);
+        for (index, version) in service.versions.iter().enumerate() {
+            let newer = projections
+                .get(index + 1)
+                .map_or(&service, |projection| &projection.service);
+            for (at, step) in version.steps.iter().enumerate() {
+                if matches!(step, VersionStep::Behavior { .. }) {
+                    continue;
+                }
+                let mut without = version.clone();
+                without.steps.remove(at);
+                let mut errors = Diagnostics::default();
+                let mut warnings = Diagnostics::default();
+                let projected = undo(newer, &without, &mut errors, &mut warnings);
+                let report = crucible_policy::diff(&version.service, &projected, &config);
+                let found = report.findings.iter().any(|f| f.exception.is_none());
+                assert!(
+                    found,
+                    "{package} at {}: undo without {step:?} still compares clean",
+                    version.name
+                );
+            }
+        }
+    }
+}
+
+/// A shape the current model holds that nothing reaches, as lowering may
+/// leave one, stays in every projection; one only undo copied, which
+/// nothing reaches, does not.
+#[test]
+fn an_unreached_shape_of_the_current_model_stays() {
+    let (mut service, _) = load("tests/models/version-projection");
+    let orphan = id(SHOP, "Orphan");
+    let tag = service.shapes[&id(SHOP, "Tag")].clone();
+    service.shapes.insert(orphan.clone(), tag);
+    for projection in projected(&service) {
+        assert!(
+            projection.service.shapes.contains_key(&orphan),
+            "{}",
+            projection.name
         );
-        assert_eq!(json(&projected.request), json(&frozen.request));
-        assert_eq!(json(&projected.response), json(&frozen.response));
     }
 }
 
@@ -650,4 +771,200 @@ fn a_step_whose_subject_is_gone_is_an_error() {
     ] {
         assert!(errors.contains(expected), "{expected}\nin\n{errors}");
     }
+}
+
+const DERIVED: &str = "example.derived";
+
+/// A moved operation's route is its release's, and so is the greedy-label
+/// feature use lowering derived from it.
+#[test]
+fn a_restored_route_brings_its_feature_use() {
+    let (service, _) = load("tests/models/version-projection-derived");
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    assert_eq!(operation(v1, "GetFile").uri.to_string(), "/files/{key+}");
+    let greedy = |model: &Service| {
+        model
+            .requirements
+            .iter()
+            .filter(|usage| usage.feature == crucible_ir::Feature::GreedyLabels)
+            .map(|usage| usage.shape.name().to_owned())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(greedy(v1), ["GetFile"]);
+    assert_eq!(greedy(&service), Vec::<String>::new());
+}
+
+/// The protocol's fixed `Content-Type` follows the bindings undo restored:
+/// a request or response the release sent with a body has it, one it sent
+/// without has none, whatever the current model does.
+#[test]
+fn fixed_headers_follow_the_restored_bindings() {
+    let (service, _) = load("tests/models/version-projection-derived");
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    let json_type = || {
+        std::collections::BTreeMap::from([(
+            "Content-Type".to_owned(),
+            "application/json".to_owned(),
+        )])
+    };
+    let none = std::collections::BTreeMap::new;
+    let request = |model: &Service, name: &str| operation(model, name).protocol_headers.clone();
+    let response =
+        |model: &Service, name: &str| operation(model, name).response_protocol_headers.clone();
+    // A query then, a body now; a body then, a query now.
+    assert_eq!(request(v1, "PutQuery"), none());
+    assert_eq!(request(&service, "PutQuery"), json_type());
+    assert_eq!(request(v1, "PutBody"), json_type());
+    assert_eq!(request(&service, "PutBody"), none());
+    // A header then, a body now; a body then, a header now.
+    assert_eq!(response(v1, "ReadHeader"), none());
+    assert_eq!(response(&service, "ReadHeader"), json_type());
+    assert_eq!(response(v1, "ReadBody"), json_type());
+    assert_eq!(response(&service, "ReadBody"), none());
+    let frozen = &service.versions[0].service;
+    for name in ["PutQuery", "PutBody", "ReadHeader", "ReadBody"] {
+        assert_eq!(request(v1, name), request(frozen, name), "{name}");
+        assert_eq!(response(v1, name), response(frozen, name), "{name}");
+    }
+}
+
+/// The release's example of an operation it had is left out, with a
+/// warning, when a member required since makes it fail at the release.
+#[test]
+fn a_frozen_example_that_no_longer_holds_is_left_out() {
+    let (service, _) = load("tests/models/version-projection-derived");
+    let projections = projected(&service);
+    let v1 = at(&projections, "v1");
+    assert_eq!(examples(operation(v1, "GetItem")), Vec::<&str>::new());
+    assert_eq!(
+        examples(operation(&service.versions[0].service, "GetItem")),
+        ["Read an item"]
+    );
+    let warnings: Vec<String> = projections[0]
+        .warnings
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(
+        warnings[0].starts_with(
+            "example.derived#GetItem: example \"Read an item\" does not hold at release \"v1\""
+        ),
+        "{warnings:?}"
+    );
+}
+
+/// A member added since that defaults to a value undo removes defaults to
+/// the value's downgrade, as the release's clients receive it.
+#[test]
+fn a_default_on_a_removed_value_is_its_downgrade() {
+    let (service, _) = load("tests/models/version-projection-derived");
+    let projections = projected(&service);
+    let grade = |model: &Service| {
+        let member = member(model, &id(DERIVED, "RateItemInput"), "grade");
+        (member.default.clone(), member.wire_default.clone())
+    };
+    let large = Some(serde_json::Value::String("LARGE".into()));
+    assert_eq!(grade(at(&projections, "v1")), (large.clone(), large));
+    let huge = Some(serde_json::Value::String("HUGE".into()));
+    assert_eq!(grade(&service), (huge.clone(), huge));
+}
+
+/// A permission's `when` condition reads the renamed member by the name the
+/// release's clients send.
+#[test]
+fn a_condition_reads_a_renamed_member_by_its_older_name() {
+    let (service, _) = load("tests/models/version-projection-conditions");
+    let projections = projected(&service);
+    let condition = |model: &Service| {
+        let Requirements::List(clauses) = &operation(model, "PaintShelf").requirements else {
+            panic!("no requirements");
+        };
+        clauses[0].when.clone()
+    };
+    let equals = |name: &str| {
+        Some(Condition::Equals(
+            vec![name.to_owned()],
+            serde_json::Value::String("red".into()),
+        ))
+    };
+    assert_eq!(condition(at(&projections, "v1")), equals("colour"));
+    assert_eq!(condition(&service), equals("color"));
+}
+
+/// A doc link whose newer target undo removed (a definition restored under
+/// another id) links to what the release linked it to.
+#[test]
+fn a_doc_link_to_what_undo_removed_is_the_releases() {
+    let (mut service, _) = load("tests/models/version-projection");
+    let label = "Size.area".to_owned();
+    service
+        .doc_links
+        .insert(label.clone(), id(SHOP, "Size$area"));
+    let frozen = &mut service.versions[0].service;
+    frozen
+        .doc_links
+        .insert(label.clone(), id(SHOP, "Size$width"));
+    let projections = projected(&service);
+    assert_eq!(
+        at(&projections, "v1").doc_links.get(&label),
+        Some(&id(SHOP, "Size$width"))
+    );
+    assert_eq!(
+        at(&projections, "v2").doc_links.get(&label),
+        Some(&id(SHOP, "Size$area"))
+    );
+}
+
+/// A rename whose older name the release does not have, which only an
+/// edited IR can hold, is a problem, not a silent rename.
+#[test]
+fn a_rename_the_release_cannot_have_made_is_an_error() {
+    let (mut service, _) = load("tests/models/version-steps");
+    let output = id("example.steps", "GetItemOutput");
+    if let Some(Shape::Structure(s)) = service.versions[0].service.shapes.get_mut(&output) {
+        s.members.retain(|m| m.name != "name");
+    }
+    let errors = projections(&service).unwrap_err().to_string();
+    assert!(
+        errors.contains(
+            "example.steps#GetItemOutput$name: release \"v1\" cannot be projected: `rename GetItemOutput.name -> title` names a member the release does not have"
+        ),
+        "{errors}"
+    );
+}
+
+/// A restored operation rejoins its resource where the release listed it.
+#[test]
+fn a_restored_operation_rejoins_its_resource_in_place() {
+    let (mut service, _) = load("e2e/weather-service/versioned_permissions");
+    let shelf = service
+        .resources
+        .keys()
+        .find(|id| id.name() == "Shelf")
+        .cloned()
+        .unwrap();
+    let get = operation(&service, "GetNote").id.clone();
+    service.resources.get_mut(&shelf).unwrap().operations = vec![get.clone()];
+    let mut older = service.resources[&shelf].clone();
+    let count = service.versions[0]
+        .service
+        .operations
+        .iter()
+        .find(|op| op.name() == "CountNotes")
+        .unwrap()
+        .id
+        .clone();
+    older.operations = vec![count.clone(), get.clone()];
+    service.versions[0]
+        .service
+        .resources
+        .insert(shelf.clone(), older);
+    let projections = projected(&service);
+    assert_eq!(
+        at(&projections, "v1").resources[&shelf].operations,
+        [count, get]
+    );
 }

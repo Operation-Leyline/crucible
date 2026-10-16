@@ -1,0 +1,19 @@
+# What lowering derived from a route or bindings undo restored
+# (crucible-lang/tests/projections.rs, decision 73): a moved operation's
+# greedy-label feature use is its release's route's; the protocol's fixed
+# Content-Type follows the restored bindings, a body the release had or did
+# not, in requests and responses; the frozen example of an operation the
+# release had is left out, with a warning, when an output member required
+# since makes it fail; and a member added since whose default is a value
+# undo removes defaults to its downgrade. v1 is frozen under releases/; v2
+# is current.
+[model]
+namespace = "example.derived"
+
+[model.baseline]
+path = "releases/v1.json"
+
+[[exceptions]]
+rule = "compatibility.sdk"
+shape = "example.derived#GetItemOutput$size"
+reason = "Every response carries the size now; older SDKs ignore it"

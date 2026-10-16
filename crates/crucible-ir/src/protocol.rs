@@ -24,6 +24,38 @@ pub enum Protocol {
 }
 
 impl Protocol {
+    /// Fixed request headers: the body's `Content-Type`, a payload's media
+    /// type or JSON, unless a modelled header binding sends its own.
+    pub fn request_headers(
+        self,
+        bindings: &crate::ir::Bindings,
+    ) -> std::collections::BTreeMap<String, String> {
+        let mut headers = std::collections::BTreeMap::new();
+        if let Some(payload) = &bindings.payload {
+            headers.insert("Content-Type".into(), payload.media_type.clone());
+        } else if !bindings.body.is_empty() {
+            headers.insert("Content-Type".into(), "application/json".into());
+        }
+        if bindings
+            .headers
+            .iter()
+            .any(|h| h.name.eq_ignore_ascii_case("Content-Type"))
+        {
+            headers.remove("Content-Type");
+        }
+        headers
+    }
+
+    /// Whether a response with `output` and these bindings carries a value:
+    /// what [`Protocol::response_headers`] takes as `has_value`.
+    pub fn response_has_value(
+        self,
+        output: Option<&ShapeId>,
+        bindings: &crate::ir::Bindings,
+    ) -> bool {
+        output.is_some() && (!bindings.body.is_empty() || bindings.payload.is_some())
+    }
+
     /// Fixed response headers. Modeled header bindings can override Content-Type.
     pub fn response_headers(
         self,

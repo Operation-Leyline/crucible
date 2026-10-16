@@ -148,9 +148,13 @@ version's section when it is prepared.
   a restored operation's requirements name today's permissions
   (`versions::current_permission`, which the Rust server generator now
   shares). Reachable shapes, recursion groups and feature uses are
-  recomputed, every projection passes `validate::service`, and an example
-  of an operation added since that does not hold at a release is left out
-  with a warning (`Projection::warnings`). Nothing reads a projection yet:
+  recomputed, and so are every operation's fixed protocol headers
+  (`Protocol::request_headers`, now shared with lowering), from its
+  projected bindings; permission bindings and `when` conditions through a
+  renamed member read it by its older name; every projection passes
+  `validate::service`; and an example that does not hold at a release,
+  whether an operation added since or a frozen one of an operation the
+  release had, is left out with a warning (`Projection::warnings`). Nothing reads a projection yet:
   the compiler's checks against projections and serving them follow
   ([docs/api-versions-clients.md](docs/api-versions-clients.md#order)).
   crucible-ir internals, outside the stable surface.

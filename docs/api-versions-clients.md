@@ -396,13 +396,24 @@ recomputed on the projection (decision 73):
   keeps its `public` flag with its `auth`, so a projection never pairs a
   release's scheme with today's `public`. A scheme the release's
   operations name is the release's definition; one only operations added
-  since name is the current one. An example left out is reported once, at
-  the newest release it does not hold at: the older projections start
-  from that one. A renamed member keeps the current documentation, as
-  everything not restored does. A restored operation's permission
-  requirements are mapped; a converted one's stay the current model's,
-  bindings and conditions naming the current input, which is what the
-  server authorizes after the upgrade.
+  since name is the current one (a branch nothing can observe while
+  Bearer is the one scheme a `.cru` service declares). An example that
+  does not hold at a release is left out with a warning: one of an
+  operation added since once, at the newest release it fails at, since the
+  older projections start from that one; a frozen example of an operation
+  the release had, at each release whose own example fails (a member
+  required since, under an exception). A renamed member keeps the current
+  documentation, as everything not restored does. A restored operation's
+  permission requirements are mapped to today's permissions. A converted
+  one keeps the current model's requirements, with every binding and
+  `when` path through a renamed member renamed back, so the guard's
+  comparison and the reference read the input as the release's clients
+  send it; the server is unaffected, since an older release's module
+  states nothing for a converted operation and the current requirements
+  authorize the upgraded request. A default on a value `add .. downgrade`
+  removes becomes the downgrade. Every operation's fixed protocol headers
+  (`Protocol::request_headers`, `response_headers`) and greedy-label
+  feature use are recomputed from its projected bindings and route.
 - **Release first, audience second.** `project(projected(r), audience)`:
   undo needs the internal shapes a step may name. The audience projection
   never touches `Service::versions` (`audience.rs:17`), so an external
@@ -724,12 +735,20 @@ is built, and so are PRs 1 to 4.
    with its own error and feature use, pagination renames, examples left
    out with a warning); `version-projection-retype` (a constrained
    `string` retyped to a `boolean`, a timestamp's format);
-   `version-projection-auth` (per-operation auth); the e2e
-   `versioned_permissions` fixture (a restored operation's requirements);
-   and an edited IR whose steps name what the newer model lacks.
+   `version-projection-auth` (per-operation auth);
+   `version-projection-derived` (a restored route's greedy label, fixed
+   headers after a body was added or removed in requests and responses, a
+   frozen example left out, a default on a removed value);
+   `version-projection-conditions` (a `when` condition through a renamed
+   member); the e2e `versioned_permissions` fixture (a restored
+   operation's requirements); whole-IR equality with the frozen release,
+   documentation aside, where nothing added since reaches it; for every
+   step, that undoing its migration without it leaves a finding; and
+   edited IR for what the compiler will refuse.
 5. **The compiler projects and checks.** `versions()` resolves steps
    newest first against projections, re-checks them, refuses collisions
-   and lost old sides, runs the projection check, and returns every
+   and lost old sides, runs the projection check, surfaces
+   `Projection::warnings` with spans at the examples, and returns every
    diagnostic with its span instead of the first error string.
    `ApiVersion` gains `release`, the frozen model, and every reader that
    needs the frozen model moves to it; `service` is still frozen. The

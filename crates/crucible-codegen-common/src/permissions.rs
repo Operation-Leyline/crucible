@@ -147,11 +147,7 @@ pub fn primary<'a>(
     resource: &'a ResourcePermissions,
     permission: &'a Permission,
 ) -> &'a Permission {
-    permission
-        .alias_of
-        .as_deref()
-        .and_then(|symbol| resource.permission(symbol))
-        .unwrap_or(permission)
+    resource.primary(permission)
 }
 
 /// A primary's aliases, in source order.

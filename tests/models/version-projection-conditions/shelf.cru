@@ -1,0 +1,34 @@
+/// Shelves, painted by permission.
+service Shelves {
+    version "v2"
+    protocol json
+    auth bearer
+    resources [Shelf]
+    errors [ValidationException]
+}
+
+string ShelfId
+
+/// A shelf.
+resource Shelf {
+    id shelfId: ShelfId
+
+    /// Paint it.
+    permission paint = "shelf:paint"
+}
+
+/// Paints a shelf; painting it red needs the permission.
+operation PaintShelf on Shelf {
+    http POST "/shelves/{shelfId}/paint"
+    requires paint when color == "red"
+    input {
+        $shelfId
+        color?: string
+    }
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {
+    /// The colour is spelled `color`.
+    rename PaintShelf.input.colour -> color
+}

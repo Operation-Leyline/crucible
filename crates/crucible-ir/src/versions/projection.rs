@@ -17,8 +17,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::ir::permissions::Binding as PermissionBinding;
 use crate::ir::{
-    ApiVersion, Bindings, ErrorInfo, Hook, Mode, Operation, Paginated, Permission, Requirements,
+    ApiVersion, Bindings, ErrorInfo, Hook, Mode, Operation, Paginated, Requirements,
     ResourceMemberBindings, ResourcePermissions, Segment, Service, Shape, Uri, Value, VersionStep,
 };
 use crate::{Diagnostics, ShapeId};
@@ -101,12 +102,16 @@ pub fn undo(
     errors: &mut Diagnostics,
     warnings: &mut Diagnostics,
 ) -> Service {
-    let mut out = newer.clone();
-    out.versions = Vec::new();
+    let frozen: &Service = &version.service;
     let mut undo = Undo {
-        frozen: &version.service,
+        frozen,
+        frozen_operations: frozen
+            .operations
+            .iter()
+            .map(|op| (op.id.clone(), op))
+            .collect(),
         release: &version.name,
-        out,
+        out: without_versions(newer),
         restored: BTreeSet::new(),
         restored_members: BTreeSet::new(),
         changed: BTreeSet::new(),
@@ -132,7 +137,12 @@ pub fn undo(
     }
     for step in steps {
         match step {
-            VersionStep::AddEnumValue { new, value, .. } => undo.remove_value(new, value),
+            VersionStep::AddEnumValue {
+                new,
+                value,
+                downgrade,
+                ..
+            } => undo.remove_value(new, value, downgrade),
             VersionStep::AddError {
                 operation, error, ..
             } => undo.remove_error(operation, error),
@@ -200,8 +210,45 @@ fn older_name<'a>(member: &'a str, from: &'a str) -> &'a str {
     if from.is_empty() { member } else { from }
 }
 
+/// A copy of `service` without its older releases: a projection carries no
+/// versions of its own, and the current model's are not worth cloning.
+fn without_versions(service: &Service) -> Service {
+    Service {
+        internal: service.internal,
+        recursive_groups: service.recursive_groups.clone(),
+        protocol: service.protocol,
+        errors: service.errors.clone(),
+        protocol_settings: service.protocol_settings.clone(),
+        requirements: service.requirements.clone(),
+        id: service.id.clone(),
+        version: service.version.clone(),
+        title: service.title.clone(),
+        docs: service.docs.clone(),
+        notes: service.notes.clone(),
+        auth: service.auth.clone(),
+        auth_schemes: service.auth_schemes.clone(),
+        operations: service.operations.clone(),
+        resources: service.resources.clone(),
+        resource_roots: service.resource_roots.clone(),
+        resource_references: service.resource_references.clone(),
+        shapes: service.shapes.clone(),
+        traits: service.traits.clone(),
+        versions: Vec::new(),
+        api_version: service.api_version.clone(),
+        internal_traits: service.internal_traits.clone(),
+        permissions: service.permissions.clone(),
+        permission_types: service.permission_types.clone(),
+        not_found: service.not_found.clone(),
+        exceptions: service.exceptions.clone(),
+        doc_links: service.doc_links.clone(),
+        doc_link_operations: service.doc_link_operations.clone(),
+    }
+}
+
 struct Undo<'a> {
     frozen: &'a Service,
+    /// The release's operations, by id.
+    frozen_operations: BTreeMap<ShapeId, &'a Operation>,
     release: &'a str,
     /// The projection being built: a copy of the newer model, then undone.
     out: Service,
@@ -239,8 +286,7 @@ impl Undo<'_> {
     /// and output as the release has them, the errors only it used, and its
     /// requirements mapped to today's permissions.
     fn restore_operation(&mut self, id: &ShapeId) {
-        let frozen = self.frozen;
-        let Some(older) = frozen.operations.iter().find(|op| &op.id == id) else {
+        let Some(older) = self.frozen_operations.get(id).copied() else {
             self.problem(
                 id,
                 format!(
@@ -353,6 +399,14 @@ impl Undo<'_> {
                 }
             }
         }
+        for target in self.out.doc_links.values_mut() {
+            if &target.root() == from {
+                *target = match target.member() {
+                    Some(member) => to.with_member(member),
+                    None => to.clone(),
+                };
+            }
+        }
     }
 
     /// Copies the release's `id` into the projection, over what the newer
@@ -384,28 +438,68 @@ impl Undo<'_> {
         }
     }
 
-    /// `add Enum.V downgrade W`: `V` is not in the release.
-    fn remove_value(&mut self, enumeration: &ShapeId, value: &str) {
-        let removed = match self.out.shapes.get_mut(enumeration) {
+    /// `add Enum.V downgrade W`: `V` is not in the release. A default that
+    /// names `V`, on a member added since, names `W`, as the release's
+    /// clients receive it.
+    fn remove_value(&mut self, enumeration: &ShapeId, value: &str, downgrade: &str) {
+        // The wire values of `V` and `W`, as defaults hold them.
+        let wires = match self.out.shapes.get_mut(enumeration) {
             Some(Shape::Enum(e)) => {
-                let before = e.values.len();
+                let wire = |name: &str| {
+                    e.values
+                        .iter()
+                        .find(|v| v.name == name)
+                        .map(|v| Value::String(v.value.clone()))
+                };
+                let wires = (wire(value), wire(downgrade));
                 e.values.retain(|v| v.name != value);
-                before != e.values.len()
+                wires
             }
             Some(Shape::IntEnum(e)) => {
-                let before = e.values.len();
+                let wire = |name: &str| {
+                    e.values
+                        .iter()
+                        .find(|v| v.name == name)
+                        .map(|v| Value::from(v.value))
+                };
+                let wires = (wire(value), wire(downgrade));
                 e.values.retain(|v| v.name != value);
-                before != e.values.len()
+                wires
             }
-            _ => false,
+            _ => (None, None),
         };
-        if removed {
-            self.changed.insert(enumeration.clone());
-        } else {
+        let (Some(added), downgraded) = wires else {
             self.problem(
                 &enumeration.with_member(value),
                 format!(
                     "`add {}.{value}` names a value the newer model no longer has",
+                    enumeration.name()
+                ),
+            );
+            return;
+        };
+        self.changed.insert(enumeration.clone());
+        let mut stranded = false;
+        for shape in self.out.shapes.values_mut() {
+            for member in members_mut(shape) {
+                if &member.target != enumeration {
+                    continue;
+                }
+                for slot in [&mut member.default, &mut member.wire_default] {
+                    if slot.as_ref() == Some(&added) {
+                        match &downgraded {
+                            Some(wire) => *slot = Some(wire.clone()),
+                            None => stranded = true,
+                        }
+                    }
+                }
+            }
+        }
+        if stranded {
+            self.problem(
+                &enumeration.with_member(downgrade),
+                format!(
+                    "`add {}.{value} downgrade {downgrade}`: a default names `{value}`, and the newer model no longer has `{downgrade}`",
                     enumeration.name()
                 ),
             );
@@ -505,9 +599,9 @@ impl Undo<'_> {
         self.resolve(&target);
         // Where the member travels is the release's too.
         let frozen_service = self.frozen;
-        let frozen_operations = &frozen_service.operations;
+        let frozen_operations = &self.frozen_operations;
         for operation in &mut self.out.operations {
-            let older_operation = frozen_operations.iter().find(|op| op.id == operation.id);
+            let older_operation = frozen_operations.get(&operation.id).copied();
             if operation.input.as_ref() == Some(new) {
                 restore_encodings(
                     &mut operation.request,
@@ -615,6 +709,16 @@ impl Undo<'_> {
             );
             return;
         }
+        if !super::has(self.frozen, &old.with_member(from)) {
+            self.problem(
+                &old.with_member(from),
+                format!(
+                    "`rename {}.{from} -> {to}` names a member the release does not have",
+                    new.name()
+                ),
+            );
+            return;
+        }
         if matches!(
             self.out.shapes.get(new),
             Some(Shape::Enum(_) | Shape::IntEnum(_))
@@ -690,56 +794,74 @@ impl Undo<'_> {
     }
 
     /// A structure or union member renamed back: its bindings, its route
-    /// label, and the pagination, idempotency, signature and resource paths
-    /// through it.
+    /// label, and the pagination, idempotency, signature, permission and
+    /// resource paths through it. A permission binding or `when` condition
+    /// names the input as the release's clients send it, which is what the
+    /// guard compares and the reference shows; the server authorizes a
+    /// converted request by the current model's own requirements.
     fn rename_member(&mut self, old: &ShapeId, new: &ShapeId, from: &str, to: &str) {
-        // Paths are walked before the member is renamed, so each segment
-        // still resolves.
-        let shapes = &self.out.shapes;
         let frozen = self.frozen;
-        let mut paths = Vec::new();
-        for operation in &self.out.operations {
-            if let Some(p) = &operation.paginated {
-                let input = operation.input.as_ref();
-                let output = operation.output.as_ref();
-                paths.push(Paginated {
-                    input_token: renamed_path(shapes, input, &p.input_token, new, to, from),
-                    output_token: renamed_path(shapes, output, &p.output_token, new, to, from),
-                    items: p
-                        .items
-                        .as_deref()
-                        .map(|path| renamed_path(shapes, output, path, new, to, from)),
-                    page_size: p
-                        .page_size
-                        .as_deref()
-                        .map(|path| renamed_path(shapes, input, path, new, to, from)),
-                });
+        // Paths are walked before the member is renamed, so each segment
+        // still resolves; the operations and resources are taken out of the
+        // model meanwhile, so its shapes can be read as they change.
+        let mut operations = std::mem::take(&mut self.out.operations);
+        let mut resources = std::mem::take(&mut self.out.resources);
+        let shapes = &self.out.shapes;
+        let rename = |root: Option<&ShapeId>, path: &mut Vec<String>| {
+            rename_segments(shapes, root, path, new, to, from);
+        };
+        for operation in &mut operations {
+            let input = operation.input.clone();
+            let output = operation.output.clone();
+            if let Some(p) = &mut operation.paginated {
+                p.input_token = renamed_path(shapes, input.as_ref(), &p.input_token, new, to, from);
+                p.output_token =
+                    renamed_path(shapes, output.as_ref(), &p.output_token, new, to, from);
+                if let Some(items) = &mut p.items {
+                    *items = renamed_path(shapes, output.as_ref(), items, new, to, from);
+                }
+                if let Some(size) = &mut p.page_size {
+                    *size = renamed_path(shapes, input.as_ref(), size, new, to, from);
+                }
             }
-        }
-        let roots: BTreeMap<ShapeId, (Option<ShapeId>, Option<ShapeId>)> = self
-            .out
-            .operations
-            .iter()
-            .map(|op| (op.id.clone(), (op.input.clone(), op.output.clone())))
-            .collect();
-        let mut resources = self.out.resources.clone();
-        for resource in resources.values_mut() {
-            for (operation, bindings) in &mut resource.bindings {
-                let Some((input, output)) = roots.get(operation) else {
-                    continue;
-                };
-                rename_resource_paths(shapes, input.as_ref(), &mut bindings.input, new, to, from);
-                rename_resource_paths(shapes, output.as_ref(), &mut bindings.output, new, to, from);
+            if let Requirements::List(clauses) | Requirements::Partial(clauses) =
+                &mut operation.requirements
+            {
+                for clause in clauses {
+                    for binding in &mut clause.bindings {
+                        if let PermissionBinding::Member(path) = binding {
+                            rename(input.as_ref(), path);
+                        }
+                    }
+                    if let Some(when) = &mut clause.when {
+                        for path in when.paths_mut() {
+                            rename(input.as_ref(), path);
+                        }
+                    }
+                }
             }
-        }
-        self.out.resources = resources;
-        let mut paths = paths.into_iter();
-        for operation in &mut self.out.operations {
-            if operation.paginated.is_some() {
-                operation.paginated = paths.next();
+            for resource in resources.values_mut() {
+                if let Some(bindings) = resource.bindings.get_mut(&operation.id) {
+                    rename_resource_paths(
+                        shapes,
+                        input.as_ref(),
+                        &mut bindings.input,
+                        new,
+                        to,
+                        from,
+                    );
+                    rename_resource_paths(
+                        shapes,
+                        output.as_ref(),
+                        &mut bindings.output,
+                        new,
+                        to,
+                        from,
+                    );
+                }
             }
-            let older = frozen.operations.iter().find(|op| op.id == operation.id);
-            if operation.input.as_ref() == Some(new) {
+            let older = self.frozen_operations.get(&operation.id).copied();
+            if input.as_ref() == Some(new) {
                 rename_bindings(
                     &mut operation.request,
                     older.map(|op| &op.request),
@@ -756,7 +878,7 @@ impl Undo<'_> {
                     sender.signature = from.to_owned();
                 }
             }
-            if operation.output.as_ref() == Some(new) {
+            if output.as_ref() == Some(new) {
                 rename_bindings(
                     &mut operation.response,
                     older.map(|op| &op.response),
@@ -765,13 +887,15 @@ impl Undo<'_> {
                 );
             }
         }
-        let older_error = error_info(frozen, old).cloned();
+        self.out.operations = operations;
+        self.out.resources = resources;
+        let older_error = error_info(frozen, old);
         if let Some(Shape::Structure(s) | Shape::Union(s)) = self.out.shapes.get_mut(new) {
             if let Some(member) = s.members.iter_mut().find(|m| m.name == to) {
                 member.name = from.to_owned();
             }
             if let Some(error) = &mut s.error {
-                rename_error(error, older_error.as_ref(), to, from);
+                rename_error(error, older_error, to, from);
             }
         }
     }
@@ -786,7 +910,7 @@ impl Undo<'_> {
             if self.operations.contains(&operation.id) {
                 continue;
             }
-            let Some(older) = frozen.operations.iter().find(|op| op.id == operation.id) else {
+            let Some(older) = self.frozen_operations.get(&operation.id).copied() else {
                 continue;
             };
             let input = operation
@@ -822,6 +946,16 @@ impl Undo<'_> {
                 };
             }
         }
+        // The protocol's fixed headers follow from the bindings, which undo
+        // may have restored: a body the release had, or did not.
+        let protocol = self.out.protocol;
+        for operation in &mut self.out.operations {
+            operation.protocol_headers = protocol.request_headers(&operation.request);
+            let has_value =
+                protocol.response_has_value(operation.output.as_ref(), &operation.response);
+            operation.response_protocol_headers =
+                protocol.response_headers(&operation.response, has_value);
+        }
         self.resources();
         self.examples(warnings);
 
@@ -848,18 +982,24 @@ impl Undo<'_> {
             .resource_references
             .retain(|id, _| present.contains(id));
         // A restored definition's documentation links to what the release
-        // linked it to, where the newer model has no label of its own.
+        // linked it to, where the newer model has no label of its own or its
+        // label's target is gone from the projection (a definition restored
+        // under its older id).
         for (label, target) in &frozen.doc_links {
-            self.out
-                .doc_links
-                .entry(label.clone())
-                .or_insert_with(|| target.clone());
-        }
-        for (label, operation) in &frozen.doc_link_operations {
-            self.out
-                .doc_link_operations
-                .entry(label.clone())
-                .or_insert_with(|| operation.clone());
+            if self.out.doc_link(label).is_some() {
+                continue;
+            }
+            self.out.doc_links.insert(label.clone(), target.clone());
+            match frozen.doc_link_operations.get(label) {
+                Some(operation) => {
+                    self.out
+                        .doc_link_operations
+                        .insert(label.clone(), operation.clone());
+                }
+                None => {
+                    self.out.doc_link_operations.remove(label);
+                }
+            }
         }
         self.out.retain_doc_links();
         self.out
@@ -877,7 +1017,7 @@ impl Undo<'_> {
         let frozen = self.frozen;
         let mut released = BTreeSet::new();
         for operation in &mut self.out.operations {
-            if let Some(older) = frozen.operations.iter().find(|op| op.id == operation.id) {
+            if let Some(older) = self.frozen_operations.get(&operation.id) {
                 operation.auth = older.auth.clone();
                 operation.public = older.public;
                 released.extend(older.auth.iter().cloned());
@@ -949,16 +1089,12 @@ impl Undo<'_> {
                     continue;
                 };
                 if restored {
-                    if older.operations.contains(&operation.id)
-                        && !resource.operations.contains(&operation.id)
-                    {
-                        resource.operations.push(operation.id.clone());
-                    }
-                    if older.collection_operations.contains(&operation.id)
-                        && !resource.collection_operations.contains(&operation.id)
-                    {
-                        resource.collection_operations.push(operation.id.clone());
-                    }
+                    insert_in_order(&mut resource.operations, &older.operations, &operation.id);
+                    insert_in_order(
+                        &mut resource.collection_operations,
+                        &older.collection_operations,
+                        &operation.id,
+                    );
                     let mut was = older.lifecycle.clone();
                     for (slot, then) in lifecycle_mut(&mut resource.lifecycle)
                         .into_iter()
@@ -1009,12 +1145,11 @@ impl Undo<'_> {
     /// reaches, its own otherwise. One that does not hold at the release is
     /// left out, with a warning.
     fn examples(&mut self, warnings: &mut Diagnostics) {
-        let frozen = self.frozen;
         let changed = &self.changed;
         let shapes = &self.out.shapes;
         let mut examples = Vec::with_capacity(self.out.operations.len());
         for operation in &self.out.operations {
-            let older = frozen.operations.iter().find(|op| op.id == operation.id);
+            let older = self.frozen_operations.get(&operation.id);
             let reaches_change = || {
                 self.changed_operations.contains(&operation.id)
                     || reaches(shapes, operation, |id| changed.contains(id))
@@ -1083,6 +1218,23 @@ impl Undo<'_> {
                 .filter(|usage| restored(&usage.shape) && exists(&usage.shape))
                 .cloned(),
         );
+        // A greedy label belongs to an operation's route, which undo may have
+        // restored (`move`, a restored input): computed from the routes as
+        // lowering computes it.
+        let operations: BTreeSet<&ShapeId> = out.operations.iter().map(|op| &op.id).collect();
+        uses.retain(|usage| {
+            usage.feature != crate::Feature::GreedyLabels || !operations.contains(&usage.shape)
+        });
+        uses.extend(
+            out.operations
+                .iter()
+                .filter(|op| !op.uri.greedy_labels.is_empty())
+                .map(|op| crate::FeatureUse {
+                    feature: crate::Feature::GreedyLabels,
+                    shape: op.id.clone(),
+                    source: ShapeId::prelude("http"),
+                }),
+        );
         self.out.requirements = uses.into_iter().collect();
     }
 }
@@ -1090,22 +1242,15 @@ impl Undo<'_> {
 /// Every shape the operations' inputs, outputs and errors and the
 /// service's errors reach, as the audience projection computes it.
 fn reached(service: &Service) -> BTreeSet<ShapeId> {
-    let mut reached = BTreeSet::new();
-    let mut pending: Vec<ShapeId> = service
-        .operations
-        .iter()
-        .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
-        .chain(&service.errors)
-        .cloned()
-        .collect();
-    while let Some(id) = pending.pop() {
-        if let Some(shape) = service.shapes.get(&id)
-            && reached.insert(id)
-        {
-            pending.extend(shape.members().into_iter().map(|m| m.target.clone()));
-        }
-    }
-    reached
+    crate::audience::reached(
+        &service.shapes,
+        service
+            .operations
+            .iter()
+            .flat_map(|op| op.input.iter().chain(&op.output).chain(&op.errors))
+            .chain(&service.errors)
+            .cloned(),
+    )
 }
 
 /// Whether `operation` reaches a shape `hit` accepts.
@@ -1134,6 +1279,24 @@ fn reaches(
         }
     }
     false
+}
+
+/// Puts `id` into `list` where the release's `order` has it: before the
+/// first operation the release lists after it. Nothing when it is there, or
+/// the release does not list it.
+fn insert_in_order(list: &mut Vec<ShapeId>, order: &[ShapeId], id: &ShapeId) {
+    let Some(at) = order.iter().position(|other| other == id) else {
+        return;
+    };
+    if list.contains(id) {
+        return;
+    }
+    let later: BTreeSet<&ShapeId> = order[at + 1..].iter().collect();
+    let index = list
+        .iter()
+        .position(|other| later.contains(other))
+        .unwrap_or(list.len());
+    list.insert(index, id.clone());
 }
 
 fn members_mut(shape: &mut Shape) -> Vec<&mut crate::ir::Member> {
@@ -1428,7 +1591,7 @@ pub fn current_permission(
         .ok_or_else(|| format!("permissions of `{}`, which declares none", clause.resource))?;
     let permission = resource
         .permission(&clause.permission)
-        .map(|p| primary(resource, p))
+        .map(|p| resource.primary(p))
         .ok_or_else(|| format!("`{}` on `{}`", clause.permission, resource.name))?;
     let gone = || {
         format!(
@@ -1444,7 +1607,7 @@ pub fn current_permission(
         .permissions
         .iter()
         .find(|p| p.value == permission.value)
-        .map(|p| primary(now, p).symbol.clone())
+        .map(|p| now.primary(p).symbol.clone())
         .ok_or_else(gone)?;
     // A binding is positional: the old input's members bind the release's
     // identifiers in order, and the check names the current description.
@@ -1477,15 +1640,6 @@ pub fn current_permission(
         ));
     }
     Ok((id.clone(), symbol))
-}
-
-/// The primary a permission stands for: itself, or the one it aliases.
-fn primary<'a>(resource: &'a ResourcePermissions, permission: &'a Permission) -> &'a Permission {
-    permission
-        .alias_of
-        .as_deref()
-        .and_then(|symbol| resource.permission(symbol))
-        .unwrap_or(permission)
 }
 
 fn identifier_list(identifiers: &[String]) -> String {

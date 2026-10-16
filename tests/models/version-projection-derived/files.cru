@@ -1,0 +1,91 @@
+/// Files and items.
+service Files {
+    version "v2"
+    protocol json
+    operations [GetFile, PutQuery, PutBody, ReadHeader, ReadBody, GetItem, RateItem]
+}
+
+/// Reads a blob by its key.
+readonly operation GetFile {
+    http GET "/blobs/{key}"
+    input { key: string }
+    output { ok: boolean }
+}
+
+/// Stores a value, in the body now.
+idempotent operation PutQuery {
+    http PUT "/query"
+    input { b?: string }
+    output { ok: boolean }
+}
+
+/// Stores a value, in the query now.
+idempotent operation PutBody {
+    http PUT "/body"
+    input {
+        @query
+        d?: string
+    }
+    output { ok: boolean }
+}
+
+/// Answers in the body now.
+readonly operation ReadHeader {
+    http GET "/header"
+    output { count: string }
+}
+
+/// Answers in a header now.
+readonly operation ReadBody {
+    http GET "/body"
+    output {
+        @header("X-M")
+        p: string
+    }
+}
+
+/// Reads an item.
+readonly operation GetItem {
+    http GET "/items/{id}"
+    input { id: string }
+    output {
+        title: string
+        kind: Kind
+        /// How big it is, which every response carries now.
+        size: integer
+    }
+    example "Read an item" {
+        input { id: "a-1" }
+        output { title: "Anvil", kind: "SMALL", size: 3 }
+    }
+}
+
+/// How big an item is.
+enum Kind { SMALL, LARGE, HUGE }
+
+/// Rates an item, huge unless the caller says otherwise.
+idempotent operation RateItem {
+    http PUT "/items/{id}/rating"
+    input {
+        id: string
+        grade: Kind = HUGE
+    }
+    output { ok: boolean }
+}
+
+migration "v2" from "v1" {
+    /// Files are blobs, and their keys hold no slashes.
+    move GetFile from GET "/files/{key+}"
+    /// The value travels in the body.
+    reshape PutQuery.input { a } -> b by hook
+    /// The value travels in the query.
+    reshape PutBody.input { c } -> d by hook
+    /// The count travels in the body.
+    reshape ReadHeader.output { n } -> count by hook
+    /// The value travels in a header.
+    reshape ReadBody.output { m } -> p by hook
+    /// An item's name is its title.
+    rename GetItem.output.name -> title
+    /// Older clients see a huge item as large.
+    add Kind.HUGE downgrade LARGE
+}
