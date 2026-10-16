@@ -21,9 +21,11 @@ decisions 53-59 in [idl/decisions.md](idl/decisions.md) set out.
 
 Phase 4 adds the hooked steps (`by hook`, `reshape`, `retype`,
 `remove operation`'s legacy handler): typed functions the service writes
-([Hooks](#hooks)). Generated clients sending their version, per-version
-SDK lines and upgrade guides are phase 5
-([api-versions-clients.md](api-versions-clients.md)).
+([Hooks](#hooks)). Phase 5 is
+[api-versions-clients.md](api-versions-clients.md): generated clients
+send their version (built), older versions become projections of the
+current model, with an SDK line and a reference per version, and upgrade
+guides (settled in decisions 67-78).
 
 ## Versions
 
@@ -245,12 +247,16 @@ examples against the server at its version as generated tests
   added since (an operation, an optional member) is not visible at it.
   Decision 51 has additive changes reach every version; that needs each
   version's types generated from the current model as seen at it
-  (decision 57a), not from the frozen release.
+  (decision 57a), not from the frozen release. Phase 5b does that
+  ([api-versions-clients.md](api-versions-clients.md#5b-releases-as-the-current-model-sees-them))
+  and removes this entry.
 - **Auth is the release's.** An older version's operations carry the
   auth their release declared, and `AuthenticatorChain`
   prepares a plan for each version's entry, so a request is
   authenticated by its own version's schemes. A tightened requirement is a
   breaking change the guard reports, which no migration step declares.
+  After 5b this holds only for an operation a later version removed; the
+  rest carry the current model's auth (decision 72).
 - **Not converted, and reported:** a member inside a recursive shape; a
   renamed member, reshaped or retyped structure, or added enum value
   inside an error; an enum that keys a map; `add .. downgrade` on a union
